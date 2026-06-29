@@ -6,13 +6,14 @@ export type { BlockTypeDefinition }
 export const EVENT_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
     type: 'event-content',
-    name: 'Content',
+    name: 'Core',
     icon: FileText,
-    description: 'Display event details and information',
+    description: 'Event title and rich text content',
     defaultContent: {
       eventContentStyle: 'default',
       body: '',
-      format: 'html'
+      format: 'html',
+      visibility: {},
     }
   }
 ]

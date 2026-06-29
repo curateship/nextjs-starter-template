@@ -15,7 +15,7 @@ export function parseEventBlocksFromJson(contentBlocks: Record<string, any>): Ev
     .map((block) => ({
       id: block.id,
       type: block.type,
-      title: block.title || getBlockName(block.type),
+      title: getBlockName(block.type),
       content: block.content,
     }))
 }

@@ -149,7 +149,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }
 
   // Handle event information updates
-  const updateCurrentEvent = async (updates: { title?: string; featured_image?: string; is_published?: boolean }) => {
+  const updateCurrentEvent = async (updates: { title?: string; featured_image?: string | null; is_published?: boolean }) => {
     if (!currentEventData?.id) return
 
     try {
@@ -205,7 +205,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           : block
       )
 
-      // The content block edits the event row's title — save it first
+      // The Core block edits the event row's title — save it before block values.
       if (selectedBlock.type === EVENT_CONTENT_BLOCK_TYPE) {
         const nextTitle = draftEventTitle.trim() || currentEventData.title
         if (nextTitle !== currentEventData.title) {

@@ -46,7 +46,7 @@ import {
   useSelectedRichTextImageControls,
 } from "./richTextEditorCore"
 
-type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page" | "product"
+type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page" | "product" | "event"
 type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">
 
 interface InlineRichTextEditorProps {
@@ -95,9 +95,12 @@ const PROSE_EDITOR_TEXT_CLASS: Record<ProseEditorVariant, string> = {
   directory: "[&_.ProseMirror]:text-base",
   page: "[&_.ProseMirror]:text-lg",
   product: "[&_.ProseMirror]:text-lg",
+  event: "[&_.ProseMirror]:text-lg",
 }
 const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
   post: "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+  event:
+    "event-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   directory:
     "directory-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   page: "page-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",

@@ -11,9 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldDescription } from "@/components/ui/field"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import {
   Select,
@@ -23,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  FeaturedImageCard,
   putJson,
   useCreateContent,
   useTitleSlug,
@@ -43,23 +42,21 @@ export function EventSettingsModal({
   event,
   onSuccess
 }: EventSettingsModalProps) {
-  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
+  const { title, slug, slugManuallyEdited, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
   const [metaDescription, setMetaDescription] = useState("")
-  const [featuredImage, setFeaturedImage] = useState('')
-  const [showImagePicker, setShowImagePicker] = useState(false)
+  const [featuredImage, setFeaturedImage] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
   const [templates, setTemplates] = useState<EventTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const validationTitle = event?.title || title || 'Event'
 
   const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Event>({
     entityLabel: "event",
-    title,
-    titleRequiredMessage: "Event title is required",
+    title: validationTitle,
     create: (publish) => putJson(`/api/events/${event?.id}`, {
-      title,
       slug,
       meta_description: metaDescription,
       is_published: publish,
@@ -163,7 +160,7 @@ export function EventSettingsModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-          {/* Event Title */}
+          {/* Event Settings */}
           <div className="grid grid-cols-2 gap-6">
             {/* Template */}
             <div className="col-span-2">
@@ -185,17 +182,6 @@ export function EventSettingsModal({
               </p>
             </div>
 
-            <div className="col-span-2">
-              <Label htmlFor="modal-title">Event Title *</Label>
-              <Input
-                id="modal-title"
-                value={title || ''}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="Enter event title"
-                required
-              />
-            </div>
-
             {/* Event Slug */}
             <div className="col-span-2">
               <Label htmlFor="modal-slug">Event URL</Label>
@@ -213,44 +199,7 @@ export function EventSettingsModal({
             </div>
           </div>
 
-          <div>
-            <div className="mt-2">
-              {featuredImage ? (
-                <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
-                  <img
-                    src={featuredImage}
-                    alt="Featured image preview"
-                    className="w-full h-full object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setFeaturedImage('')}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-white text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm font-medium">Click to change image</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                  onClick={() => setShowImagePicker(true)}
-                >
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <FeaturedImageCard imageUrl={featuredImage} onChange={setFeaturedImage} />
 
           {/* Categories */}
           {event?.site_id && (
@@ -316,16 +265,6 @@ export function EventSettingsModal({
           </div>
         </form>
 
-        {/* Image Picker Modal */}
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(imageUrl) => {
-            setFeaturedImage(imageUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={featuredImage || ''}
-        />
       </DialogContent>
     </Dialog>
   )

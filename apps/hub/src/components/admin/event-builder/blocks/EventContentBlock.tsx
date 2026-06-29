@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Button } from "@/components/ui/button"
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Input } from "@/components/ui/input"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
@@ -9,25 +8,8 @@ import { VisibilitySettings } from "@/components/admin/layout/builder/Visibility
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { EVENT_CONTENT_STYLES } from "./event-content-styles"
-import {
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Quote,
-  Heading2,
-  Heading3,
-  Undo,
-  Redo,
-  Code,
-  ImageIcon
-} from 'lucide-react'
 
 interface EventContentBlockProps {
   content: Record<string, any>
@@ -46,152 +28,22 @@ interface EventContentBlockProps {
   onBack?: () => void
 }
 
-function EditorToolbar({
-  editor,
-  onPickImage,
-}: {
-  editor: Editor
-  onPickImage: () => void
-}) {
-  return (
-    <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
-      <Button
-        size="sm"
-        variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        disabled={!editor.can().chain().focus().toggleBold().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Bold className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        disabled={!editor.can().chain().focus().toggleItalic().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Italic className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant={editor.isActive('code') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        disabled={!editor.can().chain().focus().toggleCode().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Code className="h-4 w-4" />
-      </Button>
-
-      <div className="w-px h-8 bg-border mx-1" />
-
-      <Button
-        size="sm"
-        variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Heading2 className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Heading3 className="h-4 w-4" />
-      </Button>
-
-      <div className="w-px h-8 bg-border mx-1" />
-
-      <Button
-        size="sm"
-        variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <ListOrdered className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Quote className="h-4 w-4" />
-      </Button>
-
-      <div className="w-px h-8 bg-border mx-1" />
-
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={onPickImage}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <ImageIcon className="h-4 w-4" />
-      </Button>
-
-      <div className="w-px h-8 bg-border mx-1" />
-
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().chain().focus().undo().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Undo className="h-4 w-4" />
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => editor.chain().focus().redo().run()}
-        disabled={!editor.can().chain().focus().redo().run()}
-        className="h-8 w-8 p-0"
-        type="button"
-      >
-        <Redo className="h-4 w-4" />
-      </Button>
-    </div>
-  )
-}
-
 export function EventContentBlock({ content, onContentChange, siteId, blockId, mode = "instance", eventData, onEventTitleChange, onBack }: EventContentBlockProps) {
-  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(eventData?.title || eventData?.name || 'Untitled Event')
 
   const eventContentStyle = content.eventContentStyle || 'default'
-  const styleConfig = content.styleConfig || {}
-  const currentStyleConfig = styleConfig[eventContentStyle] || {}
+  const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
+  const currentStyleConfig = useMemo(() => styleConfig[eventContentStyle] || {}, [eventContentStyle, styleConfig])
 
   useEffect(() => {
     setLocalTitle(eventData?.title || eventData?.name || 'Untitled Event')
   }, [eventData?.title, eventData?.name])
 
   useEffect(() => {
-    if (!content.eventContentStyle) {
+    if (mode === "template" && !content.eventContentStyle) {
       onContentChange('eventContentStyle', 'default')
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [content.eventContentStyle, mode, onContentChange])
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     onContentChange('styleConfig', {
@@ -200,42 +52,6 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
     })
   }, [styleConfig, eventContentStyle, currentStyleConfig, onContentChange])
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: 'Write your event description here...',
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: 'rounded-lg max-w-full h-auto',
-        },
-      }),
-    ],
-    content: content.body || '',
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-3 py-2',
-      },
-    },
-    onUpdate: ({ editor }) => {
-      onContentChange('body', editor.getHTML())
-      if (!content.format) {
-        onContentChange('format', 'html')
-      }
-    },
-  })
-
-  useEffect(() => {
-    if (editor) {
-      const editorContent = content.body || ''
-      if (editor.getHTML() !== editorContent) {
-        editor.commands.setContent(editorContent)
-      }
-    }
-  }, [blockId, content.body, editor])
-
   const handleTitleChange = (value: string) => {
     setLocalTitle(value)
     if (onEventTitleChange) {
@@ -243,16 +59,17 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
     }
   }
 
-  const handleImageSelect = (imageUrl: string, altText?: string) => {
-    if (editor) {
-      editor.chain().focus().setImage({ src: imageUrl, alt: altText || '' }).run()
+  const handleBodyChange = useCallback((htmlContent: string) => {
+    onContentChange('body', htmlContent)
+    if (!content.format) {
+      onContentChange('format', 'html')
     }
-  }
+  }, [content.format, onContentChange])
 
   const ActivePanel = EVENT_CONTENT_STYLES[eventContentStyle]?.AdminPanel
-
-  if (!editor) {
-    return <div>Loading editor...</div>
+  const editorContent = {
+    ...content,
+    htmlContent: content.body || content.text || '',
   }
 
   // Template mode owns the layout (style picker + Styling + Settings tabs);
@@ -301,31 +118,30 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
   ) : (
     <CardGroup className="grid">
       <Card>
-        <CardHeader>
-          <DashboardModalCardTitle>Event Title</DashboardModalCardTitle>
-        </CardHeader>
         <CardContent>
           <Input
             id="event-title"
+            aria-label="Event title"
             value={localTitle}
             onChange={(e) => handleTitleChange(e.target.value)}
             placeholder="Enter event title..."
-            className="text-lg font-medium"
+            className="h-auto border-0 bg-transparent px-0 py-0 text-3xl font-semibold tracking-normal shadow-none outline-none focus-visible:ring-0 md:text-4xl"
           />
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <DashboardModalCardTitle>Content</DashboardModalCardTitle>
-        </CardHeader>
         <CardContent>
-          <div className="border rounded-md overflow-hidden">
-            <EditorToolbar editor={editor} onPickImage={() => setIsImagePickerOpen(true)} />
-            <div className="bg-background">
-              <EditorContent editor={editor} />
-            </div>
-          </div>
+          <InlineRichTextEditor
+            blockId={blockId}
+            content={editorContent}
+            onContentChange={handleBodyChange}
+            siteId={siteId}
+            isActive
+            editorPadding={0}
+            variant="event"
+            placeholder="Write your event content here..."
+          />
         </CardContent>
       </Card>
     </CardGroup>
@@ -370,19 +186,10 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
   ]
 
   return (
-    <>
-      <BlockTabs
-        onBack={onBack}
-        headerClassName="pt-0"
-        tabs={tabs}
-      />
-
-      <MediaPicker
-        open={isImagePickerOpen}
-        onOpenChange={setIsImagePickerOpen}
-        onSelectMedia={handleImageSelect}
-        showVideos={false}
-      />
-    </>
+    <BlockTabs
+      onBack={onBack}
+      headerClassName="pt-0"
+      tabs={tabs}
+    />
   )
 }
