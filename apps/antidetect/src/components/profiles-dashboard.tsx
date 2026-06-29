@@ -21,6 +21,11 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -426,8 +431,19 @@ export function ProfilesDashboard({
 
   return (
     <div className="w-full pb-8">
-      {error ? <Message tone="error">{error}</Message> : null}
-      {launchNotice ? <Message tone="info">{launchNotice}</Message> : null}
+      {error || launchNotice ? (
+        <div className="mb-6 flex flex-col gap-2">
+          {error ? <Message>{error}</Message> : null}
+          {launchNotice ? (
+            <Alert className="w-full border-warning/80 bg-warning/5 p-4 text-warning">
+              <AlertTitle className="mb-1 text-sm">Warning</AlertTitle>
+              <AlertDescription className="text-sm leading-5 text-warning/80">
+                {launchNotice}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Bulk action bar — appears once rows are selected. */}
       {selected.size > 0 ? (
@@ -1287,20 +1303,10 @@ function Field({
   )
 }
 
-function Message({
-  tone,
-  children,
-}: {
-  tone: "error" | "info"
-  children: React.ReactNode
-}) {
-  const styles =
-    tone === "error"
-      ? "border-destructive/30 bg-destructive/10 text-destructive"
-      : "border-border bg-muted/60 text-foreground"
+function Message({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`mt-4 rounded-md border px-3 py-2 text-sm ${styles}`}>
-      {children}
-    </div>
+    <Alert className="border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive">
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   )
 }
