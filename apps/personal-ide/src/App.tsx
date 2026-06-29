@@ -374,7 +374,7 @@ function App() {
 
     const port = serverPortForWorkspace(workspace)
     const terminalId = `${workspace.id}-server`
-    const command = serverStartCommand(port)
+    const command = serverStartCommand(workspace.appName, port)
     const existingServer = terminalsByWorkspace[workspace.id]?.terminals.find(
       (terminal) => terminal.id === terminalId
     )

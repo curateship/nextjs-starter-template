@@ -199,9 +199,8 @@ For web apps, Personal IDE can start a dev server in a workspace terminal and op
 The generated server command:
 
 ```bash
-app_name=$(node -p "require('./package.json').name")
 test -d ../../node_modules || (cd ../.. && npm install)
-cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="$app_name" -- --port <port>
+cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<app-name>" -- --port <port>
 ```
 
 `--host` was removed because Hub's Next dev command rejects it.

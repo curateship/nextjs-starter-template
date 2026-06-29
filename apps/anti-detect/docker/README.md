@@ -10,7 +10,7 @@ If both pass, the cloud-streaming architecture is viable and we proceed to Phase
 If not, we learn it now — for the cost of two Docker builds — not in month three.
 
 This directory is **throwaway de-risk scaffolding**, intentionally minimal. It is
-independent of the `antidetect` app.
+independent of the `anti-detect` app.
 
 ---
 
@@ -47,7 +47,7 @@ your browser ──HTTP/WebRTC──> Neko (in container) ──renders──> a
 ## Run it
 
 ```bash
-cd apps/antidetect/docker
+cd apps/anti-detect/docker
 cp .env.example .env          # then edit .env and put in your proxy
 
 # Candidate 1 (Camoufox) — first build pulls Neko + fetches the browser (~minutes)

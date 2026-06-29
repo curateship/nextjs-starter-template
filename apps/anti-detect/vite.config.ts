@@ -19,7 +19,7 @@ export default defineConfig({
     ],
   },
   server: {
-    port: localAppPorts.antidetect,
+    port: localAppPorts["anti-detect"],
     strictPort: true,
   },
 })

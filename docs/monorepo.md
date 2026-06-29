@@ -30,7 +30,7 @@ The current apps are:
 - `apps/custom-shell` - Custom Shell app
 - `apps/core` - Core app
 - `apps/ai-video` - AI Video app
-- `apps/antidetect` - Antidetect app
+- `apps/anti-detect` - Antidetect app
 - `apps/ai-agents` - AI Agents app
 - `apps/personal-ide` - desktop Personal IDE app
 
@@ -53,7 +53,7 @@ npm run dev:hub
 npm run dev:custom-shell
 npm run dev:core
 npm run dev:ai-video
-npm run dev:antidetect
+npm run dev:anti-detect
 npm run dev:ai-agents
 npm run dev:personal-ide
 ```
@@ -70,7 +70,7 @@ Local app ports live in `local-apps.json`:
   "custom-shell": 3002,
   "core": 3003,
   "ai-video": 3004,
-  "antidetect": 3005
+  "anti-detect": 3005
 }
 ```
 
