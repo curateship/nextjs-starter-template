@@ -24,10 +24,23 @@ export type DownloadedViralVideo = {
   }
 }
 
+export type DirectVideoDownload = {
+  videoUrl: string
+  metadata: DownloadedViralVideo["metadata"]
+}
+
+export type RecentUpload = {
+  sourceUrl: string
+  download?: DirectVideoDownload
+}
+
 // Kill stuck downloads; platforms sometimes stall mid-transfer.
 const DOWNLOAD_TIMEOUT_MS = 3 * 60_000
 // Matches the media pipeline's video limit — bigger files fail ingest anyway.
 const MAX_FILESIZE = "100M"
+const PROFILE_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+const INSTAGRAM_APP_ID = "936619743392459"
 
 // Container extensions yt-dlp may produce, mapped to the media pipeline's
 // allowed video MIME types (see VIDEO_TYPES in media.ts).
@@ -49,6 +62,34 @@ type YtDlpInfo = {
   like_count?: unknown
   comment_count?: unknown
   timestamp?: unknown
+}
+
+type InstagramProfileMedia = {
+  __typename?: unknown
+  shortcode?: unknown
+  is_video?: unknown
+  product_type?: unknown
+  video_url?: unknown
+  video_view_count?: unknown
+  taken_at_timestamp?: unknown
+  edge_liked_by?: { count?: unknown }
+  edge_media_preview_like?: { count?: unknown }
+  edge_media_to_comment?: { count?: unknown }
+  edge_media_to_caption?: {
+    edges?: Array<{ node?: { text?: unknown } }>
+  }
+}
+
+type InstagramProfileResponse = {
+  data?: {
+    user?: {
+      username?: unknown
+      full_name?: unknown
+      edge_owner_to_timeline_media?: {
+        edges?: Array<{ node?: InstagramProfileMedia }>
+      }
+    }
+  }
 }
 
 // Restricts source URLs to the two supported platforms — also acts as an
@@ -73,13 +114,15 @@ export function detectViralPlatform(url: string): ViralPlatform {
   throw new Error("Only TikTok and Instagram URLs are supported")
 }
 
-// Downloads the reel via yt-dlp into a temp dir and returns the file bytes
-// plus the platform metadata (engagement stats come along for free).
-// Single integration point: swap this implementation if yt-dlp breaks.
+// Downloads a reel and returns the file bytes plus platform metadata.
 export async function downloadViralVideo(
-  url: string
+  url: string,
+  directDownload?: DirectVideoDownload
 ): Promise<DownloadedViralVideo> {
   detectViralPlatform(url)
+  if (directDownload) {
+    return downloadDirectViralVideo(directDownload)
+  }
 
   const dir = await mkdtemp(path.join(tmpdir(), "viral-"))
   try {
@@ -98,15 +141,7 @@ export async function downloadViralVideo(
       url,
     ]
 
-    // TikTok wants a browser TLS fingerprint (needs yt-dlp's curl_cffi extra);
-    // fall back to a plain attempt for environments without it — it works too,
-    // just less reliably.
-    let stdout: string
-    try {
-      stdout = await runYtDlp(["--impersonate", "chrome", ...baseArgs])
-    } catch {
-      stdout = await runYtDlp(baseArgs)
-    }
+    const stdout = await runYtDlp(["--impersonate", "chrome", ...baseArgs])
 
     let info: YtDlpInfo
     try {
@@ -159,22 +194,18 @@ export async function downloadViralVideo(
   }
 }
 
-// Lists a creator's most recent uploads (URL per entry) without downloading
-// anything. Instagram profile listings often need login and may fail — the
-// watcher treats that as non-fatal.
+// Lists a creator's most recent uploads using the canonical source for each
+// platform: TikTok through yt-dlp, Instagram through public profile media JSON.
 export async function listRecentUploads(
   platform: ViralPlatform,
   handle: string,
   limit: number
-): Promise<string[]> {
-  // Instagram must be the profile root: yt-dlp's instagram:user extractor
-  // doesn't support /reels/ pages. It still needs login server-side, so IG
-  // watching stays best-effort (fails gracefully) while TikTok is reliable.
-  const profileUrl =
-    platform === "tiktok"
-      ? `https://www.tiktok.com/@${encodeURIComponent(handle)}`
-      : `https://www.instagram.com/${encodeURIComponent(handle)}/`
+): Promise<RecentUpload[]> {
+  if (platform === "instagram") {
+    return listInstagramRecentUploads(handle, limit)
+  }
 
+  const profileUrl = `https://www.tiktok.com/@${encodeURIComponent(handle)}`
   const args = [
     "--flat-playlist",
     "--playlist-end",
@@ -182,30 +213,132 @@ export async function listRecentUploads(
     "-j",
     profileUrl,
   ]
-  let stdout: string
-  try {
-    stdout = await runYtDlp(["--impersonate", "chrome", ...args])
-  } catch {
-    stdout = await runYtDlp(args)
-  }
+  const stdout = await runYtDlp(["--impersonate", "chrome", ...args])
 
   // One JSON object per line; keep only entries that resolve to a supported
   // platform URL.
-  const urls: string[] = []
+  const uploads: RecentUpload[] = []
   for (const line of stdout.split("\n")) {
     if (!line.trim()) continue
     try {
       const entry = JSON.parse(line) as { url?: unknown; webpage_url?: unknown }
       const url =
-        readString(entry.url, 2048) ?? readString(entry.webpage_url, 2048)
+        readString(entry.webpage_url, 2048) ?? readString(entry.url, 2048)
       if (!url) continue
       detectViralPlatform(url)
-      urls.push(url)
+      uploads.push({ sourceUrl: url })
     } catch {
       // Skip malformed lines / non-platform URLs.
     }
   }
-  return urls
+  return uploads
+}
+
+async function listInstagramRecentUploads(
+  handle: string,
+  limit: number
+): Promise<RecentUpload[]> {
+  const username = handle.trim().replace(/^@/, "").toLowerCase()
+  const response = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+    {
+      headers: {
+        accept: "*/*",
+        referer: `https://www.instagram.com/${encodeURIComponent(username)}/`,
+        "user-agent": PROFILE_USER_AGENT,
+        "x-ig-app-id": INSTAGRAM_APP_ID,
+      },
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Instagram profile lookup failed (${response.status})`)
+  }
+
+  const profile = (await response.json()) as InstagramProfileResponse
+  const user = profile.data?.user
+  const ownerUsername = readString(user?.username, 255) ?? username
+  const ownerName = readString(user?.full_name, 255)
+  const edges = user?.edge_owner_to_timeline_media?.edges ?? []
+
+  return edges
+    .slice(0, limit)
+    .map((edge) =>
+      instagramMediaToRecentUpload(edge.node, ownerUsername, ownerName)
+    )
+    .filter((upload): upload is RecentUpload => upload !== null)
+}
+
+function instagramMediaToRecentUpload(
+  node: InstagramProfileMedia | undefined,
+  username: string,
+  displayName: string | null
+): RecentUpload | null {
+  if (!node?.is_video) return null
+
+  const shortcode = readString(node.shortcode, 255)
+  const videoUrl = readString(node.video_url, 4096)
+  if (!shortcode || !videoUrl) return null
+
+  const caption = readString(
+    node.edge_media_to_caption?.edges?.[0]?.node?.text,
+    500
+  )
+  const postedAt =
+    typeof node.taken_at_timestamp === "number" &&
+    Number.isFinite(node.taken_at_timestamp)
+      ? new Date(node.taken_at_timestamp * 1000).toISOString()
+      : null
+
+  return {
+    sourceUrl: `https://www.instagram.com/reel/${shortcode}/`,
+    download: {
+      videoUrl,
+      metadata: {
+        title: caption,
+        author: displayName ?? username,
+        uploaderName: displayName,
+        channelName: username,
+        durationMs: null,
+        viewCount: readCount(node.video_view_count),
+        likeCount:
+          readCount(node.edge_liked_by?.count) ??
+          readCount(node.edge_media_preview_like?.count),
+        commentCount: readCount(node.edge_media_to_comment?.count),
+        postedAt,
+      },
+    },
+  }
+}
+
+async function downloadDirectViralVideo(
+  directDownload: DirectVideoDownload
+): Promise<DownloadedViralVideo> {
+  const parsed = new URL(directDownload.videoUrl)
+  if (
+    parsed.protocol !== "https:" ||
+    (!parsed.hostname.endsWith(".fbcdn.net") &&
+      !parsed.hostname.endsWith(".cdninstagram.com"))
+  ) {
+    throw new Error("Instagram video URL was not trusted")
+  }
+
+  const response = await fetch(directDownload.videoUrl, {
+    headers: { "user-agent": PROFILE_USER_AGENT },
+  })
+  if (!response.ok) {
+    throw new Error(`Instagram video download failed (${response.status})`)
+  }
+
+  const contentType =
+    response.headers.get("content-type")?.split(";")[0]?.trim() || "video/mp4"
+  const mimeType = contentType.startsWith("video/") ? contentType : "video/mp4"
+
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    mimeType,
+    metadata: directDownload.metadata,
+  }
 }
 
 function readString(value: unknown, maxLength: number) {
@@ -288,7 +421,11 @@ function runFfmpeg(args: string[]) {
       reject(new Error(error.code === "ENOENT" ? "ffmpeg not installed" : "ffmpeg failed"))
     })
     child.on("close", (code) => {
-      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))
+      if (code === 0) {
+        resolve()
+        return
+      }
+      reject(new Error(`ffmpeg exited ${code}`))
     })
   })
 }

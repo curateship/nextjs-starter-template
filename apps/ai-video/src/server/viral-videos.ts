@@ -30,6 +30,7 @@ import {
   detectViralPlatform,
   downloadViralVideo,
   extractVideoThumbnail,
+  type DirectVideoDownload,
   type ViralPlatform,
 } from "@/server/video-download"
 
@@ -189,7 +190,8 @@ export async function createViralVideoForCurrentUser(data: {
 // creator watcher, which runs on a timer without a request context.
 export async function ingestViralVideoForUser(
   userId: string,
-  url: string
+  url: string,
+  directDownload?: DirectVideoDownload
 ): Promise<ViralVideoItem> {
   const platform = detectViralPlatform(url)
   const createdAt = now()
@@ -211,7 +213,7 @@ export async function ingestViralVideoForUser(
     throw new Error("Video was not created")
   }
 
-  startProcessing(created.id, userId)
+  startProcessing(created.id, userId, directDownload)
   return serializeViralVideo(created)
 }
 
@@ -322,8 +324,12 @@ export async function deleteViralVideosForCurrentUser(
 
 // Fire-and-forget kickoff; processViralVideo records failures on the row, so
 // this catch only guards against the status write itself failing.
-function startProcessing(videoId: string, userId: string) {
-  void processViralVideo(videoId, userId).catch((error) => {
+function startProcessing(
+  videoId: string,
+  userId: string,
+  directDownload?: DirectVideoDownload
+) {
+  void processViralVideo(videoId, userId, directDownload).catch((error) => {
     console.error("Viral video processing failed", videoId, error)
   })
 }
@@ -349,7 +355,11 @@ async function updateViralRow(
 // dashboard's polling shows downloading → analyzing → ready (or error).
 // Retries with footage already ingested skip straight to analysis instead of
 // re-downloading (and duplicating the media row).
-async function processViralVideo(videoId: string, userId: string) {
+async function processViralVideo(
+  videoId: string,
+  userId: string,
+  directDownload?: DirectVideoDownload
+) {
   try {
     const row = await getOwnedViralVideo(userId, videoId)
 
@@ -375,7 +385,7 @@ async function processViralVideo(videoId: string, userId: string) {
       }
     }
 
-    const downloaded = await downloadViralVideo(row.sourceUrl)
+    const downloaded = await downloadViralVideo(row.sourceUrl, directDownload)
 
     // Ingest exactly like an upload: validate, sniff content, store on R2.
     validateMediaFile(downloaded.mimeType, downloaded.bytes.byteLength)
