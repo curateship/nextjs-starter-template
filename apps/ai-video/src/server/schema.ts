@@ -335,6 +335,62 @@ export const aiVideoFirstFrames = pgTable(
   ]
 )
 
+export const aiVideoGenerations = pgTable(
+  "ai_video_generations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoProjects.id, { onDelete: "cascade" }),
+    firstFrameId: varchar("first_frame_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoFirstFrames.id, { onDelete: "cascade" }),
+    firstFrameMediaId: varchar("first_frame_media_id", {
+      length: 36,
+    }).references(() => aiVideoMedia.id, { onDelete: "set null" }),
+    prompt: text("prompt").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    aspectRatio: varchar("aspect_ratio", { length: 10 }).notNull(),
+    durationSeconds: integer("duration_seconds").notNull(),
+    resolution: varchar("resolution", { length: 20 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    operationName: text("operation_name"),
+    requestedPlayheadMs: integer("requested_playhead_ms").notNull(),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => aiVideoMedia.id,
+      { onDelete: "set null" }
+    ),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_video_generations_status_check",
+      sql`${table.status} in ('queued', 'processing', 'ready', 'error')`
+    ),
+    check(
+      "ai_video_generations_aspect_ratio_check",
+      sql`${table.aspectRatio} in ('9:16', '16:9')`
+    ),
+    check(
+      "ai_video_generations_duration_check",
+      sql`${table.durationSeconds} in (4, 6, 8)`
+    ),
+    index("ix_ai_video_generations_user_id").on(table.userId),
+    index("ix_ai_video_generations_project_id").on(table.projectId),
+    index("ix_ai_video_generations_first_frame_id").on(table.firstFrameId),
+    index("ix_ai_video_generations_media_id").on(table.mediaId),
+    index("ix_ai_video_generations_project_updated").on(
+      table.projectId,
+      table.updatedAt
+    ),
+  ]
+)
+
 export const aiVideoProjects = pgTable(
   "video_projects",
   {
@@ -536,6 +592,7 @@ export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
+export type AiVideoGeneration = typeof aiVideoGenerations.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
 export type AiVideoCarousel = typeof aiVideoCarousels.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect

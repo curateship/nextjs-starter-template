@@ -378,6 +378,47 @@ export async function saveGeneratedImageToLibrary(
   return row
 }
 
+export async function saveGeneratedVideoToProjectMedia(
+  userId: string,
+  projectId: string,
+  bytes: Uint8Array,
+  displayName: string
+): Promise<AiVideoMedia> {
+  const mimeType = "video/mp4"
+  validateMediaFile(mimeType, bytes.byteLength)
+  const fileData = prepareMediaContent(mimeType, bytes)
+  const originalName = cleanOriginalName(displayName)
+  const filename = storedFilename(originalName, mimeType)
+  const storagePath = `projects/${userId}/${projectId}/${filename}`
+  await uploadToR2(storagePath, fileData, mimeType)
+
+  const createdAt = now()
+  const row = {
+    id: uuid(),
+    userId,
+    filename,
+    originalName,
+    altText: null,
+    fileSize: fileData.byteLength,
+    mimeType,
+    fileType: "video" as const,
+    storagePath,
+    projectId,
+    source: "generated" as const,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  try {
+    await db.insert(aiVideoMedia).values(row)
+  } catch (error) {
+    await deleteFromR2(storagePath).catch(() => undefined)
+    throw error
+  }
+
+  return row
+}
+
 export function serializeMedia(row: AiVideoMedia): MediaItem {
   return {
     id: row.id,

@@ -27,6 +27,7 @@ export type EditorClip = {
   // this clip begins (changes when trimming the left edge or splitting).
   mediaId?: string
   url?: string
+  muted?: boolean
   soundEffectId?: SoundEffectId
   sourceDurationMs?: number
   trimStartMs: number

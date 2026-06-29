@@ -188,7 +188,7 @@ export function EditorPreview() {
       const t = clock.getTime()
       let audioTime: number | null = null
       for (const { clip, track } of audioClips) {
-        if (track.muted || !isActive(clip, t)) continue
+        if (track.muted || clip.muted || !isActive(clip, t)) continue
         const el = audioRefs.current.get(clip.id)
         if (el && !el.paused && !el.ended && !el.seeking && el.readyState >= 2) {
           const timelineTime =
@@ -243,7 +243,7 @@ export function EditorPreview() {
         if (entry) {
           el.style.opacity = "1"
           el.style.zIndex = String(entry.zIndex)
-          el.muted = entry.track.muted
+          el.muted = entry.track.muted || !!entry.clip.muted
           const targetS =
             (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
           if (playing) {
@@ -275,7 +275,7 @@ export function EditorPreview() {
       for (const { clip, track } of audioClips) {
         const el = audioRefs.current.get(clip.id)
         if (!el) continue
-        el.muted = track.muted
+        el.muted = track.muted || !!clip.muted
         const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
         if (isActive(clip, timeMs)) {
           if (playing) {

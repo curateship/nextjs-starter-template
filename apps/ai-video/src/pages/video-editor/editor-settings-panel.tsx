@@ -10,6 +10,7 @@ import {
   PenLineIcon,
   PlayIcon,
   ShapesIcon,
+  SparklesIcon,
   Trash2Icon,
   TypeIcon,
   VideoIcon,
@@ -20,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/color-picker"
+import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -29,6 +31,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  getFirstFrameErrorMessage,
+  listFirstFrames,
+  type FirstFrameAspectRatio,
+  type FirstFrameItem,
+} from "@/lib/api/first-frames"
+import {
+  getActorErrorMessage,
+  listActors,
+  type ActorItem,
+} from "@/lib/api/actors"
+import {
+  createAiVideoGeneration,
+  getAiVideoGeneration,
+  getAiVideoGenerationErrorMessage,
+  getLatestAiVideoGeneration,
+  type AiVideoDurationSeconds,
+  type AiVideoGenerationItem,
+} from "@/lib/api/ai-video-generations"
 import {
   generateProjectCaptions,
   getCaptionErrorMessage,
@@ -72,6 +93,7 @@ import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
   formatTimecode,
+  loadMediaDurationMs,
 } from "@/pages/video-editor/timeline-utils"
 import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
 
@@ -285,7 +307,7 @@ const DEFAULT_TEXT_DRAFT: {
 const ELEMENT_TILES: {
   label: string
   icon: LucideIcon
-  action?: "text" | "captions" | "script" | "voice" | "sound-effect"
+  action?: "text" | "captions" | "script" | "voice" | "sound-effect" | "ai-video"
 }[] = [
   { label: "Text", icon: TypeIcon, action: "text" },
   { label: "Sound Effect", icon: Volume2Icon, action: "sound-effect" },
@@ -294,6 +316,7 @@ const ELEMENT_TILES: {
   { label: "Audio", icon: MusicIcon },
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
+  { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
   { label: "AI Script", icon: PenLineIcon, action: "script" },
   { label: "Shapes", icon: ShapesIcon },
 ]
@@ -306,6 +329,7 @@ export function ElementsPanel() {
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
   const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
+  const [aiVideoOpen, setAiVideoOpen] = React.useState(false)
 
   // Maps a tile's action to its dialog opener.
   const actions = {
@@ -314,6 +338,7 @@ export function ElementsPanel() {
     voice: () => setVoiceOpen(true),
     script: () => setScriptOpen(true),
     "sound-effect": () => setSoundEffectOpen(true),
+    "ai-video": () => setAiVideoOpen(true),
   }
 
   // Captions and AI Script are project-only (they call project-scoped server
@@ -322,7 +347,10 @@ export function ElementsPanel() {
   const tiles =
     kind === "template"
       ? ELEMENT_TILES.filter(
-          (tile) => tile.action !== "captions" && tile.action !== "script"
+          (tile) =>
+            tile.action !== "captions" &&
+            tile.action !== "script" &&
+            tile.action !== "ai-video"
         )
       : ELEMENT_TILES
 
@@ -358,6 +386,7 @@ export function ElementsPanel() {
         open={soundEffectOpen}
         onOpenChange={setSoundEffectOpen}
       />
+      <AiVideoDialog open={aiVideoOpen} onOpenChange={setAiVideoOpen} />
     </div>
   )
 }
@@ -540,6 +569,608 @@ function SoundEffectDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+type AiVideoStep = "frame" | "motion" | "review"
+
+const AI_VIDEO_DURATIONS: AiVideoDurationSeconds[] = [4, 6, 8]
+const AI_VIDEO_ASPECTS: FirstFrameAspectRatio[] = ["9:16", "16:9"]
+
+function AiVideoDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { state, dispatch, clock, documentId } = useEditor()
+  const projectAspect = getAiVideoProjectAspect(state.aspect)
+  const [step, setStep] = React.useState<AiVideoStep>("frame")
+  const [firstFrames, setFirstFrames] = React.useState<FirstFrameItem[]>([])
+  const [actors, setActors] = React.useState<ActorItem[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [selectedFrameId, setSelectedFrameId] = React.useState("")
+  const [search, setSearch] = React.useState("")
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [motionPrompt, setMotionPrompt] = React.useState("")
+  const [durationSeconds, setDurationSeconds] =
+    React.useState<AiVideoDurationSeconds>(4)
+  const [generation, setGeneration] =
+    React.useState<AiVideoGenerationItem | null>(null)
+  const [generationError, setGenerationError] = React.useState<string | null>(
+    null
+  )
+  const [startingGeneration, setStartingGeneration] = React.useState(false)
+  const [inserting, setInserting] = React.useState(false)
+  const ignoreCreateDialogCloseRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!open) return
+    let active = true
+
+    Promise.resolve()
+      .then(() => {
+        if (!active) return null
+        setLoading(true)
+        setLoadError(null)
+        return Promise.all([
+          listFirstFrames(),
+          listActors(),
+          getLatestAiVideoGeneration(documentId),
+        ])
+      })
+      .then((result) => {
+        if (!result) return
+        const [frameData, actorData, latest] = result
+        if (!active) return
+        setFirstFrames(frameData.firstFrames)
+        setActors(actorData.actors)
+        setGeneration(latest)
+        if (isAiVideoReviewStepGeneration(latest)) {
+          setStep("review")
+        }
+        setSelectedFrameId((current) =>
+          current || defaultFirstFrameId(frameData.firstFrames, projectAspect)
+        )
+      })
+      .catch((error) => {
+        if (!active) return
+        setLoadError(
+          getFirstFrameErrorMessage(error) ||
+            getActorErrorMessage(error) ||
+            getAiVideoGenerationErrorMessage(error)
+        )
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [documentId, open, projectAspect])
+
+  React.useEffect(() => {
+    if (!open || !isAiVideoActiveGeneration(generation)) return
+    const timer = window.setInterval(() => {
+      getAiVideoGeneration(generation.id)
+        .then(setGeneration)
+        .catch((error) =>
+          setGenerationError(getAiVideoGenerationErrorMessage(error))
+        )
+    }, 4_000)
+    return () => window.clearInterval(timer)
+  }, [generation, open])
+
+  const actorOptions = React.useMemo(
+    () => actors.slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [actors]
+  )
+  const createInitialValues = React.useMemo(
+    () => ({
+      aspectRatio: projectAspect,
+      referenceSource: "actor" as const,
+    }),
+    [projectAspect]
+  )
+  const selectedFrame =
+    firstFrames.find((frame) => frame.id === selectedFrameId) ?? null
+  const visibleFrames = React.useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return firstFrames
+      .filter((frame) => {
+        if (!query) return true
+        return `${frame.name} ${frame.actor.name} ${frame.tags.join(" ")}`
+          .toLowerCase()
+          .includes(query)
+      })
+      .sort((a, b) => {
+        const aSupported = isAiVideoFirstFrameSupported(a)
+        const bSupported = isAiVideoFirstFrameSupported(b)
+        if (aSupported !== bSupported) return aSupported ? -1 : 1
+        const aMatch = a.aspect_ratio === projectAspect
+        const bMatch = b.aspect_ratio === projectAspect
+        if (aMatch !== bMatch) return aMatch ? -1 : 1
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+  }, [firstFrames, projectAspect, search])
+
+  function handleOpenChange(next: boolean) {
+    if (!next && (createOpen || ignoreCreateDialogCloseRef.current)) return
+    if (!next) resetAiVideoDialog()
+    onOpenChange(next)
+  }
+
+  function handleCreateOpenChange(next: boolean) {
+    if (!next) {
+      ignoreCreateDialogCloseRef.current = true
+      window.setTimeout(() => {
+        ignoreCreateDialogCloseRef.current = false
+      }, 300)
+    }
+    setCreateOpen(next)
+  }
+
+  function resetAiVideoDialog() {
+    setStep("frame")
+    setSearch("")
+    setCreateOpen(false)
+    setMotionPrompt("")
+    setDurationSeconds(4)
+    setGeneration(null)
+    setGenerationError(null)
+    setStartingGeneration(false)
+    setInserting(false)
+  }
+
+  async function handleGenerateVideo() {
+    if (!selectedFrame) return
+    setStartingGeneration(true)
+    setGenerationError(null)
+    try {
+      const created = await createAiVideoGeneration({
+        projectId: documentId,
+        firstFrameId: selectedFrame.id,
+        prompt: motionPrompt,
+        durationSeconds,
+        requestedPlayheadMs: clock.getTime(),
+      })
+      setGeneration(created)
+      setStep("review")
+    } catch (error) {
+      setGenerationError(getAiVideoGenerationErrorMessage(error))
+    } finally {
+      setStartingGeneration(false)
+    }
+  }
+
+  async function handleInsertGeneratedVideo() {
+    if (!generation?.media) return
+    setInserting(true)
+    setGenerationError(null)
+    try {
+      const durationMs = await loadMediaDurationMs(generation.media.url, "video")
+      dispatch({
+        type: "ADD_CLIP",
+        clip: {
+          id: editorId(),
+          kind: "video",
+          name: generation.media.original_name,
+          mediaId: generation.media.id,
+          url: generation.media.url,
+          muted: true,
+          sourceDurationMs: durationMs,
+          trimStartMs: 0,
+          startMs: 0,
+          durationMs,
+        },
+        atMs: generation.requested_playhead_ms,
+      })
+      handleOpenChange(false)
+    } catch (error) {
+      setGenerationError(getAiVideoGenerationErrorMessage(error))
+    } finally {
+      setInserting(false)
+    }
+  }
+
+  function startOver() {
+    setStep("frame")
+    setGeneration(null)
+    setGenerationError(null)
+    setMotionPrompt("")
+  }
+
+  function handleFirstFrameCreated(created: FirstFrameItem) {
+    setFirstFrames((current) => [created, ...current])
+    setSelectedFrameId(created.id)
+  }
+
+  const canContinue =
+    selectedFrame && isAiVideoFirstFrameSupported(selectedFrame)
+  const canGenerate = canContinue && motionPrompt.trim() && !startingGeneration
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>AI Video</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {(["frame", "motion", "review"] as AiVideoStep[]).map(
+                (item, index) => (
+                  <div
+                    key={item}
+                    className={cn(
+                      "rounded-md border px-2 py-1.5 text-center font-medium capitalize",
+                      step === item
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground"
+                    )}
+                  >
+                    {index + 1}. {item}
+                  </div>
+                )
+              )}
+            </div>
+
+            {loadError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {loadError}
+              </p>
+            ) : null}
+
+            {step === "frame" ? (
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="ai-video-frame-search">First Frame</Label>
+                  <Input
+                    id="ai-video-frame-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search first frames..."
+                  />
+                </div>
+
+                <div className="overflow-x-auto rounded-md border p-6">
+                  {loading ? (
+                    <div className="grid h-32 place-items-center sm:h-40 lg:h-[180px]">
+                      <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : visibleFrames.length ? (
+                    <div className="flex min-w-max items-center gap-8">
+                      {visibleFrames.map((frame) => {
+                        const supported = isAiVideoFirstFrameSupported(frame)
+                        const mismatch =
+                          supported && frame.aspect_ratio !== projectAspect
+                        return (
+                          <button
+                            key={frame.id}
+                            type="button"
+                            disabled={!supported}
+                            onClick={() => setSelectedFrameId(frame.id)}
+                            className={cn(
+                              "group relative h-32 shrink-0 overflow-hidden rounded-sm border bg-background text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-40 lg:h-[180px]",
+                              aiVideoFrameAspectClass(frame.aspect_ratio),
+                              selectedFrameId === frame.id &&
+                                "border-2 border-green-500 ring-2 ring-green-500/25"
+                            )}
+                          >
+                            {frame.image_url ? (
+                              <img
+                                src={frame.image_url}
+                                alt={frame.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center bg-muted">
+                                <ImageIcon className="size-6 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                              <div className="truncate text-xs font-medium text-white">
+                                {frame.name}
+                              </div>
+                            </div>
+                            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+                              <Badge variant="secondary">{frame.aspect_ratio}</Badge>
+                              {mismatch ? (
+                                <Badge variant="outline" className="bg-background/90">
+                                  Mismatch
+                                </Badge>
+                              ) : null}
+                              {!supported ? (
+                                <Badge variant="outline" className="bg-background/90">
+                                  Unsupported
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="grid h-40 place-items-center text-center text-sm text-muted-foreground">
+                      <div>
+                        <ImageIcon className="mx-auto mb-2 size-8" />
+                        <p>No first frames found.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-md border bg-background p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-medium">Create First Frame</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Save a new First Frame asset, then use it here.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCreateOpen(true)}
+                    >
+                      Create
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === "motion" ? (
+              <div className="space-y-4">
+                {selectedFrame ? (
+                  <div className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                    <div className="flex h-40 items-center justify-center rounded-md bg-muted p-2 sm:h-36">
+                      <div
+                        className={cn(
+                          "h-full max-w-full overflow-hidden rounded-sm bg-muted",
+                          aiVideoFrameAspectClass(selectedFrame.aspect_ratio)
+                        )}
+                      >
+                        {selectedFrame.image_url ? (
+                          <img
+                            src={selectedFrame.image_url}
+                            alt={selectedFrame.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center">
+                            <ImageIcon className="size-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-medium">
+                        {selectedFrame.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedFrame.actor.name} · {selectedFrame.aspect_ratio}
+                      </p>
+                      {selectedFrame.aspect_ratio !== projectAspect ? (
+                        <p className="mt-2 text-xs text-amber-700">
+                          This frame does not match the project aspect.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="grid gap-2">
+                  <Label htmlFor="ai-video-motion">Motion Prompt</Label>
+                  <Textarea
+                    id="ai-video-motion"
+                    rows={5}
+                    value={motionPrompt}
+                    onChange={(event) => setMotionPrompt(event.target.value)}
+                    placeholder="Describe camera movement, subject motion, lighting changes, and mood."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Duration</Label>
+                  <Select
+                    value={String(durationSeconds)}
+                    onValueChange={(value) =>
+                      setDurationSeconds(Number(value) as AiVideoDurationSeconds)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AI_VIDEO_DURATIONS.map((duration) => (
+                        <SelectItem key={duration} value={String(duration)}>
+                          {duration}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {generationError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {generationError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {step === "review" ? (
+              <div className="space-y-4">
+                {generation?.status === "ready" && generation.media ? (
+                  <>
+                    <video
+                      src={generation.media.url}
+                      controls
+                      muted
+                      className="max-h-[420px] w-full rounded-md border bg-black"
+                    />
+                    <div className="text-sm">
+                      <p className="font-medium">{generation.media.original_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {generation.duration_seconds}s · {generation.aspect_ratio} · muted on insert
+                      </p>
+                    </div>
+                  </>
+                ) : generation?.status === "error" ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {generation.error_message ?? "AI video generation failed"}
+                  </p>
+                ) : (
+                  <div className="grid h-52 place-items-center rounded-md border bg-background text-center">
+                    <div>
+                      <Loader2Icon className="mx-auto mb-3 size-8 animate-spin text-muted-foreground" />
+                      <p className="text-sm font-medium">Generating video</p>
+                      <p className="text-xs text-muted-foreground">
+                        This can take a few minutes.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {generationError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {generationError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          {step === "frame" ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={!canContinue}
+                onClick={() => setStep("motion")}
+              >
+                Continue
+              </Button>
+            </>
+          ) : step === "motion" ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={startingGeneration}
+                onClick={() => setStep("frame")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                disabled={!canGenerate}
+                onClick={handleGenerateVideo}
+              >
+                {startingGeneration ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <VideoIcon className="size-4" />
+                )}
+                {startingGeneration ? "Starting" : "Generate"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+              >
+                Done
+              </Button>
+              <Button type="button" variant="outline" onClick={startOver}>
+                Start Over
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  inserting ||
+                  generation?.status !== "ready" ||
+                  !generation.media
+                }
+                onClick={handleInsertGeneratedVideo}
+              >
+                {inserting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <VideoIcon className="size-4" />
+                )}
+                {inserting ? "Inserting" : "Insert Clip"}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+      </Dialog>
+      <FirstFrameCreateDialog
+        open={createOpen}
+        onOpenChange={handleCreateOpenChange}
+        actors={actorOptions}
+        initialValues={createInitialValues}
+        defaultAspectRatio={projectAspect}
+        allowedAspectRatios={AI_VIDEO_ASPECTS}
+        onCreated={handleFirstFrameCreated}
+      />
+    </>
+  )
+}
+
+function getAiVideoProjectAspect(aspect: string): "9:16" | "16:9" {
+  return aspect === "16:9" ? "16:9" : "9:16"
+}
+
+function isAiVideoFirstFrameSupported(frame: FirstFrameItem) {
+  return (
+    !!frame.generated_media_id &&
+    !!frame.image_url &&
+    (frame.aspect_ratio === "9:16" || frame.aspect_ratio === "16:9")
+  )
+}
+
+function isAiVideoActiveGeneration(generation: AiVideoGenerationItem | null) {
+  return generation?.status === "queued" || generation?.status === "processing"
+}
+
+function isAiVideoReviewStepGeneration(
+  generation: AiVideoGenerationItem | null
+) {
+  return isAiVideoActiveGeneration(generation) || generation?.status === "ready"
+}
+
+function aiVideoFrameAspectClass(aspectRatio: FirstFrameAspectRatio) {
+  if (aspectRatio === "16:9") return "aspect-video"
+  if (aspectRatio === "1:1") return "aspect-square"
+  return "aspect-[9/16]"
+}
+
+function defaultFirstFrameId(
+  frames: FirstFrameItem[],
+  projectAspect: "9:16" | "16:9"
+) {
+  return (
+    frames.find(
+      (frame) =>
+        isAiVideoFirstFrameSupported(frame) &&
+        frame.aspect_ratio === projectAspect
+    )?.id ??
+    frames.find((frame) => isAiVideoFirstFrameSupported(frame))?.id ??
+    ""
   )
 }
 

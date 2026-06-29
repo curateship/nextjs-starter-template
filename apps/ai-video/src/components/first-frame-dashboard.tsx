@@ -4,13 +4,11 @@ import {
   CopyIcon,
   GridIcon,
   ImageIcon,
-  ImagePlusIcon,
   ListIcon,
   Loader2Icon,
   PinIcon,
   PlusIcon,
   RefreshCwIcon,
-  SparklesIcon,
   StarIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -20,6 +18,10 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
+  FirstFrameCreateDialog,
+  type FirstFrameCreateDialogInitialValues,
+} from "@/components/first-frame-create-dialog"
+import {
   DashboardToolbarButton,
   dashboardToolbarButtonActiveClassName,
   dashboardToolbarButtonGroupClassName,
@@ -27,7 +29,6 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
-import { MediaPicker } from "@/components/media-picker"
 import {
   Dialog,
   DialogBody,
@@ -57,7 +58,6 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   ACTOR_MODELS,
   bulkDeleteFirstFrames,
-  createFirstFrame,
   DEFAULT_ACTOR_MODEL,
   deleteFirstFrame,
   FIRST_FRAME_ASPECT_RATIOS,
@@ -76,7 +76,6 @@ import {
   listActors,
   type ActorItem,
 } from "@/lib/api/actors"
-import type { MediaItem } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
@@ -84,11 +83,11 @@ import { useSelection } from "@/lib/use-selection"
 
 type ViewMode = "gallery" | "list"
 type FirstFrameSortColumn = "name" | "actor" | "aspect" | "created"
-type FirstFrameSubmitAction = "generate" | "save" | "regenerate"
-type FirstFrameModalState =
-  | { type: "create" }
-  | { type: "edit"; item: FirstFrameItem }
-  | null
+type FirstFrameSubmitAction = "save" | "regenerate"
+type FirstFrameModalState = { type: "edit"; item: FirstFrameItem } | null
+type FirstFrameCreateState = {
+  initialValues?: FirstFrameCreateDialogInitialValues
+} | null
 type FilterValue = "all"
 
 const referenceSourceLabels: Record<FirstFrameReferenceSource, string> = {
@@ -123,12 +122,11 @@ export function FirstFrameDashboard() {
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [modalState, setModalState] =
     React.useState<FirstFrameModalState>(null)
+  const [createDialogState, setCreateDialogState] =
+    React.useState<FirstFrameCreateState>(null)
   const [previewFrameId, setPreviewFrameId] = React.useState<string | null>(
     null
   )
-  const [pickerOpen, setPickerOpen] = React.useState(false)
-  const [actorPickerOpen, setActorPickerOpen] = React.useState(false)
-  const [actorPickerQuery, setActorPickerQuery] = React.useState("")
   const [submitAction, setSubmitAction] =
     React.useState<FirstFrameSubmitAction | null>(null)
   const [pinningId, setPinningId] = React.useState<string | null>(null)
@@ -144,9 +142,6 @@ export function FirstFrameDashboard() {
   const [referenceMediaId, setReferenceMediaId] = React.useState<string | null>(
     null
   )
-  const [referenceMediaUrl, setReferenceMediaUrl] = React.useState<
-    string | null
-  >(null)
   const ignoreModalCloseRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -184,14 +179,6 @@ export function FirstFrameDashboard() {
     () => actors.slice().sort((a, b) => a.name.localeCompare(b.name)),
     [actors]
   )
-
-  const actorPickerOptions = React.useMemo(() => {
-    const query = actorPickerQuery.trim().toLowerCase()
-    if (!query) return actorOptions
-    return actorOptions.filter((actor) =>
-      actor.name.toLowerCase().includes(query)
-    )
-  }, [actorOptions, actorPickerQuery])
 
   const filteredFirstFrames = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -275,17 +262,12 @@ export function FirstFrameDashboard() {
   })
 
   function openCreateModal() {
-    setModalState({ type: "create" })
-    setName("")
-    setActorId("")
-    setPrompt("")
-    setTags("")
-    setModel(DEFAULT_ACTOR_MODEL)
-    setAspectRatio("9:16")
-    setReferenceSource("actor")
-    clearReferenceMedia()
-    setActorPickerOpen(false)
-    setActorPickerQuery("")
+    setCreateDialogState({
+      initialValues: {
+        aspectRatio: "9:16",
+        referenceSource: "actor",
+      },
+    })
     setModalError(null)
     setNotice(null)
     setError(null)
@@ -301,27 +283,25 @@ export function FirstFrameDashboard() {
     setAspectRatio(item.aspect_ratio)
     setReferenceSource(item.reference_source)
     setReferenceMediaId(item.reference_media_id)
-    setReferenceMediaUrl(item.reference_media_url)
-    setActorPickerOpen(false)
-    setActorPickerQuery("")
     setModalError(null)
     setNotice(null)
     setError(null)
   }
 
   function openRemixModal(item: FirstFrameItem) {
-    setModalState({ type: "create" })
-    setName(`${item.name} Remix`.slice(0, 255))
-    setActorId(item.actor.id)
-    setPrompt(item.prompt)
-    setTags(item.tags.join(", "))
-    setModel(item.model)
-    setAspectRatio(item.aspect_ratio)
-    setReferenceSource(item.generated_media_id ? "media" : "actor")
-    setReferenceMediaId(item.generated_media_id)
-    setReferenceMediaUrl(item.image_url)
-    setActorPickerOpen(false)
-    setActorPickerQuery("")
+    setCreateDialogState({
+      initialValues: {
+        name: `${item.name} Remix`.slice(0, 255),
+        actorId: item.actor.id,
+        prompt: item.prompt,
+        tags: item.tags,
+        model: item.model,
+        aspectRatio: item.aspect_ratio,
+        referenceSource: item.generated_media_id ? "media" : "actor",
+        referenceMediaId: item.generated_media_id,
+        referenceMediaUrl: item.image_url,
+      },
+    })
     setModalError(null)
     setNotice(null)
     setError(null)
@@ -330,9 +310,6 @@ export function FirstFrameDashboard() {
   function closeModal() {
     ignoreModalCloseRef.current = false
     setModalState(null)
-    setPickerOpen(false)
-    setActorPickerOpen(false)
-    setActorPickerQuery("")
     setSubmitAction(null)
     setModalError(null)
   }
@@ -344,34 +321,9 @@ export function FirstFrameDashboard() {
     }, 300)
   }
 
-  function closeActorPicker() {
-    ignoreNextModalClose()
-    setActorPickerOpen(false)
-    setActorPickerQuery("")
-  }
-
   function handleModalSelectOpenChange(open: boolean) {
     if (open) return
     ignoreNextModalClose()
-  }
-
-  function clearReferenceMedia() {
-    setReferenceMediaId(null)
-    setReferenceMediaUrl(null)
-  }
-
-  function handleReferenceSelect(
-    mediaUrl: string,
-    _altText?: string,
-    media?: MediaItem
-  ) {
-    if (!mediaUrl || !media) {
-      clearReferenceMedia()
-      return
-    }
-    setReferenceSource("media")
-    setReferenceMediaId(media.id)
-    setReferenceMediaUrl(media.url)
   }
 
   function getFirstFramePayload() {
@@ -388,23 +340,17 @@ export function FirstFrameDashboard() {
   }
 
   async function handleSubmitFirstFrame() {
-    const action = modalState?.type === "edit" ? "save" : "generate"
-    setSubmitAction(action)
+    if (!modalState) return
+    setSubmitAction("save")
     setModalError(null)
     setNotice(null)
     try {
-      if (modalState?.type === "edit") {
-        const updated = await updateFirstFrame(modalState.item.id, {
-          name,
-          tags,
-        })
-        replaceFirstFrame(updated)
-        setNotice("First frame updated.")
-      } else {
-        const created = await createFirstFrame(getFirstFramePayload())
-        setFirstFrames((current) => [created, ...current])
-        setNotice("First frame created.")
-      }
+      const updated = await updateFirstFrame(modalState.item.id, {
+        name,
+        tags,
+      })
+      replaceFirstFrame(updated)
+      setNotice("First frame updated.")
       closeModal()
     } catch (submitError) {
       setModalError(getFirstFrameErrorMessage(submitError))
@@ -459,6 +405,12 @@ export function FirstFrameDashboard() {
     )
   }
 
+  function handleFirstFrameCreated(created: FirstFrameItem) {
+    setFirstFrames((current) => [created, ...current])
+    setCreateDialogState(null)
+    setNotice("First frame created.")
+  }
+
   function toggleSort(column: FirstFrameSortColumn) {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
@@ -472,17 +424,12 @@ export function FirstFrameDashboard() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
   }
 
-  const selectedActor = actors.find((actor) => actor.id === actorId) ?? null
   const previewFrame =
     firstFrames.find((item) => item.id === previewFrameId) ?? null
   const referencePreviewUrl =
-    modalState?.type === "edit"
-      ? modalState.item.reference_source === "media"
-        ? modalState.item.reference_media_url
-        : modalState.item.actor.image_url
-      : referenceSource === "media"
-        ? referenceMediaUrl
-        : selectedActor?.image_url
+    modalState?.item.reference_source === "media"
+      ? modalState.item.reference_media_url
+      : modalState?.item.actor.image_url
   const submitting = submitAction !== null
   const generationChanged =
     modalState?.type === "edit" &&
@@ -776,9 +723,7 @@ export function FirstFrameDashboard() {
       >
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>
-              {modalState?.type === "edit" ? "Edit First Frame" : "Create First Frame"}
-            </DialogTitle>
+            <DialogTitle>Edit First Frame</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <div className="space-y-5">
@@ -826,117 +771,31 @@ export function FirstFrameDashboard() {
 
               <div className="grid gap-2">
                 <Label>Reference Source</Label>
-                {modalState?.type === "edit" ? (
-                  <p className="text-sm text-muted-foreground">
-                    {referenceSourceLabels[modalState.item.reference_source]}
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant={referenceSource === "actor" ? "default" : "outline"}
-                      size="sm"
-                      aria-pressed={referenceSource === "actor"}
-                      onClick={() => {
-                        setPickerOpen(false)
-                        setReferenceSource("actor")
-                      }}
-                    >
-                      Actor image
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={referenceSource === "media" ? "default" : "outline"}
-                      size="sm"
-                      aria-pressed={referenceSource === "media"}
-                      onClick={() => setReferenceSource("media")}
-                    >
-                      Media library image
-                    </Button>
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  {modalState
+                    ? referenceSourceLabels[modalState.item.reference_source]
+                    : ""}
+                </p>
                 <div className="grid w-full max-w-52 gap-2">
-                  {modalState?.type === "edit" ? (
-                    <div className="overflow-hidden rounded-lg border-2 border-dashed text-left">
-                      {referencePreviewUrl ? (
-                        <div className="relative aspect-square">
-                          <img
-                            src={referencePreviewUrl}
-                            alt="Reference"
-                            className="h-full w-full object-cover"
-                            draggable={false}
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50">
-                          <ImageIcon className="size-8 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            Reference unavailable
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="group relative cursor-pointer overflow-hidden rounded-lg border-2 border-dashed text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-                      onClick={() =>
-                        referenceSource === "actor"
-                          ? setActorPickerOpen(true)
-                          : setPickerOpen(true)
-                      }
-                      aria-label={
-                        referenceSource === "actor"
-                          ? "Select actor image"
-                          : "Select media library image"
-                      }
-                    >
-                      {referencePreviewUrl ? (
-                        <div className="relative aspect-square">
-                          <img
-                            src={referencePreviewUrl}
-                            alt="Reference"
-                            className="h-full w-full object-cover"
-                            draggable={false}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                            <span className="text-sm font-medium text-white">
-                              Click to change
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50 transition-colors group-hover:bg-muted">
-                          <ImagePlusIcon className="size-8 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            Select image
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  )}
-                  {modalState?.type !== "edit" &&
-                  referenceSource === "media" &&
-                  referenceMediaUrl ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-fit text-destructive hover:text-destructive"
-                      onClick={clearReferenceMedia}
-                    >
-                      Remove image
-                    </Button>
-                  ) : null}
-                  {modalState?.type !== "edit" && referenceSource === "media" ? (
-                    <MediaPicker
-                      open={pickerOpen}
-                      onOpenChange={setPickerOpen}
-                      onSelectMedia={handleReferenceSelect}
-                      currentMediaUrl={referenceMediaUrl ?? undefined}
-                      showVideos={false}
-                    />
-                  ) : null}
+                  <div className="overflow-hidden rounded-lg border-2 border-dashed text-left">
+                    {referencePreviewUrl ? (
+                      <div className="relative aspect-square">
+                        <img
+                          src={referencePreviewUrl}
+                          alt="Reference"
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50">
+                        <ImageIcon className="size-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          Reference unavailable
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -992,126 +851,42 @@ export function FirstFrameDashboard() {
             <Button type="button" variant="outline" onClick={closeModal}>
               Cancel
             </Button>
-            {modalState?.type === "edit" ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={saveDisabled}
-                  onClick={handleSubmitFirstFrame}
-                >
-                  {submitAction === "save" ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : null}
-                  {submitAction === "save" ? "Saving" : "Save Details"}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={generateDisabled}
-                  onClick={handleRegenerateFirstFrame}
-                >
-                  {submitAction === "regenerate" ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <RefreshCwIcon className="size-4" />
-                  )}
-                  {submitAction === "regenerate"
-                    ? "Regenerating"
-                    : "Regenerate Image"}
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="button"
-                disabled={generateDisabled}
-                onClick={handleSubmitFirstFrame}
-              >
-                {submitAction === "generate" ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <SparklesIcon className="size-4" />
-                )}
-                {submitAction === "generate" ? "Generating" : "Generate"}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={actorPickerOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setActorPickerOpen(true)
-            return
-          }
-          closeActorPicker()
-        }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Select Actor Image</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <div className="flex flex-col gap-4">
-              <Input
-                type="search"
-                value={actorPickerQuery}
-                onChange={(event) => setActorPickerQuery(event.target.value)}
-                placeholder="Search actors"
-              />
-              <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
-                {actorPickerOptions.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                    {actorPickerOptions.map((actor) => (
-                      <button
-                        key={actor.id}
-                        type="button"
-                        className={cn(
-                          "overflow-hidden rounded-md border bg-muted text-left outline-none transition-colors hover:border-muted-foreground/40 focus-visible:ring-3 focus-visible:ring-ring/50",
-                          actorId === actor.id &&
-                            "border-primary ring-2 ring-primary/20"
-                        )}
-                        onClick={() => {
-                          setActorId(actor.id)
-                          setReferenceSource("actor")
-                          setPickerOpen(false)
-                          closeActorPicker()
-                        }}
-                      >
-                        <img
-                          src={actor.image_url}
-                          alt={actor.name}
-                          className="aspect-square w-full object-cover"
-                        />
-                        <span className="block truncate px-2 py-1.5 text-xs">
-                          {actor.name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
-                    <div>
-                      <ImageIcon className="mx-auto mb-3 size-10" />
-                      <p>No actors found.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogBody>
-          <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
-              onClick={closeActorPicker}
+              disabled={saveDisabled}
+              onClick={handleSubmitFirstFrame}
             >
-              Cancel
+              {submitAction === "save" ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              {submitAction === "save" ? "Saving" : "Save Details"}
+            </Button>
+            <Button
+              type="button"
+              disabled={generateDisabled}
+              onClick={handleRegenerateFirstFrame}
+            >
+              {submitAction === "regenerate" ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <RefreshCwIcon className="size-4" />
+              )}
+              {submitAction === "regenerate"
+                ? "Regenerating"
+                : "Regenerate Image"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FirstFrameCreateDialog
+        open={!!createDialogState}
+        onOpenChange={(open) => !open && setCreateDialogState(null)}
+        actors={actors}
+        initialValues={createDialogState?.initialValues}
+        onCreated={handleFirstFrameCreated}
+      />
 
       <FirstFramePreviewDialog
         item={previewFrame}

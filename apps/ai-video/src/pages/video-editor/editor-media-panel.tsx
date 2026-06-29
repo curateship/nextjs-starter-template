@@ -146,7 +146,6 @@ export function EditorMediaPanel({
       pageSize: 30,
       fileType: TAB_CONFIG[tab].fileType,
       projectId,
-      source: projectId ? "upload" : undefined,
     })
       .then((response) => {
         if (active) {
