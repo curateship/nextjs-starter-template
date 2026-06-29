@@ -10,7 +10,7 @@ This file is the orchestrator. Use it to understand the repo shape, then route t
 - For work in `apps/custom-shell/`, read `apps/custom-shell/AGENTS.md` before coding.
 - For work in `apps/core/`, read `apps/core/AGENTS.md` before coding.
 - For work in `apps/ai-video/`, read `apps/ai-video/AGENTS.md` before coding.
-- For work in `apps/antidetect/`, read `apps/antidetect/AGENTS.md` before coding.
+- For work in `apps/anti-detect/`, read `apps/anti-detect/AGENTS.md` before coding.
 - For work in `apps/ai-agents/`, read `apps/ai-agents/AGENTS.md` before coding.
 - For work in `apps/personal-ide/`, read `apps/personal-ide/AGENTS.md` before coding.
 - For shared root files, docs, local scripts, `.agents/`, `packages/`, or `services/`, use this root file.
@@ -45,7 +45,7 @@ Current apps:
 - Custom Shell: `apps/custom-shell`
 - Core: `apps/core`
 - AI Video: `apps/ai-video`
-- Antidetect: `apps/antidetect`
+- Antidetect: `apps/anti-detect`
 - AI Agents: `apps/ai-agents`
 - Personal IDE: `apps/personal-ide`
 
@@ -66,7 +66,7 @@ npm run dev:hub
 npm run dev:custom-shell
 npm run dev:core
 npm run dev:ai-video
-npm run dev:antidetect
+npm run dev:anti-detect
 npm run dev:ai-agents
 npm run dev:personal-ide
 ```

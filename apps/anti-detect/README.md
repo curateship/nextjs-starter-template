@@ -5,8 +5,8 @@ Antidetect is a TanStack Start app with React, TypeScript, shadcn/ui, server fun
 ## Development
 
 ```bash
-npm run db:up --workspace=antidetect
-npm run dev --workspace=antidetect
+npm run db:up --workspace=anti-detect
+npm run dev --workspace=anti-detect
 ```
 
 The local app runs at `http://localhost:3005`.

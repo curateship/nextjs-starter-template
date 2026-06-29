@@ -39,8 +39,8 @@ The app-level dev setup and Personal IDE read that file:
 - `apps/ai-video/vite.config.ts`
   - `server.port = localAppPorts["ai-video"]`
   - `server.strictPort = true`
-- `apps/antidetect/vite.config.ts`
-  - `server.port = localAppPorts.antidetect`
+- `apps/anti-detect/vite.config.ts`
+  - `server.port = localAppPorts["anti-detect"]`
   - `server.strictPort = true`
 
 `strictPort: true` is enabled for the TanStack Start apps so they fail instead of silently moving to another port. These apps include their UI and backend in one dev server, so there is no separate Python API dev server.
@@ -63,5 +63,5 @@ hub: http://localhost:3000
 custom-shell: http://localhost:3002
 core: http://localhost:3003
 ai-video: http://localhost:3004
-antidetect: http://localhost:3005
+anti-detect: http://localhost:3005
 ```

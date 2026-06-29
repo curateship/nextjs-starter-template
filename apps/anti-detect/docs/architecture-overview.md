@@ -1,6 +1,6 @@
 # Architecture Overview
 
-`apps/antidetect` is a cloud antidetect browser — a multi-account tool where each
+`apps/anti-detect` is a cloud antidetect browser — a multi-account tool where each
 **profile** is an isolated browser with its own fingerprint and proxy. It is built
 on the `custom-shell` base (TanStack Start + Drizzle + Postgres + R2) and keeps that
 shell's app frame, sidebar/header layout, navigation, theme, and shadcn primitives;

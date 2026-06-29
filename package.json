@@ -8,7 +8,7 @@
     "dev:custom-shell-ui": "npm run dev --workspace=custom-shell",
     "dev:ai-video": "npm run dev --workspace=ai-video",
     "dev:core": "npm run dev --workspace=core",
-    "dev:antidetect": "npm run dev --workspace=antidetect",
+    "dev:anti-detect": "npm run dev --workspace=anti-detect",
     "dev:ai-agents": "npm run dev --workspace=ai-agents",
     "dev:personal-ide": "npm run tauri:dev --workspace=personal-ide",
     "dev:hub": "npm run dev --workspace=@repo/hub",
@@ -16,7 +16,7 @@
     "build:custom-shell": "npm run build --workspace=custom-shell",
     "build:ai-video": "npm run build --workspace=ai-video",
     "build:core": "npm run build --workspace=core",
-    "build:antidetect": "npm run build --workspace=antidetect",
+    "build:anti-detect": "npm run build --workspace=anti-detect",
     "build:ai-agents": "npm run build --workspace=ai-agents",
     "build:personal-ide": "npm run tauri:build --workspace=personal-ide",
     "lint": "turbo lint"
