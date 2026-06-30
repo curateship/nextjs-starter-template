@@ -7,6 +7,8 @@ export interface EventContentStyleRendererProps {
     title?: string
     featuredImage?: string | null
     showFeaturedImage?: boolean
+    eventDate?: string
+    eventTime?: string
     body?: string
   }
   children?: ReactNode

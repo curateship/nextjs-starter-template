@@ -45,6 +45,16 @@ function Field({
   )
 }
 
+function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="field-group"
+      className={cn("@container/field-group flex w-full flex-col gap-6", className)}
+      {...props}
+    />
+  )
+}
+
 function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -93,6 +103,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
 
 export {
   Field,
+  FieldGroup,
   FieldLabel,
   FieldDescription,
   FieldContent,

@@ -55,6 +55,8 @@ function EventContentStyled({
             title: event.title,
             featuredImage: event.featured_image,
             showFeaturedImage: block.content.visibility?.showFeaturedImage !== false,
+            eventDate: block.content.eventDate,
+            eventTime: block.content.eventTime,
             body: block.content.body,
           }}
         />

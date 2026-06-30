@@ -1,15 +1,45 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { format } from "date-fns"
+import { ChevronDownIcon, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { EVENT_CONTENT_STYLES } from "./event-content-styles"
+
+const DEFAULT_EVENT_TIME = "12:00"
+
+function formatEventDateValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
+}
+
+function parseEventDateValue(value: unknown) {
+  if (typeof value !== "string" || !value) return undefined
+
+  const [year, month, day] = value.split("-").map(Number)
+  if (!year || !month || !day) return undefined
+
+  return new Date(year, month - 1, day)
+}
+
+function getEventTimeValue(value: unknown) {
+  if (typeof value !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return DEFAULT_EVENT_TIME
+
+  return value
+}
 
 interface EventContentBlockProps {
   content: Record<string, any>
@@ -30,8 +60,11 @@ interface EventContentBlockProps {
 
 export function EventContentBlock({ content, onContentChange, siteId, blockId, mode = "instance", eventData, onEventTitleChange, onBack }: EventContentBlockProps) {
   const [localTitle, setLocalTitle] = useState(eventData?.title || eventData?.name || 'Untitled Event')
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
 
   const eventContentStyle = content.eventContentStyle || 'default'
+  const selectedDate = useMemo(() => parseEventDateValue(content.eventDate), [content.eventDate])
+  const selectedTime = getEventTimeValue(content.eventTime)
   const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
   const currentStyleConfig = useMemo(() => styleConfig[eventContentStyle] || {}, [eventContentStyle, styleConfig])
 
@@ -65,6 +98,23 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
       onContentChange('format', 'html')
     }
   }, [content.format, onContentChange])
+
+  const handleDateSelect = useCallback((date: Date | undefined) => {
+    if (!date) {
+      onContentChange('eventDate', '')
+      onContentChange('eventTime', '')
+      return
+    }
+
+    onContentChange('eventDate', formatEventDateValue(date))
+    if (!content.eventTime) {
+      onContentChange('eventTime', DEFAULT_EVENT_TIME)
+    }
+  }, [content.eventTime, onContentChange])
+
+  const handleTimeChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    onContentChange('eventTime', getEventTimeValue(event.target.value))
+  }, [onContentChange])
 
   const ActivePanel = EVENT_CONTENT_STYLES[eventContentStyle]?.AdminPanel
   const editorContent = {
@@ -144,6 +194,49 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
           />
         </CardContent>
       </Card>
+
+      <FieldGroup className="max-w-xs flex-row items-start gap-3">
+        <Field>
+          <FieldLabel htmlFor="event-date">Date</FieldLabel>
+          <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                id="event-date"
+                className="w-36 justify-between font-normal"
+              >
+                <span className="truncate">
+                  {selectedDate ? format(selectedDate, "PPP") : "Select date"}
+                </span>
+                <ChevronDownIcon className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto overflow-hidden p-3" align="start">
+              <Calendar
+                mode="single"
+                className="p-0"
+                selected={selectedDate}
+                captionLayout="dropdown"
+                defaultMonth={selectedDate}
+                onSelect={(date) => {
+                  handleDateSelect(date)
+                  setIsDatePickerOpen(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </Field>
+        <Field className="w-32">
+          <FieldLabel htmlFor="event-time">Time</FieldLabel>
+          <Input
+            className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+            id="event-time"
+            onChange={handleTimeChange}
+            type="time"
+            value={selectedTime}
+          />
+        </Field>
+      </FieldGroup>
     </CardGroup>
   )
 
