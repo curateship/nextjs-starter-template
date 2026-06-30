@@ -9,6 +9,7 @@ import type {
 } from "@/server/video-projects"
 import type { ProjectRenderInfo, RenderQuality } from "@/server/video-render"
 import { SOUND_EFFECT_IDS } from "@/lib/sound-effects"
+import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 
 export type {
   ProjectDetail,
@@ -32,6 +33,7 @@ const clipSchema = z.object({
   soundEffectId: z.enum(SOUND_EFFECT_IDS).optional(),
   sourceDurationMs: z.number().nonnegative().finite().optional(),
   text: z.string().max(5000).optional(),
+  fontId: z.enum(TEXT_FONT_IDS).optional(),
   fontSize: z.number().finite().optional(),
   color: z.string().max(32).optional(),
   // Background color behind a text overlay (highlight box); omitted = none.
@@ -53,6 +55,14 @@ const clipSchema = z.object({
   // Template slot flags (see EditorClip).
   replaceable: z.boolean().optional(),
   segmentLabel: z.string().max(100).optional(),
+}).superRefine((clip, context) => {
+  if (clip.kind === "text" && !clip.fontId) {
+    context.addIssue({
+      code: "custom",
+      path: ["fontId"],
+      message: "Text clips require a font",
+    })
+  }
 })
 
 // Exported so the templates API can validate template-timeline saves with the

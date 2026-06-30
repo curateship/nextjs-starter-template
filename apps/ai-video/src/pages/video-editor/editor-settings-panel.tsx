@@ -64,6 +64,12 @@ import {
 } from "@/lib/api/elevenlabs"
 import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
+  DEFAULT_TEXT_FONT_ID,
+  TEXT_FONTS,
+  requireTextFont,
+  type TextFontId,
+} from "@/lib/text-fonts"
+import {
   getScriptErrorMessage,
   writeProjectScript,
   type ScriptBeat,
@@ -153,6 +159,7 @@ export function TextClipSettings({ clip }: { clip: EditorClip }) {
       idPrefix="inspector"
       layout="card"
       text={clip.text ?? ""}
+      fontId={requireTextFont(clip.fontId).id}
       fontSize={clip.fontSize ?? 80}
       color={clip.color ?? "#ffffff"}
       highlightColor={clip.highlightColor}
@@ -164,6 +171,7 @@ export function TextClipSettings({ clip }: { clip: EditorClip }) {
 // Partial style patch emitted by the style controls; TextClipFields also emits
 // `text` from the Content field.
 type TextStylePatch = {
+  fontId?: TextFontId
   fontSize?: number
   color?: string
   highlightColor?: string
@@ -183,6 +191,7 @@ function textFieldClassName(layout: TextFieldLayout) {
 function TextClipFields({
   idPrefix,
   text,
+  fontId,
   fontSize,
   color,
   highlightColor,
@@ -191,6 +200,7 @@ function TextClipFields({
 }: {
   idPrefix: string
   text: string
+  fontId: TextFontId
   fontSize: number
   color: string
   highlightColor?: string
@@ -213,6 +223,7 @@ function TextClipFields({
       </div>
       <TextStyleFields
         idPrefix={idPrefix}
+        fontId={fontId}
         fontSize={fontSize}
         color={color}
         highlightColor={highlightColor}
@@ -227,6 +238,7 @@ function TextClipFields({
 // dialogs and the caption generator so caption styling can be tuned up front.
 function TextStyleFields({
   idPrefix,
+  fontId,
   fontSize,
   color,
   highlightColor,
@@ -234,6 +246,7 @@ function TextStyleFields({
   layout = "plain",
 }: {
   idPrefix: string
+  fontId: TextFontId
   fontSize: number
   color: string
   highlightColor?: string
@@ -242,6 +255,31 @@ function TextStyleFields({
 }) {
   return (
     <>
+      <div className={textFieldClassName(layout)}>
+        <Label htmlFor={`${idPrefix}-font`}>Font</Label>
+        <Select
+          value={fontId}
+          onValueChange={(value) => onChange({ fontId: value as TextFontId })}
+        >
+          <SelectTrigger id={`${idPrefix}-font`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TEXT_FONTS.map((font) => (
+              <SelectItem key={font.id} value={font.id}>
+                <span
+                  style={{
+                    fontFamily: font.family,
+                    fontWeight: font.weight,
+                  }}
+                >
+                  {font.label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className={textFieldClassName(layout)}>
         <Label>Font size</Label>
         <Slider
@@ -291,12 +329,14 @@ function TextStyleFields({
 // Starting values for a brand-new text clip.
 const DEFAULT_TEXT_DRAFT: {
   text: string
+  fontId: TextFontId
   fontSize: number
   color: string
   highlightColor?: string
 } = {
   // Matches the default "Boxed" caption look: dark text on a white box.
   text: "Your text here",
+  fontId: DEFAULT_TEXT_FONT_ID,
   fontSize: 20,
   color: "#000000",
   highlightColor: "#ffffff",
@@ -418,6 +458,7 @@ function TextDialog({
         kind: "text",
         name: "Text",
         text: draft.text.trim() || "Your text here",
+        fontId: draft.fontId,
         fontSize: draft.fontSize,
         color: draft.color,
         highlightColor: draft.highlightColor,
@@ -443,6 +484,7 @@ function TextDialog({
             <TextClipFields
               idPrefix="text"
               text={draft.text}
+              fontId={draft.fontId}
               fontSize={draft.fontSize}
               color={draft.color}
               highlightColor={draft.highlightColor}
@@ -1182,6 +1224,7 @@ function defaultFirstFrameId(
 const CAPTION_STYLES: {
   id: string
   label: string
+  fontId: TextFontId
   fontSize: number
   color: string
   highlightColor?: string
@@ -1190,14 +1233,36 @@ const CAPTION_STYLES: {
   {
     id: "boxed",
     label: "Boxed",
+    fontId: DEFAULT_TEXT_FONT_ID,
     fontSize: 20,
     color: "#000000",
     highlightColor: "#ffffff",
     y: 0.78,
   },
-  { id: "white", label: "White", fontSize: 64, color: "#ffffff", y: 0.78 },
-  { id: "bold", label: "Big Bold", fontSize: 96, color: "#ffffff", y: 0.78 },
-  { id: "yellow", label: "Yellow Pop", fontSize: 72, color: "#facc15", y: 0.78 },
+  {
+    id: "white",
+    label: "White",
+    fontId: DEFAULT_TEXT_FONT_ID,
+    fontSize: 64,
+    color: "#ffffff",
+    y: 0.78,
+  },
+  {
+    id: "bold",
+    label: "Big Bold",
+    fontId: DEFAULT_TEXT_FONT_ID,
+    fontSize: 96,
+    color: "#ffffff",
+    y: 0.78,
+  },
+  {
+    id: "yellow",
+    label: "Yellow Pop",
+    fontId: DEFAULT_TEXT_FONT_ID,
+    fontSize: 72,
+    color: "#facc15",
+    y: 0.78,
+  },
 ]
 
 // Caption style state shared by the Captions and Voice dialogs: the selected
@@ -1205,6 +1270,7 @@ const CAPTION_STYLES: {
 // position) stays per-preset and isn't user-editable.
 function useCaptionStyle() {
   const [styleId, setStyleId] = React.useState(CAPTION_STYLES[0].id)
+  const [fontId, setFontId] = React.useState(CAPTION_STYLES[0].fontId)
   const [fontSize, setFontSize] = React.useState(CAPTION_STYLES[0].fontSize)
   const [color, setColor] = React.useState(CAPTION_STYLES[0].color)
   const [highlightColor, setHighlightColor] = React.useState<
@@ -1215,6 +1281,7 @@ function useCaptionStyle() {
   function applyPreset(id: string) {
     const preset = CAPTION_STYLES.find((s) => s.id === id) ?? CAPTION_STYLES[0]
     setStyleId(id)
+    setFontId(preset.fontId)
     setFontSize(preset.fontSize)
     setColor(preset.color)
     setHighlightColor(preset.highlightColor)
@@ -1222,6 +1289,7 @@ function useCaptionStyle() {
 
   // Applies a single edit from the TextStyleFields controls.
   function patch(value: TextStylePatch) {
+    if (value.fontId !== undefined) setFontId(value.fontId)
     if (value.fontSize !== undefined) setFontSize(value.fontSize)
     if (value.color !== undefined) setColor(value.color)
     if ("highlightColor" in value) setHighlightColor(value.highlightColor)
@@ -1230,7 +1298,7 @@ function useCaptionStyle() {
   // Position is fixed per preset (not user-editable) — read it for the clip.
   const y = (CAPTION_STYLES.find((s) => s.id === styleId) ?? CAPTION_STYLES[0]).y
 
-  return { styleId, fontSize, color, highlightColor, y, applyPreset, patch }
+  return { styleId, fontId, fontSize, color, highlightColor, y, applyPreset, patch }
 }
 
 // The caption style preset picker + adjustable font/color/highlight controls,
@@ -1261,6 +1329,7 @@ function CaptionStyleFields({
       </div>
       <TextStyleFields
         idPrefix={idPrefix}
+        fontId={style.fontId}
         fontSize={style.fontSize}
         color={style.color}
         highlightColor={style.highlightColor}
@@ -1310,6 +1379,7 @@ function CaptionsDialog({
           // Per-word timings (OpenAI captions) enable the karaoke highlight.
           words: line.words,
           // Editable style from the shared controls; position stays per-preset.
+          fontId: captionStyle.fontId,
           fontSize: captionStyle.fontSize,
           color: captionStyle.color,
           highlightColor: captionStyle.highlightColor,
@@ -1509,6 +1579,7 @@ function VoiceDialog({
             text: line.text,
             // Per-word timings drive the karaoke highlight.
             words: line.words,
+            fontId: captionStyle.fontId,
             fontSize: captionStyle.fontSize,
             color: captionStyle.color,
             highlightColor: captionStyle.highlightColor,
@@ -1756,6 +1827,7 @@ function ScriptDialog({
         kind: "text" as const,
         name: "Script",
         text: beat.line,
+        fontId: DEFAULT_TEXT_FONT_ID,
         fontSize: 64,
         color: "#ffffff",
         trimStartMs: 0,

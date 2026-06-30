@@ -1,6 +1,7 @@
 import * as React from "react"
 import { PlayIcon } from "lucide-react"
 
+import { requireTextFont } from "@/lib/text-fonts"
 import {
   useEditor,
   type EditorClip,
@@ -439,6 +440,7 @@ export function EditorPreview() {
             center (x,y); scaled from the 1080p design space; shown/hidden by
             the sync loop. */}
         {texts.map(({ clip, zIndex }) => {
+          const font = requireTextFont(clip.fontId)
           const words = clip.words
           // Active word for karaoke clips, computed once per clip (the sync
           // loop also updates these opacities imperatively during playback).
@@ -460,6 +462,8 @@ export function EditorPreview() {
               top: `${(clip.y ?? 0.5) * 100}%`,
               transform: "translate(-50%, -50%)",
               color: clip.color ?? "#ffffff",
+              fontFamily: font.family,
+              fontWeight: font.weight,
               fontSize: (clip.fontSize ?? 80) * textScale,
               lineHeight: 1.15,
               // Highlight box behind the text (when set); drop the shadow then

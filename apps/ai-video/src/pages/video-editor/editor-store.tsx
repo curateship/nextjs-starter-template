@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { SoundEffectId } from "@/lib/sound-effects"
+import type { TextFontId } from "@/lib/text-fonts"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -33,6 +34,7 @@ export type EditorClip = {
   trimStartMs: number
   // Text clips.
   text?: string
+  fontId?: TextFontId
   fontSize?: number
   color?: string
   // Optional background color drawn behind the whole text block (a highlight
