@@ -4,7 +4,11 @@ import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoCreators, aiVideoViralVideos } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
-import { listRecentUploads, type ViralPlatform } from "@/server/video-download"
+import { applyCreatorProfileMetrics } from "@/server/creators"
+import {
+  listRecentUploads,
+  type ViralPlatform,
+} from "@/server/video-download"
 import { ingestViralVideoForUser } from "@/server/viral-videos"
 
 // Watched creators: a timer (or the manual Sync button) lists each watched
@@ -98,11 +102,16 @@ export async function syncWatchedCreators(
 
   for (const creator of watched) {
     try {
-      const urls = await listRecentUploads(
+      const { uploads, profileMetrics } = await listRecentUploads(
         creator.platform as ViralPlatform,
         creator.username,
         PROFILE_LIST_LIMIT
       )
+      if (profileMetrics) {
+        await applyCreatorProfileMetrics(creator, profileMetrics).catch(
+          () => undefined
+        )
+      }
 
       let existing = existingByUser.get(creator.userId)
       if (!existing) {
@@ -114,7 +123,7 @@ export async function syncWatchedCreators(
         existingByUser.set(creator.userId, existing)
       }
 
-      const fresh = urls
+      const fresh = uploads
         .filter((upload) => !existing.has(normalizeReelUrl(upload.sourceUrl)))
         .slice(0, MAX_INGESTS_PER_CREATOR)
 

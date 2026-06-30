@@ -4,10 +4,13 @@ import {
   AlertCircleIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
+  EyeIcon,
   FlameIcon,
   GridIcon,
+  HeartIcon,
   ListIcon,
   Loader2Icon,
+  MessageCircleIcon,
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -63,9 +66,32 @@ import { useBulkDelete } from "@/lib/use-bulk-delete"
 type ViewMode = "list" | "gallery"
 
 // Sortable columns in the list (table) view.
-type SortColumn = "video" | "platform" | "views" | "likes" | "status" | "added"
+type SortColumn =
+  | "video"
+  | "creator"
+  | "platform"
+  | "views"
+  | "likes"
+  | "comments"
+  | "added"
 
 const POLL_INTERVAL_MS = 3000
+const LIST_TITLE_WORD_LIMIT = 5
+
+function truncateWords(value: string, limit: number) {
+  const words = value.trim().split(/\s+/)
+  if (words.length <= limit) return value
+  return `${words.slice(0, limit).join(" ")}...`
+}
+
+function creatorLabel(video: ViralVideoItem) {
+  return (
+    video.creator?.display_name?.trim() ||
+    video.creator?.username ||
+    video.author ||
+    "—"
+  )
+}
 
 function progressForStatus(status: ViralVideoItem["status"] | null): number {
   if (status === "downloading") return 35
@@ -144,6 +170,8 @@ export function ViralArchiveDashboard({
     return [...matched].sort((a, b) => {
       if (sortColumn === "video")
         return (a.title ?? a.source_url).localeCompare(b.title ?? b.source_url) * direction
+      if (sortColumn === "creator")
+        return creatorLabel(a).localeCompare(creatorLabel(b)) * direction
       if (sortColumn === "platform")
         return PLATFORM_LABELS[a.platform].localeCompare(PLATFORM_LABELS[b.platform]) * direction
       // Missing counts (null) sort below any real number.
@@ -151,8 +179,8 @@ export function ViralArchiveDashboard({
         return ((a.stats?.views ?? -1) - (b.stats?.views ?? -1)) * direction
       if (sortColumn === "likes")
         return ((a.stats?.likes ?? -1) - (b.stats?.likes ?? -1)) * direction
-      if (sortColumn === "status")
-        return a.status.localeCompare(b.status) * direction
+      if (sortColumn === "comments")
+        return ((a.stats?.comments ?? -1) - (b.stats?.comments ?? -1)) * direction
       return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
   }, [videos, searchQuery, creator, sortColumn, sortDirection])
@@ -363,6 +391,11 @@ export function ViralArchiveDashboard({
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "creator"} direction={sortDirection} onClick={() => toggleSort("creator")}>
+                    Creators
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
                   <TableSortButton active={sortColumn === "platform"} direction={sortDirection} onClick={() => toggleSort("platform")}>
                     Platform
                   </TableSortButton>
@@ -377,9 +410,9 @@ export function ViralArchiveDashboard({
                     Likes
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
-                    Status
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "comments"} direction={sortDirection} onClick={() => toggleSort("comments")}>
+                    Comments
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
@@ -393,7 +426,7 @@ export function ViralArchiveDashboard({
           }
           isEmpty={loading || paginatedVideos.length === 0}
           emptyText={emptyText}
-          emptyColSpan={8}
+          emptyColSpan={9}
           footer={paginationFooter}
         >
           {paginatedVideos.map((video) => (
@@ -487,9 +520,23 @@ function ViralVideoGalleryCard({
             <FlameIcon className="size-8 text-muted-foreground" />
           </div>
         )}
-        <span className="absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
-          {PLATFORM_LABELS[video.platform]}
-        </span>
+        <div className="absolute left-2 top-2 flex max-w-[calc(100%-4rem)] flex-wrap items-center gap-1">
+          <ViralVideoStatChip
+            label="Views"
+            value={video.stats?.views}
+            icon={<EyeIcon className="size-3" aria-hidden="true" />}
+          />
+          <ViralVideoStatChip
+            label="Likes"
+            value={video.stats?.likes}
+            icon={<HeartIcon className="size-3" aria-hidden="true" />}
+          />
+          <ViralVideoStatChip
+            label="Comments"
+            value={video.stats?.comments}
+            icon={<MessageCircleIcon className="size-3" aria-hidden="true" />}
+          />
+        </div>
         {/* Creator chip — avatar + name + handle over the bottom of the thumb. */}
         <CreatorChip
           creator={video.creator}
@@ -533,6 +580,31 @@ function ViralVideoGalleryCard({
   )
 }
 
+function ViralVideoStatChip({
+  label,
+  value,
+  icon,
+}: {
+  label: string
+  value: number | null | undefined
+  icon: React.ReactNode
+}) {
+  if (value === null || value === undefined) return null
+
+  const formattedValue = formatCount(value)
+
+  return (
+    <span
+      className="inline-flex h-7 items-center gap-1 rounded-md bg-background/90 px-2 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm"
+      aria-label={`${label}: ${formattedValue}`}
+      title={`${label}: ${formattedValue}`}
+    >
+      {icon}
+      {formattedValue}
+    </span>
+  )
+}
+
 function ViralVideoTableRow({
   video,
   selected,
@@ -549,6 +621,10 @@ function ViralVideoTableRow({
   onDelete: () => void
 }) {
   const isReady = video.status === "ready"
+  const title = video.title ?? video.source_url
+  const displayTitle = truncateWords(title, LIST_TITLE_WORD_LIMIT)
+  const creatorName = creatorLabel(video)
+
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
@@ -571,19 +647,25 @@ function ViralVideoTableRow({
                 type="button"
                 className="block max-w-full truncate text-left font-medium group-hover:underline"
                 onClick={onOpen}
+                title={title}
               >
-                {video.title ?? video.source_url}
+                {displayTitle}
               </button>
             ) : (
-              <span className="block max-w-full truncate font-medium">
-                {video.title ?? video.source_url}
+              <span className="block max-w-full truncate font-medium" title={title}>
+                {displayTitle}
               </span>
             )}
-            <div className="truncate text-xs text-muted-foreground" title={video.error ?? undefined}>
-              {video.status === "error" && video.error ? video.error : (video.author ?? video.source_url)}
-            </div>
+            {video.status === "error" && video.error ? (
+              <div className="truncate text-xs text-muted-foreground" title={video.error}>
+                {video.error}
+              </div>
+            ) : null}
           </div>
         </div>
+      </TableCell>
+      <TableCell column="meta" title={creatorName}>
+        <span className="block max-w-48 truncate">{creatorName}</span>
       </TableCell>
       <TableCell column="meta">
         <Badge variant="outline">{PLATFORM_LABELS[video.platform]}</Badge>
@@ -594,8 +676,8 @@ function ViralVideoTableRow({
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {formatCount(video.stats?.likes ?? null)}
       </TableCell>
-      <TableCell column="meta">
-        <ViralVideoStatusBadge status={video.status} />
+      <TableCell column="mutedMeta" className="hidden lg:table-cell">
+        {formatCount(video.stats?.comments ?? null)}
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(video.created_at))}

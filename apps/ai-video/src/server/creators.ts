@@ -11,7 +11,11 @@ import {
   type AiVideoCreator,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
-import type { ViralPlatform } from "@/server/video-download"
+import {
+  fetchCreatorProfileMetrics,
+  type CreatorProfileMetrics,
+  type ViralPlatform,
+} from "@/server/video-download"
 
 // Creator rows are mostly auto-managed from yt-dlp metadata. Users can also add
 // a watched profile manually; reel import still happens only through sync runs.
@@ -21,6 +25,7 @@ export type CreatorItem = {
   platform: ViralPlatform
   username: string
   display_name: string | null
+  follower_count: number | null
   avatar_url: string | null
   reel_count: number
   last_reel_at: string | null
@@ -44,6 +49,7 @@ function serializeCreator(
     platform: row.platform as ViralPlatform,
     username: row.username,
     display_name: row.displayName,
+    follower_count: row.followerCount,
     avatar_url: row.avatarStoragePath
       ? getPublicMediaUrl(row.avatarStoragePath)
       : null,
@@ -148,6 +154,7 @@ export async function createCreatorForCurrentUser(
   if (!creator.avatarStoragePath) {
     await attachCreatorAvatar(creator).catch(() => undefined)
   }
+  await refreshCreatorProfileMetrics(creator).catch(() => undefined)
 
   const [item] = await queryCreators(user.id, creator.id)
   if (!item) {
@@ -201,8 +208,44 @@ export async function upsertCreatorFromReel(
   if (!creator.avatarStoragePath) {
     await attachCreatorAvatar(creator).catch(() => undefined)
   }
+  if (creator.followerCount === null) {
+    await refreshCreatorProfileMetrics(creator).catch(() => undefined)
+  }
 
   return creator.id
+}
+
+// Best-effort platform profile stats. This intentionally never blocks the
+// archive flow; blocked/unavailable platforms leave follower_count null.
+export async function refreshCreatorProfileMetrics(creator: AiVideoCreator) {
+  const metrics = await fetchCreatorProfileMetrics(
+    creator.platform as ViralPlatform,
+    creator.username
+  )
+  await applyCreatorProfileMetrics(creator, metrics)
+}
+
+export async function applyCreatorProfileMetrics(
+  creator: AiVideoCreator,
+  metrics: CreatorProfileMetrics
+) {
+  if (!metrics.displayName && metrics.followerCount === null) return
+
+  const updates: Partial<Pick<AiVideoCreator, "displayName" | "followerCount">> & {
+    updatedAt: Date
+  } = { updatedAt: now() }
+
+  if (metrics.displayName) {
+    updates.displayName = metrics.displayName
+  }
+  if (metrics.followerCount !== null) {
+    updates.followerCount = metrics.followerCount
+  }
+
+  await db
+    .update(aiVideoCreators)
+    .set(updates)
+    .where(eq(aiVideoCreators.id, creator.id))
 }
 
 // Fetches the platform avatar and stores it on R2 + the creator row.

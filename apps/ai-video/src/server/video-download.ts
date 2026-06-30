@@ -34,6 +34,16 @@ export type RecentUpload = {
   download?: DirectVideoDownload
 }
 
+export type RecentUploads = {
+  uploads: RecentUpload[]
+  profileMetrics: CreatorProfileMetrics | null
+}
+
+export type CreatorProfileMetrics = {
+  displayName: string | null
+  followerCount: number | null
+}
+
 // Kill stuck downloads; platforms sometimes stall mid-transfer.
 const DOWNLOAD_TIMEOUT_MS = 3 * 60_000
 // Matches the media pipeline's video limit — bigger files fail ingest anyway.
@@ -61,6 +71,8 @@ type YtDlpInfo = {
   view_count?: unknown
   like_count?: unknown
   comment_count?: unknown
+  follower_count?: unknown
+  channel_follower_count?: unknown
   timestamp?: unknown
 }
 
@@ -85,6 +97,7 @@ type InstagramProfileResponse = {
     user?: {
       username?: unknown
       full_name?: unknown
+      edge_followed_by?: { count?: unknown }
       edge_owner_to_timeline_media?: {
         edges?: Array<{ node?: InstagramProfileMedia }>
       }
@@ -200,11 +213,25 @@ export async function listRecentUploads(
   platform: ViralPlatform,
   handle: string,
   limit: number
-): Promise<RecentUpload[]> {
+): Promise<RecentUploads> {
   if (platform === "instagram") {
-    return listInstagramRecentUploads(handle, limit)
+    const profile = await fetchInstagramProfile(handle)
+    return {
+      uploads: instagramProfileToRecentUploads(profile, handle, limit),
+      profileMetrics: instagramProfileToMetrics(profile),
+    }
   }
 
+  return {
+    uploads: await listTikTokRecentUploads(handle, limit),
+    profileMetrics: null,
+  }
+}
+
+async function listTikTokRecentUploads(
+  handle: string,
+  limit: number
+): Promise<RecentUpload[]> {
   const profileUrl = `https://www.tiktok.com/@${encodeURIComponent(handle)}`
   const args = [
     "--flat-playlist",
@@ -234,10 +261,64 @@ export async function listRecentUploads(
   return uploads
 }
 
-async function listInstagramRecentUploads(
+export async function fetchCreatorProfileMetrics(
+  platform: ViralPlatform,
+  handle: string
+): Promise<CreatorProfileMetrics> {
+  if (platform === "instagram") {
+    const profile = await fetchInstagramProfile(handle)
+    return instagramProfileToMetrics(profile)
+  }
+
+  const username = handle.trim().replace(/^@/, "").toLowerCase()
+  const stdout = await runYtDlp([
+    "--impersonate",
+    "chrome",
+    "--dump-single-json",
+    "--playlist-end",
+    "1",
+    `https://www.tiktok.com/@${encodeURIComponent(username)}`,
+  ])
+  const info = JSON.parse(stdout) as YtDlpInfo
+  return {
+    displayName: readString(info.channel, 255),
+    followerCount:
+      readCount(info.follower_count) ?? readCount(info.channel_follower_count),
+  }
+}
+
+function instagramProfileToMetrics(
+  profile: InstagramProfileResponse
+): CreatorProfileMetrics {
+  const user = profile.data?.user
+  return {
+    displayName: readString(user?.full_name, 255),
+    followerCount: readCount(user?.edge_followed_by?.count),
+  }
+}
+
+function instagramProfileToRecentUploads(
+  profile: InstagramProfileResponse,
   handle: string,
   limit: number
-): Promise<RecentUpload[]> {
+): RecentUpload[] {
+  const user = profile.data?.user
+  const username = handle.trim().replace(/^@/, "").toLowerCase()
+  const ownerUsername = readString(user?.username, 255) ?? username
+  const ownerName = readString(user?.full_name, 255)
+  const edges = user?.edge_owner_to_timeline_media?.edges ?? []
+
+  return edges
+    .slice(0, limit)
+    .map((edge) =>
+      instagramMediaToRecentUpload(edge.node, ownerUsername, ownerName)
+    )
+    .filter((upload): upload is RecentUpload => upload !== null)
+}
+
+async function fetchInstagramProfile(
+  handle: string
+): Promise<InstagramProfileResponse> {
   const username = handle.trim().replace(/^@/, "").toLowerCase()
   const response = await fetch(
     `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
@@ -255,18 +336,7 @@ async function listInstagramRecentUploads(
     throw new Error(`Instagram profile lookup failed (${response.status})`)
   }
 
-  const profile = (await response.json()) as InstagramProfileResponse
-  const user = profile.data?.user
-  const ownerUsername = readString(user?.username, 255) ?? username
-  const ownerName = readString(user?.full_name, 255)
-  const edges = user?.edge_owner_to_timeline_media?.edges ?? []
-
-  return edges
-    .slice(0, limit)
-    .map((edge) =>
-      instagramMediaToRecentUpload(edge.node, ownerUsername, ownerName)
-    )
-    .filter((upload): upload is RecentUpload => upload !== null)
+  return (await response.json()) as InstagramProfileResponse
 }
 
 function instagramMediaToRecentUpload(
@@ -348,9 +418,14 @@ function readString(value: unknown, maxLength: number) {
 }
 
 function readCount(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.round(value)
-    : null
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value)
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.replaceAll(",", ""))
+    return Number.isFinite(parsed) ? Math.round(parsed) : null
+  }
+  return null
 }
 
 // Uses ffmpeg to grab the frame at 1 second as a JPEG.  Returns null on any

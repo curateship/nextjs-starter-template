@@ -50,6 +50,7 @@ import {
   PLATFORM_LABELS,
   creatorInitials,
   dateFormatter,
+  formatCount,
   pageSizeOptions,
 } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
@@ -287,6 +288,7 @@ export function CreatorsDashboard() {
               </TableHead>
               <TableHead column="main">Creator</TableHead>
               <TableHead column="meta">Platform</TableHead>
+              <TableHead column="meta">Followers</TableHead>
               <TableHead column="meta">Reels</TableHead>
               <TableHead column="meta">Watch</TableHead>
               <TableHead column="meta" className="hidden lg:table-cell">Last Added</TableHead>
@@ -300,7 +302,7 @@ export function CreatorsDashboard() {
             ? "Loading creators..."
             : "No creators yet. Add a creator profile or add videos to the Viral Archive."
         }
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page: currentPage,
@@ -464,6 +466,9 @@ function CreatorTableRow({
       </TableCell>
       <TableCell column="meta">
         <Badge variant="outline">{PLATFORM_LABELS[creator.platform]}</Badge>
+      </TableCell>
+      <TableCell column="mutedMeta">
+        {formatCount(creator.follower_count)}
       </TableCell>
       <TableCell column="meta">
         {creator.reel_count} {creator.reel_count === 1 ? "reel" : "reels"}
