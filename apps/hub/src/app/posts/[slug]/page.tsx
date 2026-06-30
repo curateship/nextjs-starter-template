@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { notFound } from "next/navigation"
 import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
+import { mergePostTemplateBlocks } from "@/lib/actions/posts/post-template-inheritance"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
@@ -14,6 +15,7 @@ import {
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { getActiveSponsorsByIdsAction } from "@/lib/actions/sponsors/sponsor-actions"
 import { extractSponsorIdsFromHtml } from "@/lib/utils/sponsor-embeds"
+import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 
 interface PostPageProps {
   params: Promise<{
@@ -39,6 +41,7 @@ function getCachedPostPageData(siteId: string, slug: string) {
           select
             p.id,
             p.site_id as "siteId",
+            p.template_id as "templateId",
             p.title,
             p.slug,
             p.meta_description as "metaDescription",
@@ -69,16 +72,20 @@ function getCachedPostPageData(siteId: string, slug: string) {
         )
         select
           to_jsonb(post_row) as post,
-          to_jsonb(author_row) as author
+          to_jsonb(author_row) as author,
+          pt.content_blocks as "templateContentBlocks"
         from post_row
         left join author_row on true
+        inner join post_templates pt
+          on pt.id = post_row."templateId"
+          and pt.site_id = post_row."siteId"
       `)
 
       const row = rows.rows[0] as any
       if (!row) throw new Error(POST_PAGE_NOT_FOUND_ERROR)
       return row
     },
-    ['post-page-data', siteId, slug],
+    ['post-page-data-v2', siteId, slug],
     {
       revalidate: false,
       tags: ['posts', 'categories', 'content-categories', `site-${siteId}`, 'all'],
@@ -114,15 +121,13 @@ export default async function PostPage({ params }: PostPageProps) {
   let showFeaturedImage = true
   let showExcerpt = true
   try {
-    const contentBlocks = (post.contentBlocks as any) || {}
+    const contentBlocks = mergePostTemplateBlocks(
+      (pageData.templateContentBlocks as any) || {},
+      (post.contentBlocks as any) || {}
+    )
     showFeaturedImage = contentBlocks.show_featured_image !== false
     showExcerpt = contentBlocks.show_excerpt !== false
-    const blockValues = Object.values(contentBlocks).filter((block: any) =>
-      block && typeof block === 'object' && block.type
-    )
-    blocks = blockValues.sort((a: any, b: any) =>
-      (a.display_order || 0) - (b.display_order || 0)
-    )
+    blocks = convertContentBlocksToArray(contentBlocks, post.id)
   } catch (error) {
     console.warn('Error loading post blocks:', error)
     blocks = []

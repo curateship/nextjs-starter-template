@@ -3,17 +3,21 @@
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { posts, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
+import { posts, postTemplates, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
   generateUniqueContentSlug,
   getNextContentDisplayOrder,
-  preserveNonBlockSettings,
   requireOwnedContentRow,
   requireOwnedSite,
   validateContentSlugUpdate,
 } from '@/lib/actions/content/content-action-helpers'
+import {
+  getPostNonBlockEntries,
+  mergePostTemplateBlocks,
+  prunePostValueBlocksForTemplate,
+} from './post-template-inheritance'
 
 export interface PostBlock {
   id: string
@@ -27,12 +31,13 @@ export interface PostBlock {
 export interface Post {
   id: string
   site_id: string
+  template_id: string
   title: string
   slug: string
   meta_description: string | null
   featured_image: string | null
   excerpt: string | null
-  content_blocks: Record<string, PostBlock>
+  content_blocks: Record<string, any>
   is_published: boolean
   display_order: number
   created_at: string
@@ -46,6 +51,7 @@ export interface UpdatePostData {
   featured_image?: string
   excerpt?: string
   is_published?: boolean
+  template_id?: string
 }
 
 type PostRow = typeof posts.$inferSelect
@@ -54,12 +60,13 @@ function rowToPost(row: PostRow): Post {
   return {
     id: row.id,
     site_id: row.siteId,
+    template_id: row.templateId,
     title: row.title,
     slug: row.slug,
     meta_description: row.metaDescription,
     featured_image: row.featuredImage,
     excerpt: row.excerpt,
-    content_blocks: (row.contentBlocks || {}) as Record<string, PostBlock>,
+    content_blocks: (row.contentBlocks || {}) as Record<string, any>,
     is_published: row.isPublished,
     display_order: row.displayOrder,
     created_at: row.createdAt.toISOString(),
@@ -194,6 +201,41 @@ export async function getSitePostsWithCategoriesAction(
   }
 }
 
+export async function getSitePostsWithMergedBlocksAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
+  const result = await getSitePostsAction(siteId, options)
+  if (!result.data) return result
+
+  try {
+    const templateIds = [...new Set(result.data.map((post) => post.template_id))]
+    const templates = templateIds.length
+      ? await db
+          .select({ id: postTemplates.id, contentBlocks: postTemplates.contentBlocks })
+          .from(postTemplates)
+          .where(and(eq(postTemplates.siteId, siteId), inArray(postTemplates.id, templateIds)))
+      : []
+    const templateMap = new Map(templates.map((template) => [template.id, (template.contentBlocks || {}) as Record<string, any>]))
+    const missingTemplate = result.data.find((post) => !templateMap.has(post.template_id))
+
+    if (missingTemplate) {
+      return { data: null, total: 0, error: 'Post template not found' }
+    }
+
+    return {
+      ...result,
+      data: result.data.map((post) => ({
+        ...post,
+        content_blocks: mergePostTemplateBlocks(
+          templateMap.get(post.template_id)!,
+          post.content_blocks || {}
+        ),
+      })),
+    }
+  } catch (error) {
+    console.error('Error merging post template blocks:', error)
+    return { data: null, total: 0, error: 'Failed to fetch posts' }
+  }
+}
+
 /**
  * Update an existing post
  */
@@ -205,6 +247,29 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: access.error }
     }
     const post = access.row
+
+    let nextTemplateContentBlocks: Record<string, any> | null = null
+    if (updates.template_id !== undefined) {
+      if (!UUID_REGEX.test(updates.template_id)) {
+        return { data: null, error: 'Invalid template ID format' }
+      }
+
+      const [template] = await db
+        .select({
+          id: postTemplates.id,
+          siteId: postTemplates.siteId,
+          contentBlocks: postTemplates.contentBlocks,
+        })
+        .from(postTemplates)
+        .where(eq(postTemplates.id, updates.template_id))
+        .limit(1)
+
+      if (!template || template.siteId !== post.siteId) {
+        return { data: null, error: 'Template not found' }
+      }
+
+      nextTemplateContentBlocks = (template.contentBlocks || {}) as Record<string, any>
+    }
 
     // Validate title if being updated
     if (updates.title !== undefined && !updates.title?.trim()) {
@@ -222,7 +287,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'meta_description', 'featured_image', 'excerpt', 'is_published'] as const
+    const allowedFields = ['title', 'slug', 'meta_description', 'featured_image', 'excerpt', 'is_published', 'template_id'] as const
     const finalPostUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((processedUpdates as any)[field] !== undefined) {
@@ -246,6 +311,13 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     if (finalPostUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalPostUpdates.featured_image
     if (finalPostUpdates.excerpt !== undefined) drizzleUpdates.excerpt = finalPostUpdates.excerpt
     if (finalPostUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalPostUpdates.is_published
+    if (finalPostUpdates.template_id !== undefined) {
+      drizzleUpdates.templateId = finalPostUpdates.template_id
+      drizzleUpdates.contentBlocks = prunePostValueBlocksForTemplate(
+        (post.contentBlocks || {}) as Record<string, any>,
+        nextTemplateContentBlocks || {}
+      )
+    }
 
     // Update the post
     const [updated] = await db
@@ -378,6 +450,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
       .insert(posts)
       .values({
         siteId: originalPost.siteId,
+        templateId: originalPost.templateId,
         title: newTitle.trim(),
         slug: newSlug,
         metaDescription: originalPost.metaDescription,
@@ -408,7 +481,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 /**
  * Update post blocks for a specific post
  */
-export async function updatePostBlocksAction(postId: string, blocks: Record<string, PostBlock>): Promise<{ success: boolean; error: string | null }> {
+export async function updatePostBlocksAction(postId: string, blocks: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
   try {
     // Auth + row + site ownership (fast-fail helper; check runs on every call)
     const access = await requireOwnedContentRow<PostRow>(posts, postId, 'Post')
@@ -417,17 +490,26 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
     }
     const post = access.row
 
-    // Preserve non-block settings and merge with updated blocks
-    const updatedContentBlocks = {
-      ...preserveNonBlockSettings(post.contentBlocks as Record<string, any>),
-      ...blocks
+    const [template] = await db
+      .select({ contentBlocks: postTemplates.contentBlocks })
+      .from(postTemplates)
+      .where(and(eq(postTemplates.id, post.templateId), eq(postTemplates.siteId, post.siteId)))
+      .limit(1)
+
+    if (!template) {
+      return { success: false, error: 'Template not found' }
     }
 
-    // Update content_blocks directly in the posts table
+    const existingSettings = getPostNonBlockEntries((post.contentBlocks || {}) as Record<string, any>)
+    const valueBlocks = prunePostValueBlocksForTemplate(
+      { ...existingSettings, ...blocks },
+      (template.contentBlocks || {}) as Record<string, any>
+    )
+
     await db
       .update(posts)
       .set({
-        contentBlocks: updatedContentBlocks,
+        contentBlocks: valueBlocks,
         updatedAt: new Date(),
       })
       .where(eq(posts.id, postId))

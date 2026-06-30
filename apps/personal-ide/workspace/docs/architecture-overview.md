@@ -200,7 +200,7 @@ The generated server command:
 
 ```bash
 test -d ../../node_modules || (cd ../.. && npm install)
-cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<app-name>" -- --port <port>
+cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<package-name>" -- --port <port>
 ```
 
 `--host` was removed because Hub's Next dev command rejects it.

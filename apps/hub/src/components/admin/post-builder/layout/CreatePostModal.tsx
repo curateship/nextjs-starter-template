@@ -12,7 +12,6 @@ import { ChevronDown } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getPostTemplatesBySite } from "@/lib/actions/posts/post-template-actions"
-import { parsePostBlocksFromJson, postBlocksToJson } from "@/components/admin/post-builder/config/post-block-utils"
 import {
   FeaturedImageField,
   MetaDescriptionField,
@@ -48,7 +47,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<PostTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
-  const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   // Load post templates and preselect the default
   useEffect(() => {
@@ -68,7 +67,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         const loaded = data || []
         setTemplates(loaded)
         const defaultTemplate = loaded.find((template) => template.is_default)
-        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+        setSelectedTemplateId(defaultTemplate?.id || loaded[0]?.id || '')
         setTemplatesLoading(false)
       }
     }
@@ -80,18 +79,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     }
   }, [currentSite?.id])
 
-  // Clone + sanitize the selected template's blocks into the new post
-  const buildTemplateContentBlocks = () => {
-    const selectedTemplate = selectedTemplateId !== 'blank'
-      ? templates.find((template) => template.id === selectedTemplateId)
-      : null
-    if (!selectedTemplate) return {}
-    const templateContentBlocks = selectedTemplate.content_blocks && typeof selectedTemplate.content_blocks === 'object'
-      ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
-      : {}
-    return postBlocksToJson(parsePostBlocksFromJson(templateContentBlocks), templateContentBlocks)
-  }
-
   const { loading, loadingAction, error, setError, submit } = useCreateContent<Post>({
     entityLabel: "post",
     title,
@@ -100,11 +87,12 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       title,
       slug,
       site_id: currentSite?.id,
+      template_id: selectedTemplateId,
       meta_description: metaDescription,
       featured_image: featuredImage || null,
       excerpt: excerpt || null,
       is_published: publish,
-      content_blocks: buildTemplateContentBlocks(),
+      content_blocks: {},
     }),
     // Assign selected categories after the post row exists
     afterCreate: async (created) => {
@@ -117,6 +105,10 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const handleSave = async (continueToBuilder = false, publishNow = false) => {
     if (!currentSite?.id) {
       setError("No site selected")
+      return
+    }
+    if (!selectedTemplateId) {
+      setError("Template is required")
       return
     }
     const action = publishNow ? "publish" : continueToBuilder ? "continue" : "draft"
@@ -173,7 +165,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent className="z-60">
-                      <SelectItem value="blank">Blank</SelectItem>
                       {templates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}

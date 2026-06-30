@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
@@ -10,9 +10,7 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { PostBlockListPanel } from "@/components/admin/post-builder/layout/PostBlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
-import { getSitePostsAction, updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
+import { getSitePostsWithMergedBlocksAction, updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
 import type { Post, PostBlock } from "@/lib/actions/posts/post-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -23,6 +21,7 @@ import {
   orderPostBuilderBlocks,
   postBuilderBlocksToRecord,
 } from "@/components/admin/post-builder/config/post-block-utils"
+import { postBlocksToValueJson } from "@/lib/actions/posts/post-template-inheritance"
 
 export default function PostBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -37,7 +36,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   
   const postFromUrl = searchParams.get('post') || ''
   const [selectedPost, setSelectedPost] = useState(postFromUrl)
-  const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
@@ -56,6 +54,11 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }, [currentSite, postFromUrl, router, setCurrentSite, siteId, sites])
   
+  const loadPosts = useCallback(async (selectedSlug = postFromUrl) => {
+    const postsResult = await getSitePostsWithMergedBlocksAction(siteId, { selectedSlug })
+    if (postsResult.data) setPosts(postsResult.data)
+  }, [postFromUrl, siteId])
+
   // Load site and posts data
   useEffect(() => {
     async function loadData() {
@@ -69,13 +72,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         }
         setSite(siteResult.data)
         
-        // Load posts data
-        const postsResult = await getSitePostsAction(siteId, { selectedSlug: postFromUrl })
-        if (!postsResult.data) {
-          return
-        }
-        
-        setPosts(postsResult.data)
+        await loadPosts(postFromUrl)
         
       } catch {
       } finally {
@@ -84,7 +81,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
     
     loadData()
-  }, [postFromUrl, siteId])
+  }, [loadPosts, postFromUrl, siteId])
 
   useEffect(() => {
     if (posts.length === 0) return
@@ -126,7 +123,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     } else {
       setLocalBlocks({})
     }
-  }, [selectedPost, currentPostData?.id])
+  }, [selectedPost, currentPostData?.id, currentPostData?.content_blocks])
   
   // Post builder hook for block management - just like products
   const builderState = usePostBuilder({
@@ -175,14 +172,18 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   
   // Handle post updates
   const handlePostUpdated = (updatedPost: Post) => {
-    setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
-
     // If the slug changed, update selected post and URL
     const currentPost = posts.find(p => p.id === updatedPost.id)
+    setPosts(prev => prev.map(p => p.id === updatedPost.id ? {
+      ...updatedPost,
+      content_blocks: p.content_blocks,
+    } : p))
+
     if (currentPost && currentPost.slug !== updatedPost.slug) {
       setSelectedPost(updatedPost.slug)
       router.replace(`/admin/posts/builder/${siteId}?post=${updatedPost.slug}`)
     }
+    if (currentPost?.template_id !== updatedPost.template_id) void loadPosts(updatedPost.slug)
   }
 
   // Handle publishing the current post
@@ -243,7 +244,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         handlePostUpdated(data)
       }
 
-      const { success, error } = await updatePostBlocksAction(currentPostId, nextBlocks)
+      const { success, error } = await updatePostBlocksAction(currentPostId, postBlocksToValueJson(Object.values(nextBlocks)))
       if (!success) {
         setBlockSaveError(error || "Failed to save block")
         return
@@ -351,24 +352,15 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           <PostBlockListPanel
             blocks={currentPost.blocks}
             selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
+            onSelectBlock={(block) => {
+              if (block.type === "core") builderState.setSelectedBlock(block)
+            }}
             viewPageHref={publishedViewPageHref}
-            onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={loading}
+            editableStructure={false}
           />
         )}
-
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={Object.values(builderState.blocks).map(b => b.type)}
-          blockTypes={POST_BLOCK_TYPES}
-          entityName="post"
-        />
       </div>
     </div>
   )

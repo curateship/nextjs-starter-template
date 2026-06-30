@@ -41,12 +41,13 @@ interface PostBlockListPanelProps {
   blocks: PostBlock[]
   selectedBlock: PostBlock | null
   onSelectBlock: (block: PostBlock) => void
-  onDeleteBlock: (block: PostBlock) => void
-  onReorderBlocks: (blocks: PostBlock[]) => void
+  onDeleteBlock?: (block: PostBlock) => void
+  onReorderBlocks?: (blocks: PostBlock[]) => void
   viewPageHref?: string | null
   onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
+  editableStructure?: boolean
 }
 
 function getColumnTransferLaneId(column: PostLayoutColumn) {
@@ -57,6 +58,36 @@ function insertBlockAt(blocks: PostBlock[], block: PostBlock, index: number) {
   const nextBlocks = [...blocks]
   nextBlocks.splice(Math.max(0, index), 0, block)
   return nextBlocks
+}
+
+function PostBlockItem({
+  block,
+  selectedBlock,
+  onSelectBlock,
+}: {
+  block: PostBlock
+  selectedBlock: PostBlock | null
+  onSelectBlock: (block: PostBlock) => void
+}) {
+  const Icon = getBlockIcon(block.type)
+  const name = getBlockName(block.type)
+
+  return (
+    <button
+      type="button"
+      className={`block w-full p-3 text-left transition-colors cursor-pointer rounded-lg ${
+        selectedBlock?.id === block.id
+          ? "bg-muted/60"
+          : "opacity-60 hover:opacity-90"
+      }`}
+      onClick={() => onSelectBlock(block)}
+    >
+      <span className="flex items-center space-x-2">
+        <Icon className="w-3.5 h-3.5" />
+        <span className="text-sm font-medium">{name}</span>
+      </span>
+    </button>
+  )
 }
 
 function SortablePostBlockItem({
@@ -137,6 +168,47 @@ function SortablePostBlockItem({
   )
 }
 
+function PostReadOnlyColumnSection({
+  column,
+  blocks,
+  selectedBlock,
+  onSelectBlock,
+}: {
+  column: PostLayoutColumn
+  blocks: PostBlock[]
+  selectedBlock: PostBlock | null
+  onSelectBlock: (block: PostBlock) => void
+}) {
+  const title = column === "main" ? "Main column" : "Sidebar column"
+  const emptyText = column === "main"
+    ? "No blocks in main column"
+    : "No blocks in sidebar column"
+
+  return (
+    <div className="mb-4">
+      <div className="mb-1 flex items-center justify-between px-5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        <span className="text-[11px] text-muted-foreground">{blocks.length}</span>
+      </div>
+
+      {blocks.length > 0 ? (
+        <div className="space-y-0">
+          {blocks.map((block) => (
+            <PostBlockItem
+              key={block.id}
+              block={block}
+              selectedBlock={selectedBlock}
+              onSelectBlock={onSelectBlock}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="px-5 py-3 text-xs text-muted-foreground">{emptyText}</div>
+      )}
+    </div>
+  )
+}
+
 function PostColumnSection({
   column,
   blocks,
@@ -212,6 +284,7 @@ export function PostBlockListPanel({
   onAddBlock,
   deleting,
   blocksLoading = false,
+  editableStructure = true,
 }: PostBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
@@ -229,6 +302,7 @@ export function PostBlockListPanel({
     ? orderedBlocks.find((block) => block.id === activeBlockId) ?? null
     : null
   const activeColumn = activeBlock ? getPostLayoutColumn(activeBlock) : null
+  const canEditStructure = editableStructure && Boolean(onDeleteBlock && onReorderBlocks)
 
   const collisionDetection: CollisionDetection = (args) => {
     const currentActiveId = String(args.active.id)
@@ -257,7 +331,7 @@ export function PostBlockListPanel({
   }
 
   const handleConfirmDelete = () => {
-    if (blockToDelete) onDeleteBlock(blockToDelete)
+    if (blockToDelete && onDeleteBlock) onDeleteBlock(blockToDelete)
     setDeleteConfirmOpen(false)
     setBlockToDelete(null)
   }
@@ -272,6 +346,7 @@ export function PostBlockListPanel({
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveBlockId(null)
+    if (!onReorderBlocks) return
 
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -394,7 +469,7 @@ export function PostBlockListPanel({
               </div>
             ))}
           </div>
-        ) : (
+        ) : canEditStructure ? (
           <DndContext
             sensors={sensors}
             collisionDetection={collisionDetection}
@@ -423,9 +498,24 @@ export function PostBlockListPanel({
               />
             </SortableContext>
           </DndContext>
+        ) : (
+          <>
+            <PostReadOnlyColumnSection
+              column="main"
+              blocks={mainBlocks}
+              selectedBlock={selectedBlock}
+              onSelectBlock={onSelectBlock}
+            />
+            <PostReadOnlyColumnSection
+              column="sidebar"
+              blocks={sidebarBlocks}
+              selectedBlock={selectedBlock}
+              onSelectBlock={onSelectBlock}
+            />
+          </>
         )}
 
-        {onAddBlock && (
+        {canEditStructure && onAddBlock && (
           <div className="px-5 mt-3">
             {blocksLoading ? (
               <div className="h-9 w-28 bg-muted rounded animate-pulse"></div>
@@ -439,29 +529,31 @@ export function PostBlockListPanel({
         )}
       </div>
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DashboardModalContent
-          title="Delete block"
-          description={
-            blockToDelete
-              ? `Are you sure you want to delete the ${getBlockName(blockToDelete.type)} block? It will be removed when you save.`
-              : undefined
-          }
-          className="sm:max-w-[425px]"
-          footer={
-            <>
-              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
-            </>
-          }
-        >
-          <CardGroup className="grid">
-            <Card>
-              <CardContent />
-            </Card>
-          </CardGroup>
-        </DashboardModalContent>
-      </Dialog>
+      {canEditStructure && (
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DashboardModalContent
+            title="Delete block"
+            description={
+              blockToDelete
+                ? `Are you sure you want to delete the ${getBlockName(blockToDelete.type)} block? It will be removed when you save.`
+                : undefined
+            }
+            className="sm:max-w-[425px]"
+            footer={
+              <>
+                <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardContent />
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </Dialog>
+      )}
     </>
   )
 }
