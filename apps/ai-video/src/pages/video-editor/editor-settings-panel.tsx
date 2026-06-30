@@ -22,7 +22,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
+import { useShellRuntime } from "@/components/shell-layout"
 import { cn } from "@/lib/utils"
+import type { BrandKitColor, BrandKitConfig } from "@/lib/ai-video"
 import {
   Dialog,
   DialogBody,
@@ -142,6 +144,7 @@ export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
 // template slot inspector.
 export function TextClipSettings({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditor()
+  const { config } = useShellRuntime()
 
   if (clip.kind !== "text") return null
 
@@ -164,6 +167,7 @@ export function TextClipSettings({ clip }: { clip: EditorClip }) {
       color={clip.color ?? "#ffffff"}
       highlightColor={clip.highlightColor}
       onChange={patch}
+      swatches={config.brandKit.colors}
     />
   )
 }
@@ -197,6 +201,7 @@ function TextClipFields({
   highlightColor,
   onChange,
   layout = "plain",
+  swatches,
 }: {
   idPrefix: string
   text: string
@@ -206,6 +211,7 @@ function TextClipFields({
   highlightColor?: string
   onChange: (patch: TextStylePatch & { text?: string }) => void
   layout?: TextFieldLayout
+  swatches?: BrandKitColor[]
 }) {
   return (
     <>
@@ -229,6 +235,7 @@ function TextClipFields({
         highlightColor={highlightColor}
         onChange={onChange}
         layout={layout}
+        swatches={swatches}
       />
     </>
   )
@@ -244,6 +251,7 @@ function TextStyleFields({
   highlightColor,
   onChange,
   layout = "plain",
+  swatches,
 }: {
   idPrefix: string
   fontId: TextFontId
@@ -252,6 +260,7 @@ function TextStyleFields({
   highlightColor?: string
   onChange: (patch: TextStylePatch) => void
   layout?: TextFieldLayout
+  swatches?: BrandKitColor[]
 }) {
   return (
     <>
@@ -297,6 +306,7 @@ function TextStyleFields({
           id={`${idPrefix}-color`}
           value={color}
           onChange={(value) => onChange({ color: value })}
+          swatches={swatches}
         />
       </div>
       <div className={textFieldClassName(layout)}>
@@ -319,6 +329,7 @@ function TextStyleFields({
             value={highlightColor}
             onChange={(value) => onChange({ highlightColor: value })}
             aria-label="Highlight color"
+            swatches={swatches}
           />
         ) : null}
       </div>
@@ -327,19 +338,43 @@ function TextStyleFields({
 }
 
 // Starting values for a brand-new text clip.
-const DEFAULT_TEXT_DRAFT: {
+type TextDraft = {
   text: string
   fontId: TextFontId
   fontSize: number
   color: string
   highlightColor?: string
-} = {
-  // Matches the default "Boxed" caption look: dark text on a white box.
-  text: "Your text here",
-  fontId: DEFAULT_TEXT_FONT_ID,
-  fontSize: 20,
-  color: "#000000",
-  highlightColor: "#ffffff",
+}
+
+function brandColor(
+  brandKit: BrandKitConfig,
+  name: string,
+  fallback: string
+) {
+  return (
+    brandKit.colors.find(
+      (color) => color.name.toLowerCase() === name.toLowerCase()
+    )?.value ?? fallback
+  )
+}
+
+function defaultTextDraft(brandKit: BrandKitConfig): TextDraft {
+  return {
+    text: "Your text here",
+    fontId: brandKit.fonts.body,
+    fontSize: 20,
+    color: brandColor(brandKit, "Primary", "#000000"),
+  }
+}
+
+function captionStyleFromBrandKit(brandKit: BrandKitConfig) {
+  return {
+    fontId: brandKit.captionStyle.fontId,
+    fontSize: brandKit.captionStyle.fontSize,
+    color: brandKit.captionStyle.color,
+    highlightColor: brandKit.captionStyle.highlightColor ?? undefined,
+    y: 0.78,
+  }
 }
 
 // Building blocks the editor supports. Tiles with an `action` are wired up;
@@ -442,11 +477,14 @@ function TextDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { dispatch, clock } = useEditor()
-  const [draft, setDraft] = React.useState(DEFAULT_TEXT_DRAFT)
+  const { config } = useShellRuntime()
+  const [draft, setDraft] = React.useState(() =>
+    defaultTextDraft(config.brandKit)
+  )
 
   // Reset to defaults on close so the dialog starts fresh next open.
   function handleOpenChange(next: boolean) {
-    if (!next) setDraft(DEFAULT_TEXT_DRAFT)
+    if (!next) setDraft(defaultTextDraft(config.brandKit))
     onOpenChange(next)
   }
 
@@ -489,6 +527,7 @@ function TextDialog({
               color={draft.color}
               highlightColor={draft.highlightColor}
               onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+              swatches={config.brandKit.colors}
             />
           </div>
         </DialogBody>
@@ -1269,17 +1308,27 @@ const CAPTION_STYLES: {
 // preset plus the editable font size / color / highlight. `y` (lower-third
 // position) stays per-preset and isn't user-editable.
 function useCaptionStyle() {
-  const [styleId, setStyleId] = React.useState(CAPTION_STYLES[0].id)
-  const [fontId, setFontId] = React.useState(CAPTION_STYLES[0].fontId)
-  const [fontSize, setFontSize] = React.useState(CAPTION_STYLES[0].fontSize)
-  const [color, setColor] = React.useState(CAPTION_STYLES[0].color)
+  const { config } = useShellRuntime()
+  const brandStyle = captionStyleFromBrandKit(config.brandKit)
+  const captionStyles = [
+    {
+      id: "brand-kit",
+      label: "Brand Kit",
+      ...brandStyle,
+    },
+    ...CAPTION_STYLES,
+  ]
+  const [styleId, setStyleId] = React.useState(captionStyles[0].id)
+  const [fontId, setFontId] = React.useState(captionStyles[0].fontId)
+  const [fontSize, setFontSize] = React.useState(captionStyles[0].fontSize)
+  const [color, setColor] = React.useState(captionStyles[0].color)
   const [highlightColor, setHighlightColor] = React.useState<
     string | undefined
-  >(CAPTION_STYLES[0].highlightColor)
+  >(captionStyles[0].highlightColor)
 
   // Picking a preset refills the editable controls.
   function applyPreset(id: string) {
-    const preset = CAPTION_STYLES.find((s) => s.id === id) ?? CAPTION_STYLES[0]
+    const preset = captionStyles.find((s) => s.id === id) ?? captionStyles[0]
     setStyleId(id)
     setFontId(preset.fontId)
     setFontSize(preset.fontSize)
@@ -1296,9 +1345,20 @@ function useCaptionStyle() {
   }
 
   // Position is fixed per preset (not user-editable) — read it for the clip.
-  const y = (CAPTION_STYLES.find((s) => s.id === styleId) ?? CAPTION_STYLES[0]).y
+  const y = (captionStyles.find((s) => s.id === styleId) ?? captionStyles[0]).y
 
-  return { styleId, fontId, fontSize, color, highlightColor, y, applyPreset, patch }
+  return {
+    styleId,
+    fontId,
+    fontSize,
+    color,
+    highlightColor,
+    y,
+    swatches: config.brandKit.colors,
+    presets: captionStyles,
+    applyPreset,
+    patch,
+  }
 }
 
 // The caption style preset picker + adjustable font/color/highlight controls,
@@ -1319,7 +1379,7 @@ function CaptionStyleFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {CAPTION_STYLES.map((preset) => (
+            {style.presets.map((preset) => (
               <SelectItem key={preset.id} value={preset.id}>
                 {preset.label}
               </SelectItem>
@@ -1334,6 +1394,7 @@ function CaptionStyleFields({
         color={style.color}
         highlightColor={style.highlightColor}
         onChange={style.patch}
+        swatches={style.swatches}
       />
     </>
   )
@@ -1779,6 +1840,7 @@ function ScriptDialog({
 }) {
   // AI Script is project-only, so this dialog only mounts in project mode.
   const { dispatch, documentId: projectId } = useEditor()
+  const { config } = useShellRuntime()
   const [topic, setTopic] = React.useState("")
   const [notes, setNotes] = React.useState("")
   const [generating, setGenerating] = React.useState(false)
@@ -1827,9 +1889,7 @@ function ScriptDialog({
         kind: "text" as const,
         name: "Script",
         text: beat.line,
-        fontId: DEFAULT_TEXT_FONT_ID,
-        fontSize: 64,
-        color: "#ffffff",
+        ...captionStyleFromBrandKit(config.brandKit),
         trimStartMs: 0,
         startMs: beat.startMs,
         durationMs: beat.endMs - beat.startMs,

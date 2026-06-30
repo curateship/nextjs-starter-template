@@ -11,6 +11,7 @@ import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import { generateJson } from "@/server/video-analysis"
+import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
 
@@ -180,8 +181,9 @@ export async function generateExportDescriptionForCurrentUser(
   }
 
   try {
+    const brandKit = await getCurrentWorkspaceBrandKit(user.id)
     const result = await generateJson(
-      [{ text: descriptionPrompt(project) }],
+      [{ text: descriptionPrompt(project, brandKit.ctaPhrases) }],
       descriptionSchema,
       "Description generation"
     )
@@ -197,7 +199,7 @@ export async function generateExportDescriptionForCurrentUser(
   }
 }
 
-function descriptionPrompt(project: AiVideoProject) {
+function descriptionPrompt(project: AiVideoProject, ctaPhrases: string[]) {
   const timeline = project.timeline as ProjectTimeline
   const context = collectTimelineContext(timeline)
   const exportedAt = project.renderedAt?.toISOString() ?? "unknown"
@@ -210,6 +212,7 @@ Exported at: ${exportedAt}
 
 Saved timeline context:
 ${context || "(No saved timeline text or clip names.)"}
+${ctaPhrases.length ? `\nSaved CTA phrases:\n${ctaPhrases.map((phrase) => `- ${phrase}`).join("\n")}` : ""}
 
 Return ONLY a JSON object with this exact shape:
 { "description": "..." }
@@ -217,6 +220,7 @@ Return ONLY a JSON object with this exact shape:
 Rules:
 - Use the export title and saved timeline context only.
 - Write 2-4 polished sentences suitable for a social post or video description.
+- If a saved CTA phrase fits naturally, use or adapt one.
 - Do not invent names, claims, URLs, or hashtags that are not supported by the context.
 - If context is sparse, keep the description general and useful.`
 }

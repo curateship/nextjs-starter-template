@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
+import { BrandKitSettings } from "@/components/brand-kit-settings"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { LlmProviderSettings } from "@/components/llm-provider-settings"
@@ -14,6 +15,7 @@ const settingsTabs = [
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
   { id: "ai-providers", label: "AI Providers" },
+  { id: "brand-kit", label: "Brand Kit" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -141,6 +143,13 @@ export function SettingsPage({
               shell config save flow. */}
           {activeTab === "ai-providers" ? (
             <LlmProviderSettings saveRef={aiSaveRef} />
+          ) : null}
+          {activeTab === "brand-kit" ? (
+            <BrandKitSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
+            />
           ) : null}
         </div>
       </div>

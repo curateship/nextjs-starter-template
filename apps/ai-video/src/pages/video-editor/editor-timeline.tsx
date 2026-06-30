@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useShellRuntime } from "@/components/shell-layout"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -73,6 +74,7 @@ import {
   usePlaybackRate,
 } from "@/pages/video-editor/playback-clock"
 import { TimelineTrackRow } from "@/pages/video-editor/editor-timeline-track"
+import { brandKitExportFilename } from "@/lib/ai-video"
 import {
   formatTimecode,
   MAX_PX_PER_SECOND,
@@ -628,6 +630,7 @@ const QUALITY_OPTIONS: { value: RenderQuality; label: string; hint: string }[] =
   { value: "medium", label: "Medium", hint: "720p" },
   { value: "low", label: "Low", hint: "480p" },
 ]
+
 // Export modal launched from the toolbar: pick quality + filename, start the
 // server-side render, and open the Project Export preview when it finishes.
 // The render runs in the background, so closing the modal mid-render is fine —
@@ -640,9 +643,15 @@ export function ExportControls({
   // Export only mounts in project mode, so the document is a project here.
   const { documentId: projectId, documentName: projectName, flushSave } =
     useEditor()
+  const { config } = useShellRuntime()
+  const defaultFilename = brandKitExportFilename(
+    config.brandKit.exportNamingPattern,
+    projectName,
+    config.workspaceName
+  )
   const [modalOpen, setModalOpen] = React.useState(false)
   const [quality, setQuality] = React.useState<RenderQuality>("high")
-  const [filename, setFilename] = React.useState(projectName)
+  const [filename, setFilename] = React.useState(defaultFilename)
   const [status, setStatus] = React.useState<
     "idle" | "rendering" | "ready" | "error"
   >("idle")
@@ -745,6 +754,11 @@ export function ExportControls({
 
   const rendering = starting || status === "rendering"
 
+  function handleOpenExport() {
+    setFilename(defaultFilename)
+    setModalOpen(true)
+  }
+
   return (
     <>
       <div className={className}>
@@ -754,7 +768,7 @@ export function ExportControls({
             Exporting…
           </span>
         ) : null}
-        <Button type="button" size="sm" onClick={() => setModalOpen(true)}>
+        <Button type="button" size="sm" onClick={handleOpenExport}>
           <UploadIcon className="size-4" />
           Export
         </Button>

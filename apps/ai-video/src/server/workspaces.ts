@@ -1,8 +1,10 @@
 import { and, asc, eq } from "drizzle-orm"
 
 import {
+  cleanBrandKitConfig,
   createDefaultTopRightNavigation,
   iconMeta,
+  type BrandKitConfig,
   type IconKey,
   type ShellSection,
   type ShellTopNavigationItem,
@@ -21,6 +23,7 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  brandKit: BrandKitConfig
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -81,6 +84,14 @@ export async function listUserWorkspaces(
     rows.find((workspace) => workspace.isDefault) ?? rows[0] ?? null
 
   return { workspaces: rows, currentWorkspaceId: current?.id ?? null }
+}
+
+export async function getCurrentWorkspaceBrandKit(
+  userId: string,
+  database: AiVideoDb = db
+) {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  return parseWorkspaceSettings(workspace.settings).brandKit
 }
 
 export async function createUserWorkspace(
@@ -316,6 +327,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      brandKit: cleanBrandKitConfig(settings.brandKit),
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
         : fallback.topNavigation,
@@ -341,6 +353,7 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    brandKit: cleanBrandKitConfig(settings.brandKit),
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -357,6 +370,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    brandKit: cleanBrandKitConfig(undefined),
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),

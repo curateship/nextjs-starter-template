@@ -3,22 +3,66 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
+  BRAND_KIT_WATERMARK_POSITIONS,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
 } from "@/lib/ai-video"
+import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 import { db } from "@/server/db"
+import { getPublicMediaUrl } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  aiVideoMedia,
   aiVideoSettings,
   aiVideoWorkspaces,
 } from "@/server/schema"
 import { now, requireAdminUser, requireUser } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
+const brandColorSchema = z.string().regex(HEX_COLOR)
+const brandKitSchema = z.object({
+  colors: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(40),
+        value: brandColorSchema,
+      })
+    )
+    .max(20),
+  fonts: z.object({
+    heading: z.enum(TEXT_FONT_IDS),
+    body: z.enum(TEXT_FONT_IDS),
+    caption: z.enum(TEXT_FONT_IDS),
+  }),
+  captionStyle: z.object({
+    fontId: z.enum(TEXT_FONT_IDS),
+    fontSize: z.number().int().min(8).max(240),
+    color: brandColorSchema,
+    highlightColor: brandColorSchema.nullable(),
+  }),
+  logo: z.object({
+    mediaId: z.string().min(1).max(36).nullable(),
+    previewUrl: z.string().max(2048),
+  }),
+  watermark: z.object({
+    enabled: z.boolean(),
+    position: z.enum(BRAND_KIT_WATERMARK_POSITIONS),
+    widthPercent: z.number().int().min(1).max(100),
+    opacity: z.number().int().min(0).max(100),
+  }),
+  ctaPhrases: z
+    .array(z.string().max(180))
+    .max(20)
+    .transform((phrases) =>
+      phrases.map((phrase) => phrase.trim()).filter(Boolean).slice(0, 20)
+    ),
+  exportNamingPattern: z.string().trim().min(1).max(120),
+})
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
@@ -55,6 +99,7 @@ const shellConfigSchema = z.object({
   ),
   mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
   favicon: z.string(),
+  brandKit: brandKitSchema,
   topNavigation: z.array(
     z.object({
       id: z.string().min(1),
@@ -104,6 +149,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         ...shellGlobals,
         workspaceName: workspace.name,
         favicon: workspaceSettings.favicon,
+        brandKit: workspaceSettings.brandKit,
         topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
@@ -127,6 +173,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     if (!workspaceName) {
       throw new Error("Workspace name is required")
     }
+    const brandKit = await validateBrandKitLogo(user.id, data.brandKit)
 
     const globalSettings = pickShellGlobals(data)
     await db.transaction(async (tx) => {
@@ -137,6 +184,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           settings: {
             ...workspaceSettings,
             favicon: data.favicon,
+            brandKit,
             topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
@@ -217,5 +265,49 @@ function pickShellGlobals(settings: ShellConfig) {
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     mediaUploadMaxMb: settings.mediaUploadMaxMb,
+  }
+}
+
+function brandKitWithClearedLogo(brandKit: ShellConfig["brandKit"]) {
+  return {
+    ...brandKit,
+    logo: { mediaId: null, previewUrl: "" },
+  }
+}
+
+async function validateBrandKitLogo(
+  userId: string,
+  brandKit: ShellConfig["brandKit"]
+) {
+  if (!brandKit.logo.mediaId) {
+    return brandKitWithClearedLogo(brandKit)
+  }
+
+  const [logo] = await db
+    .select({
+      id: aiVideoMedia.id,
+      fileType: aiVideoMedia.fileType,
+      storagePath: aiVideoMedia.storagePath,
+    })
+    .from(aiVideoMedia)
+    .where(
+      and(eq(aiVideoMedia.id, brandKit.logo.mediaId), eq(aiVideoMedia.userId, userId))
+    )
+    .limit(1)
+
+  if (!logo) {
+    return brandKitWithClearedLogo(brandKit)
+  }
+
+  if (logo.fileType !== "image") {
+    throw new Error("Brand logo must be an image from your media library")
+  }
+
+  return {
+    ...brandKit,
+    logo: {
+      mediaId: logo.id,
+      previewUrl: getPublicMediaUrl(logo.storagePath),
+    },
   }
 }

@@ -128,6 +128,14 @@ and shared UI primitives are owned by the config-driven shell, not by product
 code. The shell stays separate from business logic so the reel pipeline can
 evolve without touching layout.
 
+Workspace settings also carry the Brand Kit. Brand Kit data is stored in the
+current workspace JSON, not the global settings row, and includes named color
+swatches, bundled text font ids, caption defaults, an optional logo media id,
+watermark options, CTA phrases, and the export filename pattern. New editor
+text/caption flows read these defaults; existing timelines are not rewritten.
+Exports apply the saved watermark when enabled and use CTA phrases only for
+AI-written marketing copy.
+
 ### Navigation Model
 
 - The sticky header top-left area is local navigation for the current context.

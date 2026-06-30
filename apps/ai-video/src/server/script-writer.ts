@@ -10,6 +10,7 @@ import {
 } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import { generateJson, type ViralVideoAnalysis } from "@/server/video-analysis"
+import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 
 // One beat of the generated script. Role and timing come verbatim from the
 // source reel's analyzed segments — only the line text is model-written, so
@@ -44,7 +45,8 @@ const WORDS_PER_SECOND = 2.8
 function scriptPrompt(
   analysis: ViralVideoAnalysis,
   topic: string,
-  notes: string | undefined
+  notes: string | undefined,
+  ctaPhrases: string[]
 ) {
   // Describe each segment with its role, length, word budget, and what was
   // originally said during it.
@@ -62,7 +64,7 @@ function scriptPrompt(
 
   return `You are a short-form video scriptwriter. A viral reel was analyzed into narrative beats below. Write a NEW script about a different topic that copies the original's structure and pacing beat for beat.
 
-New topic: ${topic}${notes ? `\nExtra notes from the creator: ${notes}` : ""}
+New topic: ${topic}${notes ? `\nExtra notes from the creator: ${notes}` : ""}${ctaPhrases.length ? `\nSaved CTA phrases to use when they fit naturally:\n${ctaPhrases.map((phrase) => `- ${phrase}`).join("\n")}` : ""}
 
 Original beats:
 ${beats.join("\n")}
@@ -74,6 +76,7 @@ Rules:
 - Exactly one entry per beat above, using the same "index".
 - "line" is what the creator SAYS during that beat about the new topic — spoken words only, no camera directions.
 - Match each beat's narrative role and stay within its word budget so the line fits the beat's length when spoken.
+- If a saved CTA phrase fits a CTA beat naturally, use or adapt one.
 - Write in the same energetic, hook-driven style as the original lines.`
 }
 
@@ -129,7 +132,13 @@ export async function writeScriptForProjectForCurrentUser(
     throw new Error(NOT_TEMPLATE_ERROR)
   }
 
-  const lines = await generateScriptLines(analysis, data.topic, data.notes)
+  const brandKit = await getCurrentWorkspaceBrandKit(user.id)
+  const lines = await generateScriptLines(
+    analysis,
+    data.topic,
+    data.notes,
+    brandKit.ctaPhrases
+  )
 
   // Zip the model's lines back onto the analyzed segments: timing and role
   // are never model-controlled.
@@ -153,10 +162,11 @@ export async function writeScriptForProjectForCurrentUser(
 async function generateScriptLines(
   analysis: ViralVideoAnalysis,
   topic: string,
-  notes: string | undefined
+  notes: string | undefined,
+  ctaPhrases: string[]
 ) {
   const result = await generateJson(
-    [{ text: scriptPrompt(analysis, topic, notes) }],
+    [{ text: scriptPrompt(analysis, topic, notes, ctaPhrases) }],
     scriptSchema,
     "Script generation"
   )
