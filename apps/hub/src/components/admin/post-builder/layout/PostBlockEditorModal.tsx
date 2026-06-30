@@ -25,6 +25,7 @@ interface PostBlockEditorModalProps {
   onSave: () => void
   saving?: boolean
   error?: string | null
+  mode?: "post" | "template"
 }
 
 export function PostBlockEditorModal({
@@ -39,6 +40,7 @@ export function PostBlockEditorModal({
   onSave,
   saving = false,
   error,
+  mode = "post",
 }: PostBlockEditorModalProps) {
   if (!block) return null
 
@@ -62,6 +64,7 @@ export function PostBlockEditorModal({
           onSave={onSave}
           saving={saving}
           error={error}
+          mode={mode}
         />
       </ModalTabsProvider>
     </Dialog>
@@ -80,9 +83,14 @@ function PostBlockEditorModalContent({
   onSave,
   saving = false,
   error,
+  mode = "post",
 }: PostBlockEditorModalProps & { block: PostBlock }) {
   const dock = useModalTabsDock()
+  const canEditPostBlock = mode !== "post" || block.type === "core"
+
   const modalTabs = useMemo<ModalTabItem[]>(() => {
+    if (!canEditPostBlock) return []
+
     const coreTabs: Array<{ value: CoreBlockTab; label: string }> = [
       { value: "content", label: "Content" },
       { value: "styling", label: "Styling" },
@@ -98,11 +106,13 @@ function PostBlockEditorModalContent({
       { value: "settings", label: "Settings" },
     ]
 
-    if (block.type === "core") return coreTabs
+    if (block.type === "core") return mode === "template"
+      ? coreTabs.filter((tab) => tab.value !== "content")
+      : coreTabs.filter((tab) => tab.value === "content")
     if (block.type === "related-posts") return relatedPostsTabs
     if (block.type === "table-of-contents") return tableOfContentsTabs
     return []
-  }, [block.type])
+  }, [block.type, canEditPostBlock, mode])
   const setModalTabs = dock?.setTabs
   const clearModalTabs = dock?.clearTabs
   const activeTab = (dock?.activeTab || "content") as CoreBlockTab | RelatedPostsBlockTab | TableOfContentsBlockTab
@@ -110,9 +120,11 @@ function PostBlockEditorModalContent({
   useEffect(() => {
     if (!setModalTabs || !clearModalTabs) return
 
-    setModalTabs(modalTabs, "content")
+    setModalTabs(modalTabs, modalTabs[0]?.value || "content")
     return clearModalTabs
   }, [setModalTabs, clearModalTabs, modalTabs, block.id])
+
+  if (!canEditPostBlock) return null
 
   return (
     <DashboardModalContent
@@ -144,6 +156,7 @@ function PostBlockEditorModalContent({
         coreTab={block.type === "core" ? activeTab as CoreBlockTab : undefined}
         relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
         tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
+        mode={mode}
       />
     </DashboardModalContent>
   )

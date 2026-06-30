@@ -4,8 +4,9 @@ import {
   type PostBlock
 } from '@/lib/actions/posts/post-actions'
 import { normalizePostBlockContent } from '@/lib/actions/posts/post-layout'
-import { normalizePostBuilderBlock, postBuilderBlocksToRecord } from './post-block-utils'
+import { normalizePostBuilderBlock, postBuilderBlocksToRecord, parsePostBlocksFromJson } from './post-block-utils'
 import { getBlockTypeDefinition } from './post-block-types'
+import { postBlocksToValueJson } from '@/lib/actions/posts/post-template-inheritance'
 
 interface BlockSelection {
   type: string
@@ -173,7 +174,8 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       setSaveMessage('Saving blocks...')
 
       const normalizedBlocks = postBuilderBlocksToRecord(Object.values(blocks))
-      const { success, error } = await updatePostBlocksAction(postId, normalizedBlocks)
+      const valueBlocks = postBlocksToValueJson(parsePostBlocksFromJson(normalizedBlocks))
+      const { success, error } = await updatePostBlocksAction(postId, valueBlocks)
 
       if (!success || error) {
         console.error('Error saving blocks:', error)

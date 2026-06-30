@@ -7,10 +7,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { ChevronDown } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getPostTemplatesBySite, type PostTemplate } from "@/lib/actions/posts/post-template-actions"
 import {
   FeaturedImageField,
   MetaDescriptionField,
@@ -21,6 +24,13 @@ import {
 } from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { Post } from "@/lib/actions/posts/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface PostSettingsModalProps {
   open: boolean
@@ -44,6 +54,9 @@ export function PostSettingsModal({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const [templates, setTemplates] = useState<PostTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
   const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Post>({
     entityLabel: "post",
@@ -56,6 +69,7 @@ export function PostSettingsModal({
       featured_image: featuredImage,
       excerpt,
       is_published: publish,
+      template_id: selectedTemplateId,
     }),
     // Persist category selection after the post row is updated
     afterCreate: async () => {
@@ -75,6 +89,7 @@ export function PostSettingsModal({
       setMetaDescription(post.meta_description || '')
       setFeaturedImage(post.featured_image || '')
       setExcerpt(post.excerpt || '')
+      setSelectedTemplateId(post.template_id)
       setError(null)
 
       setSelectedCategoryIds([])
@@ -98,6 +113,34 @@ export function PostSettingsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!post?.site_id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getPostTemplatesBySite(post.site_id)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        setSelectedTemplateId(post.template_id)
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [post?.site_id, post?.template_id])
+
   // Clear messages when modal is closed
   useEffect(() => {
     if (!open) {
@@ -109,6 +152,10 @@ export function PostSettingsModal({
   const handleSave = async (publish: boolean) => {
     if (!post) {
       setError('No post selected')
+      return
+    }
+    if (!selectedTemplateId) {
+      setError('Template is required')
       return
     }
     await submit(publish ? "publish" : "draft", publish, (updated) => {
@@ -189,6 +236,29 @@ export function PostSettingsModal({
                 <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
               </CardHeader>
               <CardContent>
+                <Field>
+                  <FieldLabel htmlFor="modal-post-template">Template</FieldLabel>
+                  {templatesLoading ? (
+                    <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                      <Skeleton className="h-4 w-24 rounded-sm" />
+                      <ChevronDown className="size-4 opacity-50" />
+                    </div>
+                  ) : (
+                    <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger id="modal-post-template">
+                        <SelectValue placeholder="Select template" />
+                      </SelectTrigger>
+                      <SelectContent className="z-60">
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Field>
+
                 <TitleSlugFields
                   idPrefix="modal-"
                   titleLabel="Post Title *"

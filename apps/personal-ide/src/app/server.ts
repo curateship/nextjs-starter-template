@@ -1,6 +1,10 @@
 import type { WorkspaceInfo } from "@/app/types"
 import localAppPorts from "../../../../local-apps.json"
 
+const workspacePackageNames = {
+  hub: "@repo/hub",
+} as const satisfies Partial<Record<keyof typeof localAppPorts, string>>
+
 export function serverPortForWorkspace(workspace: WorkspaceInfo) {
   const appPort = localAppPorts[workspace.appName as keyof typeof localAppPorts]
   if (typeof appPort === "number") return appPort
@@ -19,5 +23,6 @@ export function serverPortForWorkspace(workspace: WorkspaceInfo) {
 
 export function serverStartCommand(appName: string, port: number) {
   const origins = `http://127.0.0.1:${port},http://localhost:${port}`
-  return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="${appName}" -- --port ${port}\n`
+  const workspaceName = workspacePackageNames[appName as keyof typeof workspacePackageNames] ?? appName
+  return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="${workspaceName}" -- --port ${port}\n`
 }

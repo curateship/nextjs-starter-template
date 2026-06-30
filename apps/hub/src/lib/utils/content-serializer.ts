@@ -117,6 +117,7 @@ export function serializePost(row: PostRow | ContentRow): Post {
 
   return {
     ...serializeContentRow(row),
+    template_id: requireValue(contentRow.templateId ?? contentRow.template_id, 'template_id'),
     excerpt: contentRow.excerpt ?? null,
   } as Post
 }

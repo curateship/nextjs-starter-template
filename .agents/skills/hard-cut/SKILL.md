@@ -22,6 +22,7 @@ Apply a hard-cut policy as the default decision filter for product and architect
 - Fail fast when persisted state, inputs, or contracts do not match the canonical format.
 - Prefer explicit operator or user recovery steps over automatic migration.
 - If a change makes old local state invalid, surface that clearly and keep the canonical implementation clean.
+- Treat temporary implementation scaffolding as old state once the canonical change works. Delete one-off validation files, scratch scripts, debug routes, generated fixtures, and ad hoc tests unless they are converted into the repo's established permanent test or tooling structure.
 
 
 ## Decision Test
@@ -40,4 +41,6 @@ Apply a hard-cut policy as the default decision filter for product and architect
 - Collapse duplicated validation or policy logic into one source of truth.
 - Replace silent fallback with an explicit error, assertion, or recovery instruction.
 - Prefer invalid-state diagnostics over best-effort parsing or coercion.
+- Review the full diff before finishing and remove temporary/scaffold artifacts, including newly added tests that do not match the repo's normal test location, runner, or naming conventions.
+- Keep durable tests only when they fit the existing project test pattern; otherwise move them into that pattern or delete them after using them for validation.
 - Call out any unavoidable temporary compatibility code in the final summary or PR body.

@@ -18,6 +18,10 @@ import {
   updatePostTemplate,
   type PostTemplate,
 } from "@/lib/actions/posts/post-template-actions"
+import {
+  POST_TEMPLATE_PREVIEW_POST,
+  withPostTemplatePreviewValues,
+} from "@/lib/actions/posts/post-template-inheritance"
 import { normalizePostBlockContent } from "@/lib/actions/posts/post-layout"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Check, Pencil, X } from "lucide-react"
@@ -258,6 +262,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
         settings: previewSiteSource.settings,
       }
     : undefined
+  const previewBlocks = withPostTemplatePreviewValues(blocks)
 
   if (loading) {
     return (
@@ -360,10 +365,10 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
         <div className="flex-1 overflow-hidden border-r bg-background">
           <ScrollArea className="h-full">
             <PostPreview
-              blocks={blocks as any}
+              blocks={previewBlocks as any}
               post={{
                 id: 'preview',
-                title: previewTitle,
+                title: previewTitle || POST_TEMPLATE_PREVIEW_POST.title,
                 slug: 'preview-template',
                 meta_description: null,
                 site_id: template?.site_id || currentSite?.id || 'preview-site',
@@ -392,6 +397,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
           error={blockSaveError}
+          mode="template"
         />
 
         {blockListOpen && (

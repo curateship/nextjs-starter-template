@@ -19,6 +19,7 @@ interface PostBlockEditorProps {
   coreTab?: CoreBlockTab
   relatedPostsTab?: RelatedPostsBlockTab
   tableOfContentsTab?: TableOfContentsBlockTab
+  mode?: "post" | "template"
 }
 
 export function PostBlockEditor({
@@ -32,8 +33,13 @@ export function PostBlockEditor({
   coreTab,
   relatedPostsTab,
   tableOfContentsTab,
+  mode = "post",
 }: PostBlockEditorProps) {
   if (block.type === "core") {
+    const activeTab = mode === "post"
+      ? "content"
+      : mode === "template" && coreTab === "content" ? "settings" : coreTab
+
     return (
       <CoreBlock
         content={content}
@@ -42,7 +48,7 @@ export function PostBlockEditor({
         blockId={block.id}
         postData={{ ...postData, title: postTitle }}
         onPostTitleChange={onPostTitleChange}
-        activeTab={coreTab}
+        activeTab={activeTab}
       />
     )
   }
