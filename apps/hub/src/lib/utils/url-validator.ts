@@ -53,6 +53,20 @@ export function sanitizeUrl(url: string | undefined | null, fallback: string = '
   return isSafeUrl(url) ? url : fallback
 }
 
+export function sanitizeExternalHttpUrl(url: string | undefined | null, fallback: string = ''): string {
+  if (!url) return fallback
+
+  const trimmed = url.trim()
+  if (!/^https?:\/\//i.test(trimmed)) return fallback
+
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : fallback
+  } catch {
+    return fallback
+  }
+}
+
 /**
  * Validates a builder URL input as the user types: passes through empty,
  * relative, and http(s) values; silently drops script-protocol attempts.

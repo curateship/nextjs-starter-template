@@ -195,15 +195,15 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
         </CardContent>
       </Card>
 
-      <FieldGroup className="max-w-xs flex-row items-start gap-3">
-        <Field>
+      <FieldGroup className="flex-row flex-nowrap items-start gap-3">
+        <Field className="w-52 shrink-0">
           <FieldLabel htmlFor="event-date">Date</FieldLabel>
           <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 id="event-date"
-                className="w-36 justify-between font-normal"
+                className="w-52 justify-between font-normal"
               >
                 <span className="truncate">
                   {selectedDate ? format(selectedDate, "PPP") : "Select date"}
@@ -226,7 +226,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
             </PopoverContent>
           </Popover>
         </Field>
-        <Field className="w-32">
+        <Field className="w-32 shrink-0">
           <FieldLabel htmlFor="event-time">Time</FieldLabel>
           <Input
             className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
@@ -234,6 +234,18 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
             onChange={handleTimeChange}
             type="time"
             value={selectedTime}
+          />
+        </Field>
+
+        <Field className="min-w-0 flex-1">
+          <FieldLabel htmlFor="event-external-cta-url">RSVP URL</FieldLabel>
+          <Input
+            id="event-external-cta-url"
+            inputMode="url"
+            onChange={(event) => onContentChange('externalCtaUrl', event.target.value)}
+            placeholder="https://tickets.example.com"
+            type="url"
+            value={typeof content.externalCtaUrl === "string" ? content.externalCtaUrl : ""}
           />
         </Field>
       </FieldGroup>

@@ -4,13 +4,15 @@
 // show_featured_image) inside content_blocks, so every helper here preserves
 // non-block entries from the VALUE side, not the template.
 
+import { sanitizeExternalHttpUrl } from '@/lib/utils/url-validator'
+
 export const EVENT_BLANK_TEMPLATE_NAME = 'Blank'
 export const EVENT_CONTENT_BLOCK_TYPE = 'event-content'
 
 // Per-event value keys. The rich text body/format and event date/time are
 // edited per event; the title/featured image are event row fields.
 const EVENT_VALUE_KEYS: Record<string, string[]> = {
-  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime'],
+  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime', 'externalCtaUrl'],
 }
 
 // Template-owned config keys per block type (everything the template editor sets).
@@ -58,6 +60,12 @@ function getEventBlockValueContent(type: string, content: Record<string, any> = 
     if (!Object.prototype.hasOwnProperty.call(content, key)) continue
     const value = content[key]
     if (!hasValue(value)) continue
+    if (key === 'externalCtaUrl') {
+      const externalCtaUrl = sanitizeExternalHttpUrl(String(value))
+      if (!externalCtaUrl) continue
+      values[key] = externalCtaUrl
+      continue
+    }
     values[key] = cloneValue(value)
   }
 
@@ -199,6 +207,7 @@ export function withEventTemplatePreviewValues<TBlock extends { type: string; co
       ...(block.content || {}),
       ...(!hasValue(block.content?.eventDate) ? { eventDate: '2026-08-15' } : {}),
       ...(!hasValue(block.content?.eventTime) ? { eventTime: '18:00' } : {}),
+      ...(!hasValue(block.content?.externalCtaUrl) ? { externalCtaUrl: 'https://example.com/events/preview-rsvp' } : {}),
       ...(!hasValue(block.content?.body) ? { body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT } : {}),
     }
 

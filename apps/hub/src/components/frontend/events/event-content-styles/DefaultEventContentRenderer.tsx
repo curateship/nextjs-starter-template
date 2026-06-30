@@ -1,5 +1,7 @@
 import type { EventContentStyleRendererProps } from "./index"
+import { buttonVariants } from "@/components/ui/button"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
+import { sanitizeExternalHttpUrl } from "@/lib/utils/url-validator"
 
 function formatEventDateTime(eventDate?: string, eventTime?: string) {
   const dateMatch = eventDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -41,6 +43,7 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
     showFeaturedImage = true,
     eventDate,
     eventTime,
+    externalCtaUrl,
     body,
   } = sharedContent
 
@@ -55,6 +58,7 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
 
   const htmlContent = sanitizeRichHtml(body || '')
   const dateTimeLabel = formatEventDateTime(eventDate, eventTime)
+  const ctaUrl = sanitizeExternalHttpUrl(externalCtaUrl)
 
   return (
     <div
@@ -68,6 +72,16 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
         <p className="text-sm font-medium text-muted-foreground md:text-base">
           {dateTimeLabel}
         </p>
+      )}
+      {ctaUrl && (
+        <a
+          href={ctaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ size: 'lg' })}
+        >
+          RSVP
+        </a>
       )}
       {featuredImage && showFeaturedImage && (
         <img
