@@ -15,6 +15,7 @@ import {
   uploadToR2,
 } from "@/server/media-storage"
 import { getSoundEffect } from "@/lib/sound-effects"
+import { requireTextFont } from "@/lib/text-fonts"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
@@ -71,13 +72,15 @@ const KARAOKE_DIM = 0.5
 const MAX_TIMELINE_MS = 10 * 60_000
 const RENDER_TIMEOUT_MS = 10 * 60_000
 
-// Text overlays are rasterized with the bundled font (the editor preview uses
-// the system UI stack; Inter SemiBold is the closest redistributable match).
-// drawtext is not an option: current ffmpeg builds often ship without freetype.
-const FONT_PATH = fileURLToPath(
-  new URL("./assets/Inter-SemiBold.ttf", import.meta.url)
-)
 const PUBLIC_ASSET_DIR = fileURLToPath(new URL("../../public", import.meta.url))
+const FONT_DIR = path.join(PUBLIC_ASSET_DIR, "fonts")
+
+// Text overlays are rasterized from SVG with the same bundled fonts the browser
+// preview loads. drawtext is not an option: current ffmpeg builds often ship
+// without freetype.
+function renderFontPath(fileName: string) {
+  return path.join(FONT_DIR, fileName)
+}
 
 // @resvg/resvg-js is a native addon whose .node binary no bundler can inline —
 // load it at runtime instead of importing it (prod servers must have it
@@ -523,8 +526,8 @@ function escapeXml(value: string) {
 // Approximate the preview's CSS wrapping (whitespace-pre-wrap inside 5%
 // padding): explicit newlines always break; long lines word-wrap at an
 // estimated average glyph width since SVG <text> cannot wrap on its own.
-function wrapTextLines(text: string, fontSize: number, maxWidth: number) {
-  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.55)))
+function wrapTextLines(text: string, charWidth: number, maxWidth: number) {
+  const maxChars = Math.max(1, Math.floor(maxWidth / charWidth))
   const lines: string[] = []
   for (const rawLine of text.split("\n")) {
     if (rawLine.length <= maxChars) {
@@ -585,7 +588,9 @@ async function renderTextPng(
   size: { width: number; height: number },
   activeWordIndex?: number
 ) {
-  if (!existsSync(FONT_PATH)) {
+  const font = requireTextFont(clip.fontId)
+  const fontFile = renderFontPath(font.fileName)
+  if (!existsSync(fontFile)) {
     throw new Error("Render font is missing on the server")
   }
 
@@ -594,7 +599,7 @@ async function renderTextPng(
   const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
   const lineHeight = fontSize * 1.15
   const maxWidth = size.width * 0.9
-  const charWidth = fontSize * 0.55 // estimated glyph advance (matches wrapping)
+  const charWidth = fontSize * font.widthRatio // estimated glyph advance
 
   // Block center from the clip's normalized position (default 0.5/0.5 =
   // centered) — matches the draggable position set in the editor preview.
@@ -607,7 +612,7 @@ async function renderTextPng(
   const lineSegments: WordSeg[][] =
     karaoke
       ? layoutWords(karaoke, charWidth, maxWidth)
-      : wrapTextLines(clip.text ?? "", fontSize, maxWidth).map((line) => [
+      : wrapTextLines(clip.text ?? "", charWidth, maxWidth).map((line) => [
           { text: line, index: -1, width: line.length * charWidth },
         ])
 
@@ -666,15 +671,15 @@ async function renderTextPng(
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
   ${highlightRect}
-  <text${textFilter} text-anchor="${textAnchor}" font-family="Inter" font-weight="600" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
+  <text${textFilter} text-anchor="${textAnchor}" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
 </svg>`
 
   const { Resvg } = loadResvg()
   const resvg = new Resvg(svg, {
     font: {
-      fontFiles: [FONT_PATH],
+      fontFiles: [fontFile],
       loadSystemFonts: false,
-      defaultFontFamily: "Inter",
+      defaultFontFamily: font.family,
     },
   })
   return resvg.render().asPng()
