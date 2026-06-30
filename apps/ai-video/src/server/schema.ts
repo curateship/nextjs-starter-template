@@ -473,6 +473,7 @@ export const aiVideoCreators = pgTable(
     // Stable lowercased platform handle — the upsert key for matching new reels.
     username: varchar("username", { length: 255 }).notNull(),
     displayName: varchar("display_name", { length: 255 }),
+    followerCount: bigint("follower_count", { mode: "number" }),
     // R2 path of the fetched profile picture (best-effort, may stay null).
     avatarStoragePath: varchar("avatar_storage_path", { length: 500 }),
     // Watched creators get their newest reels auto-ingested by the watcher.
