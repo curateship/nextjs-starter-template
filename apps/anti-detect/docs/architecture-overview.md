@@ -61,14 +61,17 @@ is by separate database. `varchar(36)` ids, tz-aware timestamps.
   stopped/starting/running/error), `engine` (camoufox/chromium), `proxy_id`
   (set null on proxy delete), **`fingerprint` (jsonb — the full generated identity,
   embedded directly, not a separate table)**, plus organization: `folder_id`,
-  `status_id` (both set null on delete), `tags` (jsonb array), `notes`.
+  `status_id` (both set null on delete), `tags` (jsonb array), and `notes`.
+- **`browser_sessions`** — runtime Camoufox/Neko sessions. Tracks the owning user,
+  profile, worker node, Docker container/volume names, stream URL, allocated stream
+  and WebRTC ports, status, start/end times, and last activity.
 - **`profile_folders`** — per-user groups.
 - **`profile_statuses`** — per-user customizable workflow labels (name + palette
   color), unique per `(user_id, name)`, auto-seeded Ready/Warming/Banned on first use.
 
-> **Divergence from the plan:** fingerprints are an embedded jsonb column (not a 1:1
-> `fingerprints` table), generation is a hand-rolled seeded generator (not
-> Browserforge), and `browser_sessions` is not built yet.
+> **Divergence from the original plan:** fingerprints are an embedded jsonb column
+> (not a 1:1 `fingerprints` table), generation is a hand-rolled seeded generator
+> (not Browserforge), and the first orchestrator target is Camoufox only.
 
 ## Key subsystems
 
@@ -97,16 +100,20 @@ and client-side search / filter over the loaded list.
 
 Plain SQL files in `drizzle/`, applied via `psql` — there is no drizzle journal; the
 test suite (`server/profiles.test.ts`, pglite) reads the files directly. Current:
-`0000` baseline → `0007` (status unique constraint). Column/constraint additions are
+`0000` baseline → `0008` (browser sessions). Column/constraint additions are
 written idempotently (`ADD COLUMN IF NOT EXISTS`, `DO $$ … duplicate_object …$$`).
 
 ## Built vs. planned
 
 - **Built:** auth/sessions (inherited), profiles + proxies CRUD, the fingerprint
-  engine, real proxy testing + geo, profile organization, and all dashboards.
-- **Planned (see `antidetect-browser-plan.md`):** the streamed browser itself — a
-  per-profile container (compiled browser fork + Xvfb + Neko/WebRTC + proxy egress +
-  persistent user-data-dir), the `dockerode` orchestrator, `browser_sessions`, and
-  snapshot/resume to R2. **Launch is currently an honest placeholder**; the engine is
-  proven in `docker/` (Phase 0). Next: the Phase 0 gate → Phase 1 single-profile
-  launch that consumes the fingerprint + proxy above.
+  engine, real proxy testing + geo, profile organization, dashboards, and the Phase 2
+  Camoufox session orchestrator that starts/stops one Docker/Neko container per
+  active profile with a persistent Docker volume.
+- **Planned (see `antidetect-browser-plan.md`):** embedded stream UI, R2
+  snapshot/restore, multi-node scheduling, and deeper fingerprint/proxy quality
+  hardening.
+
+Phase 2 session security defaults: Neko stream/WebRTC ports bind to loopback unless
+`ANTIDETECT_STREAM_BIND_HOST` is explicitly changed, remote Docker hosts require
+HTTPS, and Neko user/admin passwords come from static server-only environment
+settings.

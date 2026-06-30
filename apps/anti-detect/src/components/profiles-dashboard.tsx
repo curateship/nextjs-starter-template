@@ -10,6 +10,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
+  SquareIcon,
   TagIcon,
   Trash2Icon,
   XIcon,
@@ -73,6 +74,8 @@ import {
   duplicateProfile,
   getProfileErrorMessage,
   previewFingerprint,
+  startProfileSession,
+  stopProfileSession,
   updateProfile,
   type Fingerprint,
   type FolderItem,
@@ -187,6 +190,9 @@ export function ProfilesDashboard({
   const [filterTag, setFilterTag] = React.useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = React.useState(false)
   const [actingId, setActingId] = React.useState<string | null>(null)
+  const [sessionActingId, setSessionActingId] = React.useState<string | null>(
+    null
+  )
   const [prompt, setPrompt] = React.useState<
     "folder" | "status" | "tag" | null
   >(null)
@@ -371,10 +377,43 @@ export function ProfilesDashboard({
     }
   }
 
-  function launch(profile: ProfileItem) {
-    setLaunchNotice(
-      `"${profile.name}" is ready. Launching the streamed browser is the next phase — the engine is proven (docker/phase0), the orchestrator that starts a container per profile lands in Phase 2.`
-    )
+  async function launch(profile: ProfileItem) {
+    setSessionActingId(profile.id)
+    setError(null)
+    setLaunchNotice(null)
+    const streamWindow = window.open("about:blank", "_blank")
+    if (streamWindow) streamWindow.opener = null
+    try {
+      const session = await startProfileSession(profile.id)
+      const login = `Neko login: ${session.streamUsername} / ${session.streamPassword}`
+      if (streamWindow) {
+        streamWindow.location.href = session.streamUrl
+        setLaunchNotice(login)
+      } else {
+        setLaunchNotice(`Stream ready: ${session.streamUrl}. ${login}`)
+      }
+      await router.invalidate()
+    } catch (err) {
+      streamWindow?.close()
+      setError(getProfileErrorMessage(err))
+    } finally {
+      setSessionActingId(null)
+    }
+  }
+
+  async function stop(profile: ProfileItem) {
+    if (!profile.activeSession) return
+    setSessionActingId(profile.id)
+    setError(null)
+    setLaunchNotice(null)
+    try {
+      await stopProfileSession(profile.activeSession.id)
+      await router.invalidate()
+    } catch (err) {
+      setError(getProfileErrorMessage(err))
+    } finally {
+      setSessionActingId(null)
+    }
   }
 
   // --- Bulk actions ---
@@ -435,9 +474,9 @@ export function ProfilesDashboard({
         <div className="mb-6 flex flex-col gap-2">
           {error ? <Message>{error}</Message> : null}
           {launchNotice ? (
-            <Alert className="w-full border-warning/80 bg-warning/5 p-4 text-warning">
-              <AlertTitle className="mb-1 text-sm">Warning</AlertTitle>
-              <AlertDescription className="text-sm leading-5 text-warning/80">
+            <Alert className="w-full p-4">
+              <AlertTitle className="mb-1 text-sm">Stream ready</AlertTitle>
+              <AlertDescription className="text-sm leading-5">
                 {launchNotice}
               </AlertDescription>
             </Alert>
@@ -673,6 +712,8 @@ export function ProfilesDashboard({
             ? folderMap.get(profile.folderId)
             : undefined
           const checked = selected.has(profile.id)
+          const sessionBusy = sessionActingId === profile.id
+          const isRunning = Boolean(profile.activeSession)
           return (
             <TableRow key={profile.id} data-state={checked ? "selected" : undefined}>
               <TableCell column="main">
@@ -730,11 +771,22 @@ export function ProfilesDashboard({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => launch(profile)}
-                    aria-label={`Launch ${profile.name}`}
-                    title={`Launch ${profile.name}`}
+                    disabled={sessionBusy}
+                    onClick={() => void (isRunning ? stop(profile) : launch(profile))}
+                    aria-label={
+                      isRunning ? `Stop ${profile.name}` : `Launch ${profile.name}`
+                    }
+                    title={
+                      isRunning ? `Stop ${profile.name}` : `Launch ${profile.name}`
+                    }
                   >
-                    <PlayIcon className="size-4" />
+                    {sessionBusy ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : isRunning ? (
+                      <SquareIcon className="size-4" />
+                    ) : (
+                      <PlayIcon className="size-4" />
+                    )}
                   </Button>
                   <Button
                     type="button"

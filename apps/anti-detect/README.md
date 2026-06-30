@@ -28,6 +28,17 @@ ANTIDETECT_R2_PUBLIC_URL=""
 
 The credentials are server-only secrets. Do not expose them with a `VITE_` prefix.
 
+## Browser Sessions
+
+The Phase 2 orchestrator publishes Neko stream/WebRTC ports on
+`ANTIDETECT_STREAM_BIND_HOST`, which defaults to `127.0.0.1`. Remote Docker hosts
+must use HTTPS; plain HTTP is accepted only for local Docker hosts.
+
+Neko login passwords come from `ANTIDETECT_NEKO_USER_PASSWORD` and
+`ANTIDETECT_NEKO_ADMIN_PASSWORD`. Keep the
+stream bind host on loopback unless those static credentials are safe for the
+network that can reach the published ports.
+
 ## Adding components
 
 To add components to your app, run the following command:

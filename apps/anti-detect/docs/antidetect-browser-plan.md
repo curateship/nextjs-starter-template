@@ -64,7 +64,7 @@ aggressive sites (late-model Facebook/TikTok) to occasionally win.
 ┌───────────────▼─── Control plane (in custom-shell) ──────────┐
 │  • profile CRUD            • fingerprint generation          │
 │  • session lifecycle       • proxy assignment + testing      │
-│  • orchestrator (dockerode → Docker Engine API)              │
+│  • orchestrator (Docker Engine API)                          │
 │  • capacity-aware scheduling + idle reaping                  │
 └───────────────┬──────────────────────────────────────────────┘
                 │ Docker Engine API
@@ -97,7 +97,7 @@ R2/S3    : user-data-dir snapshots (resume on any node)
   (NOT `custom_shell_sessions` — that's auth).
 - **Fingerprint generation** (Browserforge) — Nitro server function.
 - **Proxy testing** (reachability/geo/latency) — Nitro server function.
-- **Orchestrator** (`dockerode`) — Nitro routes first; extract to standalone
+- **Orchestrator** (Docker Engine API) — Nitro routes first; extract to standalone
   service when multi-node.
 - **Browser container image** — fork + Xvfb + Neko + proxy egress + volume.
 - **Neko stream embed** — new route in `_authenticated` group.
@@ -108,7 +108,7 @@ R2/S3    : user-data-dir snapshots (resume on any node)
 |---|---|---|
 | Browser engine | Evaluate **Camoufox** (Firefox) vs **itbrowser** (Chromium GUI) in Phase 0; pick by stealth scores | Both compiled-patch, run headful |
 | Streaming | **Neko** (`m1k1o/neko`) — WebRTC, Docker-native | Low latency for manual clicking; noVNC too laggy |
-| Orchestration | `dockerode` → Docker Engine API; **Nomad** if multi-node later | k8s overkill for solo |
+| Orchestration | Docker Engine API; **Nomad** if multi-node later | k8s overkill for solo |
 | Fingerprint gen | **Browserforge / fingerprint-suite** (Apify) | Consistent, real-world distributions |
 | Backend + UI | custom-shell (TanStack Start + shadcn) | No new stack |
 | Persistence | Per-profile Docker volume + snapshot to **R2** | Cookies must survive teardown |
@@ -123,7 +123,7 @@ timestamps.
   - `id`, `user_id` (fk), `workspace_id` (nullable, group), `name`, `status`
     (`stopped`/`starting`/`running`/`error`), `fingerprint_id` (fk),
     `proxy_id` (fk, nullable), `engine` (`camoufox`/`chromium`),
-    `data_snapshot_path` (R2 key, nullable), `notes`, `created_at`, `updated_at`.
+    `notes`, `created_at`, `updated_at`.
 - **`custom_shell_fingerprints`**
   - `id`, `profile_id` (fk, 1:1), `config` (jsonb — full Browserforge fingerprint),
     `os`, `browser`, `screen`, `timezone`, `locale`, `created_at`.

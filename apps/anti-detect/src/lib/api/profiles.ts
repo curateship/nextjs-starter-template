@@ -2,10 +2,18 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { ProxyItem } from "@/lib/api/proxies"
+import type {
+  BrowserSessionItem,
+  BrowserSessionSummary,
+} from "@/server/orchestrator"
 // Type-only import (erased at build) — server/fingerprint.ts is pure data/logic.
 import type { Fingerprint } from "@/server/fingerprint"
 
 export type { Fingerprint } from "@/server/fingerprint"
+export type {
+  BrowserSessionItem,
+  BrowserSessionSummary,
+} from "@/server/orchestrator"
 
 export type FolderItem = { id: string; name: string }
 export type StatusItem = { id: string; name: string; color: string }
@@ -21,6 +29,7 @@ export type ProfileItem = {
   statusId: string | null
   tags: string[]
   fingerprint: Fingerprint
+  activeSession: BrowserSessionSummary | null
   notes: string | null
   created_at: string
 }
@@ -56,6 +65,8 @@ const updateProfileSchema = profileFormSchema.extend({
 
 const deleteProfileSchema = z.object({ profileId: z.string().min(1) })
 const duplicateProfileSchema = z.object({ profileId: z.string().min(1) })
+const startProfileSessionSchema = z.object({ profileId: z.string().min(1) })
+const stopProfileSessionSchema = z.object({ sessionId: z.string().min(1) })
 
 const createFolderSchema = z.object({ name: z.string().min(1).max(255) })
 const createStatusSchema = z.object({ name: z.string().min(1).max(255) })
@@ -147,6 +158,26 @@ const duplicateProfileFn = createServerFn({ method: "POST" })
     const user = await requireUser()
     await duplicateUserProfile(user.id, data.profileId)
     return profileListForUser(user.id)
+  })
+
+const startProfileSessionFn = createServerFn({ method: "POST" })
+  .inputValidator(startProfileSessionSchema)
+  .handler(async ({ data }): Promise<BrowserSessionItem> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { startSession } = await import("@/server/orchestrator")
+    requireAppOrigin()
+    const user = await requireUser()
+    return startSession(user.id, data.profileId)
+  })
+
+const stopProfileSessionFn = createServerFn({ method: "POST" })
+  .inputValidator(stopProfileSessionSchema)
+  .handler(async ({ data }): Promise<BrowserSessionSummary> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { stopSession } = await import("@/server/orchestrator")
+    requireAppOrigin()
+    const user = await requireUser()
+    return stopSession(user.id, data.sessionId)
   })
 
 const createFolderFn = createServerFn({ method: "POST" })
@@ -256,6 +287,14 @@ export function duplicateProfile(profileId: string) {
   return duplicateProfileFn({ data: { profileId } })
 }
 
+export function startProfileSession(profileId: string) {
+  return startProfileSessionFn({ data: { profileId } })
+}
+
+export function stopProfileSession(sessionId: string) {
+  return stopProfileSessionFn({ data: { sessionId } })
+}
+
 export function createFolder(name: string) {
   return createFolderFn({ data: { name } })
 }
@@ -304,14 +343,28 @@ async function profileListForUser(
     serializeStatus,
   } = await import("@/server/profiles")
   const { listUserProxies, serializeProxy } = await import("@/server/proxies")
-  const [profiles, proxies, folders, statuses] = await Promise.all([
+  const {
+    listActiveUserSessions,
+    serializeBrowserSessionSummary,
+  } = await import("@/server/orchestrator")
+  const [profiles, proxies, folders, statuses, activeSessions] = await Promise.all([
     listUserProfiles(userId),
     listUserProxies(userId),
     listUserFolders(userId),
     listUserStatuses(userId),
+    listActiveUserSessions(userId),
   ])
+  const activeByProfile = new Map(
+    activeSessions.map((session) => [
+      session.profileId,
+      serializeBrowserSessionSummary(session),
+    ])
+  )
   return {
-    profiles: profiles.map(serializeProfile),
+    profiles: profiles.map((profile) => ({
+      ...serializeProfile(profile),
+      activeSession: activeByProfile.get(profile.id) ?? null,
+    })),
     proxies: proxies.map(serializeProxy),
     folders: folders.map(serializeFolder),
     statuses: statuses.map(serializeStatus),
