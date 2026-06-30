@@ -16,6 +16,7 @@ import {
 } from "@/server/media-storage"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
+import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
@@ -141,7 +142,9 @@ export async function startProjectRenderForCurrentUser(
   const user = await requireUser()
   const row = await getOwnedProject(user.id, projectId)
 
-  const timeline = row.timeline as ProjectTimeline | null
+  const timeline = normalizeTimelineTextFonts(
+    (row.timeline as ProjectTimeline | null) ?? { tracks: [], aspect: "9:16" }
+  )
   const durationMs = timelineEndMs(timeline?.tracks ?? [])
   if (durationMs <= 0) {
     throw new Error("Nothing to export")
@@ -209,7 +212,7 @@ async function renderProject(
   const dir = await mkdtemp(path.join(tmpdir(), "render-"))
   try {
     const row = await getOwnedProject(userId, projectId)
-    const timeline = row.timeline as ProjectTimeline
+    const timeline = normalizeTimelineTextFonts(row.timeline as ProjectTimeline)
     const size = renderSize(timeline.aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
     const { visuals, audio } = flattenForRender(timeline.tracks)

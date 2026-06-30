@@ -2,6 +2,7 @@ import * as React from "react"
 
 import type { SoundEffectId } from "@/lib/sound-effects"
 import type { TextFontId } from "@/lib/text-fonts"
+import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -137,14 +138,18 @@ export function createInitialEditorState(timeline?: {
   tracks: EditorTrack[]
   aspect: AspectRatio
 }): EditorState {
-  const hasSavedTracks = timeline && timeline.tracks.length > 0
+  const normalizedTimeline = timeline
+    ? normalizeTimelineTextFonts(timeline)
+    : undefined
+  const hasSavedTracks =
+    normalizedTimeline && normalizedTimeline.tracks.length > 0
   return {
     tracks: hasSavedTracks
-      ? timeline.tracks
+      ? normalizedTimeline.tracks
       : [newTrack(), newTrack(), newTrack()],
     selectedClipId: null,
     pxPerSecond: DEFAULT_PX_PER_SECOND,
-    aspect: timeline?.aspect ?? "16:9",
+    aspect: normalizedTimeline?.aspect ?? "16:9",
     cutMode: false,
     past: [],
     future: [],
