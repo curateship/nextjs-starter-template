@@ -484,6 +484,17 @@ fn read_text_file(
 }
 
 #[tauri::command]
+fn read_repo_text_file(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = clean_repo_path(&path)?;
+    read_text_file_at(&workspace.worktree_root, &repo_path)
+}
+
+#[tauri::command]
 fn read_original_text_file(
     workspace_id: String,
     path: String,
@@ -491,6 +502,16 @@ fn read_original_text_file(
 ) -> Result<String, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
     read_git_text_file(&workspace, &path, "HEAD")
+}
+
+#[tauri::command]
+fn read_original_repo_text_file(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    read_git_repo_text_file(&workspace, &path, "HEAD")
 }
 
 #[tauri::command]
@@ -503,12 +524,31 @@ fn read_develop_text_file(
     read_git_text_file(&workspace, &path, "develop")
 }
 
+#[tauri::command]
+fn read_develop_repo_text_file(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    read_git_repo_text_file(&workspace, &path, "develop")
+}
+
 fn read_git_text_file(
     workspace: &WorkspaceRecord,
     path: &str,
     reference: &str,
 ) -> Result<String, String> {
     let repo_path = repo_path_for_app_path(workspace, path)?;
+    read_git_repo_text_file(workspace, &repo_path, reference)
+}
+
+fn read_git_repo_text_file(
+    workspace: &WorkspaceRecord,
+    path: &str,
+    reference: &str,
+) -> Result<String, String> {
+    let repo_path = clean_repo_path(path)?;
     let output = Command::new("git")
         .arg("-C")
         .arg(&workspace.worktree_root)
@@ -541,6 +581,23 @@ fn write_text_file(
 ) -> Result<(), String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
     let file = resolve_editable_path(&workspace, &path)?;
+    write_text_file_path(&file, &contents)
+}
+
+#[tauri::command]
+fn write_repo_text_file(
+    workspace_id: String,
+    path: String,
+    contents: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = clean_repo_path(&path)?;
+    let file = resolve_inside(&workspace.worktree_root, Some(&repo_path))?;
+    write_text_file_path(&file, &contents)
+}
+
+fn write_text_file_path(file: &Path, contents: &str) -> Result<(), String> {
     let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
 
     if !metadata.is_file() {
@@ -1018,6 +1075,18 @@ fn diff_hunks(
 }
 
 #[tauri::command]
+fn repo_diff_hunks(
+    workspace_id: String,
+    path: String,
+    status: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<DiffHunk>, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = clean_repo_path(&path)?;
+    diff_hunks_for(&workspace.worktree_root, &repo_path, &status)
+}
+
+#[tauri::command]
 fn merge_diff_hunks(
     workspace_id: String,
     path: String,
@@ -1025,6 +1094,18 @@ fn merge_diff_hunks(
 ) -> Result<Vec<DiffHunk>, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
     let repo_path = repo_path_for_app_path(&workspace, &path)?;
+    let range = format!("develop...{}", workspace.branch);
+    diff_hunks_between(&workspace.worktree_root, &range, &repo_path)
+}
+
+#[tauri::command]
+fn repo_merge_diff_hunks(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<DiffHunk>, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = clean_repo_path(&path)?;
     let range = format!("develop...{}", workspace.branch);
     diff_hunks_between(&workspace.worktree_root, &range, &repo_path)
 }
@@ -1702,10 +1783,25 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_task_status, parse_diff_hunk, parse_skill_tags, render_task_template,
-        validate_editor_settings, DiffHunk, EditorSettings, DEFAULT_TASK_TEMPLATE,
-        MAX_TASK_TEMPLATE_SIZE,
+        clean_repo_path, normalize_task_status, parse_diff_hunk, parse_skill_tags,
+        read_git_repo_text_file, render_task_template, validate_editor_settings, DiffHunk,
+        EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
+    use std::{
+        fs,
+        path::Path,
+        process::Command,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn run_test_git(root: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .expect("run git command");
+        assert!(status.success(), "git {:?} failed", args);
+    }
 
     #[test]
     fn parse_skill_tags_normalizes_and_deduplicates() {
@@ -1793,6 +1889,48 @@ mod tests {
                 current_count: 3,
             })
         );
+    }
+
+    #[test]
+    fn clean_repo_path_rejects_backslash_parent_segments() {
+        assert!(clean_repo_path("..\\local-apps.json").is_err());
+    }
+
+    #[test]
+    fn reads_original_repo_root_file_for_app_workspace() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("personal-ide-git-test-{unique}"));
+        fs::create_dir_all(root.join("apps/personal-ide")).expect("create app dir");
+        fs::write(root.join("local-apps.json"), "{\"personal-ide\":3006}\n")
+            .expect("write repo file");
+
+        run_test_git(&root, &["init", "-q"]);
+        run_test_git(&root, &["config", "user.email", "test@example.com"]);
+        run_test_git(&root, &["config", "user.name", "Test User"]);
+        run_test_git(&root, &["add", "local-apps.json"]);
+        run_test_git(&root, &["commit", "-q", "-m", "add local apps"]);
+
+        let workspace = WorkspaceRecord {
+            id: "workspace-1".to_string(),
+            name: "workspace-1".to_string(),
+            app_name: "personal-ide".to_string(),
+            hidden: false,
+            branch: "personal-ide/workspace-1".to_string(),
+            git_root: root.clone(),
+            worktree_root: root.clone(),
+            app_root: root.join("apps/personal-ide"),
+            app_relative_path: "apps/personal-ide".to_string(),
+        };
+
+        assert_eq!(
+            read_git_repo_text_file(&workspace, "local-apps.json", "HEAD").unwrap(),
+            "{\"personal-ide\":3006}\n"
+        );
+
+        fs::remove_dir_all(root).expect("remove temp repo");
     }
 }
 
@@ -2150,12 +2288,12 @@ fn repo_path_for_app_path(workspace: &WorkspaceRecord, app_path: &str) -> Result
 }
 
 fn clean_repo_path(path: &str) -> Result<String, String> {
-    let path = path.trim();
+    let path = path.trim().replace('\\', "/");
     if path.is_empty() {
         return Err("Path is required".to_string());
     }
 
-    let relative_path = Path::new(path);
+    let relative_path = Path::new(&path);
     if relative_path.is_absolute()
         || relative_path
             .components()
@@ -2164,7 +2302,7 @@ fn clean_repo_path(path: &str) -> Result<String, String> {
         return Err("Path must stay inside the workspace".to_string());
     }
 
-    Ok(path.replace('\\', "/"))
+    Ok(path)
 }
 
 fn discard_status_line(root: &Path, line: &str) -> Result<(), String> {
@@ -2390,9 +2528,13 @@ pub fn run() {
             delete_workspace,
             list_dir,
             read_text_file,
+            read_repo_text_file,
             read_original_text_file,
+            read_original_repo_text_file,
             read_develop_text_file,
+            read_develop_repo_text_file,
             write_text_file,
+            write_repo_text_file,
             create_text_file,
             create_pasted_image,
             create_folder,
@@ -2410,7 +2552,9 @@ pub fn run() {
             git_status,
             git_status_basic,
             diff_hunks,
+            repo_diff_hunks,
             merge_diff_hunks,
+            repo_merge_diff_hunks,
             git_commit,
             git_sync,
             git_merge_to_develop,

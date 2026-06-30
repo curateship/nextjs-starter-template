@@ -13,7 +13,7 @@ import {
   editorTheme,
   type CodeMirrorTheme,
 } from "@/app/editor"
-import { isSettingsTab } from "@/app/editor-tabs"
+import { isSettingsTab, tabFilePath } from "@/app/editor-tabs"
 import { loadLanguageForPath } from "@/app/language"
 import type { EditorTab } from "@/app/types"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ type MinimapRow = {
 }
 
 type TabMenuState = {
+  copyPath: string
   path: string
   x: number
   y: number
@@ -311,7 +312,7 @@ export function EditorPanel({
       }),
     [onPasteImage]
   )
-  const languageExtensions = useLanguageExtensions(tab?.path)
+  const languageExtensions = useLanguageExtensions(tabFilePath(tab))
   const baseExtensions = useMemo(
     () => [editorTheme, ...languageExtensions],
     [languageExtensions]
@@ -426,7 +427,12 @@ export function EditorPanel({
                   onContextMenu={(event) => {
                     if (isSettingsTab(item)) return
                     event.preventDefault()
-                    setTabMenu({ path: item.path, x: event.clientX, y: event.clientY })
+                    setTabMenu({
+                      copyPath: tabFilePath(item),
+                      path: item.path,
+                      x: event.clientX,
+                      y: event.clientY,
+                    })
                   }}
                 >
                   <button
@@ -468,7 +474,7 @@ export function EditorPanel({
               type="button"
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted [&_svg]:size-3.5"
               onClick={() => {
-                onCopyTabPath(tabMenu.path)
+                onCopyTabPath(tabMenu.copyPath)
                 setTabMenu(null)
               }}
             >

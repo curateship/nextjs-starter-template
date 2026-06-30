@@ -35,14 +35,30 @@ export function readOriginalTextFile(workspaceId: string, path: string) {
   return invoke<string>("read_original_text_file", { workspaceId, path })
 }
 
+export function readOriginalRepoTextFile(workspaceId: string, path: string) {
+  return invoke<string>("read_original_repo_text_file", { workspaceId, path })
+}
+
 export function readDevelopTextFile(workspaceId: string, path: string) {
   return invoke<string>("read_develop_text_file", { workspaceId, path })
+}
+
+export function readDevelopRepoTextFile(workspaceId: string, path: string) {
+  return invoke<string>("read_develop_repo_text_file", { workspaceId, path })
 }
 
 export function diffHunks(workspaceId: string, path: string, status: string) {
   return invoke<DiffHunk[]>("diff_hunks", { workspaceId, path, status })
 }
 
+export function repoDiffHunks(workspaceId: string, path: string, status: string) {
+  return invoke<DiffHunk[]>("repo_diff_hunks", { workspaceId, path, status })
+}
+
 export function mergeDiffHunks(workspaceId: string, path: string) {
   return invoke<DiffHunk[]>("merge_diff_hunks", { workspaceId, path })
+}
+
+export function repoMergeDiffHunks(workspaceId: string, path: string) {
+  return invoke<DiffHunk[]>("repo_merge_diff_hunks", { workspaceId, path })
 }
