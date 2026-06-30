@@ -93,6 +93,7 @@ export function AccountEditProfileBlock({
   const showProfile = isVisible("profileSection")
   const showEmail = isVisible("emailSection")
   const showPassword = isVisible("passwordSection")
+  const showAvatar = isVisible("avatar")
 
   useEffect(() => {
     if (isPreview) {
@@ -328,9 +329,9 @@ export function AccountEditProfileBlock({
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleProfileUpdate} className="space-y-5">
-                    <div className="grid gap-5 md:grid-cols-[6rem_minmax(0,1fr)] md:items-start">
-                      {isVisible("avatar") && (
-                        <div className="space-y-2">
+                    <div className={`grid gap-6 ${showAvatar ? "lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start" : ""}`}>
+                      {showAvatar && (
+                        <div className="space-y-3">
                           <Label>{content?.avatarLabel || "Avatar"}</Label>
                           <div className="relative h-24 w-24">
                             <Avatar className="h-24 w-24 border bg-muted">
@@ -344,9 +345,10 @@ export function AccountEditProfileBlock({
                                 type="button"
                                 variant="destructive"
                                 size="icon"
-                                className="absolute right-0 top-0 h-7 w-7 rounded-full"
+                                className="absolute -right-1 -top-1 h-7 w-7 rounded-full"
                                 onClick={handleAvatarRemove}
                                 disabled={isPreview || savingProfile || uploadingAvatar}
+                                aria-label="Remove avatar"
                               >
                                 <X className="h-3.5 w-3.5" />
                               </Button>
@@ -364,6 +366,7 @@ export function AccountEditProfileBlock({
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="w-full max-w-40 justify-start"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isPreview || uploadingAvatar || savingProfile}
                           >
@@ -373,7 +376,7 @@ export function AccountEditProfileBlock({
                         </div>
                       )}
 
-                      <div className="space-y-5">
+                      <div className="min-w-0 space-y-5">
                         <div className="space-y-2">
                           <Label htmlFor="account-display-name">{content?.nameLabel || "Display Name"}</Label>
                           <Input
@@ -402,11 +405,10 @@ export function AccountEditProfileBlock({
                           <div className="space-y-2">
                             <Label>{content?.socialLinksLabel || "Social Links"}</Label>
                             {socialLinks.map((link, index) => (
-                              <div key={index} className="flex gap-2">
+                              <div key={index} className="grid grid-cols-[minmax(0,1fr)_2.5rem] gap-2 sm:grid-cols-[11rem_minmax(0,1fr)_2.5rem] sm:items-center">
                                 <Input
                                   value={link.platform}
                                   placeholder="instagram"
-                                  className="w-36"
                                   onChange={(event) =>
                                     setSocialLinks((current) =>
                                       current.map((item, itemIndex) =>
@@ -419,7 +421,7 @@ export function AccountEditProfileBlock({
                                 <Input
                                   value={link.url}
                                   placeholder="https://instagram.com/username"
-                                  className="flex-1"
+                                  className="col-span-2 min-w-0 sm:col-span-1"
                                   onChange={(event) =>
                                     setSocialLinks((current) =>
                                       current.map((item, itemIndex) =>
@@ -433,8 +435,10 @@ export function AccountEditProfileBlock({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
+                                  className="justify-self-end sm:justify-self-start"
                                   onClick={() => setSocialLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                                   disabled={isPreview || savingProfile}
+                                  aria-label={`Remove ${link.platform || "social"} link`}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
