@@ -9,6 +9,8 @@ export interface EventContentStyleRendererProps {
     showFeaturedImage?: boolean
     eventDate?: string
     eventTime?: string
+    venueName?: string
+    venueAddress?: string
     externalCtaUrl?: string
     body?: string
   }

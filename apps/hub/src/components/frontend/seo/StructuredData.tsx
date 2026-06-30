@@ -34,6 +34,8 @@ interface StructuredDataContent {
   endDate?: string
   location?: string
   venue?: string
+  venueName?: string
+  venueAddress?: string
 }
 
 type ContentType = 'home' | 'page' | 'post' | 'product' | 'category' | 'directory' | 'event'
@@ -121,11 +123,14 @@ export function StructuredData({ site, content, contentType }: StructuredDataPro
       const endDate = content.end_date || content.endDate
       if (startDate) event.startDate = startDate
       if (endDate) event.endDate = endDate
-      if (content.location || content.venue) {
-        event.location = {
-          '@type': 'Place',
-          name: content.location || content.venue,
-        }
+      const venueName = typeof content.venueName === 'string' && content.venueName.trim()
+        ? content.venueName.trim()
+        : content.location || content.venue
+      const venueAddress = typeof content.venueAddress === 'string' ? content.venueAddress.trim() : ''
+      if (venueName || venueAddress) {
+        event.location = { '@type': 'Place' }
+        if (venueName) event.location.name = venueName
+        if (venueAddress) event.location.address = venueAddress
       }
       event.organizer = { '@type': 'Organization', name: site.settings?.seo_org_name || site.name }
       schemas.push(event)

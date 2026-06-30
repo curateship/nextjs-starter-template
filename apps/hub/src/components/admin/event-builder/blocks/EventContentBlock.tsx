@@ -249,6 +249,28 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
           />
         </Field>
       </FieldGroup>
+
+      <FieldGroup className="grid gap-3 md:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="event-venue-name">Venue</FieldLabel>
+          <Input
+            id="event-venue-name"
+            onChange={(event) => onContentChange('venueName', event.target.value)}
+            placeholder="Venue name"
+            value={typeof content.venueName === "string" ? content.venueName : ""}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="event-venue-address">Address</FieldLabel>
+          <Input
+            id="event-venue-address"
+            onChange={(event) => onContentChange('venueAddress', event.target.value)}
+            placeholder="Street address, city"
+            value={typeof content.venueAddress === "string" ? content.venueAddress : ""}
+          />
+        </Field>
+      </FieldGroup>
     </CardGroup>
   )
 

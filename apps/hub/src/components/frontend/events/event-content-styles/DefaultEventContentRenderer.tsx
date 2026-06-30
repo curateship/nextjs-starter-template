@@ -43,6 +43,8 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
     showFeaturedImage = true,
     eventDate,
     eventTime,
+    venueName,
+    venueAddress,
     externalCtaUrl,
     body,
   } = sharedContent
@@ -58,6 +60,12 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
 
   const htmlContent = sanitizeRichHtml(body || '')
   const dateTimeLabel = formatEventDateTime(eventDate, eventTime)
+  const cleanVenueName = typeof venueName === 'string' ? venueName.trim() : ''
+  const cleanVenueAddress = typeof venueAddress === 'string' ? venueAddress.trim() : ''
+  const directionsQuery = cleanVenueAddress || cleanVenueName
+  const directionsUrl = directionsQuery
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsQuery)}`
+    : ''
   const ctaUrl = sanitizeExternalHttpUrl(externalCtaUrl)
 
   return (
@@ -72,6 +80,22 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
         <p className="text-sm font-medium text-muted-foreground md:text-base">
           {dateTimeLabel}
         </p>
+      )}
+      {(cleanVenueName || cleanVenueAddress) && (
+        <div className="text-sm text-muted-foreground md:text-base">
+          {cleanVenueName && <p className="font-medium text-foreground">{cleanVenueName}</p>}
+          {cleanVenueAddress && <p>{cleanVenueAddress}</p>}
+          {directionsUrl && (
+            <a
+              href={directionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Directions
+            </a>
+          )}
+        </div>
       )}
       {ctaUrl && (
         <a
