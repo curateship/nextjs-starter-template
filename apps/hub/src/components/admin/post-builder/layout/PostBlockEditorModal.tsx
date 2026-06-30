@@ -90,6 +90,7 @@ function PostBlockEditorModalContent({
 
   const modalTabs = useMemo<ModalTabItem[]>(() => {
     if (!canEditPostBlock) return []
+    if (mode === "post" && block.type === "core") return []
 
     const coreTabs: Array<{ value: CoreBlockTab; label: string }> = [
       { value: "content", label: "Content" },
@@ -108,7 +109,7 @@ function PostBlockEditorModalContent({
 
     if (block.type === "core") return mode === "template"
       ? coreTabs.filter((tab) => tab.value !== "content")
-      : coreTabs.filter((tab) => tab.value === "content")
+      : coreTabs
     if (block.type === "related-posts") return relatedPostsTabs
     if (block.type === "table-of-contents") return tableOfContentsTabs
     return []
