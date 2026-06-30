@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { EMPTY_GIT_STATUS } from "@/app/constants"
 import { changedLinesFromHunks } from "@/app/editor"
+import { repoTabPath } from "@/app/editor-tabs"
 import {
   commitGitChanges,
   diffHunks,
@@ -12,7 +13,11 @@ import {
   mergeDiffHunks,
   mergeGitToDevelop,
   readDevelopTextFile,
+  readDevelopRepoTextFile,
   readOriginalTextFile,
+  readOriginalRepoTextFile,
+  repoDiffHunks,
+  repoMergeDiffHunks,
   syncGitChanges,
   updateGitFromDevelop,
 } from "@/app/native/git"
@@ -24,8 +29,34 @@ type OpenPath = (
   name?: string,
   changedLines?: number[],
   originalContents?: string,
-  diffHunks?: DiffHunk[]
+  diffHunks?: DiffHunk[],
+  options?: {
+    source?: "app" | "repo"
+    repoPath?: string
+  }
 ) => Promise<void>
+
+type GitFileTarget = {
+  editorPath: string
+  filePath: string
+  source: "app" | "repo"
+}
+
+function gitFileTarget(file: GitFile): GitFileTarget {
+  if (file.appPath) {
+    return {
+      editorPath: file.appPath,
+      filePath: file.appPath,
+      source: "app",
+    }
+  }
+
+  return {
+    editorPath: repoTabPath(file.path),
+    filePath: file.path,
+    source: "repo",
+  }
+}
 
 type UseGitChangesOptions = {
   activeWorkspaceId: string
@@ -185,48 +216,58 @@ export function useGitChanges({
   }
 
   async function openChangedFile(file: GitFile) {
-    if (!file.appPath) {
-      setGitError("That changed file is outside the selected app folder.")
-      return
-    }
-    const appPath = file.appPath
+    if (!activeWorkspaceId) return
+    const target = gitFileTarget(file)
 
     try {
       if (file.status === "D") {
         const [originalContents, hunks] = await Promise.all([
-          readOriginalTextFile(activeWorkspaceId, appPath),
-          diffHunks(activeWorkspaceId, appPath, file.status),
+          target.source === "repo"
+            ? readOriginalRepoTextFile(activeWorkspaceId, target.filePath)
+            : readOriginalTextFile(activeWorkspaceId, target.filePath),
+          target.source === "repo"
+            ? repoDiffHunks(activeWorkspaceId, target.filePath, file.status)
+            : diffHunks(activeWorkspaceId, target.filePath, file.status),
         ])
 
         setGitError("")
         setTabs((current) => [
-          ...current.filter((tab) => tab.path !== appPath),
+          ...current.filter((tab) => tab.path !== target.editorPath),
           {
-            path: appPath,
-            name: fileName(appPath),
+            path: target.editorPath,
+            name: fileName(target.filePath),
             contents: "",
             savedContents: "",
+            source: target.source === "repo" ? "repo" : undefined,
+            repoPath: target.source === "repo" ? target.filePath : undefined,
             originalContents,
             changedLines: changedLinesFromHunks(hunks),
             diffHunks: hunks,
           },
         ])
-        setActivePath(appPath)
+        setActivePath(target.editorPath)
         return
       }
 
       const [originalContents, hunks] = await Promise.all([
-        readOriginalTextFile(activeWorkspaceId, file.appPath),
-        diffHunks(activeWorkspaceId, file.appPath, file.status),
+        target.source === "repo"
+          ? readOriginalRepoTextFile(activeWorkspaceId, target.filePath)
+          : readOriginalTextFile(activeWorkspaceId, target.filePath),
+        target.source === "repo"
+          ? repoDiffHunks(activeWorkspaceId, target.filePath, file.status)
+          : diffHunks(activeWorkspaceId, target.filePath, file.status),
       ])
 
       setGitError("")
       await openPath(
-        file.appPath,
-        fileName(file.appPath),
+        target.editorPath,
+        fileName(target.filePath),
         changedLinesFromHunks(hunks),
         originalContents,
-        hunks
+        hunks,
+        target.source === "repo"
+          ? { source: "repo", repoPath: target.filePath }
+          : undefined
       )
     } catch (error) {
       setGitError(readableError(error))
@@ -235,25 +276,28 @@ export function useGitChanges({
 
   async function openMergeFile(file: GitFile) {
     if (!activeWorkspaceId) return
-
-    if (!file.appPath) {
-      setGitError("That merge file is outside the selected app folder.")
-      return
-    }
+    const target = gitFileTarget(file)
 
     try {
       const [originalContents, hunks] = await Promise.all([
-        readDevelopTextFile(activeWorkspaceId, file.appPath),
-        mergeDiffHunks(activeWorkspaceId, file.appPath),
+        target.source === "repo"
+          ? readDevelopRepoTextFile(activeWorkspaceId, target.filePath)
+          : readDevelopTextFile(activeWorkspaceId, target.filePath),
+        target.source === "repo"
+          ? repoMergeDiffHunks(activeWorkspaceId, target.filePath)
+          : mergeDiffHunks(activeWorkspaceId, target.filePath),
       ])
 
       setGitError("")
       await openPath(
-        file.appPath,
-        fileName(file.appPath),
+        target.editorPath,
+        fileName(target.filePath),
         changedLinesFromHunks(hunks),
         originalContents,
-        hunks
+        hunks,
+        target.source === "repo"
+          ? { source: "repo", repoPath: target.filePath }
+          : undefined
       )
     } catch (error) {
       setGitError(readableError(error))

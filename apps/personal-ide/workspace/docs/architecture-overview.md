@@ -47,7 +47,7 @@ The Rust backend owns real local operations:
 - PTY terminal sessions.
 - Opening local server URLs.
 
-Paths are resolved and canonicalized in Rust. File operations stay inside the active workspace app root.
+Paths are resolved and canonicalized in Rust. File browser operations stay inside the active workspace app root. The Changes panel can also open existing text files from the active worktree root when Git reports changes outside the selected app folder.
 
 ## Workspace Model
 
@@ -211,7 +211,7 @@ Tauri apps are not started through this web server helper.
 
 Each workspace has an isolated branch.
 
-The Changes panel shows real Git status for the whole active worktree repo, but maps files back to the selected app when possible.
+The Changes panel shows real Git status for the whole active worktree repo. Files inside the selected app open as app-relative editor tabs. Text files outside the selected app, such as root config files, open as repo-relative editor tabs.
 
 Implemented actions:
 

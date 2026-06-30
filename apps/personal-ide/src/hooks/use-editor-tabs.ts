@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 
 import { SETTINGS_TAB_PATH } from "@/app/constants"
-import { isSettingsTab } from "@/app/editor-tabs"
-import { readTextFile, writeTextFile } from "@/app/native/files"
+import { isSettingsTab, tabFilePath } from "@/app/editor-tabs"
+import {
+  readRepoTextFile,
+  readTextFile,
+  writeRepoTextFile,
+  writeTextFile,
+} from "@/app/native/files"
 import {
   fileName,
   isSameOrChildPath,
@@ -10,6 +15,11 @@ import {
   replacePathPrefix,
 } from "@/app/path"
 import type { DiffHunk, EditorTab, FileEntry } from "@/app/types"
+
+type OpenPathOptions = {
+  source?: "app" | "repo"
+  repoPath?: string
+}
 
 type UseEditorTabsOptions = {
   activeWorkspaceId: string
@@ -45,12 +55,15 @@ export function useEditorTabs({
     name = fileName(path),
     changedLines: number[] = [],
     originalContents?: string,
-    diffHunks?: DiffHunk[]
+    diffHunks?: DiffHunk[],
+    options: OpenPathOptions = {}
   ) {
     if (!activeWorkspaceId) return
 
     onFileError("")
     const existing = tabs.find((tab) => tab.path === path)
+    const source = options.source ?? "app"
+    const repoPath = options.repoPath ?? path
 
     if (existing) {
       setTabs((current) =>
@@ -63,7 +76,10 @@ export function useEditorTabs({
     }
 
     try {
-      const contents = await readTextFile(activeWorkspaceId, path)
+      const contents =
+        source === "repo"
+          ? await readRepoTextFile(activeWorkspaceId, repoPath)
+          : await readTextFile(activeWorkspaceId, path)
       setTabs((current) => [
         ...current,
         {
@@ -71,6 +87,8 @@ export function useEditorTabs({
           name,
           contents,
           savedContents: contents,
+          source: source === "repo" ? "repo" : undefined,
+          repoPath: source === "repo" ? repoPath : undefined,
           originalContents,
           changedLines,
           diffHunks,
@@ -125,7 +143,12 @@ export function useEditorTabs({
 
     setSavingPath(tab.path)
     try {
-      await writeTextFile(activeWorkspaceId, tab.path, tab.contents)
+      const path = tabFilePath(tab)
+      if (tab.source === "repo") {
+        await writeRepoTextFile(activeWorkspaceId, path, tab.contents)
+      } else {
+        await writeTextFile(activeWorkspaceId, path, tab.contents)
+      }
       setTabs((current) =>
         current.map((item) =>
           item.path === tab.path
@@ -175,7 +198,11 @@ export function useEditorTabs({
       }
 
       try {
-        const contents = await readTextFile(activeWorkspaceId, tab.path)
+        const path = tabFilePath(tab)
+        const contents =
+          tab.source === "repo"
+            ? await readRepoTextFile(activeWorkspaceId, path)
+            : await readTextFile(activeWorkspaceId, path)
 
         nextTabs.push({
           ...tab,
@@ -230,6 +257,7 @@ export function useEditorTabs({
   function updateTabsForRename(oldPath: string, newPath: string) {
     setTabs((current) =>
       current.map((tab) => {
+        if (tab.source === "repo") return tab
         if (!isSameOrChildPath(tab.path, oldPath)) return tab
         const path = replacePathPrefix(tab.path, oldPath, newPath)
         return { ...tab, path, name: fileName(path) }
@@ -244,7 +272,9 @@ export function useEditorTabs({
 
   function closeTabsUnderPath(path: string) {
     setTabs((current) => {
-      const nextTabs = current.filter((tab) => !isSameOrChildPath(tab.path, path))
+      const nextTabs = current.filter(
+        (tab) => tab.source === "repo" || !isSameOrChildPath(tab.path, path)
+      )
       setActivePath((currentPath) => {
         if (!isSameOrChildPath(currentPath, path)) return currentPath
         return nextTabs[nextTabs.length - 1]?.path ?? ""

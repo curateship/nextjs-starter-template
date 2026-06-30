@@ -30,6 +30,8 @@ export type EditorTab = {
   contents: string
   savedContents: string
   kind?: "settings"
+  source?: "app" | "repo"
+  repoPath?: string
   originalContents?: string
   changedLines?: number[]
   diffHunks?: DiffHunk[]

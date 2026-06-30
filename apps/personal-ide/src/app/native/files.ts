@@ -13,8 +13,16 @@ export function readTextFile(workspaceId: string, path: string) {
   return invoke<string>("read_text_file", { workspaceId, path })
 }
 
+export function readRepoTextFile(workspaceId: string, path: string) {
+  return invoke<string>("read_repo_text_file", { workspaceId, path })
+}
+
 export function writeTextFile(workspaceId: string, path: string, contents: string) {
   return invoke("write_text_file", { workspaceId, path, contents })
+}
+
+export function writeRepoTextFile(workspaceId: string, path: string, contents: string) {
+  return invoke("write_repo_text_file", { workspaceId, path, contents })
 }
 
 export function createTextFile(workspaceId: string, path: string) {

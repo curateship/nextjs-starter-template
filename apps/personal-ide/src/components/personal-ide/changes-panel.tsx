@@ -1,6 +1,7 @@
 import { ChevronDown, GitCommitHorizontal, GitMerge, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 import { useState } from "react"
 
+import { repoTabPath } from "@/app/editor-tabs"
 import type { GitFile, GitStatus } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +52,8 @@ export function ChangesPanel({
   const developCommits = gitStatus.developCommits
   const developFiles = developCommits.length ? gitStatus.developFiles : []
   const developUpdateCount = gitStatus.developCommitCount
-  const isActiveFile = (file: GitFile) => Boolean(file.appPath && file.appPath === activePath)
+  const fileEditorPath = (file: GitFile) => file.appPath ?? repoTabPath(file.path)
+  const isActiveFile = (file: GitFile) => fileEditorPath(file) === activePath
 
   return (
     <div
@@ -139,12 +141,11 @@ export function ChangesPanel({
                       type="button"
                       className={cn(
                         "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
-                        isActiveFile(file) && "bg-muted text-foreground",
-                        !file.appPath && "text-muted-foreground"
+                        isActiveFile(file) && "bg-muted text-foreground"
                       )}
                       aria-current={isActiveFile(file) ? "true" : undefined}
                       onClick={() => onOpenMergeFile(file)}
-                      title={file.appPath ? "Open merge diff" : "Outside selected app folder"}
+                      title="Open merge diff"
                     >
                       <span className="w-8 shrink-0 font-mono text-muted-foreground">
                         {file.status || "M"}
@@ -165,8 +166,7 @@ export function ChangesPanel({
                   type="button"
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
-                    isActiveFile(file) && "bg-muted text-foreground",
-                    !file.appPath && "text-muted-foreground"
+                    isActiveFile(file) && "bg-muted text-foreground"
                   )}
                   aria-current={isActiveFile(file) ? "true" : undefined}
                   onClick={() => onOpenFile(file)}
@@ -175,7 +175,7 @@ export function ChangesPanel({
                     event.stopPropagation()
                     setDiscardMenu({ file, x: event.clientX, y: event.clientY })
                   }}
-                  title={file.appPath ? "Open changed file" : "Outside selected app folder"}
+                  title="Open changed file"
                 >
                   <span className="w-8 shrink-0 font-mono text-muted-foreground">
                     {file.status || "M"}
