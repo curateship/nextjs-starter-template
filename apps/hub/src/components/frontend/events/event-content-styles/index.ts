@@ -9,6 +9,7 @@ export interface EventContentStyleRendererProps {
     showFeaturedImage?: boolean
     eventDate?: string
     eventTime?: string
+    externalCtaUrl?: string
     body?: string
   }
   children?: ReactNode
