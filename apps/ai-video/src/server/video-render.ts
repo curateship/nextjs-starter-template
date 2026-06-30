@@ -17,11 +17,13 @@ import {
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
 import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
+import type { BrandKitConfig } from "@/lib/ai-video"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
 import type { ProjectTimeline } from "@/server/video-projects"
+import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 import type {
   AspectRatio,
   ClipWord,
@@ -180,6 +182,12 @@ function timelineEndMs(tracks: EditorTrack[]) {
 // A clip flattened with its track's mute state; visual order is bottom-first
 // (the preview stacks track 0 on top, so later overlays must win).
 type RenderClip = { clip: EditorClip; muted: boolean }
+type RenderWatermark = {
+  file: string
+  position: BrandKitConfig["watermark"]["position"]
+  widthPercent: number
+  opacity: number
+}
 
 function flattenForRender(tracks: EditorTrack[]) {
   const visuals: RenderClip[] = []
@@ -261,6 +269,11 @@ async function renderProject(
         audioPresence.set(media.id, await hasAudioStream(file))
       }
     }
+    const watermark = await resolveWatermark({
+      userId,
+      dir,
+      brandKit: await getCurrentWorkspaceBrandKit(userId),
+    })
 
     const command = await buildFfmpegCommand({
       dir,
@@ -270,6 +283,7 @@ async function renderProject(
       audio,
       sourceFiles,
       audioPresence,
+      watermark,
       crf: QUALITY_PRESETS[quality].crf,
     })
 
@@ -362,10 +376,20 @@ async function buildFfmpegCommand(options: {
   audio: RenderClip[]
   sourceFiles: Map<string, string>
   audioPresence: Map<string, boolean>
+  watermark: RenderWatermark | null
   crf: number
 }) {
-  const { dir, size, durationMs, visuals, audio, sourceFiles, audioPresence, crf } =
-    options
+  const {
+    dir,
+    size,
+    durationMs,
+    visuals,
+    audio,
+    sourceFiles,
+    audioPresence,
+    watermark,
+    crf,
+  } = options
   const durationS = durationMs / 1000
   const inputs: string[] = []
   const filters: string[] = [
@@ -477,6 +501,24 @@ async function buildFfmpegCommand(options: {
     inputIndex += 1
   }
 
+  if (watermark) {
+    const width = Math.max(1, Math.round(size.width * (watermark.widthPercent / 100)))
+    const opacity = Math.min(Math.max(watermark.opacity / 100, 0), 1)
+    const margin = Math.round(Math.min(size.width, size.height) * 0.04)
+    const x =
+      watermark.position.endsWith("right") ? `W-w-${margin}` : String(margin)
+    const y =
+      watermark.position.startsWith("bottom") ? `H-h-${margin}` : String(margin)
+
+    inputs.push("-loop", "1", "-t", String(durationS), "-i", watermark.file)
+    filters.push(
+      `[${inputIndex}:v]format=rgba,scale=${width}:-1,colorchannelmixer=aa=${opacity.toFixed(3)}[wm]`,
+      `[v${visualStep}][wm]overlay=x=${x}:y=${y}[v${visualStep + 1}]`
+    )
+    inputIndex += 1
+    visualStep += 1
+  }
+
   const finalVideo = `v${visualStep}`
   const hasAudio = audioLabels.length > 0
   if (hasAudio) {
@@ -512,6 +554,49 @@ async function buildFfmpegCommand(options: {
     "-movflags",
     "+faststart",
   ]
+}
+
+async function resolveWatermark({
+  userId,
+  dir,
+  brandKit,
+}: {
+  userId: string
+  dir: string
+  brandKit: BrandKitConfig
+}): Promise<RenderWatermark | null> {
+  const logoId = brandKit.logo.mediaId
+  if (!brandKit.watermark.enabled || !logoId) return null
+
+  const [logo] = await db
+    .select()
+    .from(aiVideoMedia)
+    .where(and(eq(aiVideoMedia.id, logoId), eq(aiVideoMedia.userId, userId)))
+    .limit(1)
+  if (!logo || logo.fileType !== "image") return null
+
+  try {
+    const object = await getFromR2(logo.storagePath)
+    if (!object.Body) return null
+    const bytes = await bodyToBytes(object.Body)
+    const watermarkBytes =
+      logo.mimeType === "image/svg+xml"
+        ? loadResvg().Resvg(new TextDecoder().decode(bytes)).render().asPng()
+        : bytes
+    const ext = logo.mimeType === "image/svg+xml"
+      ? ".png"
+      : path.extname(logo.storagePath) || ".img"
+    const file = path.join(dir, `watermark${ext}`)
+    await writeFile(file, watermarkBytes)
+    return {
+      file,
+      position: brandKit.watermark.position,
+      widthPercent: brandKit.watermark.widthPercent,
+      opacity: brandKit.watermark.opacity,
+    }
+  } catch {
+    return null
+  }
 }
 
 // --- Text rasterization -----------------------------------------------------

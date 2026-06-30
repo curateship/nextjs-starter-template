@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
+  cleanBrandKitConfig,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MEDIA_UPLOAD_MAX_MB_LIMIT,
@@ -238,6 +239,7 @@ function normalizeConfig(settings: ShellConfig | null) {
         ? settings.mediaUploadMaxMb
         : fallback.mediaUploadMaxMb,
     favicon: settings.favicon ?? fallback.favicon,
+    brandKit: cleanBrandKitConfig(settings.brandKit),
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,

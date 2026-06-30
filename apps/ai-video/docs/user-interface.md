@@ -9,6 +9,9 @@
 
 - Use shadcn form controls for inputs and interactions.
 - Avoid native `<select>` and similar browser-default controls when a shadcn control should be used instead.
+- Brand Kit settings live under Settings and reuse the standard card, input,
+  select, switch, slider, color picker, and media picker primitives. Brand
+  swatches should appear in editor text and caption color controls.
 
 ## Tables
 

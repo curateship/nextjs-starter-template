@@ -71,6 +71,13 @@ function getSectionIdFromDropId(id: string) {
     : null
 }
 
+function resetSidebarSections(config: ShellConfig): ShellConfig {
+  return {
+    ...config,
+    sections: createDefaultShellConfig().sections,
+  }
+}
+
 type SidebarSettingsProps = {
   config: ShellConfig
   isSaving: boolean
@@ -1023,7 +1030,7 @@ export function SidebarSettings({
                 isSaving={isSaving}
                 onSectionTitleChange={handleSectionTitleChange}
                 onSectionDelete={handleSectionDelete}
-                onReset={() => onConfigChange(createDefaultShellConfig())}
+                onReset={() => onConfigChange(resetSidebarSections(config))}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}

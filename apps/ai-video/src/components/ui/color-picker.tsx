@@ -21,6 +21,10 @@ const PRESET_COLORS = [
   "#ec4899",
 ]
 
+type ColorSwatch = {
+  value: string
+}
+
 // Compare colors case-insensitively — react-colorful emits lowercase #rrggbb,
 // but a stored value might be uppercase.
 function normalizeHex(value: string) {
@@ -36,27 +40,38 @@ export function ColorPicker({
   onChange,
   id,
   className,
+  swatches,
+  disabled = false,
   "aria-label": ariaLabel,
 }: {
   value: string
   onChange: (value: string) => void
   id?: string
   className?: string
+  swatches?: ColorSwatch[]
+  disabled?: boolean
   "aria-label"?: string
 }) {
   const [open, setOpen] = React.useState(false)
   const hex = normalizeHex(value)
+  const presetColors = swatches?.length
+    ? swatches.map((color) => color.value)
+    : PRESET_COLORS
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}
+    >
       <PopoverTrigger asChild>
         <button
           id={id}
           type="button"
+          disabled={disabled}
           aria-label={ariaLabel ?? "Pick a color"}
           className={cn(
             // Mirrors the shadcn Input look so it sits naturally among fields.
-            "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30",
+            "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
             className
           )}
         >
@@ -67,7 +82,13 @@ export function ColorPicker({
           <span className="font-mono uppercase">{hex}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 space-y-3 p-3">
+      <PopoverContent
+        align="start"
+        className={cn(
+          "w-60 space-y-3 p-3",
+          disabled && "pointer-events-none opacity-60"
+        )}
+      >
         {/* Saturation square + hue slider. Inline width/height beat
             react-colorful's injected fixed 200×200, so it fills the popover and
             its right edge lines up with the hex field + presets below. */}
@@ -84,6 +105,7 @@ export function ColorPicker({
             color={hex}
             onChange={onChange}
             prefixed
+            disabled={disabled}
             spellCheck={false}
             aria-label="Hex color value"
             className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 font-mono text-sm uppercase outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
@@ -92,14 +114,15 @@ export function ColorPicker({
 
         {/* Preset swatches */}
         <div className="flex flex-wrap gap-1.5">
-          {PRESET_COLORS.map((preset) => (
+          {presetColors.map((preset, index) => (
             <button
-              key={preset}
+              key={`${preset}-${index}`}
               type="button"
+              disabled={disabled}
               onClick={() => onChange(preset)}
               aria-label={`Use ${preset}`}
               className={cn(
-                "size-6 rounded-md border transition-transform hover:scale-110",
+                "size-6 rounded-md border transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:hover:scale-100",
                 normalizeHex(preset) === hex &&
                   "ring-2 ring-ring ring-offset-1 ring-offset-background"
               )}
