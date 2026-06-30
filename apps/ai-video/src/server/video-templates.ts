@@ -25,6 +25,7 @@ import {
 } from "@/server/video-projects"
 import type { ViralVideoAnalysis } from "@/server/video-analysis"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
+import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 
 // Scenes shorter than this make useless template slots and are skipped.
 const MIN_SLOT_MS = 100
@@ -235,7 +236,7 @@ export async function getTemplateForEditingForCurrentUser(
     thumbnail_url: row.thumbnailStoragePath
       ? getPublicMediaUrl(row.thumbnailStoragePath)
       : null,
-    timeline: row.timeline as ProjectTimeline,
+    timeline: normalizeTimelineTextFonts(row.timeline as ProjectTimeline),
   }
 }
 
@@ -318,10 +319,11 @@ export async function saveTemplateTimelineForCurrentUser(
 ): Promise<{ templateId: string }> {
   requireAppOrigin()
   const user = await requireUser()
+  const normalizedTimeline = normalizeTimelineTextFonts(timeline)
 
   const [row] = await db
     .update(aiVideoTemplates)
-    .set({ timeline, updatedAt: now() })
+    .set({ timeline: normalizedTimeline, updatedAt: now() })
     .where(
       and(
         eq(aiVideoTemplates.id, templateId),
@@ -605,7 +607,7 @@ export async function createProjectFromTemplateForCurrentUser(
       name: cleanProjectName(name),
       // Remembered so the script writer can reach the source reel's analysis.
       templateId: template.id,
-      timeline: template.timeline,
+      timeline: normalizeTimelineTextFonts(template.timeline as ProjectTimeline),
       createdAt,
       updatedAt: createdAt,
     })

@@ -5,6 +5,7 @@ import { deleteOwnedProjectMedia } from "@/server/media"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
+import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 import type {
   AspectRatio,
   EditorTrack,
@@ -107,7 +108,9 @@ function serializeProject(row: AiVideoProject): ProjectItem {
 function serializeProjectDetail(row: AiVideoProject): ProjectDetail {
   return {
     ...serializeProject(row),
-    timeline: (row.timeline as ProjectTimeline) ?? EMPTY_TIMELINE,
+    timeline: normalizeTimelineTextFonts(
+      (row.timeline as ProjectTimeline | null) ?? EMPTY_TIMELINE
+    ),
   }
 }
 
@@ -187,10 +190,11 @@ export async function saveProjectTimelineForCurrentUser(
 ): Promise<ProjectItem> {
   requireAppOrigin()
   const user = await requireUser()
+  const normalizedTimeline = normalizeTimelineTextFonts(timeline)
 
   const [row] = await db
     .update(aiVideoProjects)
-    .set({ timeline, updatedAt: now() })
+    .set({ timeline: normalizedTimeline, updatedAt: now() })
     .where(
       and(
         eq(aiVideoProjects.id, projectId),
