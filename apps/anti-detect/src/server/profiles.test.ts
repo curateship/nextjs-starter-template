@@ -66,11 +66,16 @@ beforeEach(async () => {
     new URL("../../drizzle/0007_profile_status_unique.sql", import.meta.url),
     "utf8"
   )
+  const browserSessions = await readFile(
+    new URL("../../drizzle/0008_browser_sessions.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(baseline)
   await client.exec(profilesProxies)
   await client.exec(proxyProtocol)
   await client.exec(organization)
   await client.exec(statusUnique)
+  await client.exec(browserSessions)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as Db)
 })

@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
@@ -294,6 +295,50 @@ export const profiles = pgTable(
   ]
 )
 
+export const browserSessions = pgTable(
+  "browser_sessions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    profileId: varchar("profile_id", { length: 36 })
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 255 }).notNull(),
+    containerId: varchar("container_id", { length: 255 }),
+    containerName: varchar("container_name", { length: 255 }).notNull(),
+    volumeName: varchar("volume_name", { length: 255 }).notNull(),
+    streamUrl: text("stream_url").notNull(),
+    streamPort: integer("stream_port").notNull(),
+    webrtcStartPort: integer("webrtc_start_port").notNull(),
+    webrtcEndPort: integer("webrtc_end_port").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "browser_sessions_status_check",
+      sql`${table.status} in ('starting', 'running', 'stopping', 'stopped', 'error')`
+    ),
+    index("ix_browser_sessions_user_id").on(table.userId),
+    index("ix_browser_sessions_profile_id").on(table.profileId),
+    index("ix_browser_sessions_active_profile").on(
+      table.profileId,
+      table.endedAt
+    ),
+    uniqueIndex("ux_browser_sessions_active_profile")
+      .on(table.profileId)
+      .where(
+        sql`${table.endedAt} is null and ${table.status} in ('starting', 'running', 'stopping')`
+      ),
+  ]
+)
+
 // Per-user folders for grouping profiles.
 export const profileFolders = pgTable(
   "profile_folders",
@@ -338,5 +383,6 @@ export type Notification =
   typeof notifications.$inferSelect
 export type Proxy = typeof proxies.$inferSelect
 export type Profile = typeof profiles.$inferSelect
+export type BrowserSession = typeof browserSessions.$inferSelect
 export type ProfileFolderRow = typeof profileFolders.$inferSelect
 export type ProfileStatusRow = typeof profileStatuses.$inferSelect
