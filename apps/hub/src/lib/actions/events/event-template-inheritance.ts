@@ -12,7 +12,7 @@ export const EVENT_CONTENT_BLOCK_TYPE = 'event-content'
 // Per-event value keys. The rich text body/format and event date/time are
 // edited per event; the title/featured image are event row fields.
 const EVENT_VALUE_KEYS: Record<string, string[]> = {
-  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime', 'externalCtaUrl'],
+  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime', 'venueName', 'venueAddress', 'externalCtaUrl'],
 }
 
 // Template-owned config keys per block type (everything the template editor sets).
@@ -64,6 +64,12 @@ function getEventBlockValueContent(type: string, content: Record<string, any> = 
       const externalCtaUrl = sanitizeExternalHttpUrl(String(value))
       if (!externalCtaUrl) continue
       values[key] = externalCtaUrl
+      continue
+    }
+    if (key === 'venueName' || key === 'venueAddress') {
+      const trimmedValue = String(value).trim()
+      if (!trimmedValue) continue
+      values[key] = trimmedValue
       continue
     }
     values[key] = cloneValue(value)
@@ -207,6 +213,8 @@ export function withEventTemplatePreviewValues<TBlock extends { type: string; co
       ...(block.content || {}),
       ...(!hasValue(block.content?.eventDate) ? { eventDate: '2026-08-15' } : {}),
       ...(!hasValue(block.content?.eventTime) ? { eventTime: '18:00' } : {}),
+      ...(!hasValue(block.content?.venueName) ? { venueName: 'The Grand Hall' } : {}),
+      ...(!hasValue(block.content?.venueAddress) ? { venueAddress: '123 Main Street, Toronto, ON' } : {}),
       ...(!hasValue(block.content?.externalCtaUrl) ? { externalCtaUrl: 'https://example.com/events/preview-rsvp' } : {}),
       ...(!hasValue(block.content?.body) ? { body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT } : {}),
     }

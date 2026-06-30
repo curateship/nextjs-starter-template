@@ -57,6 +57,8 @@ function EventContentStyled({
             showFeaturedImage: block.content.visibility?.showFeaturedImage !== false,
             eventDate: block.content.eventDate,
             eventTime: block.content.eventTime,
+            venueName: block.content.venueName,
+            venueAddress: block.content.venueAddress,
             externalCtaUrl: block.content.externalCtaUrl,
             body: block.content.body,
           }}

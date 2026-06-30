@@ -111,8 +111,12 @@ export default async function EventPage({ params }: EventPageProps) {
     blocks = []
   }
 
+  const coreBlock = blocks.find((block) => block.type === 'event-content')
+  const coreContent = coreBlock?.content && typeof coreBlock.content === 'object' ? coreBlock.content : {}
   const eventWithBlocks = {
     ...toSnakeCase(event),
+    venueName: coreContent.venueName,
+    venueAddress: coreContent.venueAddress,
     blocks
   } as any
   const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'events')
