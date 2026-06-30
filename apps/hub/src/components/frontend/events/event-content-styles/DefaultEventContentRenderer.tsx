@@ -1,6 +1,35 @@
 import type { EventContentStyleRendererProps } from "./index"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
+function formatEventDateTime(eventDate?: string, eventTime?: string) {
+  const dateMatch = eventDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!dateMatch) return ""
+
+  const [, yearValue, monthValue, dayValue] = dateMatch
+  const year = Number(yearValue)
+  const month = Number(monthValue)
+  const day = Number(dayValue)
+  const date = new Date(year, month - 1, day)
+  const dateLabel = new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date)
+
+  const timeMatch = eventTime?.match(/^([01]\d|2[0-3]):([0-5]\d)$/)
+  if (!timeMatch) return dateLabel
+
+  const [, hourValue, minuteValue] = timeMatch
+  const timeDate = new Date(year, month - 1, day, Number(hourValue), Number(minuteValue))
+  const timeLabel = new Intl.DateTimeFormat("en", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(timeDate)
+
+  return `${dateLabel} at ${timeLabel}`
+}
+
 export function DefaultEventContentRenderer({ config, sharedContent }: EventContentStyleRendererProps) {
   const alignment = config.alignment || 'center'
   const contentMaxWidth = config.contentMaxWidth as number | undefined
@@ -10,6 +39,8 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
     title,
     featuredImage,
     showFeaturedImage = true,
+    eventDate,
+    eventTime,
     body,
   } = sharedContent
 
@@ -23,6 +54,7 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
   const htmlContent = sanitizeRichHtml(body || '')
+  const dateTimeLabel = formatEventDateTime(eventDate, eventTime)
 
   return (
     <div
@@ -32,6 +64,11 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
       <h1 className={`text-pretty ${titleClasses} font-semibold`}>
         {title}
       </h1>
+      {dateTimeLabel && (
+        <p className="text-sm font-medium text-muted-foreground md:text-base">
+          {dateTimeLabel}
+        </p>
+      )}
       {featuredImage && showFeaturedImage && (
         <img
           src={featuredImage}

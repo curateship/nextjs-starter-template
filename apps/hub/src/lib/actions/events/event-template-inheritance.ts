@@ -7,10 +7,10 @@
 export const EVENT_BLANK_TEMPLATE_NAME = 'Blank'
 export const EVENT_CONTENT_BLOCK_TYPE = 'event-content'
 
-// Per-event value keys. The rich text body/format are edited per event; the
-// title/featured image are event row fields (not block content).
+// Per-event value keys. The rich text body/format and event date/time are
+// edited per event; the title/featured image are event row fields.
 const EVENT_VALUE_KEYS: Record<string, string[]> = {
-  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format'],
+  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime'],
 }
 
 // Template-owned config keys per block type (everything the template editor sets).
@@ -193,14 +193,18 @@ export function withEventTemplatePreviewValues<TBlock extends { type: string; co
   blocks: TBlock[]
 ) {
   return blocks.map((block) => {
-    if (block.type !== EVENT_CONTENT_BLOCK_TYPE || hasValue(block.content?.body)) return block
+    if (block.type !== EVENT_CONTENT_BLOCK_TYPE) return block
+
+    const content = {
+      ...(block.content || {}),
+      ...(!hasValue(block.content?.eventDate) ? { eventDate: '2026-08-15' } : {}),
+      ...(!hasValue(block.content?.eventTime) ? { eventTime: '18:00' } : {}),
+      ...(!hasValue(block.content?.body) ? { body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT } : {}),
+    }
 
     return {
       ...block,
-      content: {
-        ...(block.content || {}),
-        body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT,
-      },
+      content,
     }
   })
 }

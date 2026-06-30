@@ -8,7 +8,7 @@ export const EVENT_BLOCK_TYPES: BlockTypeDefinition[] = [
     type: 'event-content',
     name: 'Core',
     icon: FileText,
-    description: 'Event title and rich text content',
+    description: 'Event title, date, time, and rich text content',
     defaultContent: {
       eventContentStyle: 'default',
       body: '',
