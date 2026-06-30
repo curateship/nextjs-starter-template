@@ -1,16 +1,25 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { CREATOR_PROFILE_URL_ERRORS } from "@/server/creator-profile-url"
 import type { CreatorItem, CreatorListResponse } from "@/server/creators"
 import type { WatchSyncResult } from "@/server/creator-watch"
 
+export { CREATOR_PROFILE_URL_ERRORS }
 export type { CreatorItem, CreatorListResponse, WatchSyncResult }
 
 const creatorIdSchema = z.object({
   creatorId: z.string().min(1).max(36),
 })
 
-const creatorSafeErrorMessages = new Set(["Creator not found"])
+const creatorProfileUrlSchema = z.object({
+  profileUrl: z.string().min(1).max(2048),
+})
+
+const creatorSafeErrorMessages = new Set([
+  "Creator not found",
+  ...Object.values(CREATOR_PROFILE_URL_ERRORS),
+])
 
 export function getCreatorErrorMessage(error: unknown) {
   if (!(error instanceof Error)) return "Creator request failed."
@@ -30,6 +39,13 @@ const getCreatorFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<CreatorItem> => {
     const { getCreatorForCurrentUser } = await import("@/server/creators")
     return getCreatorForCurrentUser(data.creatorId)
+  })
+
+const createCreatorFn = createServerFn({ method: "POST" })
+  .inputValidator(creatorProfileUrlSchema)
+  .handler(async ({ data }): Promise<CreatorItem> => {
+    const { createCreatorForCurrentUser } = await import("@/server/creators")
+    return createCreatorForCurrentUser(data.profileUrl)
   })
 
 const bulkDeleteCreatorsFn = createServerFn({ method: "POST" })
@@ -75,6 +91,10 @@ export function listCreators() {
 
 export function getCreator(creatorId: string) {
   return getCreatorFn({ data: { creatorId } })
+}
+
+export function createCreator(profileUrl: string) {
+  return createCreatorFn({ data: { profileUrl } })
 }
 
 export function bulkDeleteCreators(creatorIds: string[]) {
