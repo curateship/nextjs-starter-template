@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
   Loader2Icon,
+  PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
   UsersIcon,
@@ -25,6 +26,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
@@ -34,6 +37,8 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   bulkDeleteCreators,
+  createCreator,
+  CREATOR_PROFILE_URL_ERRORS,
   getCreatorErrorMessage,
   listCreators,
   setCreatorWatch,
@@ -65,6 +70,15 @@ function formatWatchSyncNotice(result: WatchSyncResult) {
   return `${base} ${result.failed} ${failedLabel}: ${failedCreators}.`
 }
 
+function upsertCreatorItem(items: CreatorItem[], creator: CreatorItem) {
+  const existingIndex = items.findIndex((item) => item.id === creator.id)
+  if (existingIndex === -1) return [creator, ...items]
+
+  const updated = [...items]
+  updated[existingIndex] = creator
+  return updated
+}
+
 // Parent level of the Creators drill-down: rows are auto-created by the viral
 // pipeline; clicking a creator opens their reel grid.
 export function CreatorsDashboard() {
@@ -76,6 +90,12 @@ export function CreatorsDashboard() {
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [syncing, setSyncing] = React.useState(false)
+  const [addCreatorOpen, setAddCreatorOpen] = React.useState(false)
+  const [profileUrl, setProfileUrl] = React.useState("")
+  const [creatingCreator, setCreatingCreator] = React.useState(false)
+  const [addCreatorError, setAddCreatorError] = React.useState<string | null>(
+    null
+  )
 
   React.useEffect(() => {
     let active = true
@@ -103,6 +123,14 @@ export function CreatorsDashboard() {
   function updateSearch(value: string) { setSearchQuery(value); setCurrentPage(1) }
   function changePageSize(size: number) { setPageSize(size); setCurrentPage(1) }
   function goToPage(page: number) { setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))) }
+  function handleAddCreatorOpenChange(open: boolean) {
+    if (creatingCreator) return
+    setAddCreatorOpen(open)
+    if (!open) {
+      setProfileUrl("")
+      setAddCreatorError(null)
+    }
+  }
 
   const visibleIds = paginatedCreators.map((creator) => creator.id)
   const {
@@ -125,6 +153,34 @@ export function CreatorsDashboard() {
         current.map((c) => (c.id === creatorId ? { ...c, watch: !watch } : c))
       )
       setError(getCreatorErrorMessage(toggleError))
+    }
+  }
+
+  async function handleAddCreatorSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault()
+    const trimmedProfileUrl = profileUrl.trim()
+    if (!trimmedProfileUrl) {
+      setAddCreatorError(CREATOR_PROFILE_URL_ERRORS.invalid)
+      return
+    }
+
+    setCreatingCreator(true)
+    setAddCreatorError(null)
+    setError(null)
+    setNotice(null)
+    try {
+      const creator = await createCreator(trimmedProfileUrl)
+      setCreators((current) => upsertCreatorItem(current, creator))
+      setCurrentPage(1)
+      setNotice(`Watch is on for @${creator.username}.`)
+      setAddCreatorOpen(false)
+      setProfileUrl("")
+    } catch (createError) {
+      setAddCreatorError(getCreatorErrorMessage(createError))
+    } finally {
+      setCreatingCreator(false)
     }
   }
 
@@ -166,6 +222,13 @@ export function CreatorsDashboard() {
 
   const controls = (
     <>
+      <DashboardToolbarSearch
+        name="creator-search"
+        aria-label="Search creators"
+        placeholder="Search creators..."
+        value={searchQuery}
+        onChange={(event) => updateSearch(event.target.value)}
+      />
       {selectedIds.size > 0 ? (
         <DashboardToolbarButton
           type="button"
@@ -185,13 +248,13 @@ export function CreatorsDashboard() {
         <RefreshCwIcon className={syncing ? "size-4 animate-spin" : "size-4"} />
         {syncing ? "Syncing…" : "Sync now"}
       </DashboardToolbarButton>
-      <DashboardToolbarSearch
-        name="creator-search"
-        aria-label="Search creators"
-        placeholder="Search creators..."
-        value={searchQuery}
-        onChange={(event) => updateSearch(event.target.value)}
-      />
+      <DashboardToolbarButton
+        type="button"
+        onClick={() => handleAddCreatorOpenChange(true)}
+      >
+        <PlusIcon className="size-4" />
+        Add Creator
+      </DashboardToolbarButton>
     </>
   )
 
@@ -232,7 +295,11 @@ export function CreatorsDashboard() {
           </TableHeader>
         }
         isEmpty={loading || paginatedCreators.length === 0}
-        emptyText={loading ? "Loading creators..." : "No creators yet. They appear automatically when you add videos to the Viral Archive."}
+        emptyText={
+          loading
+            ? "Loading creators..."
+            : "No creators yet. Add a creator profile or add videos to the Viral Archive."
+        }
         emptyColSpan={7}
         footer={{
           type: "pagination",
@@ -256,6 +323,73 @@ export function CreatorsDashboard() {
           />
         ))}
       </DashboardTable>
+
+      <Dialog open={addCreatorOpen} onOpenChange={handleAddCreatorOpenChange}>
+        <DialogContent
+          variant="admin"
+          className="sm:max-w-md"
+          showCloseButton={!creatingCreator}
+        >
+          <DialogHeader>
+            <DialogTitle>Add Creator</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <form
+              id="add-creator-form"
+              className="grid gap-2"
+              onSubmit={handleAddCreatorSubmit}
+            >
+              <Label htmlFor="creator-profile-url">
+                TikTok or Instagram profile URL
+              </Label>
+              <Input
+                id="creator-profile-url"
+                value={profileUrl}
+                onChange={(event) => {
+                  setProfileUrl(event.target.value)
+                  if (addCreatorError) setAddCreatorError(null)
+                }}
+                placeholder="https://www.tiktok.com/@creator"
+                aria-invalid={addCreatorError ? true : undefined}
+                aria-describedby={
+                  addCreatorError ? "creator-profile-url-error" : undefined
+                }
+                disabled={creatingCreator}
+                autoFocus
+              />
+              {addCreatorError ? (
+                <p
+                  id="creator-profile-url-error"
+                  role="alert"
+                  className="text-sm text-destructive"
+                >
+                  {addCreatorError}
+                </p>
+              ) : null}
+            </form>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={creatingCreator}
+              onClick={() => handleAddCreatorOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="add-creator-form"
+              disabled={creatingCreator}
+            >
+              {creatingCreator ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              {creatingCreator ? "Adding" : "Add Creator"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
         <DialogContent variant="admin">

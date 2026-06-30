@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import { parseCreatorProfileUrl } from "@/server/creator-profile-url"
 import { fetchCreatorAvatar } from "@/server/creator-avatars"
 import { db } from "@/server/db"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media-storage"
@@ -12,8 +13,8 @@ import {
 import { now, requireUser, uuid } from "@/server/security"
 import type { ViralPlatform } from "@/server/video-download"
 
-// Creator rows are auto-managed: the viral pipeline upserts them from yt-dlp
-// metadata, so the only user-driven mutation is delete.
+// Creator rows are mostly auto-managed from yt-dlp metadata. Users can also add
+// a watched profile manually; reel import still happens only through sync runs.
 
 export type CreatorItem = {
   id: string
@@ -105,6 +106,55 @@ export async function getCreatorForCurrentUser(
     throw new Error("Creator not found")
   }
   return creator
+}
+
+export async function createCreatorForCurrentUser(
+  profileUrl: string
+): Promise<CreatorItem> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const profile = parseCreatorProfileUrl(profileUrl)
+  const timestamp = now()
+
+  const [creator] = await db
+    .insert(aiVideoCreators)
+    .values({
+      id: uuid(),
+      userId: user.id,
+      platform: profile.platform,
+      username: profile.username,
+      displayName: null,
+      watch: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: [
+        aiVideoCreators.userId,
+        aiVideoCreators.platform,
+        aiVideoCreators.username,
+      ],
+      set: {
+        watch: true,
+        updatedAt: timestamp,
+      },
+    })
+    .returning()
+
+  if (!creator) {
+    throw new Error("Creator was not created")
+  }
+
+  if (!creator.avatarStoragePath) {
+    await attachCreatorAvatar(creator).catch(() => undefined)
+  }
+
+  const [item] = await queryCreators(user.id, creator.id)
+  if (!item) {
+    throw new Error("Creator was not created")
+  }
+
+  return item
 }
 
 // Called from the viral pipeline after metadata lands. Matches on the
