@@ -25,6 +25,7 @@ import {
   type AiVideoViralVideo,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
+import { scoreViralVideoTrend, type TrendScore } from "@/server/trend-score"
 import { analyzeViralVideo, type ViralVideoAnalysis } from "@/server/video-analysis"
 import {
   detectViralPlatform,
@@ -55,6 +56,7 @@ export type ViralVideoItem = {
   author: string | null
   duration_ms: number | null
   stats: ViralVideoStats | null
+  trend_score: TrendScore | null
   thumbnail_url: string | null
   creator_id: string | null
   // Author chip shown on the gallery card (joined from the creators table).
@@ -62,6 +64,7 @@ export type ViralVideoItem = {
     username: string
     display_name: string | null
     avatar_url: string | null
+    follower_count: number | null
   } | null
   created_at: string
   updated_at: string
@@ -101,6 +104,7 @@ function serializeViralVideo(
   row: AiVideoViralVideo,
   creator: AiVideoCreator | null = null
 ): ViralVideoItem {
+  const stats = (row.stats as ViralVideoStats | null) ?? null
   return {
     id: row.id,
     source_url: row.sourceUrl,
@@ -110,7 +114,13 @@ function serializeViralVideo(
     title: row.title,
     author: row.author,
     duration_ms: row.durationMs,
-    stats: (row.stats as ViralVideoStats | null) ?? null,
+    stats,
+    trend_score: scoreViralVideoTrend({
+      status: row.status,
+      stats,
+      analysis: (row.analysis as ViralVideoAnalysis | null) ?? null,
+      creatorFollowers: creator?.followerCount ?? null,
+    }),
     thumbnail_url: row.thumbnailStoragePath
       ? getPublicMediaUrl(row.thumbnailStoragePath)
       : null,
@@ -122,6 +132,7 @@ function serializeViralVideo(
           avatar_url: creator.avatarStoragePath
             ? getPublicMediaUrl(creator.avatarStoragePath)
             : null,
+          follower_count: creator.followerCount,
         }
       : null,
     created_at: row.createdAt.toISOString(),

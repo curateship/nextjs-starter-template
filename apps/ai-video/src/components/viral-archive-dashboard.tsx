@@ -63,20 +63,33 @@ import { PLATFORM_LABELS, dateFormatter, formatCount, pageSizeOptions } from "@/
 import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
 
-type ViewMode = "list" | "gallery"
+type ViewMode = "list" | "gallery" | "trend"
 
 // Sortable columns in the list (table) view.
 type SortColumn =
   | "video"
   | "creator"
   | "platform"
-  | "views"
-  | "likes"
-  | "comments"
+  | "trend_score"
+  | "views_per_day"
+  | "audience_lift"
+  | "engagement_rate"
+  | "freshness"
   | "added"
 
 const POLL_INTERVAL_MS = 3000
 const LIST_TITLE_WORD_LIMIT = 5
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  maximumFractionDigits: 1,
+})
+const ratioFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+})
+const viewModeButtonClassName = cn(
+  dashboardToolbarButtonGroupItemClassName,
+  "rounded-none"
+)
 
 function truncateWords(value: string, limit: number) {
   const words = value.trim().split(/\s+/)
@@ -105,6 +118,35 @@ function labelForStatus(status: ViralVideoItem["status"] | null): string {
   if (status === "analyzing") return "Analyzing with AI…"
   if (status === "ready") return "Analysis complete!"
   return ""
+}
+
+function compareTrendRank(a: ViralVideoItem, b: ViralVideoItem) {
+  const aScore = a.trend_score?.score
+  const bScore = b.trend_score?.score
+  if (aScore !== undefined && bScore !== undefined && aScore !== bScore) {
+    return bScore - aScore
+  }
+  if (aScore !== undefined) return -1
+  if (bScore !== undefined) return 1
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+}
+
+function formatPercent(value: number | null | undefined) {
+  return value === null || value === undefined ? "—" : percentFormatter.format(value)
+}
+
+function formatAudienceLift(value: number | null | undefined) {
+  return value === null || value === undefined
+    ? "—"
+    : `${ratioFormatter.format(value)}x`
+}
+
+function confidenceLabel(
+  value: NonNullable<ViralVideoItem["trend_score"]>["confidence"]
+) {
+  if (value === "high") return "High"
+  if (value === "medium") return "Med"
+  return "Low"
 }
 
 // With a `creator`, the dashboard becomes the drill-down level of the
@@ -155,19 +197,38 @@ export function ViralArchiveDashboard({
     return () => clearInterval(interval)
   }, [hasProcessing])
 
-  const filteredVideos = React.useMemo(() => {
+  const matchedVideos = React.useMemo(() => {
     const scoped = creator
       ? videos.filter((v) => v.creator_id === creator.id)
       : videos
     const query = searchQuery.trim().toLowerCase()
-    const matched = query
+    return query
       ? scoped.filter((v) =>
           `${v.title ?? ""} ${v.author ?? ""} ${v.source_url}`.toLowerCase().includes(query)
         )
       : scoped
+  }, [videos, searchQuery, creator])
 
+  const trendSortedVideos = React.useMemo(
+    () => [...matchedVideos].sort(compareTrendRank),
+    [matchedVideos]
+  )
+
+  const trendRanks = React.useMemo(() => {
+    const ranks = new Map<string, number>()
+    let rank = 1
+    for (const video of trendSortedVideos) {
+      if (!video.trend_score) continue
+      ranks.set(video.id, rank)
+      rank += 1
+    }
+    return ranks
+  }, [trendSortedVideos])
+
+  const filteredVideos = React.useMemo(() => {
+    if (viewMode === "trend") return trendSortedVideos
     const direction = sortDirection === "asc" ? 1 : -1
-    return [...matched].sort((a, b) => {
+    return [...matchedVideos].sort((a, b) => {
       if (sortColumn === "video")
         return (a.title ?? a.source_url).localeCompare(b.title ?? b.source_url) * direction
       if (sortColumn === "creator")
@@ -175,15 +236,19 @@ export function ViralArchiveDashboard({
       if (sortColumn === "platform")
         return PLATFORM_LABELS[a.platform].localeCompare(PLATFORM_LABELS[b.platform]) * direction
       // Missing counts (null) sort below any real number.
-      if (sortColumn === "views")
-        return ((a.stats?.views ?? -1) - (b.stats?.views ?? -1)) * direction
-      if (sortColumn === "likes")
-        return ((a.stats?.likes ?? -1) - (b.stats?.likes ?? -1)) * direction
-      if (sortColumn === "comments")
-        return ((a.stats?.comments ?? -1) - (b.stats?.comments ?? -1)) * direction
+      if (sortColumn === "trend_score")
+        return ((a.trend_score?.score ?? -1) - (b.trend_score?.score ?? -1)) * direction
+      if (sortColumn === "views_per_day")
+        return ((a.trend_score?.views_per_day ?? -1) - (b.trend_score?.views_per_day ?? -1)) * direction
+      if (sortColumn === "audience_lift")
+        return ((a.trend_score?.audience_lift ?? -1) - (b.trend_score?.audience_lift ?? -1)) * direction
+      if (sortColumn === "engagement_rate")
+        return ((a.trend_score?.engagement_rate ?? -1) - (b.trend_score?.engagement_rate ?? -1)) * direction
+      if (sortColumn === "freshness")
+        return ((a.trend_score?.component_scores.freshness ?? -1) - (b.trend_score?.component_scores.freshness ?? -1)) * direction
       return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [videos, searchQuery, creator, sortColumn, sortDirection])
+  }, [matchedVideos, sortColumn, sortDirection, trendSortedVideos, viewMode])
 
   const totalPages = Math.ceil(filteredVideos.length / pageSize)
   const paginatedVideos = React.useMemo(() => {
@@ -193,6 +258,7 @@ export function ViralArchiveDashboard({
 
   function updateSearch(value: string) { setSearchQuery(value); setCurrentPage(1) }
   function changePageSize(size: number) { setPageSize(size); setCurrentPage(1) }
+  function changeViewMode(mode: ViewMode) { setViewMode(mode); setCurrentPage(1) }
   // Same-column click flips direction; a new column starts ascending.
   function toggleSort(column: SortColumn) {
     if (sortColumn === column) {
@@ -279,8 +345,8 @@ export function ViralArchiveDashboard({
         <DashboardToolbarButton
           type="button"
           variant="ghost"
-          className={cn(dashboardToolbarButtonGroupItemClassName, viewMode === "list" && dashboardToolbarButtonActiveClassName)}
-          onClick={() => setViewMode("list")}
+          className={cn(viewModeButtonClassName, viewMode === "list" && dashboardToolbarButtonActiveClassName)}
+          onClick={() => changeViewMode("list")}
           aria-label="List view"
         >
           <ListIcon className="size-4" />
@@ -288,11 +354,20 @@ export function ViralArchiveDashboard({
         <DashboardToolbarButton
           type="button"
           variant="ghost"
-          className={cn(dashboardToolbarButtonGroupItemClassName, viewMode === "gallery" && dashboardToolbarButtonActiveClassName)}
-          onClick={() => setViewMode("gallery")}
+          className={cn(viewModeButtonClassName, viewMode === "gallery" && dashboardToolbarButtonActiveClassName)}
+          onClick={() => changeViewMode("gallery")}
           aria-label="Grid view"
         >
           <GridIcon className="size-4" />
+        </DashboardToolbarButton>
+        <DashboardToolbarButton
+          type="button"
+          variant="ghost"
+          className={cn(viewModeButtonClassName, viewMode === "trend" && dashboardToolbarButtonActiveClassName)}
+          onClick={() => changeViewMode("trend")}
+          aria-label="Trend Score view"
+        >
+          <FlameIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
       {!creator ? (
@@ -335,7 +410,7 @@ export function ViralArchiveDashboard({
         </div>
       ) : null}
 
-      {viewMode === "gallery" ? (
+      {viewMode === "gallery" || viewMode === "trend" ? (
         <DashboardTable
           title={title}
           icon={<FlameIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
@@ -356,6 +431,7 @@ export function ViralArchiveDashboard({
                     <ViralVideoGalleryCard
                       key={video.id}
                       video={video}
+                      rank={viewMode === "trend" ? trendRanks.get(video.id) : undefined}
                       selected={selectedIds.has(video.id)}
                       onToggle={() => toggleSelected(video.id)}
                       onOpen={() => setViewTarget(video)}
@@ -385,6 +461,7 @@ export function ViralArchiveDashboard({
                     aria-label="Select visible videos"
                   />
                 </TableHead>
+                <TableHead column="meta">Rank</TableHead>
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "video"} direction={sortDirection} onClick={() => toggleSort("video")}>
                     Video
@@ -401,18 +478,28 @@ export function ViralArchiveDashboard({
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  <TableSortButton active={sortColumn === "views"} direction={sortDirection} onClick={() => toggleSort("views")}>
-                    Views
+                  <TableSortButton active={sortColumn === "trend_score"} direction={sortDirection} onClick={() => toggleSort("trend_score")}>
+                    Trend
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  <TableSortButton active={sortColumn === "likes"} direction={sortDirection} onClick={() => toggleSort("likes")}>
-                    Likes
+                  <TableSortButton active={sortColumn === "views_per_day"} direction={sortDirection} onClick={() => toggleSort("views_per_day")}>
+                    Views/day
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  <TableSortButton active={sortColumn === "comments"} direction={sortDirection} onClick={() => toggleSort("comments")}>
-                    Comments
+                  <TableSortButton active={sortColumn === "audience_lift"} direction={sortDirection} onClick={() => toggleSort("audience_lift")}>
+                    Lift
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "engagement_rate"} direction={sortDirection} onClick={() => toggleSort("engagement_rate")}>
+                    Engage
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "freshness"} direction={sortDirection} onClick={() => toggleSort("freshness")}>
+                    Fresh
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
@@ -426,13 +513,14 @@ export function ViralArchiveDashboard({
           }
           isEmpty={loading || paginatedVideos.length === 0}
           emptyText={emptyText}
-          emptyColSpan={9}
+          emptyColSpan={12}
           footer={paginationFooter}
         >
           {paginatedVideos.map((video) => (
             <ViralVideoTableRow
               key={video.id}
               video={video}
+              rank={trendRanks.get(video.id)}
               selected={selectedIds.has(video.id)}
               onToggle={() => toggleSelected(video.id)}
               onOpen={() => setViewTarget(video)}
@@ -486,6 +574,7 @@ export function ViralArchiveDashboard({
 
 function ViralVideoGalleryCard({
   video,
+  rank,
   selected,
   onToggle,
   onOpen,
@@ -493,6 +582,7 @@ function ViralVideoGalleryCard({
   onDelete,
 }: {
   video: ViralVideoItem
+  rank: number | undefined
   selected: boolean
   onToggle: () => void
   onOpen: () => void
@@ -500,6 +590,7 @@ function ViralVideoGalleryCard({
   onDelete: () => void
 }) {
   const isReady = video.status === "ready"
+  const trendScore = video.trend_score
   return (
     <div
       className={cn(
@@ -569,9 +660,36 @@ function ViralVideoGalleryCard({
         </Button>
       </div>
 
-      {/* Ready cards are just the thumbnail + creator chip; in-progress/error
-          cards keep a status bar for feedback. */}
-      {!isReady ? (
+      {isReady && trendScore ? (
+        <div className="bg-card p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground">
+                {rank ? `#${rank} Trend Score` : "Trend Score"}
+              </div>
+              <div className="text-xl font-semibold leading-none">
+                {trendScore.score}
+              </div>
+            </div>
+            <Badge variant="outline">{confidenceLabel(trendScore.confidence)}</Badge>
+          </div>
+          <div className="mt-2 space-y-1 text-xs">
+            <div className="flex justify-between gap-3">
+              <span className="text-muted-foreground">Views/day</span>
+              <span className="font-medium">{formatCount(trendScore.views_per_day)}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-muted-foreground">Lift</span>
+              <span className="font-medium">{formatAudienceLift(trendScore.audience_lift)}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-muted-foreground">Engage</span>
+              <span className="font-medium">{formatPercent(trendScore.engagement_rate)}</span>
+            </div>
+          </div>
+          <TrendMissingChips score={trendScore} />
+        </div>
+      ) : !isReady ? (
         <div className="bg-card p-3">
           <ViralVideoStatusBadge status={video.status} />
         </div>
@@ -605,8 +723,33 @@ function ViralVideoStatChip({
   )
 }
 
+function TrendMissingChips({
+  score,
+  limit = 2,
+}: {
+  score: NonNullable<ViralVideoItem["trend_score"]>
+  limit?: number
+}) {
+  const reasons = score.missing_inputs.slice(0, limit)
+  if (reasons.length === 0) return null
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {reasons.map((reason) => (
+        <span
+          key={reason}
+          className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+        >
+          {reason}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function ViralVideoTableRow({
   video,
+  rank,
   selected,
   onToggle,
   onOpen,
@@ -614,6 +757,7 @@ function ViralVideoTableRow({
   onDelete,
 }: {
   video: ViralVideoItem
+  rank: number | undefined
   selected: boolean
   onToggle: () => void
   onOpen: () => void
@@ -624,6 +768,7 @@ function ViralVideoTableRow({
   const title = video.title ?? video.source_url
   const displayTitle = truncateWords(title, LIST_TITLE_WORD_LIMIT)
   const creatorName = creatorLabel(video)
+  const trendScore = video.trend_score
 
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
@@ -634,6 +779,7 @@ function ViralVideoTableRow({
           aria-label={`Select ${video.title ?? video.source_url}`}
         />
       </TableCell>
+      <TableCell column="mutedMeta">{rank ? `#${rank}` : "—"}</TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
           <div className="aspect-[9/16] w-9 shrink-0 overflow-hidden rounded-md border bg-muted">
@@ -671,13 +817,27 @@ function ViralVideoTableRow({
         <Badge variant="outline">{PLATFORM_LABELS[video.platform]}</Badge>
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        {formatCount(video.stats?.views ?? null)}
+        {trendScore ? (
+          <div>
+            <span className="font-medium text-foreground">{trendScore.score}</span>{" "}
+            {confidenceLabel(trendScore.confidence)}
+            <TrendMissingChips score={trendScore} limit={1} />
+          </div>
+        ) : (
+          "—"
+        )}
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        {formatCount(video.stats?.likes ?? null)}
+        {formatCount(trendScore?.views_per_day ?? null)}
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        {formatCount(video.stats?.comments ?? null)}
+        {formatAudienceLift(trendScore?.audience_lift)}
+      </TableCell>
+      <TableCell column="mutedMeta" className="hidden lg:table-cell">
+        {formatPercent(trendScore?.engagement_rate)}
+      </TableCell>
+      <TableCell column="mutedMeta" className="hidden lg:table-cell">
+        {trendScore?.freshness_label ?? "—"}
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(video.created_at))}
