@@ -130,6 +130,7 @@ interface ContentListPageProps<TItem extends ContentListItem> {
   showEmptyButtonWhenFiltered?: boolean
   showNoSiteMessage?: boolean
   showPrivateBadge?: boolean
+  showTotalCount?: boolean
   refreshAfterCreate?: boolean
   refreshAfterDelete?: boolean
   refreshAfterDuplicate?: boolean
@@ -181,6 +182,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   showEmptyButtonWhenFiltered = false,
   showNoSiteMessage = false,
   showPrivateBadge = false,
+  showTotalCount = false,
   refreshAfterCreate = false,
   refreshAfterDelete = false,
   refreshAfterDuplicate = false,
@@ -604,7 +606,7 @@ export function ContentListPage<TItem extends ContentListItem>({
           <AdminTableShell
             title={listLabel}
             icon={<EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-            count={usesCursorPagination ? total : filteredItems.length}
+            count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
             selectedCount={itemSelection.selectedCount}
             onClearSelection={itemSelection.clearSelection}
             titleActions={

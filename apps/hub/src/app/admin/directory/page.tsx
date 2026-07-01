@@ -152,6 +152,7 @@ export default function DirectoriesPage() {
       searchPlaceholder="Search Directory"
       showClearSortAction
       showEmptyButtonWhenFiltered
+      showTotalCount
       sortableColumns={{ category: false, status: false }}
     />
   )
