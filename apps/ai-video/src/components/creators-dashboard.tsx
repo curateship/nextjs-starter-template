@@ -223,13 +223,6 @@ export function CreatorsDashboard() {
 
   const controls = (
     <>
-      <DashboardToolbarSearch
-        name="creator-search"
-        aria-label="Search creators"
-        placeholder="Search creators..."
-        value={searchQuery}
-        onChange={(event) => updateSearch(event.target.value)}
-      />
       {selectedIds.size > 0 ? (
         <DashboardToolbarButton
           type="button"
@@ -240,6 +233,13 @@ export function CreatorsDashboard() {
           Delete {selectedIds.size}
         </DashboardToolbarButton>
       ) : null}
+      <DashboardToolbarSearch
+        name="creator-search"
+        aria-label="Search creators"
+        placeholder="Search creators..."
+        value={searchQuery}
+        onChange={(event) => updateSearch(event.target.value)}
+      />
       <DashboardToolbarButton
         type="button"
         variant="outline"
