@@ -4,10 +4,12 @@ import * as React from "react"
 import {
   BellIcon,
   CheckCheckIcon,
+  ClapperboardIcon,
   Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
+import { useNavigate } from "@tanstack/react-router"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -30,6 +32,7 @@ import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
 const NOTIFICATION_PAGE_SIZE = 20
+const NOTIFICATION_REFRESH_MS = 60_000
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -46,6 +49,16 @@ function getFeedbackPreview(message: string) {
   return message.length > 90 ? `${message.slice(0, 90)}...` : message
 }
 
+function getCreatorName(item: NotificationItem) {
+  return item.creator_display_name || item.creator_username || "Creator"
+}
+
+function getCreatorHandle(item: NotificationItem) {
+  return item.creator_username
+    ? `@${item.creator_username}`
+    : getCreatorName(item)
+}
+
 function NotificationAvatar({ item }: { item: NotificationItem }) {
   const isVote = item.type === "feedback_vote"
 
@@ -53,9 +66,7 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
     <Avatar size="lg">
       <AvatarFallback
         className={
-          isVote
-            ? "bg-green-100 text-green-800"
-            : "bg-blue-100 text-blue-800"
+          isVote ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
         }
       >
         {getInitial(item.actor_name)}
@@ -65,6 +76,16 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "creator_watch") {
+    const count = item.creator_new_video_count ?? 0
+    return (
+      <>
+        <strong>{getCreatorHandle(item)}</strong> has {count} new{" "}
+        {count === 1 ? "reel" : "reels"}
+      </>
+    )
+  }
+
   if (item.type === "feedback_vote") {
     return (
       <>
@@ -81,6 +102,10 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "creator_watch") {
+    return <ClapperboardIcon className="h-3.5 w-3.5" />
+  }
+
   return item.type === "feedback_vote" ? (
     <ThumbsUpIcon className="h-3.5 w-3.5" />
   ) : (
@@ -88,11 +113,22 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   )
 }
 
+function NotificationPreview({ item }: { item: NotificationItem }) {
+  if (item.type === "creator_watch") {
+    return <>Creator watch</>
+  }
+
+  return <>{getFeedbackPreview(item.feedback_message ?? "Deleted feedback")}</>
+}
+
 function NotificationTraySkeleton() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2">
+        <div
+          key={index}
+          className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2"
+        >
           <div className="pt-5">
             <Skeleton className="size-2 rounded-full" />
           </div>
@@ -150,6 +186,7 @@ type NotificationCenterProps = {
 export function NotificationCenter({
   onOpenFeedback,
 }: NotificationCenterProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [filter, setFilter] = React.useState<NotificationFilter>("unread")
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
@@ -194,20 +231,38 @@ export function NotificationCenter({
   }, [])
 
   React.useEffect(() => {
-    if (!open) return
-    void loadNotificationRows()
+    const timeout = window.setTimeout(() => void loadNotificationRows(), 0)
+    return () => window.clearTimeout(timeout)
+  }, [loadNotificationRows])
+
+  React.useEffect(() => {
+    if (open) return
+    const interval = window.setInterval(
+      () => void loadNotificationRows(),
+      NOTIFICATION_REFRESH_MS
+    )
+    return () => window.clearInterval(interval)
   }, [loadNotificationRows, open])
 
-  const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
-    const distanceFromBottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight
+  React.useEffect(() => {
+    if (!open) return
+    const timeout = window.setTimeout(() => void loadNotificationRows(), 0)
+    return () => window.clearTimeout(timeout)
+  }, [loadNotificationRows, open])
 
-    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
-      return
-    }
+  const loadMoreFromElement = React.useCallback(
+    (element: HTMLDivElement) => {
+      const distanceFromBottom =
+        element.scrollHeight - element.scrollTop - element.clientHeight
 
-    void loadNotificationRows(nextCursor)
-  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+      if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+        return
+      }
+
+      void loadNotificationRows(nextCursor)
+    },
+    [loadNotificationRows, loading, loadingMore, nextCursor]
+  )
 
   React.useEffect(() => {
     const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
@@ -259,7 +314,17 @@ export function NotificationCenter({
     }
 
     setOpen(false)
-    onOpenFeedback?.(item.feedback_id)
+    if (item.type === "creator_watch" && item.creator_id) {
+      void navigate({
+        to: "/admin/creators/$creatorId",
+        params: { creatorId: item.creator_id },
+      })
+      return
+    }
+
+    if (item.feedback_id) {
+      onOpenFeedback?.(item.feedback_id)
+    }
   }
 
   return (
@@ -269,11 +334,17 @@ export function NotificationCenter({
           variant="ghost"
           size="icon"
           className="relative"
-          aria-label="Open notifications"
+          aria-label={
+            unreadCount > 0
+              ? `Open notifications, ${unreadCount} unread`
+              : "Open notifications"
+          }
         >
           <BellIcon className="h-[1.15rem] w-[1.15rem]" />
           {unreadCount > 0 ? (
-            <span className="absolute right-1 top-1 size-3 rounded-full border-2 border-background bg-red-500" />
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           ) : null}
         </Button>
       </DropdownMenuTrigger>
@@ -321,7 +392,7 @@ export function NotificationCenter({
                           </span>
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {getFeedbackPreview(item.feedback_message)}
+                          <NotificationPreview item={item} />
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {dateFormatter.format(new Date(item.created_at))}

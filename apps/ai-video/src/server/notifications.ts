@@ -13,6 +13,7 @@ import {
 import { db, type AiVideoDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  aiVideoCreators,
   aiVideoFeedback,
   aiVideoNotifications,
   aiVideoUsers,
@@ -228,29 +229,62 @@ async function serializeNotificationRows(
   const userIds = Array.from(
     new Set(rows.flatMap((row) => [row.actorUserId, row.recipientUserId]))
   )
-  const feedbackIds = Array.from(new Set(rows.map((row) => row.feedbackId)))
+  const feedbackIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.feedbackId)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+  const creatorIds = Array.from(
+    new Set(
+      rows.map((row) => row.creatorId).filter((id): id is string => Boolean(id))
+    )
+  )
   const userRows = await database
     .select({ id: aiVideoUsers.id, name: aiVideoUsers.name })
     .from(aiVideoUsers)
     .where(inArray(aiVideoUsers.id, userIds))
-  const feedbackRows = await database
-    .select({ id: aiVideoFeedback.id, message: aiVideoFeedback.message })
-    .from(aiVideoFeedback)
-    .where(inArray(aiVideoFeedback.id, feedbackIds))
+  const feedbackRows = feedbackIds.length
+    ? await database
+        .select({ id: aiVideoFeedback.id, message: aiVideoFeedback.message })
+        .from(aiVideoFeedback)
+        .where(inArray(aiVideoFeedback.id, feedbackIds))
+    : []
+  const creatorRows = creatorIds.length
+    ? await database
+        .select({
+          id: aiVideoCreators.id,
+          username: aiVideoCreators.username,
+          displayName: aiVideoCreators.displayName,
+        })
+        .from(aiVideoCreators)
+        .where(inArray(aiVideoCreators.id, creatorIds))
+    : []
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const feedbackMessages = new Map(
     feedbackRows.map((row) => [row.id, row.message])
   )
+  const creators = new Map(creatorRows.map((row) => [row.id, row]))
 
-  return rows.map((row) => ({
-    id: row.id,
-    type: row.type as NotificationItem["type"],
-    actor_name: userNames.get(row.actorUserId) ?? "Unknown",
-    recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
-    feedback_id: row.feedbackId,
-    feedback_message: feedbackMessages.get(row.feedbackId) ?? "Deleted feedback",
-    read_at: row.readAt?.toISOString() ?? null,
-    created_at: row.createdAt.toISOString(),
-  }))
+  return rows.map((row) => {
+    const creator = row.creatorId ? creators.get(row.creatorId) : null
+    return {
+      id: row.id,
+      type: row.type as NotificationItem["type"],
+      actor_name: userNames.get(row.actorUserId) ?? "Unknown",
+      recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
+      feedback_id: row.feedbackId,
+      feedback_message: row.feedbackId
+        ? (feedbackMessages.get(row.feedbackId) ?? "Deleted feedback")
+        : null,
+      creator_id: row.creatorId,
+      creator_username: creator?.username ?? null,
+      creator_display_name: creator?.displayName ?? null,
+      creator_new_video_count: row.creatorNewVideoCount,
+      read_at: row.readAt?.toISOString() ?? null,
+      created_at: row.createdAt.toISOString(),
+    }
+  })
 }

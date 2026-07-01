@@ -165,9 +165,10 @@ export const aiVideoNotifications = pgTable(
     actorUserId: varchar("actor_user_id", { length: 36 })
       .notNull()
       .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
-    feedbackId: varchar("feedback_id", { length: 36 })
-      .notNull()
-      .references(() => aiVideoFeedback.id, { onDelete: "cascade" }),
+    feedbackId: varchar("feedback_id", { length: 36 }).references(
+      () => aiVideoFeedback.id,
+      { onDelete: "cascade" }
+    ),
     type: varchar("type", { length: 50 }).notNull(),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
       () => aiVideoFeedbackVotes.id,
@@ -178,13 +179,18 @@ export const aiVideoNotifications = pgTable(
     }).references(() => aiVideoFeedbackComments.id, {
       onDelete: "cascade",
     }),
+    creatorId: varchar("creator_id", { length: 36 }).references(
+      () => aiVideoCreators.id,
+      { onDelete: "cascade" }
+    ),
+    creatorNewVideoCount: integer("creator_new_video_count"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -195,6 +201,7 @@ export const aiVideoNotifications = pgTable(
     index("ix_notifications_comment_id").on(
       table.feedbackCommentId
     ),
+    index("ix_notifications_creator_id").on(table.creatorId),
   ]
 )
 
