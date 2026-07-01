@@ -33,7 +33,8 @@ module, and `lib/api` wrapper.
 1. **Creator Watch** (`creators.ts`, `creator-watch.ts`) — track creators;
    optionally "watch" one to auto-ingest their new uploads on a schedule, and
    periodically re-sync engagement stats so the archive can sort by
-   views-per-day velocity.
+   views-per-day velocity. New synced uploads create unread bell-tray
+   notifications that link back to the creator archive.
 2. **Viral Archive** (`viral-videos.ts`, `video-download.ts`) — download a
    creator's reels via yt-dlp, store the file + cover thumbnail, capture
    engagement stats. Background work is **in-process, no job queue**:

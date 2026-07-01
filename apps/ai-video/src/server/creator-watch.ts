@@ -2,8 +2,12 @@ import { and, eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import { aiVideoCreators, aiVideoViralVideos } from "@/server/schema"
-import { now, requireUser } from "@/server/security"
+import {
+  aiVideoCreators,
+  aiVideoNotifications,
+  aiVideoViralVideos,
+} from "@/server/schema"
+import { now, requireUser, uuid } from "@/server/security"
 import { applyCreatorProfileMetrics } from "@/server/creators"
 import {
   listRecentUploads,
@@ -127,6 +131,7 @@ export async function syncWatchedCreators(
         .filter((upload) => !existing.has(normalizeReelUrl(upload.sourceUrl)))
         .slice(0, MAX_INGESTS_PER_CREATOR)
 
+      let addedForCreator = 0
       for (const upload of fresh) {
         await ingestViralVideoForUser(
           creator.userId,
@@ -135,6 +140,29 @@ export async function syncWatchedCreators(
         )
         existing.add(normalizeReelUrl(upload.sourceUrl))
         added += 1
+        addedForCreator += 1
+      }
+
+      if (addedForCreator > 0) {
+        await db
+          .insert(aiVideoNotifications)
+          .values({
+            id: uuid(),
+            recipientUserId: creator.userId,
+            actorUserId: creator.userId,
+            feedbackId: null,
+            type: "creator_watch",
+            creatorId: creator.id,
+            creatorNewVideoCount: addedForCreator,
+            createdAt: now(),
+          })
+          .catch((error) =>
+            console.error(
+              "Creator watch notification failed",
+              creator.username,
+              error
+            )
+          )
       }
     } catch (error) {
       // Non-fatal: log and move on to the next creator.

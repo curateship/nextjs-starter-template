@@ -1,7 +1,9 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
   BellIcon,
+  ClapperboardIcon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
@@ -36,7 +38,13 @@ import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
-type NotificationSortColumn = "activity" | "feedback" | "recipient" | "type" | "status" | "created"
+type NotificationSortColumn =
+  | "activity"
+  | "target"
+  | "recipient"
+  | "type"
+  | "status"
+  | "created"
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -49,6 +57,32 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+  creator_watch: "Creator watch",
+}
+
+function getCreatorName(item: NotificationItem) {
+  return item.creator_display_name || item.creator_username || "Creator"
+}
+
+function getCreatorHandle(item: NotificationItem) {
+  return item.creator_username
+    ? `@${item.creator_username}`
+    : getCreatorName(item)
+}
+
+function getNotificationActivity(item: NotificationItem) {
+  return item.type === "creator_watch"
+    ? `${getCreatorHandle(item)} new reels`
+    : item.actor_name
+}
+
+function getNotificationTarget(item: NotificationItem) {
+  if (item.type === "creator_watch") {
+    const count = item.creator_new_video_count ?? 0
+    return `${getCreatorHandle(item)}, ${count} new ${count === 1 ? "reel" : "reels"}`
+  }
+
+  return item.feedback_message ?? "Deleted feedback"
 }
 
 type NotificationsPageProps = {
@@ -60,6 +94,7 @@ export function NotificationsPage({
   defaultRowsPerPage,
   onOpenFeedbackThread,
 }: NotificationsPageProps) {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
@@ -69,61 +104,99 @@ export function NotificationsPage({
   const [searchQuery, setSearchQuery] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
-  const [sortColumn, setSortColumn] = React.useState<NotificationSortColumn>("created")
-  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
+  const [sortColumn, setSortColumn] =
+    React.useState<NotificationSortColumn>("created")
+  const [sortDirection, setSortDirection] =
+    React.useState<TableSortDirection>("desc")
 
-  const loadNotifications = React.useCallback(async (cursor?: string) => {
-    if (cursor) {
-      setLoadingMore(true)
-    }
-    setError(null)
+  const loadNotifications = React.useCallback(
+    async (cursor?: string) => {
+      if (cursor) {
+        setLoadingMore(true)
+      }
+      setError(null)
 
-    try {
-      const data = await listAllNotifications({
-        cursor,
-        limit: defaultRowsPerPage,
-      })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
-      setNextCursor(data.next_cursor)
-    } catch (loadError) {
-      setError(getNotificationErrorMessage(loadError))
-    } finally {
-      setLoadingMore(false)
-    }
-  }, [defaultRowsPerPage])
+      try {
+        const data = await listAllNotifications({
+          cursor,
+          limit: defaultRowsPerPage,
+        })
+        setNotifications((current) =>
+          cursor ? [...current, ...data.notifications] : data.notifications
+        )
+        setNextCursor(data.next_cursor)
+      } catch (loadError) {
+        setError(getNotificationErrorMessage(loadError))
+      } finally {
+        setLoadingMore(false)
+      }
+    },
+    [defaultRowsPerPage]
+  )
 
   React.useEffect(() => {
-    void loadNotifications()
+    const timeout = window.setTimeout(() => void loadNotifications(), 0)
+    return () => window.clearTimeout(timeout)
   }, [loadNotifications])
 
   const filteredNotifications = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const direction = sortDirection === "asc" ? 1 : -1
 
-    return notifications.filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.actor_name.toLowerCase().includes(query) ||
-        item.recipient_name.toLowerCase().includes(query) ||
-        item.feedback_message.toLowerCase().includes(query)
-      const matchesRead =
-        readFilter === "all" ||
-        (readFilter === "unread" && !item.read_at) ||
-        (readFilter === "read" && item.read_at)
-      const matchesType = typeFilter === "all" || item.type === typeFilter
+    return notifications
+      .filter((item) => {
+        const matchesSearch =
+          !query ||
+          item.actor_name.toLowerCase().includes(query) ||
+          item.recipient_name.toLowerCase().includes(query) ||
+          getNotificationTarget(item).toLowerCase().includes(query)
+        const matchesRead =
+          readFilter === "all" ||
+          (readFilter === "unread" && !item.read_at) ||
+          (readFilter === "read" && item.read_at)
+        const matchesType = typeFilter === "all" || item.type === typeFilter
 
-      return matchesSearch && matchesRead && matchesType
-    }).sort((a, b) => {
-      if (sortColumn === "activity") return a.actor_name.localeCompare(b.actor_name) * direction
-      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
-      if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
-      if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
-      if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
-      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
-    })
-  }, [notifications, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
+        return matchesSearch && matchesRead && matchesType
+      })
+      .sort((a, b) => {
+        if (sortColumn === "activity")
+          return (
+            getNotificationActivity(a).localeCompare(
+              getNotificationActivity(b)
+            ) * direction
+          )
+        if (sortColumn === "target")
+          return (
+            getNotificationTarget(a).localeCompare(getNotificationTarget(b)) *
+            direction
+          )
+        if (sortColumn === "recipient")
+          return a.recipient_name.localeCompare(b.recipient_name) * direction
+        if (sortColumn === "type")
+          return (
+            notificationTypeLabels[a.type].localeCompare(
+              notificationTypeLabels[b.type]
+            ) * direction
+          )
+        if (sortColumn === "status")
+          return (
+            (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) *
+            direction
+          )
+        return (
+          (new Date(a.created_at).getTime() -
+            new Date(b.created_at).getTime()) *
+          direction
+        )
+      })
+  }, [
+    notifications,
+    readFilter,
+    searchQuery,
+    sortColumn,
+    sortDirection,
+    typeFilter,
+  ])
 
   const toggleSort = (column: NotificationSortColumn) => {
     if (sortColumn === column) {
@@ -133,6 +206,20 @@ export function NotificationsPage({
 
     setSortColumn(column)
     setSortDirection("asc")
+  }
+
+  function openNotification(item: NotificationItem) {
+    if (item.type === "creator_watch" && item.creator_id) {
+      void navigate({
+        to: "/admin/creators/$creatorId",
+        params: { creatorId: item.creator_id },
+      })
+      return
+    }
+
+    if (item.feedback_id) {
+      onOpenFeedbackThread(item.feedback_id)
+    }
   }
 
   return (
@@ -149,7 +236,9 @@ export function NotificationsPage({
 
       <DashboardTable
         title="Notifications"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={
+          <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+        }
         count={filteredNotifications.length}
         controls={
           <>
@@ -182,7 +271,7 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={["All types", "Thumbs up", "Comments"]}
+                labels={["All types", "Thumbs up", "Comments", "Creator watch"]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
@@ -190,45 +279,70 @@ export function NotificationsPage({
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
+                <SelectItem value="creator_watch">Creator watch</SelectItem>
               </SelectContent>
             </Select>
           </>
         }
         header={
-            <TableHeader>
-              <TableRow>
-                <TableHead column="main">
-                  <TableSortButton active={sortColumn === "activity"} direction={sortDirection} onClick={() => toggleSort("activity")}>
-                    Activity
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="preview">
-                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
-                    Feedback
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "recipient"} direction={sortDirection} onClick={() => toggleSort("recipient")}>
-                    Recipient
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
-                    Type
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
-                    Status
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
-                    Created
-                  </TableSortButton>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main">
+                <TableSortButton
+                  active={sortColumn === "activity"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("activity")}
+                >
+                  Activity
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="preview">
+                <TableSortButton
+                  active={sortColumn === "target"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("target")}
+                >
+                  Target
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "recipient"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("recipient")}
+                >
+                  Recipient
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "type"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("type")}
+                >
+                  Type
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "status"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("status")}
+                >
+                  Status
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "created"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("created")}
+                >
+                  Created
+                </TableSortButton>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
         }
         isEmpty={filteredNotifications.length === 0}
         emptyText="No notifications found."
@@ -250,11 +364,11 @@ export function NotificationsPage({
             role="button"
             tabIndex={0}
             className="cursor-pointer"
-            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            onClick={() => openNotification(item)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                onOpenFeedbackThread(item.feedback_id)
+                openNotification(item)
               }
             }}
           >
@@ -262,6 +376,8 @@ export function NotificationsPage({
               <div className="flex items-center gap-2">
                 {item.type === "feedback_vote" ? (
                   <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "creator_watch" ? (
+                  <ClapperboardIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <MessageSquareIcon className="size-4 text-muted-foreground" />
                 )}
@@ -270,19 +386,19 @@ export function NotificationsPage({
                     {notificationTypeLabels[item.type]}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.actor_name}
+                    {item.type === "creator_watch"
+                      ? getCreatorHandle(item)
+                      : item.actor_name}
                   </p>
                 </div>
               </div>
             </TableCell>
             <TableCell column="preview">
               <span className="line-clamp-1 max-w-44">
-                {item.feedback_message}
+                {getNotificationTarget(item)}
               </span>
             </TableCell>
-            <TableCell column="mutedMeta">
-              {item.recipient_name}
-            </TableCell>
+            <TableCell column="mutedMeta">{item.recipient_name}</TableCell>
             <TableCell column="meta">
               <Badge variant="secondary">
                 {notificationTypeLabels[item.type]}

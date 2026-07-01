@@ -1,15 +1,22 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-export type NotificationType = "feedback_vote" | "feedback_comment"
+export type NotificationType =
+  | "feedback_vote"
+  | "feedback_comment"
+  | "creator_watch"
 
 export type NotificationItem = {
   id: string
   type: NotificationType
   actor_name: string
   recipient_name: string
-  feedback_id: string
-  feedback_message: string
+  feedback_id: string | null
+  feedback_message: string | null
+  creator_id: string | null
+  creator_username: string | null
+  creator_display_name: string | null
+  creator_new_video_count: number | null
   read_at: string | null
   created_at: string
 }
