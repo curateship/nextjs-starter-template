@@ -34,9 +34,9 @@ The Phase 2 orchestrator publishes Neko stream/WebRTC ports on
 `ANTIDETECT_STREAM_BIND_HOST`, which defaults to `127.0.0.1`. Remote Docker hosts
 must use HTTPS; plain HTTP is accepted only for local Docker hosts.
 
-Neko login passwords come from `ANTIDETECT_NEKO_USER_PASSWORD` and
-`ANTIDETECT_NEKO_ADMIN_PASSWORD`. Keep the
-stream bind host on loopback unless those static credentials are safe for the
+Neko login passwords must be set with `ANTIDETECT_NEKO_USER_PASSWORD` and
+`ANTIDETECT_NEKO_ADMIN_PASSWORD`; the app fails fast if either is missing. Keep
+the stream bind host on loopback unless those credentials are safe for the
 network that can reach the published ports.
 
 ## Adding components
