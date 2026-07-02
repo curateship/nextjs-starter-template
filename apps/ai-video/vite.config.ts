@@ -12,8 +12,8 @@ const securityHeaders = {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob:",
+    "img-src 'self' https: data: blob:",
+    "media-src 'self' https: blob:",
     "font-src 'self' data:",
     "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
     "frame-ancestors 'none'",
@@ -30,7 +30,26 @@ const securityHeaders = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
+  plugins: [
+    {
+      name: "ai-video-media-file-api-dev-route",
+      apply: "serve",
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          const pathname = new URL(req.url ?? "/", "http://localhost").pathname
+          if (/^\/api\/v1\/media\/[^/]+\/file$/.test(pathname)) {
+            delete req.headers["sec-fetch-dest"]
+          }
+          next()
+        })
+      },
+    },
+    tanstackStart(),
+    nitro(),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
   nitro: {
     routeRules: {
       "/**": { headers: securityHeaders },
