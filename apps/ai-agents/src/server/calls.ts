@@ -113,6 +113,7 @@ export async function listCallsForCurrentUser(): Promise<CallListResponse> {
 // Dashboard poll: pull fresh state for live calls from the provider (capped
 // so a pile of stuck rows can't hammer the API), then return the list.
 export async function pollCallsForCurrentUser(): Promise<CallListResponse> {
+  requireAppOrigin()
   const { workspace } = await requireUserWorkspace()
   if (isVoiceProviderConfigured()) {
     const toRefresh = await db
@@ -269,6 +270,7 @@ export async function startTestCallForCurrentUser(input: {
 // Polls the provider for fresh state when the call is still live, then
 // returns the row. The dashboard and test-call dialog call this every 3s.
 export async function refreshCallForCurrentUser(callId: string): Promise<CallItem> {
+  requireAppOrigin()
   const { workspace } = await requireUserWorkspace()
   const [row] = await db
     .select()

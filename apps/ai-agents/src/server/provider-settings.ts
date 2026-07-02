@@ -79,6 +79,7 @@ export async function testProviderConnectionForCurrentUser(): Promise<{
   ok: true
   phone_number_count: number
 }> {
+  requireAppOrigin()
   await requireUserWorkspace()
   const numbers = await getVoiceProvider().listPhoneNumbers()
   return { ok: true, phone_number_count: numbers.length }

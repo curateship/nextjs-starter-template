@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { timingSafeEqual } from "node:crypto"
 
 import { applyNormalizedCall, findCallByProviderCallId } from "@/server/calls"
 import { parseVapiWebhookCall } from "@/server/providers/vapi"
@@ -10,9 +11,15 @@ export const Route = createFileRoute("/api/v1/vapi/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Verify the shared secret when one is configured.
-        const secret = process.env.AI_AGENTS_VAPI_WEBHOOK_SECRET
-        if (secret && request.headers.get("x-vapi-secret") !== secret) {
+        // Verify the shared secret before accepting provider-owned state.
+        const secret = process.env.AI_AGENTS_VAPI_WEBHOOK_SECRET?.trim()
+        if (!secret) {
+          return Response.json(
+            { detail: "Webhook secret is not configured" },
+            { status: 503 }
+          )
+        }
+        if (secret && !secureEqual(request.headers.get("x-vapi-secret"), secret)) {
           return Response.json({ detail: "Invalid secret" }, { status: 401 })
         }
 
@@ -42,3 +49,13 @@ export const Route = createFileRoute("/api/v1/vapi/webhook")({
     },
   },
 })
+
+function secureEqual(actual: string | null, expected: string) {
+  if (!actual) return false
+  const actualBuffer = Buffer.from(actual)
+  const expectedBuffer = Buffer.from(expected)
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(actualBuffer, expectedBuffer)
+  )
+}

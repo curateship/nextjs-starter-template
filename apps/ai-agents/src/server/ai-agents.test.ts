@@ -67,11 +67,11 @@ beforeEach(async () => {
     "https://ai-agents-media.example.test"
   client = new PGlite()
   const migration = await readFile(
-    new URL("../../drizzle/0000_ai_agents_baseline.sql", import.meta.url),
+    new URL("../../drizzle/0000_baseline.sql", import.meta.url),
     "utf8"
   )
   const workspaceMigration = await readFile(
-    new URL("../../drizzle/0003_ai_agents_workspaces.sql", import.meta.url),
+    new URL("../../drizzle/0003_workspaces.sql", import.meta.url),
     "utf8"
   )
   await client.exec(migration)
@@ -163,7 +163,26 @@ describe("ai-agents workspaces", () => {
     })
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
-    expect(defaultSettings.sections[0]?.entries).toMatchObject([
+    expect(defaultSettings.sections[0]).toMatchObject({
+      title: "Calling",
+      entries: [
+        { type: "item", label: "Agents", href: "/admin/agents", visible: true },
+        {
+          type: "item",
+          label: "Contacts",
+          href: "/admin/contacts",
+          visible: true,
+        },
+        {
+          type: "item",
+          label: "Campaigns",
+          href: "/admin/campaigns",
+          visible: true,
+        },
+        { type: "item", label: "Calls", href: "/admin/calls", visible: true },
+      ],
+    })
+    expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Settings",
@@ -184,7 +203,7 @@ describe("ai-agents workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
+    expect(secondSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Settings",
