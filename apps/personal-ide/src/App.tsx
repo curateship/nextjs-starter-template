@@ -92,6 +92,7 @@ function App() {
     activeWorkspace,
     activeWorkspaceId,
     addWorkspace,
+    createApp,
     deleteWorkspace: deleteWorkspaceRecord,
     selectWorkspace,
     setWorkspaceHidden: setWorkspaceHiddenRecord,
@@ -374,7 +375,7 @@ function App() {
 
     const port = serverPortForWorkspace(workspace)
     const terminalId = `${workspace.id}-server`
-    const command = serverStartCommand(workspace.appName, port)
+    const command = serverStartCommand(workspace, port)
     const existingServer = terminalsByWorkspace[workspace.id]?.terminals.find(
       (terminal) => terminal.id === terminalId
     )
@@ -811,6 +812,7 @@ function App() {
                 error={workspaceError}
                 workspaces={workspaceList.workspaces}
                 onCreate={addWorkspace}
+                onCreateApp={createApp}
                 onDelete={deleteWorkspace}
                 onOpenServer={openWorkspaceServer}
                 onSelect={selectWorkspace}

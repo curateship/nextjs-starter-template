@@ -20,7 +20,10 @@ const TERMINAL_OUTPUT_EVENT_PREFIX: &str = "terminal-output:";
 const TERMINAL_OUTPUT_BUFFER_SIZE: usize = 16 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
+const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
+const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
+    "Use lowercase letters, numbers, hyphens, or underscores for the app name.";
 
 #[derive(Default)]
 struct WorkspaceState {
@@ -89,6 +92,7 @@ struct WorkspaceInfo {
     name: String,
     app_name: String,
     hidden: bool,
+    is_standalone: bool,
     is_tauri: bool,
 }
 
@@ -261,6 +265,57 @@ async fn create_workspace(
         return Err("Selected path is not a folder".to_string());
     }
 
+    add_workspace_for_app(&app, &state, app_folder).map(Some)
+}
+
+#[tauri::command]
+async fn create_app_from_custom_shell(
+    app_name: String,
+    app: AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<Option<WorkspaceList>, String> {
+    let app_name = validate_new_app_name(&app_name)?;
+    let Some(selected) = app
+        .dialog()
+        .file()
+        .set_title("Select New App Parent Folder")
+        .blocking_pick_folder()
+    else {
+        return Ok(None);
+    };
+
+    let selected = selected
+        .into_path()
+        .map_err(|_| "Selected folder is not a local path".to_string())?;
+    let parent_folder = fs::canonicalize(selected).map_err(|error| error.to_string())?;
+
+    if !parent_folder.is_dir() {
+        return Err("Selected path is not a folder".to_string());
+    }
+
+    let app_folder = parent_folder.join(&app_name);
+    if app_folder.exists() {
+        return Err("An app with that folder name already exists there".to_string());
+    }
+
+    let scaffold_root = custom_shell_scaffold_dir()?;
+    copy_scaffold_dir(&scaffold_root, &app_folder)?;
+    rewrite_scaffold_metadata(&app_folder, &app_name)?;
+    init_new_app_repo(&app_folder)?;
+
+    let app_folder = fs::canonicalize(app_folder).map_err(|error| error.to_string())?;
+    add_workspace_for_app(&app, &state, app_folder).map(Some)
+}
+
+fn add_workspace_for_app(
+    app: &AppHandle,
+    state: &State<'_, WorkspaceState>,
+    app_folder: PathBuf,
+) -> Result<WorkspaceList, String> {
+    if !app_folder.is_dir() {
+        return Err("Selected path is not a folder".to_string());
+    }
+
     let git_root = git_root_for(&app_folder)?;
     let app_relative_path = relative_path(&git_root, &app_folder)?;
     let app_name = app_folder
@@ -314,8 +369,8 @@ async fn create_workspace(
     });
     drop(app_state);
 
-    state.save(&app)?;
-    workspace_list(&state).map(Some)
+    state.save(app)?;
+    workspace_list(state)
 }
 
 #[tauri::command]
@@ -1364,6 +1419,7 @@ fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, St
                 name: workspace.name.clone(),
                 app_name: workspace.app_name.clone(),
                 hidden: workspace.hidden,
+                is_standalone: workspace.app_relative_path.is_empty(),
                 is_tauri: workspace.app_root.join("src-tauri").is_dir(),
             })
             .collect(),
@@ -1439,6 +1495,215 @@ fn create_support_dirs(app_root: &Path) -> Result<(), String> {
         fs::create_dir_all(app_root.join(WORKSPACE_DIR).join(child))
             .map_err(|error| error.to_string())?;
     }
+    Ok(())
+}
+
+fn validate_new_app_name(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("App name is required".to_string());
+    }
+
+    let mut chars = value.chars();
+    let starts_with_safe_character = chars
+        .next()
+        .is_some_and(|character| character.is_ascii_lowercase() || character.is_ascii_digit());
+    let has_safe_characters = chars.all(is_new_app_name_character);
+
+    if !starts_with_safe_character || !has_safe_characters {
+        return Err(NEW_APP_NAME_ALLOWED_MESSAGE.to_string());
+    }
+
+    Ok(value.to_string())
+}
+
+fn is_new_app_name_character(character: char) -> bool {
+    character.is_ascii_lowercase()
+        || character.is_ascii_digit()
+        || character == '-'
+        || character == '_'
+}
+
+fn custom_shell_scaffold_dir() -> Result<PathBuf, String> {
+    let current_dir = std::env::current_dir().map_err(|error| error.to_string())?;
+
+    for ancestor in current_dir.ancestors() {
+        for candidate in [
+            ancestor.join(CUSTOM_SHELL_APP_DIR),
+            ancestor.join("apps").join(CUSTOM_SHELL_APP_DIR),
+        ] {
+            if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+                return fs::canonicalize(candidate).map_err(|error| error.to_string());
+            }
+        }
+    }
+
+    Err("Custom Shell scaffold was not found next to Personal IDE.".to_string())
+}
+
+fn copy_scaffold_dir(source: &Path, target: &Path) -> Result<(), String> {
+    fs::create_dir_all(target).map_err(|error| error.to_string())?;
+
+    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if should_skip_scaffold_entry(&name) {
+            continue;
+        }
+
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        let destination = target.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_scaffold_dir(&entry.path(), &destination)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), destination).map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn should_skip_scaffold_entry(name: &str) -> bool {
+    matches!(
+        name,
+        ".git"
+            | ".env"
+            | ".env.local"
+            | ".env.development"
+            | ".env.development.local"
+            | ".next"
+            | ".output"
+            | ".turbo"
+            | "build"
+            | "dist"
+            | "dist-ssr"
+            | "node_modules"
+            | "target"
+            | WORKSPACE_DIR
+    )
+}
+
+fn rewrite_scaffold_metadata(app_root: &Path, app_name: &str) -> Result<(), String> {
+    rewrite_package_name(app_root, app_name)?;
+    fs::write(app_root.join("vite.config.ts"), standalone_vite_config())
+        .map_err(|error| error.to_string())?;
+    fs::write(app_root.join("README.md"), generated_readme(app_name))
+        .map_err(|error| error.to_string())?;
+    fs::write(app_root.join("AGENTS.md"), generated_agents_md(app_name))
+        .map_err(|error| error.to_string())?;
+    ensure_generated_gitignore(app_root)?;
+    rewrite_root_title(app_root, app_name)?;
+    Ok(())
+}
+
+fn rewrite_package_name(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let path = app_root.join("package.json");
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let mut package =
+        serde_json::from_str::<serde_json::Value>(&contents).map_err(|error| error.to_string())?;
+
+    let Some(object) = package.as_object_mut() else {
+        return Err("Scaffold package.json must be a JSON object".to_string());
+    };
+
+    object.insert(
+        "name".to_string(),
+        serde_json::Value::String(app_name.to_string()),
+    );
+    let contents = serde_json::to_string_pretty(&package).map_err(|error| error.to_string())?;
+    fs::write(path, format!("{}\n", contents)).map_err(|error| error.to_string())
+}
+
+fn standalone_vite_config() -> &'static str {
+    r#"import path from "path"
+import tailwindcss from "@tailwindcss/vite"
+import { tanstackStart } from "@tanstack/react-start/plugin/vite"
+import react from "@vitejs/plugin-react"
+import { nitro } from "nitro/vite"
+import { defineConfig } from "vite"
+import tsconfigPaths from "vite-tsconfig-paths"
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
+  resolve: {
+    alias: [
+      {
+        find: "@",
+        replacement: path.resolve(__dirname, "./src"),
+      },
+    ],
+  },
+  server: {
+    port: 3000,
+  },
+})
+"#
+}
+
+fn generated_readme(app_name: &str) -> String {
+    let title = title_from_slug(app_name);
+    format!(
+        "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app runs at `http://localhost:3000` by default.\n"
+    )
+}
+
+fn generated_agents_md(app_name: &str) -> String {
+    let title = title_from_slug(app_name);
+    format!(
+        "# AGENTS.md\n\nGuidance for agents working in {title}.\n\n## App Context\n\nThis app was generated from the Custom Shell scaffold. Use local code and docs as the source of truth.\n\n## Working Rules\n\n- Keep changes small and direct.\n- Do not commit secrets.\n- Run the narrowest relevant checks before summarizing work.\n"
+    )
+}
+
+fn ensure_generated_gitignore(app_root: &Path) -> Result<(), String> {
+    let path = app_root.join(".gitignore");
+    let mut contents = if path.is_file() {
+        fs::read_to_string(&path).map_err(|error| error.to_string())?
+    } else {
+        String::new()
+    };
+
+    for entry in [".env", ".env.*", "!.env.example"] {
+        if !contents.lines().any(|line| line.trim() == entry) {
+            if !contents.ends_with('\n') && !contents.is_empty() {
+                contents.push('\n');
+            }
+            contents.push_str(entry);
+            contents.push('\n');
+        }
+    }
+
+    fs::write(path, contents).map_err(|error| error.to_string())
+}
+
+fn rewrite_root_title(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let path = app_root.join("src/routes/__root.tsx");
+    if !path.is_file() {
+        return Ok(());
+    }
+
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let contents = contents.replace(
+        r#"{ title: "custom-shell" }"#,
+        &format!(r#"{{ title: "{}" }}"#, app_name),
+    );
+    fs::write(path, contents).map_err(|error| error.to_string())
+}
+
+fn init_new_app_repo(app_root: &Path) -> Result<(), String> {
+    run_git(app_root, &["init", "-q"])?;
+    run_git(
+        app_root,
+        &["config", "user.email", "personal-ide@example.local"],
+    )?;
+    run_git(app_root, &["config", "user.name", "Personal IDE"])?;
+    run_git(app_root, &["symbolic-ref", "HEAD", "refs/heads/develop"])?;
+    run_git(app_root, &["add", "."])?;
+    run_git(
+        app_root,
+        &["commit", "-q", "-m", "Initial scaffold from custom shell"],
+    )?;
     Ok(())
 }
 
@@ -1783,8 +2048,9 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clean_repo_path, normalize_task_status, parse_diff_hunk, parse_skill_tags,
-        read_git_repo_text_file, render_task_template, validate_editor_settings, DiffHunk,
+        clean_repo_path, init_new_app_repo, normalize_task_status, parse_diff_hunk,
+        parse_skill_tags, read_git_repo_text_file, render_task_template,
+        should_skip_scaffold_entry, validate_editor_settings, validate_new_app_name, DiffHunk,
         EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
@@ -1863,6 +2129,51 @@ mod tests {
         };
 
         assert!(validate_editor_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn validate_new_app_name_accepts_safe_folder_names() {
+        assert_eq!(validate_new_app_name("new-admin").unwrap(), "new-admin");
+        assert_eq!(validate_new_app_name("crm_2").unwrap(), "crm_2");
+    }
+
+    #[test]
+    fn validate_new_app_name_rejects_path_like_names() {
+        assert!(validate_new_app_name("../admin").is_err());
+        assert!(validate_new_app_name("admin app").is_err());
+        assert!(validate_new_app_name(".hidden").is_err());
+    }
+
+    #[test]
+    fn scaffold_copy_skips_local_and_generated_entries() {
+        assert!(should_skip_scaffold_entry("node_modules"));
+        assert!(should_skip_scaffold_entry(".env.local"));
+        assert!(should_skip_scaffold_entry("workspace"));
+        assert!(!should_skip_scaffold_entry(".env.example"));
+        assert!(!should_skip_scaffold_entry("src"));
+    }
+
+    #[test]
+    fn init_new_app_repo_creates_initial_commit_on_develop() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("personal-ide-new-app-test-{unique}"));
+        fs::create_dir_all(&root).expect("create app dir");
+        fs::write(root.join("package.json"), "{}\n").expect("write app file");
+
+        init_new_app_repo(&root).expect("init new app repo");
+
+        let output = Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .expect("read current branch");
+        assert!(output.status.success(), "git rev-parse failed");
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "develop");
+
+        fs::remove_dir_all(root).expect("remove temp repo");
     }
 
     #[test]
@@ -2523,6 +2834,7 @@ pub fn run() {
             get_editor_settings,
             save_editor_settings,
             create_workspace,
+            create_app_from_custom_shell,
             set_active_workspace,
             set_workspace_hidden,
             delete_workspace,

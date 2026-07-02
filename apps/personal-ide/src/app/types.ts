@@ -3,6 +3,7 @@ export type WorkspaceInfo = {
   name: string
   appName: string
   hidden: boolean
+  isStandalone: boolean
   isTauri: boolean
 }
 
