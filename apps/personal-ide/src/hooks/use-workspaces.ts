@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 
 import { EMPTY_WORKSPACES } from "@/app/constants"
 import {
+  createAppFromCustomShell,
   createWorkspace,
   deleteWorkspace as deleteWorkspaceRecord,
   listWorkspaces,
@@ -57,6 +58,24 @@ export function useWorkspaces() {
     }
   }
 
+  async function createApp(appName: string) {
+    setWorkspaceError("")
+    setWorkspaceBusy(true)
+
+    try {
+      const next = await createAppFromCustomShell(appName)
+      if (!next) return false
+
+      setWorkspaceList(next)
+      return true
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+      return false
+    } finally {
+      setWorkspaceBusy(false)
+    }
+  }
+
   async function selectWorkspace(workspaceId: string) {
     setWorkspaceError("")
     try {
@@ -99,6 +118,7 @@ export function useWorkspaces() {
     activeWorkspace,
     activeWorkspaceId,
     addWorkspace,
+    createApp,
     deleteWorkspace,
     selectWorkspace,
     setWorkspaceHidden,

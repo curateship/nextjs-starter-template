@@ -1,9 +1,10 @@
 import { Eye, EyeOff, FolderOpen, MoreVertical, Play, Plus, Square, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { type FormEvent, useState } from "react"
 
 import { serverPortForWorkspace } from "@/app/server"
 import type { WorkspaceInfo, WorkspaceStatus } from "@/app/types"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDismissibleMenu } from "@/hooks/use-dismissible-menu"
@@ -15,6 +16,7 @@ export function WorkspacesPanel({
   error,
   workspaces,
   onCreate,
+  onCreateApp,
   onDelete,
   onOpenServer,
   onSelect,
@@ -29,6 +31,7 @@ export function WorkspacesPanel({
   error: string
   workspaces: WorkspaceInfo[]
   onCreate: () => void
+  onCreateApp: (appName: string) => Promise<boolean>
   onDelete: (workspaceId: string) => void
   onOpenServer: (workspace: WorkspaceInfo) => void
   onSelect: (workspaceId: string) => void
@@ -38,6 +41,8 @@ export function WorkspacesPanel({
   serverRunning: boolean
   workspaceStatuses: Record<string, WorkspaceStatus>
 }) {
+  const [createAppOpen, setCreateAppOpen] = useState(false)
+  const [newAppName, setNewAppName] = useState("")
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [workspaceView, setWorkspaceView] = useState<"active" | "hidden">("active")
   useDismissibleMenu(openMenuId, setOpenMenuId)
@@ -48,6 +53,23 @@ export function WorkspacesPanel({
   const activeServerUrl = activeWorkspace
     ? `http://localhost:${serverPortForWorkspace(activeWorkspace)}/`
     : ""
+  const canCreateApp = newAppName.trim().length > 0 && !busy
+
+  function closeCreateAppForm() {
+    setCreateAppOpen(false)
+    setNewAppName("")
+  }
+
+  function submitNewApp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const appName = newAppName.trim()
+    if (!appName) return
+
+    void onCreateApp(appName).then((created) => {
+      if (!created) return
+      closeCreateAppForm()
+    })
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
@@ -69,11 +91,68 @@ export function WorkspacesPanel({
               <SelectItem value="hidden">Hidden</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon-sm" onClick={onCreate} disabled={busy} aria-label="Add workspace">
-            <Plus />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onCreate}
+                disabled={busy}
+                aria-label="Add existing app"
+              >
+                <FolderOpen />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add existing app</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setCreateAppOpen((open) => !open)}
+                disabled={busy}
+                aria-label="Create new app"
+              >
+                <Plus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Create new app</TooltipContent>
+          </Tooltip>
         </div>
       </div>
+
+      {createAppOpen ? (
+        <form className="mb-3 grid gap-2" onSubmit={submitNewApp}>
+          <label className="sr-only" htmlFor="new-app-name">
+            New app name
+          </label>
+          <Input
+            id="new-app-name"
+            value={newAppName}
+            onChange={(event) => setNewAppName(event.target.value)}
+            placeholder="new-app"
+            autoComplete="off"
+            autoFocus
+            disabled={busy}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="submit" size="sm" disabled={!canCreateApp}>
+              <Plus />
+              Create
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={closeCreateAppForm}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
       {error ? (
         <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">

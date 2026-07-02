@@ -70,6 +70,15 @@ When a workspace is added:
 
 Workspace rows show the app folder name as the main name. The generated workspace number stays as secondary metadata.
 
+When a new app is created:
+
+1. The user enters a safe app folder name and picks the parent folder.
+2. Rust copies the Custom Shell app as the scaffold.
+3. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
+4. Rust rewrites generated metadata for a standalone app, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, and `.gitignore`.
+5. Rust initializes Git in the new app folder and creates the initial scaffold commit on `develop`.
+6. The new app folder is registered through the same workspace creation path as an existing app.
+
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
 ## Workspace Removal
@@ -196,16 +205,25 @@ The terminal can still be visually fragile because PTY apps and shell redraw beh
 
 For web apps, Personal IDE can start a dev server in a workspace terminal and open its localhost URL.
 
-The generated server command:
+For app folders inside a monorepo, the generated server command is:
 
 ```bash
 test -d ../../node_modules || (cd ../.. && npm install)
 cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<package-name>" -- --port <port>
 ```
 
+For standalone app repos, the generated server command is:
+
+```bash
+test -d node_modules || npm install
+CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev -- --port <port>
+```
+
 `--host` was removed because Hub's Next dev command rejects it.
 
 Tauri apps are not started through this web server helper.
+
+Apps created from the Custom Shell scaffold are standalone Git repos. Their generated `vite.config.ts` defaults to port `3000`, and the Start Server helper passes the assigned workspace port at runtime.
 
 ## Git
 

@@ -10,6 +10,10 @@ export function createWorkspace() {
   return invoke<WorkspaceList | null>("create_workspace")
 }
 
+export function createAppFromCustomShell(appName: string) {
+  return invoke<WorkspaceList | null>("create_app_from_custom_shell", { appName })
+}
+
 export function setActiveWorkspace(workspaceId: string) {
   return invoke<WorkspaceList>("set_active_workspace", { workspaceId })
 }

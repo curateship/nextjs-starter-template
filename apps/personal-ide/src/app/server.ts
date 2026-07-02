@@ -21,8 +21,15 @@ export function serverPortForWorkspace(workspace: WorkspaceInfo) {
     : fallbackBasePort + 1
 }
 
-export function serverStartCommand(appName: string, port: number) {
+export function serverStartCommand(workspace: WorkspaceInfo, port: number) {
   const origins = `http://127.0.0.1:${port},http://localhost:${port}`
-  const workspaceName = workspacePackageNames[appName as keyof typeof workspacePackageNames] ?? appName
+
+  if (workspace.isStandalone) {
+    return `test -d node_modules || npm install\nCORE_APP_ORIGINS="${origins}" npm run dev -- --port ${port}\n`
+  }
+
+  const workspaceName =
+    workspacePackageNames[workspace.appName as keyof typeof workspacePackageNames] ??
+    workspace.appName
   return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="${workspaceName}" -- --port ${port}\n`
 }
