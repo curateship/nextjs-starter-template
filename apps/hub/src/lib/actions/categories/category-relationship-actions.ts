@@ -67,10 +67,7 @@ export async function getContentBreadcrumbPreviewAction(
       const [templateSettings] = await db
         .select({
           rootCategoryId: sql<string | null>`
-            nullif(coalesce(
-              ${directoryTemplates.contentBlocks} #>> '{_settings,default_category_parent_id}',
-              ${directoryTemplates.contentBlocks} #>> '{_settings,default_breadcrumb_parent_id}'
-            ), '')
+            nullif(${directoryTemplates.contentBlocks} #>> '{_settings,default_category_parent_id}', '')
           `,
         })
         .from(directories)

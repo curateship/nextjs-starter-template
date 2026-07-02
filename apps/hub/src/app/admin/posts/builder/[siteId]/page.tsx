@@ -1,17 +1,21 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { usePostBuilderData } from "@/components/admin/post-builder/config/usePostBuilderData"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { PostBlockListPanel } from "@/components/admin/post-builder/layout/PostBlockListPanel"
-import { getSitePostsWithMergedBlocksAction, updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
-import type { Post, PostBlock } from "@/lib/actions/posts/post-actions"
+import { updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
+import type { Post } from "@/lib/actions/posts/post-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "@/components/admin/post-builder/layout/PostPreview"
@@ -27,104 +31,38 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
-  const [posts, setPosts] = useState<Post[]>([])
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [localBlocks, setLocalBlocks] = useState<Record<string, PostBlock>>({})
-
-  
   const postFromUrl = searchParams.get('post') || ''
+  const { currentSite } = useBuilderRouteSiteSync({
+    builderPath: "/admin/posts/builder",
+    queryParam: "post",
+    queryValue: postFromUrl,
+    siteId,
+  })
   const [selectedPost, setSelectedPost] = useState(postFromUrl)
   const [blockListOpen, setBlockListOpen] = useState(false)
+  const {
+    blocks,
+    currentPostData,
+    loading,
+    posts,
+    reloadPosts,
+    setPosts,
+    site,
+  } = usePostBuilderData(siteId, selectedPost, currentSite)
 
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
+  useSelectedBuilderSlug({
+    builderPath: "/admin/posts/builder",
+    items: posts,
+    queryParam: "post",
+    selectedSlug: selectedPost,
+    setSelectedSlug: setSelectedPost,
+    siteId,
+    slugFromUrl: postFromUrl,
+  })
 
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const postQuery = postFromUrl ? `?post=${encodeURIComponent(postFromUrl)}` : ''
-      router.push(`/admin/posts/builder/${currentSite.id}${postQuery}`)
-    }
-  }, [currentSite, postFromUrl, router, setCurrentSite, siteId, sites])
-  
-  const loadPosts = useCallback(async (selectedSlug = postFromUrl) => {
-    const postsResult = await getSitePostsWithMergedBlocksAction(siteId, { selectedSlug })
-    if (postsResult.data) setPosts(postsResult.data)
-  }, [postFromUrl, siteId])
-
-  // Load site and posts data
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-        
-        // Load site data
-        const siteResult = await getSiteByIdAction(siteId)
-        if (!siteResult.data) {
-          return
-        }
-        setSite(siteResult.data)
-        
-        await loadPosts(postFromUrl)
-        
-      } catch {
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    loadData()
-  }, [loadPosts, postFromUrl, siteId])
-
-  useEffect(() => {
-    if (posts.length === 0) return
-
-    const matchingPost = posts.find((post: Post) => post.slug === postFromUrl)
-    if (matchingPost) {
-      if (selectedPost !== matchingPost.slug) {
-        setSelectedPost(matchingPost.slug)
-      }
-      return
-    }
-
-    const firstPost = posts[0]
-    if (selectedPost !== firstPost.slug) {
-      setSelectedPost(firstPost.slug)
-    }
-    if (postFromUrl !== firstPost.slug) {
-      router.replace(`/admin/posts/builder/${siteId}?post=${encodeURIComponent(firstPost.slug)}`)
-    }
-  }, [posts, postFromUrl, router, selectedPost, siteId])
-  
-  
-  // Current post data
-  const currentPostData = posts.find(p => p.slug === selectedPost)
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks, { shallowCopy: true })
   const currentPostId = currentPostData?.id
-  
-  // Update local blocks when post data changes
-  useEffect(() => {
-    if (currentPostData?.content_blocks) {
-      // Filter out post-level settings and keep only actual blocks
-      const actualBlocks: Record<string, PostBlock> = {}
-      Object.entries(currentPostData.content_blocks).forEach(([key, value]) => {
-        // Only include items that have block properties (id, type, content)
-        if (value && typeof value === 'object' && 'type' in value && 'id' in value) {
-          actualBlocks[key] = normalizePostBuilderBlock(value as PostBlock)
-        }
-      })
-      setLocalBlocks(actualBlocks)
-    } else {
-      setLocalBlocks({})
-    }
-  }, [selectedPost, currentPostData?.id, currentPostData?.content_blocks])
-  
+
   // Post builder hook for block management - just like products
   const builderState = usePostBuilder({
     blocks: localBlocks,
@@ -183,7 +121,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       setSelectedPost(updatedPost.slug)
       router.replace(`/admin/posts/builder/${siteId}?post=${updatedPost.slug}`)
     }
-    if (currentPost?.template_id !== updatedPost.template_id) void loadPosts(updatedPost.slug)
+    if (currentPost?.template_id !== updatedPost.template_id) void reloadPosts(updatedPost.slug)
   }
 
   // Handle publishing the current post

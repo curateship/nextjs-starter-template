@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { Editor } from "@tiptap/core"
-import { mergeAttributes, Node as TiptapNode, posToDOMRect } from "@tiptap/core"
+import { posToDOMRect } from "@tiptap/core"
 import { NodeSelection } from "@tiptap/pm/state"
-import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, useEditorState } from "@tiptap/react"
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -31,13 +31,12 @@ import {
   ListOrdered,
   Pilcrow,
   Quote,
-  Settings,
   Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
-import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
-import { SponsorCard } from "@/components/admin/sponsors/SponsorCard"
+import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
+import { SponsorEmbed } from "@/components/admin/layout/builder/InlineRichTextSponsorEmbed"
 import {
   createRichTextEditorProps,
   LinkedImage,
@@ -109,163 +108,6 @@ const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
   newsletter:
     "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
 }
-
-function SponsorEmbedNodeView(props: any) {
-  const sponsorId = props.node?.attrs?.sponsorId as string | null
-  const siteId = props.extension?.options?.siteId as string | undefined
-  const [sponsor, setSponsor] = useState<SponsorPublic | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
-
-  const handleDelete = (event: React.MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    props.deleteNode?.()
-  }
-
-  const handleOpenPicker = (event: React.MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setPickerOpen(true)
-  }
-
-  const handleSponsorSelect = (nextSponsor: SponsorPublic) => {
-    props.updateAttributes?.({ sponsorId: nextSponsor.id })
-    setSponsor(nextSponsor)
-    setPickerOpen(false)
-  }
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadSponsor() {
-      if (!siteId || !sponsorId) {
-        setSponsor(null)
-        return
-      }
-
-      setLoading(true)
-      const sponsorsById = await getActiveSponsorsByIdsAction(siteId, [sponsorId])
-
-      if (!cancelled) {
-        setSponsor(sponsorsById[sponsorId] || null)
-        setLoading(false)
-      }
-    }
-
-    loadSponsor()
-
-    return () => {
-      cancelled = true
-    }
-  }, [siteId, sponsorId])
-
-  return (
-    <NodeViewWrapper className="not-prose group relative my-5" contentEditable={false}>
-      <div
-        onClick={(event) => event.preventDefault()}
-      >
-        {sponsor ? (
-          <SponsorCard sponsor={sponsor} tracking={false} className="pointer-events-none my-0" />
-        ) : (
-          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            {loading ? "Loading sponsor..." : "Sponsor unavailable"}
-          </div>
-        )}
-        <>
-          <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
-            {siteId && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                className="size-8 rounded-full shadow-lg"
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                }}
-                onClick={handleOpenPicker}
-                title="Change sponsor"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="sr-only">Change sponsor</span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              className="size-8 rounded-full shadow-lg"
-              onMouseDown={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-              onClick={handleDelete}
-              title="Delete sponsor"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">Delete sponsor</span>
-            </Button>
-          </div>
-          {siteId && (
-            <SponsorPickerDialog
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-              siteId={siteId}
-              onSelectSponsor={handleSponsorSelect}
-            />
-          )}
-        </>
-      </div>
-    </NodeViewWrapper>
-  )
-}
-
-const SponsorEmbed = TiptapNode.create({
-  name: "sponsor",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: true,
-
-  addOptions() {
-    return {
-      siteId: "",
-    }
-  },
-
-  addAttributes() {
-    return {
-      sponsorId: {
-        default: null,
-        parseHTML: element => element.getAttribute("data-sponsor-id"),
-        renderHTML: attributes => ({
-          "data-sponsor-id": attributes.sponsorId,
-        }),
-      },
-    }
-  },
-
-  parseHTML() {
-    return [{ tag: "hub-sponsor[data-sponsor-id]" }]
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    return [
-      "hub-sponsor",
-      mergeAttributes(HTMLAttributes, {
-        class:
-          "not-prose my-5 flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground",
-      }),
-      ["span", { class: "flex h-8 w-8 items-center justify-center rounded-md border bg-background" }, "Sponsor"],
-      ["span", { class: "font-medium text-foreground" }, "Sponsor embed"],
-    ]
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(SponsorEmbedNodeView)
-  },
-})
 
 const BASE_SLASH_COMMANDS: SlashCommandDefinition[] = [
   {

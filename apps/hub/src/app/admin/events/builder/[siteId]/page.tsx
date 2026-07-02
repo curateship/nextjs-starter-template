@@ -5,7 +5,11 @@ import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
@@ -22,27 +26,16 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [events, setEvents] = useState<Event[]>([])
   const eventFromUrl = searchParams.get('event') || ''
+  const { currentSite } = useBuilderRouteSiteSync({
+    builderPath: "/admin/events/builder",
+    queryParam: "event",
+    queryValue: eventFromUrl,
+    siteId,
+  })
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
   const [blockListOpen, setBlockListOpen] = useState(false)
-
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
-
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const eventQuery = eventFromUrl ? `?event=${encodeURIComponent(eventFromUrl)}` : ''
-      router.push(`/admin/events/builder/${currentSite.id}${eventQuery}`)
-    }
-  }, [currentSite, eventFromUrl, router, setCurrentSite, siteId, sites])
 
   // Load events (raw rows — settings modal needs row-level _settings/title)
   useEffect(() => {
@@ -62,34 +55,19 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     loadEvents()
   }, [eventFromUrl, siteId])
 
-  useEffect(() => {
-    if (events.length === 0) return
-
-    const matchingEvent = events.find((event) => event.slug === eventFromUrl)
-    if (matchingEvent) {
-      if (selectedEvent !== matchingEvent.slug) {
-        setSelectedEvent(matchingEvent.slug)
-      }
-      return
-    }
-
-    const firstEvent = events[0]
-    if (selectedEvent !== firstEvent.slug) {
-      setSelectedEvent(firstEvent.slug)
-    }
-    if (eventFromUrl !== firstEvent.slug) {
-      router.replace(`/admin/events/builder/${siteId}?event=${encodeURIComponent(firstEvent.slug)}`)
-    }
-  }, [eventFromUrl, events, router, selectedEvent, siteId])
+  useSelectedBuilderSlug({
+    builderPath: "/admin/events/builder",
+    items: events,
+    queryParam: "event",
+    selectedSlug: selectedEvent,
+    setSelectedSlug: setSelectedEvent,
+    siteId,
+    slugFromUrl: eventFromUrl,
+  })
 
   // Custom hooks for data and state management (blocks are template-merged)
   const { site, blocks, blocksLoading } = useEventData(siteId, selectedEvent)
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks({ ...blocks })
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks, { shallowCopy: true })
 
   const builderState = useEventBuilder({
     blocks: localBlocks,

@@ -6,7 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
@@ -41,31 +45,20 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [products, setProducts] = useState<Product[]>([])
   const productFromUrl = searchParams.get('product') || ''
+  const { currentSite } = useBuilderRouteSiteSync({
+    builderPath: "/admin/products/builder",
+    queryParam: "product",
+    queryValue: productFromUrl,
+    siteId,
+  })
   const [selectedProduct, setSelectedProduct] = useState(productFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
 
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const productQuery = productFromUrl ? `?product=${encodeURIComponent(productFromUrl)}` : ''
-      router.push(`/admin/products/builder/${currentSite.id}${productQuery}`)
-    }
-  }, [currentSite, productFromUrl, router, setCurrentSite, siteId, sites])
-  
   // Load products data
   useEffect(() => {
     async function loadProducts() {
@@ -84,34 +77,19 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     loadProducts()
   }, [productFromUrl, siteId])
 
-  useEffect(() => {
-    if (products.length === 0) return
-
-    const matchingProduct = products.find((product) => product.slug === productFromUrl)
-    if (matchingProduct) {
-      if (selectedProduct !== matchingProduct.slug) {
-        setSelectedProduct(matchingProduct.slug)
-      }
-      return
-    }
-
-    const firstProduct = products[0]
-    if (selectedProduct !== firstProduct.slug) {
-      setSelectedProduct(firstProduct.slug)
-    }
-    if (productFromUrl !== firstProduct.slug) {
-      router.replace(`/admin/products/builder/${siteId}?product=${encodeURIComponent(firstProduct.slug)}`)
-    }
-  }, [productFromUrl, products, router, selectedProduct, siteId])
+  useSelectedBuilderSlug({
+    builderPath: "/admin/products/builder",
+    items: products,
+    queryParam: "product",
+    selectedSlug: selectedProduct,
+    setSelectedSlug: setSelectedProduct,
+    siteId,
+    slugFromUrl: productFromUrl,
+  })
   
   // Custom hooks for data and state management
   const { site, blocks, blocksLoading } = useProductData(siteId, selectedProduct)
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-  
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks(blocks)
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks)
   
   const builderState = useProductBuilder({ 
     blocks: localBlocks, 
