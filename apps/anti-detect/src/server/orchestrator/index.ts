@@ -76,6 +76,12 @@ type OrchestratorOptions = {
   waitForReady?: (streamUrl: string, timeoutMs: number) => Promise<void>
 }
 
+type SessionPorts = {
+  streamPort: number
+  webrtcStartPort: number
+  webrtcEndPort: number
+}
+
 const ACTIVE_SESSION_STATUSES: BrowserSessionStatus[] = [
   "starting",
   "running",
@@ -143,52 +149,54 @@ export async function startSession(
     ? await getOwnedProxy(userId, profile.proxyId, database)
     : null
   const docker = options.docker ?? createDockerClient()
-  const ports = await allocatePorts(profile.id, config, database)
   const sessionId = uuid()
   const labels = sessionLabels(profile.id, sessionId)
   const containerName = `antidetect-session-${sessionId}`
   const volumeName = `antidetect-profile-${profile.id}`
-  const streamUrl = `http://${config.streamHost}:${ports.streamPort}`
   const createdAt = now()
   let containerId: string | null = null
+  let ports: SessionPorts | null = null
+  let session: BrowserSession | null = null
+
+  for (let attempt = 0; attempt < config.maxSessions; attempt += 1) {
+    ports = await allocatePorts(profile.id, config, database)
+
+    try {
+      session = await insertStartingSession(
+        {
+          sessionId,
+          userId,
+          profileId: profile.id,
+          createdAt,
+          containerName,
+          volumeName,
+          config,
+          ports,
+        },
+        database
+      )
+      break
+    } catch (error) {
+      if (isActiveSessionConflict(error)) {
+        const active = await getActiveSession(userId, profile.id, database)
+        if (!active) throw error
+        return serializeBrowserSession(active, streamLogin(config))
+      }
+      if (isActiveSessionPortConflict(error)) {
+        continue
+      }
+      throw error
+    }
+  }
+
+  if (!session || !ports) {
+    throw new Error("No browser session capacity is available")
+  }
 
   await database
     .update(profiles)
     .set({ status: "starting", updatedAt: createdAt })
     .where(and(eq(profiles.id, profile.id), eq(profiles.userId, userId)))
-
-  let session: BrowserSession
-  try {
-    const [created] = await database
-      .insert(browserSessions)
-      .values({
-        id: sessionId,
-        userId,
-        profileId: profile.id,
-        nodeId: config.nodeId,
-        containerId: null,
-        containerName,
-        volumeName,
-        streamUrl,
-        streamPort: ports.streamPort,
-        webrtcStartPort: ports.webrtcStartPort,
-        webrtcEndPort: ports.webrtcEndPort,
-        status: "starting",
-        startedAt: createdAt,
-        endedAt: null,
-        lastActiveAt: createdAt,
-        createdAt,
-        updatedAt: createdAt,
-      })
-      .returning()
-    if (!created) throw new Error("Session was not created")
-    session = created
-  } catch (error) {
-    if (!isActiveSessionConflict(error)) throw error
-    const active = await getActiveSession(userId, profile.id, database)
-    if (!active) throw error
-    return serializeBrowserSession(active, streamLogin(config))
-  }
 
   try {
     await docker.createVolume(volumeName, labels)
@@ -216,7 +224,7 @@ export async function startSession(
       .where(eq(browserSessions.id, session.id))
     await docker.startContainer(containerId)
     await (options.waitForReady ?? waitForStreamReady)(
-      streamUrl,
+      session.streamUrl,
       config.readyTimeoutMs
     )
 
@@ -347,7 +355,7 @@ export async function reapIdleSessions(
 
 export function serializeBrowserSession(
   row: BrowserSession,
-  login = streamLogin()
+  login: StreamLogin
 ): BrowserSessionItem {
   return {
     ...serializeBrowserSessionSummary(row),
@@ -382,16 +390,12 @@ type StreamLogin = {
 }
 
 function streamLogin(
-  config?: Pick<OrchestratorConfig, "nekoUserPassword" | "nekoAdminPassword">
+  config: Pick<OrchestratorConfig, "nekoUserPassword" | "nekoAdminPassword">
 ): StreamLogin {
   return {
     username: NEKO_STREAM_USERNAME,
-    password:
-      config?.nekoUserPassword ??
-      envString("ANTIDETECT_NEKO_USER_PASSWORD", "neko"),
-    adminPassword:
-      config?.nekoAdminPassword ??
-      envString("ANTIDETECT_NEKO_ADMIN_PASSWORD", "admin"),
+    password: config.nekoUserPassword,
+    adminPassword: config.nekoAdminPassword,
   }
 }
 
@@ -405,8 +409,8 @@ export function loadOrchestratorConfig(): OrchestratorConfig {
     webrtcPortStart: envInt("ANTIDETECT_WEBRTC_PORT_START", 52000),
     webrtcPortsPerSession: envInt("ANTIDETECT_WEBRTC_PORTS_PER_SESSION", 20),
     maxSessions: envInt("ANTIDETECT_MAX_BROWSER_SESSIONS", 20),
-    nekoUserPassword: envString("ANTIDETECT_NEKO_USER_PASSWORD", "neko"),
-    nekoAdminPassword: envString("ANTIDETECT_NEKO_ADMIN_PASSWORD", "admin"),
+    nekoUserPassword: requiredEnvString("ANTIDETECT_NEKO_USER_PASSWORD"),
+    nekoAdminPassword: requiredEnvString("ANTIDETECT_NEKO_ADMIN_PASSWORD"),
     startUrl: envString(
       "ANTIDETECT_BROWSER_START_URL",
       "https://abrahamjuliot.github.io/creepjs/"
@@ -429,7 +433,7 @@ async function allocatePorts(
   profileId: string,
   config: OrchestratorConfig,
   database: Db
-) {
+): Promise<SessionPorts> {
   const active = await database
     .select({
       streamPort: browserSessions.streamPort,
@@ -466,6 +470,50 @@ async function allocatePorts(
     }
   }
   throw new Error("No browser session capacity is available")
+}
+
+async function insertStartingSession(
+  input: {
+    sessionId: string
+    userId: string
+    profileId: string
+    createdAt: Date
+    containerName: string
+    volumeName: string
+    config: OrchestratorConfig
+    ports: SessionPorts
+  },
+  database: Db
+) {
+  const [session] = await database
+    .insert(browserSessions)
+    .values({
+      id: input.sessionId,
+      userId: input.userId,
+      profileId: input.profileId,
+      nodeId: input.config.nodeId,
+      containerId: null,
+      containerName: input.containerName,
+      volumeName: input.volumeName,
+      streamUrl: streamUrlFor(input.config, input.ports),
+      streamPort: input.ports.streamPort,
+      webrtcStartPort: input.ports.webrtcStartPort,
+      webrtcEndPort: input.ports.webrtcEndPort,
+      status: "starting",
+      startedAt: input.createdAt,
+      endedAt: null,
+      lastActiveAt: input.createdAt,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .returning()
+
+  if (!session) throw new Error("Session was not created")
+  return session
+}
+
+function streamUrlFor(config: OrchestratorConfig, ports: SessionPorts) {
+  return `http://${config.streamHost}:${ports.streamPort}`
 }
 
 function containerEnv(
@@ -525,6 +573,14 @@ function hashToSlot(input: string, slots: number) {
 
 function envString(name: string, fallback: string) {
   return process.env[name]?.trim() || fallback
+}
+
+function requiredEnvString(name: string) {
+  const value = process.env[name]?.trim()
+  if (!value) {
+    throw new Error(`${name} is required`)
+  }
+  return value
 }
 
 function envInt(name: string, fallback: number) {
@@ -812,6 +868,17 @@ function portBinding(hostIp: string, hostPort: number) {
 }
 
 function isActiveSessionConflict(error: unknown) {
+  return hasUniqueConstraintName(error, ["ux_browser_sessions_active_profile"])
+}
+
+function isActiveSessionPortConflict(error: unknown) {
+  return hasUniqueConstraintName(error, [
+    "ux_browser_sessions_active_node_stream_port",
+    "ux_browser_sessions_active_node_webrtc_start",
+  ])
+}
+
+function hasUniqueConstraintName(error: unknown, names: string[]) {
   if (!error || typeof error !== "object") return false
   const record = error as {
     cause?: unknown
@@ -820,13 +887,13 @@ function isActiveSessionConflict(error: unknown) {
     message?: unknown
   }
   if (record.code === "23505") {
-    if (record.constraint === "ux_browser_sessions_active_profile") return true
+    const message = typeof record.message === "string" ? record.message : ""
     if (
-      typeof record.message === "string" &&
-      record.message.includes("ux_browser_sessions_active_profile")
+      names.includes(String(record.constraint)) ||
+      names.some((name) => message.includes(name))
     ) {
       return true
     }
   }
-  return isActiveSessionConflict(record.cause)
+  return hasUniqueConstraintName(record.cause, names)
 }

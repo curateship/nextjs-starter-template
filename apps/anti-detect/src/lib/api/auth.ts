@@ -18,6 +18,12 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/server/security"
 import { requireAppOrigin } from "@/server/origin"
+import {
+  clearFailedLogins,
+  enforceLoginRateLimit,
+  loginRateLimitKey,
+  recordFailedLogin,
+} from "@/server/login-rate-limit"
 
 export type AuthUser = {
   id: string
@@ -27,13 +33,9 @@ export type AuthUser = {
 }
 
 const loginSchema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
+  email: z.string().min(1).max(255),
+  password: z.string().min(1).max(1024),
 })
-
-const LOGIN_MAX_ATTEMPTS = 5
-const LOGIN_WINDOW_SECONDS = 15 * 60
-const loginFailures = new Map<string, number[]>()
 
 export function getAuthErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Authentication request failed."
@@ -52,8 +54,8 @@ const loginFn = createServerFn({ method: "POST" })
     requireAppOrigin()
 
     const email = data.email.trim().toLowerCase()
-    const rateLimitKey = getLoginRateLimitKey(email)
-    enforceLoginRateLimit(rateLimitKey)
+    const rateLimitKey = loginRateLimitKey(email, getLoginClientIp())
+    await enforceLoginRateLimit(rateLimitKey)
 
     const [user] = await db
       .select()
@@ -62,11 +64,11 @@ const loginFn = createServerFn({ method: "POST" })
       .limit(1)
 
     if (!user || !(await verifyPassword(user.passwordHash, data.password))) {
-      recordFailedLogin(rateLimitKey)
+      await recordFailedLogin(rateLimitKey)
       throw new Error("Invalid email or password.")
     }
 
-    clearFailedLogins(rateLimitKey)
+    await clearFailedLogins(rateLimitKey)
     const token = createSessionToken()
     await db.insert(sessions).values({
       id: uuid(),
@@ -122,28 +124,10 @@ function serializeUser(user: {
   }
 }
 
-function getLoginRateLimitKey(email: string) {
-  const ip = getRequestIP({ xForwardedFor: true }) || "unknown"
-  return `${ip}:${email}`
-}
-
-function enforceLoginRateLimit(key: string) {
-  if (recentFailedLogins(key).length >= LOGIN_MAX_ATTEMPTS) {
-    throw new Error("Too many login attempts")
-  }
-}
-
-function recordFailedLogin(key: string) {
-  loginFailures.set(key, [...recentFailedLogins(key), Date.now() / 1000])
-}
-
-function clearFailedLogins(key: string) {
-  loginFailures.delete(key)
-}
-
-function recentFailedLogins(key: string) {
-  const cutoff = Date.now() / 1000 - LOGIN_WINDOW_SECONDS
-  const attempts = (loginFailures.get(key) || []).filter((time) => time > cutoff)
-  loginFailures.set(key, attempts)
-  return attempts
+function getLoginClientIp() {
+  return (
+    getRequestIP({
+      xForwardedFor: process.env.ANTIDETECT_TRUST_PROXY_HEADERS === "true",
+    }) || "unknown"
+  )
 }

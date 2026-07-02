@@ -19,5 +19,22 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: [
+      'src/routes/**/*.{ts,tsx}',
+      'src/components/dashboard-toolbar.tsx',
+      'src/components/settings-page.tsx',
+      'src/components/shell-layout.tsx',
+      'src/components/ui/badge.tsx',
+      'src/components/ui/button.tsx',
+    ],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

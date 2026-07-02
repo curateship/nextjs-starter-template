@@ -2,8 +2,10 @@ import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 
 import { FeedbackDashboard } from "@/components/feedback-dashboard"
 import { useShellRuntime } from "@/components/shell-layout"
+import { requireAdminRoute } from "@/lib/admin-route"
 
 export const Route = createFileRoute("/_authenticated/admin/feedback")({
+  loader: requireAdminRoute,
   component: FeedbackRoute,
 })
 

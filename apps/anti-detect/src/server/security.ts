@@ -12,9 +12,9 @@ import {
 } from "@/server/schema"
 
 export const SESSION_COOKIE_NAME = "session"
-const TEN_YEARS_IN_HOURS = 24 * 365 * 10
+const DEFAULT_SESSION_TTL_HOURS = 24
 const SESSION_TTL_HOURS = Number.parseInt(
-  process.env.ANTIDETECT_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),
+  process.env.ANTIDETECT_SESSION_TTL_HOURS || String(DEFAULT_SESSION_TTL_HOURS),
   10
 )
 

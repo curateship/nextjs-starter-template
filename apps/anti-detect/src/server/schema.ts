@@ -42,6 +42,21 @@ export const sessions = pgTable(
   ]
 )
 
+export const loginRateLimits = pgTable(
+  "login_rate_limits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    rateLimitKey: varchar("rate_limit_key", { length: 64 }).notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_login_rate_limits_key_attempted_at").on(
+      table.rateLimitKey,
+      table.attemptedAt
+    ),
+  ]
+)
+
 export const settings = pgTable(
   "settings",
   {
@@ -336,6 +351,16 @@ export const browserSessions = pgTable(
       .where(
         sql`${table.endedAt} is null and ${table.status} in ('starting', 'running', 'stopping')`
       ),
+    uniqueIndex("ux_browser_sessions_active_node_stream_port")
+      .on(table.nodeId, table.streamPort)
+      .where(
+        sql`${table.endedAt} is null and ${table.status} in ('starting', 'running', 'stopping')`
+      ),
+    uniqueIndex("ux_browser_sessions_active_node_webrtc_start")
+      .on(table.nodeId, table.webrtcStartPort)
+      .where(
+        sql`${table.endedAt} is null and ${table.status} in ('starting', 'running', 'stopping')`
+      ),
   ]
 )
 
@@ -374,6 +399,7 @@ export const profileStatuses = pgTable(
 )
 
 export type User = typeof users.$inferSelect
+export type LoginRateLimit = typeof loginRateLimits.$inferSelect
 export type Workspace = typeof workspaces.$inferSelect
 export type Media = typeof media.$inferSelect
 export type Feedback = typeof feedback.$inferSelect

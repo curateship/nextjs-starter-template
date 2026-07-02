@@ -5,8 +5,10 @@ import {
   SettingsPage,
 } from "@/components/settings-page"
 import { useShellRuntime } from "@/components/shell-layout"
+import { requireAdminRoute } from "@/lib/admin-route"
 
 export const Route = createFileRoute("/_authenticated/admin/settings/$tab")({
+  loader: requireAdminRoute,
   component: SettingsTabRoute,
 })
 
