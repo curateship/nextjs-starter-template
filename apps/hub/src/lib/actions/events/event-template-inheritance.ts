@@ -5,6 +5,15 @@
 // non-block entries from the VALUE side, not the template.
 
 import { sanitizeExternalHttpUrl } from '@/lib/utils/url-validator'
+import {
+  blocksToTemplateValueJson,
+  getTemplateNonBlockEntries,
+  hasTemplateValue,
+  mergeTemplateBlocks,
+  pruneTemplateValueBlocks,
+  sanitizeTemplateBlocks,
+  type TemplateValueTransformArgs,
+} from '../template-inheritance-core'
 
 export const EVENT_BLANK_TEMPLATE_NAME = 'Blank'
 export const EVENT_CONTENT_BLOCK_TYPE = 'event-content'
@@ -20,117 +29,42 @@ const EVENT_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
   [EVENT_CONTENT_BLOCK_TYPE]: ['eventContentStyle', 'styleConfig', 'visibility'],
 }
 
-function isBlockEntry(value: unknown): value is Record<string, any> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && typeof (value as any).type === 'string')
-}
-
-function cloneValue<T>(value: T): T {
-  if (value === undefined) return value
-  return JSON.parse(JSON.stringify(value))
-}
-
-function hasValue(value: unknown) {
-  if (value === undefined || value === null) return false
-  if (typeof value === 'string') return value.length > 0
-  if (Array.isArray(value)) return value.length > 0
-  if (typeof value === 'object') return Object.keys(value).length > 0
-  return true
+const eventTemplateInheritanceConfig = {
+  valueKeys: EVENT_VALUE_KEYS,
+  templateContentKeys: EVENT_TEMPLATE_CONTENT_KEYS,
+  getInitialValueEntries: getEventNonBlockEntries,
+  transformValue: transformEventValue,
 }
 
 // Row-level settings stored alongside blocks in events.content_blocks:
 // _-prefixed objects (_settings.is_private) and bare scalars (show_featured_image).
 // These must survive every prune/merge or private events silently go public.
 export function getEventNonBlockEntries(contentBlocks: Record<string, any> = {}) {
-  const entries: Record<string, any> = {}
-
-  Object.entries(contentBlocks || {}).forEach(([key, value]) => {
-    if (key.startsWith('_') || typeof value !== 'object' || value === null) {
-      entries[key] = cloneValue(value)
-    }
-  })
-
-  return entries
+  return getTemplateNonBlockEntries(contentBlocks, (key, value) => key.startsWith('_') || typeof value !== 'object' || value === null)
 }
 
-function getEventBlockValueContent(type: string, content: Record<string, any> = {}) {
-  const keys = EVENT_VALUE_KEYS[type] || []
-  const values: Record<string, any> = {}
-
-  for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(content, key)) continue
-    const value = content[key]
-    if (!hasValue(value)) continue
-    if (key === 'externalCtaUrl') {
-      const externalCtaUrl = sanitizeExternalHttpUrl(String(value))
-      if (!externalCtaUrl) continue
-      values[key] = externalCtaUrl
-      continue
-    }
-    if (key === 'venueName' || key === 'venueAddress') {
-      const trimmedValue = String(value).trim()
-      if (!trimmedValue) continue
-      values[key] = trimmedValue
-      continue
-    }
-    values[key] = cloneValue(value)
+function transformEventValue({ key, value }: TemplateValueTransformArgs) {
+  if (key === 'externalCtaUrl') {
+    const externalCtaUrl = sanitizeExternalHttpUrl(String(value))
+    return externalCtaUrl ? { include: true as const, value: externalCtaUrl } : { include: false as const }
   }
 
-  return values
+  if (key === 'venueName' || key === 'venueAddress') {
+    const trimmedValue = String(value).trim()
+    return trimmedValue ? { include: true as const, value: trimmedValue } : { include: false as const }
+  }
+
+  return undefined
 }
 
 // Strip per-event value keys from template blocks so templates only store structure
 export function sanitizeEventTemplateBlocks(contentBlocks: Record<string, any> = {}) {
-  const sanitizedBlocks: Record<string, any> = {}
-
-  Object.entries(contentBlocks || {}).forEach(([key, value]) => {
-    if (key.startsWith('_')) {
-      sanitizedBlocks[key] = cloneValue(value)
-      return
-    }
-
-    if (!isBlockEntry(value)) return
-
-    const content = value.content && typeof value.content === 'object' && !Array.isArray(value.content)
-      ? value.content
-      : {}
-    const templateKeys = EVENT_TEMPLATE_CONTENT_KEYS[value.type]
-    if (!templateKeys) return
-
-    const sanitizedContent: Record<string, any> = {}
-
-    templateKeys.forEach((contentKey) => {
-      if (!Object.prototype.hasOwnProperty.call(content, contentKey)) return
-      sanitizedContent[contentKey] = cloneValue(content[contentKey])
-    })
-
-    sanitizedBlocks[key] = {
-      id: typeof value.id === 'string' && value.id ? value.id : key,
-      type: value.type,
-      ...(typeof value.title === 'string' && value.title ? { title: value.title } : {}),
-      ...(typeof value.display_order === 'number' ? { display_order: value.display_order } : {}),
-      content: sanitizedContent,
-    }
-  })
-
-  return sanitizedBlocks
+  return sanitizeTemplateBlocks(contentBlocks, eventTemplateInheritanceConfig)
 }
 
 // Convert builder blocks to the value-only JSON stored on the event row
 export function eventBlocksToValueJson(blocks: Array<{ id: string; type: string; content: Record<string, any> }>) {
-  const jsonBlocks: Record<string, any> = {}
-
-  for (const block of blocks) {
-    const content = getEventBlockValueContent(block.type, block.content || {})
-    if (!Object.keys(content).length) continue
-
-    jsonBlocks[block.id] = {
-      id: block.id,
-      type: block.type,
-      content,
-    }
-  }
-
-  return jsonBlocks
+  return blocksToTemplateValueJson(blocks, eventTemplateInheritanceConfig)
 }
 
 // Drop value entries for blocks no longer in the template, keeping row settings
@@ -138,26 +72,7 @@ export function pruneEventValueBlocksForTemplate(
   valueBlocks: Record<string, any>,
   templateBlocks: Record<string, any>
 ) {
-  const prunedBlocks: Record<string, any> = getEventNonBlockEntries(valueBlocks)
-
-  Object.entries(templateBlocks || {}).forEach(([key, templateBlock]) => {
-    if (!isBlockEntry(templateBlock)) return
-
-    const blockId = typeof templateBlock.id === 'string' && templateBlock.id ? templateBlock.id : key
-    const valueBlock = valueBlocks?.[blockId] || valueBlocks?.[key]
-    if (!valueBlock || typeof valueBlock !== 'object' || Array.isArray(valueBlock)) return
-
-    const content = getEventBlockValueContent(templateBlock.type, valueBlock.content || {})
-    if (!Object.keys(content).length) return
-
-    prunedBlocks[blockId] = {
-      id: blockId,
-      type: templateBlock.type,
-      content,
-    }
-  })
-
-  return prunedBlocks
+  return pruneTemplateValueBlocks(valueBlocks, templateBlocks, eventTemplateInheritanceConfig)
 }
 
 // Merge template structure with event values for rendering/editing
@@ -165,30 +80,7 @@ export function mergeEventTemplateBlocks(
   templateBlocks: Record<string, any>,
   valueBlocks: Record<string, any>
 ) {
-  // Row settings come from the event row (value side), not the template
-  const mergedBlocks: Record<string, any> = getEventNonBlockEntries(valueBlocks)
-
-  Object.entries(templateBlocks || {}).forEach(([key, value]) => {
-    if (!isBlockEntry(value)) return
-
-    const block = cloneValue(value)
-    const blockId = typeof block.id === 'string' && block.id ? block.id : key
-    const valueBlock = valueBlocks?.[blockId] || valueBlocks?.[key]
-    const valueContent = valueBlock && typeof valueBlock === 'object' && !Array.isArray(valueBlock)
-      ? getEventBlockValueContent(block.type, valueBlock.content || {})
-      : {}
-
-    mergedBlocks[blockId] = {
-      ...block,
-      id: blockId,
-      content: {
-        ...(block.content && typeof block.content === 'object' ? block.content : {}),
-        ...valueContent,
-      },
-    }
-  })
-
-  return mergedBlocks
+  return mergeTemplateBlocks(templateBlocks, valueBlocks, eventTemplateInheritanceConfig)
 }
 
 // Template-editor preview: per-event values are empty in templates, so the
@@ -211,12 +103,12 @@ export function withEventTemplatePreviewValues<TBlock extends { type: string; co
 
     const content = {
       ...(block.content || {}),
-      ...(!hasValue(block.content?.eventDate) ? { eventDate: '2026-08-15' } : {}),
-      ...(!hasValue(block.content?.eventTime) ? { eventTime: '18:00' } : {}),
-      ...(!hasValue(block.content?.venueName) ? { venueName: 'The Grand Hall' } : {}),
-      ...(!hasValue(block.content?.venueAddress) ? { venueAddress: '123 Main Street, Toronto, ON' } : {}),
-      ...(!hasValue(block.content?.externalCtaUrl) ? { externalCtaUrl: 'https://example.com/events/preview-rsvp' } : {}),
-      ...(!hasValue(block.content?.body) ? { body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT } : {}),
+      ...(!hasTemplateValue(block.content?.eventDate) ? { eventDate: '2026-08-15' } : {}),
+      ...(!hasTemplateValue(block.content?.eventTime) ? { eventTime: '18:00' } : {}),
+      ...(!hasTemplateValue(block.content?.venueName) ? { venueName: 'The Grand Hall' } : {}),
+      ...(!hasTemplateValue(block.content?.venueAddress) ? { venueAddress: '123 Main Street, Toronto, ON' } : {}),
+      ...(!hasTemplateValue(block.content?.externalCtaUrl) ? { externalCtaUrl: 'https://example.com/events/preview-rsvp' } : {}),
+      ...(!hasTemplateValue(block.content?.body) ? { body: EVENT_TEMPLATE_PREVIEW_RICH_TEXT } : {}),
     }
 
     return {

@@ -5,7 +5,11 @@ import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useDirectoryBuilderData } from "@/components/admin/directory-builder/config/useDirectoryBuilderData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
@@ -24,26 +28,15 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const directoryFromUrl = searchParams.get('directory') || ''
+  const { currentSite } = useBuilderRouteSiteSync({
+    builderPath: "/admin/directory/builder",
+    queryParam: "directory",
+    queryValue: directoryFromUrl,
+    siteId,
+  })
   const [blockListOpen, setBlockListOpen] = useState(false)
   const selectedDirectory = directoryFromUrl || ''
-
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
-
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const directoryQuery = directoryFromUrl ? `?directory=${encodeURIComponent(directoryFromUrl)}` : ''
-      router.push(`/admin/directory/builder/${currentSite.id}${directoryQuery}`)
-    }
-  }, [currentSite, directoryFromUrl, router, setCurrentSite, siteId, sites])
 
   // Custom hooks for data and state management
   const {
@@ -57,21 +50,15 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     reloadBlocks,
   } = useDirectoryBuilderData(siteId, selectedDirectory)
 
-  useEffect(() => {
-    if (directoryOptions.length === 0) return
+  useSelectedBuilderSlug({
+    builderPath: "/admin/directory/builder",
+    items: directoryOptions,
+    queryParam: "directory",
+    siteId,
+    slugFromUrl: directoryFromUrl,
+  })
 
-    const directoryExists = directoryOptions.some((directory) => directory.slug === directoryFromUrl)
-    if (!directoryExists) {
-      router.replace(`/admin/directory/builder/${siteId}?directory=${encodeURIComponent(directoryOptions[0].slug)}`)
-    }
-  }, [directoryFromUrl, directoryOptions, router, siteId])
-
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks({ ...blocks })
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks, { shallowCopy: true })
 
   const builderState = useDirectoryBuilder({
     blocks: localBlocks,

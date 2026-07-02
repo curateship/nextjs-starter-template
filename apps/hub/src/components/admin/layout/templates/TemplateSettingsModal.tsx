@@ -34,7 +34,6 @@ type TemplateSettingsModalProps<TTemplate extends TemplateSettingsRecord> = {
 }
 
 const DEFAULT_CATEGORY_PARENT_KEY = "default_category_parent_id"
-const LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY = "default_breadcrumb_parent_id"
 const EMPTY_CONTENT_BLOCKS: Record<string, any> = {}
 
 function getTemplateSettings(contentBlocks: Record<string, any>) {
@@ -43,7 +42,7 @@ function getTemplateSettings(contentBlocks: Record<string, any>) {
 
 function getDefaultCategoryParentId(contentBlocks: Record<string, any>) {
   const settings = getTemplateSettings(contentBlocks)
-  const parentId = settings[DEFAULT_CATEGORY_PARENT_KEY] ?? settings[LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY]
+  const parentId = settings[DEFAULT_CATEGORY_PARENT_KEY]
   return typeof parentId === "string" && parentId.length > 0 ? parentId : null
 }
 
@@ -52,8 +51,6 @@ function setDefaultCategoryParentId(contentBlocks: Record<string, any>, parentId
     ...getTemplateSettings(contentBlocks),
     [DEFAULT_CATEGORY_PARENT_KEY]: parentId,
   }
-
-  delete settings[LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY]
 
   return {
     ...contentBlocks,
