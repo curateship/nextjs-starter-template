@@ -248,10 +248,12 @@ async fn create_workspace(
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceList>, String> {
+    let app_parent_dir = repo_apps_dir()?;
     let Some(selected) = app
         .dialog()
         .file()
         .set_title("Select App Folder")
+        .set_directory(app_parent_dir)
         .blocking_pick_folder()
     else {
         return Ok(None);
@@ -276,26 +278,8 @@ async fn create_app_from_custom_shell(
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceList>, String> {
     let app_name = validate_new_app_name(&app_name)?;
-    let Some(selected) = app
-        .dialog()
-        .file()
-        .set_title("Select App Parent Folder Inside Repo")
-        .blocking_pick_folder()
-    else {
-        return Ok(None);
-    };
-
-    let selected = selected
-        .into_path()
-        .map_err(|_| "Selected folder is not a local path".to_string())?;
-    let parent_folder = fs::canonicalize(selected).map_err(|error| error.to_string())?;
-
-    if !parent_folder.is_dir() {
-        return Err("Selected path is not a folder".to_string());
-    }
-
-    let (git_root, app_relative_path) = new_app_repo_target(&parent_folder, &app_name)?;
     let scaffold_root = custom_shell_scaffold_dir()?;
+    let (git_root, app_relative_path) = new_app_repo_target(&scaffold_root, &app_name)?;
     add_workspace_for_new_app(
         &app,
         &state,
@@ -440,9 +424,17 @@ fn add_workspace_for_new_app(
         app_name.to_string(),
         |app_root| {
             copy_scaffold_dir(scaffold_root, app_root)?;
-            rewrite_scaffold_metadata(app_root, app_name, database_port)
+            rewrite_scaffold_metadata(app_root, app_name, database_port)?;
+            commit_generated_app_scaffold(app_root, app_name)
         },
     )
+}
+
+fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let message = format!("Create {app_name} app");
+    run_git(app_root, &["add", "-A", "."])?;
+    run_git(app_root, &["commit", "-m", &message])?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -528,6 +520,7 @@ fn delete_workspace(
     ensure_workspace_branch_can_be_deleted(&workspace)?;
 
     kill_terminals_for_workspace(&workspace_id, &state)?;
+    stop_workspace_compose_services(&workspace)?;
 
     if workspace.worktree_root.exists() {
         run_git(
@@ -1599,25 +1592,35 @@ fn validate_new_app_name(value: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-fn new_app_repo_target(parent_folder: &Path, app_name: &str) -> Result<(PathBuf, String), String> {
-    let parent_folder = fs::canonicalize(parent_folder).map_err(|error| error.to_string())?;
-    let selected_git_root = git_root_for(&parent_folder)
+fn new_app_repo_target(repo_path: &Path, app_name: &str) -> Result<(PathBuf, String), String> {
+    let repo_path = fs::canonicalize(repo_path).map_err(|error| error.to_string())?;
+    git_root_for(&repo_path)
         .map_err(|_| "Select a folder inside a Git repo with origin.".to_string())?;
-    let git_root = primary_worktree_for(&parent_folder)?;
+    let git_root = primary_worktree_for(&repo_path)?;
     require_origin_remote(&git_root)?;
 
-    let parent_relative_path = relative_path(&selected_git_root, &parent_folder)?;
-    let app_relative_path = if parent_relative_path.is_empty() {
-        app_name.to_string()
-    } else {
-        format!("{}/{}", parent_relative_path, app_name)
-    };
+    let apps_dir = repo_apps_dir_for(&git_root)?;
+    let app_relative_path = format!("apps/{app_name}");
 
-    if parent_folder.join(app_name).exists() || git_root.join(&app_relative_path).exists() {
+    if apps_dir.join(app_name).exists() {
         return Err("An app with that folder name already exists there".to_string());
     }
 
     Ok((git_root, app_relative_path))
+}
+
+fn repo_apps_dir() -> Result<PathBuf, String> {
+    let scaffold_root = custom_shell_scaffold_dir()?;
+    let git_root = primary_worktree_for(&scaffold_root)?;
+    repo_apps_dir_for(&git_root)
+}
+
+fn repo_apps_dir_for(git_root: &Path) -> Result<PathBuf, String> {
+    let apps_dir = git_root.join("apps");
+    if !apps_dir.is_dir() {
+        return Err("Repo apps folder was not found.".to_string());
+    }
+    fs::canonicalize(apps_dir).map_err(|error| error.to_string())
 }
 
 fn is_new_app_name_character(character: char) -> bool {
@@ -2261,14 +2264,15 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clean_repo_path, cleanup_created_worktree, delete_workspace_branch,
-        ensure_workspace_branch_can_be_deleted, find_custom_shell_scaffold_dir,
-        generated_database_port, generated_database_port_from_env, git_branch_exists,
-        has_origin_remote, new_app_repo_target, normalize_task_status, parse_diff_hunk,
-        parse_skill_tags, path_arg, primary_worktree_for, push_workspace_branch,
-        read_git_repo_text_file, render_task_template, rewrite_scaffold_metadata,
-        should_skip_scaffold_entry, validate_editor_settings, validate_new_app_name, DiffHunk,
-        EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        clean_repo_path, cleanup_created_worktree, commit_generated_app_scaffold,
+        delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
+        find_custom_shell_scaffold_dir, generated_database_port, generated_database_port_from_env,
+        git_branch_exists, git_status_lines, has_origin_remote, new_app_repo_target,
+        normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg, primary_worktree_for,
+        push_workspace_branch, read_git_repo_text_file, render_task_template,
+        rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry, validate_editor_settings,
+        validate_new_app_name, DiffHunk, EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE,
+        MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2312,7 +2316,7 @@ mod tests {
         WorkspaceRecord {
             id: id.to_string(),
             name: id.to_string(),
-            app_name: "sample-app".to_string(),
+            app_name: "app-name".to_string(),
             hidden: false,
             branch: branch.to_string(),
             git_root: root.to_path_buf(),
@@ -2454,7 +2458,7 @@ mod tests {
             r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
         )
         .expect("write login route");
-        rewrite_scaffold_metadata(&root, "sample-app", 54_123).expect("rewrite scaffold metadata");
+        rewrite_scaffold_metadata(&root, "app-name", 54_123).expect("rewrite scaffold metadata");
 
         let package = fs::read_to_string(root.join("package.json")).expect("read package");
         let package: serde_json::Value = serde_json::from_str(&package).expect("parse package");
@@ -2472,8 +2476,8 @@ mod tests {
         assert!(!env.contains("custom_shell_"));
 
         let login = fs::read_to_string(root.join("src/routes/login.tsx")).expect("read login");
-        assert!(login.contains("Sign in to Sample App"));
-        assert!(login.contains("Use your Sample App account."));
+        assert!(login.contains("Sign in to App Name"));
+        assert!(login.contains("Use your App Name account."));
         assert!(!login.contains("Custom Shell account"));
 
         fs::remove_dir_all(root).expect("remove temp scaffold metadata test");
@@ -2509,7 +2513,7 @@ mod tests {
 
         assert!(!has_origin_remote(&root));
         assert_eq!(
-            new_app_repo_target(&apps, "seo").unwrap_err(),
+            new_app_repo_target(&apps, "app-name").unwrap_err(),
             "No remote named origin is configured for this workspace."
         );
 
@@ -2559,9 +2563,9 @@ mod tests {
         );
 
         let (git_root, app_relative_path) =
-            new_app_repo_target(&linked.join("apps"), "seo").expect("new app target");
+            new_app_repo_target(&linked, "app-name").expect("new app target");
         assert_eq!(git_root, fs::canonicalize(&root).expect("canonical root"));
-        assert_eq!(app_relative_path, "apps/seo");
+        assert_eq!(app_relative_path, "apps/app-name");
 
         run_test_git(&root, &["worktree", "remove", path_arg(&linked).as_str()]);
         fs::remove_dir_all(root).expect("remove temp primary root");
@@ -2571,11 +2575,11 @@ mod tests {
     #[test]
     fn generated_database_port_skips_used_ports() {
         let used_ports = HashSet::new();
-        let first = generated_database_port("sample-app", &used_ports).expect("first port");
+        let first = generated_database_port("app-name", &used_ports).expect("first port");
         let mut used_ports = HashSet::new();
         used_ports.insert(first);
 
-        let second = generated_database_port("sample-app", &used_ports).expect("second port");
+        let second = generated_database_port("app-name", &used_ports).expect("second port");
 
         assert_ne!(first, second);
         assert!((54_000..55_000).contains(&second));
@@ -2587,6 +2591,30 @@ mod tests {
             generated_database_port_from_env("CUSTOM_SHELL_POSTGRES_PORT=\"not-a-port\"\n")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn generated_app_commit_is_scoped_to_app_folder() {
+        let root = temp_path("generated-app-commit");
+        init_test_repo(&root);
+        let app_root = root.join("apps/app-name");
+        fs::create_dir_all(app_root.join("src")).expect("create app");
+        fs::write(app_root.join("package.json"), "{}\n").expect("write package");
+        fs::write(app_root.join("src/main.ts"), "export {}\n").expect("write source");
+        fs::write(root.join("outside.txt"), "outside\n").expect("write outside file");
+
+        commit_generated_app_scaffold(&app_root, "app-name").expect("commit generated app");
+
+        let status = git_status_lines(&root).expect("status");
+        assert_eq!(status, vec!["?? outside.txt"]);
+        assert_eq!(
+            run_git(&root, &["log", "-1", "--pretty=%s"])
+                .expect("latest commit")
+                .trim(),
+            "Create app-name app"
+        );
+
+        fs::remove_dir_all(root).expect("remove temp generated app commit repo");
     }
 
     #[test]
@@ -2949,6 +2977,46 @@ fn cleanup_created_worktree(
     }
 
     delete_workspace_branch(git_root, branch)
+}
+
+fn stop_workspace_compose_services(workspace: &WorkspaceRecord) -> Result<(), String> {
+    let Some(args) = workspace_compose_down_args(workspace) else {
+        return Ok(());
+    };
+
+    let output = Command::new("docker")
+        .args(&args)
+        .current_dir(&workspace.app_root)
+        .output()
+        .map_err(|error| error.to_string())?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_error("docker compose down", &output))
+    }
+}
+
+fn workspace_compose_down_args(workspace: &WorkspaceRecord) -> Option<Vec<String>> {
+    let compose_file = workspace.app_root.join("docker-compose.yml");
+    if !compose_file.is_file() {
+        return None;
+    }
+
+    let mut args = vec![
+        "compose".to_string(),
+        "--project-name".to_string(),
+        workspace.app_name.clone(),
+        "--file".to_string(),
+        path_arg(&compose_file),
+    ];
+    let env_file = workspace.app_root.join(".env.local");
+    if env_file.is_file() {
+        args.push("--env-file".to_string());
+        args.push(path_arg(&env_file));
+    }
+    args.push("down".to_string());
+    Some(args)
 }
 
 fn delete_workspace_branch(git_root: &Path, branch: &str) -> Result<(), String> {

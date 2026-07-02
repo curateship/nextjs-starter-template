@@ -53,7 +53,7 @@ Paths are resolved and canonicalized in Rust. File browser operations stay insid
 
 When a workspace is added:
 
-1. The user picks an app folder.
+1. The folder picker opens at the repo `apps` directory and the user picks an app folder.
 2. Rust finds the Git root.
 3. Rust creates a Git worktree in Personal IDE app data.
 4. Rust creates an isolated branch named like `personal-ide/workspace-1`.
@@ -72,12 +72,13 @@ Workspace rows show the app folder name as the main name. The generated workspac
 
 When a new app is created:
 
-1. The user enters a safe app folder name and picks a parent folder inside a Git repo with `origin`, usually the repo `apps` folder.
-2. Rust resolves the repo's primary worktree and creates a Personal IDE worktree branch.
+1. The user enters a safe app folder name.
+2. Rust resolves the repo's primary worktree from the Custom Shell scaffold and creates a Personal IDE worktree branch.
 3. Rust copies the Custom Shell app into the new app path inside that worktree.
 4. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
 5. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
-6. The generated app is registered as a normal repo-backed workspace, so Git sync and merge use the repo's existing `origin`.
+6. Rust creates the initial generated-app commit scoped to that app folder.
+7. The generated app is registered as a normal repo-backed workspace, so Git sync and merge use the repo's existing `origin`.
 
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
@@ -239,7 +240,7 @@ The Changes panel shows real Git status for the whole active worktree repo. File
 
 Repos without a remote named `origin` can still commit locally, but Sync, Merge, and Update from develop require `origin`. Generated apps must be created inside a repo that already has `origin`.
 
-Deleting a workspace requires a clean worktree and no unpushed workspace commits. When those checks pass, Personal IDE removes both the worktree and its local `personal-ide/workspace-*` branch so the workspace number can be reused.
+Deleting a workspace requires a clean worktree and no unpushed workspace commits. When those checks pass, Personal IDE stops compose services for the workspace app, then removes both the worktree and its local `personal-ide/workspace-*` branch so the workspace number can be reused.
 
 Implemented actions:
 
