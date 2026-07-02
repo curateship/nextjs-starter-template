@@ -418,7 +418,7 @@ export async function tickCampaignForCurrentUser(
         ) {
           return
         }
-        applyNormalizedCall(call.id, await provider.getCall(call.providerCallId))
+        await applyNormalizedCall(call.id, await provider.getCall(call.providerCallId))
       })
     )
 

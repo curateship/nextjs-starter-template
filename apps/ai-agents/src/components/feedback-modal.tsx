@@ -184,9 +184,10 @@ export function FeedbackModal({
         if (!active) return
         setError(getFeedbackErrorMessage(loadError))
       } finally {
-        if (!active) return
-        setLoadingFeedback(false)
-        setLoadingThreadId(null)
+        if (active) {
+          setLoadingFeedback(false)
+          setLoadingThreadId(null)
+        }
       }
     }
 

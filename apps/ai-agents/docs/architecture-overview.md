@@ -12,8 +12,7 @@ the same conventions as its sibling apps (`ai-video`, `antidetect`):
 - App port **3006**, own Postgres via `docker-compose.yml` (**54323**, db `ai_agents`)
 - Env vars prefixed `AI_AGENTS_*` (see `.env.example`)
 - Hand-written sequential SQL migrations in `drizzle/`, applied with psql
-- Real type checking is `npx tsc -p tsconfig.app.json --noEmit`
-  (`npm run typecheck` is a no-op — solution-style tsconfig)
+- Type checking runs with `npm run typecheck`
 
 ## Layering
 
@@ -93,7 +92,7 @@ multi-tenant.
 
 **Call state has exactly one write path:** `applyNormalizedCall` in
 `src/server/calls.ts`. Both the dashboard polls and the webhook
-(`src/routes/api/v1/vapi/webhook.ts`, optional `x-vapi-secret`) feed
+(`src/routes/api/v1/vapi/webhook.ts`, authenticated by `x-vapi-secret`) feed
 normalized calls through it; it also flips campaign recipients when a call
 reaches a final state. Polling makes local dev fully functional without a
 public URL; in production, set `AI_AGENTS_PUBLIC_URL` so synced assistants
