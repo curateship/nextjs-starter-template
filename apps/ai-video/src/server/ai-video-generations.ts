@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import type { MediaItem } from "@/server/media"
 import { db } from "@/server/db"
+import { readResponseBytesWithLimit } from "@/server/download-limits"
 import { getLlmKey } from "@/server/llm-keys"
 import {
   saveGeneratedVideoToProjectMedia,
@@ -24,6 +25,7 @@ const AI_VIDEO_MODEL = "veo-3.1-generate-preview"
 const AI_VIDEO_RESOLUTION = "720p"
 const AI_VIDEO_POLL_INTERVAL_MS = 10_000
 const AI_VIDEO_TIMEOUT_MS = 8 * 60 * 1000
+const AI_VIDEO_MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024
 const AI_VIDEO_ASPECT_RATIOS = ["9:16", "16:9"] as const
 const AI_VIDEO_ACTIVE_STATUSES = ["queued", "processing"] as const
 
@@ -88,9 +90,15 @@ export async function createAiVideoGenerationForCurrentUser(
     throw new Error("First frame aspect is not supported for AI Video")
   }
   const prompt = cleanAiVideoPrompt(data.prompt)
-  const activeGeneration = await getActiveGenerationJoin(user.id, data.projectId)
+  const activeGeneration = await getActiveGenerationJoin(
+    user.id,
+    data.projectId
+  )
   if (activeGeneration) {
-    return serializeGeneration(activeGeneration.generation, activeGeneration.media)
+    return serializeGeneration(
+      activeGeneration.generation,
+      activeGeneration.media
+    )
   }
 
   const apiKey = await getLlmKey("gemini")
@@ -184,8 +192,8 @@ async function processAiVideoGeneration(generationId: string, apiKey: string) {
       imageBytes,
       imageMimeType: joined.media.mimeType,
       aspectRatio: joined.generation.aspectRatio as AiVideoAspectRatio,
-      durationSeconds:
-        joined.generation.durationSeconds as AiVideoDurationSeconds,
+      durationSeconds: joined.generation
+        .durationSeconds as AiVideoDurationSeconds,
     })
 
     await db
@@ -321,7 +329,11 @@ async function downloadVeoVideo(videoUri: string, apiKey: string) {
     console.error("Veo video download failed", await safeBody(response))
     throw new Error("AI video generation failed")
   }
-  return new Uint8Array(await response.arrayBuffer())
+  return readResponseBytesWithLimit(
+    response,
+    AI_VIDEO_MAX_DOWNLOAD_BYTES,
+    "AI video generation returned a video that is too large"
+  )
 }
 
 function validateVeoDownloadUrl(videoUri: string) {
@@ -354,14 +366,19 @@ async function requireOwnedProject(userId: string, projectId: string) {
   const [row] = await db
     .select({ id: aiVideoProjects.id })
     .from(aiVideoProjects)
-    .where(and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, userId)))
+    .where(
+      and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, userId))
+    )
     .limit(1)
   if (!row) {
     throw new Error("Project not found")
   }
 }
 
-async function getOwnedFirstFrameWithMedia(userId: string, firstFrameId: string) {
+async function getOwnedFirstFrameWithMedia(
+  userId: string,
+  firstFrameId: string
+) {
   const [row] = await db
     .select({ firstFrame: aiVideoFirstFrames, media: aiVideoMedia })
     .from(aiVideoFirstFrames)

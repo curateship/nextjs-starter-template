@@ -41,6 +41,12 @@ export const aiVideoSessions = pgTable(
   ]
 )
 
+export const aiVideoLoginRateLimits = pgTable("login_rate_limits", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  failures: jsonb("failures").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export const aiVideoSettings = pgTable(
   "settings",
   {

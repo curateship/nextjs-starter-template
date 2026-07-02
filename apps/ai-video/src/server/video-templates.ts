@@ -1,11 +1,12 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { copyR2Object, deleteFromR2 } from "@/server/media-storage"
 import {
-  copyR2Object,
-  deleteFromR2,
-  getPublicMediaUrl,
-} from "@/server/media-storage"
+  creatorAvatarUrl,
+  mediaFileUrl,
+  templateThumbnailUrl,
+} from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoCreators,
@@ -20,6 +21,7 @@ import {
 import { now, requireUser, uuid } from "@/server/security"
 import {
   cleanProjectName,
+  secureTimelineMediaUrls,
   summarizeTimeline,
   type ProjectTimeline,
 } from "@/server/video-projects"
@@ -175,7 +177,7 @@ function serializeTemplate(
     source_type: row.sourceViralVideoId ? "analyzed" : "blank",
     structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
     thumbnail_url: row.thumbnailStoragePath
-      ? getPublicMediaUrl(row.thumbnailStoragePath)
+      ? templateThumbnailUrl(row.id, row.updatedAt)
       : null,
     slot_count: countTemplateSlots(row.timeline),
     duration_ms: stats.durationMs,
@@ -184,7 +186,7 @@ function serializeTemplate(
           username: creator.username,
           display_name: creator.displayName,
           avatar_url: creator.avatarStoragePath
-            ? getPublicMediaUrl(creator.avatarStoragePath)
+            ? creatorAvatarUrl(creator.id, creator.updatedAt)
             : null,
         }
       : null,
@@ -214,9 +216,7 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
     .orderBy(desc(aiVideoTemplates.createdAt))
 
   return {
-    templates: rows.map((r) =>
-      serializeTemplate(r.template, r.creator)
-    ),
+    templates: rows.map((r) => serializeTemplate(r.template, r.creator)),
   }
 }
 
@@ -234,9 +234,11 @@ export async function getTemplateForEditingForCurrentUser(
     source_type: row.sourceViralVideoId ? "analyzed" : "blank",
     structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
     thumbnail_url: row.thumbnailStoragePath
-      ? getPublicMediaUrl(row.thumbnailStoragePath)
+      ? templateThumbnailUrl(row.id, row.updatedAt)
       : null,
-    timeline: normalizeTimelineTextFonts(row.timeline as ProjectTimeline),
+    timeline: secureTimelineMediaUrls(
+      normalizeTimelineTextFonts(row.timeline as ProjectTimeline)
+    ),
   }
 }
 
@@ -279,14 +281,14 @@ export async function setTemplateCoverForCurrentUser(
   }
 
   const ext = media.storagePath.split(".").pop() || "jpg"
-  const thumbnailStoragePath =
-    `templates/${user.id}/${template.id}/cover-${media.id}.${ext}`
+  const thumbnailStoragePath = `templates/${user.id}/${template.id}/cover-${media.id}.${ext}`
   await copyR2Object(media.storagePath, thumbnailStoragePath)
+  const updatedAt = now()
 
   try {
     await db
       .update(aiVideoTemplates)
-      .set({ thumbnailStoragePath, updatedAt: now() })
+      .set({ thumbnailStoragePath, updatedAt })
       .where(
         and(
           eq(aiVideoTemplates.id, template.id),
@@ -307,7 +309,7 @@ export async function setTemplateCoverForCurrentUser(
 
   return {
     templateId: template.id,
-    thumbnail_url: getPublicMediaUrl(thumbnailStoragePath),
+    thumbnail_url: templateThumbnailUrl(template.id, updatedAt),
   }
 }
 
@@ -319,7 +321,9 @@ export async function saveTemplateTimelineForCurrentUser(
 ): Promise<{ templateId: string }> {
   requireAppOrigin()
   const user = await requireUser()
-  const normalizedTimeline = normalizeTimelineTextFonts(timeline)
+  const normalizedTimeline = secureTimelineMediaUrls(
+    normalizeTimelineTextFonts(timeline)
+  )
 
   const [row] = await db
     .update(aiVideoTemplates)
@@ -459,7 +463,7 @@ export async function createTemplateFromViralVideoForCurrentUser(
   const timeline = buildTemplateTimeline(
     analysis,
     copiedMedia.id,
-    getPublicMediaUrl(copiedMedia.storagePath),
+    mediaFileUrl(copiedMedia.id),
     video.durationMs
   )
 
@@ -490,7 +494,7 @@ export async function createTemplateFromViralVideoForCurrentUser(
 
   // Caller discards this and reloads the templates list (which re-derives the
   // creator chip from the join), so no creator lookup is needed here.
-  return serializeTemplate(created, created.thumbnailStoragePath)
+  return serializeTemplate(created)
 }
 
 // Create an empty template from scratch (no source reel). It opens in the
@@ -607,7 +611,9 @@ export async function createProjectFromTemplateForCurrentUser(
       name: cleanProjectName(name),
       // Remembered so the script writer can reach the source reel's analysis.
       templateId: template.id,
-      timeline: normalizeTimelineTextFonts(template.timeline as ProjectTimeline),
+      timeline: secureTimelineMediaUrls(
+        normalizeTimelineTextFonts(template.timeline as ProjectTimeline)
+      ),
       createdAt,
       updatedAt: createdAt,
     })

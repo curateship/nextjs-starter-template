@@ -24,7 +24,11 @@ import {
   type MediaSortBy,
   type MediaSortDirection,
 } from "@/server/media"
-import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
+import {
+  deleteFromR2,
+  R2StorageNotConfiguredError,
+  uploadToR2,
+} from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects, aiVideoSettings } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -40,7 +44,9 @@ const listMediaSchema = z
     mimeType: z.enum(["image/svg+xml"]).optional(),
     projectId: z.string().min(1).max(36).optional(),
     source: z.enum(["upload", "generated", "template", "viral"]).optional(),
-    sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
+    sortBy: z
+      .enum(["created_at", "original_name", "file_size", "file_type"])
+      .optional(),
     sortDirection: z.enum(["asc", "desc"]).optional(),
   })
   .optional()
@@ -76,13 +82,15 @@ async function loadMediaUploadMaxBytes() {
       : undefined
 
   return (
-    typeof maxMb === "number" &&
+    (typeof maxMb === "number" &&
     Number.isInteger(maxMb) &&
     maxMb >= 1 &&
     maxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
       ? maxMb
-      : DEFAULT_MEDIA_UPLOAD_MAX_MB
-  ) * 1024 * 1024
+      : DEFAULT_MEDIA_UPLOAD_MAX_MB) *
+    1024 *
+    1024
+  )
 }
 
 async function requireOwnedProjectId(userId: string, projectId?: string) {
@@ -149,7 +157,11 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     activeMediaUploads.add(user.id)
     try {
       const mimeType = data.file.type || "application/octet-stream"
-      validateMediaFile(mimeType, data.file.size, await loadMediaUploadMaxBytes())
+      validateMediaFile(
+        mimeType,
+        data.file.size,
+        await loadMediaUploadMaxBytes()
+      )
 
       const rawFileData = new Uint8Array(await data.file.arrayBuffer())
       if (!rawFileData.byteLength) {
@@ -168,7 +180,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
       } catch (error) {
         if (error instanceof R2StorageNotConfiguredError) {
           throw new Error(
-            "R2 storage is not configured. Set the AI_VIDEO_R2_* environment variables, including AI_VIDEO_R2_PUBLIC_URL."
+            "R2 storage is not configured. Set the AI_VIDEO_R2_* environment variables."
           )
         }
         throw new Error("Upload failed")
@@ -216,10 +228,7 @@ const updateMediaFn = createServerFn({ method: "POST" })
       .update(aiVideoMedia)
       .set({ altText: cleanAltText(data.altText), updatedAt })
       .where(
-        and(
-          eq(aiVideoMedia.id, data.mediaId),
-          eq(aiVideoMedia.userId, user.id)
-        )
+        and(eq(aiVideoMedia.id, data.mediaId), eq(aiVideoMedia.userId, user.id))
       )
 
     const row = await getOwnedMedia(user.id, data.mediaId)
@@ -236,10 +245,7 @@ const deleteMediaFn = createServerFn({ method: "POST" })
     await db
       .delete(aiVideoMedia)
       .where(
-        and(
-          eq(aiVideoMedia.id, data.mediaId),
-          eq(aiVideoMedia.userId, user.id)
-        )
+        and(eq(aiVideoMedia.id, data.mediaId), eq(aiVideoMedia.userId, user.id))
       )
   })
 
@@ -264,17 +270,15 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
     }
 
     if (rows.length) {
-      await db
-        .delete(aiVideoMedia)
-        .where(
-          and(
-            eq(aiVideoMedia.userId, user.id),
-            inArray(
-              aiVideoMedia.id,
-              rows.map((row) => row.id)
-            )
+      await db.delete(aiVideoMedia).where(
+        and(
+          eq(aiVideoMedia.userId, user.id),
+          inArray(
+            aiVideoMedia.id,
+            rows.map((row) => row.id)
           )
         )
+      )
     }
 
     return { deleted_count: rows.length }
@@ -299,7 +303,18 @@ export function listMedia({
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 } = {}) {
-  return listMediaFn({ data: { page, pageSize, fileType, mimeType, projectId, source, sortBy, sortDirection } })
+  return listMediaFn({
+    data: {
+      page,
+      pageSize,
+      fileType,
+      mimeType,
+      projectId,
+      source,
+      sortBy,
+      sortDirection,
+    },
+  })
 }
 
 export function uploadMedia(

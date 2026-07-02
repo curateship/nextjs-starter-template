@@ -23,7 +23,9 @@ the product itself is the reel pipeline described below, not a blank scaffold.
 - **yt-dlp** (with curl_cffi) to download source reels; **ffmpeg/ffprobe** to
   composite exports and cover thumbnails; **@resvg/resvg-js** to rasterize text
   overlays (bundled Inter font, since the container's ffmpeg lacks freetype).
-- **R2 / S3** object storage for media, thumbnails, and rendered exports.
+- **R2 / S3** object storage for media, thumbnails, and rendered exports. Client
+  media URLs go through authenticated app routes; do not expose raw bucket URLs
+  to the browser.
 
 ## The Pipeline
 

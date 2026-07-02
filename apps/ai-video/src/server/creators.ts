@@ -3,7 +3,8 @@ import { and, eq, inArray, sql } from "drizzle-orm"
 import { parseCreatorProfileUrl } from "@/server/creator-profile-url"
 import { fetchCreatorAvatar } from "@/server/creator-avatars"
 import { db } from "@/server/db"
-import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media-storage"
+import { deleteFromR2, uploadToR2 } from "@/server/media-storage"
+import { creatorAvatarUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoCreators,
@@ -51,7 +52,7 @@ function serializeCreator(
     display_name: row.displayName,
     follower_count: row.followerCount,
     avatar_url: row.avatarStoragePath
-      ? getPublicMediaUrl(row.avatarStoragePath)
+      ? creatorAvatarUrl(row.id, row.updatedAt)
       : null,
     reel_count: reelCount,
     last_reel_at: lastReelAt ? lastReelAt.toISOString() : null,
@@ -231,7 +232,9 @@ export async function applyCreatorProfileMetrics(
 ) {
   if (!metrics.displayName && metrics.followerCount === null) return
 
-  const updates: Partial<Pick<AiVideoCreator, "displayName" | "followerCount">> & {
+  const updates: Partial<
+    Pick<AiVideoCreator, "displayName" | "followerCount">
+  > & {
     updatedAt: Date
   } = { updatedAt: now() }
 

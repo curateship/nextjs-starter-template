@@ -6,6 +6,7 @@ import {
   EXPORT_TITLE_MAX_LENGTH,
 } from "@/lib/export-constraints"
 import { db } from "@/server/db"
+import { projectRenderThumbnailUrl } from "@/server/media-urls"
 import { deleteFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
@@ -51,9 +52,7 @@ function serializeExport(row: AiVideoProject): ExportItem {
     caption: row.renderCaption ?? "",
     file_size: row.renderFileSize,
     thumbnail_url: row.renderThumbnailStoragePath
-      ? `/api/v1/projects/${row.id}/render-thumbnail?v=${encodeURIComponent(
-          (row.renderedAt ?? row.updatedAt).toISOString()
-        )}`
+      ? projectRenderThumbnailUrl(row.id, row.renderedAt ?? row.updatedAt)
       : null,
     exported_at: (row.renderedAt ?? row.updatedAt).toISOString(),
   }

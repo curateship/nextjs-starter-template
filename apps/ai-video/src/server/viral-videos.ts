@@ -12,10 +12,14 @@ import {
   bodyToBytes,
   deleteFromR2,
   getFromR2,
-  getPublicMediaUrl,
   R2StorageNotConfiguredError,
   uploadToR2,
 } from "@/server/media-storage"
+import {
+  creatorAvatarUrl,
+  mediaFileUrl,
+  viralVideoThumbnailUrl,
+} from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoCreators,
@@ -26,7 +30,10 @@ import {
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import { scoreViralVideoTrend, type TrendScore } from "@/server/trend-score"
-import { analyzeViralVideo, type ViralVideoAnalysis } from "@/server/video-analysis"
+import {
+  analyzeViralVideo,
+  type ViralVideoAnalysis,
+} from "@/server/video-analysis"
 import {
   detectViralPlatform,
   downloadViralVideo,
@@ -122,7 +129,7 @@ function serializeViralVideo(
       creatorFollowers: creator?.followerCount ?? null,
     }),
     thumbnail_url: row.thumbnailStoragePath
-      ? getPublicMediaUrl(row.thumbnailStoragePath)
+      ? viralVideoThumbnailUrl(row.id, row.updatedAt)
       : null,
     creator_id: row.creatorId,
     creator: creator
@@ -130,7 +137,7 @@ function serializeViralVideo(
           username: creator.username,
           display_name: creator.displayName,
           avatar_url: creator.avatarStoragePath
-            ? getPublicMediaUrl(creator.avatarStoragePath)
+            ? creatorAvatarUrl(creator.id, creator.updatedAt)
             : null,
           follower_count: creator.followerCount,
         }
@@ -178,7 +185,7 @@ export async function getViralVideoForCurrentUser(
       )
       .limit(1)
     if (media) {
-      mediaUrl = getPublicMediaUrl(media.storagePath)
+      mediaUrl = mediaFileUrl(media.id)
     }
   }
 
@@ -264,7 +271,10 @@ export async function retryViralVideoForCurrentUser(
 // it keep their timing but lose the original media (UI warns before delete).
 // Exported for the creator-delete cascade (imported dynamically there to
 // avoid a static import cycle with creators.ts).
-export async function destroyViralVideo(userId: string, row: AiVideoViralVideo) {
+export async function destroyViralVideo(
+  userId: string,
+  row: AiVideoViralVideo
+) {
   if (row.mediaId) {
     const [media] = await db
       .select()
@@ -441,31 +451,41 @@ async function processViralVideo(
 
     // Extract a cover frame, upload it, and insert a media row so it appears
     // in the library alongside the video it came from.
-    const thumbBytes = await extractVideoThumbnail(fileData, downloaded.mimeType)
+    const thumbBytes = await extractVideoThumbnail(
+      fileData,
+      downloaded.mimeType
+    )
     let thumbnailStoragePath: string | null = null
     if (thumbBytes) {
       const thumbPath = `viral-thumbnails/${userId}/${videoId}.jpg`
-      const uploaded = await uploadToR2(thumbPath, thumbBytes, "image/jpeg").catch(() => null)
+      const uploaded = await uploadToR2(
+        thumbPath,
+        thumbBytes,
+        "image/jpeg"
+      ).catch(() => null)
       if (uploaded !== null) {
         thumbnailStoragePath = thumbPath
         // Truncate: titles run up to 500 chars but media name columns are 255.
         const thumbName = `${(downloaded.metadata.title ?? "thumbnail").slice(0, 240)}-cover.jpg`
         const thumbCreatedAt = now()
-        await db.insert(aiVideoMedia).values({
-          id: uuid(),
-          userId,
-          filename: thumbName,
-          originalName: thumbName,
-          altText: null,
-          fileSize: thumbBytes.byteLength,
-          mimeType: "image/jpeg",
-          fileType: "image",
-          storagePath: thumbPath,
-          projectId: null,
-          source: "viral",
-          createdAt: thumbCreatedAt,
-          updatedAt: thumbCreatedAt,
-        }).catch(() => undefined)
+        await db
+          .insert(aiVideoMedia)
+          .values({
+            id: uuid(),
+            userId,
+            filename: thumbName,
+            originalName: thumbName,
+            altText: null,
+            fileSize: thumbBytes.byteLength,
+            mimeType: "image/jpeg",
+            fileType: "image",
+            storagePath: thumbPath,
+            projectId: null,
+            source: "viral",
+            createdAt: thumbCreatedAt,
+            updatedAt: thumbCreatedAt,
+          })
+          .catch(() => undefined)
       }
     }
 

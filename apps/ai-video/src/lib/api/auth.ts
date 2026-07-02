@@ -1,10 +1,16 @@
+import { createHash } from "node:crypto"
+
 import { createServerFn } from "@tanstack/react-start"
 import { getCookie, getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
-import { aiVideoSessions, aiVideoUsers } from "@/server/schema"
+import {
+  aiVideoLoginRateLimits,
+  aiVideoSessions,
+  aiVideoUsers,
+} from "@/server/schema"
 import {
   clearSessionCookie,
   createSessionExpiresAt,
@@ -33,10 +39,12 @@ const loginSchema = z.object({
 
 const LOGIN_MAX_ATTEMPTS = 5
 const LOGIN_WINDOW_SECONDS = 15 * 60
-const loginFailures = new Map<string, number[]>()
+const TRUST_PROXY_HEADERS = process.env.AI_VIDEO_TRUST_PROXY_HEADERS === "1"
 
 export function getAuthErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Authentication request failed."
+  return error instanceof Error
+    ? error.message
+    : "Authentication request failed."
 }
 
 const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
@@ -53,7 +61,7 @@ const loginFn = createServerFn({ method: "POST" })
 
     const email = data.email.trim().toLowerCase()
     const rateLimitKey = getLoginRateLimitKey(email)
-    enforceLoginRateLimit(rateLimitKey)
+    await enforceLoginRateLimit(rateLimitKey)
 
     const [user] = await db
       .select()
@@ -62,11 +70,11 @@ const loginFn = createServerFn({ method: "POST" })
       .limit(1)
 
     if (!user || !(await verifyPassword(user.passwordHash, data.password))) {
-      recordFailedLogin(rateLimitKey)
+      await recordFailedLogin(rateLimitKey)
       throw new Error("Invalid email or password.")
     }
 
-    clearFailedLogins(rateLimitKey)
+    await clearFailedLogins(rateLimitKey)
     const token = createSessionToken()
     await db.insert(aiVideoSessions).values({
       id: uuid(),
@@ -123,27 +131,47 @@ function serializeUser(user: {
 }
 
 function getLoginRateLimitKey(email: string) {
-  const ip = getRequestIP({ xForwardedFor: true }) || "unknown"
-  return `${ip}:${email}`
+  const ip = getRequestIP({ xForwardedFor: TRUST_PROXY_HEADERS }) || "unknown"
+  return createHash("sha256").update(`${ip}:${email}`, "utf8").digest("hex")
 }
 
-function enforceLoginRateLimit(key: string) {
-  if (recentFailedLogins(key).length >= LOGIN_MAX_ATTEMPTS) {
+async function enforceLoginRateLimit(key: string) {
+  if ((await recentFailedLogins(key)).length >= LOGIN_MAX_ATTEMPTS) {
     throw new Error("Too many login attempts")
   }
 }
 
-function recordFailedLogin(key: string) {
-  loginFailures.set(key, [...recentFailedLogins(key), Date.now() / 1000])
+async function recordFailedLogin(key: string) {
+  const failures = [...(await recentFailedLogins(key)), Date.now() / 1000]
+  const updatedAt = now()
+  await db
+    .insert(aiVideoLoginRateLimits)
+    .values({ key, failures, updatedAt })
+    .onConflictDoUpdate({
+      target: aiVideoLoginRateLimits.key,
+      set: { failures, updatedAt },
+    })
 }
 
-function clearFailedLogins(key: string) {
-  loginFailures.delete(key)
+async function clearFailedLogins(key: string) {
+  await db
+    .delete(aiVideoLoginRateLimits)
+    .where(eq(aiVideoLoginRateLimits.key, key))
 }
 
-function recentFailedLogins(key: string) {
+async function recentFailedLogins(key: string) {
   const cutoff = Date.now() / 1000 - LOGIN_WINDOW_SECONDS
-  const attempts = (loginFailures.get(key) || []).filter((time) => time > cutoff)
-  loginFailures.set(key, attempts)
-  return attempts
+  const [row] = await db
+    .select({ failures: aiVideoLoginRateLimits.failures })
+    .from(aiVideoLoginRateLimits)
+    .where(eq(aiVideoLoginRateLimits.key, key))
+    .limit(1)
+  return parseLoginFailures(row?.failures).filter((time) => time > cutoff)
+}
+
+function parseLoginFailures(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (time): time is number => typeof time === "number" && Number.isFinite(time)
+  )
 }

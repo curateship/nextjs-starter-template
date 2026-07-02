@@ -13,8 +13,8 @@ The local app runs at `http://localhost:3004`.
 
 ## Media Library Storage
 
-Media uploads are stored by the TanStack server runtime in Cloudflare R2 and served through public, cacheable media URLs.
-`AI_VIDEO_R2_PUBLIC_URL` is required so AI Video can render media directly in the browser.
+Media uploads are stored by the TanStack server runtime in Cloudflare R2 and served through authenticated app routes.
+Keep the bucket private; the browser should not receive raw R2 object URLs.
 
 Set these in the app's server environment:
 
@@ -23,10 +23,18 @@ AI_VIDEO_R2_ACCOUNT_ID=""
 AI_VIDEO_R2_ACCESS_KEY_ID=""
 AI_VIDEO_R2_SECRET_ACCESS_KEY=""
 AI_VIDEO_R2_BUCKET_NAME="ai-video-media"
-AI_VIDEO_R2_PUBLIC_URL=""
 ```
 
 The credentials are server-only secrets. Do not expose them with a `VITE_` prefix.
+
+## Security Settings
+
+Set `AI_VIDEO_SECRET_ENCRYPTION_KEY` anywhere provider API keys can be saved from
+Settings. Saved provider keys must be encrypted; delete and resave any old
+plaintext key rows after setting this value. Sessions default to 168 hours and
+can be adjusted with `AI_VIDEO_SESSION_TTL_HOURS`. Set
+`AI_VIDEO_TRUST_PROXY_HEADERS=1` only when the app is behind a trusted proxy
+that owns `X-Forwarded-For`.
 
 ## Adding components
 

@@ -11,7 +11,7 @@ import {
 } from "@/lib/ai-video"
 import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
+import { mediaFileUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoMedia,
@@ -59,7 +59,10 @@ const brandKitSchema = z.object({
     .array(z.string().max(180))
     .max(20)
     .transform((phrases) =>
-      phrases.map((phrase) => phrase.trim()).filter(Boolean).slice(0, 20)
+      phrases
+        .map((phrase) => phrase.trim())
+        .filter(Boolean)
+        .slice(0, 20)
     ),
   exportNamingPattern: z.string().trim().min(1).max(120),
 })
@@ -92,11 +95,14 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
-  dashboardRowsPerPage: z.number().int().refine((value) =>
-    DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-      value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-    )
-  ),
+  dashboardRowsPerPage: z
+    .number()
+    .int()
+    .refine((value) =>
+      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+        value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+      )
+    ),
   mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
   favicon: z.string(),
   brandKit: brandKitSchema,
@@ -125,7 +131,9 @@ const shellConfigSchema = z.object({
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Shell settings request failed."
+  return error instanceof Error
+    ? error.message
+    : "Shell settings request failed."
 }
 
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
@@ -291,7 +299,10 @@ async function validateBrandKitLogo(
     })
     .from(aiVideoMedia)
     .where(
-      and(eq(aiVideoMedia.id, brandKit.logo.mediaId), eq(aiVideoMedia.userId, userId))
+      and(
+        eq(aiVideoMedia.id, brandKit.logo.mediaId),
+        eq(aiVideoMedia.userId, userId)
+      )
     )
     .limit(1)
 
@@ -307,7 +318,7 @@ async function validateBrandKitLogo(
     ...brandKit,
     logo: {
       mediaId: logo.id,
-      previewUrl: getPublicMediaUrl(logo.storagePath),
+      previewUrl: mediaFileUrl(logo.id),
     },
   }
 }

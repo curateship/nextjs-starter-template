@@ -30,9 +30,13 @@ import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
 import { Route as AuthenticatedAdminCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/carousels/$carouselId'
+import { Route as ApiV1ViralVideosVideoIdThumbnailRouteImport } from './routes/api/v1/viral-videos/$videoId/thumbnail'
+import { Route as ApiV1TemplatesTemplateIdThumbnailRouteImport } from './routes/api/v1/templates/$templateId/thumbnail'
 import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
 import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1CreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/creators/$creatorId/avatar'
+import { Route as ApiV1ActorsActorIdImageRouteImport } from './routes/api/v1/actors/$actorId/image'
 import { Route as AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport } from './routes/_authenticated/admin/video-editor/template/$templateId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -154,6 +158,18 @@ const AuthenticatedAdminCarouselsCarouselIdRoute =
     path: '/admin/carousels/$carouselId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiV1ViralVideosVideoIdThumbnailRoute =
+  ApiV1ViralVideosVideoIdThumbnailRouteImport.update({
+    id: '/api/v1/viral-videos/$videoId/thumbnail',
+    path: '/api/v1/viral-videos/$videoId/thumbnail',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1TemplatesTemplateIdThumbnailRoute =
+  ApiV1TemplatesTemplateIdThumbnailRouteImport.update({
+    id: '/api/v1/templates/$templateId/thumbnail',
+    path: '/api/v1/templates/$templateId/thumbnail',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectIdRenderThumbnailRoute =
   ApiV1ProjectsProjectIdRenderThumbnailRouteImport.update({
     id: '/api/v1/projects/$projectId/render-thumbnail',
@@ -169,6 +185,17 @@ const ApiV1ProjectsProjectIdRenderRoute =
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CreatorsCreatorIdAvatarRoute =
+  ApiV1CreatorsCreatorIdAvatarRouteImport.update({
+    id: '/api/v1/creators/$creatorId/avatar',
+    path: '/api/v1/creators/$creatorId/avatar',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ActorsActorIdImageRoute = ApiV1ActorsActorIdImageRouteImport.update({
+  id: '/api/v1/actors/$actorId/image',
+  path: '/api/v1/actors/$actorId/image',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminVideoEditorTemplateTemplateIdRoute =
@@ -200,9 +227,13 @@ export interface FileRoutesByFullPath {
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
+  '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
+  '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
+  '/api/v1/templates/$templateId/thumbnail': typeof ApiV1TemplatesTemplateIdThumbnailRoute
+  '/api/v1/viral-videos/$videoId/thumbnail': typeof ApiV1ViralVideosVideoIdThumbnailRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -226,9 +257,13 @@ export interface FileRoutesByTo {
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
+  '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
+  '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
+  '/api/v1/templates/$templateId/thumbnail': typeof ApiV1TemplatesTemplateIdThumbnailRoute
+  '/api/v1/viral-videos/$videoId/thumbnail': typeof ApiV1ViralVideosVideoIdThumbnailRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -254,9 +289,13 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/_authenticated/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/_authenticated/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
+  '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
+  '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
+  '/api/v1/templates/$templateId/thumbnail': typeof ApiV1TemplatesTemplateIdThumbnailRoute
+  '/api/v1/viral-videos/$videoId/thumbnail': typeof ApiV1ViralVideosVideoIdThumbnailRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -282,9 +321,13 @@ export interface FileRouteTypes {
     | '/admin/video-editor/'
     | '/admin/viral-archive/'
     | '/admin/video-editor/template/$templateId'
+    | '/api/v1/actors/$actorId/image'
+    | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
+    | '/api/v1/templates/$templateId/thumbnail'
+    | '/api/v1/viral-videos/$videoId/thumbnail'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -308,9 +351,13 @@ export interface FileRouteTypes {
     | '/admin/video-editor'
     | '/admin/viral-archive'
     | '/admin/video-editor/template/$templateId'
+    | '/api/v1/actors/$actorId/image'
+    | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
+    | '/api/v1/templates/$templateId/thumbnail'
+    | '/api/v1/viral-videos/$videoId/thumbnail'
   id:
     | '__root__'
     | '/_authenticated'
@@ -335,17 +382,25 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-editor/'
     | '/_authenticated/admin/viral-archive/'
     | '/_authenticated/admin/video-editor/template/$templateId'
+    | '/api/v1/actors/$actorId/image'
+    | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
+    | '/api/v1/templates/$templateId/thumbnail'
+    | '/api/v1/viral-videos/$videoId/thumbnail'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiV1ActorsActorIdImageRoute: typeof ApiV1ActorsActorIdImageRoute
+  ApiV1CreatorsCreatorIdAvatarRoute: typeof ApiV1CreatorsCreatorIdAvatarRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1ProjectsProjectIdRenderRoute: typeof ApiV1ProjectsProjectIdRenderRoute
   ApiV1ProjectsProjectIdRenderThumbnailRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
+  ApiV1TemplatesTemplateIdThumbnailRoute: typeof ApiV1TemplatesTemplateIdThumbnailRoute
+  ApiV1ViralVideosVideoIdThumbnailRoute: typeof ApiV1ViralVideosVideoIdThumbnailRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -497,6 +552,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCarouselsCarouselIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/v1/viral-videos/$videoId/thumbnail': {
+      id: '/api/v1/viral-videos/$videoId/thumbnail'
+      path: '/api/v1/viral-videos/$videoId/thumbnail'
+      fullPath: '/api/v1/viral-videos/$videoId/thumbnail'
+      preLoaderRoute: typeof ApiV1ViralVideosVideoIdThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/templates/$templateId/thumbnail': {
+      id: '/api/v1/templates/$templateId/thumbnail'
+      path: '/api/v1/templates/$templateId/thumbnail'
+      fullPath: '/api/v1/templates/$templateId/thumbnail'
+      preLoaderRoute: typeof ApiV1TemplatesTemplateIdThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/projects/$projectId/render-thumbnail': {
       id: '/api/v1/projects/$projectId/render-thumbnail'
       path: '/api/v1/projects/$projectId/render-thumbnail'
@@ -516,6 +585,20 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/media/$mediaId/file'
       fullPath: '/api/v1/media/$mediaId/file'
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/creators/$creatorId/avatar': {
+      id: '/api/v1/creators/$creatorId/avatar'
+      path: '/api/v1/creators/$creatorId/avatar'
+      fullPath: '/api/v1/creators/$creatorId/avatar'
+      preLoaderRoute: typeof ApiV1CreatorsCreatorIdAvatarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/actors/$actorId/image': {
+      id: '/api/v1/actors/$actorId/image'
+      path: '/api/v1/actors/$actorId/image'
+      fullPath: '/api/v1/actors/$actorId/image'
+      preLoaderRoute: typeof ApiV1ActorsActorIdImageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/video-editor/template/$templateId': {
@@ -612,10 +695,15 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiV1ActorsActorIdImageRoute: ApiV1ActorsActorIdImageRoute,
+  ApiV1CreatorsCreatorIdAvatarRoute: ApiV1CreatorsCreatorIdAvatarRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1ProjectsProjectIdRenderRoute: ApiV1ProjectsProjectIdRenderRoute,
   ApiV1ProjectsProjectIdRenderThumbnailRoute:
     ApiV1ProjectsProjectIdRenderThumbnailRoute,
+  ApiV1TemplatesTemplateIdThumbnailRoute:
+    ApiV1TemplatesTemplateIdThumbnailRoute,
+  ApiV1ViralVideosVideoIdThumbnailRoute: ApiV1ViralVideosVideoIdThumbnailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

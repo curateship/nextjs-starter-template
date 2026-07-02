@@ -4,8 +4,6 @@ import { db } from "@/server/db"
 import {
   decryptSecret,
   encryptSecret,
-  isEncryptionConfigured,
-  looksEncrypted,
 } from "@/server/encryption"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoLlmApiKeys } from "@/server/schema"
@@ -34,8 +32,9 @@ export type LlmKeyStatus = {
   source: "settings" | "env" | null
 }
 
-// Resolves a provider's key (saved key wins, else the env var). SERVER ONLY —
-// the result is a live secret and must never reach the client.
+// Resolves a provider's key. A saved settings key is authoritative; if it is
+// unreadable, fail fast instead of silently falling back to env configuration.
+// SERVER ONLY — the result is a live secret and must never reach the client.
 export async function getLlmKey(provider: LlmProvider): Promise<string | null> {
   const [row] = await db
     .select()
@@ -43,18 +42,9 @@ export async function getLlmKey(provider: LlmProvider): Promise<string | null> {
     .where(eq(aiVideoLlmApiKeys.provider, provider))
     .limit(1)
   if (row?.apiKey) {
-    const key = readStoredKey(row.apiKey)
-    if (key) return key
-    // Encrypted but unreadable (key missing/rotated) — fall back to the env var.
+    return decryptSecret(row.apiKey)
   }
   return process.env[ENV_VAR[provider]] || null
-}
-
-// Reads a stored value: decrypts if it's in encrypted form, otherwise treats it
-// as legacy/plaintext (deployments with no encryption key configured).
-function readStoredKey(stored: string): string | null {
-  if (looksEncrypted(stored)) return decryptSecret(stored)
-  return stored
 }
 
 // Shows only the last 4 characters so the UI can confirm which key is set
@@ -68,16 +58,18 @@ function maskKey(key: string): string {
 export async function getLlmKeyStatusForCurrentUser(): Promise<LlmKeyStatus[]> {
   await requireAdminUser()
   const rows = await db.select().from(aiVideoLlmApiKeys)
-  const saved = new Map(rows.map((row) => [row.provider as LlmProvider, row.apiKey]))
+  const saved = new Map(
+    rows.map((row) => [row.provider as LlmProvider, row.apiKey])
+  )
 
   return LLM_PROVIDERS.map((provider) => {
     const stored = saved.get(provider)
     if (stored) {
-      const key = readStoredKey(stored)
+      const key = decryptSecret(stored)
       return {
         provider,
         configured: true,
-        maskedKey: key ? maskKey(key) : null,
+        maskedKey: maskKey(key),
         source: "settings" as const,
       }
     }
@@ -94,8 +86,8 @@ export async function getLlmKeyStatusForCurrentUser(): Promise<LlmKeyStatus[]> {
   })
 }
 
-// Saves a provider's key (encrypted at rest when an encryption key is
-// configured), or removes it when given an empty string. Admin-only.
+// Saves a provider's key encrypted at rest, or removes it when given an empty
+// string. Admin-only.
 export async function setLlmKeyForCurrentUser(
   provider: LlmProvider,
   apiKey: string
@@ -107,11 +99,13 @@ export async function setLlmKeyForCurrentUser(
   // not live typing).
   const trimmed = apiKey.trim()
   if (!trimmed) {
-    await db.delete(aiVideoLlmApiKeys).where(eq(aiVideoLlmApiKeys.provider, provider))
+    await db
+      .delete(aiVideoLlmApiKeys)
+      .where(eq(aiVideoLlmApiKeys.provider, provider))
     return
   }
 
-  const stored = isEncryptionConfigured() ? encryptSecret(trimmed) : trimmed
+  const stored = encryptSecret(trimmed)
   const ts = now()
   await db
     .insert(aiVideoLlmApiKeys)
