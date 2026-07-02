@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   CaptionsIcon,
   CopyIcon,
+  FileTextIcon,
   ImageIcon,
   Loader2Icon,
   MicIcon,
@@ -63,6 +64,7 @@ import {
   listElevenLabsVoices,
   type ElevenLabsVoice,
   type VoiceModelId,
+  type VoiceoverResult,
 } from "@/lib/api/elevenlabs"
 import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
@@ -72,8 +74,11 @@ import {
   type TextFontId,
 } from "@/lib/text-fonts"
 import {
+  getBriefErrorMessage,
   getScriptErrorMessage,
+  writeProjectBrief,
   writeProjectScript,
+  type ProjectReelBriefResult,
   type ScriptBeat,
 } from "@/lib/api/script-writer"
 import { Input } from "@/components/ui/input"
@@ -379,10 +384,26 @@ function captionStyleFromBrandKit(brandKit: BrandKitConfig) {
 
 // Building blocks the editor supports. Tiles with an `action` are wired up;
 // the rest are placeholders for future element kinds.
+type ElementTileAction =
+  | "text"
+  | "captions"
+  | "script"
+  | "voice"
+  | "sound-effect"
+  | "ai-video"
+  | "brief"
+
+const PROJECT_ONLY_ELEMENT_ACTIONS = new Set<ElementTileAction>([
+  "captions",
+  "script",
+  "brief",
+  "ai-video",
+])
+
 const ELEMENT_TILES: {
   label: string
   icon: LucideIcon
-  action?: "text" | "captions" | "script" | "voice" | "sound-effect" | "ai-video"
+  action?: ElementTileAction
 }[] = [
   { label: "Text", icon: TypeIcon, action: "text" },
   { label: "Sound Effect", icon: Volume2Icon, action: "sound-effect" },
@@ -391,6 +412,7 @@ const ELEMENT_TILES: {
   { label: "Audio", icon: MusicIcon },
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
+  { label: "Brief to Reel", icon: FileTextIcon, action: "brief" },
   { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
   { label: "AI Script", icon: PenLineIcon, action: "script" },
   { label: "Shapes", icon: ShapesIcon },
@@ -403,29 +425,28 @@ export function ElementsPanel() {
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
+  const [briefOpen, setBriefOpen] = React.useState(false)
   const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
   const [aiVideoOpen, setAiVideoOpen] = React.useState(false)
 
-  // Maps a tile's action to its dialog opener.
-  const actions = {
+  const actions: Record<ElementTileAction, () => void> = {
     text: () => setTextOpen(true),
     captions: () => setCaptionsOpen(true),
     voice: () => setVoiceOpen(true),
     script: () => setScriptOpen(true),
+    brief: () => setBriefOpen(true),
     "sound-effect": () => setSoundEffectOpen(true),
     "ai-video": () => setAiVideoOpen(true),
   }
 
-  // Captions and AI Script are project-only (they call project-scoped server
-  // fns); hide those tiles when editing a template.
-  const { kind } = useEditor()
+  // Project-scoped generation tiles call project-only server fns, so hide them
+  // when editing a template.
+  const { kind, mode } = useEditor()
   const tiles =
     kind === "template"
       ? ELEMENT_TILES.filter(
           (tile) =>
-            tile.action !== "captions" &&
-            tile.action !== "script" &&
-            tile.action !== "ai-video"
+            !tile.action || !PROJECT_ONLY_ELEMENT_ACTIONS.has(tile.action)
         )
       : ELEMENT_TILES
 
@@ -436,26 +457,41 @@ export function ElementsPanel() {
         Building blocks for your video.
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        {tiles.map((tile) => (
-          <button
-            key={tile.label}
-            type="button"
-            onClick={tile.action ? actions[tile.action] : undefined}
-            className={cn(
-              "flex flex-col items-center gap-1.5 rounded-lg border bg-background p-3 text-xs font-medium transition-colors",
-              tile.action ? "hover:bg-muted" : "opacity-50"
-            )}
-            disabled={!tile.action}
-          >
-            <tile.icon className="size-4 text-muted-foreground" />
-            {tile.label}
-          </button>
-        ))}
+        {tiles.map((tile) => {
+          const unavailable =
+            tile.action === "brief" && mode !== "fill-template"
+              ? "Template project only"
+              : null
+          return (
+            <button
+              key={tile.label}
+              type="button"
+              onClick={
+                tile.action && !unavailable ? actions[tile.action] : undefined
+              }
+              className={cn(
+                "flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-3 text-center text-xs font-medium transition-colors",
+                tile.action && !unavailable ? "hover:bg-muted" : "opacity-50"
+              )}
+              disabled={!tile.action || !!unavailable}
+              title={unavailable ?? undefined}
+            >
+              <tile.icon className="size-4 text-muted-foreground" />
+              <span>{tile.label}</span>
+              {unavailable ? (
+                <span className="text-[10px] font-normal text-muted-foreground">
+                  Template only
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
 
       <TextDialog open={textOpen} onOpenChange={setTextOpen} />
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
       <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
+      <BriefToReelDialog open={briefOpen} onOpenChange={setBriefOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
       <SoundEffectDialog
         open={soundEffectOpen}
@@ -1822,6 +1858,455 @@ function VoiceDialog({
             )}
             {generating ? "Generating…" : "Generate"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type BriefStep = "topic" | "brief" | "voice" | "insert"
+
+const BRIEF_STEPS: { id: BriefStep; label: string }[] = [
+  { id: "topic", label: "Topic" },
+  { id: "brief", label: "Brief" },
+  { id: "voice", label: "Voice" },
+  { id: "insert", label: "Insert" },
+]
+
+function BriefToReelDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { dispatch, documentId: projectId } = useEditor()
+  const captionStyle = useCaptionStyle()
+  const [step, setStep] = React.useState<BriefStep>("topic")
+  const [topic, setTopic] = React.useState("")
+  const [notes, setNotes] = React.useState("")
+  const [brief, setBrief] = React.useState<ProjectReelBriefResult | null>(null)
+  const [voiceoverText, setVoiceoverText] = React.useState("")
+  const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
+  const [voiceId, setVoiceId] = React.useState("")
+  const [modelId, setModelId] = React.useState<VoiceModelId>(VOICE_MODELS[0].id)
+  const [addCaptions, setAddCaptions] = React.useState(true)
+  const [voiceover, setVoiceover] = React.useState<VoiceoverResult | null>(null)
+  const [generatingBrief, setGeneratingBrief] = React.useState(false)
+  const [generatingVoice, setGeneratingVoice] = React.useState(false)
+  const [briefError, setBriefError] = React.useState<string | null>(null)
+  const [voiceError, setVoiceError] = React.useState<string | null>(null)
+  const [copied, setCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open || step !== "voice" || voices) return
+    let active = true
+    listElevenLabsVoices()
+      .then((result) => {
+        if (!active) return
+        setVoices(result.voices)
+        setVoiceId((prev) => prev || result.voices[0]?.id || "")
+        setVoiceError(null)
+      })
+      .catch((loadError) => {
+        if (active) setVoiceError(getVoiceErrorMessage(loadError))
+      })
+    return () => {
+      active = false
+    }
+  }, [open, step, voices])
+
+  function reset() {
+    setStep("topic")
+    setTopic("")
+    setNotes("")
+    setBrief(null)
+    setVoiceoverText("")
+    setVoiceover(null)
+    setBriefError(null)
+    setVoiceError(null)
+    setCopied(false)
+  }
+
+  function handleClose(next: boolean) {
+    if (!next) reset()
+    onOpenChange(next)
+  }
+
+  async function handleGenerateBrief() {
+    if (!topic.trim()) {
+      setBriefError("Enter a topic first.")
+      return
+    }
+    setGeneratingBrief(true)
+    setBriefError(null)
+    setCopied(false)
+    try {
+      const result = await writeProjectBrief(
+        projectId,
+        topic.trim(),
+        notes.trim() || undefined
+      )
+      setBrief(result)
+      setVoiceoverText(result.voiceoverText)
+      setVoiceover(null)
+      setStep("brief")
+    } catch (generateError) {
+      setBriefError(getBriefErrorMessage(generateError))
+    } finally {
+      setGeneratingBrief(false)
+    }
+  }
+
+  async function handleCopyBrief() {
+    if (!brief) return
+    const text = [
+      `Hook: ${brief.brief.hook}`,
+      `Angle: ${brief.brief.angle}`,
+      `Audience: ${brief.brief.audience}`,
+      `Promise: ${brief.brief.promise}`,
+      `CTA: ${brief.brief.cta}`,
+      "",
+      ...brief.beats.map(
+        (beat) =>
+          `[${formatTimecode(beat.startMs)}-${formatTimecode(beat.endMs)}] ${beat.role}: ${beat.line}`
+      ),
+    ].join("\n")
+    await navigator.clipboard.writeText(text).catch(() => undefined)
+    setCopied(true)
+  }
+
+  async function handleGenerateVoice() {
+    if (!voiceId || !voiceoverText.trim()) {
+      setVoiceError("Pick a voice and keep voiceover text.")
+      return
+    }
+    setGeneratingVoice(true)
+    setVoiceError(null)
+    try {
+      const result = await generateVoiceover({
+        voiceId,
+        text: voiceoverText.trim(),
+        modelId,
+      })
+      setVoiceover(result)
+      setStep("insert")
+    } catch (generateError) {
+      setVoiceError(getVoiceErrorMessage(generateError))
+    } finally {
+      setGeneratingVoice(false)
+    }
+  }
+
+  function handleInsert() {
+    if (!voiceover) return
+    dispatch({
+      type: "INSERT_VOICEOVER_BUNDLE",
+      audioClip: {
+        id: editorId(),
+        kind: "audio",
+        name: voiceover.media.original_name,
+        mediaId: voiceover.media.id,
+        url: voiceover.media.url,
+        sourceDurationMs: voiceover.durationMs,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: voiceover.durationMs,
+      },
+      captionClips:
+        addCaptions && voiceover.captions.length
+          ? voiceover.captions.map((line) => ({
+              id: editorId(),
+              kind: "text" as const,
+              name: "Caption",
+              text: line.text,
+              words: line.words,
+              fontId: captionStyle.fontId,
+              fontSize: captionStyle.fontSize,
+              color: captionStyle.color,
+              highlightColor: captionStyle.highlightColor,
+              y: captionStyle.y,
+              trimStartMs: 0,
+              startMs: line.startMs,
+              durationMs: line.endMs - line.startMs,
+            }))
+          : [],
+    })
+    handleClose(false)
+  }
+
+  const busy = generatingBrief || generatingVoice
+  const notConfigured = voiceError === "ElevenLabs is not configured"
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !busy && handleClose(next)}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Brief to Reel</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2 text-xs">
+              {BRIEF_STEPS.map((item, index) => {
+                const active = item.id === step
+                return (
+                  <span
+                    key={item.id}
+                    className={cn(
+                      "rounded-md border px-2 py-1",
+                      active ? "bg-foreground text-background" : "bg-background"
+                    )}
+                  >
+                    {index + 1}. {item.label}
+                  </span>
+                )
+              })}
+            </div>
+
+            {step === "topic" ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Generate a brief from this template&apos;s analyzed source reel.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="brief-topic">Topic</Label>
+                  <Input
+                    id="brief-topic"
+                    value={topic}
+                    placeholder="e.g. founding member offer for a local gym"
+                    onChange={(event) => setTopic(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="brief-notes">Notes (optional)</Label>
+                  <Textarea
+                    id="brief-notes"
+                    rows={3}
+                    value={notes}
+                    placeholder="Mention what must be included or avoided..."
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </div>
+                {briefError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {briefError}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+
+            {step === "brief" && brief ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    ["Hook", brief.brief.hook],
+                    ["Angle", brief.brief.angle],
+                    ["Audience", brief.brief.audience],
+                    ["Promise", brief.brief.promise],
+                    ["CTA", brief.brief.cta],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-md border bg-background p-3">
+                      <div className="text-xs text-muted-foreground">{label}</div>
+                      <p className="text-sm">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="max-h-44 space-y-2 overflow-y-auto rounded-md border bg-background p-3">
+                  {brief.beats.map((beat, index) => (
+                    <div key={index} className="space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="capitalize">
+                          {beat.role}
+                        </Badge>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {formatTimecode(beat.startMs)} –{" "}
+                          {formatTimecode(beat.endMs)}
+                        </span>
+                      </div>
+                      <p className="text-sm">{beat.line}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {beat.visual} · {beat.asset}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-md border bg-background p-3">
+                  <div className="text-xs text-muted-foreground">Asset checklist</div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-sm">
+                    {brief.assetChecklist.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-md border bg-background p-3">
+                  <div className="text-xs text-muted-foreground">Caption draft</div>
+                  <p className="mt-1 text-sm">{brief.captionDraft}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="brief-voiceover">Voiceover script</Label>
+                  <Textarea
+                    id="brief-voiceover"
+                    rows={5}
+                    value={voiceoverText}
+                    onChange={(event) => setVoiceoverText(event.target.value)}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            {step === "voice" ? (
+              notConfigured ? (
+                <p className="text-sm text-muted-foreground">
+                  ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API key
+                  in Settings → AI Providers to generate voiceovers.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="brief-voice">Voice</Label>
+                    <Select
+                      value={voiceId}
+                      onValueChange={setVoiceId}
+                      disabled={!voices || voices.length === 0}
+                    >
+                      <SelectTrigger id="brief-voice" className="w-full">
+                        <SelectValue
+                          placeholder={voices ? "Select a voice" : "Loading…"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(voices ?? []).map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            {voice.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="brief-model">Model</Label>
+                    <Select
+                      value={modelId}
+                      onValueChange={(value) => setModelId(value as VoiceModelId)}
+                    >
+                      <SelectTrigger id="brief-model" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VOICE_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="brief-captions-toggle">Add captions</Label>
+                    <Switch
+                      id="brief-captions-toggle"
+                      checked={addCaptions}
+                      onCheckedChange={setAddCaptions}
+                      aria-label="Add synced captions"
+                    />
+                  </div>
+                  {addCaptions ? (
+                    <CaptionStyleFields idPrefix="brief" style={captionStyle} />
+                  ) : null}
+                  {voiceError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {voiceError}
+                    </p>
+                  ) : null}
+                </>
+              )
+            ) : null}
+
+            {step === "insert" && voiceover ? (
+              <div className="space-y-3">
+                <div className="rounded-md border bg-background p-3">
+                  <p className="text-sm font-medium">{voiceover.media.original_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {addCaptions ? voiceover.captions.length : 0} synced caption clips
+                  </p>
+                  <audio controls src={voiceover.media.url} className="mt-3 w-full" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  The original template audio will be muted when this voiceover is inserted.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          {step === "topic" ? (
+            <>
+              <Button type="button" variant="outline" onClick={() => handleClose(false)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={generatingBrief} onClick={handleGenerateBrief}>
+                {generatingBrief ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <FileTextIcon className="size-4" />
+                )}
+                {generatingBrief ? "Generating…" : "Generate Brief"}
+              </Button>
+            </>
+          ) : null}
+          {step === "brief" ? (
+            <>
+              <Button type="button" variant="outline" onClick={() => setStep("topic")}>
+                Back
+              </Button>
+              <Button type="button" variant="outline" onClick={handleCopyBrief}>
+                <CopyIcon className="size-4" />
+                {copied ? "Copied" : "Copy Brief"}
+              </Button>
+              <Button type="button" onClick={() => setStep("voice")}>
+                Next
+              </Button>
+            </>
+          ) : null}
+          {step === "voice" ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={generatingVoice}
+                onClick={() => setStep("brief")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  generatingVoice ||
+                  notConfigured ||
+                  !voiceId ||
+                  !voiceoverText.trim()
+                }
+                onClick={handleGenerateVoice}
+              >
+                {generatingVoice ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <MicIcon className="size-4" />
+                )}
+                {generatingVoice ? "Generating…" : "Generate Voice"}
+              </Button>
+            </>
+          ) : null}
+          {step === "insert" ? (
+            <>
+              <Button type="button" variant="outline" onClick={() => setStep("voice")}>
+                Back
+              </Button>
+              <Button type="button" onClick={handleInsert}>
+                Insert Into Timeline
+              </Button>
+            </>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -114,6 +114,11 @@ export type EditorAction =
   // Insert a whole generated caption track above everything (track 0 renders
   // on top) as a single undo step.
   | { type: "ADD_CAPTION_CLIPS"; clips: EditorClip[] }
+  | {
+      type: "INSERT_VOICEOVER_BUNDLE"
+      audioClip: EditorClip
+      captionClips: EditorClip[]
+    }
   | { type: "ADD_TRACK" }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
@@ -361,6 +366,33 @@ export function editorReducer(
         clips: sortClips(action.clips),
       }
       return pushUndo(state, [track, ...state.tracks])
+    }
+
+    case "INSERT_VOICEOVER_BUNDLE": {
+      const tracks = state.tracks.map((track) =>
+        track.clips.some(
+          (clip) => clip.kind === "audio" && clip.name === "Original Audio"
+        )
+          ? { ...track, muted: true }
+          : track
+      )
+      const audioTrack: EditorTrack = {
+        id: editorId(),
+        muted: false,
+        clips: [{ ...action.audioClip, startMs: 0 }],
+      }
+      const nextTracks = [...tracks, audioTrack]
+      if (action.captionClips.length) {
+        nextTracks.unshift({
+          id: editorId(),
+          muted: false,
+          clips: sortClips(action.captionClips),
+        })
+      }
+      return {
+        ...pushUndo(state, nextTracks),
+        selectedClipId: action.audioClip.id,
+      }
     }
 
     case "ADD_TRACK":
