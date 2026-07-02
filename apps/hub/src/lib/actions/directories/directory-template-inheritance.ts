@@ -32,7 +32,6 @@ const DIRECTORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
     'claimPendingEmailText',
     'claimPendingReviewText',
     'claimApprovedText',
-    'ownerEditPath',
     'saveIconOpacity',
     'visibility',
   ],

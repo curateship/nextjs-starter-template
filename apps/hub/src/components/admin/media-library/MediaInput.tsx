@@ -20,6 +20,7 @@ interface MediaInputProps {
   usageContext?: string
   acceptVideo?: boolean // Allow videos in addition to images
   hideUrlInput?: boolean // Hide the URL input field, only show picker button
+  showLibraryButton?: boolean
 }
 
 export function MediaInput({
@@ -30,7 +31,8 @@ export function MediaInput({
   description,
   siteId,
   acceptVideo = true,
-  hideUrlInput = false
+  hideUrlInput = false,
+  showLibraryButton = true
 }: MediaInputProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -125,15 +127,17 @@ export function MediaInput({
             placeholder={placeholder}
             className="flex-1"
           />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowPicker(true)}
-            className="flex items-center gap-2"
-          >
-            <ImageIcon className="w-4 h-4" />
-            Library
-          </Button>
+          {showLibraryButton ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowPicker(true)}
+              className="flex items-center gap-2"
+            >
+              <ImageIcon className="w-4 h-4" />
+              Library
+            </Button>
+          ) : null}
         </div>
       )}
 
@@ -148,17 +152,19 @@ export function MediaInput({
             <p className="text-sm font-medium text-muted-foreground">
               No {acceptVideo ? 'media' : 'image'} selected
             </p>
-            <div className="flex justify-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPicker(true)}
-              >
-                <ImageIcon className="w-4 h-4 mr-2" />
-                Choose from Library
-              </Button>
-            </div>
+            {showLibraryButton ? (
+              <div className="flex justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPicker(true)}
+                >
+                  <ImageIcon className="w-4 h-4 mr-2" />
+                  Choose from Library
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -168,14 +174,16 @@ export function MediaInput({
       )}
 
       {/* Media Picker Dialog */}
-      <MediaPicker
-        open={showPicker}
-        onOpenChange={setShowPicker}
-        onSelectMedia={handleSelectMedia}
-        currentMediaUrl={value}
-        showVideos={acceptVideo}
-        site_id={siteId}
-      />
+      {showLibraryButton ? (
+        <MediaPicker
+          open={showPicker}
+          onOpenChange={setShowPicker}
+          onSelectMedia={handleSelectMedia}
+          currentMediaUrl={value}
+          showVideos={acceptVideo}
+          site_id={siteId}
+        />
+      ) : null}
     </div>
   )
 }

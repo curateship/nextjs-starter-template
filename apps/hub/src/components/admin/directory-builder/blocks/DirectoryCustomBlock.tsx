@@ -40,6 +40,7 @@ interface DirectoryCustomBlockProps {
   onContentChange: (field: string, value: any) => void
   template: DirectoryCustomBlockTemplate | null
   siteId: string
+  allowMediaLibrary?: boolean
 }
 
 export function DirectoryCustomBlock({
@@ -47,6 +48,7 @@ export function DirectoryCustomBlock({
   onContentChange,
   template,
   siteId,
+  allowMediaLibrary = true,
 }: DirectoryCustomBlockProps) {
   const values = content.values && typeof content.values === 'object' ? content.values : {}
 
@@ -99,6 +101,7 @@ export function DirectoryCustomBlock({
                   fields={template.fields}
                   values={values}
                   siteId={siteId}
+                  allowMediaLibrary={allowMediaLibrary}
                   onChange={(nextValues) => onContentChange('values', nextValues)}
                 />
               )}
@@ -114,11 +117,13 @@ function DirectoryCustomValuesEditor({
   fields,
   values,
   siteId,
+  allowMediaLibrary,
   onChange,
 }: {
   fields: DirectoryCustomBlockTemplate['fields']
   values: Record<string, any>
   siteId: string
+  allowMediaLibrary: boolean
   onChange: (values: Record<string, any>) => void
 }) {
   const updateValue = (fieldKey: string, value: any) => {
@@ -140,6 +145,7 @@ function DirectoryCustomValuesEditor({
                 <RepeaterFieldEditor
                   fieldLabel={field.label || 'Repeater'}
                   siteId={siteId}
+                  allowMediaLibrary={allowMediaLibrary}
                   rowFields={field.fields || []}
                   rows={Array.isArray(value) ? value : []}
                   onChange={(nextRows) => updateValue(field.key, nextRows)}
@@ -155,6 +161,7 @@ function DirectoryCustomValuesEditor({
             field={field}
             value={value}
             siteId={siteId}
+            allowMediaLibrary={allowMediaLibrary}
             richTextBlockId={`custom-field-${field.id}`}
             onChange={(nextValue) => updateValue(field.key, nextValue)}
           />
@@ -168,12 +175,14 @@ function CustomFieldEditor({
   field,
   value,
   siteId,
+  allowMediaLibrary,
   richTextBlockId,
   onChange,
 }: {
   field: DirectoryCustomBlockField | DirectoryCustomBlockRepeaterField
   value: any
   siteId: string
+  allowMediaLibrary: boolean
   richTextBlockId: string
   onChange: (value: any) => void
 }) {
@@ -264,6 +273,7 @@ function CustomFieldEditor({
             onChange={onChange}
             siteId={siteId}
             acceptVideo={false}
+            showLibraryButton={allowMediaLibrary}
           />
         </CardContent>
       </Card>
@@ -312,12 +322,14 @@ function getTextInputFieldPlaceholder(type: DirectoryCustomBlockField["type"] | 
 function RepeaterFieldEditor({
   fieldLabel,
   siteId,
+  allowMediaLibrary,
   rowFields,
   rows,
   onChange,
 }: {
   fieldLabel: string
   siteId: string
+  allowMediaLibrary: boolean
   rowFields: DirectoryCustomBlockRepeaterField[]
   rows: Record<string, any>[]
   onChange: (rows: Record<string, any>[]) => void
@@ -383,6 +395,7 @@ function RepeaterFieldEditor({
                   row={row}
                   rowFields={rowFields}
                   siteId={siteId}
+                  allowMediaLibrary={allowMediaLibrary}
                   onDelete={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}
                   onChange={(nextRow) => {
                     const nextRows = [...rows]
@@ -405,6 +418,7 @@ function SortableRepeaterRow({
   row,
   rowFields,
   siteId,
+  allowMediaLibrary,
   onDelete,
   onChange,
 }: {
@@ -413,6 +427,7 @@ function SortableRepeaterRow({
   row: Record<string, any>
   rowFields: DirectoryCustomBlockRepeaterField[]
   siteId: string
+  allowMediaLibrary: boolean
   onDelete: () => void
   onChange: (row: Record<string, any>) => void
 }) {
@@ -466,6 +481,7 @@ function SortableRepeaterRow({
         rowId={rowId}
         row={row}
         siteId={siteId}
+        allowMediaLibrary={allowMediaLibrary}
         onChange={onChange}
       />
     </div>
@@ -477,12 +493,14 @@ function RepeaterRowFields({
   rowId,
   row,
   siteId,
+  allowMediaLibrary,
   onChange,
 }: {
   fields: DirectoryCustomBlockRepeaterField[]
   rowId: string
   row: Record<string, any>
   siteId: string
+  allowMediaLibrary: boolean
   onChange: (row: Record<string, any>) => void
 }) {
   const updateValue = (fieldKey: string, value: any) => {
@@ -502,6 +520,7 @@ function RepeaterRowFields({
             field={field}
             value={value}
             siteId={siteId}
+            allowMediaLibrary={allowMediaLibrary}
             richTextBlockId={`custom-repeater-field-${rowId}-${field.id}`}
             onChange={(nextValue) => updateValue(field.key, nextValue)}
           />

@@ -59,7 +59,7 @@ export const ACCOUNT_PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       title: 'Claimed Listings',
       description: 'Manage the listings approved for your account.',
       listingLabel: 'Listing',
-      saveButtonText: 'Save Listing',
+      saveButtonText: 'Submit for Review',
       emptyText: 'No approved listing claims yet.',
       visibility: {},
     },

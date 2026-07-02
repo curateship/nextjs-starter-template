@@ -307,15 +307,6 @@ export function DirectoryTemplateBlockEditor({
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="directory-core-claim-edit-path">Owner Edit Path</FieldLabel>
-                  <Input
-                    id="directory-core-claim-edit-path"
-                    value={content.ownerEditPath ?? "/account"}
-                    onChange={(event) => onContentChange("ownerEditPath", event.target.value)}
-                  />
-                </Field>
-
-                <Field>
                   <FieldLabel htmlFor="directory-core-claim-email-text">Pending Email Text</FieldLabel>
                   <Input
                     id="directory-core-claim-email-text"
