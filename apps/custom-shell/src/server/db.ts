@@ -3,16 +3,10 @@ import { Pool } from "pg"
 
 import * as schema from "@/server/schema"
 
-const LOCAL_DATABASE_URL =
-  "postgresql://postgres:localdev@localhost:54320/postgres"
+const LOCAL_DATABASE_URL = `postgresql://postgres:localdev@localhost:${process.env.CUSTOM_SHELL_POSTGRES_PORT || "54320"}/custom_shell`
 
 export function getDatabaseUrl() {
-  const url =
-    process.env.CUSTOM_SHELL_DATABASE_URL ||
-    process.env.DATABASE_URL ||
-    LOCAL_DATABASE_URL
-
-  return url.replace(/^postgresql\+psycopg:\/\//, "postgresql://")
+  return process.env.CUSTOM_SHELL_DATABASE_URL || LOCAL_DATABASE_URL
 }
 
 const pool = new Pool({

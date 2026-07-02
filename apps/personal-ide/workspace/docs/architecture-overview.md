@@ -72,12 +72,12 @@ Workspace rows show the app folder name as the main name. The generated workspac
 
 When a new app is created:
 
-1. The user enters a safe app folder name and picks the parent folder.
-2. Rust copies the Custom Shell app as the scaffold.
-3. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
-4. Rust rewrites generated metadata for a standalone app, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, and `.gitignore`.
-5. Rust initializes Git in the new app folder and creates the initial scaffold commit on `develop`.
-6. The new app folder is registered through the same workspace creation path as an existing app.
+1. The user enters a safe app folder name and picks a parent folder inside a Git repo with `origin`, usually the repo `apps` folder.
+2. Rust resolves the repo's primary worktree and creates a Personal IDE worktree branch.
+3. Rust copies the Custom Shell app into the new app path inside that worktree.
+4. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
+5. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
+6. The generated app is registered as a normal repo-backed workspace, so Git sync and merge use the repo's existing `origin`.
 
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
@@ -205,31 +205,41 @@ The terminal can still be visually fragile because PTY apps and shell redraw beh
 
 For web apps, Personal IDE can start a dev server in a workspace terminal and open its localhost URL.
 
+Known web apps use the fixed ports in `local-apps.json`. Web apps not listed there use the next compact generated ports after the highest fixed port, assigned by current workspace list order. Desktop/Tauri workspaces do not reserve ports, and deleted workspace numbers do not create port gaps.
+
 For app folders inside a monorepo, the generated server command is:
 
 ```bash
 test -d ../../node_modules || (cd ../.. && npm install)
-cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<package-name>" -- --port <port>
+cd ../.. && CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" CUSTOM_SHELL_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev --workspace="<package-name>" -- --port <port>
 ```
 
 For standalone app repos, the generated server command is:
 
 ```bash
 test -d node_modules || npm install
-CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev -- --port <port>
+CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" CUSTOM_SHELL_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" npm run dev -- --port <port>
 ```
 
 `--host` was removed because Hub's Next dev command rejects it.
 
 Tauri apps are not started through this web server helper.
 
-Apps created from the Custom Shell scaffold are standalone Git repos. Their generated `vite.config.ts` defaults to port `3000`, and the Start Server helper passes the assigned workspace port at runtime.
+Apps created from the Custom Shell scaffold are repo-backed workspaces. Their generated `vite.config.ts` defaults to port `3000`, and the Start Server helper passes the assigned workspace port at runtime.
+
+Generated Custom Shell apps also get an ignored `.env.local` with local `CUSTOM_SHELL_APP_ORIGINS`, an app-named `CUSTOM_SHELL_DATABASE_URL`, an app-specific `CUSTOM_SHELL_POSTGRES_PORT`, app-branded login copy, and a `predev` database setup script. The setup script starts local Postgres with the app name as the Docker Compose project, creates the app database, applies copied SQL migrations, and seeds the local admin account before the dev server starts.
+
+`CUSTOM_SHELL_DATABASE_URL` is the only supported database URL override for Custom Shell-derived apps. `DATABASE_URL` and alternate Postgres URL schemes are intentionally not supported.
 
 ## Git
 
 Each workspace has an isolated branch.
 
 The Changes panel shows real Git status for the whole active worktree repo. Files inside the selected app open as app-relative editor tabs. Text files outside the selected app, such as root config files, open as repo-relative editor tabs.
+
+Repos without a remote named `origin` can still commit locally, but Sync, Merge, and Update from develop require `origin`. Generated apps must be created inside a repo that already has `origin`.
+
+Deleting a workspace requires a clean worktree and no unpushed workspace commits. When those checks pass, Personal IDE removes both the worktree and its local `personal-ide/workspace-*` branch so the workspace number can be reused.
 
 Implemented actions:
 

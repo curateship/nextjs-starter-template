@@ -52,7 +52,7 @@ import {
   loadThemeSetting,
   resolveIsDarkTheme,
 } from "@/app/preferences"
-import { serverPortForWorkspace, serverStartCommand } from "@/app/server"
+import { serverPortForWorkspaceInList, serverStartCommand } from "@/app/server"
 import { nextFrame } from "@/app/terminal"
 import { useEditorSettings } from "@/hooks/use-editor-settings"
 import { useEditorTabs } from "@/hooks/use-editor-tabs"
@@ -373,7 +373,7 @@ function App() {
     }
     if (workspace.id !== activeWorkspaceId) void selectWorkspace(workspace.id)
 
-    const port = serverPortForWorkspace(workspace)
+    const port = serverPortForWorkspaceInList(workspace, workspaceList.workspaces)
     const terminalId = `${workspace.id}-server`
     const command = serverStartCommand(workspace, port)
     const existingServer = terminalsByWorkspace[workspace.id]?.terminals.find(
@@ -406,7 +406,7 @@ function App() {
     }
 
     try {
-      await openServerUrl(serverPortForWorkspace(workspace))
+      await openServerUrl(serverPortForWorkspaceInList(workspace, workspaceList.workspaces))
     } catch (error) {
       setFileError(readableError(error))
     }
