@@ -179,7 +179,6 @@ export function DirectoryCoreBlock({ content, directory, loginPath, siteId, card
                   key="claim"
                   directoryId={directory.id!}
                   loginPath={loginPath}
-                  ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
                   buttonText={link.label?.trim() || (typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing")}
                   pendingEmailText={
                     typeof content?.claimPendingEmailText === "string"

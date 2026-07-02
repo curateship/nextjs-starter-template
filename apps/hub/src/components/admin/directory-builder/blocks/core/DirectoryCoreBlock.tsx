@@ -51,6 +51,7 @@ interface DirectoryCoreBlockProps {
   onDirectoryTitleChange?: (title: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   showDirectoryTitleField?: boolean
+  showDirectoryTitlePlaceholder?: boolean
 }
 
 export function DirectoryCoreBlock({
@@ -62,6 +63,7 @@ export function DirectoryCoreBlock({
   onDirectoryTitleChange,
   onDirectoryFeaturedImageChange,
   showDirectoryTitleField = true,
+  showDirectoryTitlePlaceholder = true,
 }: DirectoryCoreBlockProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
@@ -409,9 +411,11 @@ export function DirectoryCoreBlock({
             </>
           ) : (
             <>
-              <BlockEditorEmptyState>
-                Title and featured image come from each real directory item.
-              </BlockEditorEmptyState>
+              {showDirectoryTitlePlaceholder ? (
+                <BlockEditorEmptyState>
+                  Title and featured image come from each real directory item.
+                </BlockEditorEmptyState>
+              ) : null}
 
               {addressRatingFields}
             </>

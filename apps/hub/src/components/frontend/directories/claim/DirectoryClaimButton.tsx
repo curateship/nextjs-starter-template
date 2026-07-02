@@ -19,7 +19,6 @@ import { useSiteAuthUser } from "@/components/frontend/layout/site-auth-provider
 interface DirectoryClaimButtonProps {
   directoryId: string
   loginPath?: string
-  ownerEditPath?: string
   buttonText?: string
   pendingEmailText?: string
   pendingReviewText?: string
@@ -39,18 +38,11 @@ function buildAuthHref(authPath: string, redirectPath: string) {
   return `${authPath}${separator}tab=login&redirect=${encodeURIComponent(redirectPath)}`
 }
 
-function normalizeOwnerEditPath(value?: string) {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
-    return "/account"
-  }
-
-  return value
-}
+const OWNER_EDIT_PATH = "/account/my-listings"
 
 export function DirectoryClaimButton({
   directoryId,
   loginPath = "/account",
-  ownerEditPath = "/account",
   buttonText = "Claim Listing",
   pendingEmailText = "Check Business Email",
   pendingReviewText = "Claim Pending Review",
@@ -82,7 +74,6 @@ export function DirectoryClaimButton({
   }, [claimParam])
 
   const redirectPath = pathname || "/"
-  const editPath = normalizeOwnerEditPath(ownerEditPath)
   const authHref = buildAuthHref(loginPath, redirectPath)
 
   const handleClaimClick = async () => {
@@ -109,7 +100,7 @@ export function DirectoryClaimButton({
     }
 
     if (result.canEdit) {
-      window.location.href = editPath
+      window.location.href = OWNER_EDIT_PATH
       return
     }
 
@@ -166,7 +157,7 @@ export function DirectoryClaimButton({
   if (state?.canEdit) {
     return (
       <a
-        href={editPath}
+        href={OWNER_EDIT_PATH}
         className={rowClassName}
       >
         <CheckCircle2 className="h-5 w-5 shrink-0" />

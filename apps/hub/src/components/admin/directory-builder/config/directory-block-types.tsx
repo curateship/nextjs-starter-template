@@ -20,7 +20,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
       claimPendingEmailText: 'Check Business Email',
       claimPendingReviewText: 'Claim Pending Review',
       claimApprovedText: 'Edit Listing',
-      ownerEditPath: '/account',
       visibility: {},
     },
     conflictsWith: [DIRECTORY_CORE_BLOCK_TYPE],
