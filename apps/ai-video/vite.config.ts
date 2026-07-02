@@ -32,12 +32,12 @@ const securityHeaders = {
 export default defineConfig({
   plugins: [
     {
-      name: "ai-video-media-file-api-dev-route",
+      name: "ai-video-api-asset-dev-route",
       apply: "serve",
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
           const pathname = new URL(req.url ?? "/", "http://localhost").pathname
-          if (/^\/api\/v1\/media\/[^/]+\/file$/.test(pathname)) {
+          if (isApiAssetRoute(pathname)) {
             delete req.headers["sec-fetch-dest"]
           }
           next()
@@ -68,3 +68,14 @@ export default defineConfig({
     strictPort: true,
   },
 })
+
+function isApiAssetRoute(pathname: string) {
+  return [
+    /^\/api\/v1\/media\/[^/]+\/file$/,
+    /^\/api\/v1\/actors\/[^/]+\/image$/,
+    /^\/api\/v1\/creators\/[^/]+\/avatar$/,
+    /^\/api\/v1\/projects\/[^/]+\/render-thumbnail$/,
+    /^\/api\/v1\/templates\/[^/]+\/thumbnail$/,
+    /^\/api\/v1\/viral-videos\/[^/]+\/thumbnail$/,
+  ].some((pattern) => pattern.test(pathname))
+}
