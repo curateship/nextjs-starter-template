@@ -1,7 +1,7 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::{Read, Write},
     path::{Component, Path, PathBuf},
@@ -21,6 +21,7 @@ const TERMINAL_OUTPUT_BUFFER_SIZE: usize = 16 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
 const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
+const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
     "Use lowercase letters, numbers, hyphens, or underscores for the app name.";
@@ -278,7 +279,7 @@ async fn create_app_from_custom_shell(
     let Some(selected) = app
         .dialog()
         .file()
-        .set_title("Select New App Parent Folder")
+        .set_title("Select App Parent Folder Inside Repo")
         .blocking_pick_folder()
     else {
         return Ok(None);
@@ -293,18 +294,17 @@ async fn create_app_from_custom_shell(
         return Err("Selected path is not a folder".to_string());
     }
 
-    let app_folder = parent_folder.join(&app_name);
-    if app_folder.exists() {
-        return Err("An app with that folder name already exists there".to_string());
-    }
-
+    let (git_root, app_relative_path) = new_app_repo_target(&parent_folder, &app_name)?;
     let scaffold_root = custom_shell_scaffold_dir()?;
-    copy_scaffold_dir(&scaffold_root, &app_folder)?;
-    rewrite_scaffold_metadata(&app_folder, &app_name)?;
-    init_new_app_repo(&app_folder)?;
-
-    let app_folder = fs::canonicalize(app_folder).map_err(|error| error.to_string())?;
-    add_workspace_for_app(&app, &state, app_folder).map(Some)
+    add_workspace_for_new_app(
+        &app,
+        &state,
+        git_root,
+        app_relative_path,
+        &scaffold_root,
+        &app_name,
+    )
+    .map(Some)
 }
 
 fn add_workspace_for_app(
@@ -323,14 +323,35 @@ fn add_workspace_for_app(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "Workspace".to_string());
 
+    add_workspace_with(
+        app,
+        state,
+        git_root,
+        app_relative_path,
+        app_name,
+        |app_root| copy_local_env_files(&app_folder, app_root),
+    )
+}
+
+fn add_workspace_with<F>(
+    app: &AppHandle,
+    state: &State<'_, WorkspaceState>,
+    git_root: PathBuf,
+    app_relative_path: String,
+    app_name: String,
+    prepare_app_root: F,
+) -> Result<WorkspaceList, String>
+where
+    F: FnOnce(&Path) -> Result<(), String>,
+{
     let mut app_state = state
         .inner
         .lock()
         .map_err(|_| "Workspace state is unavailable".to_string())?;
-    let (id, index) = next_workspace_id(&app, &app_state, &git_root)?;
+    let (id, index) = next_workspace_id(app, &app_state, &git_root)?;
     let name = format!("Workspace #{}", index);
     let branch = format!("personal-ide/{}", id);
-    let worktree_root = worktrees_dir(&app)?.join(&id);
+    let worktree_root = worktrees_dir(app)?.join(&id);
     let app_root = if app_relative_path.is_empty() {
         worktree_root.clone()
     } else {
@@ -349,10 +370,20 @@ fn add_workspace_for_app(
         ],
     )?;
 
-    copy_local_env_files(&app_folder, &app_root)?;
-    create_support_dirs(&app_root)?;
-    let worktree_root = fs::canonicalize(worktree_root).map_err(|error| error.to_string())?;
-    let app_root = fs::canonicalize(app_root).map_err(|error| error.to_string())?;
+    let (worktree_root, app_root) =
+        match prepare_workspace_app_root(&worktree_root, &app_root, prepare_app_root) {
+            Ok(paths) => paths,
+            Err(error) => {
+                if let Err(cleanup_error) =
+                    cleanup_created_worktree(&git_root, &worktree_root, &branch)
+                {
+                    return Err(format!(
+                        "{error}; cleanup failed after workspace setup error: {cleanup_error}"
+                    ));
+                }
+                return Err(error);
+            }
+        };
 
     app_state.next_workspace_index = index + 1;
     app_state.active_workspace_id = Some(id.clone());
@@ -371,6 +402,47 @@ fn add_workspace_for_app(
 
     state.save(app)?;
     workspace_list(state)
+}
+
+fn prepare_workspace_app_root<F>(
+    worktree_root: &Path,
+    app_root: &Path,
+    prepare_app_root: F,
+) -> Result<(PathBuf, PathBuf), String>
+where
+    F: FnOnce(&Path) -> Result<(), String>,
+{
+    prepare_app_root(app_root)?;
+    create_support_dirs(app_root)?;
+    let worktree_root = fs::canonicalize(worktree_root).map_err(|error| error.to_string())?;
+    let app_root = fs::canonicalize(app_root).map_err(|error| error.to_string())?;
+    Ok((worktree_root, app_root))
+}
+
+fn add_workspace_for_new_app(
+    app: &AppHandle,
+    state: &State<'_, WorkspaceState>,
+    git_root: PathBuf,
+    app_relative_path: String,
+    scaffold_root: &Path,
+    app_name: &str,
+) -> Result<WorkspaceList, String> {
+    if app_relative_path.is_empty() {
+        return Err("New app path must be inside the selected repo".to_string());
+    }
+    let database_port = generated_database_port(app_name, &used_generated_database_ports(state)?)?;
+
+    add_workspace_with(
+        app,
+        state,
+        git_root,
+        app_relative_path,
+        app_name.to_string(),
+        |app_root| {
+            copy_scaffold_dir(scaffold_root, app_root)?;
+            rewrite_scaffold_metadata(app_root, app_name, database_port)
+        },
+    )
 }
 
 #[tauri::command]
@@ -453,6 +525,7 @@ fn delete_workspace(
                 .to_string(),
         );
     }
+    ensure_workspace_branch_can_be_deleted(&workspace)?;
 
     kill_terminals_for_workspace(&workspace_id, &state)?;
 
@@ -466,6 +539,7 @@ fn delete_workspace(
             ],
         )?;
     }
+    delete_workspace_branch(&workspace.git_root, &workspace.branch)?;
 
     let mut app_state = state
         .inner
@@ -474,6 +548,9 @@ fn delete_workspace(
     app_state
         .workspaces
         .retain(|workspace| workspace.id != workspace_id);
+    if let Some(index) = workspace_index(&workspace_id) {
+        app_state.next_workspace_index = app_state.next_workspace_index.min(index);
+    }
 
     if app_state.active_workspace_id.as_deref() == Some(&workspace_id) {
         app_state.active_workspace_id = app_state
@@ -653,7 +730,7 @@ fn write_repo_text_file(
 }
 
 fn write_text_file_path(file: &Path, contents: &str) -> Result<(), String> {
-    let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(file).map_err(|error| error.to_string())?;
 
     if !metadata.is_file() {
         return Err("Path is not a file".to_string());
@@ -663,7 +740,7 @@ fn write_text_file_path(file: &Path, contents: &str) -> Result<(), String> {
         return Err("File is larger than 1 MiB".to_string());
     }
 
-    let existing = fs::read(&file).map_err(|error| error.to_string())?;
+    let existing = fs::read(file).map_err(|error| error.to_string())?;
     if existing.contains(&0) || String::from_utf8(existing).is_err() {
         return Err("Binary files are not supported".to_string());
     }
@@ -1221,6 +1298,7 @@ fn git_update_from_develop(
     state: State<'_, WorkspaceState>,
 ) -> Result<GitStatus, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
+    require_origin_remote(&workspace.worktree_root)?;
 
     if !git_status_lines(&workspace.worktree_root)?.is_empty() {
         return Err("Commit or discard changes before updating from develop".to_string());
@@ -1490,6 +1568,10 @@ fn next_workspace_id(
     }
 }
 
+fn workspace_index(workspace_id: &str) -> Option<u32> {
+    workspace_id.strip_prefix("workspace-")?.parse().ok()
+}
+
 fn create_support_dirs(app_root: &Path) -> Result<(), String> {
     for child in ["tasks", "docs"] {
         fs::create_dir_all(app_root.join(WORKSPACE_DIR).join(child))
@@ -1517,6 +1599,27 @@ fn validate_new_app_name(value: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
+fn new_app_repo_target(parent_folder: &Path, app_name: &str) -> Result<(PathBuf, String), String> {
+    let parent_folder = fs::canonicalize(parent_folder).map_err(|error| error.to_string())?;
+    let selected_git_root = git_root_for(&parent_folder)
+        .map_err(|_| "Select a folder inside a Git repo with origin.".to_string())?;
+    let git_root = primary_worktree_for(&parent_folder)?;
+    require_origin_remote(&git_root)?;
+
+    let parent_relative_path = relative_path(&selected_git_root, &parent_folder)?;
+    let app_relative_path = if parent_relative_path.is_empty() {
+        app_name.to_string()
+    } else {
+        format!("{}/{}", parent_relative_path, app_name)
+    };
+
+    if parent_folder.join(app_name).exists() || git_root.join(&app_relative_path).exists() {
+        return Err("An app with that folder name already exists there".to_string());
+    }
+
+    Ok((git_root, app_relative_path))
+}
+
 fn is_new_app_name_character(character: char) -> bool {
     character.is_ascii_lowercase()
         || character.is_ascii_digit()
@@ -1526,14 +1629,22 @@ fn is_new_app_name_character(character: char) -> bool {
 
 fn custom_shell_scaffold_dir() -> Result<PathBuf, String> {
     let current_dir = std::env::current_dir().map_err(|error| error.to_string())?;
+    find_custom_shell_scaffold_dir(&current_dir, Path::new(env!("CARGO_MANIFEST_DIR")))
+}
 
-    for ancestor in current_dir.ancestors() {
-        for candidate in [
-            ancestor.join(CUSTOM_SHELL_APP_DIR),
-            ancestor.join("apps").join(CUSTOM_SHELL_APP_DIR),
-        ] {
-            if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
-                return fs::canonicalize(candidate).map_err(|error| error.to_string());
+fn find_custom_shell_scaffold_dir(
+    current_root: &Path,
+    manifest_root: &Path,
+) -> Result<PathBuf, String> {
+    for root in [current_root, manifest_root] {
+        for ancestor in root.ancestors() {
+            for candidate in [
+                ancestor.join(CUSTOM_SHELL_APP_DIR),
+                ancestor.join("apps").join(CUSTOM_SHELL_APP_DIR),
+            ] {
+                if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+                    return fs::canonicalize(candidate).map_err(|error| error.to_string());
+                }
             }
         }
     }
@@ -1584,20 +1695,26 @@ fn should_skip_scaffold_entry(name: &str) -> bool {
     )
 }
 
-fn rewrite_scaffold_metadata(app_root: &Path, app_name: &str) -> Result<(), String> {
-    rewrite_package_name(app_root, app_name)?;
-    fs::write(app_root.join("vite.config.ts"), standalone_vite_config())
+fn rewrite_scaffold_metadata(
+    app_root: &Path,
+    app_name: &str,
+    database_port: u16,
+) -> Result<(), String> {
+    rewrite_package_metadata(app_root, app_name)?;
+    fs::write(app_root.join("vite.config.ts"), generated_vite_config())
         .map_err(|error| error.to_string())?;
     fs::write(app_root.join("README.md"), generated_readme(app_name))
         .map_err(|error| error.to_string())?;
     fs::write(app_root.join("AGENTS.md"), generated_agents_md(app_name))
         .map_err(|error| error.to_string())?;
     ensure_generated_gitignore(app_root)?;
+    write_generated_env(app_root, app_name, database_port)?;
     rewrite_root_title(app_root, app_name)?;
+    rewrite_login_branding(app_root, app_name)?;
     Ok(())
 }
 
-fn rewrite_package_name(app_root: &Path, app_name: &str) -> Result<(), String> {
+fn rewrite_package_metadata(app_root: &Path, app_name: &str) -> Result<(), String> {
     let path = app_root.join("package.json");
     let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
     let mut package =
@@ -1611,11 +1728,106 @@ fn rewrite_package_name(app_root: &Path, app_name: &str) -> Result<(), String> {
         "name".to_string(),
         serde_json::Value::String(app_name.to_string()),
     );
+    let scripts = object
+        .entry("scripts".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(scripts) = scripts.as_object_mut() else {
+        return Err("Scaffold package.json scripts must be a JSON object".to_string());
+    };
+    scripts.insert(
+        "db:setup".to_string(),
+        serde_json::Value::String(format!("node {DATABASE_SETUP_SCRIPT}")),
+    );
+    scripts.insert(
+        "predev".to_string(),
+        serde_json::Value::String("npm run db:setup".to_string()),
+    );
+
     let contents = serde_json::to_string_pretty(&package).map_err(|error| error.to_string())?;
     fs::write(path, format!("{}\n", contents)).map_err(|error| error.to_string())
 }
 
-fn standalone_vite_config() -> &'static str {
+fn write_generated_env(app_root: &Path, app_name: &str, database_port: u16) -> Result<(), String> {
+    fs::write(
+        app_root.join(".env.local"),
+        format!(
+            "# Generated by Personal IDE.\nCUSTOM_SHELL_APP_ORIGINS=\"http://127.0.0.1:3000,http://localhost:3000\"\nCUSTOM_SHELL_POSTGRES_PORT=\"{database_port}\"\nCUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:{database_port}/{app_name}\"\n"
+        ),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn used_generated_database_ports(
+    state: &State<'_, WorkspaceState>,
+) -> Result<HashSet<u16>, String> {
+    let app_roots = {
+        let app_state = state
+            .inner
+            .lock()
+            .map_err(|_| "Workspace state is unavailable".to_string())?;
+        app_state
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.app_root.clone())
+            .collect::<Vec<_>>()
+    };
+
+    let mut ports = HashSet::new();
+    for app_root in app_roots {
+        if let Some(port) = read_generated_database_port(&app_root)? {
+            ports.insert(port);
+        }
+    }
+
+    Ok(ports)
+}
+
+fn read_generated_database_port(app_root: &Path) -> Result<Option<u16>, String> {
+    let env_path = app_root.join(".env.local");
+    if !env_path.is_file() {
+        return Ok(None);
+    }
+
+    let contents = fs::read_to_string(env_path).map_err(|error| error.to_string())?;
+    generated_database_port_from_env(&contents)
+}
+
+fn generated_database_port_from_env(contents: &str) -> Result<Option<u16>, String> {
+    for line in contents.lines() {
+        let line = line.trim();
+        let Some(value) = line.strip_prefix("CUSTOM_SHELL_POSTGRES_PORT=") else {
+            continue;
+        };
+        let port = value
+            .trim()
+            .trim_matches(['"', '\''])
+            .parse::<u16>()
+            .map_err(|_| {
+                "Generated app .env.local has an invalid CUSTOM_SHELL_POSTGRES_PORT.".to_string()
+            })?;
+        return Ok(Some(port));
+    }
+
+    Ok(None)
+}
+
+fn generated_database_port(app_name: &str, used_ports: &HashSet<u16>) -> Result<u16, String> {
+    let hash = app_name.bytes().fold(0_u32, |hash, byte| {
+        hash.wrapping_mul(31).wrapping_add(byte as u32)
+    });
+    let base_offset = hash % 1_000;
+
+    for offset in 0..1_000 {
+        let candidate = 54_000 + ((base_offset + offset) % 1_000) as u16;
+        if !used_ports.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+
+    Err("No generated database ports are available.".to_string())
+}
+
+fn generated_vite_config() -> &'static str {
     r#"import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
@@ -1691,20 +1903,21 @@ fn rewrite_root_title(app_root: &Path, app_name: &str) -> Result<(), String> {
     fs::write(path, contents).map_err(|error| error.to_string())
 }
 
-fn init_new_app_repo(app_root: &Path) -> Result<(), String> {
-    run_git(app_root, &["init", "-q"])?;
-    run_git(
-        app_root,
-        &["config", "user.email", "personal-ide@example.local"],
-    )?;
-    run_git(app_root, &["config", "user.name", "Personal IDE"])?;
-    run_git(app_root, &["symbolic-ref", "HEAD", "refs/heads/develop"])?;
-    run_git(app_root, &["add", "."])?;
-    run_git(
-        app_root,
-        &["commit", "-q", "-m", "Initial scaffold from custom shell"],
-    )?;
-    Ok(())
+fn rewrite_login_branding(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let path = app_root.join("src/routes/login.tsx");
+    if !path.is_file() {
+        return Ok(());
+    }
+
+    let title = title_from_slug(app_name);
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let contents = contents
+        .replace("Sign in to Custom Shell", &format!("Sign in to {title}"))
+        .replace(
+            "Use your Custom Shell account.",
+            &format!("Use your {title} account."),
+        );
+    fs::write(path, contents).map_err(|error| error.to_string())
 }
 
 fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), String> {
@@ -1728,7 +1941,7 @@ fn read_text_file_at(root: &Path, relative_path: &str) -> Result<String, String>
 }
 
 fn read_text_file_path(file: &Path) -> Result<String, String> {
-    let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(file).map_err(|error| error.to_string())?;
 
     if !metadata.is_file() {
         return Err("Path is not a file".to_string());
@@ -2048,17 +2261,32 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clean_repo_path, init_new_app_repo, normalize_task_status, parse_diff_hunk,
-        parse_skill_tags, read_git_repo_text_file, render_task_template,
+        clean_repo_path, cleanup_created_worktree, delete_workspace_branch,
+        ensure_workspace_branch_can_be_deleted, find_custom_shell_scaffold_dir,
+        generated_database_port, generated_database_port_from_env, git_branch_exists,
+        has_origin_remote, new_app_repo_target, normalize_task_status, parse_diff_hunk,
+        parse_skill_tags, path_arg, primary_worktree_for, push_workspace_branch,
+        read_git_repo_text_file, render_task_template, rewrite_scaffold_metadata,
         should_skip_scaffold_entry, validate_editor_settings, validate_new_app_name, DiffHunk,
         EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
+        collections::HashSet,
         fs,
-        path::Path,
+        path::{Path, PathBuf},
         process::Command,
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    const WORKSPACE_10_BRANCH: &str = "personal-ide/workspace-10";
+
+    fn temp_path(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("personal-ide-{label}-test-{unique}"))
+    }
 
     fn run_test_git(root: &Path, args: &[&str]) {
         let status = Command::new("git")
@@ -2067,6 +2295,31 @@ mod tests {
             .status()
             .expect("run git command");
         assert!(status.success(), "git {:?} failed", args);
+    }
+
+    fn init_test_repo(root: &Path) {
+        fs::create_dir_all(root).expect("create repo");
+        fs::write(root.join("README.md"), "# Test\n").expect("write readme");
+        run_test_git(root, &["init", "-q"]);
+        run_test_git(root, &["config", "user.email", "test@example.local"]);
+        run_test_git(root, &["config", "user.name", "Test"]);
+        run_test_git(root, &["checkout", "-q", "-b", "develop"]);
+        run_test_git(root, &["add", "."]);
+        run_test_git(root, &["commit", "-q", "-m", "initial"]);
+    }
+
+    fn test_workspace(root: &Path, id: &str, branch: &str) -> WorkspaceRecord {
+        WorkspaceRecord {
+            id: id.to_string(),
+            name: id.to_string(),
+            app_name: "sample-app".to_string(),
+            hidden: false,
+            branch: branch.to_string(),
+            git_root: root.to_path_buf(),
+            worktree_root: root.to_path_buf(),
+            app_root: root.to_path_buf(),
+            app_relative_path: String::new(),
+        }
     }
 
     #[test]
@@ -2154,24 +2407,241 @@ mod tests {
     }
 
     #[test]
-    fn init_new_app_repo_creates_initial_commit_on_develop() {
+    fn scaffold_lookup_uses_manifest_root_when_current_dir_is_outside_repo() {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system time before unix epoch")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("personal-ide-new-app-test-{unique}"));
-        fs::create_dir_all(&root).expect("create app dir");
-        fs::write(root.join("package.json"), "{}\n").expect("write app file");
+        let root = std::env::temp_dir().join(format!("personal-ide-scaffold-test-{unique}"));
+        let manifest_root = root.join("apps/personal-ide/src-tauri");
+        let scaffold_root = root.join("apps/custom-shell");
+        let outside_root = std::env::temp_dir().join(format!("personal-ide-outside-test-{unique}"));
 
-        init_new_app_repo(&root).expect("init new app repo");
+        fs::create_dir_all(&manifest_root).expect("create manifest dir");
+        fs::create_dir_all(scaffold_root.join("src")).expect("create scaffold src");
+        fs::create_dir_all(&outside_root).expect("create outside dir");
+        fs::write(scaffold_root.join("package.json"), "{}\n").expect("write package");
 
-        let output = Command::new("git")
-            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-            .current_dir(&root)
-            .output()
-            .expect("read current branch");
-        assert!(output.status.success(), "git rev-parse failed");
-        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "develop");
+        assert_eq!(
+            find_custom_shell_scaffold_dir(&outside_root, &manifest_root).unwrap(),
+            fs::canonicalize(scaffold_root).expect("canonicalize scaffold")
+        );
+
+        fs::remove_dir_all(root).expect("remove temp scaffold test");
+        fs::remove_dir_all(outside_root).expect("remove temp outside test");
+    }
+
+    #[test]
+    fn scaffold_metadata_generates_app_env_and_branding() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("personal-ide-db-scaffold-test-{unique}"));
+        fs::create_dir_all(root.join("src/routes")).expect("create app routes");
+        fs::write(
+            root.join("package.json"),
+            r#"{"name":"custom-shell","scripts":{"dev":"vite dev"}}"#,
+        )
+        .expect("write package");
+        fs::write(
+            root.join("src/routes/__root.tsx"),
+            r#"{ title: "custom-shell" }"#,
+        )
+        .expect("write root route");
+        fs::write(
+            root.join("src/routes/login.tsx"),
+            r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
+        )
+        .expect("write login route");
+        rewrite_scaffold_metadata(&root, "sample-app", 54_123).expect("rewrite scaffold metadata");
+
+        let package = fs::read_to_string(root.join("package.json")).expect("read package");
+        let package: serde_json::Value = serde_json::from_str(&package).expect("parse package");
+        assert_eq!(
+            package["scripts"]["db:setup"],
+            "node scripts/setup-database.mjs"
+        );
+        assert_eq!(package["scripts"]["predev"], "npm run db:setup");
+
+        let env = fs::read_to_string(root.join(".env.local")).expect("read env");
+        assert!(env.contains("CUSTOM_SHELL_APP_ORIGINS"));
+        assert!(env.contains("http://127.0.0.1:3000,http://localhost:3000"));
+        assert!(env.contains("CUSTOM_SHELL_DATABASE_URL"));
+        assert!(env.contains("CUSTOM_SHELL_POSTGRES_PORT=\"54123\""));
+        assert!(!env.contains("custom_shell_"));
+
+        let login = fs::read_to_string(root.join("src/routes/login.tsx")).expect("read login");
+        assert!(login.contains("Sign in to Sample App"));
+        assert!(login.contains("Use your Sample App account."));
+        assert!(!login.contains("Custom Shell account"));
+
+        fs::remove_dir_all(root).expect("remove temp scaffold metadata test");
+    }
+
+    #[test]
+    fn sync_requires_origin_remote() {
+        let root = temp_path("no-origin");
+        init_test_repo(&root);
+        run_test_git(&root, &["checkout", "-q", "-b", "personal-ide/workspace-1"]);
+        let workspace = test_workspace(&root, "workspace-1", "personal-ide/workspace-1");
+
+        assert!(!has_origin_remote(&root));
+        assert_eq!(
+            push_workspace_branch(&workspace).unwrap_err(),
+            "No remote named origin is configured for this workspace."
+        );
+
+        fs::remove_dir_all(root).expect("remove temp repo");
+    }
+
+    #[test]
+    fn new_app_target_requires_origin_remote() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("personal-ide-new-app-target-test-{unique}"));
+        let apps = root.join("apps");
+        fs::create_dir_all(&apps).expect("create apps dir");
+
+        run_test_git(&root, &["init", "-q"]);
+
+        assert!(!has_origin_remote(&root));
+        assert_eq!(
+            new_app_repo_target(&apps, "seo").unwrap_err(),
+            "No remote named origin is configured for this workspace."
+        );
+
+        fs::remove_dir_all(root).expect("remove temp repo");
+    }
+
+    #[test]
+    fn new_app_target_uses_primary_worktree_and_relative_app_path() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("personal-ide-primary-root-test-{unique}"));
+        let bare = std::env::temp_dir().join(format!("personal-ide-origin-test-{unique}.git"));
+        let linked = std::env::temp_dir().join(format!("personal-ide-linked-root-test-{unique}"));
+        fs::create_dir_all(root.join("apps")).expect("create apps dir");
+
+        run_test_git(&root, &["init", "-q"]);
+        run_test_git(&root, &["config", "user.email", "test@example.local"]);
+        run_test_git(&root, &["config", "user.name", "Test"]);
+        run_test_git(&root, &["checkout", "-q", "-b", "develop"]);
+        fs::write(root.join("README.md"), "# Test\n").expect("write readme");
+        fs::write(root.join("apps/.gitkeep"), "").expect("write apps marker");
+        run_test_git(&root, &["add", "."]);
+        run_test_git(&root, &["commit", "-q", "-m", "initial"]);
+        run_test_git(&root, &["init", "--bare", "-q", path_arg(&bare).as_str()]);
+        run_test_git(
+            &root,
+            &["remote", "add", "origin", path_arg(&bare).as_str()],
+        );
+        assert!(has_origin_remote(&root));
+        run_test_git(
+            &root,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                "personal-ide/test",
+                path_arg(&linked).as_str(),
+                "HEAD",
+            ],
+        );
+
+        assert_eq!(
+            primary_worktree_for(&linked).expect("primary worktree"),
+            fs::canonicalize(&root).expect("canonical root")
+        );
+
+        let (git_root, app_relative_path) =
+            new_app_repo_target(&linked.join("apps"), "seo").expect("new app target");
+        assert_eq!(git_root, fs::canonicalize(&root).expect("canonical root"));
+        assert_eq!(app_relative_path, "apps/seo");
+
+        run_test_git(&root, &["worktree", "remove", path_arg(&linked).as_str()]);
+        fs::remove_dir_all(root).expect("remove temp primary root");
+        fs::remove_dir_all(bare).expect("remove temp origin");
+    }
+
+    #[test]
+    fn generated_database_port_skips_used_ports() {
+        let used_ports = HashSet::new();
+        let first = generated_database_port("sample-app", &used_ports).expect("first port");
+        let mut used_ports = HashSet::new();
+        used_ports.insert(first);
+
+        let second = generated_database_port("sample-app", &used_ports).expect("second port");
+
+        assert_ne!(first, second);
+        assert!((54_000..55_000).contains(&second));
+        assert_eq!(
+            generated_database_port_from_env("CUSTOM_SHELL_POSTGRES_PORT=\"54123\"\n"),
+            Ok(Some(54_123))
+        );
+        assert!(
+            generated_database_port_from_env("CUSTOM_SHELL_POSTGRES_PORT=\"not-a-port\"\n")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn delete_workspace_branch_removes_local_branch() {
+        let root = temp_path("delete-branch");
+        init_test_repo(&root);
+        run_test_git(&root, &["branch", WORKSPACE_10_BRANCH]);
+
+        assert!(git_branch_exists(&root, WORKSPACE_10_BRANCH));
+        delete_workspace_branch(&root, WORKSPACE_10_BRANCH).expect("delete branch");
+        assert!(!git_branch_exists(&root, WORKSPACE_10_BRANCH));
+
+        fs::remove_dir_all(root).expect("remove temp repo");
+    }
+
+    #[test]
+    fn delete_workspace_rejects_unpushed_commits() {
+        let root = temp_path("unpushed-delete");
+        init_test_repo(&root);
+        run_test_git(&root, &["checkout", "-q", "-b", WORKSPACE_10_BRANCH]);
+        fs::write(root.join("README.md"), "# Changed\n").expect("write change");
+        run_test_git(&root, &["add", "."]);
+        run_test_git(&root, &["commit", "-q", "-m", "workspace change"]);
+        let workspace = test_workspace(&root, "workspace-10", WORKSPACE_10_BRANCH);
+
+        assert_eq!(
+            ensure_workspace_branch_can_be_deleted(&workspace).unwrap_err(),
+            "Workspace has unpushed commits. Sync or merge them before deleting."
+        );
+
+        fs::remove_dir_all(root).expect("remove temp repo");
+    }
+
+    #[test]
+    fn failed_workspace_setup_cleanup_removes_worktree_and_branch() {
+        let root = temp_path("cleanup-root");
+        let linked = temp_path("cleanup-worktree");
+        init_test_repo(&root);
+        run_test_git(
+            &root,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                WORKSPACE_10_BRANCH,
+                path_arg(&linked).as_str(),
+                "HEAD",
+            ],
+        );
+
+        assert!(linked.exists());
+        assert!(git_branch_exists(&root, WORKSPACE_10_BRANCH));
+        cleanup_created_worktree(&root, &linked, WORKSPACE_10_BRANCH).expect("cleanup worktree");
+        assert!(!linked.exists());
+        assert!(!git_branch_exists(&root, WORKSPACE_10_BRANCH));
 
         fs::remove_dir_all(root).expect("remove temp repo");
     }
@@ -2365,6 +2835,18 @@ fn git_root_for(path: &Path) -> Result<PathBuf, String> {
     fs::canonicalize(root.trim()).map_err(|error| error.to_string())
 }
 
+fn primary_worktree_for(path: &Path) -> Result<PathBuf, String> {
+    let output = run_git(path, &["worktree", "list", "--porcelain"])?;
+
+    for line in output.lines() {
+        if let Some(root) = line.strip_prefix("worktree ") {
+            return fs::canonicalize(root).map_err(|error| error.to_string());
+        }
+    }
+
+    git_root_for(path)
+}
+
 fn git_branch_exists(git_root: &Path, branch: &str) -> bool {
     Command::new("git")
         .arg("-C")
@@ -2422,20 +2904,63 @@ fn git_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
 }
 
 fn unpushed_commit_count(workspace: &WorkspaceRecord) -> Result<u32, String> {
+    let root = if workspace.worktree_root.exists() {
+        &workspace.worktree_root
+    } else {
+        &workspace.git_root
+    };
     let remote_ref = format!("refs/remotes/origin/{}", workspace.branch);
-    let base = if git_ref_exists(&workspace.worktree_root, &remote_ref) {
+    let base = if git_ref_exists(root, &remote_ref) {
         format!("origin/{}", workspace.branch)
     } else {
         "develop".to_string()
     };
 
-    commit_count(
-        &workspace.worktree_root,
-        &format!("{}..{}", base, workspace.branch),
-    )
+    commit_count(root, &format!("{}..{}", base, workspace.branch))
+}
+
+fn ensure_workspace_branch_can_be_deleted(workspace: &WorkspaceRecord) -> Result<(), String> {
+    if !git_branch_exists(&workspace.git_root, &workspace.branch) {
+        return Ok(());
+    }
+
+    if unpushed_commit_count(workspace)? == 0 {
+        return Ok(());
+    }
+
+    Err("Workspace has unpushed commits. Sync or merge them before deleting.".to_string())
+}
+
+fn cleanup_created_worktree(
+    git_root: &Path,
+    worktree_root: &Path,
+    branch: &str,
+) -> Result<(), String> {
+    if worktree_root.exists() {
+        run_git(
+            git_root,
+            &[
+                "worktree",
+                "remove",
+                "--force",
+                path_arg(worktree_root).as_str(),
+            ],
+        )?;
+    }
+
+    delete_workspace_branch(git_root, branch)
+}
+
+fn delete_workspace_branch(git_root: &Path, branch: &str) -> Result<(), String> {
+    if !git_branch_exists(git_root, branch) {
+        return Ok(());
+    }
+
+    run_git(git_root, &["branch", "-D", branch]).map(|_| ())
 }
 
 fn push_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
+    require_origin_remote(&workspace.worktree_root)?;
     run_git(
         &workspace.worktree_root,
         &["push", "-u", "origin", &workspace.branch],
@@ -2449,6 +2974,24 @@ fn push_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
         ],
     )
     .map(|_| ())
+}
+
+fn require_origin_remote(root: &Path) -> Result<(), String> {
+    if has_origin_remote(root) {
+        return Ok(());
+    }
+
+    Err("No remote named origin is configured for this workspace.".to_string())
+}
+
+fn has_origin_remote(root: &Path) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
 }
 
 fn merge_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, String> {
@@ -2789,9 +3332,8 @@ fn kill_terminals_for_workspace(
             .map_err(|_| "Terminal state is unavailable".to_string())?;
         let terminal_ids = terminals
             .iter()
-            .filter_map(|(terminal_id, session)| {
-                (session.workspace_id == workspace_id).then(|| terminal_id.clone())
-            })
+            .filter(|(_, session)| session.workspace_id == workspace_id)
+            .map(|(terminal_id, _)| terminal_id.clone())
             .collect::<Vec<_>>();
 
         terminal_ids

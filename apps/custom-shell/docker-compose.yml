@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:18
     ports:
-      - "54320:5432"
+      - "${CUSTOM_SHELL_POSTGRES_PORT:-54320}:5432"
     environment:
       POSTGRES_PASSWORD: localdev
     volumes:

@@ -1,7 +1,7 @@
 import { Eye, EyeOff, FolderOpen, MoreVertical, Play, Plus, Square, Trash2 } from "lucide-react"
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useMemo, useState } from "react"
 
-import { serverPortForWorkspace } from "@/app/server"
+import { serverPortsForWorkspaces } from "@/app/server"
 import type { WorkspaceInfo, WorkspaceStatus } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,8 +50,9 @@ export function WorkspacesPanel({
   const visibleWorkspaces = workspaces.filter((workspace) =>
     workspaceView === "hidden" ? workspace.hidden : !workspace.hidden
   )
-  const activeServerUrl = activeWorkspace
-    ? `http://localhost:${serverPortForWorkspace(activeWorkspace)}/`
+  const workspacePorts = useMemo(() => serverPortsForWorkspaces(workspaces), [workspaces])
+  const activeServerUrl = activeWorkspace && !activeWorkspace.isTauri
+    ? `http://localhost:${workspacePorts[activeWorkspace.id]}/`
     : ""
   const canCreateApp = newAppName.trim().length > 0 && !busy
 

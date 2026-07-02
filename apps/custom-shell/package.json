@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "db:up": "docker compose up -d postgres",
+    "db:setup": "node scripts/setup-database.mjs",
+    "predev": "npm run db:setup",
     "dev": "vite dev",
     "build": "vite build",
     "lint": "eslint .",

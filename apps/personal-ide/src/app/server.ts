@@ -5,31 +5,48 @@ const workspacePackageNames = {
   hub: "@repo/hub",
 } as const satisfies Partial<Record<keyof typeof localAppPorts, string>>
 
-export function serverPortForWorkspace(workspace: WorkspaceInfo) {
-  const appPort = localAppPorts[workspace.appName as keyof typeof localAppPorts]
-  if (typeof appPort === "number") return appPort
+export function serverPortsForWorkspaces(workspaces: WorkspaceInfo[]) {
+  const ports: Record<string, number> = {}
+  const usedPorts = new Set<number>()
+  let nextGeneratedPort = Math.max(...Object.values(localAppPorts)) + 1
 
-  const fallbackBasePort = Math.max(...Object.values(localAppPorts))
-  const workspaceNumber = Number(workspace.name.match(/#(\d+)/)?.[1])
-  if (Number.isFinite(workspaceNumber) && workspaceNumber > 0) {
-    return fallbackBasePort + workspaceNumber
+  for (const workspace of workspaces) {
+    if (workspace.isTauri) continue
+
+    const appPort = localAppPorts[workspace.appName as keyof typeof localAppPorts]
+    if (typeof appPort === "number") {
+      ports[workspace.id] = appPort
+      usedPorts.add(appPort)
+      continue
+    }
+
+    while (usedPorts.has(nextGeneratedPort)) nextGeneratedPort += 1
+    ports[workspace.id] = nextGeneratedPort
+    usedPorts.add(nextGeneratedPort)
+    nextGeneratedPort += 1
   }
 
-  const fallbackNumber = Number(workspace.id.match(/(\d+)$/)?.[1])
-  return Number.isFinite(fallbackNumber) && fallbackNumber > 0
-    ? fallbackBasePort + fallbackNumber
-    : fallbackBasePort + 1
+  return ports
+}
+
+export function serverPortForWorkspaceInList(workspace: WorkspaceInfo, workspaces: WorkspaceInfo[]) {
+  const ports = serverPortsForWorkspaces(workspaces)
+  const port = ports[workspace.id]
+  if (typeof port === "number") return port
+
+  throw new Error("Workspace is not in the current workspace list.")
 }
 
 export function serverStartCommand(workspace: WorkspaceInfo, port: number) {
   const origins = `http://127.0.0.1:${port},http://localhost:${port}`
+  const originEnv = `CORE_APP_ORIGINS="${origins}" CUSTOM_SHELL_APP_ORIGINS="${origins}"`
 
   if (workspace.isStandalone) {
-    return `test -d node_modules || npm install\nCORE_APP_ORIGINS="${origins}" npm run dev -- --port ${port}\n`
+    return `test -d node_modules || npm install\n${originEnv} npm run dev -- --port ${port}\n`
   }
 
   const workspaceName =
     workspacePackageNames[workspace.appName as keyof typeof workspacePackageNames] ??
     workspace.appName
-  return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="${workspaceName}" -- --port ${port}\n`
+  return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && ${originEnv} npm run dev --workspace="${workspaceName}" -- --port ${port}\n`
 }
