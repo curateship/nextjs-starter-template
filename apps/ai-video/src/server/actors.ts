@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
+import { actorImageUrl, mediaFileUrl } from "@/server/media-urls"
 import {
   aiVideoActors,
   aiVideoMedia,
@@ -102,11 +102,11 @@ export function serializeActor(
     status: row.status as ActorStatus,
     model: row.model,
     tags: parseActorTags(row.tags),
-    image_url: getPublicMediaUrl(row.imageStoragePath),
+    image_url: actorImageUrl(row.id, row.updatedAt),
     image_mime_type: row.imageMimeType,
     reference_media_id: row.referenceMediaId,
     reference_media_url: referenceMedia
-      ? getPublicMediaUrl(referenceMedia.storagePath)
+      ? mediaFileUrl(referenceMedia.id)
       : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

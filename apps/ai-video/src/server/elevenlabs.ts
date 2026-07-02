@@ -9,7 +9,7 @@ import { requireAppOrigin } from "@/server/origin"
 import { requireUser } from "@/server/security"
 
 // ElevenLabs text-to-speech integration. Mirrors the Gemini/OpenAI pattern:
-// server-only, key resolved via getLlmKey (settings row → env var fallback),
+// server-only, key resolved via getLlmKey (settings row or env var),
 // raw fetch (no SDK). A voiceover becomes a normal audio clip plus — from the
 // word timings ElevenLabs returns — the same karaoke caption lines the Captions
 // feature produces, so the editor renders/exports both with zero new plumbing.

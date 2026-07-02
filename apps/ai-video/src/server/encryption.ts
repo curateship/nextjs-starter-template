@@ -7,8 +7,7 @@ import {
 
 // AES-256-GCM encryption for secrets at rest (provider API keys). The 32-byte
 // key is derived from AI_VIDEO_SECRET_ENCRYPTION_KEY so the env value can be any
-// string. When that env var is unset (e.g. local dev) encryption is skipped and
-// values are stored as-is — set it in production to encrypt at rest.
+// string.
 
 function encryptionKey(): Buffer | null {
   const secret = process.env.AI_VIDEO_SECRET_ENCRYPTION_KEY
@@ -16,19 +15,14 @@ function encryptionKey(): Buffer | null {
   return createHash("sha256").update(secret).digest() // 32 bytes
 }
 
-export function isEncryptionConfigured(): boolean {
-  return encryptionKey() !== null
-}
-
 // Stored format: base64(iv).base64(authTag).base64(ciphertext).
 const ENCRYPTED_RE = /^[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+$/
 
-export function looksEncrypted(value: string): boolean {
+function looksEncrypted(value: string): boolean {
   return ENCRYPTED_RE.test(value)
 }
 
-// Encrypts a secret; throws if no key is configured (callers should guard with
-// isEncryptionConfigured and store plaintext otherwise).
+// Encrypts a secret; throws if no key is configured.
 export function encryptSecret(plaintext: string): string {
   const key = encryptionKey()
   if (!key) throw new Error("Secret encryption is not configured")
@@ -46,12 +40,12 @@ export function encryptSecret(plaintext: string): string {
   ].join(".")
 }
 
-// Decrypts a value produced by encryptSecret. Returns null if the value isn't
-// in encrypted form, the key is missing, or the ciphertext fails the auth tag
-// (wrong key / tampered).
-export function decryptSecret(stored: string): string | null {
+// Decrypts a value produced by encryptSecret. Stored provider keys must be in
+// the canonical encrypted format; old plaintext rows are invalid state.
+export function decryptSecret(stored: string): string {
   const key = encryptionKey()
-  if (!key || !looksEncrypted(stored)) return null
+  if (!key) throw new Error("Secret encryption is not configured")
+  if (!looksEncrypted(stored)) throw new Error("Stored secret is not encrypted")
   const [ivB64, tagB64, dataB64] = stored.split(".")
   try {
     const decipher = createDecipheriv(
@@ -65,6 +59,6 @@ export function decryptSecret(stored: string): string | null {
       decipher.final(),
     ]).toString("utf8")
   } catch {
-    return null
+    throw new Error("Stored secret could not be decrypted")
   }
 }

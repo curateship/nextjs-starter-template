@@ -1,4 +1,5 @@
 import type { ViralPlatform } from "@/server/video-download"
+import { readResponseBytesWithLimit } from "@/server/download-limits"
 
 // Avatars are nice-to-have: every failure path returns null so the viral
 // pipeline never fails because a profile picture couldn't be fetched.
@@ -67,10 +68,13 @@ async function resolveInstagramAvatarUrl(username: string) {
   if (!response.ok) return null
 
   const payload = (await response.json()) as {
-    data?: { user?: { profile_pic_url_hd?: unknown; profile_pic_url?: unknown } }
+    data?: {
+      user?: { profile_pic_url_hd?: unknown; profile_pic_url?: unknown }
+    }
   }
   const candidate =
-    payload.data?.user?.profile_pic_url_hd ?? payload.data?.user?.profile_pic_url
+    payload.data?.user?.profile_pic_url_hd ??
+    payload.data?.user?.profile_pic_url
 
   // Only follow https URLs handed back by Instagram (CDN links).
   if (typeof candidate !== "string") return null
@@ -89,11 +93,18 @@ async function downloadAvatarImage(url: string): Promise<CreatorAvatar | null> {
   })
   if (!response.ok) return null
 
-  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim()
+  const contentType = response.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
   if (!contentType || !ALLOWED_AVATAR_TYPES.has(contentType)) return null
 
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (!bytes.byteLength || bytes.byteLength > MAX_AVATAR_BYTES) return null
+  const bytes = await readResponseBytesWithLimit(
+    response,
+    MAX_AVATAR_BYTES,
+    "Avatar image is too large"
+  )
+  if (!bytes.byteLength) return null
 
   return { bytes, contentType }
 }

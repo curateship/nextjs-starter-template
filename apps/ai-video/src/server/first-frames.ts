@@ -8,7 +8,8 @@ import {
   type FirstFrameReferenceSource,
 } from "@/lib/first-frame-models"
 import { db } from "@/server/db"
-import { deleteFromR2, getPublicMediaUrl } from "@/server/media-storage"
+import { deleteFromR2 } from "@/server/media-storage"
+import { actorImageUrl, mediaFileUrl } from "@/server/media-urls"
 import { getOwnedActor, normalizeActorTags } from "@/server/actors"
 import { getOwnedMedia, saveGeneratedImageToLibrary } from "@/server/media"
 import { requireAppOrigin } from "@/server/origin"
@@ -84,11 +85,19 @@ export async function listFirstFramesForCurrentUser(): Promise<FirstFrameListRes
       )
     )
     .where(eq(aiVideoFirstFrames.userId, user.id))
-    .orderBy(desc(aiVideoFirstFrames.pinned), desc(aiVideoFirstFrames.createdAt))
+    .orderBy(
+      desc(aiVideoFirstFrames.pinned),
+      desc(aiVideoFirstFrames.createdAt)
+    )
 
   return {
     firstFrames: rows.map((row) =>
-      serializeFirstFrame(row.firstFrame, row.actor, row.media, row.referenceMedia)
+      serializeFirstFrame(
+        row.firstFrame,
+        row.actor,
+        row.media,
+        row.referenceMedia
+      )
     ),
   }
 }
@@ -151,7 +160,10 @@ export async function createFirstFrameForCurrentUser(
   }
 
   try {
-    const [created] = await db.insert(aiVideoFirstFrames).values(row).returning()
+    const [created] = await db
+      .insert(aiVideoFirstFrames)
+      .values(row)
+      .returning()
     if (!created) {
       throw new Error("First frame was not created")
     }
@@ -160,7 +172,9 @@ export async function createFirstFrameForCurrentUser(
     await deleteFromR2(media.storagePath).catch(() => undefined)
     await db
       .delete(aiVideoMedia)
-      .where(and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id)))
+      .where(
+        and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id))
+      )
       .catch(() => undefined)
     throw error
   }
@@ -292,7 +306,9 @@ export async function regenerateFirstFrameForCurrentUser(
     await deleteFromR2(media.storagePath).catch(() => undefined)
     await db
       .delete(aiVideoMedia)
-      .where(and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id)))
+      .where(
+        and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id))
+      )
       .catch(() => undefined)
     throw error
   }
@@ -386,7 +402,7 @@ function serializeFirstFrame(
     actor: {
       id: actor.id,
       name: actor.name,
-      image_url: getPublicMediaUrl(actor.imageStoragePath),
+      image_url: actorImageUrl(actor.id, actor.updatedAt),
     },
     prompt: row.prompt,
     model: row.model as ActorModelId,
@@ -395,10 +411,10 @@ function serializeFirstFrame(
     reference_source: row.referenceSource as FirstFrameReferenceSource,
     reference_media_id: row.referenceMediaId,
     reference_media_url: referenceMedia
-      ? getPublicMediaUrl(referenceMedia.storagePath)
+      ? mediaFileUrl(referenceMedia.id)
       : null,
     generated_media_id: row.generatedMediaId,
-    image_url: media ? getPublicMediaUrl(media.storagePath) : null,
+    image_url: media ? mediaFileUrl(media.id) : null,
     pinned: row.pinned,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

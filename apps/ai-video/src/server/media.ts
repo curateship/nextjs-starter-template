@@ -2,11 +2,8 @@ import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import {
-  deleteFromR2,
-  getPublicMediaUrl,
-  uploadToR2,
-} from "@/server/media-storage"
+import { deleteFromR2, uploadToR2 } from "@/server/media-storage"
+import { mediaFileUrl } from "@/server/media-urls"
 import { aiVideoMedia, type AiVideoMedia } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 
@@ -428,7 +425,7 @@ export function serializeMedia(row: AiVideoMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: getPublicMediaUrl(row.storagePath),
+    url: mediaFileUrl(row.id),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

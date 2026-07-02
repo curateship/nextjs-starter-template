@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { deleteOwnedProjectMedia } from "@/server/media"
+import { mediaFileUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -108,9 +109,25 @@ function serializeProject(row: AiVideoProject): ProjectItem {
 function serializeProjectDetail(row: AiVideoProject): ProjectDetail {
   return {
     ...serializeProject(row),
-    timeline: normalizeTimelineTextFonts(
-      (row.timeline as ProjectTimeline | null) ?? EMPTY_TIMELINE
+    timeline: secureTimelineMediaUrls(
+      normalizeTimelineTextFonts(
+        (row.timeline as ProjectTimeline | null) ?? EMPTY_TIMELINE
+      )
     ),
+  }
+}
+
+export function secureTimelineMediaUrls(
+  timeline: ProjectTimeline
+): ProjectTimeline {
+  return {
+    ...timeline,
+    tracks: timeline.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) =>
+        clip.mediaId ? { ...clip, url: mediaFileUrl(clip.mediaId) } : clip
+      ),
+    })),
   }
 }
 
@@ -190,7 +207,9 @@ export async function saveProjectTimelineForCurrentUser(
 ): Promise<ProjectItem> {
   requireAppOrigin()
   const user = await requireUser()
-  const normalizedTimeline = normalizeTimelineTextFonts(timeline)
+  const normalizedTimeline = secureTimelineMediaUrls(
+    normalizeTimelineTextFonts(timeline)
+  )
 
   const [row] = await db
     .update(aiVideoProjects)

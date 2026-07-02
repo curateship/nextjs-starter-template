@@ -3,6 +3,8 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
+import { readResponseBytesWithLimit } from "@/server/download-limits"
+
 export type ViralPlatform = "tiktok" | "instagram"
 
 export type DownloadedViralVideo = {
@@ -48,6 +50,7 @@ export type CreatorProfileMetrics = {
 const DOWNLOAD_TIMEOUT_MS = 3 * 60_000
 // Matches the media pipeline's video limit — bigger files fail ingest anyway.
 const MAX_FILESIZE = "100M"
+const MAX_FILE_BYTES = 100 * 1024 * 1024
 const PROFILE_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 const INSTAGRAM_APP_ID = "936619743392459"
@@ -395,6 +398,7 @@ async function downloadDirectViralVideo(
 
   const response = await fetch(directDownload.videoUrl, {
     headers: { "user-agent": PROFILE_USER_AGENT },
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
   })
   if (!response.ok) {
     throw new Error(`Instagram video download failed (${response.status})`)
@@ -403,9 +407,14 @@ async function downloadDirectViralVideo(
   const contentType =
     response.headers.get("content-type")?.split(";")[0]?.trim() || "video/mp4"
   const mimeType = contentType.startsWith("video/") ? contentType : "video/mp4"
+  const bytes = await readResponseBytesWithLimit(
+    response,
+    MAX_FILE_BYTES,
+    "Instagram video download is too large"
+  )
 
   return {
-    bytes: new Uint8Array(await response.arrayBuffer()),
+    bytes,
     mimeType,
     metadata: directDownload.metadata,
   }
@@ -441,11 +450,16 @@ export async function extractVideoThumbnail(
   try {
     await writeFile(inputPath, bytes)
     await runFfmpeg([
-      "-ss", "00:00:01",
-      "-i", inputPath,
-      "-vframes", "1",
-      "-q:v", "4",
-      "-f", "image2",
+      "-ss",
+      "00:00:01",
+      "-i",
+      inputPath,
+      "-vframes",
+      "1",
+      "-q:v",
+      "4",
+      "-f",
+      "image2",
       outputPath,
     ])
     const data = await readFile(outputPath)
@@ -473,11 +487,15 @@ export async function extractAudioWav(
   try {
     await writeFile(inputPath, bytes)
     await runFfmpeg([
-      "-i", inputPath,
+      "-i",
+      inputPath,
       "-vn", // drop the video stream
-      "-ac", "1", // mono
-      "-ar", "16000", // 16 kHz is plenty for speech
-      "-c:a", "pcm_s16le",
+      "-ac",
+      "1", // mono
+      "-ar",
+      "16000", // 16 kHz is plenty for speech
+      "-c:a",
+      "pcm_s16le",
       outputPath,
     ])
     const data = await readFile(outputPath)
@@ -493,7 +511,11 @@ function runFfmpeg(args: string[]) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], { timeout: 30_000 })
     child.on("error", (error: NodeJS.ErrnoException) => {
-      reject(new Error(error.code === "ENOENT" ? "ffmpeg not installed" : "ffmpeg failed"))
+      reject(
+        new Error(
+          error.code === "ENOENT" ? "ffmpeg not installed" : "ffmpeg failed"
+        )
+      )
     })
     child.on("close", (code) => {
       if (code === 0) {

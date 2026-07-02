@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "node:crypto"
 
-import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
+import {
+  getCookie,
+  getRequestProtocol,
+  setCookie,
+} from "@tanstack/react-start/server"
 import { verify } from "argon2"
 import { eq, and, gt } from "drizzle-orm"
 
@@ -19,9 +23,9 @@ void import("@/server/creator-watch")
   .catch(() => undefined)
 
 export const SESSION_COOKIE_NAME = "ai_video_session"
-const TEN_YEARS_IN_HOURS = 24 * 365 * 10
+const DEFAULT_SESSION_TTL_HOURS = 24 * 7
 const SESSION_TTL_HOURS = Number.parseInt(
-  process.env.AI_VIDEO_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),
+  process.env.AI_VIDEO_SESSION_TTL_HOURS || String(DEFAULT_SESSION_TTL_HOURS),
   10
 )
 
