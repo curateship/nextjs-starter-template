@@ -166,6 +166,30 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       {
         type: "item",
+        label: "Feedback",
+        href: "/admin/feedback",
+        visible: true,
+        children: [
+          {
+            label: "Comments",
+            href: "/admin/feedback/comments",
+          },
+        ],
+      },
+      {
+        type: "item",
+        label: "Media",
+        href: "/admin/media",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Notifications",
+        href: "/admin/notifications",
+        visible: true,
+      },
+      {
+        type: "item",
         label: "Settings",
         href: "/admin/settings",
         visible: true,
@@ -185,6 +209,30 @@ describe("custom shell workspaces", () => {
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
     expect(secondSettings.sections[0]?.entries).toMatchObject([
+      {
+        type: "item",
+        label: "Feedback",
+        href: "/admin/feedback",
+        visible: true,
+        children: [
+          {
+            label: "Comments",
+            href: "/admin/feedback/comments",
+          },
+        ],
+      },
+      {
+        type: "item",
+        label: "Media",
+        href: "/admin/media",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Notifications",
+        href: "/admin/notifications",
+        visible: true,
+      },
       {
         type: "item",
         label: "Settings",
