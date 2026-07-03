@@ -80,7 +80,7 @@ export function CarouselsDashboard() {
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   const [sortBy, setSortBy] = React.useState<CarouselSortBy>("updated_at")
   const [sortDirection, setSortDirection] =
     React.useState<CarouselSortDirection>("desc")

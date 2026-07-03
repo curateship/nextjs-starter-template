@@ -52,6 +52,17 @@ export type ViralVideoStats = {
   postedAt: string | null
 }
 
+export type ViralVideoStructureTag =
+  | "Analyzed"
+  | "Structured"
+  | "Hook"
+  | "Problem"
+  | "Agitation"
+  | "Solution"
+  | "Proof"
+  | "CTA"
+  | "Other"
+
 // Archive list rows — analysis stays out of the list payload (it's large).
 export type ViralVideoItem = {
   id: string
@@ -63,6 +74,7 @@ export type ViralVideoItem = {
   author: string | null
   duration_ms: number | null
   stats: ViralVideoStats | null
+  structure_tags: ViralVideoStructureTag[]
   trend_score: TrendScore | null
   thumbnail_url: string | null
   creator_id: string | null
@@ -107,11 +119,39 @@ async function getOwnedViralVideo(userId: string, videoId: string) {
   return row
 }
 
+function normalizeStructureRole(value: unknown): ViralVideoStructureTag | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === "cta") return "CTA"
+  if (normalized === "hook") return "Hook"
+  if (normalized === "problem") return "Problem"
+  if (normalized === "agitation") return "Agitation"
+  if (normalized === "solution") return "Solution"
+  if (normalized === "proof") return "Proof"
+  if (normalized === "other") return "Other"
+  return null
+}
+
+function deriveStructureTags(
+  analysis: ViralVideoAnalysis | null
+): ViralVideoStructureTag[] {
+  if (!analysis) return []
+
+  const tags = new Set<ViralVideoStructureTag>(["Analyzed"])
+  if (analysis.segments.length > 0) tags.add("Structured")
+  for (const segment of analysis.segments) {
+    tags.add(normalizeStructureRole(segment.role) ?? "Other")
+  }
+  return Array.from(tags)
+}
+
 function serializeViralVideo(
   row: AiVideoViralVideo,
   creator: AiVideoCreator | null = null
 ): ViralVideoItem {
   const stats = (row.stats as ViralVideoStats | null) ?? null
+  const analysis = (row.analysis as ViralVideoAnalysis | null) ?? null
   return {
     id: row.id,
     source_url: row.sourceUrl,
@@ -122,10 +162,11 @@ function serializeViralVideo(
     author: row.author,
     duration_ms: row.durationMs,
     stats,
+    structure_tags: deriveStructureTags(analysis),
     trend_score: scoreViralVideoTrend({
       status: row.status,
       stats,
-      analysis: (row.analysis as ViralVideoAnalysis | null) ?? null,
+      analysis,
       creatorFollowers: creator?.followerCount ?? null,
     }),
     thumbnail_url: row.thumbnailStoragePath

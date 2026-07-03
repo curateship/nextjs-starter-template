@@ -56,6 +56,7 @@ import {
   listViralVideos,
   retryViralVideo,
   type ViralVideoItem,
+  type ViralVideoStructureTag,
 } from "@/lib/api/viral-videos"
 import type { CreatorItem } from "@/lib/api/creators"
 import { cn } from "@/lib/utils"
@@ -162,7 +163,7 @@ export function ViralArchiveDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   // List-view sort — defaults to newest first (matches the server order).
   const [sortColumn, setSortColumn] = React.useState<SortColumn>("added")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
@@ -461,7 +462,6 @@ export function ViralArchiveDashboard({
                     aria-label="Select visible videos"
                   />
                 </TableHead>
-                <TableHead column="meta">Rank</TableHead>
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "video"} direction={sortDirection} onClick={() => toggleSort("video")}>
                     Video
@@ -513,14 +513,13 @@ export function ViralArchiveDashboard({
           }
           isEmpty={loading || paginatedVideos.length === 0}
           emptyText={emptyText}
-          emptyColSpan={12}
+          emptyColSpan={11}
           footer={paginationFooter}
         >
           {paginatedVideos.map((video) => (
             <ViralVideoTableRow
               key={video.id}
               video={video}
-              rank={trendRanks.get(video.id)}
               selected={selectedIds.has(video.id)}
               onToggle={() => toggleSelected(video.id)}
               onOpen={() => setViewTarget(video)}
@@ -590,6 +589,8 @@ function ViralVideoGalleryCard({
   onDelete: () => void
 }) {
   const isReady = video.status === "ready"
+  const title = video.title ?? video.source_url
+  const displayTitle = truncateWords(title, LIST_TITLE_WORD_LIMIT)
   const trendScore = video.trend_score
   return (
     <div
@@ -661,40 +662,63 @@ function ViralVideoGalleryCard({
         </Button>
       </div>
 
-      {isReady && trendScore ? (
-        <div className="bg-card p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs text-muted-foreground">
-                {rank ? `#${rank} Trend Score` : "Trend Score"}
+      <div className="bg-card p-3">
+        {isReady ? (
+          <button
+            type="button"
+            className="block max-w-full truncate text-left text-sm font-medium hover:underline"
+            onClick={onOpen}
+            title={title}
+          >
+            {displayTitle}
+          </button>
+        ) : (
+          <span className="block max-w-full truncate text-sm font-medium" title={title}>
+            {displayTitle}
+          </span>
+        )}
+        <ViralVideoTagList tags={video.structure_tags} className="mt-1 mb-3" />
+        {isReady && trendScore ? (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  {rank ? `#${rank} Trend Score` : "Trend Score"}
+                </div>
+                <div className="text-xl font-semibold leading-none">
+                  {trendScore.score}
+                </div>
               </div>
-              <div className="text-xl font-semibold leading-none">
-                {trendScore.score}
+              <Badge variant="outline">
+                {confidenceLabel(trendScore.confidence)}
+              </Badge>
+            </div>
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Views/day</span>
+                <span className="font-medium">
+                  {formatCount(trendScore.views_per_day)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Lift</span>
+                <span className="font-medium">
+                  {formatAudienceLift(trendScore.audience_lift)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Engage</span>
+                <span className="font-medium">
+                  {formatPercent(trendScore.engagement_rate)}
+                </span>
               </div>
             </div>
-            <Badge variant="outline">{confidenceLabel(trendScore.confidence)}</Badge>
-          </div>
-          <div className="mt-2 space-y-1 text-xs">
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Views/day</span>
-              <span className="font-medium">{formatCount(trendScore.views_per_day)}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Lift</span>
-              <span className="font-medium">{formatAudienceLift(trendScore.audience_lift)}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Engage</span>
-              <span className="font-medium">{formatPercent(trendScore.engagement_rate)}</span>
-            </div>
-          </div>
-          <TrendMissingChips score={trendScore} />
-        </div>
-      ) : !isReady ? (
-        <div className="bg-card p-3">
+            <TrendMissingChips score={trendScore} />
+          </>
+        ) : !isReady ? (
           <ViralVideoStatusBadge status={video.status} />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -750,7 +774,6 @@ function TrendMissingChips({
 
 function ViralVideoTableRow({
   video,
-  rank,
   selected,
   onToggle,
   onOpen,
@@ -758,7 +781,6 @@ function ViralVideoTableRow({
   onDelete,
 }: {
   video: ViralVideoItem
-  rank: number | undefined
   selected: boolean
   onToggle: () => void
   onOpen: () => void
@@ -780,7 +802,6 @@ function ViralVideoTableRow({
           aria-label={`Select ${video.title ?? video.source_url}`}
         />
       </TableCell>
-      <TableCell column="mutedMeta">{rank ? `#${rank}` : "—"}</TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
           <div className="aspect-[9/16] w-9 shrink-0 overflow-hidden rounded-md border bg-muted">
@@ -808,11 +829,23 @@ function ViralVideoTableRow({
                 {video.error}
               </div>
             ) : null}
+            <ViralVideoTagList
+              tags={video.structure_tags}
+              className="mt-1 max-w-80"
+              maxVisibleTags={video.structure_tags.length}
+            />
           </div>
         </div>
       </TableCell>
       <TableCell column="meta" title={creatorName}>
-        <span className="block max-w-48 truncate">{creatorName}</span>
+        {video.creator ? (
+          <CreatorChip
+            creator={video.creator}
+            className="max-w-48 px-0 py-0 backdrop-blur-none"
+          />
+        ) : (
+          <span className="block max-w-48 truncate">{creatorName}</span>
+        )}
       </TableCell>
       <TableCell column="meta">
         <Badge variant="outline">{PLATFORM_LABELS[video.platform]}</Badge>
@@ -870,6 +903,42 @@ function ViralVideoStatusBadge({ status }: { status: ViralVideoItem["status"] })
   }
   if (status === "error") return <Badge variant="destructive">Failed</Badge>
   return <Badge variant="secondary">Ready</Badge>
+}
+
+function ViralVideoTagList({
+  tags,
+  className,
+  maxVisibleTags = 4,
+}: {
+  tags: ViralVideoStructureTag[]
+  className?: string
+  maxVisibleTags?: number
+}) {
+  if (!tags.length) {
+    return <span className="text-xs text-muted-foreground">No tags</span>
+  }
+  const visibleTags = tags.slice(0, maxVisibleTags)
+  const hiddenTagCount = tags.length - visibleTags.length
+
+  return (
+    <div
+      className={cn(
+        "flex max-h-11 min-w-0 max-w-full flex-wrap gap-1 overflow-hidden",
+        className
+      )}
+    >
+      {visibleTags.map((tag) => (
+        <Badge key={tag} variant="outline" className="shrink-0 text-[10px]">
+          {tag}
+        </Badge>
+      ))}
+      {hiddenTagCount > 0 ? (
+        <Badge variant="outline" className="shrink-0 text-[10px]">
+          +{hiddenTagCount}
+        </Badge>
+      ) : null}
+    </div>
+  )
 }
 
 function AddVideoModal({
