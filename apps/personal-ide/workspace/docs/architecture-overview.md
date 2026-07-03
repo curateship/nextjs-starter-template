@@ -1,6 +1,6 @@
 # Personal IDE Architecture Overview
 
-Personal IDE is a Tauri desktop app for editing local apps in isolated Git worktrees. The first real capability is local workspace files plus an editor. The rest of the app is becoming real piece by piece: terminals, tasks, skills, docs, Git changes, sync, and merge.
+Personal IDE is a Tauri desktop app for editing local apps in isolated Git worktrees. The first real capability is local workspace files plus an editor. The rest of the app is becoming real piece by piece: terminals, tasks, skills, docs, Git changes, and sync.
 
 ## Goals
 
@@ -43,7 +43,7 @@ The Rust backend owns real local operations:
 - File reads and writes.
 - File/folder create, rename, duplicate, trash, reveal.
 - Task, skill, and doc listing/creation.
-- Git status, commit, sync, merge, discard, and diff data.
+- Git status, commit, sync, discard, and diff data.
 - PTY terminal sessions.
 - Opening local server URLs.
 
@@ -80,7 +80,7 @@ When a new app is created:
 4. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
 5. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
 6. Rust creates the initial generated-app commit scoped to that app folder.
-7. The generated app is registered as a normal repo-backed workspace, so Git sync and merge use the repo's existing `origin`.
+7. The generated app is registered as a normal repo-backed workspace, so Sync uses the repo's existing `origin`.
 
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
@@ -240,7 +240,7 @@ Each workspace has an isolated branch.
 
 The Changes panel shows real Git status for the whole active worktree repo. Files inside the selected app open as app-relative editor tabs. Text files outside the selected app, such as root config files, open as repo-relative editor tabs.
 
-Repos without a remote named `origin` can still commit locally, but Sync, Merge, and Update from develop require `origin`. Generated apps must be created inside a repo that already has `origin`.
+Repos without a remote named `origin` can still commit locally, but Sync requires `origin`. Generated apps must be created inside a repo that already has `origin`.
 
 Deleting a workspace requires a clean worktree and no unpushed workspace commits. When those checks pass, Personal IDE stops compose services for the workspace app, then removes both the worktree and its local `personal-ide/workspace-*` branch so the workspace number can be reused.
 
@@ -253,8 +253,6 @@ Implemented actions:
 - Discard all.
 - Commit.
 - Sync.
-- Merge.
-- Update from develop.
 
 Commit:
 
@@ -263,30 +261,22 @@ Commit:
 
 Sync:
 
-- Pushes the workspace branch to `origin`.
-- Shows a count when local commits have not been pushed.
-
-Merge:
-
 - Refuses if the workspace has uncommitted files.
 - Pushes the workspace branch.
 - Checks out `develop` in the main repo.
 - Pulls `origin/develop`.
 - Merges the workspace branch into `develop`.
 - Pushes `develop`.
-
-Update from develop:
-
-- Refuses if the workspace has uncommitted files.
-- Checks out `develop` in the main repo.
-- Pulls `origin/develop`.
 - Fast-forwards the workspace branch to `develop`.
+- Pushes the fast-forwarded workspace branch.
+- Refreshes the Changes panel, open files, file tree, and workspace resources.
 
-Sync and merge badges are commit counts:
+The Changes panel keeps preview sections for pending merge commits and develop updates. Sync is the only publish/update action and is enabled when there are unpushed workspace commits, workspace commits not merged into `develop`, or `develop` commits not yet in the workspace branch.
 
-- `Sync (n)` means commits not pushed to the remote workspace branch.
-- `Merge (n)` means workspace branch commits not merged into local `develop`.
-- `Update from develop (n)` means `develop` commits not yet in the workspace branch.
+Preview counts:
+
+- Pending merge means workspace branch commits not merged into local `develop`.
+- Develop updates means `develop` commits not yet in the workspace branch.
 
 ## App Settings
 

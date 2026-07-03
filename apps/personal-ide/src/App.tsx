@@ -209,7 +209,6 @@ function App() {
     gitError,
     gitStatus,
     gitStatusRef,
-    mergeToDevelop,
     openChangedFile,
     openMergeFile,
     refreshGit,
@@ -217,7 +216,6 @@ function App() {
     setCommitMessage,
     setGitStatus,
     syncChanges,
-    updateFromDevelop,
   } = useGitChanges({
     activeWorkspaceId,
     activeWorkspaceIdRef,
@@ -703,12 +701,10 @@ function App() {
                     onCommitMessageChange={setCommitMessage}
                     onDiscardAll={discardChanges}
                     onDiscardFile={discardChangedFile}
-                    onMerge={mergeToDevelop}
                     onOpenFile={openChangedFile}
                     onOpenMergeFile={openMergeFile}
                     onRefresh={() => refreshGit(undefined, "full")}
                     onSync={syncChanges}
-                    onUpdateFromDevelop={updateFromDevelop}
                   />
                 </ResizablePanel>
               </ResizablePanelGroup>

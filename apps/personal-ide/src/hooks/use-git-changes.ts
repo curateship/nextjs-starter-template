@@ -11,7 +11,6 @@ import {
   discardGitFile,
   getGitStatus,
   mergeDiffHunks,
-  mergeGitToDevelop,
   readDevelopTextFile,
   readDevelopRepoTextFile,
   readOriginalTextFile,
@@ -19,7 +18,6 @@ import {
   repoDiffHunks,
   repoMergeDiffHunks,
   syncGitChanges,
-  updateGitFromDevelop,
 } from "@/app/native/git"
 import { fileName, parentPath, readableError } from "@/app/path"
 import type { DiffHunk, EditorTab, GitFile, GitRefreshMode, GitStatus } from "@/app/types"
@@ -137,37 +135,6 @@ export function useGitChanges({
 
     try {
       const next = await syncGitChanges(activeWorkspaceId)
-      setGitStatus(next)
-    } catch (error) {
-      setGitError(readableError(error))
-    } finally {
-      setBusyAction("")
-    }
-  }
-
-  async function mergeToDevelop() {
-    if (!activeWorkspaceId) return
-    setGitError("")
-    setBusyAction("merge")
-
-    try {
-      const next = await mergeGitToDevelop(activeWorkspaceId)
-      setGitStatus(next)
-      await onRefreshResources()
-    } catch (error) {
-      setGitError(readableError(error))
-    } finally {
-      setBusyAction("")
-    }
-  }
-
-  async function updateFromDevelop() {
-    if (!activeWorkspaceId) return
-    setGitError("")
-    setBusyAction("update")
-
-    try {
-      const next = await updateGitFromDevelop(activeWorkspaceId)
       setGitStatus(next)
       await onRefreshOpenTabsFromDisk()
       await onRefreshResources()
@@ -313,7 +280,6 @@ export function useGitChanges({
     gitError,
     gitStatus,
     gitStatusRef,
-    mergeToDevelop,
     openChangedFile,
     openMergeFile,
     refreshGit,
@@ -322,6 +288,5 @@ export function useGitChanges({
     setGitError,
     setGitStatus,
     syncChanges,
-    updateFromDevelop,
   }
 }

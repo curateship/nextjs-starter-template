@@ -1312,47 +1312,7 @@ fn git_commit(
 #[tauri::command]
 fn git_sync(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<GitStatus, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    push_workspace_branch(&workspace)?;
-    git_status(workspace_id, state)
-}
-
-#[tauri::command]
-fn git_merge_to_develop(
-    workspace_id: String,
-    state: State<'_, WorkspaceState>,
-) -> Result<GitStatus, String> {
-    let workspace = workspace_by_id(&state, &workspace_id)?;
-
-    if !git_status_lines(&workspace.worktree_root)?.is_empty() {
-        return Err("Commit or discard changes before merging to develop".to_string());
-    }
-
-    push_workspace_branch(&workspace)?;
-    run_git(&workspace.git_root, &["checkout", "develop"])?;
-    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
-    run_git(
-        &workspace.git_root,
-        &["merge", "--no-ff", "--no-edit", &workspace.branch],
-    )?;
-    run_git(&workspace.git_root, &["push", "origin", "develop"])?;
-    git_status(workspace_id, state)
-}
-
-#[tauri::command]
-fn git_update_from_develop(
-    workspace_id: String,
-    state: State<'_, WorkspaceState>,
-) -> Result<GitStatus, String> {
-    let workspace = workspace_by_id(&state, &workspace_id)?;
-    require_origin_remote(&workspace.worktree_root)?;
-
-    if !git_status_lines(&workspace.worktree_root)?.is_empty() {
-        return Err("Commit or discard changes before updating from develop".to_string());
-    }
-
-    run_git(&workspace.git_root, &["checkout", "develop"])?;
-    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
-    run_git(&workspace.worktree_root, &["merge", "--ff-only", "develop"])?;
+    sync_workspace_branch(&workspace)?;
     git_status(workspace_id, state)
 }
 
@@ -2317,16 +2277,15 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clean_repo_path, cleanup_created_worktree, commit_generated_app_scaffold,
+        clean_repo_path, cleanup_created_worktree, commit_count, commit_generated_app_scaffold,
         delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
         find_custom_shell_scaffold_dir, generated_database_port, generated_database_port_from_env,
         git_branch_exists, git_status_lines, has_origin_remote, new_app_repo_target,
         normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg, primary_worktree_for,
-        push_workspace_branch, read_git_repo_text_file, render_task_template,
-        reorder_workspace_records,
-        rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry, validate_editor_settings,
-        validate_new_app_name, DiffHunk, EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE,
-        MAX_TASK_TEMPLATE_SIZE,
+        read_git_repo_text_file, render_task_template, reorder_workspace_records,
+        rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry, sync_workspace_branch,
+        validate_editor_settings, validate_new_app_name, DiffHunk, EditorSettings, WorkspaceRecord,
+        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2366,6 +2325,31 @@ mod tests {
         run_test_git(root, &["commit", "-q", "-m", "initial"]);
     }
 
+    fn init_test_repo_with_origin(root: &Path, origin: &Path) {
+        init_test_repo(root);
+        run_test_git(root, &["init", "--bare", "-q", path_arg(origin).as_str()]);
+        run_test_git(origin, &["symbolic-ref", "HEAD", "refs/heads/develop"]);
+        run_test_git(
+            root,
+            &["remote", "add", "origin", path_arg(origin).as_str()],
+        );
+        run_test_git(root, &["push", "-u", "origin", "develop"]);
+    }
+
+    fn add_test_worktree(root: &Path, worktree: &Path, branch: &str) {
+        run_test_git(
+            root,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                path_arg(worktree).as_str(),
+                "develop",
+            ],
+        );
+    }
+
     fn test_workspace(root: &Path, id: &str, branch: &str) -> WorkspaceRecord {
         WorkspaceRecord {
             id: id.to_string(),
@@ -2376,6 +2360,25 @@ mod tests {
             git_root: root.to_path_buf(),
             worktree_root: root.to_path_buf(),
             app_root: root.to_path_buf(),
+            app_relative_path: String::new(),
+        }
+    }
+
+    fn test_worktree_workspace(
+        root: &Path,
+        worktree: &Path,
+        id: &str,
+        branch: &str,
+    ) -> WorkspaceRecord {
+        WorkspaceRecord {
+            id: id.to_string(),
+            name: id.to_string(),
+            app_name: "app-name".to_string(),
+            hidden: false,
+            branch: branch.to_string(),
+            git_root: root.to_path_buf(),
+            worktree_root: worktree.to_path_buf(),
+            app_root: worktree.to_path_buf(),
             app_relative_path: String::new(),
         }
     }
@@ -2589,17 +2592,163 @@ mod tests {
     #[test]
     fn sync_requires_origin_remote() {
         let root = temp_path("no-origin");
+        let linked = temp_path("no-origin-worktree");
         init_test_repo(&root);
-        run_test_git(&root, &["checkout", "-q", "-b", "personal-ide/workspace-1"]);
-        let workspace = test_workspace(&root, "workspace-1", "personal-ide/workspace-1");
+        add_test_worktree(&root, &linked, "personal-ide/workspace-1");
+        let workspace =
+            test_worktree_workspace(&root, &linked, "workspace-1", "personal-ide/workspace-1");
 
-        assert!(!has_origin_remote(&root));
+        assert!(!has_origin_remote(&linked));
         assert_eq!(
-            push_workspace_branch(&workspace).unwrap_err(),
+            sync_workspace_branch(&workspace).unwrap_err(),
             "No remote named origin is configured for this workspace."
         );
 
+        fs::remove_dir_all(linked).expect("remove temp worktree");
         fs::remove_dir_all(root).expect("remove temp repo");
+    }
+
+    #[test]
+    fn sync_rejects_dirty_worktree() {
+        let root = temp_path("dirty-sync-root");
+        let origin = temp_path("dirty-sync-origin");
+        let linked = temp_path("dirty-sync-worktree");
+        init_test_repo_with_origin(&root, &origin);
+        add_test_worktree(&root, &linked, WORKSPACE_10_BRANCH);
+        fs::write(linked.join("dirty.txt"), "dirty\n").expect("write dirty file");
+        let workspace =
+            test_worktree_workspace(&root, &linked, "workspace-10", WORKSPACE_10_BRANCH);
+
+        assert_eq!(
+            sync_workspace_branch(&workspace).unwrap_err(),
+            "Commit or discard changes before syncing"
+        );
+
+        fs::remove_dir_all(linked).expect("remove temp worktree");
+        fs::remove_dir_all(root).expect("remove temp repo");
+        fs::remove_dir_all(origin).expect("remove temp origin");
+    }
+
+    #[test]
+    fn sync_pushes_workspace_commits_into_develop() {
+        let root = temp_path("sync-merge-root");
+        let origin = temp_path("sync-merge-origin");
+        let linked = temp_path("sync-merge-worktree");
+        init_test_repo_with_origin(&root, &origin);
+        add_test_worktree(&root, &linked, WORKSPACE_10_BRANCH);
+        fs::write(linked.join("feature.txt"), "workspace\n").expect("write feature");
+        run_test_git(&linked, &["add", "."]);
+        run_test_git(&linked, &["commit", "-q", "-m", "workspace change"]);
+        let workspace =
+            test_worktree_workspace(&root, &linked, "workspace-10", WORKSPACE_10_BRANCH);
+
+        sync_workspace_branch(&workspace).expect("sync workspace");
+
+        assert_eq!(
+            fs::read_to_string(root.join("feature.txt")).expect("read merged feature"),
+            "workspace\n"
+        );
+        assert_eq!(
+            commit_count(&linked, &format!("develop..{}", WORKSPACE_10_BRANCH)).unwrap(),
+            0
+        );
+        assert_eq!(
+            commit_count(&linked, &format!("{}..develop", WORKSPACE_10_BRANCH)).unwrap(),
+            0
+        );
+        assert_eq!(
+            run_git(&origin, &["rev-parse", "develop"]).unwrap(),
+            run_git(&root, &["rev-parse", "develop"]).unwrap()
+        );
+        assert_eq!(
+            run_git(&origin, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap(),
+            run_git(&linked, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap()
+        );
+
+        run_test_git(&root, &["worktree", "remove", path_arg(&linked).as_str()]);
+        fs::remove_dir_all(root).expect("remove temp repo");
+        fs::remove_dir_all(origin).expect("remove temp origin");
+    }
+
+    #[test]
+    fn sync_fast_forwards_workspace_from_updated_develop() {
+        let root = temp_path("sync-update-root");
+        let origin = temp_path("sync-update-origin");
+        let linked = temp_path("sync-update-worktree");
+        init_test_repo_with_origin(&root, &origin);
+        add_test_worktree(&root, &linked, WORKSPACE_10_BRANCH);
+        fs::write(root.join("develop.txt"), "develop\n").expect("write develop update");
+        run_test_git(&root, &["add", "."]);
+        run_test_git(&root, &["commit", "-q", "-m", "develop change"]);
+        run_test_git(&root, &["push", "origin", "develop"]);
+        let workspace =
+            test_worktree_workspace(&root, &linked, "workspace-10", WORKSPACE_10_BRANCH);
+
+        sync_workspace_branch(&workspace).expect("sync workspace");
+
+        assert_eq!(
+            fs::read_to_string(linked.join("develop.txt")).expect("read develop update"),
+            "develop\n"
+        );
+        assert_eq!(
+            run_git(&linked, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap(),
+            run_git(&root, &["rev-parse", "develop"]).unwrap()
+        );
+        assert_eq!(
+            run_git(&origin, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap(),
+            run_git(&linked, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap()
+        );
+
+        run_test_git(&root, &["worktree", "remove", path_arg(&linked).as_str()]);
+        fs::remove_dir_all(root).expect("remove temp repo");
+        fs::remove_dir_all(origin).expect("remove temp origin");
+    }
+
+    #[test]
+    fn sync_pulls_remote_develop_when_local_develop_is_stale() {
+        let root = temp_path("sync-remote-update-root");
+        let origin = temp_path("sync-remote-update-origin");
+        let linked = temp_path("sync-remote-update-worktree");
+        let other = temp_path("sync-remote-update-other");
+        init_test_repo_with_origin(&root, &origin);
+        add_test_worktree(&root, &linked, WORKSPACE_10_BRANCH);
+        run_test_git(
+            &root,
+            &[
+                "clone",
+                "-q",
+                path_arg(&origin).as_str(),
+                path_arg(&other).as_str(),
+            ],
+        );
+        run_test_git(&other, &["config", "user.email", "test@example.local"]);
+        run_test_git(&other, &["config", "user.name", "Test"]);
+        fs::write(other.join("remote-develop.txt"), "remote\n").expect("write remote update");
+        run_test_git(&other, &["add", "."]);
+        run_test_git(&other, &["commit", "-q", "-m", "remote develop change"]);
+        run_test_git(&other, &["push", "origin", "develop"]);
+        let workspace =
+            test_worktree_workspace(&root, &linked, "workspace-10", WORKSPACE_10_BRANCH);
+
+        sync_workspace_branch(&workspace).expect("sync workspace");
+
+        assert_eq!(
+            fs::read_to_string(linked.join("remote-develop.txt")).expect("read remote update"),
+            "remote\n"
+        );
+        assert_eq!(
+            run_git(&root, &["rev-parse", "develop"]).unwrap(),
+            run_git(&origin, &["rev-parse", "develop"]).unwrap()
+        );
+        assert_eq!(
+            run_git(&linked, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap(),
+            run_git(&origin, &["rev-parse", WORKSPACE_10_BRANCH]).unwrap()
+        );
+
+        run_test_git(&root, &["worktree", "remove", path_arg(&linked).as_str()]);
+        fs::remove_dir_all(other).expect("remove temp other clone");
+        fs::remove_dir_all(root).expect("remove temp repo");
+        fs::remove_dir_all(origin).expect("remove temp origin");
     }
 
     #[test]
@@ -2745,7 +2894,7 @@ mod tests {
 
         assert_eq!(
             ensure_workspace_branch_can_be_deleted(&workspace).unwrap_err(),
-            "Workspace has unpushed commits. Sync or merge them before deleting."
+            "Workspace has unpushed commits. Sync them before deleting."
         );
 
         fs::remove_dir_all(root).expect("remove temp repo");
@@ -3059,7 +3208,7 @@ fn ensure_workspace_branch_can_be_deleted(workspace: &WorkspaceRecord) -> Result
         return Ok(());
     }
 
-    Err("Workspace has unpushed commits. Sync or merge them before deleting.".to_string())
+    Err("Workspace has unpushed commits. Sync them before deleting.".to_string())
 }
 
 fn cleanup_created_worktree(
@@ -3128,6 +3277,25 @@ fn delete_workspace_branch(git_root: &Path, branch: &str) -> Result<(), String> 
     }
 
     run_git(git_root, &["branch", "-D", branch]).map(|_| ())
+}
+
+fn sync_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
+    require_origin_remote(&workspace.worktree_root)?;
+
+    if !git_status_lines(&workspace.worktree_root)?.is_empty() {
+        return Err("Commit or discard changes before syncing".to_string());
+    }
+
+    push_workspace_branch(workspace)?;
+    run_git(&workspace.git_root, &["checkout", "develop"])?;
+    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
+    run_git(
+        &workspace.git_root,
+        &["merge", "--no-ff", "--no-edit", &workspace.branch],
+    )?;
+    run_git(&workspace.git_root, &["push", "origin", "develop"])?;
+    run_git(&workspace.worktree_root, &["merge", "--ff-only", "develop"])?;
+    push_workspace_branch(workspace)
 }
 
 fn push_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
@@ -3583,8 +3751,6 @@ pub fn run() {
             repo_merge_diff_hunks,
             git_commit,
             git_sync,
-            git_merge_to_develop,
-            git_update_from_develop,
             git_discard_changes,
             git_discard_file,
             start_terminal,
