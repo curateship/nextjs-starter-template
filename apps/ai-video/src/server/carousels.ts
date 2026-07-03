@@ -149,12 +149,15 @@ function normalizeColor(value: unknown, fallback: string) {
     : fallback
 }
 
-function normalizeTextFontId(value: unknown): TextFontId {
-  if (typeof value !== "string") {
-    throw new Error("Carousel text item is missing a font")
+function normalizeCarouselTextFontId(value: unknown): TextFontId {
+  if (value === undefined || value === null || value === "") {
+    return DEFAULT_TEXT_FONT_ID
   }
 
-  if (!TEXT_FONT_IDS.includes(value as TextFontId)) {
+  if (
+    typeof value !== "string" ||
+    !TEXT_FONT_IDS.includes(value as TextFontId)
+  ) {
     throw new Error("Carousel text item uses an unsupported font")
   }
 
@@ -217,7 +220,7 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
       ...base,
       type,
       text,
-      fontId: normalizeTextFontId(item.fontId),
+      fontId: normalizeCarouselTextFontId(item.fontId),
       fontSize: normalizeNumber(item.fontSize, 56, 8, 220),
       color: normalizeColor(item.color, "#111827"),
       align:
