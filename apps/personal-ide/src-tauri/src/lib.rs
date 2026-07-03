@@ -504,6 +504,23 @@ fn set_workspace_hidden(
 }
 
 #[tauri::command]
+fn reorder_workspaces(
+    workspace_ids: Vec<String>,
+    app: AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<WorkspaceList, String> {
+    let mut app_state = state
+        .inner
+        .lock()
+        .map_err(|_| "Workspace state is unavailable".to_string())?;
+    app_state.workspaces = reorder_workspace_records(&app_state.workspaces, &workspace_ids)?;
+    drop(app_state);
+
+    state.save(&app)?;
+    workspace_list(&state)
+}
+
+#[tauri::command]
 fn delete_workspace(
     workspace_id: String,
     app: AppHandle,
@@ -555,6 +572,42 @@ fn delete_workspace(
 
     state.save(&app)?;
     workspace_list(&state)
+}
+
+fn reorder_workspace_records(
+    workspaces: &[WorkspaceRecord],
+    workspace_ids: &[String],
+) -> Result<Vec<WorkspaceRecord>, String> {
+    const INVALID_ORDER_MESSAGE: &str =
+        "Workspace order must include every workspace exactly once.";
+
+    if workspaces.len() != workspace_ids.len() {
+        return Err(INVALID_ORDER_MESSAGE.to_string());
+    }
+
+    let mut workspaces_by_id = HashMap::with_capacity(workspaces.len());
+    for workspace in workspaces {
+        workspaces_by_id.insert(workspace.id.as_str(), workspace.clone());
+    }
+
+    let mut seen_ids = HashSet::with_capacity(workspace_ids.len());
+    let mut reordered = Vec::with_capacity(workspace_ids.len());
+    for workspace_id in workspace_ids {
+        if !seen_ids.insert(workspace_id.as_str()) {
+            return Err(INVALID_ORDER_MESSAGE.to_string());
+        }
+
+        let Some(workspace) = workspaces_by_id.remove(workspace_id.as_str()) else {
+            return Err(INVALID_ORDER_MESSAGE.to_string());
+        };
+        reordered.push(workspace);
+    }
+
+    if !workspaces_by_id.is_empty() {
+        return Err(INVALID_ORDER_MESSAGE.to_string());
+    }
+
+    Ok(reordered)
 }
 
 #[tauri::command]
@@ -2270,6 +2323,7 @@ mod tests {
         git_branch_exists, git_status_lines, has_origin_remote, new_app_repo_target,
         normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg, primary_worktree_for,
         push_workspace_branch, read_git_repo_text_file, render_task_template,
+        reorder_workspace_records,
         rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry, validate_editor_settings,
         validate_new_app_name, DiffHunk, EditorSettings, WorkspaceRecord, DEFAULT_TASK_TEMPLATE,
         MAX_TASK_TEMPLATE_SIZE,
@@ -2324,6 +2378,55 @@ mod tests {
             app_root: root.to_path_buf(),
             app_relative_path: String::new(),
         }
+    }
+
+    #[test]
+    fn reorder_workspace_records_applies_exact_order() {
+        let root = Path::new("/tmp");
+        let workspaces = vec![
+            test_workspace(root, "workspace-1", "personal-ide/workspace-1"),
+            test_workspace(root, "workspace-2", "personal-ide/workspace-2"),
+            test_workspace(root, "workspace-3", "personal-ide/workspace-3"),
+        ];
+
+        let reordered = reorder_workspace_records(
+            &workspaces,
+            &[
+                "workspace-3".to_string(),
+                "workspace-1".to_string(),
+                "workspace-2".to_string(),
+            ],
+        )
+        .expect("reorder workspaces");
+
+        assert_eq!(reordered[0].id, "workspace-3");
+        assert_eq!(reordered[1].id, "workspace-1");
+        assert_eq!(reordered[2].id, "workspace-2");
+    }
+
+    #[test]
+    fn reorder_workspace_records_rejects_missing_duplicate_or_unknown_ids() {
+        let root = Path::new("/tmp");
+        let workspaces = vec![
+            test_workspace(root, "workspace-1", "personal-ide/workspace-1"),
+            test_workspace(root, "workspace-2", "personal-ide/workspace-2"),
+        ];
+
+        assert!(reorder_workspace_records(&workspaces, &["workspace-1".to_string()]).is_err());
+        assert!(
+            reorder_workspace_records(
+                &workspaces,
+                &["workspace-1".to_string(), "workspace-1".to_string()],
+            )
+            .is_err()
+        );
+        assert!(
+            reorder_workspace_records(
+                &workspaces,
+                &["workspace-1".to_string(), "workspace-3".to_string()],
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -3447,6 +3550,7 @@ pub fn run() {
             create_app_from_custom_shell,
             set_active_workspace,
             set_workspace_hidden,
+            reorder_workspaces,
             delete_workspace,
             list_dir,
             read_text_file,

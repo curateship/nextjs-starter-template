@@ -70,6 +70,8 @@ When a workspace is added:
 
 Workspace rows show the app folder name as the main name. The generated workspace number stays as secondary metadata.
 
+Workspace order is saved and user-controlled through drag and drop in the Workspaces sidebar. Generated server ports for unlisted web apps are assigned from that saved order.
+
 When a new app is created:
 
 1. The user enters a safe app folder name.

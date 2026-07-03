@@ -1,4 +1,31 @@
-import { Eye, EyeOff, FolderOpen, MoreVertical, Play, Plus, Square, Trash2 } from "lucide-react"
+import {
+  DndContext,
+  KeyboardCode,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
+  Eye,
+  EyeOff,
+  FolderOpen,
+  GripVertical,
+  MoreVertical,
+  Play,
+  Plus,
+  Square,
+  Trash2,
+} from "lucide-react"
 import { type FormEvent, useMemo, useState } from "react"
 
 import { serverPortsForWorkspaces } from "@/app/server"
@@ -18,6 +45,7 @@ export function WorkspacesPanel({
   onCreate,
   onCreateApp,
   onDelete,
+  onMoveWorkspace,
   onOpenServer,
   onSelect,
   onSetHidden,
@@ -33,6 +61,11 @@ export function WorkspacesPanel({
   onCreate: () => void
   onCreateApp: (appName: string) => Promise<boolean>
   onDelete: (workspaceId: string) => void
+  onMoveWorkspace: (
+    workspaceId: string,
+    overWorkspaceId: string,
+    scopedWorkspaceIds: string[]
+  ) => void
   onOpenServer: (workspace: WorkspaceInfo) => void
   onSelect: (workspaceId: string) => void
   onSetHidden: (workspaceId: string, hidden: boolean) => void
@@ -50,7 +83,19 @@ export function WorkspacesPanel({
   const visibleWorkspaces = workspaces.filter((workspace) =>
     workspaceView === "hidden" ? workspace.hidden : !workspace.hidden
   )
+  const visibleWorkspaceIds = visibleWorkspaces.map((workspace) => workspace.id)
   const workspacePorts = useMemo(() => serverPortsForWorkspaces(workspaces), [workspaces])
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: [KeyboardCode.Space],
+        cancel: [KeyboardCode.Esc],
+        end: [KeyboardCode.Space, KeyboardCode.Enter, KeyboardCode.Tab],
+      },
+    })
+  )
   const activeServerUrl = activeWorkspace && !activeWorkspace.isTauri
     ? `http://localhost:${workspacePorts[activeWorkspace.id]}/`
     : ""
@@ -70,6 +115,12 @@ export function WorkspacesPanel({
       if (!created) return
       closeCreateAppForm()
     })
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    onMoveWorkspace(String(active.id), String(over.id), visibleWorkspaceIds)
   }
 
   return (
@@ -163,95 +214,27 @@ export function WorkspacesPanel({
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {visibleWorkspaces.length ? (
-          visibleWorkspaces.map((workspace) => (
-              <div
-                key={workspace.id}
-                className={cn(
-                  "relative rounded-lg bg-background p-3 transition-colors",
-                  activeWorkspaceId === workspace.id && "bg-muted"
-                )}
-              >
-                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-                <button
-                  type="button"
-                  className="flex size-8 items-center justify-center rounded-lg bg-muted"
-                  onClick={() => onSelect(workspace.id)}
-                  aria-label={`Select ${workspace.appName}`}
-                >
-                  <FolderOpen className="size-4 text-muted-foreground" />
-                </button>
-                <button
-                  type="button"
-                  className="min-w-0 text-left"
-                  onClick={() => onSelect(workspace.id)}
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm font-medium">{workspace.appName}</span>
-                    {workspaceStatuses[workspace.id] ? (
-                      <span
-                        className={cn(
-                          "ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                          workspaceStatuses[workspace.id] === "running"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {workspaceStatuses[workspace.id] === "running"
-                          ? "Running"
-                          : "Waiting input"}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {workspace.name}
-                  </div>
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={(event) => {
-                    event.stopPropagation()
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={visibleWorkspaceIds} strategy={verticalListSortingStrategy}>
+              {visibleWorkspaces.map((workspace) => (
+                <SortableWorkspaceRow
+                  key={workspace.id}
+                  active={activeWorkspaceId === workspace.id}
+                  busy={busy}
+                  menuOpen={openMenuId === workspace.id}
+                  workspace={workspace}
+                  workspaceStatus={workspaceStatuses[workspace.id]}
+                  onDelete={onDelete}
+                  onCloseMenu={() => setOpenMenuId(null)}
+                  onSelect={onSelect}
+                  onSetHidden={onSetHidden}
+                  onToggleMenu={() =>
                     setOpenMenuId(openMenuId === workspace.id ? null : workspace.id)
-                  }}
-                  aria-label={`${workspace.appName} menu`}
-                >
-                  <MoreVertical />
-                </Button>
-              </div>
-
-              {openMenuId === workspace.id ? (
-                <div
-                  className="absolute right-3 top-12 z-10 grid w-36 gap-1 rounded-md border bg-popover p-1 shadow-md"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    onClick={() => {
-                      setOpenMenuId(null)
-                      onSetHidden(workspace.id, !workspace.hidden)
-                    }}
-                  >
-                    {workspace.hidden ? <Eye /> : <EyeOff />}
-                    {workspace.hidden ? "Show" : "Hide"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start text-red-600 hover:text-red-600"
-                    onClick={() => {
-                      setOpenMenuId(null)
-                      onDelete(workspace.id)
-                    }}
-                  >
-                    <Trash2 />
-                    Delete
-                  </Button>
-                </div>
-              ) : null}
-              </div>
-          ))
+                  }
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         ) : (
           <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
             No {workspaceView} workspaces.
@@ -298,6 +281,154 @@ export function WorkspacesPanel({
               </Tooltip>
             </>
           )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function SortableWorkspaceRow({
+  active,
+  busy,
+  menuOpen,
+  workspace,
+  workspaceStatus,
+  onDelete,
+  onCloseMenu,
+  onSelect,
+  onSetHidden,
+  onToggleMenu,
+}: {
+  active: boolean
+  busy: boolean
+  menuOpen: boolean
+  workspace: WorkspaceInfo
+  workspaceStatus?: WorkspaceStatus
+  onDelete: (workspaceId: string) => void
+  onCloseMenu: () => void
+  onSelect: (workspaceId: string) => void
+  onSetHidden: (workspaceId: string, hidden: boolean) => void
+  onToggleMenu: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: workspace.id, disabled: busy })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative rounded-lg bg-background p-3 transition-colors",
+        active && "bg-muted",
+        isDragging && "shadow-md"
+      )}
+    >
+      <div className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              ref={setActivatorNodeRef}
+              variant="ghost"
+              size="icon-sm"
+              disabled={busy}
+              aria-label={`Reorder ${workspace.appName}`}
+              className={cn(
+                "cursor-grab text-muted-foreground active:cursor-grabbing",
+                isDragging && "cursor-grabbing"
+              )}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Drag to reorder</TooltipContent>
+        </Tooltip>
+        <button
+          type="button"
+          className="flex size-8 items-center justify-center rounded-lg bg-muted"
+          onClick={() => onSelect(workspace.id)}
+          aria-label={`Select ${workspace.appName}`}
+        >
+          <FolderOpen className="size-4 text-muted-foreground" />
+        </button>
+        <button
+          type="button"
+          className="min-w-0 text-left"
+          onClick={() => onSelect(workspace.id)}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium">{workspace.appName}</span>
+            {workspaceStatus ? (
+              <span
+                className={cn(
+                  "ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  workspaceStatus === "running"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {workspaceStatus === "running" ? "Running" : "Waiting input"}
+              </span>
+            ) : null}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">{workspace.name}</div>
+        </button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleMenu()
+          }}
+          aria-label={`${workspace.appName} menu`}
+        >
+          <MoreVertical />
+        </Button>
+      </div>
+
+      {menuOpen ? (
+        <div
+          className="absolute right-3 top-12 z-10 grid w-36 gap-1 rounded-md border bg-popover p-1 shadow-md"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start"
+            onClick={() => {
+              onCloseMenu()
+              onSetHidden(workspace.id, !workspace.hidden)
+            }}
+          >
+            {workspace.hidden ? <Eye /> : <EyeOff />}
+            {workspace.hidden ? "Show" : "Hide"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start text-red-600 hover:text-red-600"
+            onClick={() => {
+              onCloseMenu()
+              onDelete(workspace.id)
+            }}
+          >
+            <Trash2 />
+            Delete
+          </Button>
         </div>
       ) : null}
     </div>

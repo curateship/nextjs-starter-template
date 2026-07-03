@@ -6,11 +6,13 @@ import {
   createWorkspace,
   deleteWorkspace as deleteWorkspaceRecord,
   listWorkspaces,
+  reorderWorkspaces,
   setActiveWorkspace,
   setWorkspaceVisibility,
 } from "@/app/native/workspaces"
 import { readableError } from "@/app/path"
 import type { WorkspaceList } from "@/app/types"
+import { reorderWorkspaceSubset } from "@/app/workspace-order"
 
 export function useWorkspaces() {
   const [workspaceList, setWorkspaceList] = useState<WorkspaceList>(EMPTY_WORKSPACES)
@@ -98,6 +100,45 @@ export function useWorkspaces() {
     }
   }
 
+  async function moveWorkspace(
+    workspaceId: string,
+    overWorkspaceId: string,
+    scopedWorkspaceIds: string[]
+  ) {
+    if (!workspaceId || workspaceId === overWorkspaceId) return false
+
+    let reorderedWorkspaces: WorkspaceList["workspaces"]
+    try {
+      reorderedWorkspaces = reorderWorkspaceSubset(
+        workspaceList.workspaces,
+        scopedWorkspaceIds,
+        workspaceId,
+        overWorkspaceId
+      )
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+      return false
+    }
+    if (reorderedWorkspaces === workspaceList.workspaces) return false
+    const previousList = workspaceList
+
+    setWorkspaceError("")
+    setWorkspaceBusy(true)
+    setWorkspaceList({ ...workspaceList, workspaces: reorderedWorkspaces })
+
+    try {
+      const next = await reorderWorkspaces(reorderedWorkspaces.map((workspace) => workspace.id))
+      setWorkspaceList(next)
+      return true
+    } catch (error) {
+      setWorkspaceList(previousList)
+      setWorkspaceError(readableError(error))
+      return false
+    } finally {
+      setWorkspaceBusy(false)
+    }
+  }
+
   async function deleteWorkspace(workspaceId: string) {
     if (!window.confirm("Delete this clean workspace worktree? The branch remains.")) {
       return false
@@ -120,6 +161,7 @@ export function useWorkspaces() {
     addWorkspace,
     createApp,
     deleteWorkspace,
+    moveWorkspace,
     selectWorkspace,
     setWorkspaceHidden,
     workspaceBusy,
