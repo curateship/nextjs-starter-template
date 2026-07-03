@@ -631,6 +631,7 @@ function ViralVideoGalleryCard({
         {/* Creator chip — avatar + name + handle over the bottom of the thumb. */}
         <CreatorChip
           creator={video.creator}
+          tone="overlay"
           className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] bg-black/0"
         />
       </button>

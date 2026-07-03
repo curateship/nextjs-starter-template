@@ -71,7 +71,13 @@ import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
-type TemplateSortColumn = "name" | "slots" | "created"
+type TemplateSortColumn =
+  | "name"
+  | "duration"
+  | "creator"
+  | "source"
+  | "slots"
+  | "created"
 type SourceFilter = "all" | "analyzed" | "blank"
 type TagFilter = "all" | TemplateStructureTag
 
@@ -81,6 +87,14 @@ function formatDuration(ms: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${String(seconds).padStart(2, "0")}`
+}
+
+function templateCreatorLabel(template: TemplateItem) {
+  return (
+    template.creator?.display_name?.trim() ||
+    template.creator?.username ||
+    ""
+  )
 }
 
 // Templates dashboard at /admin/templates: templates are created from the
@@ -94,7 +108,7 @@ export function TemplatesDashboard() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
   const [tagFilter, setTagFilter] = React.useState<TagFilter>("all")
-  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   const [sortColumn, setSortColumn] =
     React.useState<TemplateSortColumn>("created")
   const [sortDirection, setSortDirection] =
@@ -159,6 +173,15 @@ export function TemplatesDashboard() {
           tagFilter === "all" || template.structure_tags.includes(tagFilter)
       )
       .sort((a, b) => {
+        if (sortColumn === "duration")
+          return (a.duration_ms - b.duration_ms) * direction
+        if (sortColumn === "creator")
+          return (
+            templateCreatorLabel(a).localeCompare(templateCreatorLabel(b)) *
+            direction
+          )
+        if (sortColumn === "source")
+          return a.source_type.localeCompare(b.source_type) * direction
         if (sortColumn === "slots")
           return (a.slot_count - b.slot_count) * direction
         if (sortColumn === "created")
@@ -523,7 +546,7 @@ export function TemplatesDashboard() {
                     aria-label="Select visible templates"
                   />
                 </TableHead>
-                <TableHead column="main">
+                <TableHead column="main" className="min-w-[420px]">
                   <TableSortButton
                     active={sortColumn === "name"}
                     direction={sortDirection}
@@ -532,9 +555,32 @@ export function TemplatesDashboard() {
                     Template
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta">Source</TableHead>
-                <TableHead column="preview" className="hidden xl:table-cell">
-                  Tags
+                <TableHead column="meta">
+                  <TableSortButton
+                    active={sortColumn === "duration"}
+                    direction={sortDirection}
+                    onClick={() => toggleSort("duration")}
+                  >
+                    Time
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton
+                    active={sortColumn === "creator"}
+                    direction={sortDirection}
+                    onClick={() => toggleSort("creator")}
+                  >
+                    Creator
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton
+                    active={sortColumn === "source"}
+                    direction={sortDirection}
+                    onClick={() => toggleSort("source")}
+                  >
+                    Source
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
                   <TableSortButton
@@ -564,7 +610,7 @@ export function TemplatesDashboard() {
               ? "Loading templates..."
               : "No templates match the current catalog filters."
           }
-          emptyColSpan={7}
+          emptyColSpan={8}
           footer={paginationFooter}
         >
           {paginatedTemplates.map((template) => (
@@ -796,7 +842,7 @@ function TemplateTableRow({
           aria-label={`Select ${template.name}`}
         />
       </TableCell>
-      <TableCell column="main">
+      <TableCell column="main" className="min-w-[420px]">
         <div className="flex min-w-0 items-center gap-3">
           {/* Thumbnail + name both open the template editor. */}
           <button
@@ -817,7 +863,7 @@ function TemplateTableRow({
               </div>
             )}
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <button
               type="button"
               className="block max-w-full truncate text-left font-medium group-hover:underline"
@@ -825,22 +871,33 @@ function TemplateTableRow({
             >
               {template.name}
             </button>
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span>{formatDuration(template.duration_ms)}</span>
-              {template.creator ? (
-                <CreatorChip creator={template.creator} className="min-w-0" />
-              ) : null}
+            <div className="mt-1 flex min-w-0 items-start text-xs text-muted-foreground">
+              <TemplateTagList
+                tags={template.structure_tags}
+                className="min-w-0 max-w-80"
+                maxVisibleTags={template.structure_tags.length}
+              />
             </div>
           </div>
         </div>
+      </TableCell>
+      <TableCell column="mutedMeta">
+        {formatDuration(template.duration_ms)}
+      </TableCell>
+      <TableCell column="meta">
+        {template.creator ? (
+          <CreatorChip
+            creator={template.creator}
+            className="max-w-48 px-0 py-0 backdrop-blur-none"
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
       </TableCell>
       <TableCell column="meta">
         <Badge variant="secondary">
           {template.source_type === "analyzed" ? "Analyzed" : "Blank"}
         </Badge>
-      </TableCell>
-      <TableCell column="preview" className="hidden xl:table-cell">
-        <TemplateTagList tags={template.structure_tags} />
       </TableCell>
       <TableCell column="meta">
         <Badge variant="outline">{template.slot_count}</Badge>
@@ -850,12 +907,14 @@ function TemplateTableRow({
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1">
-          <Button type="button" size="sm" variant="outline" onClick={onUse}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            onClick={onUse}
+            aria-label={`Use ${template.name}`}
+          >
             <PlayIcon className="size-4" />
-            Use Template
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={onEdit}>
-            Edit Template
           </Button>
           {hasAnalysis ? (
             <Button
@@ -938,7 +997,11 @@ function TemplateGalleryItem({
         {/* Bottom bar: creator chip on the left, duration + slot count on the
             right. The chip truncates so it never crowds the badges. */}
         <div className="absolute inset-x-2 bottom-2 flex items-end gap-2">
-          <CreatorChip creator={template.creator} className="min-w-0 bg-black/15" />
+          <CreatorChip
+            creator={template.creator}
+            tone="overlay"
+            className="min-w-0 bg-black/15"
+          />
           <span className="ml-auto flex shrink-0 items-center gap-1">
             <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
               {formatDuration(template.duration_ms)}
@@ -993,9 +1056,6 @@ function TemplateGalleryItem({
             <PlayIcon className="size-3" />
             Use Template
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onEdit}>
-            Edit Template
-          </Button>
           {hasAnalysis ? (
             <Button
               type="button"
@@ -1016,24 +1076,33 @@ function TemplateGalleryItem({
 function TemplateTagList({
   tags,
   className,
+  maxVisibleTags = 4,
 }: {
   tags: TemplateStructureTag[]
   className?: string
+  maxVisibleTags?: number
 }) {
   if (!tags.length) {
     return <span className="text-xs text-muted-foreground">No tags</span>
   }
+  const visibleTags = tags.slice(0, maxVisibleTags)
+  const hiddenTagCount = tags.length - visibleTags.length
 
   return (
-    <div className={cn("flex min-w-0 flex-wrap gap-1", className)}>
-      {tags.slice(0, 4).map((tag) => (
-        <Badge key={tag} variant="outline" className="text-[10px]">
+    <div
+      className={cn(
+        "flex max-h-11 min-w-0 max-w-full flex-wrap gap-1 overflow-hidden",
+        className
+      )}
+    >
+      {visibleTags.map((tag) => (
+        <Badge key={tag} variant="outline" className="shrink-0 text-[10px]">
           {tag}
         </Badge>
       ))}
-      {tags.length > 4 ? (
-        <Badge variant="outline" className="text-[10px]">
-          +{tags.length - 4}
+      {hiddenTagCount > 0 ? (
+        <Badge variant="outline" className="shrink-0 text-[10px]">
+          +{hiddenTagCount}
         </Badge>
       ) : null}
     </div>

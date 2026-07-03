@@ -14,11 +14,14 @@ type ChipCreator = {
 export function CreatorChip({
   creator,
   className,
+  tone = "surface",
 }: {
   creator: ChipCreator | null
   className?: string
+  tone?: "surface" | "overlay"
 }) {
   if (!creator) return null
+  const overlay = tone === "overlay"
   return (
     <span
       className={cn(
@@ -35,10 +38,20 @@ export function CreatorChip({
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0 text-left leading-tight">
-        <span className="block truncate text-xs font-medium text-white">
+        <span
+          className={cn(
+            "block truncate text-xs font-medium",
+            overlay ? "text-white" : "text-foreground"
+          )}
+        >
           {creator.display_name ?? creator.username}
         </span>
-        <span className="block truncate text-[10px] text-white/70">
+        <span
+          className={cn(
+            "block truncate text-[10px]",
+            overlay ? "text-white/70" : "text-muted-foreground"
+          )}
+        >
           @{creator.username}
         </span>
       </span>
