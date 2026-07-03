@@ -7,6 +7,7 @@ import type {
   ViralVideoListResponse,
   ViralVideoStats,
   ViralVideoStatus,
+  ViralVideoStructureTag,
 } from "@/server/viral-videos"
 import type {
   SegmentRole,
@@ -21,6 +22,7 @@ export type {
   ViralVideoListResponse,
   ViralVideoStats,
   ViralVideoStatus,
+  ViralVideoStructureTag,
 }
 
 const videoIdSchema = z.object({
