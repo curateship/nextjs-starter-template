@@ -53,6 +53,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { TextFontSelect } from "@/components/text-font-select"
 import {
   getCarouselErrorMessage,
   saveCarousel,
@@ -67,6 +68,10 @@ import {
   type CarouselTextItem,
 } from "@/lib/api/carousels"
 import type { MediaItem } from "@/lib/api/media"
+import {
+  DEFAULT_TEXT_FONT_ID,
+  getTextFont,
+} from "@/lib/text-fonts"
 import { cn } from "@/lib/utils"
 import {
   canExportCarouselMp4,
@@ -828,24 +833,14 @@ function CanvasItem({
       onPointerCancel={onPointerUp}
     >
       {item.type === "text" ? (
-        <div
-          className="h-full w-full font-semibold break-words whitespace-pre-wrap"
-          style={{
-            color: item.color,
-            fontSize: item.fontSize * scale,
-            lineHeight: 1.16,
-            textAlign: item.align,
-          }}
-        >
-          {item.text}
-        </div>
+        <CarouselTextLayer item={item} fontSize={item.fontSize * scale} />
       ) : item.type === "image" ? (
         <img
-            src={item.url}
-            alt={item.altText ?? ""}
-            draggable={false}
-            className={cn("h-full w-full rounded-sm", imageFitClass(item.fit))}
-          />
+          src={item.url}
+          alt={item.altText ?? ""}
+          draggable={false}
+          className={cn("h-full w-full rounded-sm", imageFitClass(item.fit))}
+        />
       ) : item.type === "gradient-shadow" ? (
         <div
           className="h-full w-full rounded-sm"
@@ -864,6 +859,32 @@ function CanvasItem({
           aria-label="Resize layer"
         />
       ) : null}
+    </div>
+  )
+}
+
+function CarouselTextLayer({
+  item,
+  fontSize,
+}: {
+  item: CarouselTextItem
+  fontSize: number | string
+}) {
+  const font = getTextFont(item.fontId)
+
+  return (
+    <div
+      className="h-full w-full break-words whitespace-pre-wrap"
+      style={{
+        color: item.color,
+        fontFamily: font.family,
+        fontSize,
+        fontWeight: font.weight,
+        lineHeight: 1.16,
+        textAlign: item.align,
+      }}
+    >
+      {item.text}
     </div>
   )
 }
@@ -1012,6 +1033,15 @@ function TextInspector({
           value={item.text}
           rows={5}
           onChange={(event) => onUpdate({ text: event.target.value })}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="item-font">Font</Label>
+        <TextFontSelect
+          id="item-font"
+          value={item.fontId}
+          triggerClassName="w-full"
+          onChange={(fontId) => onUpdate({ fontId })}
         />
       </div>
       <div className="space-y-1.5">
@@ -1533,17 +1563,10 @@ function StaticSlidePreview({
             }}
           >
             {item.type === "text" ? (
-              <div
-                className="h-full w-full font-semibold break-words whitespace-pre-wrap"
-                style={{
-                  color: item.color,
-                  fontSize: `${Math.max(8, item.fontSize * 0.18)}px`,
-                  lineHeight: 1.16,
-                  textAlign: item.align,
-                }}
-              >
-                {item.text}
-              </div>
+              <CarouselTextLayer
+                item={item}
+                fontSize={`${Math.max(8, item.fontSize * 0.18)}px`}
+              />
             ) : item.type === "image" ? (
               <img
                 src={item.url}
@@ -1839,6 +1862,7 @@ function resetTextItemDefaults(
       width: 0.8,
       height: DEFAULT_TITLE_TEXT_HEIGHT,
       zIndex: DEFAULT_TEXT_Z_INDEX,
+      fontId: DEFAULT_TEXT_FONT_ID,
       fontSize: slideIndex === 0 ? 76 : 58,
       color: slideIndex === 0 ? "#ffffff" : "#111827",
       align: "left",
@@ -1853,6 +1877,7 @@ function resetTextItemDefaults(
       width: 0.8,
       height: DEFAULT_BODY_TEXT_HEIGHT,
       zIndex: DEFAULT_TEXT_Z_INDEX + 1,
+      fontId: DEFAULT_TEXT_FONT_ID,
       fontSize: slideIndex === 0 ? 38 : 40,
       color: slideIndex === 0 ? "#e5e7eb" : "#374151",
       align: "left",
@@ -1866,6 +1891,7 @@ function resetTextItemDefaults(
     width: 0.76,
     height: 0.2,
     zIndex: DEFAULT_TEXT_Z_INDEX + textIndex,
+    fontId: DEFAULT_TEXT_FONT_ID,
     fontSize: 56,
     color: "#111827",
     align: "left",
@@ -1929,6 +1955,7 @@ function createTextItem(): CarouselTextItem {
     width: 0.76,
     height: 0.2,
     zIndex: DEFAULT_TEXT_Z_INDEX,
+    fontId: DEFAULT_TEXT_FONT_ID,
     fontSize: 56,
     color: "#111827",
     align: "left",

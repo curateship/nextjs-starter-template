@@ -155,7 +155,10 @@ export function ViralVideoModal({
   return (
     <>
       <Dialog open={!!videoId} onOpenChange={onOpenChange}>
-        <DialogContent variant="admin">
+        <DialogContent
+          variant="admin"
+          className="data-[variant=admin]:sm:max-w-6xl"
+        >
           <DialogHeader>
             <DialogTitle className="truncate pr-8">
               {video?.title ?? video?.source_url ?? detail?.title ?? detail?.source_url ?? "Video"}
@@ -175,7 +178,7 @@ export function ViralVideoModal({
                 <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="grid gap-5 sm:grid-cols-[220px_1fr]">
+              <div className="grid gap-5 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
                 {/* Player with the engagement stats as plain rows below it */}
                 <div>
                   {detail.media_url ? (

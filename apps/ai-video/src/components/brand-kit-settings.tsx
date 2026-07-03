@@ -2,6 +2,7 @@ import * as React from "react"
 import { ImageIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media-picker"
+import { TextFontSelect } from "@/components/text-font-select"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -30,7 +31,7 @@ import {
   type ShellConfig,
 } from "@/lib/ai-video"
 import type { MediaItem } from "@/lib/api/media"
-import { TEXT_FONTS, type TextFontId } from "@/lib/text-fonts"
+import type { TextFontId } from "@/lib/text-fonts"
 
 type BrandKitSettingsProps = {
   config: ShellConfig
@@ -494,24 +495,12 @@ function FontSelect({
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <Select
+      <TextFontSelect
+        id={id}
         value={value}
         disabled={disabled}
-        onValueChange={(next) => onChange(next as TextFontId)}
-      >
-        <SelectTrigger id={id}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TEXT_FONTS.map((font) => (
-            <SelectItem key={font.id} value={font.id}>
-              <span style={{ fontFamily: font.family, fontWeight: font.weight }}>
-                {font.label}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        onChange={onChange}
+      />
     </div>
   )
 }

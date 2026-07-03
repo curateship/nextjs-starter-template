@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
 import { useShellRuntime } from "@/components/shell-runtime"
+import { TextFontSelect } from "@/components/text-font-select"
 import { cn } from "@/lib/utils"
 import type { BrandKitColor, BrandKitConfig } from "@/lib/ai-video"
 import {
@@ -69,7 +70,6 @@ import {
 import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
   DEFAULT_TEXT_FONT_ID,
-  TEXT_FONTS,
   requireTextFont,
   type TextFontId,
 } from "@/lib/text-fonts"
@@ -271,28 +271,12 @@ function TextStyleFields({
     <>
       <div className={textFieldClassName(layout)}>
         <Label htmlFor={`${idPrefix}-font`}>Font</Label>
-        <Select
+        <TextFontSelect
+          id={`${idPrefix}-font`}
           value={fontId}
-          onValueChange={(value) => onChange({ fontId: value as TextFontId })}
-        >
-          <SelectTrigger id={`${idPrefix}-font`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEXT_FONTS.map((font) => (
-              <SelectItem key={font.id} value={font.id}>
-                <span
-                  style={{
-                    fontFamily: font.family,
-                    fontWeight: font.weight,
-                  }}
-                >
-                  {font.label}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          triggerClassName="w-full"
+          onChange={(value) => onChange({ fontId: value })}
+        />
       </div>
       <div className={textFieldClassName(layout)}>
         <Label>Font size</Label>

@@ -11,6 +11,7 @@ import type {
   CarouselSortDirection,
 } from "@/server/carousels"
 import { CAROUSEL_FORMATS } from "@/server/carousels"
+import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 
 export type {
   CarouselDetail,
@@ -60,6 +61,7 @@ const carouselTextItemSchema = z.object({
   width: z.number().min(0.05).max(1),
   height: z.number().min(0.05).max(1),
   zIndex: z.number().int().min(0).max(999),
+  fontId: z.enum(TEXT_FONT_IDS),
   fontSize: z.number().min(8).max(220),
   color: z.string().regex(/^#[0-9a-f]{6}$/i),
   align: z.enum(["left", "center", "right"]),
@@ -121,6 +123,8 @@ const safeCarouselErrors = new Set([
   "Carousel generation returned no result",
   "Carousel generation returned invalid JSON",
   "Carousel generation returned an unexpected shape",
+  "Carousel text item is missing a font",
+  "Carousel text item uses an unsupported font",
 ])
 
 export function getCarouselErrorMessage(error: unknown) {

@@ -6,6 +6,11 @@ import { requireAppOrigin } from "@/server/origin"
 import { aiVideoCarousels, type AiVideoCarousel } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import { ANALYSIS_MODEL, generateJson } from "@/server/video-analysis"
+import {
+  DEFAULT_TEXT_FONT_ID,
+  TEXT_FONT_IDS,
+  type TextFontId,
+} from "@/lib/text-fonts"
 
 export const CAROUSEL_FORMATS = ["4:5", "1:1", "9:16"] as const
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
@@ -28,6 +33,7 @@ type CarouselSlideItemBase = {
 export type CarouselTextItem = CarouselSlideItemBase & {
   type: "text"
   text: string
+  fontId: TextFontId
   fontSize: number
   color: string
   align: CarouselTextAlign
@@ -143,6 +149,18 @@ function normalizeColor(value: unknown, fallback: string) {
     : fallback
 }
 
+function normalizeTextFontId(value: unknown): TextFontId {
+  if (typeof value !== "string") {
+    throw new Error("Carousel text item is missing a font")
+  }
+
+  if (!TEXT_FONT_IDS.includes(value as TextFontId)) {
+    throw new Error("Carousel text item uses an unsupported font")
+  }
+
+  return value as TextFontId
+}
+
 function normalizeSlides(value: unknown): CarouselSlide[] {
   if (!Array.isArray(value)) return []
 
@@ -199,6 +217,7 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
       ...base,
       type,
       text,
+      fontId: normalizeTextFontId(item.fontId),
       fontSize: normalizeNumber(item.fontSize, 56, 8, 220),
       color: normalizeColor(item.color, "#111827"),
       align:
@@ -382,6 +401,7 @@ function createSlidesFromDraft(draft: GeneratedDraft): CarouselSlide[] {
         y: DEFAULT_TITLE_TEXT_Y,
         width: 0.8,
         height: DEFAULT_TITLE_TEXT_HEIGHT,
+        fontId: DEFAULT_TEXT_FONT_ID,
         fontSize: index === 0 ? 76 : 58,
         color: index === 0 ? "#ffffff" : "#111827",
         align: "left",
@@ -395,6 +415,7 @@ function createSlidesFromDraft(draft: GeneratedDraft): CarouselSlide[] {
         y: DEFAULT_BODY_TEXT_Y,
         width: 0.8,
         height: DEFAULT_BODY_TEXT_HEIGHT,
+        fontId: DEFAULT_TEXT_FONT_ID,
         fontSize: index === 0 ? 38 : 40,
         color: index === 0 ? "#e5e7eb" : "#374151",
         align: "left",
@@ -487,6 +508,7 @@ export async function createCarouselForCurrentUser(data: {
               width: 0.76,
               height: 0.2,
               zIndex: DEFAULT_TEXT_Z_INDEX,
+              fontId: DEFAULT_TEXT_FONT_ID,
               fontSize: 56,
               color: "#111827",
               align: "left",
