@@ -17,7 +17,14 @@ import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/Pa
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
+
+type SiteChromeBlockType = "navigation" | "footer"
+
+function isSiteChromeBlockType(type: string): type is SiteChromeBlockType {
+  return type === "navigation" || type === "footer"
+}
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -153,9 +160,18 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
-  const handleSelectSiteChrome = (type: 'navigation' | 'footer') => {
-    const returnTo = encodeURIComponent(`/admin/pages/${siteId}?page=${selectedPage}`)
+  const handleSelectSiteChrome = (type: SiteChromeBlockType) => {
+    const returnTo = encodeURIComponent(`/admin/pages/${siteId}?page=${encodeURIComponent(selectedPage)}`)
     router.push(`/admin/sites/${siteId}/structure/${type}?returnTo=${returnTo}`)
+  }
+
+  const handleSelectBlock = (block: PageBlock) => {
+    if (isSiteChromeBlockType(block.type)) {
+      handleSelectSiteChrome(block.type)
+      return
+    }
+
+    builderState.setSelectedBlock(block)
   }
 
   const handleDraftChange = (field: string, value: any) => {
@@ -232,7 +248,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
               blocksLoading={blocksLoading}
               allBlocks={currentPage.blocks}
               selectedBlock={builderState.selectedBlock}
-              onSelectBlock={builderState.setSelectedBlock}
+              onSelectBlock={handleSelectBlock}
               onSelectSiteChrome={handleSelectSiteChrome}
               onUpdateRichTextBody={(blockId, htmlContent) => {
                 const block = currentPage.blocks.find((item) => item.id === blockId)
@@ -270,7 +286,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             blockTypes={PAGE_BLOCK_TYPES}
             entityName="page"
             selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
+            onSelectBlock={handleSelectBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
             viewPageHref={viewPageHref}
