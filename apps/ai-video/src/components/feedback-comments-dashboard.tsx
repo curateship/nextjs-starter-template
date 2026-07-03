@@ -57,7 +57,7 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { cn } from "@/lib/utils"
 import { dateFormatter } from "@/lib/dashboard-format"
 

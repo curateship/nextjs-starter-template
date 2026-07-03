@@ -61,7 +61,7 @@ import {
 } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { cn } from "@/lib/utils"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { dateFormatter } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"

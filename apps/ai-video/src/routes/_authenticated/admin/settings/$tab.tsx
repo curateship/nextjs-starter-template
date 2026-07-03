@@ -4,7 +4,7 @@ import {
   getSettingsTabFromPath,
   SettingsPage,
 } from "@/components/settings-page"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 
 export const Route = createFileRoute("/_authenticated/admin/settings/$tab")({
   component: SettingsTabRoute,

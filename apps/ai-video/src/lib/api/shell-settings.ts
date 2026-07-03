@@ -9,6 +9,10 @@ import {
   MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
 } from "@/lib/ai-video"
+import {
+  API_USAGE_LIMIT_MAX,
+  API_USAGE_LIMIT_MIN,
+} from "@/lib/api-usage-constants"
 import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 import { db } from "@/server/db"
 import { mediaFileUrl } from "@/server/media-urls"
@@ -95,6 +99,11 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  defaultApiUsageMonthlyCredits: z
+    .number()
+    .int()
+    .min(API_USAGE_LIMIT_MIN)
+    .max(API_USAGE_LIMIT_MAX),
   dashboardRowsPerPage: z
     .number()
     .int()
@@ -140,11 +149,15 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
   async () => {
     const user = await requireUser()
 
-    const [row] = await db
-      .select()
-      .from(aiVideoSettings)
-      .where(eq(aiVideoSettings.key, DEFAULT_SETTINGS_KEY))
-      .limit(1)
+    const { getDefaultApiUsageLimit } = await import("@/server/api-usage")
+    const [[row], defaultApiUsageMonthlyCredits] = await Promise.all([
+      db
+        .select()
+        .from(aiVideoSettings)
+        .where(eq(aiVideoSettings.key, DEFAULT_SETTINGS_KEY))
+        .limit(1),
+      getDefaultApiUsageLimit(),
+    ])
 
     const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
       await import("@/server/workspaces")
@@ -156,6 +169,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       settings: {
         ...shellGlobals,
         workspaceName: workspace.name,
+        defaultApiUsageMonthlyCredits,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topNavigation: workspaceSettings.topNavigation,
@@ -184,6 +198,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const brandKit = await validateBrandKitLogo(user.id, data.brandKit)
 
     const globalSettings = pickShellGlobals(data)
+    const { setDefaultApiUsageLimit } = await import("@/server/api-usage")
     await db.transaction(async (tx) => {
       await tx
         .update(aiVideoWorkspaces)
@@ -225,6 +240,8 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           updatedAt,
         })
       }
+
+      await setDefaultApiUsageLimit(data.defaultApiUsageMonthlyCredits, tx)
     })
 
     return { settings: data }

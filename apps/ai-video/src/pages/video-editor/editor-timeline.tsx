@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import {
   ContextMenu,
   ContextMenuContent,

@@ -5,6 +5,7 @@ export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
   | "creator_watch"
+  | "api_usage_alert"
 
 export type NotificationItem = {
   id: string
@@ -17,6 +18,10 @@ export type NotificationItem = {
   creator_username: string | null
   creator_display_name: string | null
   creator_new_video_count: number | null
+  api_usage_level: "warning" | "blocked" | null
+  api_usage_period_start: string | null
+  api_usage_used_credits: number | null
+  api_usage_limit_credits: number | null
   read_at: string | null
   created_at: string
 }

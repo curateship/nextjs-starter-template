@@ -283,6 +283,10 @@ async function serializeNotificationRows(
       creator_username: creator?.username ?? null,
       creator_display_name: creator?.displayName ?? null,
       creator_new_video_count: row.creatorNewVideoCount,
+      api_usage_level: row.apiUsageLevel as NotificationItem["api_usage_level"],
+      api_usage_period_start: row.apiUsagePeriodStart?.toISOString() ?? null,
+      api_usage_used_credits: row.apiUsageUsedCredits,
+      api_usage_limit_credits: row.apiUsageLimitCredits,
       read_at: row.readAt?.toISOString() ?? null,
       created_at: row.createdAt.toISOString(),
     }

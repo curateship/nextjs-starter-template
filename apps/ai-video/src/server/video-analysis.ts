@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { withApiUsage, type ApiUsageAction } from "@/server/api-usage"
 import { getLlmKey } from "@/server/llm-keys"
 
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
@@ -112,29 +113,36 @@ Rules:
 export async function generateJson<T>(
   parts: unknown[],
   schema: z.ZodType<T>,
-  label: string
+  label: string,
+  usage?: { userId: string; action: ApiUsageAction }
 ): Promise<T> {
   const apiKey = await requireGeminiKey()
-  const response = await fetch(
-    `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
-  )
+  const run = async () => {
+    const response = await fetch(
+      `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+      }
+    )
 
-  if (!response.ok) {
-    // Surface the status + Google's error body in the server log.
-    console.error(`Gemini ${label} failed`, await safeBody(response))
-    throw new Error(`${label} failed (HTTP ${response.status})`)
+    if (!response.ok) {
+      // Surface the status + Google's error body in the server log.
+      console.error(`Gemini ${label} failed`, await safeBody(response))
+      throw new Error(`${label} failed (HTTP ${response.status})`)
+    }
+    return response
   }
+  const response = usage
+    ? await withApiUsage(usage.userId, usage.action, run)
+    : await run()
 
   const payload = (await response.json()) as GeminiGenerateResponse
   const text = (payload.candidates?.[0]?.content?.parts ?? [])
@@ -161,24 +169,46 @@ export async function generateJson<T>(
 // Full pipeline: upload the video bytes to the Gemini Files API, wait until
 // processed, run one generateContent call, validate + clamp the JSON.
 export async function analyzeViralVideo(
+  userId: string,
   bytes: Uint8Array,
   mimeType: string,
   durationMs: number | null
 ): Promise<ViralVideoAnalysis> {
   const apiKey = await requireGeminiKey()
+  return withApiUsage(
+    userId,
+    {
+      provider: "gemini",
+      feature: "video_analysis",
+      model: ANALYSIS_MODEL,
+    },
+    async () => {
+      return withActiveGeminiFile(bytes, mimeType, apiKey, async (file) => {
+        const analysis = await generateJson(
+          [
+            { file_data: { file_uri: file.uri, mime_type: mimeType } },
+            { text: analysisPrompt(durationMs) },
+          ],
+          analysisSchema,
+          "Video analysis"
+        )
+        return cleanAnalysis(analysis, durationMs)
+      })
+    }
+  )
+}
+
+export async function withActiveGeminiFile<T>(
+  bytes: Uint8Array,
+  mimeType: string,
+  apiKey: string,
+  run: (file: { name: string; uri: string }) => Promise<T>
+) {
   const file = await uploadFileToGemini(bytes, mimeType, apiKey)
 
   try {
     await waitForFileActive(file.name, apiKey)
-    const analysis = await generateJson(
-      [
-        { file_data: { file_uri: file.uri, mime_type: mimeType } },
-        { text: analysisPrompt(durationMs) },
-      ],
-      analysisSchema,
-      "Video analysis"
-    )
-    return cleanAnalysis(analysis, durationMs)
+    return await run(file)
   } finally {
     // Files auto-expire after 48h, but don't leave them lying around.
     await deleteGeminiFile(file.name, apiKey)

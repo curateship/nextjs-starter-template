@@ -113,6 +113,7 @@ const carouselSaveSchema = carouselIdSchema.extend({
 })
 
 const safeCarouselErrors = new Set([
+  "API usage limit reached. Try again next month.",
   "Carousel name is required",
   "Carousel not found",
   "Carousel needs at least one slide",

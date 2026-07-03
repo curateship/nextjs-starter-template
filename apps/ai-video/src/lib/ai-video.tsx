@@ -8,6 +8,7 @@ import {
   TEXT_FONT_IDS,
   type TextFontId,
 } from "@/lib/text-fonts"
+import { API_USAGE_DEFAULT_MONTHLY_CREDITS } from "@/lib/api-usage-constants"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -346,6 +347,7 @@ export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
+  defaultApiUsageMonthlyCredits: number
   dashboardRowsPerPage: number
   mediaUploadMaxMb: number
   favicon: string
@@ -370,7 +372,9 @@ const DEFAULT_BRAND_KIT_COLORS: BrandKitColor[] = [
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 function isTextFontId(value: unknown): value is TextFontId {
-  return typeof value === "string" && TEXT_FONT_IDS.includes(value as TextFontId)
+  return (
+    typeof value === "string" && TEXT_FONT_IDS.includes(value as TextFontId)
+  )
 }
 
 function cleanHexColor(value: unknown, fallback: string) {
@@ -436,9 +440,13 @@ export function cleanBrandKitConfig(value: unknown): BrandKitConfig {
   return {
     colors: colors.length ? colors : fallback.colors,
     fonts: {
-      heading: isTextFontId(fonts.heading) ? fonts.heading : fallback.fonts.heading,
+      heading: isTextFontId(fonts.heading)
+        ? fonts.heading
+        : fallback.fonts.heading,
       body: isTextFontId(fonts.body) ? fonts.body : fallback.fonts.body,
-      caption: isTextFontId(fonts.caption) ? fonts.caption : fallback.fonts.caption,
+      caption: isTextFontId(fonts.caption)
+        ? fonts.caption
+        : fallback.fonts.caption,
     },
     captionStyle: {
       fontId: isTextFontId(captionStyle.fontId)
@@ -460,7 +468,9 @@ export function cleanBrandKitConfig(value: unknown): BrandKitConfig {
     logo: {
       mediaId: typeof logo.mediaId === "string" ? logo.mediaId : null,
       previewUrl:
-        typeof logo.previewUrl === "string" ? logo.previewUrl.slice(0, 2048) : "",
+        typeof logo.previewUrl === "string"
+          ? logo.previewUrl.slice(0, 2048)
+          : "",
     },
     watermark: {
       enabled: watermark.enabled === true,
@@ -475,7 +485,8 @@ export function cleanBrandKitConfig(value: unknown): BrandKitConfig {
           ? Math.min(Math.max(Math.round(watermark.widthPercent), 1), 100)
           : fallback.watermark.widthPercent,
       opacity:
-        typeof watermark.opacity === "number" && Number.isFinite(watermark.opacity)
+        typeof watermark.opacity === "number" &&
+        Number.isFinite(watermark.opacity)
           ? Math.min(Math.max(Math.round(watermark.opacity), 0), 100)
           : fallback.watermark.opacity,
     },
@@ -507,6 +518,7 @@ export function createDefaultShellConfig(): ShellConfig {
     appName: "",
     workspaceName: "",
     workspacePlan: "",
+    defaultApiUsageMonthlyCredits: API_USAGE_DEFAULT_MONTHLY_CREDITS,
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
     favicon: "",
@@ -539,7 +551,10 @@ export function isShellItem(entry: ShellEntry): entry is ShellItem {
   return entry.type === "item"
 }
 
-export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4") {
+export function renderShellIcon(
+  icon: ShellIcon | undefined,
+  className = "size-4"
+) {
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
     return <Icon className={className} />

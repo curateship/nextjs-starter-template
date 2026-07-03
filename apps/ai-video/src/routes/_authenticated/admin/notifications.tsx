@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { NotificationsPage } from "@/components/notifications-page"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { loadCurrentUser } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/_authenticated/admin/notifications")({

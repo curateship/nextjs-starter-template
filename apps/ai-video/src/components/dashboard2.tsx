@@ -82,7 +82,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video";
-import { useShellRuntime } from "@/components/shell-layout";
+import { useShellRuntime } from "@/components/shell-runtime";
 import {
   Select,
   SelectContent,

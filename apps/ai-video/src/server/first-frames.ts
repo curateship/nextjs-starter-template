@@ -23,7 +23,6 @@ import {
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import {
-  enforceImageGenerationRateLimit,
   generateActorImage,
   type ImageGenerationReference,
 } from "@/server/actor-actions"
@@ -128,8 +127,8 @@ export async function createFirstFrameForCurrentUser(
     aspectRatio: data.aspectRatio,
   })
 
-  await enforceImageGenerationRateLimit(user.id)
   const image = await generateActorImage(
+    user.id,
     generatedPrompt,
     data.model,
     referenceImage
@@ -262,8 +261,8 @@ export async function regenerateFirstFrameForCurrentUser(
     aspectRatio: data.aspectRatio,
   })
 
-  await enforceImageGenerationRateLimit(user.id)
   const image = await generateActorImage(
+    user.id,
     generatedPrompt,
     data.model,
     referenceImage

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import type { MediaItem } from "@/server/media"
+import { withApiUsage } from "@/server/api-usage"
 import { db } from "@/server/db"
 import { readResponseBytesWithLimit } from "@/server/download-limits"
 import { getLlmKey } from "@/server/llm-keys"
@@ -107,6 +108,8 @@ export async function createAiVideoGenerationForCurrentUser(
   }
 
   const createdAt = now()
+  const object = await getFromR2(joined.media.storagePath)
+  const imageBytes = await bodyToBytes(object.Body)
   const row = {
     id: uuid(),
     userId: user.id,
@@ -132,11 +135,55 @@ export async function createAiVideoGenerationForCurrentUser(
     throw new Error("AI video generation was not created")
   }
 
-  void processAiVideoGeneration(created.id, apiKey).catch((error) => {
-    console.error("AI video generation crashed", created.id, error)
-  })
+  try {
+    const operationName = await startVeoOperation({
+      userId: user.id,
+      apiKey,
+      prompt: composeVeoPrompt(prompt),
+      imageBytes,
+      imageMimeType: joined.media.mimeType,
+      aspectRatio,
+      durationSeconds: data.durationSeconds,
+    })
+    const [processing] = await db
+      .update(aiVideoGenerations)
+      .set({
+        status: "processing",
+        operationName,
+        updatedAt: now(),
+      })
+      .where(eq(aiVideoGenerations.id, created.id))
+      .returning()
 
-  return serializeGeneration(created, null)
+    if (!processing) {
+      throw new Error("AI video generation was not updated")
+    }
+
+    void processAiVideoGeneration(processing.id, apiKey).catch((error) => {
+      console.error("AI video generation crashed", processing.id, error)
+    })
+
+    return serializeGeneration(processing, null)
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "API usage limit reached. Try again next month."
+    ) {
+      await db
+        .delete(aiVideoGenerations)
+        .where(eq(aiVideoGenerations.id, created.id))
+    } else {
+      await db
+        .update(aiVideoGenerations)
+        .set({
+          status: "error",
+          errorMessage: "AI video generation failed",
+          updatedAt: now(),
+        })
+        .where(eq(aiVideoGenerations.id, created.id))
+    }
+    throw error
+  }
 }
 
 export async function getAiVideoGenerationForCurrentUser(
@@ -183,29 +230,14 @@ async function processAiVideoGeneration(generationId: string, apiKey: string) {
     if (!joined?.media) {
       throw new Error("First frame image is missing")
     }
+    if (!joined.generation.operationName) {
+      throw new Error("AI video generation operation is missing")
+    }
 
-    const object = await getFromR2(joined.media.storagePath)
-    const imageBytes = await bodyToBytes(object.Body)
-    const operationName = await startVeoOperation({
-      apiKey,
-      prompt: composeVeoPrompt(joined.generation.prompt),
-      imageBytes,
-      imageMimeType: joined.media.mimeType,
-      aspectRatio: joined.generation.aspectRatio as AiVideoAspectRatio,
-      durationSeconds: joined.generation
-        .durationSeconds as AiVideoDurationSeconds,
-    })
-
-    await db
-      .update(aiVideoGenerations)
-      .set({
-        status: "processing",
-        operationName,
-        updatedAt: now(),
-      })
-      .where(eq(aiVideoGenerations.id, generationId))
-
-    const operation = await waitForVeoOperation(operationName, apiKey)
+    const operation = await waitForVeoOperation(
+      joined.generation.operationName,
+      apiKey
+    )
     const videoUri = extractVideoUri(operation)
     const videoBytes = await downloadVeoVideo(videoUri, apiKey)
     const media = await saveGeneratedVideoToProjectMedia(
@@ -238,6 +270,7 @@ async function processAiVideoGeneration(generationId: string, apiKey: string) {
 }
 
 async function startVeoOperation({
+  userId,
   apiKey,
   prompt,
   imageBytes,
@@ -245,6 +278,7 @@ async function startVeoOperation({
   aspectRatio,
   durationSeconds,
 }: {
+  userId: string
   apiKey: string
   prompt: string
   imageBytes: Uint8Array
@@ -252,40 +286,50 @@ async function startVeoOperation({
   aspectRatio: AiVideoAspectRatio
   durationSeconds: AiVideoDurationSeconds
 }) {
-  const response = await fetch(
-    `${GEMINI_BASE_URL}/v1beta/models/${AI_VIDEO_MODEL}:predictLongRunning`,
+  const response = await withApiUsage(
+    userId,
     {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        instances: [
-          {
-            prompt,
-            image: {
-              inlineData: {
-                mimeType: imageMimeType,
-                data: Buffer.from(imageBytes).toString("base64"),
-              },
-            },
+      provider: "veo",
+      feature: "ai_video_generation",
+      model: AI_VIDEO_MODEL,
+    },
+    async () => {
+      const response = await fetch(
+        `${GEMINI_BASE_URL}/v1beta/models/${AI_VIDEO_MODEL}:predictLongRunning`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-        ],
-        parameters: {
-          aspectRatio,
-          durationSeconds: String(durationSeconds),
-          resolution: AI_VIDEO_RESOLUTION,
-          personGeneration: "allow_adult",
-        },
-      }),
+          body: JSON.stringify({
+            instances: [
+              {
+                prompt,
+                image: {
+                  inlineData: {
+                    mimeType: imageMimeType,
+                    data: Buffer.from(imageBytes).toString("base64"),
+                  },
+                },
+              },
+            ],
+            parameters: {
+              aspectRatio,
+              durationSeconds: String(durationSeconds),
+              resolution: AI_VIDEO_RESOLUTION,
+              personGeneration: "allow_adult",
+            },
+          }),
+        }
+      )
+      if (!response.ok) {
+        console.error("Veo generation start failed", await safeBody(response))
+        throw new Error("AI video generation failed")
+      }
+      return response
     }
   )
-
-  if (!response.ok) {
-    console.error("Veo generation start failed", await safeBody(response))
-    throw new Error("AI video generation failed")
-  }
 
   const payload = (await response.json()) as VeoOperation
   if (!payload.name) {

@@ -25,6 +25,7 @@ const projectIdSchema = z.object({
 })
 
 const safeErrorMessages = new Set([
+  "API usage limit reached. Try again next month.",
   "AI video generation is not configured",
   "AI video generation failed",
   "AI video generation not found",

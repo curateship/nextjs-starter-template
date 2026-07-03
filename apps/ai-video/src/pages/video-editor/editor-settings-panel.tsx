@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { cn } from "@/lib/utils"
 import type { BrandKitColor, BrandKitConfig } from "@/lib/ai-video"
 import {

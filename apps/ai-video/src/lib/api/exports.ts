@@ -20,6 +20,7 @@ export type {
 }
 
 const exportSafeErrorMessages = new Set([
+  "API usage limit reached. Try again next month.",
   "Export not found",
   "Export title is required",
   "Description generation is not configured",

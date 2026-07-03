@@ -12,6 +12,7 @@ import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import { generateJson } from "@/server/video-analysis"
+import { ANALYSIS_MODEL } from "@/server/video-analysis"
 import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
@@ -184,7 +185,15 @@ export async function generateExportDescriptionForCurrentUser(
     const result = await generateJson(
       [{ text: descriptionPrompt(project, brandKit.ctaPhrases) }],
       descriptionSchema,
-      "Description generation"
+      "Description generation",
+      {
+        userId: user.id,
+        action: {
+          provider: "gemini",
+          feature: "export_description",
+          model: ANALYSIS_MODEL,
+        },
+      }
     )
     return { description: result.description.trim() }
   } catch (error) {
