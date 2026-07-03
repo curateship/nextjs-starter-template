@@ -94,6 +94,7 @@ function App() {
     addWorkspace,
     createApp,
     deleteWorkspace: deleteWorkspaceRecord,
+    moveWorkspace,
     selectWorkspace,
     setWorkspaceHidden: setWorkspaceHiddenRecord,
     workspaceBusy,
@@ -814,6 +815,7 @@ function App() {
                 onCreate={addWorkspace}
                 onCreateApp={createApp}
                 onDelete={deleteWorkspace}
+                onMoveWorkspace={moveWorkspace}
                 onOpenServer={openWorkspaceServer}
                 onSelect={selectWorkspace}
                 onSetHidden={setWorkspaceHidden}

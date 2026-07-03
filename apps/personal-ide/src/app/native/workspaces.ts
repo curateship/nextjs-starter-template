@@ -22,6 +22,10 @@ export function setWorkspaceVisibility(workspaceId: string, hidden: boolean) {
   return invoke<WorkspaceList>("set_workspace_hidden", { workspaceId, hidden })
 }
 
+export function reorderWorkspaces(workspaceIds: string[]) {
+  return invoke<WorkspaceList>("reorder_workspaces", { workspaceIds })
+}
+
 export function deleteWorkspace(workspaceId: string) {
   return invoke<WorkspaceList>("delete_workspace", { workspaceId })
 }
