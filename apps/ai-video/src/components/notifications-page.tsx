@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   BellIcon,
   ClapperboardIcon,
+  GaugeIcon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
@@ -58,6 +59,7 @@ const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
   creator_watch: "Creator watch",
+  api_usage_alert: "API usage",
 }
 
 function getCreatorName(item: NotificationItem) {
@@ -71,12 +73,21 @@ function getCreatorHandle(item: NotificationItem) {
 }
 
 function getNotificationActivity(item: NotificationItem) {
+  if (item.type === "api_usage_alert") {
+    return "API credits"
+  }
+
   return item.type === "creator_watch"
     ? `${getCreatorHandle(item)} new reels`
     : item.actor_name
 }
 
 function getNotificationTarget(item: NotificationItem) {
+  if (item.type === "api_usage_alert") {
+    const level = item.api_usage_level === "blocked" ? "limit reached" : "near limit"
+    return `${item.api_usage_used_credits ?? 0} of ${item.api_usage_limit_credits ?? 0} credits, ${level}`
+  }
+
   if (item.type === "creator_watch") {
     const count = item.creator_new_video_count ?? 0
     return `${getCreatorHandle(item)}, ${count} new ${count === 1 ? "reel" : "reels"}`
@@ -271,7 +282,13 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={["All types", "Thumbs up", "Comments", "Creator watch"]}
+                labels={[
+                  "All types",
+                  "Thumbs up",
+                  "Comments",
+                  "Creator watch",
+                  "API usage",
+                ]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
@@ -280,6 +297,7 @@ export function NotificationsPage({
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
                 <SelectItem value="creator_watch">Creator watch</SelectItem>
+                <SelectItem value="api_usage_alert">API usage</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -378,6 +396,8 @@ export function NotificationsPage({
                   <ThumbsUpIcon className="size-4 text-muted-foreground" />
                 ) : item.type === "creator_watch" ? (
                   <ClapperboardIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "api_usage_alert" ? (
+                  <GaugeIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <MessageSquareIcon className="size-4 text-muted-foreground" />
                 )}
@@ -388,6 +408,10 @@ export function NotificationsPage({
                   <p className="text-xs text-muted-foreground">
                     {item.type === "creator_watch"
                       ? getCreatorHandle(item)
+                      : item.type === "api_usage_alert"
+                        ? item.api_usage_level === "blocked"
+                          ? "Limit reached"
+                          : "Near limit"
                       : item.actor_name}
                   </p>
                 </div>

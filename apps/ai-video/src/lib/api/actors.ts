@@ -38,7 +38,7 @@ const actorIdSchema = z.object({
 })
 
 const actorSafeErrorMessages = new Set([
-  "Actor image generation limit reached. Try again later.",
+  "API usage limit reached. Try again next month.",
   "Actor image storage is not configured",
   "Actor image upload failed",
   "Actor name is required",

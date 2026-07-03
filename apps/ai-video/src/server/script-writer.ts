@@ -9,7 +9,11 @@ import {
   aiVideoViralVideos,
 } from "@/server/schema"
 import { requireUser } from "@/server/security"
-import { generateJson, type ViralVideoAnalysis } from "@/server/video-analysis"
+import {
+  ANALYSIS_MODEL,
+  generateJson,
+  type ViralVideoAnalysis,
+} from "@/server/video-analysis"
 import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 
 // One beat of the generated script. Role and timing come verbatim from the
@@ -279,6 +283,7 @@ export async function writeScriptForProjectForCurrentUser(
   })
   const brandKit = await getCurrentWorkspaceBrandKit(userId)
   const lines = await generateScriptLines(
+    userId,
     analysis,
     data.topic,
     data.notes,
@@ -317,6 +322,7 @@ export async function writeBriefForProjectForCurrentUser(
   )
   const brandKit = await getCurrentWorkspaceBrandKit(userId)
   const result = await generateBrief(
+    userId,
     analysis,
     data.topic,
     data.notes,
@@ -365,6 +371,7 @@ export async function writeBriefForProjectForCurrentUser(
 
 // Text-only generateContent call (no Files API — the analysis is already text).
 async function generateScriptLines(
+  userId: string,
   analysis: ViralVideoAnalysis,
   topic: string,
   notes: string | undefined,
@@ -373,12 +380,21 @@ async function generateScriptLines(
   const result = await generateJson(
     [{ text: scriptPrompt(analysis, topic, notes, ctaPhrases) }],
     scriptSchema,
-    "Script generation"
+    "Script generation",
+    {
+      userId,
+      action: {
+        provider: "gemini",
+        feature: "script_generation",
+        model: ANALYSIS_MODEL,
+      },
+    }
   )
   return result.beats
 }
 
 async function generateBrief(
+  userId: string,
   analysis: ViralVideoAnalysis,
   topic: string,
   notes: string | undefined,
@@ -388,7 +404,15 @@ async function generateBrief(
     return await generateJson(
       [{ text: briefPrompt(analysis, topic, notes, ctaPhrases) }],
       briefSchema,
-      "Brief generation"
+      "Brief generation",
+      {
+        userId,
+        action: {
+          provider: "gemini",
+          feature: "script_generation",
+          model: ANALYSIS_MODEL,
+        },
+      }
     )
   } catch (error) {
     if (

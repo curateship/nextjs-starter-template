@@ -5,6 +5,7 @@ import { MessageSquarePlusIcon, Moon, Sun } from "lucide-react"
 
 import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 import { NotificationCenter } from "@/pages/dashboard/sticky-header/notification-center"
+import { ApiUsageIndicator } from "@/components/api-usage-indicator"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -59,6 +60,7 @@ export function StickyHeaderRightNav({
 
   return (
     <div className="flex items-center gap-2 pr-1">
+      <ApiUsageIndicator />
       {navItems.map((item) => {
         if (!item.visible) return null
 

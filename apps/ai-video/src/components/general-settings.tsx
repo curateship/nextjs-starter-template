@@ -24,6 +24,10 @@ import {
   MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
 } from "@/lib/ai-video"
+import {
+  API_USAGE_LIMIT_MAX,
+  API_USAGE_LIMIT_MIN,
+} from "@/lib/api-usage-constants"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -106,6 +110,29 @@ export function GeneralSettings({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="default-api-usage-credits">
+              Default monthly API credits
+            </Label>
+            <Input
+              id="default-api-usage-credits"
+              type="number"
+              min={API_USAGE_LIMIT_MIN}
+              max={API_USAGE_LIMIT_MAX}
+              value={config.defaultApiUsageMonthlyCredits}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  defaultApiUsageMonthlyCredits: Number(event.target.value),
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Applies to users without a credit override.
+            </p>
           </div>
 
           <div className="grid gap-2">

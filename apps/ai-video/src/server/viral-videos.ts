@@ -397,6 +397,7 @@ async function processViralVideo(
         const object = await getFromR2(existing.storagePath)
         const bytes = await bodyToBytes(object.Body)
         const analysis = await analyzeViralVideo(
+          userId,
           bytes,
           existing.mimeType,
           row.durationMs
@@ -520,6 +521,7 @@ async function processViralVideo(
     })
 
     const analysis = await analyzeViralVideo(
+      userId,
       fileData,
       downloaded.mimeType,
       downloaded.metadata.durationMs

@@ -3,6 +3,10 @@ import { Outlet, useRouterState } from "@tanstack/react-router"
 
 import { DashboardContent } from "@/components/demo/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
+import {
+  ShellRuntimeContext,
+  type ShellRuntime,
+} from "@/components/shell-runtime"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
@@ -23,30 +27,13 @@ import {
   getShellSettingsErrorMessage,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
+import {
+  API_USAGE_LIMIT_MAX,
+  API_USAGE_LIMIT_MIN,
+} from "@/lib/api-usage-constants"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 
 type SaveStatus = "idle" | "saving" | "saved"
-
-type ShellRuntime = {
-  config: ShellConfig
-  settingsError: string | null
-  saveStatus: SaveStatus
-  feedbackRefreshToken: number
-  onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: () => Promise<boolean>
-  onOpenFeedback: () => void
-  onOpenFeedbackThread: (feedbackId: string) => void
-}
-
-const ShellRuntimeContext = React.createContext<ShellRuntime | null>(null)
-
-export function useShellRuntime() {
-  const context = React.useContext(ShellRuntimeContext)
-  if (!context) {
-    throw new Error("Shell runtime is missing")
-  }
-  return context
-}
 
 export function ShellLayout({
   user,
@@ -226,6 +213,13 @@ function normalizeConfig(settings: ShellConfig | null) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    defaultApiUsageMonthlyCredits:
+      typeof settings.defaultApiUsageMonthlyCredits === "number" &&
+      Number.isInteger(settings.defaultApiUsageMonthlyCredits) &&
+      settings.defaultApiUsageMonthlyCredits >= API_USAGE_LIMIT_MIN &&
+      settings.defaultApiUsageMonthlyCredits <= API_USAGE_LIMIT_MAX
+        ? settings.defaultApiUsageMonthlyCredits
+        : fallback.defaultApiUsageMonthlyCredits,
     dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
@@ -297,8 +291,7 @@ function isDashboardPath(config: ShellConfig, currentPath: string) {
 
 function isActivePath(href: string, currentPath: string) {
   return (
-    href === currentPath ||
-    (href !== "/" && currentPath.startsWith(`${href}/`))
+    href === currentPath || (href !== "/" && currentPath.startsWith(`${href}/`))
   )
 }
 
@@ -318,9 +311,7 @@ function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
       .map((item) => ({
         label: item.label,
         href: item.href,
-        icon: item.icon
-          ? renderShellIcon(item.icon, "h-3.5 w-3.5")
-          : undefined,
+        icon: item.icon ? renderShellIcon(item.icon, "h-3.5 w-3.5") : undefined,
         active: currentPath === item.href,
       }))
   }

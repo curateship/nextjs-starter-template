@@ -78,6 +78,93 @@ export const aiVideoLlmApiKeys = pgTable(
   ]
 )
 
+export const aiVideoApiUsageLimits = pgTable(
+  "api_usage_limits",
+  {
+    key: varchar("key", { length: 64 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => aiVideoUsers.id,
+      { onDelete: "cascade" }
+    ),
+    monthlyCredits: integer("monthly_credits").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("api_usage_limits_positive", sql`${table.monthlyCredits} > 0`),
+    index("ix_api_usage_limits_user_id").on(table.userId),
+    unique("api_usage_limits_user_unique").on(table.userId),
+  ]
+)
+
+export const aiVideoApiUsageEvents = pgTable(
+  "api_usage_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 20 }).notNull(),
+    feature: varchar("feature", { length: 40 }).notNull(),
+    model: varchar("model", { length: 100 }),
+    credits: integer("credits").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    metadata: jsonb("metadata").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "api_usage_provider_check",
+      sql`${table.provider} in ('gemini', 'openai', 'veo', 'elevenlabs')`
+    ),
+    check(
+      "api_usage_feature_check",
+      sql`${table.feature} in ('text_generation', 'caption_generation', 'video_analysis', 'voiceover', 'image_generation', 'ai_video_generation', 'script_generation', 'carousel_generation', 'export_description')`
+    ),
+    check(
+      "api_usage_status_check",
+      sql`${table.status} in ('success', 'failed', 'blocked')`
+    ),
+    check("api_usage_credits_positive", sql`${table.credits} > 0`),
+    index("ix_api_usage_events_user_period").on(
+      table.userId,
+      table.periodStart
+    ),
+    index("ix_api_usage_events_period_created").on(
+      table.periodStart,
+      table.createdAt
+    ),
+    index("ix_api_usage_events_provider").on(table.provider),
+    index("ix_api_usage_events_feature").on(table.feature),
+  ]
+)
+
+export const aiVideoApiUsageAlerts = pgTable(
+  "api_usage_alerts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    level: varchar("level", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("api_usage_alert_level_check", sql`${table.level} in ('warning', 'blocked')`),
+    unique("api_usage_alerts_user_period_level_unique").on(
+      table.userId,
+      table.periodStart,
+      table.level
+    ),
+    index("ix_api_usage_alerts_user_period").on(
+      table.userId,
+      table.periodStart
+    ),
+  ]
+)
+
 export const aiVideoWorkspaces = pgTable(
   "workspaces",
   {
@@ -190,13 +277,19 @@ export const aiVideoNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     creatorNewVideoCount: integer("creator_new_video_count"),
+    apiUsageLevel: varchar("api_usage_level", { length: 20 }),
+    apiUsagePeriodStart: timestamp("api_usage_period_start", {
+      withTimezone: true,
+    }),
+    apiUsageUsedCredits: integer("api_usage_used_credits"),
+    apiUsageLimitCredits: integer("api_usage_limit_credits"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch', 'api_usage_alert')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -583,26 +676,14 @@ export const aiVideoTemplates = pgTable(
   ]
 )
 
-export const aiVideoActorGenerationEvents = pgTable(
-  "actor_generation_events",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_actor_generation_events_user_created").on(
-      table.userId,
-      table.createdAt
-    ),
-    index("ix_actor_generation_events_created_at").on(table.createdAt),
-  ]
-)
-
 export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
+export type AiVideoApiUsageLimit =
+  typeof aiVideoApiUsageLimits.$inferSelect
+export type AiVideoApiUsageEvent =
+  typeof aiVideoApiUsageEvents.$inferSelect
+export type AiVideoApiUsageAlert =
+  typeof aiVideoApiUsageAlerts.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect

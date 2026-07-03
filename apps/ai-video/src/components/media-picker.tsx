@@ -10,7 +10,7 @@ import {
 } from "lucide-react"
 
 import { MediaGridSkeleton } from "@/components/loading-skeleton"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

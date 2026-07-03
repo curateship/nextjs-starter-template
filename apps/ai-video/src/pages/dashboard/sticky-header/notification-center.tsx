@@ -5,6 +5,7 @@ import {
   BellIcon,
   CheckCheckIcon,
   ClapperboardIcon,
+  GaugeIcon,
   Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
@@ -61,21 +62,38 @@ function getCreatorHandle(item: NotificationItem) {
 
 function NotificationAvatar({ item }: { item: NotificationItem }) {
   const isVote = item.type === "feedback_vote"
+  const isUsage = item.type === "api_usage_alert"
 
   return (
     <Avatar size="lg">
       <AvatarFallback
         className={
-          isVote ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+          isUsage
+            ? "bg-amber-100 text-amber-800"
+            : isVote
+              ? "bg-green-100 text-green-800"
+              : "bg-blue-100 text-blue-800"
         }
       >
-        {getInitial(item.actor_name)}
+        {isUsage ? "!" : getInitial(item.actor_name)}
       </AvatarFallback>
     </Avatar>
   )
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "api_usage_alert") {
+    return item.api_usage_level === "blocked" ? (
+      <>
+        <strong>API credits</strong> are at the monthly limit
+      </>
+    ) : (
+      <>
+        <strong>API credits</strong> are near the monthly limit
+      </>
+    )
+  }
+
   if (item.type === "creator_watch") {
     const count = item.creator_new_video_count ?? 0
     return (
@@ -102,6 +120,10 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "api_usage_alert") {
+    return <GaugeIcon className="h-3.5 w-3.5" />
+  }
+
   if (item.type === "creator_watch") {
     return <ClapperboardIcon className="h-3.5 w-3.5" />
   }
@@ -114,6 +136,15 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
 }
 
 function NotificationPreview({ item }: { item: NotificationItem }) {
+  if (item.type === "api_usage_alert") {
+    return (
+      <>
+        {item.api_usage_used_credits ?? 0} of{" "}
+        {item.api_usage_limit_credits ?? 0} credits used
+      </>
+    )
+  }
+
   if (item.type === "creator_watch") {
     return <>Creator watch</>
   }
@@ -319,6 +350,10 @@ export function NotificationCenter({
         to: "/admin/creators/$creatorId",
         params: { creatorId: item.creator_id },
       })
+      return
+    }
+
+    if (item.type === "api_usage_alert") {
       return
     }
 

@@ -10,6 +10,7 @@ import type {
 export type { CaptionLine, CaptionProvider, ProjectCaptionsResult }
 
 const captionSafeErrorMessages = new Set([
+  "API usage limit reached. Try again next month.",
   "Project not found",
   "No audible clip to caption",
   "A clip's media file no longer exists",

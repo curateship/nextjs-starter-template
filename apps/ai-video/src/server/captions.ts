@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
+import { withApiUsage } from "@/server/api-usage"
 import { getLlmKey } from "@/server/llm-keys"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
@@ -9,11 +10,10 @@ import { extractAudioWav } from "@/server/video-download"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import {
-  deleteGeminiFile,
+  ANALYSIS_MODEL,
   generateJson,
   requireGeminiKey,
-  uploadFileToGemini,
-  waitForFileActive,
+  withActiveGeminiFile,
 } from "@/server/video-analysis"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type { ClipWord, EditorClip } from "@/pages/video-editor/editor-store"
@@ -102,7 +102,10 @@ export async function generateProjectCaptionsForCurrentUser(
     .select()
     .from(aiVideoProjects)
     .where(
-      and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, user.id))
+      and(
+        eq(aiVideoProjects.id, projectId),
+        eq(aiVideoProjects.userId, user.id)
+      )
     )
     .limit(1)
   if (!project) {
@@ -142,14 +145,20 @@ export async function generateProjectCaptionsForCurrentUser(
 
   const raw =
     provider === "openai"
-      ? await transcribeWithOpenAI(audioBytes, audioMime)
-      : await transcribeWithGemini(audioBytes, audioMime, sourceDurationMs)
+      ? await transcribeWithOpenAI(user.id, audioBytes, audioMime)
+      : await transcribeWithGemini(
+          user.id,
+          audioBytes,
+          audioMime,
+          sourceDurationMs
+        )
   return { captions: mapToTimeline(raw, source, sourceDurationMs) }
 }
 
 // OpenAI Whisper transcription with word-level timestamps (forced-aligned, so
 // tighter than Gemini's estimates), grouped into short caption chunks.
 async function transcribeWithOpenAI(
+  userId: string,
   bytes: Uint8Array,
   mimeType: string
 ): Promise<CaptionLine[]> {
@@ -169,19 +178,30 @@ async function transcribeWithOpenAI(
   form.append("response_format", "verbose_json")
   form.append("timestamp_granularities[]", "word")
 
-  const response = await fetch(
-    "https://api.openai.com/v1/audio/transcriptions",
+  const response = await withApiUsage(
+    userId,
     {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
+      provider: "openai",
+      feature: "caption_generation",
+      model: "whisper-1",
+    },
+    async () => {
+      const response = await fetch(
+        "https://api.openai.com/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        }
+      )
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "")
+        console.error("OpenAI transcription failed", response.status, detail)
+        throw new Error(`Caption generation failed (HTTP ${response.status})`)
+      }
+      return response
     }
   )
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "")
-    console.error("OpenAI transcription failed", response.status, detail)
-    throw new Error(`Caption generation failed (HTTP ${response.status})`)
-  }
 
   const payload = (await response.json()) as {
     words?: { word: string; start: number; end: number }[]
@@ -231,27 +251,33 @@ export function chunkWords(
 
 // Files API upload + one generateContent call, mirroring analyzeViralVideo.
 async function transcribeWithGemini(
+  userId: string,
   bytes: Uint8Array,
   mimeType: string,
   durationMs: number | null
 ): Promise<CaptionLine[]> {
   const apiKey = await requireGeminiKey()
-  const file = await uploadFileToGemini(bytes, mimeType, apiKey)
-
-  try {
-    await waitForFileActive(file.name, apiKey)
-    const result = await generateJson(
-      [
-        { file_data: { file_uri: file.uri, mime_type: mimeType } },
-        { text: captionsPrompt(durationMs) },
-      ],
-      captionsSchema,
-      "Caption generation"
-    )
-    return result.captions
-  } finally {
-    await deleteGeminiFile(file.name, apiKey)
-  }
+  return withApiUsage(
+    userId,
+    {
+      provider: "gemini",
+      feature: "caption_generation",
+      model: ANALYSIS_MODEL,
+    },
+    async () => {
+      return withActiveGeminiFile(bytes, mimeType, apiKey, async (file) => {
+        const result = await generateJson(
+          [
+            { file_data: { file_uri: file.uri, mime_type: mimeType } },
+            { text: captionsPrompt(durationMs) },
+          ],
+          captionsSchema,
+          "Caption generation"
+        )
+        return result.captions
+      })
+    }
+  )
 }
 
 // Source-time captions → timeline-time captions: keep only the part of the

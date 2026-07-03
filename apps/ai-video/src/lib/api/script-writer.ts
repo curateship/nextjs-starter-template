@@ -10,6 +10,7 @@ import type {
 export type { ProjectReelBriefResult, ProjectScriptResult, ScriptBeat }
 
 const scriptSafeErrorMessages = new Set([
+  "API usage limit reached. Try again next month.",
   "Project not found",
   "This project wasn't created from an analyzed template",
   "Video analysis is not configured",
@@ -18,6 +19,7 @@ const scriptSafeErrorMessages = new Set([
   "Script generation returned an unexpected shape",
 ])
 const briefSafeErrorMessages = new Set([
+  "API usage limit reached. Try again next month.",
   "Project not found",
   "Template not found",
   "Brief to Reel needs a template-based project",

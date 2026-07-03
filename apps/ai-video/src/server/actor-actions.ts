@@ -1,6 +1,7 @@
-import { and, eq, gte, inArray, lt, sql } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 
 import { actorModelProvider, type ActorPayload } from "@/lib/actor-models"
+import { withApiUsage } from "@/server/api-usage"
 import {
   cleanActorName,
   cleanActorPrompt,
@@ -22,12 +23,10 @@ import {
   uploadToR2,
 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
-import { aiVideoActorGenerationEvents, aiVideoActors } from "@/server/schema"
+import { aiVideoActors } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import { safeBody } from "@/server/video-analysis"
 
-const ACTOR_GENERATION_LIMIT = 10
-const ACTOR_GENERATION_WINDOW_MS = 60 * 60 * 1000
 const ACTOR_GENERATION_MAX_BYTES = 10 * 1024 * 1024
 const ACTOR_GENERATION_MIME_TYPES = new Set([
   "image/png",
@@ -59,8 +58,12 @@ export async function createActorForCurrentUser(
   const prompt = cleanActorPrompt(data.prompt)
   const tags = normalizeActorTags(data.tags)
   const actorId = uuid()
-  await enforceImageGenerationRateLimit(user.id)
-  const image = await generateActorImage(prompt, data.model, referenceMedia)
+  const image = await generateActorImage(
+    user.id,
+    prompt,
+    data.model,
+    referenceMedia
+  )
   const storagePath = actorImageStoragePath(user.id, actorId, image.mimeType)
 
   try {
@@ -171,8 +174,12 @@ export async function regenerateActorForCurrentUser(
   )
   const name = cleanActorName(data.name)
   const prompt = cleanActorPrompt(data.prompt)
-  await enforceImageGenerationRateLimit(user.id)
-  const image = await generateActorImage(prompt, data.model, referenceMedia)
+  const image = await generateActorImage(
+    user.id,
+    prompt,
+    data.model,
+    referenceMedia
+  )
   const storagePath = actorImageStoragePath(user.id, actor.id, image.mimeType)
 
   try {
@@ -280,21 +287,23 @@ async function resolveReferenceMedia(userId: string, mediaId?: string | null) {
 // Routes to the right provider API for the chosen model. Both paths return
 // { bytes, mimeType } ready to upload.
 export async function generateActorImage(
+  userId: string,
   prompt: string,
   model: string,
   referenceMedia: ImageGenerationReference | null
 ) {
   const provider = actorModelProvider(model)
   if (provider === "gemini") {
-    return generateGeminiImage(prompt, model, referenceMedia)
+    return generateGeminiImage(userId, prompt, model, referenceMedia)
   }
   if (provider === "openai") {
-    return generateOpenAiImage(prompt, model, referenceMedia)
+    return generateOpenAiImage(userId, prompt, model, referenceMedia)
   }
   throw new Error("Unsupported actor model")
 }
 
 async function generateGeminiImage(
+  userId: string,
   prompt: string,
   model: string,
   referenceMedia: ImageGenerationReference | null
@@ -317,32 +326,42 @@ async function generateGeminiImage(
     })
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+  const response = await withApiUsage(
+    userId,
     {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-      }),
+      provider: "gemini",
+      feature: "image_generation",
+      model,
+    },
+    async () => {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+          }),
+        }
+      )
+      if (!response.ok) {
+        // Surface the real Gemini rejection (invalid key, no model access, quota)
+        // in the logs so failures are diagnosable; the client still sees the safe
+        // generic message rather than a raw API error.
+        console.error(
+          "Gemini actor image failed",
+          response.status,
+          await safeBody(response)
+        )
+        throw new Error("Image generation failed")
+      }
+      return response
     }
   )
-
-  if (!response.ok) {
-    // Surface the real Gemini rejection (invalid key, no model access, quota)
-    // in the logs so failures are diagnosable; the client still sees the safe
-    // generic message rather than a raw API error.
-    console.error(
-      "Gemini actor image failed",
-      response.status,
-      await safeBody(response)
-    )
-    throw new Error("Image generation failed")
-  }
 
   const payload = (await response.json()) as GeminiGenerateResponse
   const generated = findGeneratedImage(payload)
@@ -355,6 +374,7 @@ async function generateGeminiImage(
 // OpenAI image generation. gpt-image-1 can edit a reference image (the edits
 // endpoint); dall-e-3 is text-only and must be told to return base64.
 async function generateOpenAiImage(
+  userId: string,
   prompt: string,
   model: string,
   referenceMedia: ImageGenerationReference | null
@@ -367,32 +387,33 @@ async function generateOpenAiImage(
   // Portrait sizes suit actor headshots; the two models allow different values.
   const size = model === "dall-e-3" ? "1024x1792" : "1024x1536"
 
-  let response: Response
-  if (model === "gpt-image-1" && referenceMedia) {
-    // Send the reference image alongside the prompt via the edits endpoint.
-    const object = await getFromR2(referenceMedia.storagePath)
-    const bytes = await bodyToBytes(object.Body)
-    const form = new FormData()
-    form.append("model", model)
-    form.append("prompt", prompt)
-    form.append("size", size)
-    form.append(
-      "image",
-      new Blob([Buffer.from(bytes)], { type: referenceMedia.mimeType }),
-      `reference.${extensionForMimeType(referenceMedia.mimeType)}`
-    )
-    response = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    })
-  } else {
+  const run = async () => {
+    if (model === "gpt-image-1" && referenceMedia) {
+      // Send the reference image alongside the prompt via the edits endpoint.
+      const object = await getFromR2(referenceMedia.storagePath)
+      const bytes = await bodyToBytes(object.Body)
+      const form = new FormData()
+      form.append("model", model)
+      form.append("prompt", prompt)
+      form.append("size", size)
+      form.append(
+        "image",
+        new Blob([Buffer.from(bytes)], { type: referenceMedia.mimeType }),
+        `reference.${extensionForMimeType(referenceMedia.mimeType)}`
+      )
+      return fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      })
+    }
+
     const body: Record<string, unknown> = { model, prompt, n: 1, size }
     // dall-e-3 returns a URL by default; force base64 like gpt-image-1.
     if (model === "dall-e-3") {
       body.response_format = "b64_json"
     }
-    response = await fetch("https://api.openai.com/v1/images/generations", {
+    return fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -402,16 +423,28 @@ async function generateOpenAiImage(
     })
   }
 
-  if (!response.ok) {
-    // Surface the real OpenAI rejection (unverified org, quota, invalid key) in
-    // the logs; the client still sees the safe generic message.
-    console.error(
-      "OpenAI actor image failed",
-      response.status,
-      await safeBody(response)
-    )
-    throw new Error("Image generation failed")
-  }
+  const response = await withApiUsage(
+    userId,
+    {
+      provider: "openai",
+      feature: "image_generation",
+      model,
+    },
+    async () => {
+      const response = await run()
+      if (!response.ok) {
+        // Surface the real OpenAI rejection (unverified org, quota, invalid key) in
+        // the logs; the client still sees the safe generic message.
+        console.error(
+          "OpenAI actor image failed",
+          response.status,
+          await safeBody(response)
+        )
+        throw new Error("Image generation failed")
+      }
+      return response
+    }
+  )
 
   const payload = (await response.json()) as OpenAiImageResponse
   const data = payload.data?.[0]?.b64_json
@@ -439,46 +472,6 @@ function decodeActorImage(data: string, mimeType: string) {
     throw new Error("Image generation returned an image that is too large")
   }
   return { bytes, mimeType }
-}
-
-export async function enforceImageGenerationRateLimit(userId: string) {
-  const currentTime = now()
-  const windowStart = new Date(
-    currentTime.getTime() - ACTOR_GENERATION_WINDOW_MS
-  )
-  const cleanupBefore = new Date(
-    currentTime.getTime() - ACTOR_GENERATION_WINDOW_MS * 24
-  )
-
-  await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${userId})::bigint)`
-    )
-
-    await tx
-      .delete(aiVideoActorGenerationEvents)
-      .where(lt(aiVideoActorGenerationEvents.createdAt, cleanupBefore))
-
-    const [row] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(aiVideoActorGenerationEvents)
-      .where(
-        and(
-          eq(aiVideoActorGenerationEvents.userId, userId),
-          gte(aiVideoActorGenerationEvents.createdAt, windowStart)
-        )
-      )
-
-    if ((row?.count ?? 0) >= ACTOR_GENERATION_LIMIT) {
-      throw new Error("Actor image generation limit reached. Try again later.")
-    }
-
-    await tx.insert(aiVideoActorGenerationEvents).values({
-      id: uuid(),
-      userId,
-      createdAt: currentTime,
-    })
-  })
 }
 
 function actorImageStoragePath(

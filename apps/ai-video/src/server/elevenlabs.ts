@@ -1,4 +1,5 @@
 import { chunkWords, type CaptionLine } from "@/server/captions"
+import { withApiUsage } from "@/server/api-usage"
 import { getLlmKey } from "@/server/llm-keys"
 import {
   saveGeneratedImageToLibrary,
@@ -104,20 +105,31 @@ export async function generateVoiceoverForCurrentUser(
 
   // `/with-timestamps` returns the audio AND character-level alignment in one
   // call, so we get timings for free without a second forced-alignment pass.
-  const response = await fetch(
-    `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${voiceId}/with-timestamps`,
+  const response = await withApiUsage(
+    user.id,
     {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text, model_id: modelId }),
+      provider: "elevenlabs",
+      feature: "voiceover",
+      model: modelId,
+    },
+    async () => {
+      const response = await fetch(
+        `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${voiceId}/with-timestamps`,
+        {
+          method: "POST",
+          headers: {
+            "xi-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text, model_id: modelId }),
+        }
+      )
+      if (!response.ok) {
+        throw await elevenLabsError("Voiceover generation failed", response)
+      }
+      return response
     }
   )
-  if (!response.ok) {
-    throw await elevenLabsError("Voiceover generation failed", response)
-  }
 
   const payload = (await response.json()) as {
     audio_base64: string

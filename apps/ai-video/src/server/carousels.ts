@@ -5,7 +5,7 @@ import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoCarousels, type AiVideoCarousel } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
-import { generateJson } from "@/server/video-analysis"
+import { ANALYSIS_MODEL, generateJson } from "@/server/video-analysis"
 
 export const CAROUSEL_FORMATS = ["4:5", "1:1", "9:16"] as const
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
@@ -340,13 +340,22 @@ ${sourceText}`
 }
 
 async function generateCarouselDraft(
+  userId: string,
   sourceText: string
 ): Promise<GeneratedDraft> {
   try {
     return await generateJson(
       [{ text: carouselPrompt(sourceText) }],
       generatedDraftSchema,
-      "Carousel generation"
+      "Carousel generation",
+      {
+        userId,
+        action: {
+          provider: "gemini",
+          feature: "carousel_generation",
+          model: ANALYSIS_MODEL,
+        },
+      }
     )
   } catch (error) {
     if (
@@ -458,7 +467,9 @@ export async function createCarouselForCurrentUser(data: {
   requireAppOrigin()
   const user = await requireUser()
   const sourceText = cleanSourceText(data.sourceText)
-  const draft = sourceText ? await generateCarouselDraft(sourceText) : null
+  const draft = sourceText
+    ? await generateCarouselDraft(user.id, sourceText)
+    : null
   const slides = draft
     ? createSlidesFromDraft(draft)
     : [

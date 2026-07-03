@@ -19,6 +19,7 @@ export function getVoiceErrorMessage(error: unknown) {
   // Surface stable, client-safe messages verbatim: the "not configured" hint
   // and provider HTTP failures (which carry a status + reason suffix).
   if (
+    message === "API usage limit reached. Try again next month." ||
     message === "ElevenLabs is not configured" ||
     message.startsWith("Voiceover generation failed") ||
     message.startsWith("Voice list failed")

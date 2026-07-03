@@ -51,7 +51,7 @@ const firstFrameIdSchema = z.object({
 })
 
 const firstFrameSafeErrorMessages = new Set([
-  "Actor image generation limit reached. Try again later.",
+  "API usage limit reached. Try again next month.",
   "Actor not found",
   "First frame name is required",
   "First frame not found",

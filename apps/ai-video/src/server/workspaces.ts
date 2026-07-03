@@ -409,6 +409,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-api-usage",
+          label: "API Usage",
+          href: "/admin/api-usage",
+          icon: "barChart3",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-settings",
           label: "Settings",
           href: "/admin/settings",
