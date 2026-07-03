@@ -37,7 +37,7 @@ SELECT
     ),
     'sections', COALESCE(
       "settings"."settings"->'sections',
-      '[{"id":"section-platform-settings","title":"Platform Settings","entries":[{"type":"item","id":"item-settings","label":"Settings","href":"/admin/settings","icon":"settings","visible":true}]}]'::jsonb
+      '[{"id":"section-platform-settings","title":"Platform Settings","entries":[{"type":"item","id":"item-feedback","label":"Feedback","href":"/admin/feedback","icon":"messageSquarePlus","visible":true,"children":[{"id":"item-feedback-comments","label":"Comments","href":"/admin/feedback/comments","icon":"message-square-text"}]},{"type":"item","id":"item-media","label":"Media","href":"/admin/media","icon":"image","visible":true},{"type":"item","id":"item-notifications","label":"Notifications","href":"/admin/notifications","icon":"bell","visible":true},{"type":"item","id":"item-settings","label":"Settings","href":"/admin/settings","icon":"settings","visible":true}]}]'::jsonb
     )
   ),
   true,
