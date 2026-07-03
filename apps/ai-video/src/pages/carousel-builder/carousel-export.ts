@@ -6,6 +6,7 @@ import type {
   CarouselSlide,
   CarouselTextItem,
 } from "@/lib/api/carousels"
+import { getTextFont } from "@/lib/text-fonts"
 
 const CANVAS_SIZES: Record<CarouselFormat, { width: number; height: number }> =
   {
@@ -137,7 +138,7 @@ async function renderSlideCanvas(slide: CarouselSlide, format: CarouselFormat) {
   const items = [...slide.items].sort((a, b) => a.zIndex - b.zIndex)
   for (const item of items) {
     if (item.type === "text") {
-      drawTextItem(context, item, size.width, size.height)
+      await drawTextItem(context, item, size.width, size.height)
     } else if (item.type === "image") {
       await drawImageItem(context, item, size.width, size.height)
     } else if (item.type === "gradient-shadow") {
@@ -148,16 +149,20 @@ async function renderSlideCanvas(slide: CarouselSlide, format: CarouselFormat) {
   return canvas
 }
 
-function drawTextItem(
+async function drawTextItem(
   context: CanvasRenderingContext2D,
   item: CarouselTextItem,
   width: number,
   height: number
 ) {
   const box = itemBox(item, width, height)
+  const font = getTextFont(item.fontId)
   context.save()
   context.fillStyle = item.color
-  context.font = `600 ${item.fontSize}px Inter, Arial, sans-serif`
+  context.font = `${font.weight} ${item.fontSize}px ${canvasFontFamily(
+    font.family
+  )}, Arial, sans-serif`
+  await document.fonts.load(context.font)
   context.textAlign = item.align
   context.textBaseline = "top"
 
@@ -177,6 +182,10 @@ function drawTextItem(
     }
   })
   context.restore()
+}
+
+function canvasFontFamily(family: string) {
+  return `"${family.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
 async function drawImageItem(
