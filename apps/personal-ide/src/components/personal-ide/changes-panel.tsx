@@ -1,4 +1,4 @@
-import { ChevronDown, GitCommitHorizontal, GitMerge, RefreshCw, Sparkles, Trash2 } from "lucide-react"
+import { GitCommitHorizontal, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 import { repoTabPath } from "@/app/editor-tabs"
@@ -19,12 +19,10 @@ export function ChangesPanel({
   onCommitMessageChange,
   onDiscardAll,
   onDiscardFile,
-  onMerge,
   onOpenFile,
   onOpenMergeFile,
   onRefresh,
   onSync,
-  onUpdateFromDevelop,
 }: {
   activePath: string
   busyAction: string
@@ -35,12 +33,10 @@ export function ChangesPanel({
   onCommitMessageChange: (value: string) => void
   onDiscardAll: () => void
   onDiscardFile: (file: GitFile) => void
-  onMerge: () => void
   onOpenFile: (file: GitFile) => void
   onOpenMergeFile: (file: GitFile) => void
   onRefresh: () => void
   onSync: () => void
-  onUpdateFromDevelop: () => void
 }) {
   const [discardMenu, setDiscardMenu] = useState<{
     file?: GitFile
@@ -51,7 +47,6 @@ export function ChangesPanel({
   useDismissibleMenu(discardMenu, setDiscardMenu)
   const developCommits = gitStatus.developCommits
   const developFiles = developCommits.length ? gitStatus.developFiles : []
-  const developUpdateCount = gitStatus.developCommitCount
   const fileEditorPath = (file: GitFile) => file.appPath ?? repoTabPath(file.path)
   const isActiveFile = (file: GitFile) => fileEditorPath(file) === activePath
 
@@ -208,7 +203,7 @@ export function ChangesPanel({
           />
           <Sparkles className="absolute top-2 right-2 size-4 text-muted-foreground" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
             className="bg-background"
@@ -221,37 +216,13 @@ export function ChangesPanel({
           <Button
             variant="outline"
             className="bg-background"
-            disabled={busyAction === "sync" || !gitStatus.unpushedCommitCount}
+            disabled={busyAction === "sync" || !gitStatus.branch}
             onClick={onSync}
           >
             <RefreshCw />
-            {busyAction === "sync"
-              ? "Syncing..."
-              : countLabel("Sync", gitStatus.unpushedCommitCount)}
-          </Button>
-          <Button
-            variant="outline"
-            className="bg-background"
-            disabled={busyAction === "merge" || !gitStatus.unmergedCommitCount}
-            onClick={onMerge}
-          >
-            <GitMerge />
-            {busyAction === "merge"
-              ? "Merging..."
-              : countLabel("Merge", gitStatus.unmergedCommitCount)}
+            {busyAction === "sync" ? "Syncing..." : "Sync"}
           </Button>
         </div>
-        <Button
-          variant="outline"
-          className="w-full bg-background"
-          disabled={busyAction === "update" || !developUpdateCount}
-          onClick={onUpdateFromDevelop}
-        >
-          <ChevronDown />
-          {busyAction === "update"
-            ? "Updating..."
-            : countLabel("Update from develop", developUpdateCount)}
-        </Button>
       </div>
 
       {discardMenu ? (
@@ -292,8 +263,4 @@ export function ChangesPanel({
       ) : null}
     </div>
   )
-}
-
-function countLabel(label: string, count: number) {
-  return count > 0 ? `${label} (${count})` : label
 }

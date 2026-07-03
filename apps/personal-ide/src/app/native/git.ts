@@ -15,14 +15,6 @@ export function syncGitChanges(workspaceId: string) {
   return invoke<GitStatus>("git_sync", { workspaceId })
 }
 
-export function mergeGitToDevelop(workspaceId: string) {
-  return invoke<GitStatus>("git_merge_to_develop", { workspaceId })
-}
-
-export function updateGitFromDevelop(workspaceId: string) {
-  return invoke<GitStatus>("git_update_from_develop", { workspaceId })
-}
-
 export function discardGitFile(workspaceId: string, path: string) {
   return invoke<GitStatus>("git_discard_file", { workspaceId, path })
 }
