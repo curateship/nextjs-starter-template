@@ -1,12 +1,23 @@
-import { createFileRoute, useRouterState } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  redirect,
+  useRouterState,
+} from "@tanstack/react-router"
 
 import {
   getSettingsTabFromPath,
   SettingsPage,
 } from "@/components/settings-page"
+import { loadCurrentUser } from "@/lib/api/auth"
 import { useShellRuntime } from "@/components/shell-runtime"
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
+  loader: async () => {
+    const user = await loadCurrentUser()
+    if (user?.role !== "admin") {
+      throw redirect({ to: "/" })
+    }
+  },
   component: SettingsRoute,
 })
 

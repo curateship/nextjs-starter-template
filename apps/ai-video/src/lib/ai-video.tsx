@@ -8,7 +8,10 @@ import {
   TEXT_FONT_IDS,
   type TextFontId,
 } from "@/lib/text-fonts"
-import { API_USAGE_DEFAULT_MONTHLY_CREDITS } from "@/lib/api-usage-constants"
+import {
+  API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
+  API_USAGE_DEFAULT_MONTHLY_CREDITS,
+} from "@/lib/api-usage-constants"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -348,6 +351,7 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   defaultApiUsageMonthlyCredits: number
+  apiUsageCostPerCreditUsd: number
   dashboardRowsPerPage: number
   mediaUploadMaxMb: number
   favicon: string
@@ -519,6 +523,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     defaultApiUsageMonthlyCredits: API_USAGE_DEFAULT_MONTHLY_CREDITS,
+    apiUsageCostPerCreditUsd: API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
     favicon: "",

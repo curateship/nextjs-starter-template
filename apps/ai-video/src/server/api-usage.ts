@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm"
 
 import { db, type AiVideoDb } from "@/server/db"
 import {
+  API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_LIMIT_KEY,
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
@@ -14,6 +15,7 @@ import {
   aiVideoApiUsageEvents,
   aiVideoApiUsageLimits,
   aiVideoNotifications,
+  aiVideoSettings,
   aiVideoUsers,
   type AiVideoApiUsageLimit,
   type AiVideoApiUsageEvent,
@@ -24,8 +26,10 @@ import {
   apiUsagePeriodStart,
   apiUsageStatus,
   creditsForApiUsageFeature,
+  estimateApiUsageCostUsd,
   wouldCrossUsageThreshold,
   type ApiUsageAlertLevel,
+  type ApiUsageEventStatus,
   type ApiUsageFeature,
   type ApiUsageLimitStatus,
   type ApiUsageProvider,
@@ -34,6 +38,7 @@ import {
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 100
 const CURSOR_SEPARATOR = "|"
+const DEFAULT_SETTINGS_KEY = "default"
 
 export type ApiUsageAction = {
   provider: ApiUsageProvider
@@ -61,13 +66,23 @@ export type ApiUsageEventItem = {
   feature: ApiUsageFeature
   model: string | null
   credits: number
-  status: AiVideoApiUsageEvent["status"]
+  status: ApiUsageEventStatus
   created_at: string
 }
 
 export type ApiUsageEventPage = {
   events: ApiUsageEventItem[]
   next_cursor: string | null
+}
+
+export type ApiUsageAdminEventItem = ApiUsageEventItem & {
+  estimated_cost_usd: number
+}
+
+export type ApiUsageAdminEventPage = {
+  events: ApiUsageAdminEventItem[]
+  next_cursor: string | null
+  cost_per_credit_usd: number
 }
 
 export type ApiUsageAdminUser = {
@@ -77,6 +92,9 @@ export type ApiUsageAdminUser = {
   used_credits: number
   limit_credits: number
   remaining_credits: number
+  estimated_used_cost_usd: number
+  estimated_limit_cost_usd: number
+  estimated_remaining_cost_usd: number
   status: ApiUsageLimitStatus
   override_credits: number | null
   blocked_count: number
@@ -86,6 +104,7 @@ export type ApiUsageDailyPoint = {
   date: string
   provider: ApiUsageProvider
   credits: number
+  estimated_cost_usd: number
 }
 
 export type ApiUsageAdminDashboard = {
@@ -93,6 +112,10 @@ export type ApiUsageAdminDashboard = {
     total_limit_credits: number
     users_near_cap: number
     blocked_attempts: number
+    cost_per_credit_usd: number
+    estimated_used_cost_usd: number
+    estimated_total_limit_cost_usd: number
+    estimated_remaining_cost_usd: number
   }
   users: ApiUsageAdminUser[]
   daily: ApiUsageDailyPoint[]
@@ -135,33 +158,35 @@ export async function getAdminApiUsageDashboard(): Promise<ApiUsageAdminDashboar
   const periodEnd = apiUsagePeriodEnd(periodStart)
 
   const dailyDate = sql<string>`to_char(${aiVideoApiUsageEvents.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`
-  const [users, limitRows, usageRows, dailyRows] = await Promise.all([
-    db.select().from(aiVideoUsers),
-    db.select().from(aiVideoApiUsageLimits),
-    db
-      .select({
-        userId: aiVideoApiUsageEvents.userId,
-        usedCredits: sql<number>`coalesce(sum(case when ${aiVideoApiUsageEvents.status} <> 'blocked' then ${aiVideoApiUsageEvents.credits} else 0 end), 0)::int`,
-        blockedCount: sql<number>`coalesce(sum(case when ${aiVideoApiUsageEvents.status} = 'blocked' then 1 else 0 end), 0)::int`,
-      })
-      .from(aiVideoApiUsageEvents)
-      .where(eq(aiVideoApiUsageEvents.periodStart, periodStart))
-      .groupBy(aiVideoApiUsageEvents.userId),
-    db
-      .select({
-        date: dailyDate,
-        provider: aiVideoApiUsageEvents.provider,
-        credits: sql<number>`coalesce(sum(${aiVideoApiUsageEvents.credits}), 0)::int`,
-      })
-      .from(aiVideoApiUsageEvents)
-      .where(
-        and(
-          eq(aiVideoApiUsageEvents.periodStart, periodStart),
-          sql`${aiVideoApiUsageEvents.status} <> 'blocked'`
+  const [users, limitRows, usageRows, dailyRows, costPerCreditUsd] =
+    await Promise.all([
+      db.select().from(aiVideoUsers),
+      db.select().from(aiVideoApiUsageLimits),
+      db
+        .select({
+          userId: aiVideoApiUsageEvents.userId,
+          usedCredits: sql<number>`coalesce(sum(case when ${aiVideoApiUsageEvents.status} <> 'blocked' then ${aiVideoApiUsageEvents.credits} else 0 end), 0)::int`,
+          blockedCount: sql<number>`coalesce(sum(case when ${aiVideoApiUsageEvents.status} = 'blocked' then 1 else 0 end), 0)::int`,
+        })
+        .from(aiVideoApiUsageEvents)
+        .where(eq(aiVideoApiUsageEvents.periodStart, periodStart))
+        .groupBy(aiVideoApiUsageEvents.userId),
+      db
+        .select({
+          date: dailyDate,
+          provider: aiVideoApiUsageEvents.provider,
+          credits: sql<number>`coalesce(sum(${aiVideoApiUsageEvents.credits}), 0)::int`,
+        })
+        .from(aiVideoApiUsageEvents)
+        .where(
+          and(
+            eq(aiVideoApiUsageEvents.periodStart, periodStart),
+            sql`${aiVideoApiUsageEvents.status} <> 'blocked'`
+          )
         )
-      )
-      .groupBy(dailyDate, aiVideoApiUsageEvents.provider),
-  ])
+        .groupBy(dailyDate, aiVideoApiUsageEvents.provider),
+      getApiUsageCostPerCreditUsd(),
+    ])
 
   const defaultLimit = requireDefaultApiUsageLimit(limitRows)
   const overrideByUserId = new Map(
@@ -185,10 +210,16 @@ export async function getAdminApiUsageDashboard(): Promise<ApiUsageAdminDashboar
       blockedCount: 0,
     }
     const limit = overrideByUserId.get(user.id) ?? defaultLimit
-    return serializeAdminUser(user, usage.usedCredits, limit, {
-      overrideCredits: overrideByUserId.get(user.id) ?? null,
-      blockedCount: usage.blockedCount,
-    })
+    return serializeAdminUser(
+      user,
+      usage.usedCredits,
+      limit,
+      costPerCreditUsd,
+      {
+        overrideCredits: overrideByUserId.get(user.id) ?? null,
+        blockedCount: usage.blockedCount,
+      }
+    )
   })
   const usedCredits = dashboardUsers.reduce(
     (total, user) => total + user.used_credits,
@@ -202,6 +233,7 @@ export async function getAdminApiUsageDashboard(): Promise<ApiUsageAdminDashboar
     (total, user) => total + user.blocked_count,
     0
   )
+  const remainingCredits = Math.max(0, totalLimitCredits - usedCredits)
 
   return {
     summary: {
@@ -210,13 +242,26 @@ export async function getAdminApiUsageDashboard(): Promise<ApiUsageAdminDashboar
       used_credits: usedCredits,
       limit_credits: defaultLimit,
       total_limit_credits: totalLimitCredits,
-      remaining_credits: Math.max(0, totalLimitCredits - usedCredits),
+      remaining_credits: remainingCredits,
       status: apiUsageStatus(usedCredits, Math.max(1, totalLimitCredits)),
       limit_source: "default",
       users_near_cap: dashboardUsers.filter(
         (user) => user.status === "warning" || user.status === "blocked"
       ).length,
       blocked_attempts: blockedAttempts,
+      cost_per_credit_usd: costPerCreditUsd,
+      estimated_used_cost_usd: estimateApiUsageCostUsd(
+        usedCredits,
+        costPerCreditUsd
+      ),
+      estimated_total_limit_cost_usd: estimateApiUsageCostUsd(
+        totalLimitCredits,
+        costPerCreditUsd
+      ),
+      estimated_remaining_cost_usd: estimateApiUsageCostUsd(
+        remainingCredits,
+        costPerCreditUsd
+      ),
     },
     users: dashboardUsers.sort((a, b) => b.used_credits - a.used_credits),
     daily: dailyRows
@@ -224,6 +269,10 @@ export async function getAdminApiUsageDashboard(): Promise<ApiUsageAdminDashboar
         date: row.date,
         provider: row.provider as ApiUsageProvider,
         credits: row.credits,
+        estimated_cost_usd: estimateApiUsageCostUsd(
+          row.credits,
+          costPerCreditUsd
+        ),
       }))
       .sort((a, b) => a.date.localeCompare(b.date)),
   }
@@ -237,9 +286,24 @@ export async function listAdminApiUsageEvents({
   cursor?: string
   limit?: number
   userId?: string
-} = {}): Promise<ApiUsageEventPage> {
+} = {}): Promise<ApiUsageAdminEventPage> {
   await requireAdminUser()
-  return listApiUsageEvents({ cursor, limit, userId })
+  const [page, costPerCreditUsd] = await Promise.all([
+    listApiUsageEvents({ cursor, limit, userId }),
+    getApiUsageCostPerCreditUsd(),
+  ])
+  return {
+    ...page,
+    cost_per_credit_usd: costPerCreditUsd,
+    events: page.events.map((event) => ({
+      ...event,
+      estimated_cost_usd: estimateApiUsageCostUsd(
+        event.credits,
+        costPerCreditUsd,
+        event.status
+      ),
+    })),
+  }
 }
 
 export async function saveUserApiUsageLimitForCurrentUser(
@@ -289,6 +353,23 @@ export async function setDefaultApiUsageLimit(
     monthlyCredits,
     database
   )
+}
+
+async function getApiUsageCostPerCreditUsd(database: AiVideoDb = db) {
+  const [row] = await database
+    .select({ settings: aiVideoSettings.settings })
+    .from(aiVideoSettings)
+    .where(eq(aiVideoSettings.key, DEFAULT_SETTINGS_KEY))
+    .limit(1)
+  const settings = row?.settings
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+    return API_USAGE_DEFAULT_COST_PER_CREDIT_USD
+  }
+  const rate = (settings as { apiUsageCostPerCreditUsd?: unknown })
+    .apiUsageCostPerCreditUsd
+  return typeof rate === "number" && Number.isFinite(rate) && rate >= 0
+    ? rate
+    : API_USAGE_DEFAULT_COST_PER_CREDIT_USD
 }
 
 async function reserveApiUsageEvent(userId: string, action: ApiUsageAction) {
@@ -621,18 +702,32 @@ function serializeAdminUser(
   user: AiVideoUser,
   usedCredits: number,
   limitCredits: number,
+  costPerCreditUsd: number,
   {
     overrideCredits,
     blockedCount,
   }: { overrideCredits: number | null; blockedCount: number }
 ): ApiUsageAdminUser {
+  const remainingCredits = Math.max(0, limitCredits - usedCredits)
   return {
     user_id: user.id,
     user_name: user.name,
     user_email: user.email,
     used_credits: usedCredits,
     limit_credits: limitCredits,
-    remaining_credits: Math.max(0, limitCredits - usedCredits),
+    remaining_credits: remainingCredits,
+    estimated_used_cost_usd: estimateApiUsageCostUsd(
+      usedCredits,
+      costPerCreditUsd
+    ),
+    estimated_limit_cost_usd: estimateApiUsageCostUsd(
+      limitCredits,
+      costPerCreditUsd
+    ),
+    estimated_remaining_cost_usd: estimateApiUsageCostUsd(
+      remainingCredits,
+      costPerCreditUsd
+    ),
     status: apiUsageStatus(usedCredits, limitCredits),
     override_credits: overrideCredits,
     blocked_count: blockedCount,
@@ -652,7 +747,7 @@ function serializeUsageEvent(
     feature: event.feature as ApiUsageFeature,
     model: event.model,
     credits: event.credits,
-    status: event.status,
+    status: event.status as ApiUsageEventStatus,
     created_at: event.createdAt.toISOString(),
   }
 }

@@ -35,8 +35,8 @@ import {
   listAdminApiUsageEvents,
   saveUserApiUsageLimit,
   type ApiUsageAdminDashboard,
+  type ApiUsageAdminEventItem,
   type ApiUsageAdminUser,
-  type ApiUsageEventItem,
 } from "@/lib/api/api-usage"
 import { cn } from "@/lib/utils"
 import {
@@ -82,11 +82,15 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
 })
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+})
 
 export function ApiUsageDashboard() {
   const [dashboard, setDashboard] =
     React.useState<ApiUsageAdminDashboard | null>(null)
-  const [events, setEvents] = React.useState<ApiUsageEventItem[]>([])
+  const [events, setEvents] = React.useState<ApiUsageAdminEventItem[]>([])
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
@@ -274,6 +278,7 @@ export function ApiUsageDashboard() {
                 <TableRow>
                   <TableHead column="main">User</TableHead>
                   <TableHead column="meta">Used</TableHead>
+                  <TableHead column="meta">Est. spend</TableHead>
                   <TableHead column="meta">Remaining</TableHead>
                   <TableHead column="meta">Status</TableHead>
                   <TableHead column="meta">Override</TableHead>
@@ -282,7 +287,7 @@ export function ApiUsageDashboard() {
             }
             isEmpty={filteredUsers.length === 0}
             emptyText="No users found."
-            emptyColSpan={5}
+            emptyColSpan={6}
             footer={{
               type: "summary",
               count: filteredUsers.length,
@@ -300,7 +305,18 @@ export function ApiUsageDashboard() {
                   </div>
                 </TableCell>
                 <TableCell column="meta">
-                  {user.used_credits} / {user.limit_credits}
+                  <div>
+                    <p>
+                      {user.used_credits} / {user.limit_credits}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Budget{" "}
+                      {currencyFormatter.format(user.estimated_limit_cost_usd)}
+                    </p>
+                  </div>
+                </TableCell>
+                <TableCell column="meta">
+                  {currencyFormatter.format(user.estimated_used_cost_usd)}
                 </TableCell>
                 <TableCell column="meta">{user.remaining_credits}</TableCell>
                 <TableCell column="meta">
@@ -395,6 +411,7 @@ export function ApiUsageDashboard() {
                   <TableHead column="main">Activity</TableHead>
                   <TableHead column="meta">Provider</TableHead>
                   <TableHead column="meta">Credits</TableHead>
+                  <TableHead column="meta">Est. cost</TableHead>
                   <TableHead column="meta">Status</TableHead>
                   <TableHead column="meta">Created</TableHead>
                 </TableRow>
@@ -402,7 +419,7 @@ export function ApiUsageDashboard() {
             }
             isEmpty={filteredEvents.length === 0}
             emptyText="No usage events found."
-            emptyColSpan={5}
+            emptyColSpan={6}
             footer={{
               type: "loadMore",
               count: filteredEvents.length,
@@ -430,6 +447,9 @@ export function ApiUsageDashboard() {
                 </TableCell>
                 <TableCell column="meta">{event.credits}</TableCell>
                 <TableCell column="meta">
+                  {currencyFormatter.format(event.estimated_cost_usd)}
+                </TableCell>
+                <TableCell column="meta">
                   <Badge
                     variant={
                       event.status === "blocked" ? "destructive" : "secondary"
@@ -451,11 +471,29 @@ export function ApiUsageDashboard() {
 }
 
 function MetricGrid({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
-  const metrics = [
-    { label: "Used credits", value: dashboard.summary.used_credits },
-    { label: "Remaining credits", value: dashboard.summary.remaining_credits },
-    { label: "Users near cap", value: dashboard.summary.users_near_cap },
-    { label: "Blocked attempts", value: dashboard.summary.blocked_attempts },
+  const metrics: { label: string; value: number; detail?: string }[] = [
+    {
+      label: "Used credits",
+      value: dashboard.summary.used_credits,
+      detail: `Est. spend ${currencyFormatter.format(
+        dashboard.summary.estimated_used_cost_usd
+      )}`,
+    },
+    {
+      label: "Remaining credits",
+      value: dashboard.summary.remaining_credits,
+      detail: `Budget ${currencyFormatter.format(
+        dashboard.summary.estimated_total_limit_cost_usd
+      )}`,
+    },
+    {
+      label: "Users near cap",
+      value: dashboard.summary.users_near_cap,
+    },
+    {
+      label: "Blocked attempts",
+      value: dashboard.summary.blocked_attempts,
+    },
   ]
 
   return (
@@ -469,6 +507,9 @@ function MetricGrid({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{metric.value}</p>
+            {metric.detail ? (
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            ) : null}
           </CardContent>
         </Card>
       ))}
@@ -477,17 +518,30 @@ function MetricGrid({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
 }
 
 function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
-  const byDate = new Map<string, Record<string, number>>()
+  const byDate = new Map<
+    string,
+    Record<string, { credits: number; estimatedCostUsd: number }>
+  >()
   for (const point of dashboard.daily) {
     const row = byDate.get(point.date) ?? {}
-    row[point.provider] = (row[point.provider] ?? 0) + point.credits
+    const current = row[point.provider] ?? {
+      credits: 0,
+      estimatedCostUsd: 0,
+    }
+    row[point.provider] = {
+      credits: current.credits + point.credits,
+      estimatedCostUsd: current.estimatedCostUsd + point.estimated_cost_usd,
+    }
     byDate.set(point.date, row)
   }
   const rows = Array.from(byDate.entries()).slice(-14)
   const max = Math.max(
     1,
     ...rows.map(([, providers]) =>
-      Object.values(providers).reduce((total, value) => total + value, 0)
+      Object.values(providers).reduce(
+        (total, value) => total + value.credits,
+        0
+      )
     )
   )
 
@@ -501,27 +555,37 @@ function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
           <div className="flex h-48 items-end gap-2">
             {rows.map(([date, providers]) => {
               const total = Object.values(providers).reduce(
-                (sum, value) => sum + value,
+                (sum, value) => sum + value.credits,
+                0
+              )
+              const estimatedCost = Object.values(providers).reduce(
+                (sum, value) => sum + value.estimatedCostUsd,
                 0
               )
               return (
                 <div key={date} className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex h-36 flex-col justify-end overflow-hidden rounded bg-muted">
-                    {Object.entries(providers).map(([provider, credits]) => (
+                    {Object.entries(providers).map(([provider, value]) => (
                       <div
                         key={provider}
                         className={cn(providerColors[provider] ?? "bg-primary")}
                         style={{
-                          height: `${Math.max(4, (credits / max) * 144)}px`,
+                          height: `${Math.max(4, (value.credits / max) * 144)}px`,
                         }}
-                        title={`${providerLabels[provider] ?? provider}: ${credits}`}
+                        title={`${providerLabels[provider] ?? provider}: ${
+                          value.credits
+                        } credits, ${currencyFormatter.format(
+                          value.estimatedCostUsd
+                        )}`}
                       />
                     ))}
                   </div>
                   <p className="truncate text-center text-[11px] text-muted-foreground">
                     {date.slice(5)}
                   </p>
-                  <p className="text-center text-[11px] font-medium">{total}</p>
+                  <p className="text-center text-[11px] font-medium">
+                    {total} · {currencyFormatter.format(estimatedCost)}
+                  </p>
                 </div>
               )
             })}

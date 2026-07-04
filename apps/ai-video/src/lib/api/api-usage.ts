@@ -8,12 +8,15 @@ import {
 } from "@/lib/api-usage-constants"
 import type {
   ApiUsageAdminDashboard,
+  ApiUsageAdminEventPage,
   ApiUsageEventPage,
   ApiUsageSummary,
 } from "@/server/api-usage"
 
 export type {
   ApiUsageAdminDashboard,
+  ApiUsageAdminEventItem,
+  ApiUsageAdminEventPage,
   ApiUsageAdminUser,
   ApiUsageDailyPoint,
   ApiUsageEventItem,
@@ -77,7 +80,7 @@ const getAdminDashboardFn = createServerFn({ method: "GET" }).handler(
 
 const listAdminEventsFn = createServerFn({ method: "GET" })
   .inputValidator(listEventsSchema)
-  .handler(async ({ data }): Promise<ApiUsageEventPage> => {
+  .handler(async ({ data }): Promise<ApiUsageAdminEventPage> => {
     const { listAdminApiUsageEvents } = await import("@/server/api-usage")
     return listAdminApiUsageEvents(data)
   })

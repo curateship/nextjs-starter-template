@@ -1,11 +1,15 @@
 # API Usage Dashboard
 
 AI Video uses deterministic action credits for billable provider calls.
+Admin dollar estimates multiply displayed credits by the editable global
+cost-per-credit rate. Estimates are informational only.
 
 ## Model
 
 - Monthly periods use UTC calendar months.
 - The default monthly cap is stored in `api_usage_limits` under `default`.
+- The estimated cost-per-credit rate is stored in the global shell settings JSON
+  and defaults to `$0.01`.
 - If that row is missing, usage APIs fail and operators should run the latest
   database migrations.
 - User overrides are stored in `api_usage_limits` under `user:{userId}`.
@@ -30,6 +34,7 @@ and admins.
 
 ## UI
 
-Admins use General Settings to update the default cap. `/admin/api-usage` shows
-aggregate usage, user overrides, and events. Signed-in users use the
-sticky-header indicator to view their current credits and recent usage.
+Admins use General Settings to update the default cap and estimated
+cost-per-credit rate. `/admin/api-usage` shows aggregate usage, user overrides,
+events, and informational estimated costs. Signed-in users use the sticky-header
+indicator to view their current credits and recent usage.

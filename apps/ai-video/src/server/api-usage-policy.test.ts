@@ -6,6 +6,7 @@ import {
   apiUsagePeriodStart,
   apiUsageStatus,
   creditsForApiUsageFeature,
+  estimateApiUsageCostUsd,
   wouldCrossUsageThreshold,
 } from "./api-usage-policy"
 
@@ -37,5 +38,12 @@ describe("api usage policy", () => {
     assert.equal(wouldCrossUsageThreshold(80, 81, 100, "warning"), false)
     assert.equal(wouldCrossUsageThreshold(99, 100, 100, "blocked"), true)
     assert.equal(wouldCrossUsageThreshold(100, 101, 100, "blocked"), false)
+  })
+
+  it("estimates USD costs from credits and rounds to cents", () => {
+    assert.equal(estimateApiUsageCostUsd(1234, 0.01), 12.34)
+    assert.equal(estimateApiUsageCostUsd(3, 0.333), 1)
+    assert.equal(estimateApiUsageCostUsd(50, 0), 0)
+    assert.equal(estimateApiUsageCostUsd(50, 0.01, "blocked"), 0)
   })
 })
