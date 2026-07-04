@@ -32,6 +32,16 @@ export function setLlmKey(provider: LlmProvider, apiKey: string) {
   return setKeyFn({ data: { provider, apiKey } })
 }
 
-export function getLlmKeyErrorMessage() {
+export function getLlmKeyErrorMessage(error?: unknown) {
+  const message = error instanceof Error ? error.message : ""
+  if (message === "Secret encryption is not configured") {
+    return "AI provider key storage is not configured."
+  }
+  if (message === "Stored secret could not be decrypted") {
+    return "Saved AI provider keys could not be decrypted."
+  }
+  if (message === "Stored secret is not encrypted") {
+    return "Saved AI provider keys must be re-saved."
+  }
   return "Could not update the API key."
 }

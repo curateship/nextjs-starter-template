@@ -61,7 +61,8 @@ import {
 } from "@/lib/api/captions"
 import {
   generateVoiceover,
-  getVoiceErrorMessage,
+  getVoiceGenerationErrorMessage,
+  getVoiceLoadErrorMessage,
   listElevenLabsVoices,
   type ElevenLabsVoice,
   type VoiceModelId,
@@ -377,34 +378,67 @@ type ElementTileAction =
   | "ai-video"
   | "brief"
 
-const PROJECT_ONLY_ELEMENT_ACTIONS = new Set<ElementTileAction>([
+const PROJECT_ONLY_TILE_ACTIONS = new Set<ElementTileAction>([
   "captions",
   "script",
   "brief",
   "ai-video",
 ])
 
-const ELEMENT_TILES: {
+type EditorTile = {
   label: string
   icon: LucideIcon
   action?: ElementTileAction
-}[] = [
+}
+
+const ELEMENT_TILES: EditorTile[] = [
   { label: "Text", icon: TypeIcon, action: "text" },
   { label: "Sound Effect", icon: Volume2Icon, action: "sound-effect" },
   { label: "Image", icon: ImageIcon },
   { label: "Video", icon: VideoIcon },
   { label: "Audio", icon: MusicIcon },
+  { label: "Shapes", icon: ShapesIcon },
+]
+
+const AI_TILES: EditorTile[] = [
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
   { label: "Brief to Reel", icon: FileTextIcon, action: "brief" },
   { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
   { label: "AI Script", icon: PenLineIcon, action: "script" },
-  { label: "Shapes", icon: ShapesIcon },
 ]
 
-// The Elements tab (left panel): the building-block tile grid plus the Add /
-// generate dialogs each wired tile opens. Placeholder tiles are disabled.
 export function ElementsPanel() {
+  return (
+    <EditorToolTilesPanel
+      title="Elements"
+      description="Building blocks for your video."
+      tiles={ELEMENT_TILES}
+    />
+  )
+}
+
+export function AiPanel() {
+  return (
+    <EditorToolTilesPanel
+      title="Ai"
+      description="AI tools for captions, voice, scripts, and video."
+      tiles={AI_TILES}
+    />
+  )
+}
+
+// Left-panel tile grid plus the Add / generate dialogs each wired tile opens.
+// Placeholder tiles are disabled.
+function EditorToolTilesPanel({
+  title,
+  description,
+  tiles: panelTiles,
+}: {
+  title: string
+  description: string
+  tiles: EditorTile[]
+}) {
   const [textOpen, setTextOpen] = React.useState(false)
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [voiceOpen, setVoiceOpen] = React.useState(false)
@@ -428,17 +462,17 @@ export function ElementsPanel() {
   const { kind, mode } = useEditor()
   const tiles =
     kind === "template"
-      ? ELEMENT_TILES.filter(
+      ? panelTiles.filter(
           (tile) =>
-            !tile.action || !PROJECT_ONLY_ELEMENT_ACTIONS.has(tile.action)
+            !tile.action || !PROJECT_ONLY_TILE_ACTIONS.has(tile.action)
         )
-      : ELEMENT_TILES
+      : panelTiles
 
   return (
     <div>
-      <h2 className="text-sm font-semibold">Elements</h2>
+      <h2 className="text-sm font-semibold">{title}</h2>
       <p className="text-xs text-muted-foreground">
-        Building blocks for your video.
+        {description}
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {tiles.map((tile) => {
@@ -1545,6 +1579,7 @@ const VOICE_MODELS: { id: VoiceModelId; label: string }[] = [
   { id: "eleven_turbo_v2_5", label: "Turbo v2.5" },
   { id: "eleven_flash_v2_5", label: "Flash v2.5" },
 ]
+const ELEVENLABS_NOT_CONFIGURED_MESSAGE = "ElevenLabs is not configured"
 
 // Generates an ElevenLabs voiceover, drops the audio at the playhead, and —
 // when "Add captions" is on — a synced karaoke caption track built from the
@@ -1569,7 +1604,10 @@ function VoiceDialog({
   // Caption style (shared controls/state with the Captions dialog).
   const captionStyle = useCaptionStyle()
   const [generating, setGenerating] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [voiceLoadError, setVoiceLoadError] = React.useState<string | null>(
+    null
+  )
+  const [generateError, setGenerateError] = React.useState<string | null>(null)
   const previewAudioRef = React.useRef<HTMLAudioElement | null>(null)
   const [previewing, setPreviewing] = React.useState(false)
   const selectedVoice = voices?.find((voice) => voice.id === voiceId) ?? null
@@ -1592,14 +1630,20 @@ function VoiceDialog({
   React.useEffect(() => {
     if (!open) return
     let active = true
+    setVoiceLoadError(null)
     listElevenLabsVoices()
       .then((result) => {
         if (!active) return
         setVoices(result.voices)
         setVoiceId((prev) => prev || result.voices[0]?.id || "")
-        setError(null)
+        setVoiceLoadError(null)
       })
-      .catch((loadError) => active && setError(getVoiceErrorMessage(loadError)))
+      .catch((loadError) => {
+        if (!active) return
+        setVoices([])
+        setVoiceId("")
+        setVoiceLoadError(getVoiceLoadErrorMessage(loadError))
+      })
     return () => {
       active = false
     }
@@ -1612,18 +1656,19 @@ function VoiceDialog({
     if (!next) {
       stopPreview()
       setText("")
-      setError(null)
+      setVoiceLoadError(null)
+      setGenerateError(null)
     }
     onOpenChange(next)
   }
 
   async function handleGenerate() {
     if (!voiceId || !text.trim()) {
-      setError("Pick a voice and enter some text.")
+      setGenerateError("Pick a voice and enter some text.")
       return
     }
     setGenerating(true)
-    setError(null)
+    setGenerateError(null)
     stopPreview()
     try {
       const result = await generateVoiceover({
@@ -1674,7 +1719,7 @@ function VoiceDialog({
       }
       handleClose(false)
     } catch (generateError) {
-      setError(getVoiceErrorMessage(generateError))
+      setGenerateError(getVoiceGenerationErrorMessage(generateError))
     } finally {
       setGenerating(false)
     }
@@ -1698,7 +1743,14 @@ function VoiceDialog({
 
   // True when the voice load failed because no key is configured — show a
   // helpful message instead of the form.
-  const notConfigured = error === "ElevenLabs is not configured"
+  const notConfigured =
+    voiceLoadError === ELEVENLABS_NOT_CONFIGURED_MESSAGE ||
+    generateError === ELEVENLABS_NOT_CONFIGURED_MESSAGE
+  const voicePlaceholder = !voices
+    ? "Loading…"
+    : voices.length
+      ? "Select a voice"
+      : "No voices available"
   const previewLabel = previewUrl
     ? previewing
       ? "Stop preview"
@@ -1732,15 +1784,15 @@ function VoiceDialog({
                         stopPreview()
                         setVoiceId(value)
                       }}
-                      disabled={!voices || voices.length === 0}
+                      disabled={
+                        !voices || voices.length === 0 || !!voiceLoadError
+                      }
                     >
                       <SelectTrigger
                         id="voice-voice"
                         className="min-w-0 flex-1"
                       >
-                        <SelectValue
-                          placeholder={voices ? "Select a voice" : "Loading…"}
-                        />
+                        <SelectValue placeholder={voicePlaceholder} />
                       </SelectTrigger>
                       <SelectContent>
                         {(voices ?? []).map((voice) => (
@@ -1814,9 +1866,14 @@ function VoiceDialog({
                 ) : null}
               </>
             )}
-            {error && !notConfigured ? (
+            {voiceLoadError && !notConfigured ? (
               <p role="alert" className="text-sm text-destructive">
-                {error}
+                {voiceLoadError}
+              </p>
+            ) : null}
+            {generateError && !notConfigured ? (
+              <p role="alert" className="text-sm text-destructive">
+                {generateError}
               </p>
             ) : null}
           </div>
@@ -1832,7 +1889,13 @@ function VoiceDialog({
           </Button>
           <Button
             type="button"
-            disabled={generating || notConfigured || !voiceId || !text.trim()}
+            disabled={
+              generating ||
+              notConfigured ||
+              !!voiceLoadError ||
+              !voiceId ||
+              !text.trim()
+            }
             onClick={handleGenerate}
           >
             {generating ? (
@@ -1879,21 +1942,30 @@ function BriefToReelDialog({
   const [generatingBrief, setGeneratingBrief] = React.useState(false)
   const [generatingVoice, setGeneratingVoice] = React.useState(false)
   const [briefError, setBriefError] = React.useState<string | null>(null)
-  const [voiceError, setVoiceError] = React.useState<string | null>(null)
+  const [voiceLoadError, setVoiceLoadError] = React.useState<string | null>(
+    null
+  )
+  const [voiceGenerateError, setVoiceGenerateError] = React.useState<
+    string | null
+  >(null)
   const [copied, setCopied] = React.useState(false)
 
   React.useEffect(() => {
     if (!open || step !== "voice" || voices) return
     let active = true
+    setVoiceLoadError(null)
     listElevenLabsVoices()
       .then((result) => {
         if (!active) return
         setVoices(result.voices)
         setVoiceId((prev) => prev || result.voices[0]?.id || "")
-        setVoiceError(null)
+        setVoiceLoadError(null)
       })
       .catch((loadError) => {
-        if (active) setVoiceError(getVoiceErrorMessage(loadError))
+        if (!active) return
+        setVoices([])
+        setVoiceId("")
+        setVoiceLoadError(getVoiceLoadErrorMessage(loadError))
       })
     return () => {
       active = false
@@ -1908,7 +1980,8 @@ function BriefToReelDialog({
     setVoiceoverText("")
     setVoiceover(null)
     setBriefError(null)
-    setVoiceError(null)
+    setVoiceLoadError(null)
+    setVoiceGenerateError(null)
     setCopied(false)
   }
 
@@ -1962,11 +2035,11 @@ function BriefToReelDialog({
 
   async function handleGenerateVoice() {
     if (!voiceId || !voiceoverText.trim()) {
-      setVoiceError("Pick a voice and keep voiceover text.")
+      setVoiceGenerateError("Pick a voice and keep voiceover text.")
       return
     }
     setGeneratingVoice(true)
-    setVoiceError(null)
+    setVoiceGenerateError(null)
     try {
       const result = await generateVoiceover({
         voiceId,
@@ -1976,7 +2049,7 @@ function BriefToReelDialog({
       setVoiceover(result)
       setStep("insert")
     } catch (generateError) {
-      setVoiceError(getVoiceErrorMessage(generateError))
+      setVoiceGenerateError(getVoiceGenerationErrorMessage(generateError))
     } finally {
       setGeneratingVoice(false)
     }
@@ -2020,7 +2093,14 @@ function BriefToReelDialog({
   }
 
   const busy = generatingBrief || generatingVoice
-  const notConfigured = voiceError === "ElevenLabs is not configured"
+  const notConfigured =
+    voiceLoadError === ELEVENLABS_NOT_CONFIGURED_MESSAGE ||
+    voiceGenerateError === ELEVENLABS_NOT_CONFIGURED_MESSAGE
+  const voicePlaceholder = !voices
+    ? "Loading…"
+    : voices.length
+      ? "Select a voice"
+      : "No voices available"
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && handleClose(next)}>
@@ -2151,12 +2231,12 @@ function BriefToReelDialog({
                     <Select
                       value={voiceId}
                       onValueChange={setVoiceId}
-                      disabled={!voices || voices.length === 0}
+                      disabled={
+                        !voices || voices.length === 0 || !!voiceLoadError
+                      }
                     >
                       <SelectTrigger id="brief-voice" className="w-full">
-                        <SelectValue
-                          placeholder={voices ? "Select a voice" : "Loading…"}
-                        />
+                        <SelectValue placeholder={voicePlaceholder} />
                       </SelectTrigger>
                       <SelectContent>
                         {(voices ?? []).map((voice) => (
@@ -2197,9 +2277,14 @@ function BriefToReelDialog({
                   {addCaptions ? (
                     <CaptionStyleFields idPrefix="brief" style={captionStyle} />
                   ) : null}
-                  {voiceError ? (
+                  {voiceLoadError ? (
                     <p role="alert" className="text-sm text-destructive">
-                      {voiceError}
+                      {voiceLoadError}
+                    </p>
+                  ) : null}
+                  {voiceGenerateError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {voiceGenerateError}
                     </p>
                   ) : null}
                 </>
@@ -2267,6 +2352,7 @@ function BriefToReelDialog({
                 disabled={
                   generatingVoice ||
                   notConfigured ||
+                  !!voiceLoadError ||
                   !voiceId ||
                   !voiceoverText.trim()
                 }
