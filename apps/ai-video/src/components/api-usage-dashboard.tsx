@@ -43,10 +43,12 @@ import {
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
+import { formatApiUsageFeature } from "@/lib/api-usage-format"
 
 type StatusFilter = "all" | "normal" | "warning" | "blocked"
 type EventStatusFilter = "all" | "success" | "failed" | "blocked"
 type ProviderFilter = "all" | "gemini" | "openai" | "veo" | "elevenlabs"
+type DailyProviderUsage = { credits: number; estimatedCostUsd: number }
 
 const EVENT_PAGE_SIZE = 20
 
@@ -55,18 +57,6 @@ const providerLabels: Record<string, string> = {
   openai: "OpenAI",
   veo: "Veo",
   elevenlabs: "ElevenLabs",
-}
-
-const featureLabels: Record<string, string> = {
-  text_generation: "Text generation",
-  caption_generation: "Captions",
-  video_analysis: "Video analysis",
-  voiceover: "Voiceover",
-  image_generation: "Image generation",
-  ai_video_generation: "AI video",
-  script_generation: "Script",
-  carousel_generation: "Carousel",
-  export_description: "Export caption",
 }
 
 const providerColors: Record<string, string> = {
@@ -434,7 +424,7 @@ export function ApiUsageDashboard() {
                 <TableCell column="main">
                   <div>
                     <p className="font-medium">
-                      {featureLabels[event.feature] ?? event.feature}
+                      {formatApiUsageFeature(event.feature)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {event.user_name}
@@ -518,10 +508,7 @@ function MetricGrid({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
 }
 
 function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
-  const byDate = new Map<
-    string,
-    Record<string, { credits: number; estimatedCostUsd: number }>
-  >()
+  const byDate = new Map<string, Record<string, DailyProviderUsage>>()
   for (const point of dashboard.daily) {
     const row = byDate.get(point.date) ?? {}
     const current = row[point.provider] ?? {
@@ -537,12 +524,7 @@ function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
   const rows = Array.from(byDate.entries()).slice(-14)
   const max = Math.max(
     1,
-    ...rows.map(([, providers]) =>
-      Object.values(providers).reduce(
-        (total, value) => total + value.credits,
-        0
-      )
-    )
+    ...rows.map(([, providers]) => sumDailyCredits(providers))
   )
 
   return (
@@ -554,14 +536,8 @@ function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
         {rows.length ? (
           <div className="flex h-48 items-end gap-2">
             {rows.map(([date, providers]) => {
-              const total = Object.values(providers).reduce(
-                (sum, value) => sum + value.credits,
-                0
-              )
-              const estimatedCost = Object.values(providers).reduce(
-                (sum, value) => sum + value.estimatedCostUsd,
-                0
-              )
+              const total = sumDailyCredits(providers)
+              const estimatedCost = sumDailyEstimatedCost(providers)
               return (
                 <div key={date} className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex h-36 flex-col justify-end overflow-hidden rounded bg-muted">
@@ -597,6 +573,20 @@ function DailyUsageChart({ dashboard }: { dashboard: ApiUsageAdminDashboard }) {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function sumDailyCredits(providers: Record<string, DailyProviderUsage>) {
+  return Object.values(providers).reduce(
+    (total, value) => total + value.credits,
+    0
+  )
+}
+
+function sumDailyEstimatedCost(providers: Record<string, DailyProviderUsage>) {
+  return Object.values(providers).reduce(
+    (total, value) => total + value.estimatedCostUsd,
+    0
   )
 }
 
