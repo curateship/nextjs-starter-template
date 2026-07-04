@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   CheckIcon,
   ImageIcon,
-  PlusIcon,
   SearchIcon,
 } from "lucide-react"
 
@@ -16,18 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Popover,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getShellIconLabel,
   iconMeta,
-  normalizeDynamicLucideIconName,
   renderShellIcon,
   type IconKey,
   type ShellIcon,
@@ -54,15 +45,8 @@ export function ShellIconPicker({
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
-  const [customIconOpen, setCustomIconOpen] = React.useState(false)
-  const [customIconName, setCustomIconName] = React.useState("")
   const currentLabel = getShellIconLabel(value)
   const normalizedQuery = query.trim().toLowerCase()
-  const customLucideIcon = normalizeDynamicLucideIconName(customIconName)
-  const customIconError =
-    customIconName.trim() && !customLucideIcon
-      ? "No Lucide icon found with that name."
-      : null
 
   const filteredIcons = React.useMemo(() => {
     if (!normalizedQuery) return iconOptions
@@ -73,8 +57,6 @@ export function ShellIconPicker({
 
   function resetPicker() {
     setQuery("")
-    setCustomIconOpen(false)
-    setCustomIconName("")
   }
 
   function closePicker() {
@@ -85,13 +67,6 @@ export function ShellIconPicker({
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
     if (!nextOpen) resetPicker()
-  }
-
-  function handleCustomIconSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!customLucideIcon) return
-    onValueChange(customLucideIcon)
-    closePicker()
   }
 
   return (
@@ -125,62 +100,15 @@ export function ShellIconPicker({
           </DialogHeader>
 
           <DialogBody className="gap-4 pt-7">
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="pl-9"
-                  placeholder="Search icons"
-                />
-              </div>
-              <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Add Lucide icon"
-                    title="Add Lucide icon"
-                  >
-                    <PlusIcon className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80">
-                  <PopoverHeader>
-                    <PopoverTitle>Add Lucide Icon</PopoverTitle>
-                  </PopoverHeader>
-                  <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
-                    <Input
-                      autoFocus
-                      value={customIconName}
-                      onChange={(event) => setCustomIconName(event.target.value)}
-                      placeholder="octagon-x"
-                    />
-                    {customIconError ? (
-                      <p className="text-xs text-destructive">{customIconError}</p>
-                    ) : customLucideIcon ? (
-                      <p className="text-xs text-muted-foreground">
-                        Found {getShellIconLabel(customLucideIcon)}.
-                      </p>
-                    ) : null}
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setCustomIconOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={!customLucideIcon}>
-                        Use Icon
-                      </Button>
-                    </div>
-                  </form>
-                </PopoverContent>
-              </Popover>
+            <div className="relative min-w-0">
+              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-9"
+                placeholder="Search icons"
+              />
             </div>
 
             <LucideIconGrid

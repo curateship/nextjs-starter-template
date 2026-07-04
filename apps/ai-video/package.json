@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "test": "node --test --experimental-strip-types src/server/*.test.ts",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "start": "node .output/server/index.mjs"
@@ -59,7 +60,6 @@
     "prettier-plugin-tailwindcss": "^0.7.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.1",
-    "vite": "^8.0.16",
-    "vite-tsconfig-paths": "^6.1.1"
+    "vite": "^8.0.16"
   }
 }

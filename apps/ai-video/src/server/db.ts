@@ -22,5 +22,5 @@ const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 })
 
-export let db = drizzle(pool, { schema })
+export const db = drizzle(pool, { schema })
 export type AiVideoDb = typeof db

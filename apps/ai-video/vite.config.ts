@@ -4,7 +4,6 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite"
 import react from "@vitejs/plugin-react"
 import { nitro } from "nitro/vite"
 import { defineConfig } from "vite"
-import tsconfigPaths from "vite-tsconfig-paths"
 import localAppPorts from "../../local-apps.json"
 
 const securityHeaders = {
@@ -48,7 +47,6 @@ export default defineConfig({
     nitro(),
     react(),
     tailwindcss(),
-    tsconfigPaths(),
   ],
   nitro: {
     routeRules: {
@@ -56,6 +54,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    tsconfigPaths: true,
     alias: [
       {
         find: "@",

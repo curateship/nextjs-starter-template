@@ -69,9 +69,8 @@ import { useBulkDelete } from "@/lib/use-bulk-delete"
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-const pageTabs = ["all", "images", "videos"] as const
 
-export type MediaTabId = (typeof pageTabs)[number]
+export type MediaTabId = "all" | "images" | "videos"
 
 type ViewMode = "list" | "gallery"
 type MediaTypeFilter = "all" | MediaFileType | "svg"

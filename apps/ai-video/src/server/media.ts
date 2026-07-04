@@ -301,32 +301,18 @@ export async function deleteOwnedProjectMedia(
   if (!uniqueIds.length) return 0
 
   const rows = await db
-    .select()
-    .from(aiVideoMedia)
+    .delete(aiVideoMedia)
     .where(
       and(
         eq(aiVideoMedia.userId, userId),
         inArray(aiVideoMedia.projectId, uniqueIds)
       )
     )
+    .returning({ storagePath: aiVideoMedia.storagePath })
 
-  for (const row of rows) {
-    await deleteFromR2(row.storagePath)
-  }
-
-  if (rows.length) {
-    await db
-      .delete(aiVideoMedia)
-      .where(
-        and(
-          eq(aiVideoMedia.userId, userId),
-          inArray(
-            aiVideoMedia.id,
-            rows.map((row) => row.id)
-          )
-        )
-      )
-  }
+  await Promise.all(
+    rows.map((row) => deleteFromR2(row.storagePath).catch(() => undefined))
+  )
 
   return rows.length
 }

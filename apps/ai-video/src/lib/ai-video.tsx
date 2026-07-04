@@ -1,9 +1,4 @@
 import {
-  DynamicIcon,
-  iconNames,
-  type IconName as DynamicLucideIconName,
-} from "lucide-react/dynamic.mjs"
-import {
   DEFAULT_TEXT_FONT_ID,
   TEXT_FONT_IDS,
   type TextFontId,
@@ -162,49 +157,14 @@ export const iconMeta = {
 export type IconKey = keyof typeof iconMeta
 export type ShellIcon = IconKey | string
 
-const dynamicLucideIconNames = new Set<string>(iconNames)
-
 export function isIconKey(value?: string): value is IconKey {
   return Boolean(value && Object.prototype.hasOwnProperty.call(iconMeta, value))
-}
-
-export function normalizeDynamicLucideIconName(
-  value: string
-): DynamicLucideIconName | undefined {
-  const cleaned = value
-    .trim()
-    .replace(/^https?:\/\/lucide\.dev\/icons\//i, "")
-    .replace(/[?#].*$/, "")
-    .replace(/Icon$/, "")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
-    .toLowerCase()
-
-  return dynamicLucideIconNames.has(cleaned)
-    ? (cleaned as DynamicLucideIconName)
-    : undefined
-}
-
-function getDynamicLucideIconName(value?: string) {
-  if (!value) return undefined
-  return normalizeDynamicLucideIconName(value)
 }
 
 export function getShellIconLabel(value?: ShellIcon) {
   if (!value) return "No icon"
   if (isIconKey(value)) return iconMeta[value].label
-  const dynamicIconName = getDynamicLucideIconName(value)
-  if (dynamicIconName) return getDynamicLucideIconLabel(dynamicIconName)
   return "Custom icon"
-}
-
-function getDynamicLucideIconLabel(value: string) {
-  return value
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
 }
 
 export type ShellChildItem = {
@@ -563,17 +523,6 @@ export function renderShellIcon(
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
     return <Icon className={className} />
-  }
-
-  const dynamicIconName = getDynamicLucideIconName(icon)
-  if (dynamicIconName) {
-    return (
-      <DynamicIcon
-        name={dynamicIconName}
-        className={className}
-        fallback={() => <ImageIcon className={className} />}
-      />
-    )
   }
 
   const Icon = ImageIcon

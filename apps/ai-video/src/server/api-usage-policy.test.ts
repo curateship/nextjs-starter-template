@@ -8,7 +8,7 @@ import {
   creditsForApiUsageFeature,
   estimateApiUsageCostUsd,
   wouldCrossUsageThreshold,
-} from "./api-usage-policy"
+} from "./api-usage-policy.ts"
 
 describe("api usage policy", () => {
   it("uses UTC month starts for usage periods", () => {
