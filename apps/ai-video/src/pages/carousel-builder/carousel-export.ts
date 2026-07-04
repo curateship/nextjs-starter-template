@@ -343,21 +343,11 @@ export function getObjectFitDrawRect(
 }
 
 async function loadExportImage(item: CarouselMediaItem) {
-  if (item.mediaId) {
-    try {
-      return await loadMediaRouteImage(item.mediaId)
-    } catch {
-      // Fall back to the stored URL for older carousel data or temporary media
-      // records whose authenticated file route is unavailable.
-    }
+  if (!item.mediaId) {
+    throw new Error("Image export failed.")
   }
 
-  return {
-    image: await loadImage(item.url, {
-      crossOrigin: needsAnonymousCors(item.url),
-    }),
-    cleanup: () => undefined,
-  }
+  return loadMediaRouteImage(item.mediaId)
 }
 
 async function loadMediaRouteImage(mediaId: string) {
@@ -392,14 +382,6 @@ function loadImage(url: string, options: { crossOrigin: boolean }) {
     image.onerror = () => reject(new Error("Image export failed."))
     image.src = url
   })
-}
-
-function needsAnonymousCors(url: string) {
-  try {
-    return new URL(url, window.location.href).origin !== window.location.origin
-  } catch {
-    return false
-  }
 }
 
 async function recordSlideCanvases({

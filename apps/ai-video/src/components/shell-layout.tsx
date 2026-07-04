@@ -11,12 +11,8 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
-  cleanBrandKitConfig,
   createDefaultShellConfig,
-  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  MEDIA_UPLOAD_MAX_MB_LIMIT,
   isShellItem,
-  normalizeTopRightNavigation,
   renderShellIcon,
   type ShellConfig,
   type ShellItem,
@@ -27,29 +23,30 @@ import {
   getShellSettingsErrorMessage,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
-import {
-  API_USAGE_LIMIT_MAX,
-  API_USAGE_LIMIT_MIN,
-} from "@/lib/api-usage-constants"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import { requireCanonicalShellConfig } from "@/lib/shell-config-schema"
 
 type SaveStatus = "idle" | "saving" | "saved"
 
 export function ShellLayout({
   user,
   settings,
+  settingsError: initialSettingsError,
   workspaces,
 }: {
   user: AuthUser
   settings: ShellConfig | null
+  settingsError: string | null
   workspaces: WorkspaceListResponse
 }) {
   const currentPath = useRouterState({
     select: (state) =>
       state.resolvedLocation?.pathname ?? state.location.pathname,
   })
-  const [config, setConfig] = React.useState(() => normalizeConfig(settings))
-  const [settingsError, setSettingsError] = React.useState<string | null>(null)
+  const [config, setConfig] = React.useState(() => resolveConfig(settings))
+  const [settingsError, setSettingsError] = React.useState<string | null>(
+    initialSettingsError
+  )
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [targetFeedbackId, setTargetFeedbackId] = React.useState<string | null>(
@@ -66,10 +63,10 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    setConfig(normalizeConfig(settings))
-    setSettingsError(null)
+    setConfig(resolveConfig(settings))
+    setSettingsError(initialSettingsError)
     setSaveStatus("idle")
-  }, [settings])
+  }, [initialSettingsError, settings])
 
   React.useEffect(() => {
     let active = true
@@ -203,53 +200,12 @@ export function ShellLayout({
   )
 }
 
-function normalizeConfig(settings: ShellConfig | null) {
-  const fallback = createDefaultShellConfig()
+function resolveConfig(settings: ShellConfig | null) {
   if (!settings) {
-    return fallback
+    return createDefaultShellConfig()
   }
 
-  return {
-    appName: settings.appName ?? fallback.appName,
-    workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
-    defaultApiUsageMonthlyCredits:
-      typeof settings.defaultApiUsageMonthlyCredits === "number" &&
-      Number.isInteger(settings.defaultApiUsageMonthlyCredits) &&
-      settings.defaultApiUsageMonthlyCredits >= API_USAGE_LIMIT_MIN &&
-      settings.defaultApiUsageMonthlyCredits <= API_USAGE_LIMIT_MAX
-        ? settings.defaultApiUsageMonthlyCredits
-        : fallback.defaultApiUsageMonthlyCredits,
-    apiUsageCostPerCreditUsd:
-      typeof settings.apiUsageCostPerCreditUsd === "number" &&
-      Number.isFinite(settings.apiUsageCostPerCreditUsd) &&
-      settings.apiUsageCostPerCreditUsd >= 0
-        ? settings.apiUsageCostPerCreditUsd
-        : fallback.apiUsageCostPerCreditUsd,
-    dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-      settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-    )
-      ? settings.dashboardRowsPerPage
-      : fallback.dashboardRowsPerPage,
-    mediaUploadMaxMb:
-      typeof settings.mediaUploadMaxMb === "number" &&
-      Number.isInteger(settings.mediaUploadMaxMb) &&
-      settings.mediaUploadMaxMb >= 1 &&
-      settings.mediaUploadMaxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
-        ? settings.mediaUploadMaxMb
-        : fallback.mediaUploadMaxMb,
-    favicon: settings.favicon ?? fallback.favicon,
-    brandKit: cleanBrandKitConfig(settings.brandKit),
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
-    topRightNavigation: normalizeTopRightNavigation(
-      settings.topRightNavigation
-    ),
-    sections: Array.isArray(settings.sections)
-      ? settings.sections
-      : fallback.sections,
-  }
+  return requireCanonicalShellConfig(settings)
 }
 
 function useShellFavicon(favicon: string) {

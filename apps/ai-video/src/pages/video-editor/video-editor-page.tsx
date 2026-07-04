@@ -35,17 +35,18 @@ import {
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ViralVideoModal } from "@/components/viral-video-modal"
 import {
   createProjectFromTemplate,
   getTemplateErrorMessage,
+  saveTemplateTimeline,
 } from "@/lib/api/video-templates"
+import {
+  getProjectErrorMessage,
+  saveProjectTimeline,
+} from "@/lib/api/video-projects"
+import { createTimelineSnapshot } from "@/lib/timeline-schema"
 import { EditorMediaPanel } from "@/pages/video-editor/editor-media-panel"
 import { EditorPlayerPanel } from "@/pages/video-editor/editor-player-panel"
 import {
@@ -100,6 +101,9 @@ export function VideoEditorPage({
   kind: EditorDocumentKind
 }) {
   const timelinePanelRef = usePanelRef()
+  const [timelineError, setTimelineError] = React.useState(
+    document.timeline_error ?? null
+  )
   const mode: EditorMode =
     kind === "template"
       ? "template-builder"
@@ -119,6 +123,10 @@ export function VideoEditorPage({
     })
     return () => cancelAnimationFrame(id)
   }, [mode, timelinePanelRef])
+
+  React.useEffect(() => {
+    setTimelineError(document.timeline_error ?? null)
+  }, [document.id, document.timeline_error])
 
   // Collapse the timeline down to just its toolbar (and back).
   function toggleTimeline() {
@@ -145,12 +153,23 @@ export function VideoEditorPage({
           {/* Mirrors the shell's default content spacing (DashboardContent /
               DashboardRow), which this route strips for the full-bleed timeline */}
           {mode === "regular" ? (
-            <>
+            <div className="flex h-full min-h-0 flex-col">
               <RegularEditorHeader />
+              {timelineError ? (
+                <TimelineResetBanner
+                  message={timelineError}
+                  onResetSaved={() => setTimelineError(null)}
+                />
+              ) : null}
               <EditorMainPanels />
-            </>
+            </div>
           ) : (
-            <SlotFirstEditor document={document} mode={mode} />
+            <SlotFirstEditor
+              document={document}
+              mode={mode}
+              timelineError={timelineError}
+              onTimelineResetSaved={() => setTimelineError(null)}
+            />
           )}
         </ResizablePanel>
 
@@ -191,7 +210,7 @@ function EditorMainPanels() {
   })
 
   return (
-    <div className="h-full min-h-0 p-3 sm:p-4 md:p-6">
+    <div className="min-h-0 flex-1 p-3 sm:p-4 md:p-6">
       <ResizablePanelGroup
         id="ai-video-editor-main-layout"
         orientation="horizontal"
@@ -232,6 +251,74 @@ function EditorMainPanels() {
   )
 }
 
+function TimelineResetBanner({
+  message,
+  onResetSaved,
+}: {
+  message: string
+  onResetSaved: () => void
+}) {
+  const { state, kind, documentId } = useEditor()
+  const [saving, setSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+
+  async function handleSaveReset() {
+    setSaving(true)
+    setSaveError(null)
+
+    try {
+      const snapshot = createTimelineSnapshot({
+        tracks: state.tracks,
+        aspect: state.aspect,
+      })
+      if (kind === "template") {
+        await saveTemplateTimeline(documentId, snapshot)
+      } else {
+        await saveProjectTimeline(documentId, snapshot)
+      }
+      onResetSaved()
+    } catch (error) {
+      setSaveError(
+        kind === "template"
+          ? getTemplateErrorMessage(error)
+          : getProjectErrorMessage(error)
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="border-b bg-destructive/5 px-3 py-2 sm:px-4 md:px-6">
+      <div
+        role="alert"
+        className="flex flex-col gap-2 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between"
+      >
+        <span className="flex min-w-0 items-start gap-2">
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {message} The editor is showing a blank current timeline.
+            {saveError ? (
+              <span className="ml-1 font-medium">{saveError}</span>
+            ) : null}
+          </span>
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={saving}
+          onClick={() => void handleSaveReset()}
+          className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto"
+        >
+          {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          {saving ? "Saving reset" : "Save reset timeline"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function RegularEditorHeader() {
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const { documentName } = useEditor()
@@ -256,7 +343,10 @@ function RegularEditorHeader() {
           Settings
         </Button>
       </div>
-      <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <EditorSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
     </nav>
   )
 }
@@ -264,9 +354,13 @@ function RegularEditorHeader() {
 function SlotFirstEditor({
   document,
   mode,
+  timelineError,
+  onTimelineResetSaved,
 }: {
   document: EditorDocument
   mode: Exclude<EditorMode, "regular">
+  timelineError: string | null
+  onTimelineResetSaved: () => void
 }) {
   const { state, saveStatus, documentName } = useEditor()
   const selected = state.selectedClipId
@@ -281,6 +375,12 @@ function SlotFirstEditor({
         documentName={documentName}
         saveStatus={saveStatus}
       />
+      {timelineError ? (
+        <TimelineResetBanner
+          message={timelineError}
+          onResetSaved={onTimelineResetSaved}
+        />
+      ) : null}
       <ResizablePanelGroup
         orientation="horizontal"
         className="min-h-0 flex-1 p-3 sm:p-4 md:p-6"
@@ -298,10 +398,7 @@ function SlotFirstEditor({
         <ResizableHandle className={SIDE_RESIZE_HANDLE_CLASS} />
 
         <ResizablePanel defaultSize="330px" minSize="280px" maxSize="460px">
-          <SlotInspector
-            mode={mode}
-            clip={selected?.clip ?? null}
-          />
+          <SlotInspector mode={mode} clip={selected?.clip ?? null} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
@@ -394,7 +491,9 @@ function SlotModeHeader({
             Settings
           </Button>
 
-          {!isTemplate ? <ExportControls className="flex items-center gap-2" /> : null}
+          {!isTemplate ? (
+            <ExportControls className="flex items-center gap-2" />
+          ) : null}
 
           {isTemplate ? (
             <Button type="button" size="sm" onClick={() => setUseOpen(true)}>
@@ -405,14 +504,20 @@ function SlotModeHeader({
         </div>
       </nav>
 
-      <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <EditorSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
       <ViralVideoModal
-        videoId={analysisOpen ? document.source_viral_video_id ?? null : null}
+        videoId={analysisOpen ? (document.source_viral_video_id ?? null) : null}
         templateId={analysisOpen ? document.id : null}
         onOpenChange={(open) => !open && setAnalysisOpen(false)}
       />
 
-      <Dialog open={useOpen} onOpenChange={(open) => !open && setUseOpen(false)}>
+      <Dialog
+        open={useOpen}
+        onOpenChange={(open) => !open && setUseOpen(false)}
+      >
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Name Your Project</DialogTitle>
@@ -473,11 +578,7 @@ function SlotModeHeader({
   )
 }
 
-function SlotWorkflowPanel({
-  mode,
-}: {
-  mode: Exclude<EditorMode, "regular">
-}) {
+function SlotWorkflowPanel({ mode }: { mode: Exclude<EditorMode, "regular"> }) {
   const [activeTab, setActiveTab] = React.useState("slots")
   const panelTitle =
     activeTab === "media"
@@ -753,9 +854,7 @@ function SlotInspector({
                 <Switch
                   id="slot-replaceable"
                   checked={!!clip.replaceable}
-                  onCheckedChange={(checked) =>
-                    patch({ replaceable: checked })
-                  }
+                  onCheckedChange={(checked) => patch({ replaceable: checked })}
                 />
               </div>
               <div className="rounded-md border bg-background p-3">
@@ -798,9 +897,7 @@ function SlotInspector({
                         ) : (
                           <PlayIcon className="size-4" />
                         )}
-                        {previewingSoundClipId === clip.id
-                          ? "Stop"
-                          : "Preview"}
+                        {previewingSoundClipId === clip.id ? "Stop" : "Preview"}
                       </Button>
                     ) : null}
                     {clip.replaceable ? (

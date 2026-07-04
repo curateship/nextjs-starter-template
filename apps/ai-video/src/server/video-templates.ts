@@ -20,20 +20,21 @@ import {
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import {
+  createEmptyTimeline,
+  parseTimelineForReset,
+  requireCanonicalTimeline,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
+import {
   cleanProjectName,
   secureTimelineMediaUrls,
   summarizeTimeline,
-  type ProjectTimeline,
 } from "@/server/video-projects"
 import type { ViralVideoAnalysis } from "@/server/video-analysis"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
-import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 
 // Scenes shorter than this make useless template slots and are skipped.
 const MIN_SLOT_MS = 100
-
-// Empty timeline a blank template starts from. Reels are vertical, so 9:16.
-const EMPTY_TEMPLATE_TIMELINE: ProjectTimeline = { tracks: [], aspect: "9:16" }
 
 // Dashboard list rows — the timeline stays out of the list payload.
 export type TemplateSourceType = "analyzed" | "blank"
@@ -58,6 +59,7 @@ export type TemplateItem = {
   thumbnail_url: string | null
   slot_count: number
   duration_ms: number
+  timeline_error: string | null
   // Author chip shown on the gallery card (from the source reel's creator).
   creator: {
     username: string
@@ -81,6 +83,7 @@ export type TemplateDetail = {
   source_type: TemplateSourceType
   structure_tags: TemplateStructureTag[]
   thumbnail_url: string | null
+  timeline_error: string | null
   timeline: ProjectTimeline
 }
 
@@ -113,12 +116,9 @@ function cleanTemplateName(value: string) {
 }
 
 // Slots are the replaceable clips only — the audio bed track doesn't count.
-function countTemplateSlots(timeline: unknown) {
-  const tracks = (timeline as ProjectTimeline | null)?.tracks
-  if (!Array.isArray(tracks)) return 0
+function countTemplateSlots(timeline: ProjectTimeline) {
   let slots = 0
-  for (const track of tracks) {
-    if (!Array.isArray(track?.clips)) continue
+  for (const track of timeline.tracks) {
     for (const clip of track.clips) {
       if (clip.replaceable) slots += 1
     }
@@ -141,18 +141,14 @@ function normalizeStructureLabel(value: unknown): TemplateStructureTag | null {
 }
 
 function deriveStructureTags(
-  timeline: unknown,
+  timeline: ProjectTimeline,
   sourceViralVideoId: string | null
 ): TemplateStructureTag[] {
   const tags = new Set<TemplateStructureTag>()
   tags.add(sourceViralVideoId ? "Analyzed" : "Blank")
 
-  const tracks = (timeline as ProjectTimeline | null)?.tracks
-  if (!Array.isArray(tracks)) return Array.from(tags)
-
   let replaceableSlots = 0
-  for (const track of tracks) {
-    if (!Array.isArray(track?.clips)) continue
+  for (const track of timeline.tracks) {
     for (const clip of track.clips) {
       if (!clip.replaceable) continue
       replaceableSlots += 1
@@ -169,18 +165,20 @@ function serializeTemplate(
   row: AiVideoTemplate,
   creator: AiVideoCreator | null = null
 ): TemplateItem {
-  const stats = summarizeTimeline(row.timeline)
+  const { timeline, error } = parseTimelineForReset(row.timeline)
+  const stats = summarizeTimeline(timeline)
   return {
     id: row.id,
     name: row.name,
     source_viral_video_id: row.sourceViralVideoId,
     source_type: row.sourceViralVideoId ? "analyzed" : "blank",
-    structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
+    structure_tags: deriveStructureTags(timeline, row.sourceViralVideoId),
     thumbnail_url: row.thumbnailStoragePath
       ? templateThumbnailUrl(row.id, row.updatedAt)
       : null,
-    slot_count: countTemplateSlots(row.timeline),
+    slot_count: countTemplateSlots(timeline),
     duration_ms: stats.durationMs,
+    timeline_error: error,
     creator: creator
       ? {
           username: creator.username,
@@ -227,18 +225,18 @@ export async function getTemplateForEditingForCurrentUser(
 ): Promise<TemplateDetail> {
   const user = await requireUser()
   const row = await getOwnedTemplate(user.id, templateId)
+  const { timeline, error } = parseTimelineForReset(row.timeline)
   return {
     id: row.id,
     name: row.name,
     source_viral_video_id: row.sourceViralVideoId,
     source_type: row.sourceViralVideoId ? "analyzed" : "blank",
-    structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
+    structure_tags: deriveStructureTags(timeline, row.sourceViralVideoId),
     thumbnail_url: row.thumbnailStoragePath
       ? templateThumbnailUrl(row.id, row.updatedAt)
       : null,
-    timeline: secureTimelineMediaUrls(
-      normalizeTimelineTextFonts(row.timeline as ProjectTimeline)
-    ),
+    timeline_error: error,
+    timeline: secureTimelineMediaUrls(timeline),
   }
 }
 
@@ -322,7 +320,7 @@ export async function saveTemplateTimelineForCurrentUser(
   requireAppOrigin()
   const user = await requireUser()
   const normalizedTimeline = secureTimelineMediaUrls(
-    normalizeTimelineTextFonts(timeline)
+    requireCanonicalTimeline(timeline)
   )
 
   const [row] = await db
@@ -513,7 +511,7 @@ export async function createBlankTemplateForCurrentUser(
       id: uuid(),
       userId: user.id,
       name: cleanTemplateName(name),
-      timeline: EMPTY_TEMPLATE_TIMELINE,
+      timeline: createEmptyTimeline(),
       createdAt,
       updatedAt: createdAt,
     })
@@ -612,7 +610,7 @@ export async function createProjectFromTemplateForCurrentUser(
       // Remembered so the script writer can reach the source reel's analysis.
       templateId: template.id,
       timeline: secureTimelineMediaUrls(
-        normalizeTimelineTextFonts(template.timeline as ProjectTimeline)
+        requireCanonicalTimeline(template.timeline)
       ),
       createdAt,
       updatedAt: createdAt,

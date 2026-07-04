@@ -4,6 +4,10 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { withApiUsage } from "@/server/api-usage"
 import { getLlmKey } from "@/server/llm-keys"
+import {
+  requireCanonicalTimeline,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { extractAudioWav } from "@/server/video-download"
@@ -15,7 +19,6 @@ import {
   requireGeminiKey,
   withActiveGeminiFile,
 } from "@/server/video-analysis"
-import type { ProjectTimeline } from "@/server/video-projects"
 import type { ClipWord, EditorClip } from "@/pages/video-editor/editor-store"
 
 // One caption line, already mapped to TIMELINE time (the client just turns
@@ -112,7 +115,7 @@ export async function generateProjectCaptionsForCurrentUser(
     throw new Error("Project not found")
   }
 
-  const timeline = project.timeline as ProjectTimeline
+  const timeline = requireCanonicalTimeline(project.timeline)
   const source = findCaptionSource(timeline)
   if (!source?.mediaId) {
     throw new Error("No audible clip to caption")

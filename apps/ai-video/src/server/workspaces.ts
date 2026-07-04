@@ -1,7 +1,8 @@
 import { and, asc, eq } from "drizzle-orm"
+import { z } from "zod"
 
 import {
-  cleanBrandKitConfig,
+  createDefaultBrandKitConfig,
   createDefaultTopRightNavigation,
   iconMeta,
   type BrandKitConfig,
@@ -10,15 +11,20 @@ import {
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-video"
-import { db, type AiVideoDb } from "@/server/db"
 import {
-  aiVideoWorkspaces,
-  type AiVideoWorkspace,
-} from "@/server/schema"
+  brandKitConfigSchema,
+  shellSectionSchema,
+  shellTopNavigationItemSchema,
+  shellTopRightNavigationItemSchema,
+} from "@/lib/shell-config-schema"
+import { db, type AiVideoDb } from "@/server/db"
+import { aiVideoWorkspaces, type AiVideoWorkspace } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
+const INVALID_WORKSPACE_SETTINGS_MESSAGE =
+  "Saved workspace settings are invalid. Reset them with the current settings form."
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -28,6 +34,19 @@ export type WorkspaceSettings = {
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
+
+const workspaceSettingsSchema = z
+  .object({
+    icon: z.custom<IconKey>(isWorkspaceIcon, {
+      message: "Workspace icon is invalid",
+    }),
+    favicon: z.string(),
+    brandKit: brandKitConfigSchema,
+    topNavigation: z.array(shellTopNavigationItemSchema),
+    topRightNavigation: z.array(shellTopRightNavigationItemSchema),
+    sections: z.array(shellSectionSchema),
+  })
+  .strict()
 
 export async function getOrCreateCurrentWorkspace(
   userId: string,
@@ -107,7 +126,7 @@ export async function createUserWorkspace(
 
   const currentWorkspace = await findCurrentWorkspace(userId, database)
   const baseSettings = currentWorkspace
-    ? parseWorkspaceSettings(currentWorkspace.settings)
+    ? parseWorkspaceSettingsForReset(currentWorkspace.settings).settings
     : defaultWorkspaceSettings()
 
   return database.transaction(async (tx) => {
@@ -118,7 +137,7 @@ export async function createUserWorkspace(
         id: uuid(),
         userId,
         name: trimmedName.slice(0, 255),
-        settings: cleanWorkspaceSettings({ ...baseSettings, ...settings }),
+        settings: parseWorkspaceSettings({ ...baseSettings, ...settings }),
         isDefault: false,
         createdAt,
         updatedAt: createdAt,
@@ -163,8 +182,8 @@ export async function updateUserWorkspace(
     .update(aiVideoWorkspaces)
     .set({
       name: trimmedName.slice(0, 255),
-      settings: cleanWorkspaceSettings({
-        ...parseWorkspaceSettings(existing.settings),
+      settings: parseWorkspaceSettings({
+        ...parseWorkspaceSettingsForReset(existing.settings).settings,
         ...data.settings,
       }),
       updatedAt: now(),
@@ -305,7 +324,7 @@ export function serializeWorkspace(
   row: AiVideoWorkspace,
   currentWorkspaceId: string | null
 ) {
-  const settings = parseWorkspaceSettings(row.settings)
+  const settings = parseWorkspaceSettingsForReset(row.settings).settings
   return {
     id: row.id,
     name: row.name,
@@ -318,63 +337,43 @@ export function serializeWorkspace(
 }
 
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
-  const fallback = defaultWorkspaceSettings()
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const settings = value as Partial<WorkspaceSettings>
-    return {
-      icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
-      favicon:
-        typeof settings.favicon === "string"
-          ? settings.favicon
-          : fallback.favicon,
-      brandKit: cleanBrandKitConfig(settings.brandKit),
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
-      topRightNavigation: Array.isArray(settings.topRightNavigation)
-        ? settings.topRightNavigation
-        : fallback.topRightNavigation,
-      sections: Array.isArray(settings.sections)
-        ? settings.sections
-        : fallback.sections,
-    }
+  const parsed = workspaceSettingsSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error(INVALID_WORKSPACE_SETTINGS_MESSAGE)
   }
 
-  return fallback
+  return parsed.data
 }
 
-function cleanWorkspaceSettings(
-  settings: Partial<WorkspaceSettings>
-): WorkspaceSettings {
-  const fallback = defaultWorkspaceSettings()
-  return {
-    icon: isWorkspaceIcon(settings.icon)
-      ? settings.icon
-      : fallback.icon,
-    favicon:
-      typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    brandKit: cleanBrandKitConfig(settings.brandKit),
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
-    topRightNavigation: Array.isArray(settings.topRightNavigation)
-      ? settings.topRightNavigation
-      : fallback.topRightNavigation,
-    sections: Array.isArray(settings.sections)
-      ? settings.sections
-      : fallback.sections,
+export function parseWorkspaceSettingsForReset(value: unknown): {
+  settings: WorkspaceSettings
+  error: string | null
+} {
+  try {
+    return {
+      settings: parseWorkspaceSettings(value),
+      error: null,
+    }
+  } catch (error) {
+    return {
+      settings: defaultWorkspaceSettings(),
+      error:
+        error instanceof Error
+          ? error.message
+          : INVALID_WORKSPACE_SETTINGS_MESSAGE,
+    }
   }
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
-  return {
+  return parseWorkspaceSettings({
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    brandKit: cleanBrandKitConfig(undefined),
+    brandKit: createDefaultBrandKitConfig(),
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
-  }
+  })
 }
 
 function createDefaultWorkspaceSections(): ShellSection[] {

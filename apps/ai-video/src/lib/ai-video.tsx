@@ -1,8 +1,4 @@
-import {
-  DEFAULT_TEXT_FONT_ID,
-  TEXT_FONT_IDS,
-  type TextFontId,
-} from "@/lib/text-fonts"
+import { DEFAULT_TEXT_FONT_ID, type TextFontId } from "@/lib/text-fonts"
 import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
@@ -333,20 +329,6 @@ const DEFAULT_BRAND_KIT_COLORS: BrandKitColor[] = [
   { name: "Box", value: "#000000" },
 ]
 
-const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-
-function isTextFontId(value: unknown): value is TextFontId {
-  return (
-    typeof value === "string" && TEXT_FONT_IDS.includes(value as TextFontId)
-  )
-}
-
-function cleanHexColor(value: unknown, fallback: string) {
-  return typeof value === "string" && HEX_COLOR.test(value)
-    ? value.toLowerCase()
-    : fallback
-}
-
 export function createDefaultBrandKitConfig(): BrandKitConfig {
   return {
     colors: DEFAULT_BRAND_KIT_COLORS,
@@ -376,100 +358,6 @@ export function createDefaultBrandKitConfig(): BrandKitConfig {
   }
 }
 
-export function cleanBrandKitConfig(value: unknown): BrandKitConfig {
-  const fallback = createDefaultBrandKitConfig()
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return fallback
-  }
-
-  const settings = value as Partial<BrandKitConfig>
-  const colors = Array.isArray(settings.colors)
-    ? settings.colors
-        .map((color) => ({
-          name:
-            typeof color?.name === "string"
-              ? color.name.trim().slice(0, 40)
-              : "",
-          value: cleanHexColor(color?.value, ""),
-        }))
-        .filter((color) => color.name && color.value)
-        .slice(0, 20)
-    : fallback.colors
-  const fonts = settings.fonts ?? fallback.fonts
-  const captionStyle = settings.captionStyle ?? fallback.captionStyle
-  const logo = settings.logo ?? fallback.logo
-  const watermark = settings.watermark ?? fallback.watermark
-  const position = watermark.position
-
-  return {
-    colors: colors.length ? colors : fallback.colors,
-    fonts: {
-      heading: isTextFontId(fonts.heading)
-        ? fonts.heading
-        : fallback.fonts.heading,
-      body: isTextFontId(fonts.body) ? fonts.body : fallback.fonts.body,
-      caption: isTextFontId(fonts.caption)
-        ? fonts.caption
-        : fallback.fonts.caption,
-    },
-    captionStyle: {
-      fontId: isTextFontId(captionStyle.fontId)
-        ? captionStyle.fontId
-        : fallback.captionStyle.fontId,
-      fontSize:
-        typeof captionStyle.fontSize === "number" &&
-        Number.isFinite(captionStyle.fontSize)
-          ? Math.min(Math.max(Math.round(captionStyle.fontSize), 8), 240)
-          : fallback.captionStyle.fontSize,
-      color: cleanHexColor(captionStyle.color, fallback.captionStyle.color),
-      highlightColor: captionStyle.highlightColor
-        ? cleanHexColor(
-            captionStyle.highlightColor,
-            fallback.captionStyle.highlightColor ?? "#000000"
-          )
-        : null,
-    },
-    logo: {
-      mediaId: typeof logo.mediaId === "string" ? logo.mediaId : null,
-      previewUrl:
-        typeof logo.previewUrl === "string"
-          ? logo.previewUrl.slice(0, 2048)
-          : "",
-    },
-    watermark: {
-      enabled: watermark.enabled === true,
-      position: BRAND_KIT_WATERMARK_POSITIONS.includes(
-        position as BrandKitWatermarkPosition
-      )
-        ? (position as BrandKitWatermarkPosition)
-        : fallback.watermark.position,
-      widthPercent:
-        typeof watermark.widthPercent === "number" &&
-        Number.isFinite(watermark.widthPercent)
-          ? Math.min(Math.max(Math.round(watermark.widthPercent), 1), 100)
-          : fallback.watermark.widthPercent,
-      opacity:
-        typeof watermark.opacity === "number" &&
-        Number.isFinite(watermark.opacity)
-          ? Math.min(Math.max(Math.round(watermark.opacity), 0), 100)
-          : fallback.watermark.opacity,
-    },
-    ctaPhrases: Array.isArray(settings.ctaPhrases)
-      ? settings.ctaPhrases
-          .map((phrase) =>
-            typeof phrase === "string" ? phrase.trim().slice(0, 180) : ""
-          )
-          .filter(Boolean)
-          .slice(0, 20)
-      : fallback.ctaPhrases,
-    exportNamingPattern:
-      typeof settings.exportNamingPattern === "string" &&
-      settings.exportNamingPattern.trim()
-        ? settings.exportNamingPattern.trim().slice(0, 120)
-        : fallback.exportNamingPattern,
-  }
-}
-
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
     id,
@@ -492,24 +380,6 @@ export function createDefaultShellConfig(): ShellConfig {
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }
-}
-
-export function normalizeTopRightNavigation(
-  items: ShellTopRightNavigationItem[] | undefined
-) {
-  const fallback = createDefaultTopRightNavigation()
-  if (!Array.isArray(items)) {
-    return fallback
-  }
-
-  const validIds = new Set<ShellTopRightNavigationItemId>(
-    TOP_RIGHT_NAVIGATION_ITEM_IDS
-  )
-  const savedItems = items.filter((item) => validIds.has(item.id))
-  const savedIds = new Set(savedItems.map((item) => item.id))
-  const missingItems = fallback.filter((item) => !savedIds.has(item.id))
-
-  return [...savedItems, ...missingItems]
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

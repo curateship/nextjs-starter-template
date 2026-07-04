@@ -18,7 +18,7 @@ type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
-  rightNavItems?: ShellTopRightNavigationItem[]
+  rightNavItems: ShellTopRightNavigationItem[]
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }

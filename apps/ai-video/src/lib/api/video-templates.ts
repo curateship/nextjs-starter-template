@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { timelineSchema, type ProjectTimeline } from "@/lib/api/video-projects"
+import {
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  timelineSchema,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
 import type {
   TemplateDetail,
   TemplateItem,
@@ -32,6 +36,7 @@ const templateSafeErrorMessages = new Set([
   "Project was not created",
   "Media not found",
   "Template cover must be an image",
+  SAVED_TIMELINE_INVALID_MESSAGE,
 ])
 
 export function getTemplateErrorMessage(error: unknown) {
@@ -42,9 +47,8 @@ export function getTemplateErrorMessage(error: unknown) {
 
 const listTemplatesFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<TemplateListResponse> => {
-    const { listTemplatesForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { listTemplatesForCurrentUser } =
+      await import("@/server/video-templates")
     return listTemplatesForCurrentUser()
   }
 )
@@ -54,27 +58,24 @@ const createTemplateFromViralVideoFn = createServerFn({ method: "POST" })
     z.object({ videoId: z.string().min(1).max(36), name: templateNameSchema })
   )
   .handler(async ({ data }): Promise<TemplateItem> => {
-    const { createTemplateFromViralVideoForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { createTemplateFromViralVideoForCurrentUser } =
+      await import("@/server/video-templates")
     return createTemplateFromViralVideoForCurrentUser(data.videoId, data.name)
   })
 
 const createBlankTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ name: templateNameSchema }))
   .handler(async ({ data }): Promise<TemplateItem> => {
-    const { createBlankTemplateForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { createBlankTemplateForCurrentUser } =
+      await import("@/server/video-templates")
     return createBlankTemplateForCurrentUser(data.name)
   })
 
 const renameTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema.extend({ name: templateNameSchema }))
   .handler(async ({ data }): Promise<TemplateItem> => {
-    const { renameTemplateForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { renameTemplateForCurrentUser } =
+      await import("@/server/video-templates")
     return renameTemplateForCurrentUser(data.templateId, data.name)
   })
 
@@ -88,9 +89,8 @@ const setTemplateCoverFn = createServerFn({ method: "POST" })
     async ({
       data,
     }): Promise<{ templateId: string; thumbnail_url: string | null }> => {
-      const { setTemplateCoverForCurrentUser } = await import(
-        "@/server/video-templates"
-      )
+      const { setTemplateCoverForCurrentUser } =
+        await import("@/server/video-templates")
       return setTemplateCoverForCurrentUser(data.templateId, data.mediaId)
     }
   )
@@ -98,36 +98,32 @@ const setTemplateCoverFn = createServerFn({ method: "POST" })
 const deleteTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema)
   .handler(async ({ data }): Promise<{ templateId: string }> => {
-    const { deleteTemplateForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { deleteTemplateForCurrentUser } =
+      await import("@/server/video-templates")
     return deleteTemplateForCurrentUser(data.templateId)
   })
 
 const createProjectFromTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema.extend({ name: templateNameSchema }))
   .handler(async ({ data }): Promise<{ projectId: string }> => {
-    const { createProjectFromTemplateForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { createProjectFromTemplateForCurrentUser } =
+      await import("@/server/video-templates")
     return createProjectFromTemplateForCurrentUser(data.templateId, data.name)
   })
 
 const getTemplateForEditingFn = createServerFn({ method: "GET" })
   .inputValidator(templateIdSchema)
   .handler(async ({ data }): Promise<TemplateDetail> => {
-    const { getTemplateForEditingForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { getTemplateForEditingForCurrentUser } =
+      await import("@/server/video-templates")
     return getTemplateForEditingForCurrentUser(data.templateId)
   })
 
 const saveTemplateTimelineFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema.extend({ timeline: timelineSchema }))
   .handler(async ({ data }): Promise<{ templateId: string }> => {
-    const { saveTemplateTimelineForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { saveTemplateTimelineForCurrentUser } =
+      await import("@/server/video-templates")
     return saveTemplateTimelineForCurrentUser(data.templateId, data.timeline)
   })
 
@@ -173,9 +169,8 @@ const bulkDeleteTemplatesFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<{ deletedCount: number }> => {
-    const { deleteTemplatesForCurrentUser } = await import(
-      "@/server/video-templates"
-    )
+    const { deleteTemplatesForCurrentUser } =
+      await import("@/server/video-templates")
     return deleteTemplatesForCurrentUser(data.templateIds)
   })
 

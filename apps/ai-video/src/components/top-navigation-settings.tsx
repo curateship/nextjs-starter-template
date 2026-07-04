@@ -44,7 +44,6 @@ import {
 import { Input } from "@/components/ui/input"
 import {
   createDefaultTopRightNavigation,
-  normalizeTopRightNavigation,
   renderShellIcon,
   type ShellConfig,
   type ShellTopRightNavigationItem,
@@ -62,10 +61,7 @@ type TopNavigationSettingsProps = {
 type SortableTopNavigationItemProps = {
   item: ShellTopNavigationItem
   isSaving: boolean
-  onItemChange: (
-    itemId: string,
-    patch: Partial<ShellTopNavigationItem>
-  ) => void
+  onItemChange: (itemId: string, patch: Partial<ShellTopNavigationItem>) => void
   onItemDelete: (itemId: string) => void
   onSaveConfig: () => Promise<boolean>
 }
@@ -312,9 +308,7 @@ export function TopNavigationSettings({
   onConfigChange,
   onSaveConfig,
 }: TopNavigationSettingsProps) {
-  const topRightNavigation = normalizeTopRightNavigation(
-    config.topRightNavigation
-  )
+  const topRightNavigation = config.topRightNavigation
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })

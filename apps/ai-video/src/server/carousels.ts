@@ -7,63 +7,30 @@ import { aiVideoCarousels, type AiVideoCarousel } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import { ANALYSIS_MODEL, generateJson } from "@/server/video-analysis"
 import {
-  DEFAULT_TEXT_FONT_ID,
-  TEXT_FONT_IDS,
-  type TextFontId,
-} from "@/lib/text-fonts"
+  requireCanonicalCarouselFormat,
+  requireCanonicalCarouselSlides,
+  type CarouselFormat,
+  type CarouselMediaItem,
+  type CarouselSlide,
+  type CarouselSortBy,
+  type CarouselSortDirection,
+} from "@/lib/carousel-schema"
+import { DEFAULT_TEXT_FONT_ID } from "@/lib/text-fonts"
 
-export const CAROUSEL_FORMATS = ["4:5", "1:1", "9:16"] as const
-export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
-export type CarouselItemType = "text" | "image" | "video" | "gradient-shadow"
-export type CarouselTextAlign = "left" | "center" | "right"
-export type CarouselMediaFit = "fill" | "cover" | "contain"
-export type CarouselSortBy = "name" | "slide_count" | "format" | "updated_at"
-export type CarouselSortDirection = "asc" | "desc"
-
-type CarouselSlideItemBase = {
-  id: string
-  type: CarouselItemType
-  x: number
-  y: number
-  width: number
-  height: number
-  zIndex: number
-}
-
-export type CarouselTextItem = CarouselSlideItemBase & {
-  type: "text"
-  text: string
-  fontId: TextFontId
-  fontSize: number
-  color: string
-  align: CarouselTextAlign
-}
-
-export type CarouselMediaItem = CarouselSlideItemBase & {
-  type: "image" | "video"
-  mediaId?: string
-  url: string
-  altText?: string
-  fit: CarouselMediaFit
-}
-
-export type CarouselGradientShadowItem = CarouselSlideItemBase & {
-  type: "gradient-shadow"
-  color: string
-  opacity: number
-}
-
-export type CarouselSlideItem =
-  | CarouselTextItem
-  | CarouselMediaItem
-  | CarouselGradientShadowItem
-
-export type CarouselSlide = {
-  id: string
-  title: string
-  backgroundColor: string
-  items: CarouselSlideItem[]
-}
+export { CAROUSEL_FORMATS } from "@/lib/carousel-schema"
+export type {
+  CarouselFormat,
+  CarouselGradientShadowItem,
+  CarouselItemType,
+  CarouselMediaFit,
+  CarouselMediaItem,
+  CarouselSlide,
+  CarouselSlideItem,
+  CarouselSortBy,
+  CarouselSortDirection,
+  CarouselTextAlign,
+  CarouselTextItem,
+} from "@/lib/carousel-schema"
 
 export type CarouselItem = {
   id: string
@@ -91,9 +58,6 @@ export type CarouselListResponse = {
 
 const DEFAULT_FORMAT: CarouselFormat = "4:5"
 const DEFAULT_BACKGROUND = "#f8fafc"
-const SAFE_COLOR_RE = /^#[0-9a-f]{6}$/i
-const DEFAULT_IMAGE_Z_INDEX = 0
-const DEFAULT_GRADIENT_SHADOW_Z_INDEX = 1
 const DEFAULT_TEXT_Z_INDEX = 10
 const DEFAULT_TITLE_TEXT_Y = 0.56
 const DEFAULT_TITLE_TEXT_HEIGHT = 0.14
@@ -131,138 +95,6 @@ function cleanSourceText(value: string) {
   return cleanText(value, 20_000)
 }
 
-function normalizeFormat(value: unknown): CarouselFormat {
-  return CAROUSEL_FORMATS.includes(value as CarouselFormat)
-    ? (value as CarouselFormat)
-    : DEFAULT_FORMAT
-}
-
-function normalizeNumber(value: unknown, fallback: number, min = 0, max = 1) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(max, Math.max(min, value))
-    : fallback
-}
-
-function normalizeColor(value: unknown, fallback: string) {
-  return typeof value === "string" && SAFE_COLOR_RE.test(value)
-    ? value
-    : fallback
-}
-
-function normalizeCarouselTextFontId(value: unknown): TextFontId {
-  if (value === undefined || value === null || value === "") {
-    return DEFAULT_TEXT_FONT_ID
-  }
-
-  if (
-    typeof value !== "string" ||
-    !TEXT_FONT_IDS.includes(value as TextFontId)
-  ) {
-    throw new Error("Carousel text item uses an unsupported font")
-  }
-
-  return value as TextFontId
-}
-
-function normalizeSlides(value: unknown): CarouselSlide[] {
-  if (!Array.isArray(value)) return []
-
-  return value.slice(0, 20).map((slide, slideIndex) => {
-    const raw = slide as Partial<CarouselSlide>
-    const items = Array.isArray(raw.items) ? raw.items : []
-    return {
-      id: typeof raw.id === "string" && raw.id ? raw.id : uuid(),
-      title:
-        typeof raw.title === "string" && raw.title.trim()
-          ? raw.title.trim().slice(0, 120)
-          : `Slide ${slideIndex + 1}`,
-      backgroundColor: normalizeColor(raw.backgroundColor, DEFAULT_BACKGROUND),
-      items: items
-        .map(normalizeSlideItem)
-        .filter((item): item is CarouselSlideItem => Boolean(item))
-        .slice(0, 50),
-    }
-  })
-}
-
-function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
-  const item = value as Partial<CarouselSlideItem>
-  if (!item || typeof item !== "object") return null
-  const type = item.type
-  if (
-    type !== "text" &&
-    type !== "image" &&
-    type !== "video" &&
-    type !== "gradient-shadow"
-  ) {
-    return null
-  }
-
-  const defaultZIndex =
-    type === "text"
-      ? DEFAULT_TEXT_Z_INDEX
-      : type === "gradient-shadow"
-        ? DEFAULT_GRADIENT_SHADOW_Z_INDEX
-        : DEFAULT_IMAGE_Z_INDEX
-
-  const base = {
-    id: typeof item.id === "string" && item.id ? item.id.slice(0, 64) : uuid(),
-    x: normalizeNumber(item.x, 0.1),
-    y: normalizeNumber(item.y, 0.1),
-    width: normalizeNumber(item.width, 0.8, 0.05),
-    height: normalizeNumber(item.height, 0.2, 0.05),
-    zIndex: normalizeNumber(item.zIndex, defaultZIndex, 0, 999),
-  }
-
-  if (type === "text") {
-    const text = typeof item.text === "string" ? item.text.slice(0, 2000) : ""
-    return {
-      ...base,
-      type,
-      text,
-      fontId: normalizeCarouselTextFontId(item.fontId),
-      fontSize: normalizeNumber(item.fontSize, 56, 8, 220),
-      color: normalizeColor(item.color, "#111827"),
-      align:
-        item.align === "left" ||
-        item.align === "right" ||
-        item.align === "center"
-          ? item.align
-          : "left",
-    }
-  }
-
-  if (type === "gradient-shadow") {
-    const shadow = item as Partial<CarouselGradientShadowItem>
-    return {
-      ...base,
-      type,
-      color: normalizeColor(shadow.color, "#000000"),
-      opacity: normalizeNumber(shadow.opacity, 70, 0, 100),
-    }
-  }
-
-  const media = item as Partial<CarouselMediaItem>
-  if (typeof media.url !== "string" || !media.url.trim()) return null
-  return {
-    ...base,
-    type,
-    mediaId:
-      typeof media.mediaId === "string" && media.mediaId
-        ? media.mediaId.slice(0, 36)
-        : undefined,
-    url: media.url.slice(0, 2048),
-    altText:
-      typeof media.altText === "string" && media.altText
-        ? media.altText.slice(0, 500)
-        : undefined,
-    fit:
-      media.fit === "fill" || media.fit === "cover" || media.fit === "contain"
-        ? media.fit
-        : "fill",
-  }
-}
-
 function firstThumbnail(slides: CarouselSlide[]) {
   for (const slide of slides) {
     const media = slide.items
@@ -298,12 +130,12 @@ function getCarouselOrderBy(
 }
 
 function serializeCarousel(row: AiVideoCarousel): CarouselItem {
-  const slides = normalizeSlides(row.slides)
+  const slides = requireCanonicalCarouselSlides(row.slides)
   return {
     id: row.id,
     name: row.name,
     slide_count: slides.length,
-    format: normalizeFormat(row.format),
+    format: requireCanonicalCarouselFormat(row.format),
     thumbnail_url: firstThumbnail(slides),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -311,7 +143,7 @@ function serializeCarousel(row: AiVideoCarousel): CarouselItem {
 }
 
 function serializeCarouselDetail(row: AiVideoCarousel): CarouselDetail {
-  const slides = normalizeSlides(row.slides)
+  const slides = requireCanonicalCarouselSlides(row.slides)
   return {
     ...serializeCarousel(row),
     source_text: row.sourceText,
@@ -578,15 +410,14 @@ export async function saveCarouselForCurrentUser(
 ): Promise<CarouselItem> {
   requireAppOrigin()
   const user = await requireUser()
-  const slides = normalizeSlides(data.slides)
-  if (!slides.length) {
-    throw new Error("Carousel needs at least one slide")
-  }
+  const slides = requireCanonicalCarouselSlides(data.slides)
 
   const [row] = await db
     .update(aiVideoCarousels)
     .set({
-      format: data.format ?? DEFAULT_FORMAT,
+      format: data.format
+        ? requireCanonicalCarouselFormat(data.format)
+        : DEFAULT_FORMAT,
       caption: cleanText(data.caption, 2200),
       slides,
       updatedAt: now(),

@@ -95,7 +95,8 @@ export function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<ProjectTypeFilter>("all")
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
-  const [sortColumn, setSortColumn] = React.useState<ProjectSortColumn>("edited")
+  const [sortColumn, setSortColumn] =
+    React.useState<ProjectSortColumn>("edited")
   const [sortDirection, setSortDirection] =
     React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
@@ -144,7 +145,8 @@ export function ProjectsDashboard() {
         (project) => typeFilter === "all" || project.project_type === typeFilter
       )
       .sort((a, b) => {
-        if (sortColumn === "clips") return (a.clip_count - b.clip_count) * direction
+        if (sortColumn === "clips")
+          return (a.clip_count - b.clip_count) * direction
         if (sortColumn === "edited")
           return (
             (new Date(a.updated_at).getTime() -
@@ -317,9 +319,7 @@ export function ProjectsDashboard() {
       />
       <Select
         value={typeFilter}
-        onValueChange={(value) =>
-          updateTypeFilter(value as ProjectTypeFilter)
-        }
+        onValueChange={(value) => updateTypeFilter(value as ProjectTypeFilter)}
       >
         <DashboardToolbarSelectTrigger aria-label="Filter by project type">
           <SelectValue />
@@ -687,8 +687,16 @@ function ProjectTableRow({
             >
               {project.name}
             </button>
-            <div className="text-xs text-muted-foreground">
-              {formatDuration(project.duration_ms)}
+            <div
+              className={
+                project.timeline_error
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {project.timeline_error
+                ? "Timeline reset required"
+                : formatDuration(project.duration_ms)}
             </div>
           </div>
         </div>
@@ -697,7 +705,11 @@ function ProjectTableRow({
         <ProjectTypeBadge project={project} />
       </TableCell>
       <TableCell column="meta">
-        <Badge variant="outline">{project.clip_count}</Badge>
+        {project.timeline_error ? (
+          <Badge variant="destructive">Reset</Badge>
+        ) : (
+          <Badge variant="outline">{project.clip_count}</Badge>
+        )}
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(project.updated_at))}
@@ -761,7 +773,9 @@ function ProjectGalleryItem({
       >
         <ClapperboardIcon className="size-8 text-muted-foreground" />
         <span className="absolute bottom-2 left-2">
-          <Badge variant="secondary">{formatDuration(project.duration_ms)}</Badge>
+          <Badge variant="secondary">
+            {formatDuration(project.duration_ms)}
+          </Badge>
         </span>
         <span className="absolute right-2 bottom-2">
           <ProjectTypeBadge project={project} />
@@ -828,7 +842,9 @@ function EmptyProjects({ loading }: { loading: boolean }) {
 
 function ProjectTypeBadge({ project }: { project: ProjectItem }) {
   return (
-    <Badge variant={project.project_type === "template" ? "secondary" : "outline"}>
+    <Badge
+      variant={project.project_type === "template" ? "secondary" : "outline"}
+    >
       {project.project_type === "template" ? "Template-based" : "Regular"}
     </Badge>
   )
