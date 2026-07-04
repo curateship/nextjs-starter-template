@@ -1,15 +1,17 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import {
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  timelineSchema,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
 import type {
   ProjectDetail,
   ProjectItem,
   ProjectListResponse,
-  ProjectTimeline,
 } from "@/server/video-projects"
 import type { ProjectRenderInfo, RenderQuality } from "@/server/video-render"
-import { SOUND_EFFECT_IDS } from "@/lib/sound-effects"
-import { TEXT_FONT_IDS } from "@/lib/text-fonts"
 
 export type {
   ProjectDetail,
@@ -19,66 +21,6 @@ export type {
   ProjectTimeline,
   RenderQuality,
 }
-
-// Bounded mirror of EditorClip — keeps persisted timelines within sane limits.
-const clipSchema = z.object({
-  id: z.string().min(1).max(64),
-  kind: z.enum(["video", "audio", "image", "text"]),
-  name: z.string().max(255),
-  startMs: z.number().nonnegative().finite(),
-  durationMs: z.number().nonnegative().finite(),
-  trimStartMs: z.number().nonnegative().finite(),
-  mediaId: z.string().max(36).optional(),
-  url: z.string().max(2048).optional(),
-  soundEffectId: z.enum(SOUND_EFFECT_IDS).optional(),
-  sourceDurationMs: z.number().nonnegative().finite().optional(),
-  text: z.string().max(5000).optional(),
-  fontId: z.enum(TEXT_FONT_IDS).optional(),
-  fontSize: z.number().finite().optional(),
-  color: z.string().max(32).optional(),
-  // Background color behind a text overlay (highlight box); omitted = none.
-  highlightColor: z.string().max(32).optional(),
-  // Per-word timings for voice-synced captions (clip-relative ms).
-  words: z
-    .array(
-      z.object({
-        text: z.string().max(100),
-        startMs: z.number().nonnegative().finite(),
-        endMs: z.number().nonnegative().finite(),
-      })
-    )
-    .max(50)
-    .optional(),
-  // Normalized 0–1 center position of a text overlay (drag-to-position).
-  x: z.number().min(0).max(1).optional(),
-  y: z.number().min(0).max(1).optional(),
-  // Template slot flags (see EditorClip).
-  replaceable: z.boolean().optional(),
-  segmentLabel: z.string().max(100).optional(),
-}).superRefine((clip, context) => {
-  if (clip.kind === "text" && !clip.fontId) {
-    context.addIssue({
-      code: "custom",
-      path: ["fontId"],
-      message: "Text clips require a font",
-    })
-  }
-})
-
-// Exported so the templates API can validate template-timeline saves with the
-// exact same rules (a template's timeline is the same shape as a project's).
-export const timelineSchema = z.object({
-  tracks: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(64),
-        muted: z.boolean(),
-        clips: z.array(clipSchema).max(500),
-      })
-    )
-    .max(50),
-  aspect: z.enum(["16:9", "9:16", "1:1", "4:3"]),
-})
 
 const projectNameSchema = z.string().min(1).max(255)
 
@@ -91,6 +33,7 @@ const projectSafeErrorMessages = new Set([
   "Project not found",
   "Nothing to export",
   "Timeline too long to export",
+  SAVED_TIMELINE_INVALID_MESSAGE,
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -101,9 +44,8 @@ export function getProjectErrorMessage(error: unknown) {
 
 const listProjectsFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<ProjectListResponse> => {
-    const { listProjectsForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { listProjectsForCurrentUser } =
+      await import("@/server/video-projects")
     return listProjectsForCurrentUser()
   }
 )
@@ -111,45 +53,39 @@ const listProjectsFn = createServerFn({ method: "GET" }).handler(
 const getProjectFn = createServerFn({ method: "GET" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<ProjectDetail> => {
-    const { getProjectForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { getProjectForCurrentUser } = await import("@/server/video-projects")
     return getProjectForCurrentUser(data.projectId)
   })
 
 const createProjectFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ name: projectNameSchema }))
   .handler(async ({ data }): Promise<ProjectDetail> => {
-    const { createProjectForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { createProjectForCurrentUser } =
+      await import("@/server/video-projects")
     return createProjectForCurrentUser(data)
   })
 
 const renameProjectFn = createServerFn({ method: "POST" })
   .inputValidator(projectIdSchema.extend({ name: projectNameSchema }))
   .handler(async ({ data }): Promise<ProjectItem> => {
-    const { renameProjectForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { renameProjectForCurrentUser } =
+      await import("@/server/video-projects")
     return renameProjectForCurrentUser(data.projectId, data.name)
   })
 
 const saveProjectTimelineFn = createServerFn({ method: "POST" })
   .inputValidator(projectIdSchema.extend({ timeline: timelineSchema }))
   .handler(async ({ data }): Promise<ProjectItem> => {
-    const { saveProjectTimelineForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { saveProjectTimelineForCurrentUser } =
+      await import("@/server/video-projects")
     return saveProjectTimelineForCurrentUser(data.projectId, data.timeline)
   })
 
 const deleteProjectFn = createServerFn({ method: "POST" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<{ projectId: string }> => {
-    const { deleteProjectForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { deleteProjectForCurrentUser } =
+      await import("@/server/video-projects")
     return deleteProjectForCurrentUser(data.projectId)
   })
 
@@ -187,18 +123,16 @@ const startRenderFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
-    const { startProjectRenderForCurrentUser } = await import(
-      "@/server/video-render"
-    )
+    const { startProjectRenderForCurrentUser } =
+      await import("@/server/video-render")
     return startProjectRenderForCurrentUser(data.projectId, data.quality)
   })
 
 const getRenderFn = createServerFn({ method: "GET" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
-    const { getProjectRenderForCurrentUser } = await import(
-      "@/server/video-render"
-    )
+    const { getProjectRenderForCurrentUser } =
+      await import("@/server/video-render")
     return getProjectRenderForCurrentUser(data.projectId)
   })
 
@@ -220,9 +154,8 @@ const bulkDeleteProjectsFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<{ deletedCount: number }> => {
-    const { deleteProjectsForCurrentUser } = await import(
-      "@/server/video-projects"
-    )
+    const { deleteProjectsForCurrentUser } =
+      await import("@/server/video-projects")
     return deleteProjectsForCurrentUser(data.projectIds)
   })
 

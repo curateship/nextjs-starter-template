@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import {
+  CAROUSEL_FORMATS,
+  carouselSlideSchema,
+  carouselSlidesSchema,
+} from "@/lib/carousel-schema"
 import type {
   CarouselDetail,
   CarouselFormat,
@@ -10,8 +15,6 @@ import type {
   CarouselSortBy,
   CarouselSortDirection,
 } from "@/server/carousels"
-import { CAROUSEL_FORMATS } from "@/server/carousels"
-import { DEFAULT_TEXT_FONT_ID, TEXT_FONT_IDS } from "@/lib/text-fonts"
 
 export type {
   CarouselDetail,
@@ -28,6 +31,7 @@ export type {
   CarouselTextAlign,
   CarouselTextItem,
 } from "@/server/carousels"
+export { carouselSlideSchema }
 
 const carouselIdSchema = z.object({
   carouselId: z.string().min(1).max(36),
@@ -52,66 +56,10 @@ const listCarouselsSchema = z
   })
   .optional()
 
-const carouselTextItemSchema = z.object({
-  id: z.string().min(1).max(64),
-  type: z.literal("text"),
-  text: z.string().max(2000),
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().min(0.05).max(1),
-  height: z.number().min(0.05).max(1),
-  zIndex: z.number().int().min(0).max(999),
-  fontId: z.enum(TEXT_FONT_IDS).default(DEFAULT_TEXT_FONT_ID),
-  fontSize: z.number().min(8).max(220),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i),
-  align: z.enum(["left", "center", "right"]),
-})
-
-const carouselMediaItemSchema = z.object({
-  id: z.string().min(1).max(64),
-  type: z.enum(["image", "video"]),
-  mediaId: z.string().max(36).optional(),
-  url: z.string().min(1).max(2048),
-  altText: z.string().max(500).optional(),
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().min(0.05).max(1),
-  height: z.number().min(0.05).max(1),
-  zIndex: z.number().int().min(0).max(999),
-  fit: z.enum(["fill", "cover", "contain"]),
-})
-
-const carouselGradientShadowItemSchema = z.object({
-  id: z.string().min(1).max(64),
-  type: z.literal("gradient-shadow"),
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().min(0.05).max(1),
-  height: z.number().min(0.05).max(1),
-  zIndex: z.number().int().min(0).max(999),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i),
-  opacity: z.number().min(0).max(100),
-})
-
-export const carouselSlideSchema = z.object({
-  id: z.string().min(1).max(64),
-  title: z.string().max(120),
-  backgroundColor: z.string().regex(/^#[0-9a-f]{6}$/i),
-  items: z
-    .array(
-      z.discriminatedUnion("type", [
-        carouselTextItemSchema,
-        carouselMediaItemSchema,
-        carouselGradientShadowItemSchema,
-      ])
-    )
-    .max(50),
-})
-
 const carouselSaveSchema = carouselIdSchema.extend({
   caption: z.string().max(2200),
   format: z.enum(CAROUSEL_FORMATS).optional(),
-  slides: z.array(carouselSlideSchema).min(1).max(20),
+  slides: carouselSlidesSchema,
 })
 
 const safeCarouselErrors = new Set([
@@ -123,7 +71,8 @@ const safeCarouselErrors = new Set([
   "Carousel generation returned no result",
   "Carousel generation returned invalid JSON",
   "Carousel generation returned an unexpected shape",
-  "Carousel text item uses an unsupported font",
+  "Saved carousel slides are invalid. Recreate the carousel with the current builder.",
+  "Saved carousel format is invalid. Recreate the carousel with the current builder.",
 ])
 
 export function getCarouselErrorMessage(error: unknown) {

@@ -55,9 +55,7 @@ export const aiVideoSettings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    check("settings_default_key", sql`${table.key} = 'default'`),
-  ]
+  (table) => [check("settings_default_key", sql`${table.key} = 'default'`)]
 )
 
 // App-wide LLM provider API keys (one row per provider). Server-only secrets —
@@ -152,7 +150,10 @@ export const aiVideoApiUsageAlerts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("api_usage_alert_level_check", sql`${table.level} in ('warning', 'blocked')`),
+    check(
+      "api_usage_alert_level_check",
+      sql`${table.level} in ('warning', 'blocked')`
+    ),
     unique("api_usage_alerts_user_period_level_unique").on(
       table.userId,
       table.periodStart,
@@ -178,9 +179,7 @@ export const aiVideoWorkspaces = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    index("ix_workspaces_user_id").on(table.userId),
-  ]
+  (table) => [index("ix_workspaces_user_id").on(table.userId)]
 )
 
 export const aiVideoFeedback = pgTable(
@@ -218,10 +217,7 @@ export const aiVideoFeedbackVotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("feedback_votes_unique_user").on(
-      table.feedbackId,
-      table.userId
-    ),
+    unique("feedback_votes_unique_user").on(table.feedbackId, table.userId),
     index("ix_feedback_votes_feedback_id").on(table.feedbackId),
     index("ix_feedback_votes_user_id").on(table.userId),
   ]
@@ -297,9 +293,7 @@ export const aiVideoNotifications = pgTable(
     ),
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
-    index("ix_notifications_comment_id").on(
-      table.feedbackCommentId
-    ),
+    index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_creator_id").on(table.creatorId),
   ]
 )
@@ -663,7 +657,7 @@ export const aiVideoTemplates = pgTable(
       length: 36,
     }).references(() => aiVideoViralVideos.id, { onDelete: "set null" }),
     // Template-owned copy of the source reel's thumbnail (R2 path), so the card
-    // survives deletion of the source reel/creator. Null for pre-migration rows.
+    // survives deletion of the source reel/creator. Null for blank templates.
     thumbnailStoragePath: text("thumbnail_storage_path"),
     // Editor timeline with replaceable slot clips: { tracks, aspect }
     timeline: jsonb("timeline").notNull(),
@@ -678,12 +672,9 @@ export const aiVideoTemplates = pgTable(
 
 export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
-export type AiVideoApiUsageLimit =
-  typeof aiVideoApiUsageLimits.$inferSelect
-export type AiVideoApiUsageEvent =
-  typeof aiVideoApiUsageEvents.$inferSelect
-export type AiVideoApiUsageAlert =
-  typeof aiVideoApiUsageAlerts.$inferSelect
+export type AiVideoApiUsageLimit = typeof aiVideoApiUsageLimits.$inferSelect
+export type AiVideoApiUsageEvent = typeof aiVideoApiUsageEvents.$inferSelect
+export type AiVideoApiUsageAlert = typeof aiVideoApiUsageAlerts.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
@@ -694,7 +685,5 @@ export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
 export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
-export type AiVideoFeedbackComment =
-  typeof aiVideoFeedbackComments.$inferSelect
-export type AiVideoNotification =
-  typeof aiVideoNotifications.$inferSelect
+export type AiVideoFeedbackComment = typeof aiVideoFeedbackComments.$inferSelect
+export type AiVideoNotification = typeof aiVideoNotifications.$inferSelect

@@ -2,7 +2,6 @@ import * as React from "react"
 
 import type { SoundEffectId } from "@/lib/sound-effects"
 import type { TextFontId } from "@/lib/text-fonts"
-import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -143,18 +142,14 @@ export function createInitialEditorState(timeline?: {
   tracks: EditorTrack[]
   aspect: AspectRatio
 }): EditorState {
-  const normalizedTimeline = timeline
-    ? normalizeTimelineTextFonts(timeline)
-    : undefined
-  const hasSavedTracks =
-    normalizedTimeline && normalizedTimeline.tracks.length > 0
+  const hasSavedTracks = timeline && timeline.tracks.length > 0
   return {
     tracks: hasSavedTracks
-      ? normalizedTimeline.tracks
+      ? timeline.tracks
       : [newTrack(), newTrack(), newTrack()],
     selectedClipId: null,
     pxPerSecond: DEFAULT_PX_PER_SECOND,
-    aspect: normalizedTimeline?.aspect ?? "16:9",
+    aspect: timeline?.aspect ?? "16:9",
     cutMode: false,
     past: [],
     future: [],
@@ -209,9 +204,7 @@ function resolveStart(
   desired: number,
   durationMs: number
 ): number | null {
-  const others = sortClips(
-    track.clips.filter((clip) => clip.id !== excludeId)
-  )
+  const others = sortClips(track.clips.filter((clip) => clip.id !== excludeId))
 
   // Build candidate gaps: before first clip, between clips, after last clip.
   let gapStart = 0
@@ -226,10 +219,7 @@ function resolveStart(
   let bestDistance = Number.POSITIVE_INFINITY
   for (const gap of gaps) {
     if (gap.end - gap.start < durationMs) continue
-    const clamped = Math.min(
-      Math.max(desired, gap.start),
-      gap.end - durationMs
-    )
+    const clamped = Math.min(Math.max(desired, gap.start), gap.end - durationMs)
     const distance = Math.abs(clamped - desired)
     if (distance < bestDistance) {
       best = clamped
@@ -552,10 +542,7 @@ export function editorReducer(
     case "MOVE_TRACK": {
       const from = state.tracks.findIndex((t) => t.id === action.trackId)
       if (from === -1) return state
-      const to = Math.min(
-        Math.max(action.toIndex, 0),
-        state.tracks.length - 1
-      )
+      const to = Math.min(Math.max(action.toIndex, 0), state.tracks.length - 1)
       if (to === from) return state
       // Reordering changes preview stacking, so it's undoable.
       const tracks = [...state.tracks]

@@ -91,9 +91,7 @@ function formatDuration(ms: number) {
 
 function templateCreatorLabel(template: TemplateItem) {
   return (
-    template.creator?.display_name?.trim() ||
-    template.creator?.username ||
-    ""
+    template.creator?.display_name?.trim() || template.creator?.username || ""
   )
 }
 
@@ -115,9 +113,8 @@ export function TemplatesDashboard() {
     React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  const [settingsTarget, setSettingsTarget] = React.useState<TemplateItem | null>(
-    null
-  )
+  const [settingsTarget, setSettingsTarget] =
+    React.useState<TemplateItem | null>(null)
   // "Use template" naming dialog: the template being used + the typed project
   // name, plus its own in-flight/error state (creation happens from the modal).
   const [useTarget, setUseTarget] = React.useState<TemplateItem | null>(null)
@@ -132,7 +129,9 @@ export function TemplatesDashboard() {
   const [createSubmitting, setCreateSubmitting] = React.useState(false)
   // Source viral video id + template id being previewed in the analysis modal.
   const [viewVideoId, setViewVideoId] = React.useState<string | null>(null)
-  const [viewTemplateId, setViewTemplateId] = React.useState<string | null>(null)
+  const [viewTemplateId, setViewTemplateId] = React.useState<string | null>(
+    null
+  )
 
   // One-time load; `loading` starts true so no state resets are needed here.
   React.useEffect(() => {
@@ -515,7 +514,10 @@ export function TemplatesDashboard() {
                       template={template}
                       selected={selectedIds.has(template.id)}
                       onToggle={() => toggleSelected(template.id)}
-                      onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
+                      onOpen={() => {
+                        setViewVideoId(template.source_viral_video_id)
+                        setViewTemplateId(template.id)
+                      }}
                       onUse={() => openUseModal(template)}
                       onEdit={() => handleEditTemplate(template)}
                       onSettings={() => openSettingsModal(template)}
@@ -619,7 +621,10 @@ export function TemplatesDashboard() {
               template={template}
               selected={selectedIds.has(template.id)}
               onToggle={() => toggleSelected(template.id)}
-              onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
+              onOpen={() => {
+                setViewVideoId(template.source_viral_video_id)
+                setViewTemplateId(template.id)
+              }}
               onUse={() => openUseModal(template)}
               onEdit={() => handleEditTemplate(template)}
               onSettings={() => openSettingsModal(template)}
@@ -632,7 +637,12 @@ export function TemplatesDashboard() {
       <ViralVideoModal
         videoId={viewVideoId}
         templateId={viewTemplateId}
-        onOpenChange={(open) => { if (!open) { setViewVideoId(null); setViewTemplateId(null) } }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewVideoId(null)
+            setViewTemplateId(null)
+          }
+        }}
       />
 
       <TemplateSettingsDialog
@@ -690,7 +700,11 @@ export function TemplatesDashboard() {
             <Button type="button" variant="outline" onClick={closeUseModal}>
               Cancel
             </Button>
-            <Button type="button" disabled={useDisabled} onClick={handleConfirmUse}>
+            <Button
+              type="button"
+              disabled={useDisabled}
+              onClick={handleConfirmUse}
+            >
               {useSubmitting ? (
                 <Loader2Icon className="size-4 animate-spin" />
               ) : null}
@@ -781,8 +795,8 @@ export function TemplatesDashboard() {
                 ? "the template"
                 : "these templates"}
               . Projects already created from{" "}
-              {(deleteIds?.length ?? 0) === 1 ? "it" : "them"} are not
-              affected. This action cannot be undone.
+              {(deleteIds?.length ?? 0) === 1 ? "it" : "them"} are not affected.
+              This action cannot be undone.
             </p>
           </DialogBody>
           <DialogFooter variant="plain">
@@ -882,7 +896,11 @@ function TemplateTableRow({
         </div>
       </TableCell>
       <TableCell column="mutedMeta">
-        {formatDuration(template.duration_ms)}
+        {template.timeline_error ? (
+          <Badge variant="destructive">Reset</Badge>
+        ) : (
+          formatDuration(template.duration_ms)
+        )}
       </TableCell>
       <TableCell column="meta">
         {template.creator ? (
@@ -988,7 +1006,11 @@ function TemplateGalleryItem({
         aria-label={`Edit ${template.name}`}
       >
         {template.thumbnail_url ? (
-          <img src={template.thumbnail_url} alt="" className="h-full w-full object-cover" />
+          <img
+            src={template.thumbnail_url}
+            alt=""
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="grid h-full w-full place-items-center">
             <LayoutTemplateIcon className="size-8 text-muted-foreground" />
@@ -1004,7 +1026,9 @@ function TemplateGalleryItem({
           />
           <span className="ml-auto flex shrink-0 items-center gap-1">
             <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
-              {formatDuration(template.duration_ms)}
+              {template.timeline_error
+                ? "Reset"
+                : formatDuration(template.duration_ms)}
             </span>
             <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
               {template.slot_count} slots
@@ -1028,10 +1052,22 @@ function TemplateGalleryItem({
             aria-label={`Select ${template.name}`}
           />
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onSettings} aria-label="Template settings">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onSettings}
+          aria-label="Template settings"
+        >
           <EditIcon className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete template">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          aria-label="Delete template"
+        >
           <Trash2Icon className="size-4" />
         </Button>
       </div>

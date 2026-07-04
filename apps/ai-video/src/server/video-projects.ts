@@ -6,17 +6,12 @@ import { mediaFileUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
-import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
-import type {
-  AspectRatio,
-  EditorTrack,
-} from "@/pages/video-editor/editor-store"
-
-// Serialized editor state stored in the project's `timeline` jsonb column.
-export type ProjectTimeline = {
-  tracks: EditorTrack[]
-  aspect: AspectRatio
-}
+import {
+  createEmptyTimeline,
+  parseTimelineForReset,
+  requireCanonicalTimeline,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
 
 // Dashboard list rows — no timeline payload over the wire, just derived stats.
 export type ProjectItem = {
@@ -26,6 +21,7 @@ export type ProjectItem = {
   project_type: "regular" | "template"
   clip_count: number
   duration_ms: number
+  timeline_error: string | null
   created_at: string
   updated_at: string
 }
@@ -38,11 +34,6 @@ export type ProjectDetail = ProjectItem & {
 export type ProjectListResponse = {
   projects: ProjectItem[]
 }
-
-// New projects start empty and vertical (9:16) — this is a short-form reel
-// app, so portrait is the common case and the editor's preview fills the stage
-// instead of letterboxing a vertical clip into a wide frame.
-const EMPTY_TIMELINE: ProjectTimeline = { tracks: [], aspect: "9:16" }
 
 // Owned-row lookup; throws when the project doesn't exist or isn't the user's.
 async function getOwnedProject(userId: string, projectId: string) {
@@ -73,27 +64,24 @@ export function cleanProjectName(value: string) {
 // Derives the dashboard stats (clip count, timeline length) from the stored
 // timeline JSON without trusting its shape. Shared with video-templates,
 // which stores the same timeline shape.
-export function summarizeTimeline(timeline: unknown) {
+export function summarizeTimeline(timeline: ProjectTimeline) {
   let clipCount = 0
   let durationMs = 0
-  const tracks = (timeline as ProjectTimeline | null)?.tracks
-  if (Array.isArray(tracks)) {
-    for (const track of tracks) {
-      if (!Array.isArray(track?.clips)) continue
-      for (const clip of track.clips) {
-        clipCount += 1
-        durationMs = Math.max(
-          durationMs,
-          (clip.startMs ?? 0) + (clip.durationMs ?? 0)
-        )
-      }
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      clipCount += 1
+      durationMs = Math.max(durationMs, clip.startMs + clip.durationMs)
     }
   }
   return { clipCount, durationMs }
 }
 
-function serializeProject(row: AiVideoProject): ProjectItem {
-  const stats = summarizeTimeline(row.timeline)
+function serializeProjectFromTimeline(
+  row: AiVideoProject,
+  timeline: ProjectTimeline,
+  timelineError: string | null
+): ProjectItem {
+  const stats = summarizeTimeline(timeline)
   return {
     id: row.id,
     name: row.name,
@@ -101,19 +89,22 @@ function serializeProject(row: AiVideoProject): ProjectItem {
     project_type: row.templateId ? "template" : "regular",
     clip_count: stats.clipCount,
     duration_ms: stats.durationMs,
+    timeline_error: timelineError,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
 }
 
+function serializeProject(row: AiVideoProject): ProjectItem {
+  const { timeline, error } = parseTimelineForReset(row.timeline)
+  return serializeProjectFromTimeline(row, timeline, error)
+}
+
 function serializeProjectDetail(row: AiVideoProject): ProjectDetail {
+  const { timeline, error } = parseTimelineForReset(row.timeline)
   return {
-    ...serializeProject(row),
-    timeline: secureTimelineMediaUrls(
-      normalizeTimelineTextFonts(
-        (row.timeline as ProjectTimeline | null) ?? EMPTY_TIMELINE
-      )
-    ),
+    ...serializeProjectFromTimeline(row, timeline, error),
+    timeline: secureTimelineMediaUrls(timeline),
   }
 }
 
@@ -163,7 +154,8 @@ export async function createProjectForCurrentUser(data: {
       id: uuid(),
       userId: user.id,
       name: cleanProjectName(data.name),
-      timeline: EMPTY_TIMELINE,
+      // New projects start empty and vertical (9:16), the common short-form case.
+      timeline: createEmptyTimeline(),
       createdAt,
       updatedAt: createdAt,
     })
@@ -208,7 +200,7 @@ export async function saveProjectTimelineForCurrentUser(
   requireAppOrigin()
   const user = await requireUser()
   const normalizedTimeline = secureTimelineMediaUrls(
-    normalizeTimelineTextFonts(timeline)
+    requireCanonicalTimeline(timeline)
   )
 
   const [row] = await db

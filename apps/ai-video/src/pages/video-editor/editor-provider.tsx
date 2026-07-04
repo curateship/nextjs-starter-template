@@ -1,6 +1,9 @@
 import * as React from "react"
 
-import { saveProjectTimeline, type ProjectTimeline } from "@/lib/api/video-projects"
+import {
+  saveProjectTimeline,
+  type ProjectTimeline,
+} from "@/lib/api/video-projects"
 import { saveTemplateTimeline } from "@/lib/api/video-templates"
 import {
   createInitialEditorState,
@@ -24,6 +27,7 @@ export type EditorDocument = {
   template_id?: string | null
   source_viral_video_id?: string | null
   thumbnail_url?: string | null
+  timeline_error?: string | null
   timeline: ProjectTimeline
 }
 

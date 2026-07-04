@@ -8,13 +8,16 @@ import {
 import { db } from "@/server/db"
 import { projectRenderThumbnailUrl } from "@/server/media-urls"
 import { deleteFromR2 } from "@/server/media-storage"
+import {
+  requireCanonicalTimeline,
+  type ProjectTimeline,
+} from "@/lib/timeline-schema"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import { generateJson } from "@/server/video-analysis"
 import { ANALYSIS_MODEL } from "@/server/video-analysis"
 import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
-import type { ProjectTimeline } from "@/server/video-projects"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
 
 export type ExportItem = {
@@ -208,7 +211,7 @@ export async function generateExportDescriptionForCurrentUser(
 }
 
 function descriptionPrompt(project: AiVideoProject, ctaPhrases: string[]) {
-  const timeline = project.timeline as ProjectTimeline
+  const timeline = requireCanonicalTimeline(project.timeline)
   const context = collectTimelineContext(timeline)
   const exportedAt = project.renderedAt?.toISOString() ?? "unknown"
   const title = project.renderTitle?.trim() || project.name

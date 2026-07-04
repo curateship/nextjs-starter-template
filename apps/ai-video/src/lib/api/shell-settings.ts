@@ -1,20 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
-import { z } from "zod"
 
+import { createDefaultShellConfig, type ShellConfig } from "@/lib/ai-video"
+import { API_USAGE_DEFAULT_COST_PER_CREDIT_USD } from "@/lib/api-usage-constants"
 import {
-  BRAND_KIT_WATERMARK_POSITIONS,
-  createDefaultShellConfig,
-  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  MEDIA_UPLOAD_MAX_MB_LIMIT,
-  type ShellConfig,
-} from "@/lib/ai-video"
-import {
-  API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
-  API_USAGE_LIMIT_MAX,
-  API_USAGE_LIMIT_MIN,
-} from "@/lib/api-usage-constants"
-import { TEXT_FONT_IDS } from "@/lib/text-fonts"
+  requireCanonicalShellGlobals,
+  shellConfigSchema,
+} from "@/lib/shell-config-schema"
 import { db } from "@/server/db"
 import { mediaFileUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
@@ -26,123 +18,6 @@ import {
 import { now, requireAdminUser, requireUser } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
-const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-
-const shellIconSchema = z.string().trim().min(1).max(2048)
-const brandColorSchema = z.string().regex(HEX_COLOR)
-const brandKitSchema = z.object({
-  colors: z
-    .array(
-      z.object({
-        name: z.string().trim().min(1).max(40),
-        value: brandColorSchema,
-      })
-    )
-    .max(20),
-  fonts: z.object({
-    heading: z.enum(TEXT_FONT_IDS),
-    body: z.enum(TEXT_FONT_IDS),
-    caption: z.enum(TEXT_FONT_IDS),
-  }),
-  captionStyle: z.object({
-    fontId: z.enum(TEXT_FONT_IDS),
-    fontSize: z.number().int().min(8).max(240),
-    color: brandColorSchema,
-    highlightColor: brandColorSchema.nullable(),
-  }),
-  logo: z.object({
-    mediaId: z.string().min(1).max(36).nullable(),
-    previewUrl: z.string().max(2048),
-  }),
-  watermark: z.object({
-    enabled: z.boolean(),
-    position: z.enum(BRAND_KIT_WATERMARK_POSITIONS),
-    widthPercent: z.number().int().min(1).max(100),
-    opacity: z.number().int().min(0).max(100),
-  }),
-  ctaPhrases: z
-    .array(z.string().max(180))
-    .max(20)
-    .transform((phrases) =>
-      phrases
-        .map((phrase) => phrase.trim())
-        .filter(Boolean)
-        .slice(0, 20)
-    ),
-  exportNamingPattern: z.string().trim().min(1).max(120),
-})
-
-const shellChildItemSchema = z.object({
-  id: z.string().min(1),
-  label: z.string(),
-  href: z.string(),
-  icon: shellIconSchema.optional(),
-})
-
-const shellEntrySchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("item"),
-    id: z.string().min(1),
-    label: z.string(),
-    href: z.string(),
-    icon: shellIconSchema,
-    visible: z.boolean(),
-    children: z.array(shellChildItemSchema).optional(),
-  }),
-  z.object({
-    type: z.literal("divider"),
-    id: z.string().min(1),
-    label: z.string(),
-  }),
-])
-
-const shellConfigSchema = z.object({
-  appName: z.string(),
-  workspaceName: z.string(),
-  workspacePlan: z.string(),
-  defaultApiUsageMonthlyCredits: z
-    .number()
-    .int()
-    .min(API_USAGE_LIMIT_MIN)
-    .max(API_USAGE_LIMIT_MAX),
-  apiUsageCostPerCreditUsd: z
-    .number()
-    .min(0)
-    .refine(Number.isFinite, "Estimated cost per credit must be a number"),
-  dashboardRowsPerPage: z
-    .number()
-    .int()
-    .refine((value) =>
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-        value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-      )
-    ),
-  mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
-  favicon: z.string(),
-  brandKit: brandKitSchema,
-  topNavigation: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      href: z.string(),
-      icon: shellIconSchema.optional(),
-      visible: z.boolean(),
-    })
-  ),
-  topRightNavigation: z.array(
-    z.object({
-      id: z.enum(["feedback", "theme", "notifications"]),
-      visible: z.boolean(),
-    })
-  ),
-  sections: z.array(
-    z.object({
-      id: z.string().min(1),
-      title: z.string(),
-      entries: z.array(shellEntrySchema),
-    })
-  ),
-})
 
 export function getShellSettingsErrorMessage(error: unknown) {
   return error instanceof Error
@@ -164,17 +39,21 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       getDefaultApiUsageLimit(),
     ])
 
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
-    const shellGlobals = parseShellGlobals(row?.settings)
+    const { settings: workspaceSettings, error: workspaceSettingsError } =
+      parseWorkspaceSettingsForReset(workspace.settings)
+    const shellGlobals = row
+      ? parseShellGlobals(row.settings)
+      : pickShellGlobals(createDefaultShellConfig())
     const apiUsageCostPerCreditUsd =
       user.role === "admin"
         ? shellGlobals.apiUsageCostPerCreditUsd
         : API_USAGE_DEFAULT_COST_PER_CREDIT_USD
 
     return {
+      settingsError: workspaceSettingsError,
       settings: {
         ...shellGlobals,
         apiUsageCostPerCreditUsd,
@@ -197,10 +76,12 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const user = await requireAdminUser()
 
     const updatedAt = now()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const { settings: workspaceSettings } = parseWorkspaceSettingsForReset(
+      workspace.settings
+    )
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
@@ -266,37 +147,7 @@ export function saveShellSettings(settings: ShellConfig) {
 }
 
 function parseShellGlobals(value: unknown) {
-  const fallback = createDefaultShellConfig()
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return pickShellGlobals(fallback)
-  }
-
-  const settings = value as Partial<ShellConfig>
-  return {
-    appName: settings.appName ?? fallback.appName,
-    workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
-    apiUsageCostPerCreditUsd:
-      typeof settings.apiUsageCostPerCreditUsd === "number" &&
-      Number.isFinite(settings.apiUsageCostPerCreditUsd) &&
-      settings.apiUsageCostPerCreditUsd >= 0
-        ? settings.apiUsageCostPerCreditUsd
-        : fallback.apiUsageCostPerCreditUsd,
-    dashboardRowsPerPage:
-      typeof settings.dashboardRowsPerPage === "number" &&
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-        settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-      )
-        ? settings.dashboardRowsPerPage
-        : fallback.dashboardRowsPerPage,
-    mediaUploadMaxMb:
-      typeof settings.mediaUploadMaxMb === "number" &&
-      Number.isInteger(settings.mediaUploadMaxMb) &&
-      settings.mediaUploadMaxMb >= 1 &&
-      settings.mediaUploadMaxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
-        ? settings.mediaUploadMaxMb
-        : fallback.mediaUploadMaxMb,
-  }
+  return requireCanonicalShellGlobals(value)
 }
 
 function pickShellGlobals(settings: ShellConfig) {
@@ -343,7 +194,7 @@ async function validateBrandKitLogo(
     .limit(1)
 
   if (!logo) {
-    return brandKitWithClearedLogo(brandKit)
+    throw new Error("Brand logo not found")
   }
 
   if (logo.fileType !== "image") {

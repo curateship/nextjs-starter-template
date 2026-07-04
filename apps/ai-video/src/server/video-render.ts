@@ -16,13 +16,12 @@ import {
 } from "@/server/media-storage"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
-import { normalizeTimelineTextFonts } from "@/lib/timeline-normalization"
+import { requireCanonicalTimeline } from "@/lib/timeline-schema"
 import type { BrandKitConfig } from "@/lib/ai-video"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
-import type { ProjectTimeline } from "@/server/video-projects"
 import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 import type {
   AspectRatio,
@@ -62,7 +61,10 @@ function toEven(value: number) {
 function renderSize(aspect: AspectRatio, quality: RenderQuality) {
   const base = RENDER_SIZES[aspect] ?? RENDER_SIZES["16:9"]
   const { scale } = QUALITY_PRESETS[quality]
-  return { width: toEven(base.width * scale), height: toEven(base.height * scale) }
+  return {
+    width: toEven(base.width * scale),
+    height: toEven(base.height * scale),
+  }
 }
 
 const OUTPUT_FPS = 30
@@ -144,9 +146,7 @@ export async function startProjectRenderForCurrentUser(
   const user = await requireUser()
   const row = await getOwnedProject(user.id, projectId)
 
-  const timeline = normalizeTimelineTextFonts(
-    (row.timeline as ProjectTimeline | null) ?? { tracks: [], aspect: "9:16" }
-  )
+  const timeline = requireCanonicalTimeline(row.timeline)
   const durationMs = timelineEndMs(timeline?.tracks ?? [])
   if (durationMs <= 0) {
     throw new Error("Nothing to export")
@@ -220,7 +220,7 @@ async function renderProject(
   const dir = await mkdtemp(path.join(tmpdir(), "render-"))
   try {
     const row = await getOwnedProject(userId, projectId)
-    const timeline = normalizeTimelineTextFonts(row.timeline as ProjectTimeline)
+    const timeline = requireCanonicalTimeline(row.timeline)
     const size = renderSize(timeline.aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
     const { visuals, audio } = flattenForRender(timeline.tracks)
@@ -419,7 +419,14 @@ async function buildFfmpegCommand(options: {
           const png = await renderTextPng(clip, size, i)
           const file = path.join(dir, `text-${visualStep}.png`)
           await writeFile(file, png)
-          inputs.push("-loop", "1", "-t", String(segEndS - segStartS), "-i", file)
+          inputs.push(
+            "-loop",
+            "1",
+            "-t",
+            String(segEndS - segStartS),
+            "-i",
+            file
+          )
           filters.push(
             `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
             `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
@@ -459,11 +466,7 @@ async function buildFfmpegCommand(options: {
         `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
         `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
       )
-      if (
-        clip.kind === "video" &&
-        !muted &&
-        audioPresence.get(clip.mediaId!)
-      ) {
+      if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
         filters.push(
           `[${inputIndex}:a]adelay=${Math.round(clip.startMs)}:all=1[a${audioLabels.length}]`
         )
@@ -502,13 +505,18 @@ async function buildFfmpegCommand(options: {
   }
 
   if (watermark) {
-    const width = Math.max(1, Math.round(size.width * (watermark.widthPercent / 100)))
+    const width = Math.max(
+      1,
+      Math.round(size.width * (watermark.widthPercent / 100))
+    )
     const opacity = Math.min(Math.max(watermark.opacity / 100, 0), 1)
     const margin = Math.round(Math.min(size.width, size.height) * 0.04)
-    const x =
-      watermark.position.endsWith("right") ? `W-w-${margin}` : String(margin)
-    const y =
-      watermark.position.startsWith("bottom") ? `H-h-${margin}` : String(margin)
+    const x = watermark.position.endsWith("right")
+      ? `W-w-${margin}`
+      : String(margin)
+    const y = watermark.position.startsWith("bottom")
+      ? `H-h-${margin}`
+      : String(margin)
 
     inputs.push("-loop", "1", "-t", String(durationS), "-i", watermark.file)
     filters.push(
@@ -583,9 +591,10 @@ async function resolveWatermark({
       logo.mimeType === "image/svg+xml"
         ? loadResvg().Resvg(new TextDecoder().decode(bytes)).render().asPng()
         : bytes
-    const ext = logo.mimeType === "image/svg+xml"
-      ? ".png"
-      : path.extname(logo.storagePath) || ".img"
+    const ext =
+      logo.mimeType === "image/svg+xml"
+        ? ".png"
+        : path.extname(logo.storagePath) || ".img"
     const file = path.join(dir, `watermark${ext}`)
     await writeFile(file, watermarkBytes)
     return {
@@ -697,12 +706,11 @@ async function renderTextPng(
   // Karaoke clips keep per-word segments (so each word can carry its own
   // opacity); plain text wraps into whole-line segments.
   const karaoke = clip.words?.length ? clip.words : null
-  const lineSegments: WordSeg[][] =
-    karaoke
-      ? layoutWords(karaoke, charWidth, maxWidth)
-      : wrapTextLines(clip.text ?? "", charWidth, maxWidth).map((line) => [
-          { text: line, index: -1, width: line.length * charWidth },
-        ])
+  const lineSegments: WordSeg[][] = karaoke
+    ? layoutWords(karaoke, charWidth, maxWidth)
+    : wrapTextLines(clip.text ?? "", charWidth, maxWidth).map((line) => [
+        { text: line, index: -1, width: line.length * charWidth },
+      ])
 
   // Center the block on centerY; +0.36em nudges each baseline so glyphs (not
   // the em box) sit centered, like CSS centering does.

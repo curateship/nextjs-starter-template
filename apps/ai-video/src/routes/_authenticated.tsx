@@ -13,15 +13,22 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/login" })
     }
 
-    const { settings } = await loadShellSettings()
+    const { settings, settingsError } = await loadShellSettings()
     const workspaces = await loadWorkspaces()
-    return { user, settings, workspaces }
+    return { user, settings, settingsError, workspaces }
   },
   pendingComponent: ShellLoadingSkeleton,
   component: AuthenticatedLayout,
 })
 
 function AuthenticatedLayout() {
-  const { user, settings, workspaces } = Route.useLoaderData()
-  return <ShellLayout user={user} settings={settings} workspaces={workspaces} />
+  const { user, settings, settingsError, workspaces } = Route.useLoaderData()
+  return (
+    <ShellLayout
+      user={user}
+      settings={settings}
+      settingsError={settingsError}
+      workspaces={workspaces}
+    />
+  )
 }
