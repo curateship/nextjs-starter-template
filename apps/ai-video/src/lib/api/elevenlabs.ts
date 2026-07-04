@@ -14,19 +14,52 @@ export const VOICE_MODEL_IDS = [
 ] as const
 export type VoiceModelId = (typeof VOICE_MODEL_IDS)[number]
 
-export function getVoiceErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : ""
+}
+
+export function getVoiceLoadErrorMessage(error: unknown) {
+  const message = getErrorMessage(error)
+  if (
+    message === "ElevenLabs is not configured" ||
+    message === "Secret encryption is not configured" ||
+    message === "Stored secret could not be decrypted" ||
+    message === "Stored secret is not encrypted" ||
+    message.startsWith("Voice list failed")
+  ) {
+    return mapVoiceConfigError(message)
+  }
+  return "Could not load ElevenLabs voices."
+}
+
+export function getVoiceGenerationErrorMessage(error: unknown) {
+  const message = getErrorMessage(error)
   // Surface stable, client-safe messages verbatim: the "not configured" hint
   // and provider HTTP failures (which carry a status + reason suffix).
   if (
     message === "API usage limit reached. Try again next month." ||
     message === "ElevenLabs is not configured" ||
-    message.startsWith("Voiceover generation failed") ||
-    message.startsWith("Voice list failed")
+    message === "Secret encryption is not configured" ||
+    message === "Stored secret could not be decrypted" ||
+    message === "Stored secret is not encrypted" ||
+    message.startsWith("Voiceover generation failed")
   ) {
-    return message
+    return mapVoiceConfigError(message)
   }
   return "Could not generate the voiceover."
+}
+
+function mapVoiceConfigError(message: string) {
+  if (message === "Secret encryption is not configured") {
+    return "AI provider key storage is not configured."
+  }
+  if (message === "Stored secret could not be decrypted") {
+    return "Saved ElevenLabs API key could not be decrypted."
+  }
+  if (message === "Stored secret is not encrypted") {
+    return "Saved ElevenLabs API key must be re-saved."
+  }
+  return message
 }
 
 const listVoicesFn = createServerFn({ method: "GET" }).handler(

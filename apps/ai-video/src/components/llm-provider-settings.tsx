@@ -44,13 +44,23 @@ export function LlmProviderSettings({
   const [drafts, setDrafts] = React.useState<Record<string, string>>({})
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [statusLoadFailed, setStatusLoadFailed] = React.useState(false)
 
   // Load the current per-provider status on mount.
   React.useEffect(() => {
     let active = true
     getLlmKeyStatus()
-      .then((result) => active && setStatuses(result))
-      .catch(() => active && setError(getLlmKeyErrorMessage()))
+      .then((result) => {
+        if (!active) return
+        setStatuses(result)
+        setStatusLoadFailed(false)
+      })
+      .catch((loadError) => {
+        if (!active) return
+        setError(getLlmKeyErrorMessage(loadError))
+        setStatuses([])
+        setStatusLoadFailed(true)
+      })
     return () => {
       active = false
     }
@@ -65,10 +75,16 @@ export function LlmProviderSettings({
     setError(null)
     try {
       await Promise.all(pending.map((p) => setLlmKey(p.id, drafts[p.id])))
+      setDrafts((prev) => {
+        const next = { ...prev }
+        for (const provider of pending) delete next[provider.id]
+        return next
+      })
       setStatuses(await getLlmKeyStatus())
-      setDrafts({})
-    } catch {
-      setError(getLlmKeyErrorMessage())
+      setStatusLoadFailed(false)
+    } catch (saveError) {
+      setError(getLlmKeyErrorMessage(saveError))
+      setStatusLoadFailed(true)
     } finally {
       setBusy(false)
     }
@@ -90,8 +106,9 @@ export function LlmProviderSettings({
     try {
       await setLlmKey(provider, "")
       setStatuses(await getLlmKeyStatus())
-    } catch {
-      setError(getLlmKeyErrorMessage())
+      setStatusLoadFailed(false)
+    } catch (removeError) {
+      setError(getLlmKeyErrorMessage(removeError))
     } finally {
       setBusy(false)
     }
@@ -123,48 +140,62 @@ export function LlmProviderSettings({
               Loading…
             </div>
           ) : (
-            PROVIDERS.map((provider) => {
-              const status = statusById.get(provider.id)
-              const draft = drafts[provider.id] ?? ""
-              return (
-                <div key={provider.id} className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor={`key-${provider.id}`}>{provider.name}</Label>
-                    <ProviderStatus status={status} />
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      id={`key-${provider.id}`}
-                      type="password"
-                      autoComplete="off"
-                      placeholder={
-                        status?.configured
-                          ? "Enter a new key to replace"
-                          : provider.placeholder
-                      }
-                      value={draft}
-                      disabled={busy}
-                      onChange={(event) =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [provider.id]: event.target.value,
-                        }))
-                      }
-                    />
-                    {status?.source === "settings" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
+            <>
+              {statusLoadFailed ? (
+                <p className="text-sm text-muted-foreground">
+                  Saved key status is unavailable until the key storage issue is
+                  fixed.
+                </p>
+              ) : null}
+
+              {PROVIDERS.map((provider) => {
+                const status = statusById.get(provider.id)
+                const draft = drafts[provider.id] ?? ""
+                return (
+                  <div key={provider.id} className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor={`key-${provider.id}`}>
+                        {provider.name}
+                      </Label>
+                      <ProviderStatus
+                        status={status}
+                        loadFailed={statusLoadFailed}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        id={`key-${provider.id}`}
+                        type="password"
+                        autoComplete="off"
+                        placeholder={
+                          status?.configured || statusLoadFailed
+                            ? "Enter a new key to replace"
+                            : provider.placeholder
+                        }
+                        value={draft}
                         disabled={busy}
-                        onClick={() => removeKey(provider.id)}
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [provider.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      {status?.source === "settings" || statusLoadFailed ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => removeKey(provider.id)}
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </>
           )}
         </CardContent>
       </Card>
@@ -173,7 +204,20 @@ export function LlmProviderSettings({
 }
 
 // Badge describing where a provider's key comes from.
-function ProviderStatus({ status }: { status: LlmKeyStatus | undefined }) {
+function ProviderStatus({
+  status,
+  loadFailed,
+}: {
+  status: LlmKeyStatus | undefined
+  loadFailed?: boolean
+}) {
+  if (loadFailed) {
+    return (
+      <Badge variant="secondary" className="text-muted-foreground">
+        Unknown
+      </Badge>
+    )
+  }
   if (!status?.configured) {
     return (
       <Badge variant="secondary" className="text-muted-foreground">

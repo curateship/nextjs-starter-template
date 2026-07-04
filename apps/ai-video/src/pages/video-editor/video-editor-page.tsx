@@ -54,6 +54,7 @@ import {
   type EditorDocument,
 } from "@/pages/video-editor/editor-provider"
 import {
+  AiPanel,
   ElementsPanel,
   EditorSettingsPanel,
   TextClipSettings,
@@ -585,9 +586,11 @@ function SlotWorkflowPanel({ mode }: { mode: Exclude<EditorMode, "regular"> }) {
       ? "Media"
       : activeTab === "elements"
         ? "Elements"
-        : mode === "template-builder"
-          ? "Slots"
-          : "Template Slots"
+        : activeTab === "ai"
+          ? "Ai"
+          : mode === "template-builder"
+            ? "Slots"
+            : "Template Slots"
 
   return (
     <section className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
@@ -602,6 +605,7 @@ function SlotWorkflowPanel({ mode }: { mode: Exclude<EditorMode, "regular"> }) {
             <TabsTrigger value="slots">Slots</TabsTrigger>
             <TabsTrigger value="media">Media</TabsTrigger>
             <TabsTrigger value="elements">Elements</TabsTrigger>
+            <TabsTrigger value="ai">Ai</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="slots" className="min-h-0 flex-1">
@@ -612,6 +616,9 @@ function SlotWorkflowPanel({ mode }: { mode: Exclude<EditorMode, "regular"> }) {
         </TabsContent>
         <TabsContent value="elements" className="min-h-0 overflow-y-auto p-3">
           <ElementsPanel />
+        </TabsContent>
+        <TabsContent value="ai" className="min-h-0 overflow-y-auto p-3">
+          <AiPanel />
         </TabsContent>
       </Tabs>
     </section>

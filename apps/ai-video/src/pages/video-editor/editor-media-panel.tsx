@@ -42,7 +42,10 @@ import {
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
-import { ElementsPanel } from "@/pages/video-editor/editor-settings-panel"
+import {
+  AiPanel,
+  ElementsPanel,
+} from "@/pages/video-editor/editor-settings-panel"
 import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_IMAGE_DURATION_MS,
@@ -330,12 +333,13 @@ export function EditorMediaPanel({
   return (
     <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <Tabs defaultValue="media" className="min-h-0 flex-1 gap-0">
-        {/* Row 1: Media/Elements switcher. */}
+        {/* Row 1: Media/Elements/Ai switcher. */}
         {!embedded ? (
           <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
             <TabsList className="shrink-0">
               <TabsTrigger value="media">Media</TabsTrigger>
               <TabsTrigger value="elements">Elements</TabsTrigger>
+              <TabsTrigger value="ai">Ai</TabsTrigger>
             </TabsList>
           </div>
         ) : null}
@@ -477,6 +481,13 @@ export function EditorMediaPanel({
             className="min-h-0 overflow-y-auto p-3 pt-1"
           >
             <ElementsPanel />
+          </TabsContent>
+        ) : null}
+
+        {/* Ai tab: generated captions, voice, scripts, and video tools. */}
+        {!embedded ? (
+          <TabsContent value="ai" className="min-h-0 overflow-y-auto p-3 pt-1">
+            <AiPanel />
           </TabsContent>
         ) : null}
       </Tabs>
