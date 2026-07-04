@@ -321,14 +321,15 @@ export async function saveUserApiUsageLimitForCurrentUser(
     throw new Error("User not found")
   }
 
+  const limitKey = userLimitKey(userId)
   if (monthlyCredits == null) {
     await db
       .delete(aiVideoApiUsageLimits)
-      .where(eq(aiVideoApiUsageLimits.key, userLimitKey(userId)))
+      .where(eq(aiVideoApiUsageLimits.key, limitKey))
     return { userId, monthlyCredits: null }
   }
 
-  await upsertApiUsageLimit(userLimitKey(userId), userId, monthlyCredits)
+  await upsertApiUsageLimit(limitKey, userId, monthlyCredits)
   return { userId, monthlyCredits: cleanMonthlyCredits(monthlyCredits) }
 }
 
@@ -571,7 +572,8 @@ async function getApiUsageLimit(
       ])
     )
 
-  const override = rows.find((row) => row.key === userLimitKey(userId))
+  const limitKey = userLimitKey(userId)
+  const override = rows.find((row) => row.key === limitKey)
   if (override) {
     return { limitCredits: override.monthlyCredits, source: "override" }
   }

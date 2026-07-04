@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import { formatApiUsageFeature } from "@/lib/api-usage-format"
 import {
   getApiUsageErrorMessage,
   getCurrentApiUsageSummary,
@@ -23,18 +24,6 @@ import {
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
-
-const featureLabels: Record<string, string> = {
-  text_generation: "Text generation",
-  caption_generation: "Captions",
-  video_analysis: "Video analysis",
-  voiceover: "Voiceover",
-  image_generation: "Image generation",
-  ai_video_generation: "AI video",
-  script_generation: "Script",
-  carousel_generation: "Carousel",
-  export_description: "Export caption",
-}
 
 const monthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "long",
@@ -156,7 +145,7 @@ export function ApiUsageIndicator() {
                     <p className="text-sm font-medium">
                       {summary.used_credits} / {summary.limit_credits}
                     </p>
-                    <p className="text-xs capitalize text-muted-foreground">
+                    <p className="text-xs text-muted-foreground capitalize">
                       {summary.status}
                     </p>
                   </div>
@@ -181,7 +170,7 @@ export function ApiUsageIndicator() {
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium">
-                          {featureLabels[event.feature] ?? event.feature}
+                          {formatApiUsageFeature(event.feature)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {event.provider}
