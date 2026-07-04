@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -66,7 +67,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
   const [loading, setLoading] = useState(!contextSite)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   useEffect(() => {
     if (contextSite) {
@@ -119,7 +120,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage("")
+      setSaveStatus("saving")
 
       const currentBreadcrumbs = {
         ...((site.settings?.breadcrumbs as Record<string, boolean> | undefined) || {})
@@ -138,6 +139,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
 
       if (updateError) {
         setError(updateError)
+        setSaveStatus("error", updateError)
         return
       }
 
@@ -147,12 +149,12 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
         if (currentSite?.id === siteId) {
           setCurrentSite({ ...currentSite, ...data })
         }
-        setSaveMessage("Breadcrumbs saved")
-        window.setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved", "Breadcrumbs saved")
       }
     } catch (saveError) {
       console.error("Error saving breadcrumb settings:", saveError)
       setError("Failed to save breadcrumb settings")
+      setSaveStatus("error", "Failed to save breadcrumb settings")
     } finally {
       setSaving(false)
     }
@@ -172,7 +174,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
               { label: "Breadcrumbs" }
             ]}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={saving}
             onSave={handleSave}
             saveLabel="Save"

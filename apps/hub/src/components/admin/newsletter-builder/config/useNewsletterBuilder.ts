@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getNewsletterById, updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "./useBlockEditor"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 
@@ -17,7 +18,7 @@ interface UseNewsletterBuilderReturn {
   selectedBlock: ReturnType<typeof useBlockEditor>['selectedBlock']
   setSelectedBlock: ReturnType<typeof useBlockEditor>['setSelectedBlock']
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   loading: boolean
   error: string | null
   updateBlockContent: ReturnType<typeof useBlockEditor>['updateBlockContent']
@@ -34,7 +35,7 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
   const [newsletter, setNewsletter] = useState<Newsletter | null>(null)
   const [subject, setSubject] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,7 +63,7 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     if (!newsletter) return false
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     const contentBlocks = blocksToJson(nextBlocks)
 
@@ -72,21 +73,18 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
         content_blocks: contentBlocks
       })
       if (saveError) {
-        setSaveMessage(`Error: ${saveError}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", saveError)
         return false
       }
 
       if (data) {
         setNewsletter(data)
         setSubject(nextSubject)
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
         return true
       }
     } catch (err) {
-      setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -116,7 +114,7 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     selectedBlock: blockEditor.selectedBlock,
     setSelectedBlock: blockEditor.setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     loading,
     error,
     updateBlockContent: blockEditor.updateBlockContent,

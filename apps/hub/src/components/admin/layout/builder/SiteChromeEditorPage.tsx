@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -68,7 +69,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
   const [loading, setLoading] = useState(!cachedSite)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [navigationContent, setNavigationContent] = useState<Record<string, any>>(defaultNavigation)
   const [footerContent, setFooterContent] = useState<Record<string, any>>(DEFAULT_FOOTER)
 
@@ -136,7 +137,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage("")
+      setSaveStatus("saving")
 
       const nextNavigationContent =
         sanitizeNavigationSettings(navigationContent, {
@@ -149,7 +150,9 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
           : await updateSiteFooterAction(site.id, nextFooterContent)
 
       if (!result.success) {
-        setError(result.error || "Failed to save changes")
+        const message = result.error || "Failed to save changes"
+        setError(message)
+        setSaveStatus("error", message)
         return
       }
 
@@ -171,11 +174,12 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
         setCurrentSite(updatedSite)
       }
 
-      setSaveMessage(`${activeLabel} saved`)
-      window.setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("saved", `${activeLabel} saved`)
     } catch (saveError) {
       console.error(`Failed to save ${mode}:`, saveError)
-      setError(`Failed to save ${activeLabel.toLowerCase()}`)
+      const message = `Failed to save ${activeLabel.toLowerCase()}`
+      setError(message)
+      setSaveStatus("error", message)
     } finally {
       setSaving(false)
     }
@@ -187,7 +191,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage("")
+      setSaveStatus("saving")
 
       const sanitizedNavigation =
         sanitizeNavigationSettings(nextNavigationContent, {
@@ -196,7 +200,9 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       const result = await updateSiteNavigationAction(site.id, sanitizedNavigation)
 
       if (!result.success) {
-        setError(result.error || "Failed to save changes")
+        const message = result.error || "Failed to save changes"
+        setError(message)
+        setSaveStatus("error", message)
         return false
       }
 
@@ -214,12 +220,12 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
         setCurrentSite(updatedSite)
       }
 
-      setSaveMessage("Navigation saved")
-      window.setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("saved", "Navigation saved")
       return true
     } catch (saveError) {
       console.error("Failed to save navigation:", saveError)
       setError("Failed to save navigation")
+      setSaveStatus("error", "Failed to save navigation")
       return false
     } finally {
       setSaving(false)
@@ -232,13 +238,15 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage("")
+      setSaveStatus("saving")
 
       const sanitizedFooter = sanitizeFooterSettings(nextFooterContent) || DEFAULT_FOOTER
       const result = await updateSiteFooterAction(site.id, sanitizedFooter)
 
       if (!result.success) {
-        setError(result.error || "Failed to save changes")
+        const message = result.error || "Failed to save changes"
+        setError(message)
+        setSaveStatus("error", message)
         return false
       }
 
@@ -256,12 +264,12 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
         setCurrentSite(updatedSite)
       }
 
-      setSaveMessage("Footer saved")
-      window.setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("saved", "Footer saved")
       return true
     } catch (saveError) {
       console.error("Failed to save footer:", saveError)
       setError("Failed to save footer")
+      setSaveStatus("error", "Failed to save footer")
       return false
     } finally {
       setSaving(false)
@@ -282,7 +290,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
               { label: activeLabel }
             ]}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={saving}
             onSave={handleSave}
             saveLabel="Save"

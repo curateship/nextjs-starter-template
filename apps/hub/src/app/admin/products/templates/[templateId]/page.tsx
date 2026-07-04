@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
@@ -59,7 +60,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -191,8 +192,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
 
       setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
       setTemplate(data)
-      setSaveMessage("Saved!")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("saved")
       setSelectedBlock(null)
     } catch (error) {
       setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
@@ -227,7 +227,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
     if (!template) return
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const contentBlocks = productBlocksToJson(blocks, template.content_blocks || {})
@@ -236,17 +236,14 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
       })
 
       if (saveError) {
-        setSaveMessage(`Error: ${saveError}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", saveError)
       } else if (data) {
         setTemplate(data)
         setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       }
     } catch (err) {
-      setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -364,7 +361,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                 )}
               </div>
             )}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={isSaving}
             onSave={handleSave}
             blockListOpen={blockListOpen}

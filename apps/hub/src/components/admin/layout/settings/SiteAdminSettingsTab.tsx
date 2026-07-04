@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AdminSidebarSettingsCard } from "@/components/admin/layout/settings/AdminSidebarSettingsCard"
 import { QuickLinksSettingsCard } from "@/components/admin/layout/settings/QuickLinksSettingsCard"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
+import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteByIdAction, updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import {
@@ -16,7 +17,7 @@ import { normalizeSiteQuickLinks, type SiteQuickLink } from "@/lib/utils/site-qu
 interface SiteAdminSettingsTabProps {
   siteId: string
   mode: "sidebar" | "dashboard-quick-links"
-  onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
+  onStatusChange?: (status: { loading: boolean; saving: boolean; saveStatus: SaveStatus }) => void
 }
 
 export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdminSettingsTabProps) {
@@ -40,11 +41,11 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
   const [loading, setLoading] = useState(!contextSite)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving, message: saveMessage })
-  }, [loading, onStatusChange, saveMessage, saving])
+    onStatusChange?.({ loading, saving, saveStatus })
+  }, [loading, onStatusChange, saveStatus, saving])
 
   useEffect(() => {
     if (contextSite) {
@@ -141,7 +142,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage(null)
+      setSaveStatus("saving")
 
       const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinksRef.current)
       const nextSettings =
@@ -160,6 +161,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
 
       if (updateError) {
         setError(updateError)
+        setSaveStatus("error", updateError)
         return false
       }
 
@@ -176,8 +178,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
           setQuickLinks(normalizedQuickLinks)
         }
         setCurrentSite({ ...(contextSite ?? currentSite ?? data), ...data })
-        setSaveMessage("Settings saved")
-        window.setTimeout(() => setSaveMessage(null), 3000)
+        setSaveStatus("saved", "Settings saved")
         return true
       }
 
@@ -185,11 +186,12 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
     } catch (saveError) {
       console.error("Error saving site admin settings:", saveError)
       setError("Failed to save settings")
+      setSaveStatus("error", "Failed to save settings")
       return false
     } finally {
       setSaving(false)
     }
-  }, [contextSite, currentSite, mode, saving, setCurrentSite, site, siteId])
+  }, [contextSite, currentSite, mode, saving, setCurrentSite, setSaveStatus, site, siteId])
 
   const handleAdminSidebarChange = useCallback(
     (nextSidebar: AdminSidebarSettings) => {

@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search, ListFilter } from "lucide-react"
+import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, LoaderCircle, ExternalLink, ChevronDown, Search, ListFilter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { getSaveStatusLabel, isSaveStatusVisible, type SaveStatus, type VisibleSaveStatusState } from "@/components/admin/layout/builder/save-status"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardHeaderActionsSlotContextValue {
@@ -17,10 +18,43 @@ interface DashboardHeaderActionsSlotContextValue {
 }
 
 interface SaveStatusBadgeProps {
-  message: string | null | undefined
+  status: SaveStatus | null | undefined
+  compact?: boolean
 }
 
 const DashboardHeaderActionsSlotContext = createContext<DashboardHeaderActionsSlotContextValue | null>(null)
+
+const SAVE_STATUS_BADGE_STYLES: Record<VisibleSaveStatusState, {
+  icon: LucideIcon
+  container: string
+  iconClassName: string
+  textClassName: string
+}> = {
+  dirty: {
+    icon: AlertCircle,
+    container: "border-amber-200 bg-amber-50",
+    iconClassName: "text-amber-600",
+    textClassName: "text-amber-800",
+  },
+  saving: {
+    icon: LoaderCircle,
+    container: "border-blue-200 bg-blue-50",
+    iconClassName: "animate-spin text-blue-600",
+    textClassName: "text-blue-800",
+  },
+  saved: {
+    icon: CheckCircle,
+    container: "border-green-200 bg-green-50",
+    iconClassName: "text-green-600",
+    textClassName: "text-green-700",
+  },
+  error: {
+    icon: AlertCircle,
+    container: "border-red-200 bg-red-50",
+    iconClassName: "text-red-600",
+    textClassName: "text-red-800",
+  },
+}
 
 interface StickybarFilterMenuItem {
   value: string
@@ -66,22 +100,33 @@ export function useDashboardHeaderActionsSlot() {
   return context
 }
 
-function SaveStatusBadge({ message }: SaveStatusBadgeProps) {
-  if (!message) return null
+function SaveStatusBadge({ status, compact = false }: SaveStatusBadgeProps) {
+  if (!isSaveStatusVisible(status)) return null
 
-  const isError = message.includes("Error") || message.includes("Failed")
-  const Icon = isError ? AlertCircle : CheckCircle
+  const label = getSaveStatusLabel(status)
+  const style = SAVE_STATUS_BADGE_STYLES[status.state]
+  const Icon = style.icon
 
   return (
     <div
+      role={status.state === "error" ? "alert" : "status"}
+      aria-live={status.state === "error" ? "assertive" : "polite"}
+      title={status.message || label}
       className={cn(
-        "flex items-center gap-2 rounded-md border px-3 py-1.5",
-        isError ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"
+        "flex items-center gap-2 rounded-md border",
+        compact ? "max-w-40 px-2 py-1" : "px-3 py-1.5",
+        style.container
       )}
     >
-      <Icon className={cn("h-4 w-4", isError ? "text-red-600" : "text-green-600")} />
-      <span className={cn("text-sm font-medium", isError ? "text-red-800" : "text-green-700")}>
-        {message}
+      <Icon className={cn(
+        "h-4 w-4 shrink-0",
+        style.iconClassName
+      )} />
+      <span className={cn(
+        "truncate text-sm font-medium",
+        style.textClassName
+      )}>
+        {label}
       </span>
     </div>
   )
@@ -94,7 +139,7 @@ interface StickybarTopRightActionsProps {
   filterMenu?: StickybarFilterMenuConfig
   rightActions?: React.ReactNode
   viewPageHref?: string | null
-  saveMessage?: string | null
+  saveStatus?: SaveStatus | null
   isSaving?: boolean
   onSave?: () => void
   saveDisabled?: boolean
@@ -120,7 +165,7 @@ export function StickybarTopRightActions({
   filterMenu,
   rightActions,
   viewPageHref,
-  saveMessage,
+  saveStatus,
   isSaving = false,
   onSave,
   saveDisabled = false,
@@ -171,9 +216,9 @@ export function StickybarTopRightActions({
   return (
     <>
       <div className={cn("hidden items-center gap-2 **:data-[slot=button]:h-8 sm:flex", className)}>
-        {saveMessage ? (
+        {isSaveStatusVisible(saveStatus) ? (
           <div className="hidden sm:block">
-            <SaveStatusBadge message={saveMessage} />
+            <SaveStatusBadge status={saveStatus} />
           </div>
         ) : null}
 
@@ -278,6 +323,8 @@ export function StickybarTopRightActions({
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:hidden">
+        <SaveStatusBadge status={saveStatus} compact />
+
         {onSave ? (
           renderSaveButton(false)
         ) : null}

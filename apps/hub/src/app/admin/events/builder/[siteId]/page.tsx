@@ -239,7 +239,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}

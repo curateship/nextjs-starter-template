@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import type { BlockTypeDefinition } from "@/lib/utils/block-types"
+import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 /**
  * Generic block-editing hook for builders that keep their editor state as
@@ -40,7 +41,7 @@ interface UseContentBlocksEditorParams<B extends EditorBlock> {
   makeBlock: (type: string, definition: BlockTypeDefinition, index: number) => B
   /** Persist the converted content_blocks JSON */
   saveAction: (contentId: string, contentBlocks: Record<string, any>) => Promise<{ success: boolean; error?: string | null }>
-  /** Message when saving without a content ID, e.g. "Error: Event ID required" */
+  /** Error detail shown when saving without a content row ID, e.g. "Event ID required" */
   missingIdMessage: string
 }
 
@@ -48,7 +49,7 @@ export interface UseContentBlocksEditorReturn<B extends EditorBlock> {
   selectedBlock: B | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<B | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: B) => void
   handleReorderBlocks: (blocks: B[]) => void
@@ -69,7 +70,7 @@ export function useContentBlocksEditor<B extends EditorBlock>({
 }: UseContentBlocksEditorParams<B>): UseContentBlocksEditorReturn<B> {
   const [selectedBlock, setSelectedBlock] = useState<B | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   // Clear the selection when switching to a different content item
   useEffect(() => {
@@ -83,6 +84,8 @@ export function useContentBlocksEditor<B extends EditorBlock>({
     const updatedBlocks = { ...blocks }
     const blockIndex = updatedBlocks[selectedKey].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
+      if (!hasSaveableChange(updatedBlocks[selectedKey][blockIndex].content?.[field], value)) return
+
       updatedBlocks[selectedKey][blockIndex] = {
         ...updatedBlocks[selectedKey][blockIndex],
         content: {
@@ -92,23 +95,30 @@ export function useContentBlocksEditor<B extends EditorBlock>({
       }
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlocks[selectedKey][blockIndex])
+      setSaveStatus("dirty")
     }
   }
 
   const handleDeleteBlock = (block: B) => {
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedKey] = updatedBlocks[selectedKey].filter(b => b.id !== block.id)
+    if (!hasSaveableChange(blocks[selectedKey], updatedBlocks[selectedKey])) return
+
     setBlocks(updatedBlocks)
 
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
+    setSaveStatus("dirty")
   }
 
   const handleReorderBlocks = (reorderedBlocks: B[]) => {
+    if (!hasSaveableChange(blocks[selectedKey] || [], reorderedBlocks)) return
+
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedKey] = reorderedBlocks
     setBlocks(updatedBlocks)
+    setSaveStatus("dirty")
   }
 
   const handleAddBlocks = (selections: BuilderBlockSelection[]) => {
@@ -135,12 +145,12 @@ export function useContentBlocksEditor<B extends EditorBlock>({
 
     updatedBlocks[selectedKey] = [...currentBlocks, ...newBlocks]
     setBlocks(updatedBlocks)
+    setSaveStatus("dirty")
   }
 
   const handleSaveAllBlocks = async () => {
     if (!contentId) {
-      setSaveMessage(missingIdMessage)
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("error", missingIdMessage)
       return
     }
 
@@ -173,21 +183,18 @@ export function useContentBlocksEditor<B extends EditorBlock>({
     }
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const result = await saveAction(contentId, contentBlocks)
 
       if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", result.error || "Failed to save")
       }
     } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -197,7 +204,7 @@ export function useContentBlocksEditor<B extends EditorBlock>({
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,

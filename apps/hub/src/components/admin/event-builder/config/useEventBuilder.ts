@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import { eventBlocksToValueJson } from "@/lib/actions/events/event-template-inheritance"
 import type { EventEditorBlock } from "./event-block-utils"
+import { type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 interface UseEventBuilderParams {
   blocks: Record<string, EventEditorBlock[]>
@@ -13,7 +14,7 @@ interface UseEventBuilderReturn {
   selectedBlock: EventEditorBlock | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<EventEditorBlock | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   handleSaveAllBlocks: () => void
 }
 
@@ -26,7 +27,7 @@ export function useEventBuilder({
 }: UseEventBuilderParams): UseEventBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<EventEditorBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   // Clear selection when switching events
   useEffect(() => {
@@ -35,29 +36,25 @@ export function useEventBuilder({
 
   const handleSaveAllBlocks = async () => {
     if (!eventId) {
-      setSaveMessage("Error: Event ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("error", "Event ID required")
       return
     }
 
     const contentBlocks = eventBlocksToValueJson(blocks[selectedEvent] || [])
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const result = await updateEventBlocksAction(eventId, contentBlocks)
 
       if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", result.error || "Failed to save")
       }
     } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -67,7 +64,7 @@ export function useEventBuilder({
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     handleSaveAllBlocks
   }
 }

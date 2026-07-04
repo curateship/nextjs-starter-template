@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -99,7 +100,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [segments, setSegments] = useState<Segment[]>([])
   const [segmentCounts, setSegmentCounts] = useState<Record<string, number>>({})
   const [loadingSegments, setLoadingSegments] = useState(false)
@@ -273,8 +274,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const centerAxisStyle = { transform: "translateX(1.5px)" }
 
   const flash = (message: string) => {
-    setSaveMessage(message)
-    setTimeout(() => setSaveMessage(null), 3000)
+    setSaveStatus("saved", message)
   }
 
   const handleStatusToggle = async () => {
@@ -939,7 +939,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       <DashboardStickyHeader
         rightActions={
           <StickybarTopRightActions
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             rightActions={
               <>
                 <Badge

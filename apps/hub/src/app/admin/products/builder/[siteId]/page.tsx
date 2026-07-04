@@ -208,7 +208,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
       <StickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}

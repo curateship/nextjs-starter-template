@@ -7,6 +7,7 @@ import { Monitor, Smartphone, Tablet } from "lucide-react"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { Button } from "@/components/ui/button"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal, type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DirectoryCustomBlockPreview } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockPreview"
@@ -34,7 +35,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [previewWidth, setPreviewWidth] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [saveMessage, setSaveMessage] = useState('')
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -107,24 +108,24 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
 
   const handleSave = async () => {
     if (!name.trim()) {
-      setSaveMessage('Error: Block name is required')
+      setSaveStatus('error', 'Block name is required')
       return
     }
 
     if (!currentSiteId) {
-      setSaveMessage('Error: Current site not found')
+      setSaveStatus('error', 'Current site not found')
       return
     }
 
     setIsSaving(true)
-    setSaveMessage('Saving...')
+    setSaveStatus('saving')
 
     const result = templateId
       ? await updateDirectoryCustomBlock(templateId, { name: name.trim(), layout, fields })
       : await createDirectoryCustomBlock({ siteId: currentSiteId, name: name.trim(), layout, fields })
 
     if (result.error || !result.data) {
-      setSaveMessage(`Error: ${result.error || 'Failed to save'}`)
+      setSaveStatus('error', result.error || 'Failed to save')
       setIsSaving(false)
       return
     }
@@ -133,7 +134,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     setName(result.data.name)
     setLayout(result.data.layout)
     setFields(result.data.fields || [])
-    setSaveMessage('Saved!')
+    setSaveStatus('saved')
     setIsSaving(false)
 
     if (!templateId) {
@@ -226,7 +227,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
                 </div>
               </div>
             )}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={isSaving}
             onSave={handleSave}
             saveLabel={templateId ? "Save" : "Create Block"}

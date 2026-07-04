@@ -7,6 +7,7 @@ import { Check, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NewsletterEditorShell } from "@/components/admin/newsletter-builder/layout/NewsletterEditorShell"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
@@ -25,7 +26,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
 
@@ -58,27 +59,24 @@ export default function TemplateEditorPage({ params }: PageProps) {
   async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"]) {
     if (!template) return false
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const { data, error: saveError } = await updateTemplate(template.id, {
         content_blocks: blocksToJson(nextBlocks),
       })
       if (saveError) {
-        setSaveMessage(`Error: ${saveError}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", saveError)
         return false
       }
 
       if (data) {
         setTemplate(data)
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
         return true
       }
     } catch (err) {
-      setSaveMessage(`Error: ${err instanceof Error ? err.message : "Failed to save"}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", err instanceof Error ? err.message : "Failed to save")
     } finally {
       setIsSaving(false)
     }
@@ -159,7 +157,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
         return persistTemplate(updatedBlocks)
       }}
       siteId={currentSite?.id || ""}
-      saveMessage={saveMessage}
+      saveStatus={saveStatus}
       isSaving={isSaving}
       onSave={handleSave}
       headerActions={renameActions}

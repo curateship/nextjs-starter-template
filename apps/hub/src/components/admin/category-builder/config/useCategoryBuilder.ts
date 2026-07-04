@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
 import { categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
 import type { CategoryEditorBlock } from "./category-block-utils"
+import { type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 interface UseCategoryBuilderParams {
   blocks: Record<string, CategoryEditorBlock[]>
@@ -14,7 +15,7 @@ interface UseCategoryBuilderReturn {
   selectedBlock: CategoryEditorBlock | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<CategoryEditorBlock | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   handleSaveAllBlocks: () => void
 }
 
@@ -28,7 +29,7 @@ export function useCategoryBuilder({
 }: UseCategoryBuilderParams): UseCategoryBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<CategoryEditorBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   // Clear selection when switching categories
   useEffect(() => {
@@ -37,29 +38,25 @@ export function useCategoryBuilder({
 
   const handleSaveAllBlocks = async () => {
     if (!categoryId) {
-      setSaveMessage("Error: Category ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("error", "Category ID required")
       return
     }
 
     const contentBlocks = categoryBlocksToValueJson(blocks[selectedCategory] || [])
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const result = await updateCategoryBlockValuesAction(categoryId, contentBlocks)
 
       if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", result.error || "Failed to save")
       }
     } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -69,7 +66,7 @@ export function useCategoryBuilder({
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     handleSaveAllBlocks
   }
 }

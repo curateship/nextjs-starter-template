@@ -215,7 +215,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
             blockListOpen={blockListOpen}

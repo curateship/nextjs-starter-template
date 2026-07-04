@@ -6,6 +6,7 @@ import { Monitor, Smartphone, Tablet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
@@ -47,7 +48,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState('')
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftSubject, setDraftSubject] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
@@ -105,7 +106,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     if (!template) return false
 
     setIsSaving(true)
-    setSaveMessage('Saving...')
+    setSaveStatus('saving')
 
     const result = await saveSystemEmailTemplateAction({
       templateKey: template.template_key,
@@ -117,7 +118,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     })
 
     if (!result.success) {
-      setSaveMessage(`Error: ${result.error || 'Failed to save'}`)
+      setSaveStatus('error', result.error || 'Failed to save')
       setIsSaving(false)
       return false
     }
@@ -128,9 +129,8 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
       blockEditor.setBlocks(parseBlocksFromJson(refreshed.data.template.content_blocks || {}))
     }
 
-    setSaveMessage('Saved!')
+    setSaveStatus('saved')
     setIsSaving(false)
-    setTimeout(() => setSaveMessage(''), 3000)
     return true
   }
 
@@ -242,7 +242,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
                 </div>
               </div>
             )}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={isSaving}
             onSave={handleSave}
             blockListOpen={blockListOpen}

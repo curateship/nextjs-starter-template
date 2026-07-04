@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { getSiteForAudit, saveSiteAuditSettings } from "@/lib/actions/seo/site-audit/site-audit-actions"
 import { buildCanonicalUrl, getHomeSeoDescription, getHomeSeoTitle } from "@/lib/utils/seo-helpers"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -15,7 +16,7 @@ interface SeoSettingsFormTabProps {
   siteId: string
   mode: "metadata" | "technical"
   formId: string
-  onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
+  onStatusChange?: (status: { loading: boolean; saving: boolean; saveStatus: SaveStatus }) => void
 }
 
 const CONTENT_SEO_CARDS = [
@@ -178,7 +179,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
   const [orgLogo, setOrgLogo] = useState("")
   const [socialLinks, setSocialLinks] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -218,8 +219,8 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
   }, [loadData])
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving, message: saveMessage })
-  }, [loading, onStatusChange, saveMessage, saving])
+    onStatusChange?.({ loading, saving, saveStatus })
+  }, [loading, onStatusChange, saveStatus, saving])
 
   const canonicalPreview = useMemo(() => {
     if (!site) return ""
@@ -248,7 +249,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
 
     setSaving(true)
     setError(null)
-    setSaveMessage(null)
+    setSaveStatus("saving")
 
     const result = await saveSiteAuditSettings(
       siteId,
@@ -277,10 +278,11 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
 
     setSaving(false)
     if (result.success) {
-      setSaveMessage("SEO settings saved")
-      window.setTimeout(() => setSaveMessage(null), 3000)
+      setSaveStatus("saved", "SEO settings saved")
     } else {
-      setError(result.error || "Failed to save SEO settings")
+      const message = result.error || "Failed to save SEO settings"
+      setError(message)
+      setSaveStatus("error", message)
     }
   }
 

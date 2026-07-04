@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { getStepById, updateStep, getAutomationById } from "@/lib/actions/newsletters/automation-actions"
+import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "../config/useBlockEditor"
 import type { AutomationStep, EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 
@@ -13,7 +14,7 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
   const [automation, setAutomation] = useState<EmailAutomation | null>(null)
   const [subject, setSubject] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,7 +52,7 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
   const handleSave = async () => {
     if (!step) return
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     const contentBlocks = blocksToJson(blockEditor.blocks)
 
@@ -61,16 +62,13 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
         content_blocks: contentBlocks,
       })
       if (saveError) {
-        setSaveMessage(`Error: ${saveError}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", saveError)
       } else if (data) {
         setStep(data)
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       }
     } catch (err) {
-      setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -85,7 +83,7 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     selectedBlock: blockEditor.selectedBlock,
     setSelectedBlock: blockEditor.setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     loading,
     error,
     updateBlockContent: blockEditor.updateBlockContent,
@@ -107,7 +105,7 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
       }
 
       setIsSaving(true)
-      setSaveMessage("Saving...")
+      setSaveStatus("saving")
 
       try {
         const { data, error: saveError } = await updateStep(step.id, {
@@ -115,21 +113,18 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
           content_blocks: blocksToJson(updatedBlocks),
         })
         if (saveError) {
-          setSaveMessage(`Error: ${saveError}`)
-          setTimeout(() => setSaveMessage(""), 5000)
+          setSaveStatus("error", saveError)
           return false
         }
 
         if (data) {
           setStep(data)
           setSubject(nextSubject)
-          setSaveMessage("Saved!")
-          setTimeout(() => setSaveMessage(""), 3000)
+          setSaveStatus("saved")
           return true
         }
       } catch (err) {
-        setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
       } finally {
         setIsSaving(false)
       }
