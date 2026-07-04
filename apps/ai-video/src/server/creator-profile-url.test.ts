@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { parseCreatorProfileUrl } from "./creator-profile-url"
+import { parseCreatorProfileUrl } from "./creator-profile-url.ts"
 
 describe("parseCreatorProfileUrl", () => {
   it("accepts TikTok profile URLs and normalizes the handle", () => {

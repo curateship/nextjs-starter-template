@@ -240,13 +240,18 @@ const deleteMediaFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
-    const row = await getOwnedMedia(user.id, data.mediaId)
-    await deleteFromR2(row.storagePath)
-    await db
+    const [row] = await db
       .delete(aiVideoMedia)
       .where(
         and(eq(aiVideoMedia.id, data.mediaId), eq(aiVideoMedia.userId, user.id))
       )
+      .returning({ storagePath: aiVideoMedia.storagePath })
+
+    if (!row) {
+      throw new Error("Media not found")
+    }
+
+    await deleteFromR2(row.storagePath).catch(() => undefined)
   })
 
 const bulkDeleteMediaFn = createServerFn({ method: "POST" })
@@ -256,30 +261,18 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
     const user = await requireUser()
     const uniqueIds = Array.from(new Set(data.mediaIds))
     const rows = await db
-      .select()
-      .from(aiVideoMedia)
+      .delete(aiVideoMedia)
       .where(
         and(
           eq(aiVideoMedia.userId, user.id),
           inArray(aiVideoMedia.id, uniqueIds)
         )
       )
+      .returning({ storagePath: aiVideoMedia.storagePath })
 
-    for (const row of rows) {
-      await deleteFromR2(row.storagePath)
-    }
-
-    if (rows.length) {
-      await db.delete(aiVideoMedia).where(
-        and(
-          eq(aiVideoMedia.userId, user.id),
-          inArray(
-            aiVideoMedia.id,
-            rows.map((row) => row.id)
-          )
-        )
-      )
-    }
+    await Promise.all(
+      rows.map((row) => deleteFromR2(row.storagePath).catch(() => undefined))
+    )
 
     return { deleted_count: rows.length }
   })

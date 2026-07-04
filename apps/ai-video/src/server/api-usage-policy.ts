@@ -1,7 +1,7 @@
 export {
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
-} from "@/lib/api-usage-constants"
+} from "../lib/api-usage-constants.ts"
 
 export const API_USAGE_WARNING_RATIO = 0.8
 
