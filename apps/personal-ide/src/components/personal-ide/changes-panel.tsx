@@ -47,6 +47,9 @@ export function ChangesPanel({
   useDismissibleMenu(discardMenu, setDiscardMenu)
   const developCommits = gitStatus.developCommits
   const developFiles = developCommits.length ? gitStatus.developFiles : []
+  const syncWorkCount =
+    Math.max(gitStatus.unpushedCommitCount, gitStatus.unmergedCommitCount) +
+    gitStatus.developCommitCount
   const fileEditorPath = (file: GitFile) => file.appPath ?? repoTabPath(file.path)
   const isActiveFile = (file: GitFile) => fileEditorPath(file) === activePath
 
@@ -216,11 +219,11 @@ export function ChangesPanel({
           <Button
             variant="outline"
             className="bg-background"
-            disabled={busyAction === "sync" || !gitStatus.branch}
+            disabled={busyAction === "sync" || !gitStatus.branch || syncWorkCount === 0}
             onClick={onSync}
           >
             <RefreshCw />
-            {busyAction === "sync" ? "Syncing..." : "Sync"}
+            {busyAction === "sync" ? "Syncing..." : `Sync (${syncWorkCount})`}
           </Button>
         </div>
       </div>
