@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -58,7 +59,13 @@ import {
   type MediaListResponse,
   type MediaSortBy,
   type MediaSortDirection,
+  type MediaSource,
 } from "@/lib/api/media"
+import {
+  getProjectErrorMessage,
+  listProjects,
+  type ProjectItem,
+} from "@/lib/api/video-projects"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { cn } from "@/lib/utils"
 import { useShellRuntime } from "@/components/shell-runtime"
@@ -66,14 +73,45 @@ import { dateFormatter } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
-const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
+const imageTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+]
+const videoTypes = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+]
+const audioTypes = [
+  "audio/mpeg",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/aac",
+  "audio/ogg",
+]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 export type MediaTabId = "all" | "images" | "videos"
 
 type ViewMode = "list" | "gallery"
 type MediaTypeFilter = "all" | MediaFileType | "svg"
+type SourceFilter = "all" | MediaSource
+type ProjectFilter = "all" | "unassigned" | string
+
+const sourceLabels: Record<MediaSource, string> = {
+  upload: "Uploads",
+  generated: "Generated",
+  template: "Template",
+  viral: "Viral",
+}
 
 const sortableMediaColumns: {
   by: MediaSortBy
@@ -83,8 +121,18 @@ const sortableMediaColumns: {
 }[] = [
   { by: "original_name", label: "File", column: "main" },
   { by: "file_type", label: "Type", column: "meta" },
-  { by: "file_size", label: "Size", column: "meta", className: "hidden md:table-cell" },
-  { by: "created_at", label: "Added", column: "meta", className: "hidden lg:table-cell" },
+  {
+    by: "file_size",
+    label: "Size",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  {
+    by: "created_at",
+    label: "Added",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
 ]
 
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
@@ -93,55 +141,125 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(
+    () => activeTabToFileType(activeTab) ?? "all"
+  )
+  const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
+  const [projectFilter, setProjectFilter] = React.useState<ProjectFilter>("all")
+  const [projects, setProjects] = React.useState<ProjectItem[]>([])
+  const [projectError, setProjectError] = React.useState<string | null>(null)
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
-  const [sortDirection, setSortDirection] = React.useState<MediaSortDirection>("desc")
+  const [sortDirection, setSortDirection] =
+    React.useState<MediaSortDirection>("desc")
   const [uploading, setUploading] = React.useState(false)
   const [editingMedia, setEditingMedia] = React.useState<MediaItem | null>(null)
   const [editAltText, setEditAltText] = React.useState("")
   const [savingEdit, setSavingEdit] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const loadRequestIdRef = React.useRef(0)
 
   React.useEffect(() => {
     setMediaTypeFilter(activeTabToFileType(activeTab) ?? "all")
     setCurrentPage(1)
   }, [activeTab])
 
-  const fileType = mediaTypeFilter === "all" || mediaTypeFilter === "svg" ? undefined : mediaTypeFilter
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+      setCurrentPage(1)
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [searchQuery])
+
+  React.useEffect(() => {
+    let active = true
+    listProjects()
+      .then((response) => {
+        if (!active) return
+        setProjects(response.projects)
+        setProjectError(null)
+      })
+      .catch((loadError) => {
+        if (active) setProjectError(getProjectErrorMessage(loadError))
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const fileTypes = React.useMemo<MediaFileType[] | undefined>(
+    () =>
+      mediaTypeFilter === "all" || mediaTypeFilter === "svg"
+        ? undefined
+        : [mediaTypeFilter],
+    [mediaTypeFilter]
+  )
   const mimeType = mediaTypeFilter === "svg" ? "image/svg+xml" : undefined
+  const source = sourceFilter === "all" ? undefined : sourceFilter
+  const projectId =
+    projectFilter === "all"
+      ? undefined
+      : projectFilter === "unassigned"
+        ? null
+        : projectFilter
+  const projectNames = React.useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
 
   const loadCurrentPage = React.useCallback(async () => {
+    const requestId = loadRequestIdRef.current + 1
+    loadRequestIdRef.current = requestId
     setError(null)
     try {
-      setData(await listMedia({
+      const response = await listMedia({
         page: currentPage,
         pageSize,
-        fileType,
+        fileTypes,
         mimeType,
+        projectId,
+        search: debouncedSearch || undefined,
+        source,
         sortBy,
         sortDirection,
-      }))
+      })
+      if (loadRequestIdRef.current !== requestId) return
+      setData(response)
     } catch (loadError) {
+      if (loadRequestIdRef.current !== requestId) return
       setError(getMediaErrorMessage(loadError))
     }
-  }, [currentPage, fileType, mimeType, pageSize, sortBy, sortDirection])
+  }, [
+    currentPage,
+    debouncedSearch,
+    fileTypes,
+    mimeType,
+    pageSize,
+    projectId,
+    source,
+    sortBy,
+    sortDirection,
+  ])
 
   React.useEffect(() => {
     loadCurrentPage()
   }, [loadCurrentPage])
 
-  const visibleMedia = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return (data?.media ?? []).filter((item) => {
-      if (!query) return true
-      return `${item.original_name} ${item.filename} ${item.alt_text ?? ""} ${item.file_type}`
-        .toLowerCase()
-        .includes(query)
-    })
-  }, [data?.media, searchQuery])
+  const visibleMedia = data?.media ?? []
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    sourceFilter !== "all" ||
+    projectFilter !== "all" ||
+    mediaTypeFilter !== "all"
+  const emptyText = data
+    ? hasActiveFilters
+      ? "No matches."
+      : "No media yet."
+    : "Loading media..."
 
   const visibleIds = visibleMedia.map((item) => item.id)
   const {
@@ -171,27 +289,37 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   function handleSort(by: MediaSortBy) {
     setSortDirection((current) =>
       sortBy === by
-        ? current === "asc" ? "desc" : "asc"
-        : by === "created_at" || by === "file_size" ? "desc" : "asc"
+        ? current === "asc"
+          ? "desc"
+          : "asc"
+        : by === "created_at" || by === "file_size"
+          ? "desc"
+          : "asc"
     )
     setSortBy(by)
     setCurrentPage(1)
   }
 
-  async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUploadSelect(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const allowedTypes = [...imageTypes, ...videoTypes]
+    const allowedTypes = [...imageTypes, ...videoTypes, ...audioTypes]
     if (!allowedTypes.includes(file.type)) {
-      setError("Invalid file type. Only images, SVGs, and videos are allowed.")
+      setError(
+        "Invalid file type. Only images, SVGs, videos, and audio are allowed."
+      )
       event.target.value = ""
       return
     }
 
     const maxSize = config.mediaUploadMaxMb * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`)
+      setError(
+        `File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`
+      )
       event.target.value = ""
       return
     }
@@ -228,7 +356,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         current
           ? {
               ...current,
-              media: current.media.map((item) => (item.id === updated.id ? updated : item)),
+              media: current.media.map((item) =>
+                item.id === updated.id ? updated : item
+              ),
             }
           : current
       )
@@ -269,7 +399,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Media type filter"
-          labels={["All", "Images", "Videos", "SVG"]}
+          labels={["All", "Images", "Videos", "Audio", "SVG"]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -277,7 +407,46 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           <SelectItem value="all">All</SelectItem>
           <SelectItem value="image">Images</SelectItem>
           <SelectItem value="video">Videos</SelectItem>
+          <SelectItem value="audio">Audio</SelectItem>
           <SelectItem value="svg">SVG</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={sourceFilter}
+        onValueChange={(value) => {
+          setSourceFilter(value as SourceFilter)
+          setCurrentPage(1)
+        }}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Source filter">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All sources</SelectItem>
+          <SelectItem value="upload">Uploads</SelectItem>
+          <SelectItem value="generated">Generated</SelectItem>
+          <SelectItem value="template">Template</SelectItem>
+          <SelectItem value="viral">Viral</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={projectFilter}
+        onValueChange={(value) => {
+          setProjectFilter(value as ProjectFilter)
+          setCurrentPage(1)
+        }}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Project filter">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All projects</SelectItem>
+          <SelectItem value="unassigned">Unassigned</SelectItem>
+          {projects.map((project) => (
+            <SelectItem key={project.id} value={project.id}>
+              {project.name}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
@@ -311,7 +480,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         disabled={uploading}
         onClick={() => fileInputRef.current?.click()}
       >
-        {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+        {uploading ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <UploadIcon className="size-4" />
+        )}
         {uploading ? "Uploading" : "Upload Media"}
       </DashboardToolbarButton>
     </>
@@ -323,7 +496,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept={[...imageTypes, ...videoTypes].join(",")}
+        accept={[...imageTypes, ...videoTypes, ...audioTypes].join(",")}
         onChange={handleUploadSelect}
       />
 
@@ -333,20 +506,22 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </div>
       ) : null}
 
-      {error ? (
+      {error || projectError ? (
         <div
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span>{error ?? projectError}</span>
         </div>
       ) : null}
 
       {viewMode === "gallery" ? (
         <DashboardTable
           title={getTabTitle(activeTab)}
-          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={
+            <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          }
           count={data?.total ?? 0}
           controls={mediaControls}
           content={
@@ -355,7 +530,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <ImageIcon className="mx-auto mb-3 size-10" />
-                    <p>No media found.</p>
+                    <p>{emptyText}</p>
                   </div>
                 </div>
               ) : (
@@ -368,6 +543,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                       onEdit={() => handleEdit(item)}
                       onDelete={() => setDeleteIds([item.id])}
                       onToggle={() => toggleSelected(item.id)}
+                      projectNames={projectNames}
                     />
                   ))}
                 </div>
@@ -391,7 +567,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       ) : (
         <DashboardTable
           title={getTabTitle(activeTab)}
-          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={
+            <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          }
           count={data?.total ?? 0}
           controls={mediaControls}
           header={
@@ -425,7 +603,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             </TableHeader>
           }
           isEmpty={visibleMedia.length === 0}
-          emptyText="No media found."
+          emptyText={emptyText}
           emptyColSpan={6}
           footer={{
             type: "pagination",
@@ -449,15 +627,24 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               onToggle={() => toggleSelected(item.id)}
               onEdit={() => handleEdit(item)}
               onDelete={() => setDeleteIds([item.id])}
+              projectNames={projectNames}
             />
           ))}
         </DashboardTable>
       )}
 
-      <Dialog open={!!editingMedia} onOpenChange={(open) => !open && setEditingMedia(null)}>
-        <DialogContent variant="admin" className="max-h-[85vh] w-[710px] max-w-[calc(100vw-2rem)] sm:max-w-[710px]">
+      <Dialog
+        open={!!editingMedia}
+        onOpenChange={(open) => !open && setEditingMedia(null)}
+      >
+        <DialogContent
+          variant="admin"
+          className="max-h-[85vh] w-[710px] max-w-[calc(100vw-2rem)] sm:max-w-[710px]"
+        >
           <DialogHeader>
-            <DialogTitle>{editingMedia?.file_type === "video" ? "Edit Video" : "Edit Image"}</DialogTitle>
+            <DialogTitle>
+              {editingMedia ? getEditTitle(editingMedia) : "Edit Media"}
+            </DialogTitle>
           </DialogHeader>
           <DialogBody>
             {editingMedia ? (
@@ -469,6 +656,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     controls
                     muted
                   />
+                ) : editingMedia.file_type === "audio" ? (
+                  <div className="grid gap-3 rounded-lg border bg-muted p-6">
+                    <MusicIcon className="mx-auto size-10 text-muted-foreground" />
+                    <audio src={editingMedia.url} controls className="w-full" />
+                  </div>
                 ) : (
                   <img
                     src={editingMedia.url}
@@ -478,7 +670,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                 )}
                 <div className="grid gap-2">
                   <Label htmlFor="media-alt-text">
-                    {editingMedia.file_type === "video" ? "Description" : "Alt text"}
+                    {editingMedia.file_type === "image"
+                      ? "Alt text"
+                      : "Description"}
                   </Label>
                   <Input
                     id="media-alt-text"
@@ -503,34 +697,58 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                 Delete
               </Button>
             ) : null}
-            <Button type="button" variant="outline" onClick={() => setEditingMedia(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditingMedia(null)}
+            >
               Cancel
             </Button>
-            <Button type="button" disabled={savingEdit} onClick={handleSaveEdit}>
-              {savingEdit ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            <Button
+              type="button"
+              disabled={savingEdit}
+              onClick={handleSaveEdit}
+            >
+              {savingEdit ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
               {savingEdit ? "Saving" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
+      <Dialog
+        open={!!deleteIds}
+        onOpenChange={(open) => !open && setDeleteIds(null)}
+      >
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>
-              Delete {deleteIds?.length ?? 0} {(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?
+              Delete {deleteIds?.length ?? 0}{" "}
+              {(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?
             </DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              This removes the selected media from the library. This action cannot be undone.
+              This removes the selected media from the library. This action
+              cannot be undone.
             </p>
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteIds(null)}
+            >
               Cancel
             </Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting}
+              onClick={confirmDelete}
+            >
               Delete
             </Button>
           </DialogFooter>
@@ -555,40 +773,68 @@ function MediaTableRow({
   onToggle,
   onEdit,
   onDelete,
+  projectNames,
 }: {
   item: MediaItem
   selected: boolean
   onToggle: () => void
   onEdit: () => void
   onDelete: () => void
+  projectNames: Map<string, string>
 }) {
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
-        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${item.original_name}`} />
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={`Select ${item.original_name}`}
+        />
       </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
-          <MediaPreview item={item} className="size-12 shrink-0 rounded-md border bg-muted" />
+          <MediaPreview
+            item={item}
+            className="size-12 shrink-0 rounded-md border bg-muted"
+          />
           <div className="min-w-0">
             <div className="truncate font-medium">{item.original_name}</div>
             {item.alt_text ? (
-              <div className="max-w-[280px] truncate text-xs text-muted-foreground">{item.alt_text}</div>
+              <div className="max-w-[280px] truncate text-xs text-muted-foreground">
+                {item.alt_text}
+              </div>
             ) : null}
+            <MediaMetaChips item={item} projectNames={projectNames} />
           </div>
         </div>
       </TableCell>
-      <TableCell column="mutedMeta" className="capitalize">{item.file_type}</TableCell>
-      <TableCell column="mutedMeta" className="hidden md:table-cell">{formatFileSize(item.file_size)}</TableCell>
+      <TableCell column="mutedMeta" className="capitalize">
+        {item.file_type}
+      </TableCell>
+      <TableCell column="mutedMeta" className="hidden md:table-cell">
+        {formatFileSize(item.file_size)}
+      </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(item.created_at))}
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onEdit}
+            aria-label="Edit media"
+          >
             <EditIcon className="size-4" />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onDelete}
+            aria-label="Delete media"
+          >
             <Trash2Icon className="size-4" />
           </Button>
         </div>
@@ -603,20 +849,39 @@ function GalleryItem({
   onToggle,
   onEdit,
   onDelete,
+  projectNames,
 }: {
   item: MediaItem
   selected: boolean
   onToggle: () => void
   onEdit: () => void
   onDelete: () => void
+  projectNames: Map<string, string>
 }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "border-destructive ring-2 ring-destructive/25")}>
-      <button type="button" className="relative block aspect-3/4 w-full bg-muted" onClick={onEdit}>
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-lg border bg-muted",
+        selected && "border-destructive ring-2 ring-destructive/25"
+      )}
+    >
+      <button
+        type="button"
+        className="relative block aspect-3/4 w-full bg-muted"
+        onClick={onEdit}
+      >
         <MediaPreview item={item} className="h-full w-full" />
-        <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
-          {item.file_type}
-        </span>
+        <div className="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+          <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
+            {item.file_type}
+          </span>
+          <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+            {sourceLabels[item.source]}
+          </span>
+          <span className="max-w-full truncate rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+            {projectLabel(item, projectNames)}
+          </span>
+        </div>
       </button>
       <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
         <div className="flex h-8 w-8 items-center justify-center">
@@ -627,10 +892,22 @@ function GalleryItem({
             aria-label={`Select ${item.original_name}`}
           />
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onEdit}
+          aria-label="Edit media"
+        >
           <EditIcon className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          aria-label="Delete media"
+        >
           <Trash2Icon className="size-4" />
         </Button>
       </div>
@@ -638,12 +915,50 @@ function GalleryItem({
   )
 }
 
-function MediaPreview({ item, className }: { item: MediaItem; className?: string }) {
+function MediaMetaChips({
+  item,
+  projectNames,
+}: {
+  item: MediaItem
+  projectNames: Map<string, string>
+}) {
   return (
-    <div className={cn("relative grid place-items-center overflow-hidden", className)}>
+    <div className="mt-1 flex max-w-[320px] flex-wrap gap-1">
+      <Badge variant="secondary" className="h-5 rounded-md text-[10px]">
+        {sourceLabels[item.source]}
+      </Badge>
+      <Badge
+        variant="outline"
+        className="h-5 max-w-full rounded-md text-[10px]"
+      >
+        <span className="truncate">{projectLabel(item, projectNames)}</span>
+      </Badge>
+    </div>
+  )
+}
+
+function MediaPreview({
+  item,
+  className,
+}: {
+  item: MediaItem
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "relative grid place-items-center overflow-hidden",
+        className
+      )}
+    >
       {item.file_type === "video" ? (
         <>
-          <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
+          <video
+            src={item.url}
+            className="h-full w-full object-contain"
+            muted
+            preload="metadata"
+          />
           <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
         </>
       ) : item.file_type === "audio" ? (
@@ -657,6 +972,18 @@ function MediaPreview({ item, className }: { item: MediaItem; className?: string
       )}
     </div>
   )
+}
+
+function projectLabel(item: MediaItem, projectNames: Map<string, string>) {
+  return item.project_id
+    ? (projectNames.get(item.project_id) ?? "Project")
+    : "Unassigned"
+}
+
+function getEditTitle(item: MediaItem) {
+  if (item.file_type === "video") return "Edit Video"
+  if (item.file_type === "audio") return "Edit Audio"
+  return "Edit Image"
 }
 
 function activeTabToFileType(tab: MediaTabId): MediaFileType | undefined {

@@ -2,6 +2,15 @@ import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import {
+  buildMediaListWhere,
+  mediaListTotalPages,
+  normalizeMediaListPage,
+  type MediaFileType,
+  type MediaSortBy,
+  type MediaSortDirection,
+  type MediaSource,
+} from "@/server/media-list-filter"
 import { deleteFromR2, uploadToR2 } from "@/server/media-storage"
 import { mediaFileUrl } from "@/server/media-urls"
 import { aiVideoMedia, type AiVideoMedia } from "@/server/schema"
@@ -40,14 +49,7 @@ export const ALLOWED_TYPES = new Set([
 const MEDIA_MAX_BYTES = 500 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
-export type MediaFileType = "image" | "video" | "audio"
-export type MediaSource = "upload" | "generated" | "template" | "viral"
-export type MediaSortBy =
-  | "created_at"
-  | "original_name"
-  | "file_size"
-  | "file_type"
-export type MediaSortDirection = "asc" | "desc"
+export type { MediaFileType, MediaSortBy, MediaSortDirection, MediaSource }
 
 export type MediaItem = {
   id: string
@@ -57,6 +59,8 @@ export type MediaItem = {
   file_size: number
   mime_type: string
   file_type: MediaFileType
+  source: MediaSource
+  project_id: string | null
   url: string
   created_at: string
   updated_at: string
@@ -102,38 +106,37 @@ export function validateMediaContent(mimeType: string, data: Uint8Array) {
   }
 
   const valid =
-    (mimeType === "image/jpeg" || mimeType === "image/jpg") &&
-      hasPrefix(data, [0xff, 0xd8, 0xff]) ||
-    mimeType === "image/png" &&
-      hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
-    mimeType === "image/gif" &&
-      (hasAscii(data, 0, "GIF87a") || hasAscii(data, 0, "GIF89a")) ||
-    mimeType === "image/webp" &&
+    ((mimeType === "image/jpeg" || mimeType === "image/jpg") &&
+      hasPrefix(data, [0xff, 0xd8, 0xff])) ||
+    (mimeType === "image/png" &&
+      hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+    (mimeType === "image/gif" &&
+      (hasAscii(data, 0, "GIF87a") || hasAscii(data, 0, "GIF89a"))) ||
+    (mimeType === "image/webp" &&
       hasAscii(data, 0, "RIFF") &&
-      hasAscii(data, 8, "WEBP") ||
-    (mimeType === "video/mp4" || mimeType === "video/quicktime") &&
-      hasAscii(data, 4, "ftyp") ||
-    mimeType === "video/webm" &&
-      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
-    mimeType === "video/x-msvideo" &&
+      hasAscii(data, 8, "WEBP")) ||
+    ((mimeType === "video/mp4" || mimeType === "video/quicktime") &&
+      hasAscii(data, 4, "ftyp")) ||
+    (mimeType === "video/webm" && hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])) ||
+    (mimeType === "video/x-msvideo" &&
       hasAscii(data, 0, "RIFF") &&
-      hasAscii(data, 8, "AVI ") ||
-    mimeType === "video/x-matroska" &&
-      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
-    mimeType === "audio/mpeg" &&
+      hasAscii(data, 8, "AVI ")) ||
+    (mimeType === "video/x-matroska" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])) ||
+    (mimeType === "audio/mpeg" &&
       // MP3: ID3 tag or an MPEG frame-sync header.
       (hasAscii(data, 0, "ID3") ||
-        (data[0] === 0xff && ((data[1] ?? 0) & 0xe0) === 0xe0)) ||
-    (mimeType === "audio/wav" || mimeType === "audio/x-wav") &&
+        (data[0] === 0xff && ((data[1] ?? 0) & 0xe0) === 0xe0))) ||
+    ((mimeType === "audio/wav" || mimeType === "audio/x-wav") &&
       hasAscii(data, 0, "RIFF") &&
-      hasAscii(data, 8, "WAVE") ||
-    (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") &&
-      hasAscii(data, 4, "ftyp") ||
-    mimeType === "audio/aac" &&
+      hasAscii(data, 8, "WAVE")) ||
+    ((mimeType === "audio/mp4" || mimeType === "audio/x-m4a") &&
+      hasAscii(data, 4, "ftyp")) ||
+    (mimeType === "audio/aac" &&
       // ADTS frame-sync header.
-      data[0] === 0xff && ((data[1] ?? 0) & 0xf0) === 0xf0 ||
-    mimeType === "audio/ogg" &&
-      hasAscii(data, 0, "OggS")
+      data[0] === 0xff &&
+      ((data[1] ?? 0) & 0xf0) === 0xf0) ||
+    (mimeType === "audio/ogg" && hasAscii(data, 0, "OggS"))
 
   if (!valid) {
     throw new Error("File content does not match the selected media type.")
@@ -150,10 +153,17 @@ export function prepareMediaContent(mimeType: string, data: Uint8Array) {
 }
 
 const svgSanitizeOptions = {
-  allowedTags: "svg g path rect circle ellipse line polyline polygon title desc".split(" "),
+  allowedTags:
+    "svg g path rect circle ellipse line polyline polygon title desc".split(
+      " "
+    ),
   allowedAttributes: {
-    svg: "xmlns viewBox width height role aria-label aria-labelledby fill stroke".split(" "),
-    "*": "d x y x1 x2 y1 y2 cx cy r rx ry points fill stroke stroke-width opacity transform".split(" "),
+    svg: "xmlns viewBox width height role aria-label aria-labelledby fill stroke".split(
+      " "
+    ),
+    "*": "d x y x1 x2 y1 y2 cx cy r rx ry points fill stroke stroke-width opacity transform".split(
+      " "
+    ),
   },
   parser: {
     lowerCaseAttributeNames: false,
@@ -181,7 +191,11 @@ function sanitizeSvgContent(data: Uint8Array) {
 }
 
 export function cleanOriginalName(filename?: string) {
-  const name = (filename || "media").replace(/\\/g, "/").split("/").pop()?.trim()
+  const name = (filename || "media")
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop()
+    ?.trim()
   return (name || "media").slice(0, 255)
 }
 
@@ -201,8 +215,12 @@ export function storedFilename(originalName: string, mimeType: string) {
   const base =
     extensionIndex > -1 ? originalName.slice(0, extensionIndex) : originalName
   const extension = defaultExtensionForMimeType(mimeType)
-  const cleanBase = base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") || "media"
-  const cleanExtension = extension.replace(FILENAME_SAFE_CHARS, "").replace(/^\.+|\.+$/g, "")
+  const cleanBase =
+    base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") ||
+    "media"
+  const cleanExtension = extension
+    .replace(FILENAME_SAFE_CHARS, "")
+    .replace(/^\.+|\.+$/g, "")
   const suffix = cleanExtension ? `.${cleanExtension}` : ""
   return `${uuid()}_${cleanBase}${suffix}`.slice(0, 255)
 }
@@ -216,9 +234,10 @@ export async function listOwnedMedia({
   userId,
   page,
   pageSize,
-  fileType,
+  fileTypes,
   mimeType,
   projectId,
+  search,
   source,
   sortBy = "created_at",
   sortDirection = "desc",
@@ -226,23 +245,26 @@ export async function listOwnedMedia({
   userId: string
   page: number
   pageSize: number
-  fileType?: MediaFileType
+  fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
-  projectId?: string
+  projectId?: string | null
+  search?: string
   source?: MediaSource
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
-  const normalizedPage = Math.max(1, page)
-  const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
-  const ownerWhere = eq(aiVideoMedia.userId, userId)
-  const where = and(
-    ownerWhere,
-    fileType ? eq(aiVideoMedia.fileType, fileType) : undefined,
-    mimeType ? eq(aiVideoMedia.mimeType, mimeType) : undefined,
-    projectId ? eq(aiVideoMedia.projectId, projectId) : undefined,
-    source ? eq(aiVideoMedia.source, source) : undefined
+  const { normalizedPage, normalizedPageSize } = normalizeMediaListPage(
+    page,
+    pageSize
   )
+  const where = buildMediaListWhere({
+    userId,
+    fileTypes,
+    mimeType,
+    projectId,
+    search,
+    source,
+  })
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -262,11 +284,14 @@ export async function listOwnedMedia({
     total,
     page: normalizedPage,
     page_size: normalizedPageSize,
-    total_pages: total ? Math.ceil(total / normalizedPageSize) : 0,
+    total_pages: mediaListTotalPages(total, normalizedPageSize),
   }
 }
 
-function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection) {
+function getMediaOrderBy(
+  sortBy: MediaSortBy,
+  sortDirection: MediaSortDirection
+) {
   const column =
     sortBy === "original_name"
       ? aiVideoMedia.originalName
@@ -411,6 +436,8 @@ export function serializeMedia(row: AiVideoMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
+    source: row.source as MediaSource,
+    project_id: row.projectId,
     url: mediaFileUrl(row.id),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

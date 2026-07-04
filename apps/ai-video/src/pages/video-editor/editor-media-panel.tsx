@@ -34,12 +34,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getMediaErrorMessage,
   listMedia,
@@ -119,6 +114,7 @@ export function EditorMediaPanel({
   const projectId = kind === "project" ? documentId : undefined
   const [tab, setTab] = React.useState<MediaTab>("videos")
   const [search, setSearch] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
   // Search lives in a popover so opening it never pushes the grid down.
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
@@ -139,13 +135,21 @@ export function EditorMediaPanel({
     message: string
   } | null>(null)
 
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
   // Load fresh media whenever the tab changes or an upload finishes.
   React.useEffect(() => {
     let active = true
     listMedia({
       pageSize: 30,
-      fileType: TAB_CONFIG[tab].fileType,
+      fileTypes: [TAB_CONFIG[tab].fileType],
       projectId,
+      search: debouncedSearch || undefined,
     })
       .then((response) => {
         if (active) {
@@ -161,22 +165,12 @@ export function EditorMediaPanel({
     return () => {
       active = false
     }
-  }, [projectId, tab, refresh])
+  }, [debouncedSearch, projectId, tab, refresh])
 
   const data = result?.tab === tab ? result.data : null
   const error = loadError?.tab === tab ? loadError.message : null
 
-  // Client-side name filter over the fetched page (the list endpoint has no
-  // search parameter; same approach as the media library page).
-  const visibleMedia = React.useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return (data?.media ?? []).filter((item) => {
-      if (!query) return true
-      return `${item.original_name} ${item.alt_text ?? ""}`
-        .toLowerCase()
-        .includes(query)
-    })
-  }, [data?.media, search])
+  const visibleMedia = data?.media ?? []
 
   // Probe duration, build a clip, and place it in the store.
   async function addMediaItem(
@@ -281,7 +275,10 @@ export function EditorMediaPanel({
   }
 
   // --- Shared upload (any media type) --------------------------------------
-  async function uploadSelectedFile(file: File, callbacks: UploadCallbacks = {}) {
+  async function uploadSelectedFile(
+    file: File,
+    callbacks: UploadCallbacks = {}
+  ) {
     setUploading(true)
     setActionError(null)
     callbacks.onProgress?.(file, 15)
@@ -309,7 +306,10 @@ export function EditorMediaPanel({
     await uploadSelectedFile(file)
   }
 
-  async function handleDropzoneUpload(files: File[], callbacks: UploadCallbacks) {
+  async function handleDropzoneUpload(
+    files: File[],
+    callbacks: UploadCallbacks
+  ) {
     for (const file of files) {
       await uploadSelectedFile(file, callbacks)
     }
@@ -418,54 +418,54 @@ export function EditorMediaPanel({
               style) so the columns stay constrained. */}
           <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:w-full">
             <div className="p-3 pt-0">
-            {error ? (
-              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
-                {error}
-              </div>
-            ) : !data ? (
-              <div className="grid grid-cols-2 gap-2">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <Skeleton key={index} className="aspect-video" />
-                ))}
-              </div>
-            ) : visibleMedia.length === 0 ? (
-              <MediaPanelEmpty
-                tab={tab}
-                searching={search.trim().length > 0}
-                uploading={uploading}
-                onFileReject={handleDropzoneReject}
-                onUpload={handleDropzoneUpload}
-              />
-            ) : tab === "audio" ? (
-              <div className="space-y-1.5">
-                {visibleMedia.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex cursor-grab touch-none items-center gap-2 rounded-md border bg-background p-2 select-none active:cursor-grabbing"
-                    title="Click to add at the playhead, or drag onto the timeline"
-                    {...tileHandlers(item)}
-                  >
-                    <MusicIcon className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-xs">
-                      {item.original_name}
-                    </span>
-                    <PlusIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              // CSS columns give each tile its natural height (portrait reels
-              // stay portrait) without same-row gaps a grid would leave.
-              <div className="columns-2 gap-2">
-                {visibleMedia.map((item) => (
-                  <MediaThumbnail
-                    key={item.id}
-                    item={item}
-                    handlers={tileHandlers(item)}
-                  />
-                ))}
-              </div>
-            )}
+              {error ? (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                  {error}
+                </div>
+              ) : !data ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <Skeleton key={index} className="aspect-video" />
+                  ))}
+                </div>
+              ) : visibleMedia.length === 0 ? (
+                <MediaPanelEmpty
+                  tab={tab}
+                  searching={search.trim().length > 0}
+                  uploading={uploading}
+                  onFileReject={handleDropzoneReject}
+                  onUpload={handleDropzoneUpload}
+                />
+              ) : tab === "audio" ? (
+                <div className="space-y-1.5">
+                  {visibleMedia.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex cursor-grab touch-none items-center gap-2 rounded-md border bg-background p-2 select-none active:cursor-grabbing"
+                      title="Click to add at the playhead, or drag onto the timeline"
+                      {...tileHandlers(item)}
+                    >
+                      <MusicIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-xs">
+                        {item.original_name}
+                      </span>
+                      <PlusIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // CSS columns give each tile its natural height (portrait reels
+                // stay portrait) without same-row gaps a grid would leave.
+                <div className="columns-2 gap-2">
+                  {visibleMedia.map((item) => (
+                    <MediaThumbnail
+                      key={item.id}
+                      item={item}
+                      handlers={tileHandlers(item)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
@@ -626,7 +626,10 @@ function EmptyMediaUpload({
       </FileUploadDropzone>
       <FileUploadList>
         {files.map((file) => (
-          <EmptyMediaUploadItem key={`${file.name}-${file.lastModified}`} file={file} />
+          <EmptyMediaUploadItem
+            key={`${file.name}-${file.lastModified}`}
+            file={file}
+          />
         ))}
       </FileUploadList>
     </FileUpload>

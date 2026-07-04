@@ -40,9 +40,14 @@ const listMediaSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
-    fileType: z.enum(["image", "video", "audio"]).optional(),
+    fileTypes: z
+      .array(z.enum(["image", "video", "audio"]))
+      .min(1)
+      .max(3)
+      .optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
-    projectId: z.string().min(1).max(36).optional(),
+    projectId: z.string().min(1).max(36).nullable().optional(),
+    search: z.string().max(200).optional(),
     source: z.enum(["upload", "generated", "template", "viral"]).optional(),
     sortBy: z
       .enum(["created_at", "original_name", "file_size", "file_type"])
@@ -115,14 +120,18 @@ const listMediaFn = createServerFn({ method: "GET" })
   .inputValidator(listMediaSchema)
   .handler(async ({ data }) => {
     const user = await requireUser()
-    const projectId = await requireOwnedProjectId(user.id, data?.projectId)
+    const projectId =
+      data?.projectId === null
+        ? null
+        : await requireOwnedProjectId(user.id, data?.projectId)
     return listOwnedMedia({
       userId: user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
-      fileType: data?.fileType,
+      fileTypes: data?.fileTypes,
       mimeType: data?.mimeType,
       projectId,
+      search: data?.search,
       source: data?.source,
       sortBy: data?.sortBy,
       sortDirection: data?.sortDirection,
@@ -280,18 +289,20 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
 export function listMedia({
   page = 1,
   pageSize = 20,
-  fileType,
+  fileTypes,
   mimeType,
   projectId,
+  search,
   source,
   sortBy,
   sortDirection,
 }: {
   page?: number
   pageSize?: number
-  fileType?: MediaFileType
+  fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
-  projectId?: string
+  projectId?: string | null
+  search?: string
   source?: MediaSource
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
@@ -300,9 +311,10 @@ export function listMedia({
     data: {
       page,
       pageSize,
-      fileType,
+      fileTypes,
       mimeType,
       projectId,
+      search,
       source,
       sortBy,
       sortDirection,

@@ -83,8 +83,16 @@ export function ReplaceMediaDialog({
     isAudioSlot ? "audio" : "video"
   )
   const [search, setSearch] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [search])
 
   // (Re)load the library when the dialog opens or the media type changes. The
   // previous list stays visible until the fresh one lands.
@@ -93,9 +101,10 @@ export function ReplaceMediaDialog({
     let active = true
 
     listMedia({
-      fileType: mediaType,
+      fileTypes: [mediaType],
       pageSize: 100,
       projectId,
+      search: debouncedSearch || undefined,
       source: projectId ? "upload" : undefined,
     })
       .then((data) => {
@@ -111,7 +120,7 @@ export function ReplaceMediaDialog({
     return () => {
       active = false
     }
-  }, [open, mediaType, projectId])
+  }, [debouncedSearch, open, mediaType, projectId])
 
   // Timed media (video/audio) needs its intrinsic length to clamp the slot;
   // images fill any duration, so skip the probe for them.
@@ -146,10 +155,21 @@ export function ReplaceMediaDialog({
     event.target.value = "" // allow re-selecting the same file later
     if (!file) return
 
+    const selectedType = mediaTypeForMime(file.type)
+    const expectedMediaLabel = mediaTypeLabel(mediaType)
+    if (selectedType !== mediaType) {
+      setError(`Choose ${expectedMediaLabel} for this slot.`)
+      return
+    }
+
     setUploading(true)
     setError(null)
     try {
       const uploaded = await uploadMedia(file, undefined, { projectId })
+      if (uploaded.file_type !== mediaType) {
+        setError(`Uploaded file must be ${expectedMediaLabel}.`)
+        return
+      }
       await selectMedia(uploaded)
     } catch (uploadError) {
       setError(getMediaErrorMessage(uploadError))
@@ -164,19 +184,19 @@ export function ReplaceMediaDialog({
     if (!next) setSearch("")
   }
 
-  // Client-side name filter over the loaded page (same as the media panel).
-  const query = search.trim().toLowerCase()
-  const filtered =
-    items && query
-      ? items.filter((item) => item.original_name.toLowerCase().includes(query))
-      : (items ?? [])
+  const filtered = items ?? []
   const typeLabel =
-    mediaType === "video" ? "videos" : mediaType === "audio" ? "audio" : "images"
+    mediaType === "video"
+      ? "videos"
+      : mediaType === "audio"
+        ? "audio"
+        : "images"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
-        <DialogHeader className="pb-4">{/* pb-4 here (not the body's pt) is the
+        <DialogHeader className="pb-4">
+          {/* pb-4 here (not the body's pt) is the
           gap that PERSISTS below the sticky header — the body's top padding
           scrolls away with the grid. */}
           {/* Title and controls on ONE row — the controls sit beside the title
@@ -184,7 +204,9 @@ export function ReplaceMediaDialog({
               keeps them clear of the absolute close (X) button. Visual slots
               toggle video/image; an audio slot only accepts audio. */}
           <div className="flex items-center gap-3 pr-8">
-            <DialogTitle>{isAudioSlot ? "Replace Audio" : "Replace Clip"}</DialogTitle>
+            <DialogTitle>
+              {isAudioSlot ? "Replace Audio" : "Replace Clip"}
+            </DialogTitle>
             <div className="flex items-center gap-1">
               {isAudioSlot ? null : (
                 <Select
@@ -301,7 +323,7 @@ export function ReplaceMediaDialog({
                     <ImageIcon className="mx-auto mb-2 size-8" />
                   )}
                   <p>
-                    {query
+                    {search.trim()
                       ? `No ${typeLabel} match your search.`
                       : `No ${typeLabel} in your library yet. Upload one above.`}
                   </p>
@@ -364,7 +386,12 @@ function ReplaceMediaTile({
             <MusicIcon className="size-8 text-muted-foreground" />
           </div>
         ) : (
-          <video src={item.url} className="block w-full" muted preload="metadata" />
+          <video
+            src={item.url}
+            className="block w-full"
+            muted
+            preload="metadata"
+          />
         )}
         {item.file_type === "image" ? (
           <ImageIcon className="absolute top-1.5 left-1.5 size-3.5 text-white drop-shadow" />
@@ -389,4 +416,17 @@ function ReplaceMediaTile({
       </div>
     </button>
   )
+}
+
+function mediaTypeForMime(mimeType: string) {
+  if (mimeType.startsWith("video/")) return "video"
+  if (mimeType.startsWith("image/")) return "image"
+  if (mimeType.startsWith("audio/")) return "audio"
+  return null
+}
+
+function mediaTypeLabel(mediaType: "video" | "image" | "audio") {
+  if (mediaType === "video") return "a video file"
+  if (mediaType === "image") return "an image file"
+  return "an audio file"
 }
