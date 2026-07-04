@@ -29,10 +29,10 @@ function toSiteAuthUser(user?: AuthSessionUser | null): SiteAuthUser | null {
 
 export function SiteAuthProvider({
   children,
-  user,
+  user = null,
 }: {
   children: ReactNode
-  user: SiteAuthUser | null
+  user?: SiteAuthUser | null
 }) {
   const session = authClient.useSession()
   const [currentUser, setCurrentUser] = useState(user)

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { media } from '@/lib/db/schema'
 import { getFromR2 } from '@/lib/utils/r2'
+import { parseR2MediaKey } from '@/lib/utils/media-proxy'
 
 // Timeout for fetch requests (10 seconds)
 const FETCH_TIMEOUT = 10000
@@ -17,10 +21,22 @@ export async function GET(request: NextRequest) {
 
     // Check if it's an R2 URL
     if (url.startsWith('r2://')) {
-      // Extract filename from r2:// URL
-      const fileName = url.replace('r2://', '')
+      const parsedKey = parseR2MediaKey(url)
+      if (parsedKey.error || !parsedKey.key) {
+        return NextResponse.json({ error: parsedKey.error || 'Invalid R2 media key' }, { status: 400 })
+      }
+      const mediaKey = parsedKey.key
 
-      const r2Object = await getFromR2(fileName, range)
+      const publicMedia = await db.query.media.findFirst({
+        where: eq(media.storagePath, mediaKey),
+        columns: { id: true },
+      })
+
+      if (!publicMedia) {
+        return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+      }
+
+      const r2Object = await getFromR2(mediaKey, range)
 
       if (!r2Object.Body) {
         throw new Error('No body in R2 response')

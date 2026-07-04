@@ -19,7 +19,7 @@ import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
-import { getClientIp } from '@/lib/utils/rate-limit'
+import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
@@ -27,24 +27,6 @@ const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 5
 const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const modalRateLimitStore = new Map<string, number[]>()
-
-function isRateLimited(key: string) {
-  const now = Date.now()
-  const windowStart = now - RATE_LIMIT_WINDOW_MS
-  const recentAttempts = (modalRateLimitStore.get(key) || [])
-    .filter((timestamp) => timestamp > windowStart)
-
-  if (recentAttempts.length >= RATE_LIMIT_MAX_REQUESTS) {
-    modalRateLimitStore.set(key, recentAttempts)
-    return true
-  }
-
-  recentAttempts.push(now)
-  modalRateLimitStore.set(key, recentAttempts)
-  return false
-}
 
 function hasAllowedOrigin(request: NextRequest, siteUrl: string) {
   const allowedHost = new URL(siteUrl).host
@@ -81,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:product-email-modal`
-    if (isRateLimited(rateLimitKey)) {
+    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
       return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 })
     }
 

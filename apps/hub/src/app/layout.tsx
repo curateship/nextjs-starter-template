@@ -5,38 +5,9 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/layout/dashboard/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/admin/layout/dashboard/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
-import { auth, getSessionCookieCacheVersion } from "@/lib/actions/auth/server";
-import type { Session as BetterAuthSession, User as BetterAuthUser } from "better-auth";
-import { getCookieCache, getSessionCookie } from "better-auth/cookies";
-import { SiteAuthProvider, type SiteAuthUser } from "@/components/frontend/layout/site-auth-provider";
+import { SiteAuthProvider } from "@/components/frontend/layout/site-auth-provider";
 import { headers } from "next/headers";
 import { isHubPlatformHost } from "@/lib/utils/platform-host";
-
-type SiteAuthCookieCache = {
-  session: BetterAuthSession & Record<string, any>
-  user: BetterAuthUser & { role?: string | null; displayName?: string | null } & Record<string, any>
-  updatedAt: number
-  version?: string
-}
-
-type SiteAuthUserSource = {
-  email?: string | null
-  name?: string | null
-  displayName?: string | null
-  image?: string | null
-  role?: string | null
-}
-
-function toSiteAuthUser(user?: SiteAuthUserSource | null): SiteAuthUser | null {
-  if (!user) return null
-
-  return {
-    email: user.email ?? null,
-    name: user.displayName || user.name || null,
-    image: user.image ?? null,
-    role: typeof user.role === 'string' ? user.role : null,
-  }
-}
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -93,25 +64,6 @@ export default async function RootLayout({
     ? { success: false, site: null }
     : await getSiteFromHeaders()
   const { getFontConfig } = await import("@/lib/utils/font-config")
-  let initialSessionUser: SiteAuthUser | null = null
-
-  try {
-    const cookieCache = await getCookieCache<SiteAuthCookieCache>(requestHeaders, {
-      version: getSessionCookieCacheVersion,
-    })
-    initialSessionUser = toSiteAuthUser(cookieCache?.user)
-  } catch {
-    initialSessionUser = null
-  }
-
-  if (!initialSessionUser && getSessionCookie(requestHeaders)) {
-    try {
-      const session = await auth.api.getSession({ headers: requestHeaders })
-      initialSessionUser = toSiteAuthUser(session?.user as SiteAuthUserSource | null)
-    } catch {
-      initialSessionUser = null
-    }
-  }
 
   const fonts = success && site?.settings
     ? getFontConfig(
@@ -171,7 +123,7 @@ export default async function RootLayout({
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >
-        <SiteAuthProvider user={initialSessionUser}>
+        <SiteAuthProvider>
           <HeaderScripts scripts={site?.settings?.tracking_scripts} />
           {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
           {children}
