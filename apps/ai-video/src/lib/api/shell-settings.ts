@@ -10,6 +10,7 @@ import {
   type ShellConfig,
 } from "@/lib/ai-video"
 import {
+  API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
@@ -104,6 +105,10 @@ const shellConfigSchema = z.object({
     .int()
     .min(API_USAGE_LIMIT_MIN)
     .max(API_USAGE_LIMIT_MAX),
+  apiUsageCostPerCreditUsd: z
+    .number()
+    .min(0)
+    .refine(Number.isFinite, "Estimated cost per credit must be a number"),
   dashboardRowsPerPage: z
     .number()
     .int()
@@ -164,10 +169,15 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
     const workspace = await getOrCreateCurrentWorkspace(user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const shellGlobals = parseShellGlobals(row?.settings)
+    const apiUsageCostPerCreditUsd =
+      user.role === "admin"
+        ? shellGlobals.apiUsageCostPerCreditUsd
+        : API_USAGE_DEFAULT_COST_PER_CREDIT_USD
 
     return {
       settings: {
         ...shellGlobals,
+        apiUsageCostPerCreditUsd,
         workspaceName: workspace.name,
         defaultApiUsageMonthlyCredits,
         favicon: workspaceSettings.favicon,
@@ -266,6 +276,12 @@ function parseShellGlobals(value: unknown) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    apiUsageCostPerCreditUsd:
+      typeof settings.apiUsageCostPerCreditUsd === "number" &&
+      Number.isFinite(settings.apiUsageCostPerCreditUsd) &&
+      settings.apiUsageCostPerCreditUsd >= 0
+        ? settings.apiUsageCostPerCreditUsd
+        : fallback.apiUsageCostPerCreditUsd,
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -288,6 +304,9 @@ function pickShellGlobals(settings: ShellConfig) {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
+    apiUsageCostPerCreditUsd:
+      settings.apiUsageCostPerCreditUsd ??
+      API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     mediaUploadMaxMb: settings.mediaUploadMaxMb,
   }

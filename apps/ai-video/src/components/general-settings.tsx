@@ -136,6 +136,29 @@ export function GeneralSettings({
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="api-usage-cost-per-credit">
+              Estimated cost per credit (USD)
+            </Label>
+            <Input
+              id="api-usage-cost-per-credit"
+              type="number"
+              min={0}
+              step={0.0001}
+              value={config.apiUsageCostPerCreditUsd}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  apiUsageCostPerCreditUsd: Number(event.target.value),
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Used only for dashboard estimates; does not affect limits.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
             <Label htmlFor="media-upload-max-mb">
               Max media upload size (MB)
             </Label>

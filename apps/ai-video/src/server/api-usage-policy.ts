@@ -52,6 +52,15 @@ export function creditsForApiUsageFeature(feature: ApiUsageFeature) {
   return API_USAGE_FEATURE_CREDITS[feature]
 }
 
+export function estimateApiUsageCostUsd(
+  credits: number,
+  costPerCreditUsd: number,
+  status?: ApiUsageEventStatus
+) {
+  if (status === "blocked") return 0
+  return Math.round(credits * costPerCreditUsd * 100) / 100
+}
+
 export function apiUsagePeriodStart(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
 }

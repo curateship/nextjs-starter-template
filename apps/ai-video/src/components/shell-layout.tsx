@@ -184,7 +184,7 @@ export function ShellLayout({
             <DashboardContent
               className={
                 isVideoEditorPath
-                  ? "overflow-hidden p-0 sm:p-0 md:p-0 space-y-0 sm:space-y-0"
+                  ? "space-y-0 overflow-hidden p-0 sm:space-y-0 sm:p-0 md:p-0"
                   : undefined
               }
             >
@@ -220,6 +220,12 @@ function normalizeConfig(settings: ShellConfig | null) {
       settings.defaultApiUsageMonthlyCredits <= API_USAGE_LIMIT_MAX
         ? settings.defaultApiUsageMonthlyCredits
         : fallback.defaultApiUsageMonthlyCredits,
+    apiUsageCostPerCreditUsd:
+      typeof settings.apiUsageCostPerCreditUsd === "number" &&
+      Number.isFinite(settings.apiUsageCostPerCreditUsd) &&
+      settings.apiUsageCostPerCreditUsd >= 0
+        ? settings.apiUsageCostPerCreditUsd
+        : fallback.apiUsageCostPerCreditUsd,
     dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
