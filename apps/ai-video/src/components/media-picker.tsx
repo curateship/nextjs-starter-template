@@ -33,16 +33,28 @@ import {
   getMediaErrorMessage,
   listMedia,
   uploadMedia,
-  type MediaFileType,
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
-const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
+const imageTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+]
+const videoTypes = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+]
 
-type MediaFilter = "all" | MediaFileType
+type MediaFilter = "all" | "image" | "video"
 
 type MediaPickerProps = {
   open: boolean
@@ -64,37 +76,63 @@ export function MediaPicker({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null)
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(
+    null
+  )
   const [filterType, setFilterType] = React.useState<MediaFilter>("all")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [uploadFile, setUploadFile] = React.useState<File | null>(null)
   const [uploadPreview, setUploadPreview] = React.useState<string | null>(null)
   const [altText, setAltText] = React.useState("")
   const [uploading, setUploading] = React.useState(false)
+  const loadRequestIdRef = React.useRef(0)
   const pageSize = 12
 
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+      setCurrentPage(1)
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [searchQuery])
+
   const loadCurrentMedia = React.useCallback(async () => {
+    const requestId = loadRequestIdRef.current + 1
+    loadRequestIdRef.current = requestId
     setLoading(true)
     setError(null)
     try {
-      const fileType = showVideos
+      const fileTypes = showVideos
         ? filterType === "all"
-          ? undefined
-          : filterType
-        : "image"
-      setData(await listMedia({ page: currentPage, pageSize, fileType }))
+          ? ["image", "video"]
+          : [filterType]
+        : ["image"]
+      const response = await listMedia({
+        page: currentPage,
+        pageSize,
+        fileTypes,
+        search: debouncedSearch || undefined,
+      })
+      if (loadRequestIdRef.current !== requestId) return
+      setData(response)
     } catch (loadError) {
+      if (loadRequestIdRef.current !== requestId) return
       setError(getMediaErrorMessage(loadError))
     } finally {
-      setLoading(false)
+      if (loadRequestIdRef.current === requestId) {
+        setLoading(false)
+      }
     }
-  }, [currentPage, filterType, pageSize, showVideos])
+  }, [currentPage, debouncedSearch, filterType, pageSize, showVideos])
 
   React.useEffect(() => {
     if (!open) {
+      loadRequestIdRef.current += 1
       setCurrentPage(1)
       setSearchQuery("")
       setSelectedMedia(null)
+      setLoading(false)
       clearUpload()
       return
     }
@@ -103,21 +141,12 @@ export function MediaPicker({
   }, [loadCurrentMedia, open])
 
   const mediaItems = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return (data?.media ?? [])
-      .filter((item) => {
-        if (!showVideos && item.file_type === "video") return false
-        if (!query) return true
-        return `${item.original_name} ${item.filename} ${item.alt_text ?? ""}`
-          .toLowerCase()
-          .includes(query)
-      })
-      .sort((a, b) => {
-        if (currentMediaUrl && a.url === currentMediaUrl) return -1
-        if (currentMediaUrl && b.url === currentMediaUrl) return 1
-        return 0
-      })
-  }, [currentMediaUrl, data?.media, searchQuery, showVideos])
+    return [...(data?.media ?? [])].sort((a, b) => {
+      if (currentMediaUrl && a.url === currentMediaUrl) return -1
+      if (currentMediaUrl && b.url === currentMediaUrl) return 1
+      return 0
+    })
+  }, [currentMediaUrl, data?.media])
 
   React.useEffect(() => {
     if (!open || selectedMedia || !currentMediaUrl) return
@@ -143,7 +172,9 @@ export function MediaPicker({
     const file = event.target.files?.[0]
     if (!file) return
 
-    const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
+    const allowedTypes = showVideos
+      ? [...imageTypes, ...videoTypes]
+      : imageTypes
     if (!allowedTypes.includes(file.type)) {
       setError(
         showVideos
@@ -156,7 +187,9 @@ export function MediaPicker({
 
     const maxSize = config.mediaUploadMaxMb * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`)
+      setError(
+        `File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`
+      )
       event.target.value = ""
       return
     }
@@ -201,7 +234,9 @@ export function MediaPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>{showVideos ? "Select Media" : "Select Image"}</DialogTitle>
+          <DialogTitle>
+            {showVideos ? "Select Media" : "Select Image"}
+          </DialogTitle>
         </DialogHeader>
 
         <DialogBody>
@@ -261,11 +296,19 @@ export function MediaPicker({
                   <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
                     {uploadPreview && uploadFile.type.startsWith("video/") ? (
                       <>
-                        <video src={uploadPreview} className="h-full w-full object-contain" muted />
+                        <video
+                          src={uploadPreview}
+                          className="h-full w-full object-contain"
+                          muted
+                        />
                         <PlayIcon className="absolute size-5 text-white drop-shadow" />
                       </>
                     ) : uploadPreview ? (
-                      <img src={uploadPreview} alt="" className="h-full w-full object-contain" />
+                      <img
+                        src={uploadPreview}
+                        alt=""
+                        className="h-full w-full object-contain"
+                      />
                     ) : (
                       <ImageIcon className="size-6 text-muted-foreground" />
                     )}
@@ -273,17 +316,28 @@ export function MediaPicker({
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{uploadFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(uploadFile.size)}</p>
+                        <p className="truncate text-sm font-medium">
+                          {uploadFile.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatFileSize(uploadFile.size)}
+                        </p>
                       </div>
-                      <Button type="button" variant="ghost" size="icon-sm" onClick={clearUpload}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={clearUpload}
+                      >
                         <XIcon className="size-4" />
                         <span className="sr-only">Clear upload</span>
                       </Button>
                     </div>
                     <div className="grid gap-1.5">
                       <Label htmlFor="media-picker-alt-text">
-                        {uploadFile.type.startsWith("video/") ? "Description" : "Alt text"}
+                        {uploadFile.type.startsWith("video/")
+                          ? "Description"
+                          : "Alt text"}
                       </Label>
                       <Input
                         id="media-picker-alt-text"
@@ -292,8 +346,16 @@ export function MediaPicker({
                         placeholder="Optional"
                       />
                     </div>
-                    <Button type="button" onClick={handleUpload} disabled={uploading}>
-                      {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+                    <Button
+                      type="button"
+                      onClick={handleUpload}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <UploadIcon className="size-4" />
+                      )}
                       {uploading ? "Uploading" : "Upload and select"}
                     </Button>
                   </div>
@@ -319,15 +381,21 @@ export function MediaPicker({
                       type="button"
                       className={cn(
                         "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
-                          selectedMedia?.id === item.id || currentMediaUrl === item.url
-                            ? "border-green-500 ring-2 ring-green-500/20"
-                            : "hover:border-muted-foreground/40"
+                        selectedMedia?.id === item.id ||
+                          currentMediaUrl === item.url
+                          ? "border-green-500 ring-2 ring-green-500/20"
+                          : "hover:border-muted-foreground/40"
                       )}
                       onClick={() => setSelectedMedia(item)}
                     >
                       {item.file_type === "video" ? (
                         <div className="relative h-full w-full bg-black">
-                          <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
+                          <video
+                            src={item.url}
+                            className="h-full w-full object-contain"
+                            muted
+                            preload="metadata"
+                          />
                           <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
                         </div>
                       ) : (
@@ -359,7 +427,9 @@ export function MediaPicker({
                     variant="outline"
                     size="sm"
                     disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
                   >
                     Previous
                   </Button>
@@ -391,10 +461,18 @@ export function MediaPicker({
               Remove
             </Button>
           ) : null}
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button type="button" disabled={!selectedMedia} onClick={handleSelectMedia}>
+          <Button
+            type="button"
+            disabled={!selectedMedia}
+            onClick={handleSelectMedia}
+          >
             Select
           </Button>
         </DialogFooter>
