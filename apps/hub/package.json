@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "tsx --test $(find src -name '*.test.ts' -o -name '*.test.tsx')",
     "seed:directory-scale": "tsx scripts/seed-directory-scale.ts",
     "db:generate": "npm exec --package drizzle-kit@0.31.10 -- drizzle-kit generate",
     "db:migrate": "npm exec --package drizzle-kit@0.31.10 -- drizzle-kit migrate",

@@ -438,7 +438,6 @@ export function ProductSettingsModal({
                             }))
                             setCreatedDateOpen(false)
                           }}
-                          initialFocus
                         />
                       </PopoverContent>
                     </Popover>

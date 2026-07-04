@@ -44,7 +44,7 @@ interface CategoryPickerProps {
 
 interface ParentCategorySelectProps {
   parent: Category
-  children: Category[]
+  childOptions: Category[]
   selectedIds: string[]
   compact: boolean
   onToggleChild: (categoryId: string) => void
@@ -96,7 +96,7 @@ async function getAllCategoriesForSite(siteId: string) {
 
 function ParentCategorySelect({
   parent,
-  children,
+  childOptions,
   selectedIds,
   compact,
   onToggleChild,
@@ -108,12 +108,12 @@ function ParentCategorySelect({
   const [newChildTitle, setNewChildTitle] = useState("")
   const [creating, setCreating] = useState(false)
 
-  const selectedChildren = children.filter((child) => selectedIds.includes(child.id))
+  const selectedChildren = childOptions.filter((child) => selectedIds.includes(child.id))
   const filteredChildren = useMemo(() => {
-    if (!searchQuery.trim()) return children
+    if (!searchQuery.trim()) return childOptions
     const query = searchQuery.toLowerCase()
-    return children.filter((child) => child.title.toLowerCase().includes(query))
-  }, [children, searchQuery])
+    return childOptions.filter((child) => child.title.toLowerCase().includes(query))
+  }, [childOptions, searchQuery])
 
   const handleCreateChild = async () => {
     const title = newChildTitle.trim()
@@ -479,7 +479,7 @@ export function CategoryPicker({
             <ParentCategorySelect
               key={parent.id}
               parent={parent}
-              children={categoriesByParentId.get(parent.id) || []}
+              childOptions={categoriesByParentId.get(parent.id) || []}
               selectedIds={selectedIdsByParentId.get(parent.id) || []}
               compact={variant === "combobox"}
               onToggleChild={toggleChildCategory}

@@ -17,6 +17,7 @@ import {
   upsertSystemNewsletterContact,
 } from '@/lib/actions/newsletters/system-contact-sync'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
+import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
@@ -25,29 +26,6 @@ const RATE_LIMIT_MAX_REQUESTS = 5
 const MAX_IDENTIFIER_LENGTH = 100
 const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const subscribeRateLimitStore = new Map<string, number[]>()
-
-function getClientIp(request: NextRequest) {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown'
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now()
-  const windowStart = now - RATE_LIMIT_WINDOW_MS
-  const recentAttempts = (subscribeRateLimitStore.get(key) || []).filter((timestamp) => timestamp > windowStart)
-
-  if (recentAttempts.length >= RATE_LIMIT_MAX_REQUESTS) {
-    subscribeRateLimitStore.set(key, recentAttempts)
-    return true
-  }
-
-  recentAttempts.push(now)
-  subscribeRateLimitStore.set(key, recentAttempts)
-  return false
-}
 
 function hasAllowedOrigin(request: NextRequest, siteUrl: string) {
   const allowedHost = new URL(siteUrl).host
@@ -109,8 +87,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const rateLimitKey = `${getClientIp(request)}:${siteId}:email-form`
-    if (isRateLimited(rateLimitKey)) {
+    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:email-form`
+    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
       return NextResponse.json(
         { success: false, error: 'Too many requests' },
         { status: 429 }

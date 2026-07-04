@@ -101,22 +101,6 @@ const nextConfig: NextConfig = {
       return [];
     }
 
-    const cacheTtl = process.env.CACHE_TTL_SECONDS || '31536000'
-    const cacheHeader = {
-      key: 'Cache-Control',
-      value: `public, s-maxage=${cacheTtl}, stale-while-revalidate=${cacheTtl}`,
-    }
-
-    const publicCacheRoutes = [
-      '/',
-      '/posts/:slug*',
-      '/products/:slug',
-      '/categories/:slug*',
-      '/directory/:slug*',
-      '/events/:slug*',
-      '/pages/:slug*',
-    ]
-
     return [
       {
         // Apply security headers to all routes
@@ -131,10 +115,6 @@ const nextConfig: NextConfig = {
         source: '/fonts/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
-      ...publicCacheRoutes.map(source => ({
-        source,
-        headers: [cacheHeader],
-      })),
     ];
   },
 };

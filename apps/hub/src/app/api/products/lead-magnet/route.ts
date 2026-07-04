@@ -21,6 +21,7 @@ import {
 } from '@/lib/actions/products/lead-magnet'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
+import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
@@ -29,32 +30,8 @@ const RATE_LIMIT_MAX_REQUESTS = 5
 const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const signupRateLimitStore = new Map<string, number[]>()
-
 function generateAccessToken() {
   return randomBytes(32).toString('base64url')
-}
-
-function getClientIp(request: NextRequest) {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown'
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now()
-  const windowStart = now - RATE_LIMIT_WINDOW_MS
-  const recentAttempts = (signupRateLimitStore.get(key) || [])
-    .filter((timestamp) => timestamp > windowStart)
-
-  if (recentAttempts.length >= RATE_LIMIT_MAX_REQUESTS) {
-    signupRateLimitStore.set(key, recentAttempts)
-    return true
-  }
-
-  recentAttempts.push(now)
-  signupRateLimitStore.set(key, recentAttempts)
-  return false
 }
 
 function hasAllowedOrigin(request: NextRequest, siteUrl: string) {
@@ -91,8 +68,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 })
     }
 
-    const rateLimitKey = `${getClientIp(request)}:${siteId}:${productId}:lead-magnet`
-    if (isRateLimited(rateLimitKey)) {
+    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:${productId}:lead-magnet`
+    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
       return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 })
     }
 

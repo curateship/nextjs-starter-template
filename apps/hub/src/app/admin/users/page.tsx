@@ -778,7 +778,6 @@ export default function UsersPage() {
                                       mode="single"
                                       selected={toCalendarDate(rule.value.from)}
                                       onSelect={(date) => updatePendingDateRange(rule.id, "from", date)}
-                                      initialFocus
                                     />
                                   </PopoverContent>
                                 </Popover>
@@ -807,7 +806,6 @@ export default function UsersPage() {
                                       mode="single"
                                       selected={toCalendarDate(rule.value.to)}
                                       onSelect={(date) => updatePendingDateRange(rule.id, "to", date)}
-                                      initialFocus
                                     />
                                   </PopoverContent>
                                 </Popover>

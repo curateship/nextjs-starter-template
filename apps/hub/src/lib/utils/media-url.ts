@@ -1,5 +1,5 @@
-// Resolves stored media references for the browser: r2:// URLs aren't publicly
-// reachable (no CORS on the bucket), so they go through the authenticated proxy.
+// Resolves stored public media references for the browser: r2:// URLs are only
+// served by the media proxy when the key belongs to a media table row.
 export function resolveMediaUrl(url?: string | null) {
   const trimmedUrl = url?.trim() || ""
   if (!trimmedUrl) return ""
