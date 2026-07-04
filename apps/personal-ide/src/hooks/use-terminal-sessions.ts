@@ -23,11 +23,29 @@ export function useTerminalSessions({
   const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
     Record<string, WorkspaceTerminalState>
   >({})
+  const terminalsByWorkspaceRef = useRef<Record<string, WorkspaceTerminalState>>({})
   const [workspaceStatuses, setWorkspaceStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const terminalSizeRef = useRef({ cols: 80, rows: 24 })
   const workspaceStatusTimersRef = useRef<Record<string, number>>({})
 
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
+
+  useEffect(() => {
+    terminalsByWorkspaceRef.current = terminalsByWorkspace
+  }, [terminalsByWorkspace])
+
+  const clearWorkspaceStatus = useCallback((workspaceId: string) => {
+    const runningTimer = workspaceStatusTimersRef.current[workspaceId]
+    if (runningTimer) window.clearTimeout(runningTimer)
+    delete workspaceStatusTimersRef.current[workspaceId]
+
+    setWorkspaceStatuses((current) => {
+      if (!current[workspaceId]) return current
+      const next = { ...current }
+      delete next[workspaceId]
+      return next
+    })
+  }, [])
 
   const handleTerminalSizeChange = useCallback((cols: number, rows: number) => {
     terminalSizeRef.current = { cols, rows }
@@ -36,6 +54,11 @@ export function useTerminalSessions({
   const handleTerminalOutput = useCallback(
     (workspaceId: string, terminalId: string, data: number[]) => {
       if (terminalId.endsWith("-server")) return
+      const terminalExists = terminalStateFor(
+        workspaceId,
+        terminalsByWorkspaceRef.current
+      ).terminals.some((terminal) => terminal.id === terminalId)
+      if (!terminalExists) return
       if (!looksLikeAgentOutput(data)) return
       setWorkspaceStatuses((current) =>
         current[workspaceId] === "running"
@@ -55,16 +78,9 @@ export function useTerminalSessions({
   const handleTerminalInput = useCallback(
     (workspaceId: string, terminalId: string) => {
       if (terminalId.endsWith("-server")) return
-      const runningTimer = workspaceStatusTimersRef.current[workspaceId]
-      if (runningTimer) window.clearTimeout(runningTimer)
-      delete workspaceStatusTimersRef.current[workspaceId]
-      setWorkspaceStatuses((current) => {
-        const next = { ...current }
-        delete next[workspaceId]
-        return next
-      })
+      clearWorkspaceStatus(workspaceId)
     },
-    []
+    [clearWorkspaceStatus]
   )
 
   useEffect(() => {
@@ -144,12 +160,27 @@ export function useTerminalSessions({
         activeTerminalId: nextActiveTerminalId,
       },
     }))
+    terminalsByWorkspaceRef.current = {
+      ...terminalsByWorkspaceRef.current,
+      [workspaceId]: {
+        terminals: nextTerminals,
+        activeTerminalId: nextActiveTerminalId,
+      },
+    }
+    if (nextTerminals.every((terminal) => terminal.id.endsWith("-server"))) {
+      clearWorkspaceStatus(workspaceId)
+    }
     void killNativeTerminal(terminalId).catch((error) =>
       onError(readableError(error))
     )
   }
 
   function removeWorkspaceTerminals(workspaceId: string) {
+    clearWorkspaceStatus(workspaceId)
+    const nextTerminalStates = { ...terminalsByWorkspaceRef.current }
+    delete nextTerminalStates[workspaceId]
+    terminalsByWorkspaceRef.current = nextTerminalStates
+
     setTerminalsByWorkspace((current) => {
       const next = { ...current }
       delete next[workspaceId]
