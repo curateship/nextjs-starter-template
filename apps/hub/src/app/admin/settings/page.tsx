@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { IDLE_SAVE_STATUS, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -516,11 +517,11 @@ export default function SiteEditPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [adminSettingsStatus, setAdminSettingsStatus] = useState({
     loading: true,
     saving: false,
-    message: null as string | null
+    saveStatus: IDLE_SAVE_STATUS
   })
 
   const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
@@ -530,7 +531,7 @@ export default function SiteEditPage() {
   const isAdminSettingsTab = activeTab === "sidebar" || activeTab === "dashboard-quick-links"
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
-  const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
+  const headerSaveStatus = isAdminSettingsTab ? adminSettingsStatus.saveStatus : saveStatus
   const isCustomDomainVerificationError =
     activeTab === "general" && /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
@@ -568,13 +569,13 @@ export default function SiteEditPage() {
   }, [site?.settings?.newsletter_cold_threshold_emails])
 
   const showSuccess = useCallback((message: string) => {
-    setSaveMessage(message)
-    setTimeout(() => setSaveMessage(null), 3000)
-  }, [])
+    setSaveStatus("saved", message)
+  }, [setSaveStatus])
 
   const showError = useCallback((message: string) => {
     setError(message)
-  }, [])
+    setSaveStatus("error", message)
+  }, [setSaveStatus])
 
   const handleEmailIntegrationSuccess = useCallback(
     (message: string) => {
@@ -593,11 +594,11 @@ export default function SiteEditPage() {
     try {
       setIsSubmitting(true)
       setError(null)
-      setSaveMessage(null)
+      setSaveStatus("saving")
 
       if (activeTab === "general" || activeTab === "style") {
         if (!siteName.trim()) {
-          setError("Site name is required")
+          showError("Site name is required")
           return
         }
 
@@ -625,7 +626,7 @@ export default function SiteEditPage() {
         })
 
         if (error) {
-          setError(error)
+          showError(error)
           return
         }
 
@@ -640,7 +641,7 @@ export default function SiteEditPage() {
       } else if (activeTab === "newsletters") {
         const dripError = newsletterDripDefaults.validate()
         if (dripError) {
-          setError(dripError)
+          showError(dripError)
           return
         }
         const coldThreshold = normalizeContactColdEmailThreshold(coldThresholdEmails)
@@ -654,7 +655,7 @@ export default function SiteEditPage() {
         })
 
         if (error) {
-          setError(error)
+          showError(error)
           return
         }
 
@@ -672,7 +673,7 @@ export default function SiteEditPage() {
       }
     } catch (err) {
       console.error("Error saving:", err)
-      setError("Failed to save. Please try again.")
+      showError("Failed to save. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -716,7 +717,7 @@ export default function SiteEditPage() {
               },
               { label: activeTabConfig.label }
             ]}
-            saveMessage={!isCronJobsTab ? headerSaveMessage : null}
+            saveStatus={!isCronJobsTab ? headerSaveStatus : null}
             isSaving={isAdminSettingsTab ? adminSettingsStatus.saving : isSubmitting}
             onSave={!isCronJobsTab ? handleHeaderSave : undefined}
             saveDisabled={isAdminSettingsTab ? adminSettingsStatus.loading : false}

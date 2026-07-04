@@ -207,7 +207,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
+            isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}

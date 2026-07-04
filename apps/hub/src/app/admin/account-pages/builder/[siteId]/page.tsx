@@ -201,7 +201,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onSave={currentPageData ? builderState.handleSaveAllBlocks : undefined}
             blockListOpen={blockListOpen}

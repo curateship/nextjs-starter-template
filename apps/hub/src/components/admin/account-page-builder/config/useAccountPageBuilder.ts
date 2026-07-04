@@ -5,6 +5,7 @@ import {
 } from "@/lib/actions/account-pages/account-pages-actions"
 import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { getBlockTypeDefinition } from "./account-page-block-types"
+import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 interface BlockSelection {
   type: string
@@ -24,7 +25,7 @@ interface UseAccountPagesBuilderReturn {
   selectedBlock: any | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<any | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   deleting: string | null
   updateBlockContent: (field: string, value: any) => void
   saveSelectedBlockContent: (content: Record<string, any>) => Promise<boolean>
@@ -44,7 +45,7 @@ export function useAccountPageBuilder({
 }: UseAccountPagesBuilderParams): UseAccountPagesBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [deleting, setDeleting] = useState<string | null>(null)
 
   useEffect(() => {
@@ -57,6 +58,8 @@ export function useAccountPageBuilder({
     const updatedBlocks = { ...blocks }
     const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
+      if (!hasSaveableChange(updatedBlocks[selectedPage][blockIndex].content?.[field], value)) return
+
       updatedBlocks[selectedPage][blockIndex] = {
         ...updatedBlocks[selectedPage][blockIndex],
         content: {
@@ -66,18 +69,18 @@ export function useAccountPageBuilder({
       }
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+      setSaveStatus("dirty")
     }
   }
 
   const persistBlocks = async (pageBlocks: any[]) => {
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (!currentPage) {
-        setSaveMessage("Error: Page not found")
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", "Page not found")
         return false
       }
 
@@ -85,18 +88,15 @@ export function useAccountPageBuilder({
       const { error } = await updateAccountPageBlocksAction(currentPage.id, jsonBlocks)
 
       if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", error)
         return false
       }
 
-      setSaveMessage("Saved!")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("saved")
       return true
     } catch (error) {
       console.error('Error saving blocks:', error)
-      setSaveMessage("Error saving blocks")
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", "Error saving blocks")
       return false
     } finally {
       setIsSaving(false)
@@ -155,13 +155,9 @@ export function useAccountPageBuilder({
       if (reloadBlocks) {
         await reloadBlocks()
       }
-
-      setSaveMessage("Block deleted!")
-      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error deleting block:', err)
-      setSaveMessage("Error deleting block")
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", "Error deleting block")
     } finally {
       setDeleting(null)
     }
@@ -192,8 +188,7 @@ export function useAccountPageBuilder({
     const hasActiveBlocks = blocks[selectedPage] && blocks[selectedPage].length > 0
 
     if (!hasActiveBlocks) {
-      setSaveMessage("No changes to save")
-      setTimeout(() => setSaveMessage(""), 2000)
+      setSaveStatus("saved")
       return
     }
 
@@ -236,13 +231,14 @@ export function useAccountPageBuilder({
 
     updatedBlocks[selectedPage] = newBlocks
     setBlocks(updatedBlocks)
+    setSaveStatus("dirty")
   }
 
   return {
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     deleting,
     updateBlockContent,
     saveSelectedBlockContent,

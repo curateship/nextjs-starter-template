@@ -263,7 +263,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            saveMessage={builderState.saveMessage}
+            saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}

@@ -7,6 +7,7 @@ import { normalizePostBlockContent } from '@/lib/actions/posts/post-layout'
 import { normalizePostBuilderBlock, postBuilderBlocksToRecord, parsePostBlocksFromJson } from './post-block-utils'
 import { getBlockTypeDefinition } from './post-block-types'
 import { postBlocksToValueJson } from '@/lib/actions/posts/post-template-inheritance'
+import { hasSaveableChange, type SaveStatus, useSaveStatus } from '@/components/admin/layout/builder/save-status'
 
 interface BlockSelection {
   type: string
@@ -24,7 +25,8 @@ export interface PostBuilderHookResult {
   blocks: Record<string, PostBlock>
   selectedBlock: PostBlock | null
   setSelectedBlock: (block: PostBlock | null) => void
-  saveMessage: string
+  isSaving: boolean
+  saveStatus: SaveStatus
   handleAddBlocks: (selections: BlockSelection[]) => void
   handleDeleteBlock: (block: PostBlock) => void
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => void
@@ -35,7 +37,12 @@ export interface PostBuilderHookResult {
 
 export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UsePostBuilderParams): PostBuilderHookResult {
   const [selectedBlock, setSelectedBlock] = useState<PostBlock | null>(null)
-  const [saveMessage, setSaveMessage] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useSaveStatus()
+  const withoutUpdatedAt = (block: PostBlock) => {
+    const { updated_at: _updatedAt, ...rest } = block
+    return rest
+  }
   
   // Clear selection when switching posts
   useEffect(() => {
@@ -93,6 +100,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       })
       return updated
     })
+    setSaveStatus("dirty")
   }
 
   // Delete a block (local-first)
@@ -107,6 +115,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
+    setSaveStatus("dirty")
   }
 
   // Update a block (local state only)
@@ -122,6 +131,10 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       content: normalizePostBlockContent(nextType, updates.content || currentBlock.content),
       updated_at: new Date().toISOString()
     })
+    if (!hasSaveableChange(
+      withoutUpdatedAt(normalizePostBuilderBlock(currentBlock)),
+      withoutUpdatedAt(updatedBlock)
+    )) return
 
     // Update local state only - no immediate server save
     setBlocks(prev => ({
@@ -133,6 +146,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     if (selectedBlock?.id === blockId) {
       setSelectedBlock(updatedBlock)
     }
+    setSaveStatus("dirty")
   }
 
   // Reorder blocks (local-first)
@@ -141,11 +155,15 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       ...block,
       updated_at: new Date().toISOString(),
     })))
+    const currentOrder = Object.values(blocks).map((block) => block.id)
+    const nextOrder = Object.values(updated).map((block) => block.id)
+    if (!hasSaveableChange(currentOrder, nextOrder)) return
 
     setBlocks(updated)
     if (selectedBlock) {
       setSelectedBlock(updated[selectedBlock.id] || null)
     }
+    setSaveStatus("dirty")
   }
 
   // Clean up corrupted blocks (local-first)
@@ -160,37 +178,37 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
 
     // Update local state only
     setBlocks(cleanBlocks)
+    setSaveStatus("dirty")
   }
 
   // Save all blocks to server (like page builder)
   const handleSaveAllBlocks = async () => {
     if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
+      setSaveStatus("error", "No post selected")
       return
     }
     
-    try {
-      setSaveMessage('Saving blocks...')
+    setIsSaving(true)
+    setSaveStatus("saving")
 
+    try {
       const normalizedBlocks = postBuilderBlocksToRecord(Object.values(blocks))
       const valueBlocks = postBlocksToValueJson(parsePostBlocksFromJson(normalizedBlocks))
       const { success, error } = await updatePostBlocksAction(postId, valueBlocks)
 
       if (!success || error) {
         console.error('Error saving blocks:', error)
-        setSaveMessage('Error saving blocks')
-        setTimeout(() => setSaveMessage(''), 3000)
+        setSaveStatus("error", error || "Error saving blocks")
         return
       }
 
       setBlocks(normalizedBlocks)
-      setSaveMessage('All blocks saved!')
-      setTimeout(() => setSaveMessage(''), 3000)
+      setSaveStatus("saved")
     } catch (err) {
       console.error('Error saving blocks:', err)
-      setSaveMessage('Error saving blocks')
-      setTimeout(() => setSaveMessage(''), 3000)
+      setSaveStatus("error", "Error saving blocks")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -198,7 +216,8 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     blocks,
     selectedBlock,
     setSelectedBlock,
-    saveMessage,
+    isSaving,
+    saveStatus,
     handleAddBlocks,
     handleDeleteBlock,
     handleUpdateBlock,

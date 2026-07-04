@@ -3,6 +3,7 @@ import { updateDirectoryBlockValuesAction } from "@/lib/actions/directories/dire
 import { normalizeDirectoryBlockContent } from "@/lib/actions/directories/directory-layout"
 import { directoryBlocksToValueJson } from "@/lib/actions/directories/directory-template-inheritance"
 import { orderDirectoryEditorBlocks, type DirectoryEditorBlock } from "./directory-block-utils"
+import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 interface UseDirectoryBuilderParams {
   blocks: Record<string, DirectoryEditorBlock[]>
@@ -15,7 +16,7 @@ interface UseDirectoryBuilderReturn {
   selectedBlock: DirectoryEditorBlock | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<DirectoryEditorBlock | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   handleUpdateBlock: (blockId: string, updates: Partial<DirectoryEditorBlock>) => void
   handleSaveAllBlocks: () => void
 }
@@ -28,7 +29,7 @@ export function useDirectoryBuilder({
 }: UseDirectoryBuilderParams): UseDirectoryBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<DirectoryEditorBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   useEffect(() => {
     setSelectedBlock(null)
@@ -41,16 +42,23 @@ export function useDirectoryBuilder({
 
     if (blockIndex === -1) return
 
-    const nextType = updates.type || currentBlocks[blockIndex].type
+    const currentBlock = currentBlocks[blockIndex]
+    const nextType = updates.type || currentBlock.type
     const updatedBlock = {
-      ...currentBlocks[blockIndex],
+      ...currentBlock,
       ...updates,
       type: nextType,
       content: normalizeDirectoryBlockContent(
         nextType,
-        updates.content || currentBlocks[blockIndex].content
+        updates.content || currentBlock.content
       ),
     }
+    const currentNormalizedBlock = {
+      ...currentBlock,
+      content: normalizeDirectoryBlockContent(currentBlock.type, currentBlock.content),
+    }
+
+    if (!hasSaveableChange(currentNormalizedBlock, updatedBlock)) return
 
     currentBlocks[blockIndex] = updatedBlock
     updatedBlocks[selectedDirectory] = currentBlocks
@@ -59,12 +67,12 @@ export function useDirectoryBuilder({
     if (selectedBlock?.id === blockId) {
       setSelectedBlock(updatedBlock)
     }
+    setSaveStatus("dirty")
   }
 
   const handleSaveAllBlocks = async () => {
     if (!directoryId) {
-      setSaveMessage("Error: Directory ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("error", "Directory ID required")
       return
     }
 
@@ -72,21 +80,18 @@ export function useDirectoryBuilder({
     const contentBlocks = directoryBlocksToValueJson(currentBlocks)
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const result = await updateDirectoryBlockValuesAction(directoryId, contentBlocks)
 
       if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
       } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
+        setSaveStatus("error", result.error || "Failed to save")
       }
     } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
     }
@@ -96,7 +101,7 @@ export function useDirectoryBuilder({
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     handleUpdateBlock,
     handleSaveAllBlocks
   }

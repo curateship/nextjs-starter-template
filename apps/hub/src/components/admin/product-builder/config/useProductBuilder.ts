@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 import { getBlockTypeDefinition } from "./product-block-types"
 import { productBlocksToJson, type ProductBuilderBlock } from "./product-block-utils"
+import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 
 type ProductBlock = ProductBuilderBlock
 
@@ -25,7 +26,7 @@ interface UseProductBuilderReturn {
   selectedBlock: ProductBlock | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<ProductBlock | null>>
   isSaving: boolean
-  saveMessage: string
+  saveStatus: SaveStatus
   updateBlockContent: (field: string, value: any) => void
   handleUpdateBlock: (blockId: string, updates: Record<string, any>) => void
   replaceSelectedBlockContent: (content: Record<string, any>) => void
@@ -45,7 +46,7 @@ export function useProductBuilder({
 }: UseProductBuilderParams): UseProductBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
+  const [saveStatus, setSaveStatus] = useSaveStatus()
 
   const buildContentBlocksPayload = (currentBlocks: ProductBlock[]) => {
     const existingContentBlocks = currentProduct?.content_blocks || {}
@@ -54,29 +55,25 @@ export function useProductBuilder({
 
   const persistBlocks = async (currentBlocks: ProductBlock[]) => {
     if (!productId) {
-      setSaveMessage("Error: Product ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
+      setSaveStatus("error", "Product ID required")
       return false
     }
 
     setIsSaving(true)
-    setSaveMessage("Saving...")
+    setSaveStatus("saving")
 
     try {
       const result = await updateProductBlocksAction(productId, buildContentBlocksPayload(currentBlocks))
 
       if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
+        setSaveStatus("saved")
         return true
       }
 
-      setSaveMessage(`Error: ${result.error}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", result.error || "Failed to save")
       return false
     } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
+      setSaveStatus("error", error instanceof Error ? error.message : 'Failed to save')
       return false
     } finally {
       setIsSaving(false)
@@ -93,6 +90,8 @@ export function useProductBuilder({
     const currentBlocks = [...(blocks[selectedProduct] || [])]
     const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
+      if (!hasSaveableChange(currentBlocks[blockIndex].content?.[field], value)) return
+
       const updatedBlock = {
         ...currentBlocks[blockIndex],
         content: {
@@ -107,6 +106,7 @@ export function useProductBuilder({
       }
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlock)
+      setSaveStatus("dirty")
     }
   }
 
@@ -122,6 +122,7 @@ export function useProductBuilder({
       ...updates,
       content: updates.content !== undefined ? updates.content : currentBlocks[blockIndex].content,
     }
+    if (!hasSaveableChange(currentBlocks[blockIndex], updatedBlock)) return
 
     currentBlocks[blockIndex] = updatedBlock
     updatedBlocks[selectedProduct] = currentBlocks
@@ -130,6 +131,7 @@ export function useProductBuilder({
     if (selectedBlock?.id === blockId) {
       setSelectedBlock(updatedBlock)
     }
+    setSaveStatus("dirty")
   }
 
   const replaceSelectedBlockContent = (content: Record<string, any>) => {
@@ -138,6 +140,8 @@ export function useProductBuilder({
     const currentBlocks = [...(blocks[selectedProduct] || [])]
     const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
+      if (!hasSaveableChange(currentBlocks[blockIndex].content, content)) return
+
       const updatedBlock = {
         ...currentBlocks[blockIndex],
         content,
@@ -149,6 +153,7 @@ export function useProductBuilder({
       }
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlock)
+      setSaveStatus("dirty")
     }
   }
 
@@ -181,20 +186,28 @@ export function useProductBuilder({
   const handleDeleteBlock = (block: ProductBlock) => {
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedProduct] = updatedBlocks[selectedProduct].filter(b => b.id !== block.id)
+    if (!hasSaveableChange(blocks[selectedProduct], updatedBlocks[selectedProduct])) return
+
     setBlocks(updatedBlocks)
     
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
+    setSaveStatus("dirty")
   }
 
   const handleReorderBlocks = (reorderedBlocks: ProductBlock[]) => {
+    const currentOrder = (blocks[selectedProduct] || []).map((block) => block.id)
+    const nextOrder = reorderedBlocks.map((block) => block.id)
+    if (!hasSaveableChange(currentOrder, nextOrder)) return
+
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedProduct] = reorderedBlocks.map((block, index) => ({
       ...block,
       display_order: index,
     }))
     setBlocks(updatedBlocks)
+    setSaveStatus("dirty")
   }
 
   const handleAddBlocks = (selections: BlockSelection[]) => {
@@ -225,9 +238,14 @@ export function useProductBuilder({
     }
 
     // Add all new blocks to the end of the current blocks
+    if (newBlocks.length === 0) {
+      return
+    }
+
     updatedBlocks[selectedProduct] = [...currentBlocks, ...newBlocks]
 
     setBlocks(updatedBlocks)
+    setSaveStatus("dirty")
   }
 
   const handleSaveAllBlocks = async () => {
@@ -238,7 +256,7 @@ export function useProductBuilder({
     selectedBlock,
     setSelectedBlock,
     isSaving,
-    saveMessage,
+    saveStatus,
     updateBlockContent,
     handleUpdateBlock,
     replaceSelectedBlockContent,

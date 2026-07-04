@@ -38,7 +38,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
       siteId={currentSite?.id || ""}
       subject={builder.subject}
       onSubjectChange={builder.setSubject}
-      saveMessage={builder.saveMessage}
+      saveStatus={builder.saveStatus}
       isSaving={builder.isSaving}
       onSave={builder.handleSave}
       settingsDisabled={!builder.step}

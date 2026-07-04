@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
+import { IDLE_SAVE_STATUS } from '@/components/admin/layout/builder/save-status'
 import { cn } from '@/lib/utils/tailwind'
 import { SiteAuditOverviewTab } from './SiteAuditOverviewTab'
 import { ContentAuditTab } from './ContentAuditTab'
@@ -38,8 +39,8 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
-  const [metadataStatus, setMetadataStatus] = useState({ loading: true, saving: false, message: null as string | null })
-  const [technicalStatus, setTechnicalStatus] = useState({ loading: true, saving: false, message: null as string | null })
+  const [metadataStatus, setMetadataStatus] = useState({ loading: true, saving: false, saveStatus: IDLE_SAVE_STATUS })
+  const [technicalStatus, setTechnicalStatus] = useState({ loading: true, saving: false, saveStatus: IDLE_SAVE_STATUS })
   const requestedTab = searchParams.get('tab')
   const activeTab = getSeoTabId(requestedTab) || 'metadata'
 
@@ -78,7 +79,7 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
               { label: activeTabConfig.label },
             ]}
             search={search}
-            saveMessage={showSettingsSave ? activeSettingsStatus.message : null}
+            saveStatus={showSettingsSave ? activeSettingsStatus.saveStatus : null}
             isSaving={activeSettingsStatus.saving}
             onSave={showSettingsSave ? handleSave : undefined}
             saveDisabled={activeSettingsStatus.loading}

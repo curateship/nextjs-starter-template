@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom"
 import { StickybarTopRightActions, type StickybarFilterMenuConfig, type StickybarSearchConfig, useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { isSaveStatusVisible, type SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardSubheaderProps {
@@ -15,7 +16,7 @@ interface DashboardSubheaderProps {
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
-  saveMessage?: string | null
+  saveStatus?: SaveStatus | null
   isSaving?: boolean
   onSave?: () => void
   saveDisabled?: boolean
@@ -35,7 +36,7 @@ export function DashboardSubheader({
   search,
   preActions,
   actions,
-  saveMessage,
+  saveStatus,
   isSaving,
   onSave,
   saveDisabled,
@@ -46,14 +47,14 @@ export function DashboardSubheader({
   className
 }: DashboardSubheaderProps) {
   const { slot } = useDashboardHeaderActionsSlot()
-  const topRightActions = (search || filterMenu || preActions || actions || onSave || saveMessage) ? (
+  const topRightActions = (search || filterMenu || preActions || actions || onSave || isSaveStatusVisible(saveStatus)) ? (
     <StickybarTopRightActions
       className="gap-1"
       search={search}
       preActions={preActions}
       filterMenu={filterMenu}
       rightActions={actions}
-      saveMessage={saveMessage}
+      saveStatus={saveStatus}
       isSaving={isSaving}
       onSave={onSave}
       saveDisabled={saveDisabled}

@@ -10,6 +10,7 @@ import { DashboardModalContent } from "@/components/admin/layout/dashboard/modal
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import type { SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { NEWSLETTER_BLOCK_TYPES } from "../config/newsletter-block-types"
 import type { BlockSelection, NewsletterBlock } from "../config/useBlockEditor"
 import { NewsletterBlockEditor } from "./NewsletterBlockEditor"
@@ -31,7 +32,7 @@ interface NewsletterEditorShellProps {
   errorBackLabel: string
   onErrorBack: () => void
   isSaving?: boolean
-  saveMessage?: string | null
+  saveStatus?: SaveStatus | null
   onSave: () => void | Promise<void>
   subject?: string
   onSubjectChange?: (value: string) => void
@@ -156,7 +157,7 @@ export function NewsletterEditorShell({
   errorBackLabel,
   onErrorBack,
   isSaving = false,
-  saveMessage,
+  saveStatus,
   onSave,
   subject,
   onSubjectChange,
@@ -242,7 +243,7 @@ export function NewsletterEditorShell({
                 {headerActions}
               </div>
             )}
-            saveMessage={saveMessage}
+            saveStatus={saveStatus}
             isSaving={isSaving}
             onSave={onSave}
             onPublish={onPublish}

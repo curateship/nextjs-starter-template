@@ -125,7 +125,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         subject={builder.subject}
         onSubjectChange={builder.setSubject}
         emailWidth={newsletter?.metadata?.maxWidth || 600}
-        saveMessage={builder.saveMessage}
+        saveStatus={builder.saveStatus}
         isSaving={builder.isSaving}
         onSave={builder.handleSave}
         topNotice={dripNotice}
