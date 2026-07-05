@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 interface AnalyticsEvent {
   type: string
@@ -9,6 +10,9 @@ interface AnalyticsEvent {
   referrer?: string
   daily_visitor?: boolean
   timestamp: string
+  sponsor_id?: string
+  placement?: string
+  post_id?: string
 }
 
 function shouldCountDailyVisitor(): boolean {
@@ -83,6 +87,45 @@ export function AnalyticsTracker() {
     lastPath.current = pathname
     trackPageview(pathname + window.location.search)
   }, [pathname, trackPageview])
+
+  // Track rendered sponsor embeds once per page view. Failures never break the page.
+  useEffect(() => {
+    if (pathname.startsWith('/admin')) return
+
+    const seen = new Set<string>()
+
+    const scan = () => {
+      try {
+        const cards = document.querySelectorAll<HTMLElement>('[data-sponsor-track="true"][data-sponsor-id]')
+        cards.forEach((card) => {
+          const sponsorId = card.dataset.sponsorId || ''
+          if (!UUID_REGEX.test(sponsorId) || seen.has(sponsorId)) return
+          seen.add(sponsorId)
+
+          const postId = card.dataset.sponsorPostId
+          queue.current.push({
+            type: 'sponsor_impression',
+            sponsor_id: sponsorId,
+            page_path: pathname,
+            placement: card.dataset.sponsorPlacement || 'post_editor',
+            post_id: postId && UUID_REGEX.test(postId) ? postId : undefined,
+            timestamp: new Date().toISOString(),
+          })
+        })
+      } catch {
+        // Never break public rendering because of tracking
+      }
+    }
+
+    // Scan after paint, then once more for late-hydrating content
+    const firstScan = setTimeout(scan, 1000)
+    const secondScan = setTimeout(scan, 4000)
+
+    return () => {
+      clearTimeout(firstScan)
+      clearTimeout(secondScan)
+    }
+  }, [pathname])
 
   return null
 }

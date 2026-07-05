@@ -10,9 +10,11 @@ interface SponsorCardProps {
 }
 
 export function SponsorCard({ sponsor, postId, className, tracking = true }: SponsorCardProps) {
-  const href = sanitizeUrl(sponsor.url, '#')
+  const directHref = sanitizeUrl(sponsor.url, '#')
   const imageSrc = sanitizeUrl(sponsor.image_url, '')
-  const isExternal = /^https?:\/\//i.test(href)
+  const isExternal = /^https?:\/\//i.test(directHref)
+  // Tracked clicks go through the click route, which redirects to the stored sponsor URL
+  const href = tracking && directHref !== '#' ? `/api/sponsors/click/${sponsor.id}` : directHref
 
   return (
     <a
@@ -23,7 +25,7 @@ export function SponsorCard({ sponsor, postId, className, tracking = true }: Spo
       data-sponsor-track={tracking ? "true" : undefined}
       data-sponsor-placement={tracking ? "post_editor" : undefined}
       data-sponsor-post-id={tracking ? postId : undefined}
-      data-sponsor-url={tracking ? href : undefined}
+      data-sponsor-url={tracking ? directHref : undefined}
       className={cn(
         "not-prose my-6 flex items-center gap-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-lg",
         className
