@@ -1,11 +1,17 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
+  ArrowRightLeftIcon,
   BellIcon,
+  BookOpenIcon,
   MessageSquareIcon,
+  RadarIcon,
   ThumbsUpIcon,
+  UsersIcon,
 } from "lucide-react"
 
+import { alertRoute, ALERT_TYPE_LABELS } from "@/components/scanner/alert-meta"
 import { Badge } from "@/components/ui/badge"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -32,11 +38,30 @@ import {
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
+import {
+  loadAlertsPage,
+  markAlertRead,
+  type ScannerAlertItem,
+} from "@/lib/api/scanner"
 import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
-type TypeFilter = "all" | NotificationType
-type NotificationSortColumn = "activity" | "feedback" | "recipient" | "type" | "status" | "created"
+type TypeFilter = "all" | NotificationType | "alert"
+type NotificationSortColumn =
+  | "activity"
+  | "detail"
+  | "source"
+  | "type"
+  | "status"
+  | "created"
+
+// A row is a feedback notification or a scanner alert — the same unified feed
+// shown in the top-right notification tray.
+type UnifiedRow =
+  | { kind: "feedback"; id: string; createdAt: string; read: boolean; feedback: NotificationItem }
+  | { kind: "alert"; id: string; createdAt: string; read: boolean; alert: ScannerAlertItem }
+
+const ALERT_TRAY_LIMIT = 100
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -46,9 +71,45 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 })
 
-const notificationTypeLabels: Record<NotificationType, string> = {
+const feedbackTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+}
+
+function rowTypeLabel(row: UnifiedRow): string {
+  return row.kind === "feedback"
+    ? feedbackTypeLabels[row.feedback.type]
+    : (ALERT_TYPE_LABELS[row.alert.type] ?? row.alert.type)
+}
+
+function rowActivity(row: UnifiedRow): string {
+  return row.kind === "feedback" ? row.feedback.actor_name : row.alert.title
+}
+
+function rowDetail(row: UnifiedRow): string {
+  return row.kind === "feedback"
+    ? row.feedback.feedback_message
+    : (row.alert.body ?? "")
+}
+
+function rowSource(row: UnifiedRow): string {
+  return row.kind === "feedback"
+    ? row.feedback.recipient_name
+    : (row.alert.coin ?? "")
+}
+
+function AlertGlyph({ type }: { type: string }) {
+  const className = "size-4 text-muted-foreground"
+  switch (alertRoute(type)) {
+    case "/scanner/positions":
+      return <ArrowRightLeftIcon className={className} />
+    case "/scanner/crowded":
+      return <UsersIcon className={className} />
+    case "/scanner/book":
+      return <BookOpenIcon className={className} />
+    default:
+      return <RadarIcon className={className} />
+  }
 }
 
 type NotificationsPageProps = {
@@ -60,17 +121,21 @@ export function NotificationsPage({
   defaultRowsPerPage,
   onOpenFeedbackThread,
 }: NotificationsPageProps) {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
+  const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
-  const [sortColumn, setSortColumn] = React.useState<NotificationSortColumn>("created")
-  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
+  const [sortColumn, setSortColumn] =
+    React.useState<NotificationSortColumn>("created")
+  const [sortDirection, setSortDirection] =
+    React.useState<TableSortDirection>("desc")
 
   const loadNotifications = React.useCallback(async (cursor?: string) => {
     if (cursor) {
@@ -94,45 +159,117 @@ export function NotificationsPage({
     }
   }, [defaultRowsPerPage])
 
+  const loadAlerts = React.useCallback(async () => {
+    try {
+      const data = await loadAlertsPage(1, ALERT_TRAY_LIMIT)
+      setAlerts(data.items)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [])
+
   React.useEffect(() => {
     void loadNotifications()
-  }, [loadNotifications])
+    void loadAlerts()
+  }, [loadNotifications, loadAlerts])
 
-  const filteredNotifications = React.useMemo(() => {
+  const rows = React.useMemo<UnifiedRow[]>(() => {
+    return [
+      ...notifications.map((n) => ({
+        kind: "feedback" as const,
+        id: `f:${n.id}`,
+        createdAt: n.created_at,
+        read: n.read_at !== null,
+        feedback: n,
+      })),
+      ...alerts.map((a) => ({
+        kind: "alert" as const,
+        id: `a:${a.id}`,
+        createdAt: a.created_at,
+        read: a.read_at !== null,
+        alert: a,
+      })),
+    ]
+  }, [notifications, alerts])
+
+  const filteredRows = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const direction = sortDirection === "asc" ? 1 : -1
 
-    return notifications.filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.actor_name.toLowerCase().includes(query) ||
-        item.recipient_name.toLowerCase().includes(query) ||
-        item.feedback_message.toLowerCase().includes(query)
-      const matchesRead =
-        readFilter === "all" ||
-        (readFilter === "unread" && !item.read_at) ||
-        (readFilter === "read" && item.read_at)
-      const matchesType = typeFilter === "all" || item.type === typeFilter
+    return rows
+      .filter((row) => {
+        const haystack = [
+          rowActivity(row),
+          rowDetail(row),
+          rowSource(row),
+          rowTypeLabel(row),
+        ]
+          .join(" ")
+          .toLowerCase()
+        const matchesSearch = !query || haystack.includes(query)
+        const matchesRead =
+          readFilter === "all" ||
+          (readFilter === "unread" && !row.read) ||
+          (readFilter === "read" && row.read)
+        const matchesType =
+          typeFilter === "all" ||
+          (typeFilter === "alert" && row.kind === "alert") ||
+          (row.kind === "feedback" && row.feedback.type === typeFilter)
 
-      return matchesSearch && matchesRead && matchesType
-    }).sort((a, b) => {
-      if (sortColumn === "activity") return a.actor_name.localeCompare(b.actor_name) * direction
-      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
-      if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
-      if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
-      if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
-      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
-    })
-  }, [notifications, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
+        return matchesSearch && matchesRead && matchesType
+      })
+      .sort((a, b) => {
+        if (sortColumn === "status") {
+          return (Number(a.read) - Number(b.read)) * direction
+        }
+        if (sortColumn === "created") {
+          return (
+            (new Date(a.createdAt).getTime() -
+              new Date(b.createdAt).getTime()) *
+            direction
+          )
+        }
+        const get =
+          sortColumn === "activity"
+            ? rowActivity
+            : sortColumn === "detail"
+              ? rowDetail
+              : sortColumn === "source"
+                ? rowSource
+                : rowTypeLabel
+        return get(a).localeCompare(get(b)) * direction
+      })
+  }, [rows, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
 
   const toggleSort = (column: NotificationSortColumn) => {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
       return
     }
-
     setSortColumn(column)
     setSortDirection("asc")
+  }
+
+  async function openRow(row: UnifiedRow) {
+    if (row.kind === "feedback") {
+      onOpenFeedbackThread(row.feedback.feedback_id)
+      return
+    }
+    if (!row.alert.read_at) {
+      try {
+        const result = await markAlertRead(row.alert.id)
+        setAlerts((current) =>
+          current.map((item) =>
+            item.id === row.alert.id
+              ? { ...item, read_at: result.readAt }
+              : item
+          )
+        )
+      } catch {
+        // navigate anyway; the read state will reconcile on next load
+      }
+    }
+    void navigate({ to: alertRoute(row.alert.type) })
   }
 
   return (
@@ -150,7 +287,7 @@ export function NotificationsPage({
       <DashboardTable
         title="Notifications"
         icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={filteredNotifications.length}
+        count={filteredRows.length}
         controls={
           <>
             <DashboardToolbarSearch
@@ -182,12 +319,13 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={["All types", "Thumbs up", "Comments"]}
+                labels={["All types", "Alerts", "Thumbs up", "Comments"]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="alert">Scanner alerts</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
               </SelectContent>
@@ -195,47 +333,71 @@ export function NotificationsPage({
           </>
         }
         header={
-            <TableHeader>
-              <TableRow>
-                <TableHead column="main">
-                  <TableSortButton active={sortColumn === "activity"} direction={sortDirection} onClick={() => toggleSort("activity")}>
-                    Activity
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="preview">
-                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
-                    Feedback
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "recipient"} direction={sortDirection} onClick={() => toggleSort("recipient")}>
-                    Recipient
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
-                    Type
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
-                    Status
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
-                    Created
-                  </TableSortButton>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main">
+                <TableSortButton
+                  active={sortColumn === "activity"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("activity")}
+                >
+                  Notification
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="preview">
+                <TableSortButton
+                  active={sortColumn === "detail"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("detail")}
+                >
+                  Detail
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "source"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("source")}
+                >
+                  Recipient / Coin
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "type"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("type")}
+                >
+                  Type
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "status"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("status")}
+                >
+                  Status
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "created"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("created")}
+                >
+                  Created
+                </TableSortButton>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
         }
-        isEmpty={filteredNotifications.length === 0}
+        isEmpty={filteredRows.length === 0}
         emptyText="No notifications found."
         emptyColSpan={6}
         footer={{
           type: "loadMore",
-          count: filteredNotifications.length,
+          count: filteredRows.length,
           label: "notifications",
           hasMore: Boolean(nextCursor),
           loading: loadingMore,
@@ -244,60 +406,62 @@ export function NotificationsPage({
             : undefined,
         }}
       >
-        {filteredNotifications.map((item) => (
+        {filteredRows.map((row) => (
           <TableRow
-            key={item.id}
+            key={row.id}
             role="button"
             tabIndex={0}
             className="cursor-pointer"
-            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            onClick={() => void openRow(row)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                onOpenFeedbackThread(item.feedback_id)
+                void openRow(row)
               }
             }}
           >
             <TableCell column="main">
               <div className="flex items-center gap-2">
-                {item.type === "feedback_vote" ? (
-                  <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                {row.kind === "feedback" ? (
+                  row.feedback.type === "feedback_vote" ? (
+                    <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                  ) : (
+                    <MessageSquareIcon className="size-4 text-muted-foreground" />
+                  )
                 ) : (
-                  <MessageSquareIcon className="size-4 text-muted-foreground" />
+                  <AlertGlyph type={row.alert.type} />
                 )}
-                <div>
-                  <p className="text-sm font-medium">
-                    {notificationTypeLabels[item.type]}
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm font-medium">
+                    {row.kind === "feedback"
+                      ? feedbackTypeLabels[row.feedback.type]
+                      : row.alert.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.actor_name}
+                    {row.kind === "feedback"
+                      ? row.feedback.actor_name
+                      : "Research scanner"}
                   </p>
                 </div>
               </div>
             </TableCell>
             <TableCell column="preview">
-              <span className="line-clamp-1 max-w-44">
-                {item.feedback_message}
-              </span>
+              <span className="line-clamp-1 max-w-44">{rowDetail(row)}</span>
             </TableCell>
-            <TableCell column="mutedMeta">
-              {item.recipient_name}
-            </TableCell>
+            <TableCell column="mutedMeta">{rowSource(row) || "—"}</TableCell>
             <TableCell column="meta">
-              <Badge variant="secondary">
-                {notificationTypeLabels[item.type]}
-              </Badge>
+              <Badge variant="secondary">{rowTypeLabel(row)}</Badge>
             </TableCell>
             <TableCell column="meta">
               <Badge
-                variant={item.read_at ? "secondary" : "default"}
-                className={cn(!item.read_at && "bg-primary")}
+                variant={row.read ? "secondary" : "default"}
+                className={cn(!row.read && "bg-primary")}
               >
-                {item.read_at ? "Read" : "Unread"}
+                {row.read ? "Read" : "Unread"}
               </Badge>
             </TableCell>
             <TableCell column="mutedMeta">
-              {dateFormatter.format(new Date(item.created_at))}
+              {dateFormatter.format(new Date(row.createdAt))}
             </TableCell>
           </TableRow>
         ))}

@@ -27,3 +27,14 @@ export function createWebSocketTransport(network: TradingNetwork) {
   assertNetworkEnabled(network)
   return new WebSocketTransport({ isTestnet: network === "testnet" })
 }
+
+// Read-only variants skip the TRADING_ENABLE_MAINNET gate. The gate protects
+// signing paths; the scanner only reads public mainnet market data.
+
+export function createReadOnlyHttpTransport(network: TradingNetwork) {
+  return new HttpTransport({ isTestnet: network === "testnet" })
+}
+
+export function createReadOnlyWebSocketTransport(network: TradingNetwork) {
+  return new WebSocketTransport({ isTestnet: network === "testnet" })
+}

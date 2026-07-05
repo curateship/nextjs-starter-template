@@ -38,6 +38,14 @@ await supervisor.start()
 await commandListener.start()
 await paperEngine.start()
 
+let scanner: { stop: () => Promise<void> } | null = null
+if (process.env.SCANNER_ENABLED === "true") {
+  const { ScannerSupervisor } = await import("./scanner")
+  const scannerSupervisor = new ScannerSupervisor()
+  await scannerSupervisor.start()
+  scanner = scannerSupervisor
+}
+
 console.log("trading worker ready")
 
 let shuttingDown = false
@@ -47,6 +55,7 @@ async function shutdown(signal: string) {
   console.log(`received ${signal}, shutting down`)
   heartbeat.stop()
   snapshotPoller.stop()
+  await scanner?.stop()
   await commandListener.stop()
   await paperEngine.stop()
   await supervisor.stop()
