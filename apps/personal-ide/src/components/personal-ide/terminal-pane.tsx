@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event"
 import { FitAddon } from "@xterm/addon-fit"
+import { WebglAddon } from "@xterm/addon-webgl"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
@@ -159,6 +160,23 @@ export function TerminalPane({
     terminalRef.current = terminal
     fitRef.current = fit
 
+    // Render on the GPU instead of the DOM. This is the difference between
+    // smooth and janky when several agents stream output at once. If WebGL is
+    // unavailable, or its context is later lost (e.g. too many live contexts),
+    // dispose the addon so xterm falls back to its DOM renderer on its own.
+    let webglAddon: WebglAddon | undefined
+    try {
+      const addon = new WebglAddon()
+      addon.onContextLoss(() => {
+        addon.dispose()
+        if (webglAddon === addon) webglAddon = undefined
+      })
+      terminal.loadAddon(addon)
+      webglAddon = addon
+    } catch {
+      webglAddon = undefined
+    }
+
     const refreshTerminal = () => {
       if (cancelled || terminal.rows < 1) return
 
@@ -260,6 +278,7 @@ export function TerminalPane({
       dataDisposable.dispose()
       keyDisposable.dispose()
       scrollbackGuard.dispose()
+      webglAddon?.dispose()
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
