@@ -7,11 +7,22 @@ const TERMINAL_OUTPUT_EVENT_PREFIX = "terminal-output:"
 
 export const TERMINAL_SCROLLBACK_LINES = 800
 
+const AGENT_OUTPUT_PATTERN = new RegExp(
+  [
+    // Codex TUI: bullet lines and action verbs at line start
+    "(^|\\n)\\s*(\\u2022|Ran |Edited |Updated |Thinking|Checking|Applying|Codex\\b)",
+    // Claude Code TUI: tool/message bullets (\u23fa) and the busy status line,
+    // which redraws "(esc to interrupt)" continuously while working
+    "\\u23FA",
+    "esc to interrupt",
+  ].join("|")
+)
+
 export function looksLikeAgentOutput(data: number[]) {
   const clean = TERMINAL_OUTPUT_DECODER
     .decode(new Uint8Array(data))
     .replace(ANSI_ESCAPE_PATTERN, "")
-  return /(^|\n)\s*(\u2022|Ran |Edited |Updated |Thinking|Checking|Applying|Codex\b)/.test(clean)
+  return AGENT_OUTPUT_PATTERN.test(clean)
 }
 
 export function terminalOutputEvent(terminalId: string) {
