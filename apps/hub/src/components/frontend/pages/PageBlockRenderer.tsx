@@ -14,6 +14,7 @@ import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbedded
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"
 import { PageSiteSearchBlock } from "@/components/frontend/pages/site-search/PageSiteSearchBlock"
+import { PageMemberDirectoryBlock } from "@/components/frontend/pages/member-directory/PageMemberDirectoryBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { PublicProfileData } from "@/lib/actions/profiles/public-profile-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -181,6 +182,20 @@ export function BlockRenderer({
                   customWidth={customWidth}
                 />
               </Suspense>
+            </div>
+          )
+        }
+
+        if (block.type === 'member-directory') {
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <PageMemberDirectoryBlock
+                content={blockContent}
+                siteId={site.id}
+                preloadedData={site.memberDirectoryData?.[block.id]}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
             </div>
           )
         }

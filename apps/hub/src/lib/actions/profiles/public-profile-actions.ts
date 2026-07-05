@@ -142,7 +142,7 @@ function formatSavedListingAddress(address?: string | null) {
     .join(", ")
 }
 
-function normalizeSocialLinks(value: unknown): PublicProfileSocialLink[] {
+export function normalizeSocialLinks(value: unknown): PublicProfileSocialLink[] {
   if (!Array.isArray(value)) return []
 
   return value.slice(0, 10).flatMap((entry) => {

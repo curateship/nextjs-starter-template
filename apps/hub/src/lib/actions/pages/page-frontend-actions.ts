@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
 import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
+import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 type SitePageLookup = {
@@ -213,6 +214,7 @@ export interface SiteWithBlocks {
   }>
   listingData?: Record<string, any>
   categoryListingData?: Record<string, CategoriesListingData>
+  memberDirectoryData?: Record<string, MemberDirectoryData>
 }
 
 /**
@@ -367,6 +369,36 @@ async function prefetchCategoryListingData(
   return categoryListingData
 }
 
+async function prefetchMemberDirectoryData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any>; display_order: number }>,
+  siteId: string
+): Promise<Record<string, MemberDirectoryData>> {
+  const memberDirectoryData: Record<string, MemberDirectoryData> = {}
+
+  for (const block of blocks) {
+    if (block.type === 'member-directory') {
+      try {
+        const { includedRoles, itemsPerPage, sortBy, sortOrder } = block.content
+        const result = await getMemberDirectoryData({
+          siteId,
+          includedRoles: Array.isArray(includedRoles) ? includedRoles : undefined,
+          itemsPerPage: Number(itemsPerPage) || undefined,
+          sortBy,
+          sortOrder,
+        })
+
+        if (result.success && result.data) {
+          memberDirectoryData[block.id] = result.data
+        }
+      } catch (error) {
+        // Silently continue - block will fall back to client loading
+      }
+    }
+  }
+
+  return memberDirectoryData
+}
+
 async function buildSiteWithBlocksResult(
   lookup: SitePageLookup | null,
   actualPageSlug: string,
@@ -391,9 +423,10 @@ async function buildSiteWithBlocksResult(
   }
 
   const blocks = buildPublicPageBlocks(page)
-  const [listingData, categoryListingData] = await Promise.all([
+  const [listingData, categoryListingData, memberDirectoryData] = await Promise.all([
     prefetchListingData(blocks, site.id, options),
     prefetchCategoryListingData(blocks, site.id),
+    prefetchMemberDirectoryData(blocks, site.id),
   ])
 
   return {
@@ -418,6 +451,7 @@ async function buildSiteWithBlocksResult(
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
       categoryListingData: Object.keys(categoryListingData).length > 0 ? categoryListingData : undefined,
+      memberDirectoryData: Object.keys(memberDirectoryData).length > 0 ? memberDirectoryData : undefined,
     },
   }
 }

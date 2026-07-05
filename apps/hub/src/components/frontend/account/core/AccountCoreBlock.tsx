@@ -16,6 +16,7 @@ import {
   type MySavedCollection,
 } from "@/lib/actions/directories/directory-save-actions"
 import { cn } from "@/lib/utils/tailwind"
+import { getInitials } from "@/lib/utils/get-initials"
 import { resolveMediaUrl } from "@/lib/utils/media-url"
 import { getSocialMeta } from "@/lib/utils/social-icons"
 
@@ -87,17 +88,6 @@ const DESKTOP_COLUMN_CLASS_MAP: Record<number, string> = {
   2: "lg:grid-cols-2",
   3: "lg:grid-cols-3",
   4: "lg:grid-cols-4",
-}
-
-function getInitials(value?: string | null) {
-  const label = value?.trim() || "User"
-  return (
-    label
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "U"
-  )
 }
 
 // Same 15-word truncation the Listing Views block applies to meta descriptions
