@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { pages } from '@/lib/db/schema'
 import { serializePage } from '@/lib/utils/content-serializer'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 const RESERVED_PAGE_SLUGS = ['account', 'api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
 
@@ -38,6 +39,7 @@ const config = {
 
     return updateValues
   },
+  afterUpdate: (row: typeof pages.$inferSelect) => safeSyncSiteSearchDocument('page', row),
 }
 
 export const GET = getResourceHandler(config)

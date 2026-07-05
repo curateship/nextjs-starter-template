@@ -13,6 +13,7 @@ const AccountClaimedListingsBlock = dynamic(() => import("@/components/frontend/
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"
+import { PageSiteSearchBlock } from "@/components/frontend/pages/site-search/PageSiteSearchBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { PublicProfileData } from "@/lib/actions/profiles/public-profile-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -165,6 +166,21 @@ export function BlockRenderer({
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
+            </div>
+          )
+        }
+
+        if (block.type === 'site-search') {
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <Suspense>
+                <PageSiteSearchBlock
+                  content={blockContent}
+                  siteId={site.id}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                />
+              </Suspense>
             </div>
           )
         }

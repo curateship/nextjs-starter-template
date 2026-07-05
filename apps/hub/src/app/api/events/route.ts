@@ -7,6 +7,7 @@ import { serializeEvent } from '@/lib/utils/content-serializer'
 import { getDefaultEventTemplateIdForSite } from '@/lib/actions/events/event-template-ensure'
 import { pruneEventValueBlocksForTemplate } from '@/lib/actions/events/event-template-inheritance'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 export const POST = createResourceHandler({
   entityName: 'Event',
@@ -54,4 +55,5 @@ export const POST = createResourceHandler({
     metaDescription: data.meta_description || null,
     contentBlocks,
   }),
+  afterInsert: (row) => safeSyncSiteSearchDocument('event', row),
 })

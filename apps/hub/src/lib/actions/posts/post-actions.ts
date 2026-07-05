@@ -18,6 +18,10 @@ import {
   mergePostTemplateBlocks,
   prunePostValueBlocksForTemplate,
 } from './post-template-inheritance'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 
 export interface PostBlock {
   id: string
@@ -330,6 +334,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: 'Failed to update post' }
     }
 
+    await safeSyncSiteSearchDocument('post', updated)
     revalidatePostFrontend(post.siteId, postId)
 
     return {
@@ -357,6 +362,7 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
 
     // Delete the post
     await db.delete(posts).where(eq(posts.id, postId))
+    await safeDeleteSiteSearchDocument(access.row.siteId, 'post', postId)
 
     revalidatePostFrontend(access.row.siteId, postId)
 
@@ -410,6 +416,7 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
     }
 
     await db.delete(posts).where(inArray(posts.id, postIds))
+    await Promise.all(postRows.map((post) => safeDeleteSiteSearchDocument(post.siteId, 'post', post.id)))
 
     revalidateTag('listing-views')
     revalidateTag('posts')
@@ -467,6 +474,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
       return { data: null, error: 'Failed to duplicate post' }
     }
 
+    await safeSyncSiteSearchDocument('post', newPost)
     revalidatePostFrontend(originalPost.siteId, newPost.id)
 
     return { data: rowToPost(newPost), error: null }
@@ -513,6 +521,7 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
         updatedAt: new Date(),
       })
       .where(eq(posts.id, postId))
+    await safeSyncSiteSearchDocument('post', { ...post, contentBlocks: valueBlocks })
 
     revalidatePostFrontend(post.siteId, postId)
 

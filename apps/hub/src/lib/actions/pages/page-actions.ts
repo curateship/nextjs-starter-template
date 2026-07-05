@@ -13,6 +13,10 @@ import {
   requireOwnedContentRow,
   requireOwnedSite,
 } from '@/lib/actions/content/content-action-helpers'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 
 type PageRow = typeof pages.$inferSelect
 
@@ -112,6 +116,7 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
 
     // Delete the page
     await db.delete(pages).where(eq(pages.id, pageId))
+    await safeDeleteSiteSearchDocument(page.siteId, 'page', pageId)
 
     return { success: true, error: null }
   } catch (error) {
@@ -168,6 +173,7 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
     }
 
     await db.delete(pages).where(inArray(pages.id, pageIds))
+    await Promise.all(foundPages.map((page) => safeDeleteSiteSearchDocument(page.siteId, 'page', page.id)))
 
     return { success: true, error: null }
   } catch (error) {
@@ -217,6 +223,8 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       return { data: null, error: 'Failed to duplicate page' }
     }
 
+    await safeSyncSiteSearchDocument('page', newPage)
+
     return { data: newPage as unknown as Page, error: null }
   } catch (error) {
     console.error('Exception in duplicatePageAction:', error)
@@ -253,6 +261,7 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
     await db.execute(
       sql`UPDATE pages SET content_blocks = ${JSON.stringify(contentBlocks)}::jsonb, updated_at = NOW() WHERE id = ${pageId}`
     )
+    await safeSyncSiteSearchDocument('page', { ...access.row, contentBlocks })
 
     // Invalidate page cache since page content blocks have changed
     revalidateTag('page-lookup')

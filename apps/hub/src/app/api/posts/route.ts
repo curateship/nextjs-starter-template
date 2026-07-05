@@ -6,6 +6,7 @@ import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializePost } from '@/lib/utils/content-serializer'
 import { prunePostValueBlocksForTemplate } from '@/lib/actions/posts/post-template-inheritance'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 export const POST = createResourceHandler({
   entityName: 'Post',
@@ -49,4 +50,5 @@ export const POST = createResourceHandler({
     metaDescription: data.meta_description || null,
     contentBlocks,
   }),
+  afterInsert: (row) => safeSyncSiteSearchDocument('post', row),
 })

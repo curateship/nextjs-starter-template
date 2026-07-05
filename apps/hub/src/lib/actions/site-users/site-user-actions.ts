@@ -11,6 +11,10 @@ import { lastSignInAtDateSql, lastSignInAtSql } from '@/lib/actions/users/last-s
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { UUID_REGEX } from '@/lib/utils/validation'
 import {
+  safeDeleteSiteSearchDocument,
+  safeSyncProfileSearchDocumentForMembership,
+} from '@/lib/actions/site-search/site-search-index'
+import {
   SITE_USER_RELATIVE_DAY_OPTIONS,
   SITE_USER_ROLE_OPTIONS,
   SITE_USER_STATUS_OPTIONS,
@@ -410,7 +414,10 @@ export async function createSiteUser(input: {
       .limit(1)
       .then((rows) => rows[0])
 
-    if (row) revalidatePublicProfiles()
+    if (row) {
+      await safeSyncProfileSearchDocumentForMembership(input.siteId, userId)
+      revalidatePublicProfiles()
+    }
 
     return { data: row ? rowToSiteUser(row) : null, error: row ? null : 'Failed to load user' }
   } catch (error) {
@@ -497,7 +504,10 @@ export async function updateSiteUser(input: {
       .limit(1)
       .then((rows) => rows[0])
 
-    if (row) revalidatePublicProfiles()
+    if (row) {
+      await safeSyncProfileSearchDocumentForMembership(input.siteId, membership.userId)
+      revalidatePublicProfiles()
+    }
 
     return { data: row ? rowToSiteUser(row) : null, error: row ? null : 'Failed to load user' }
   } catch (error) {
@@ -536,6 +546,7 @@ export async function deleteSiteUsers(input: {
     const memberships = await db
       .select({
         id: siteMemberships.id,
+        userId: siteMemberships.userId,
         role: siteMemberships.role,
       })
       .from(siteMemberships)
@@ -556,6 +567,9 @@ export async function deleteSiteUsers(input: {
     await db
       .delete(siteMemberships)
       .where(and(eq(siteMemberships.siteId, input.siteId), inArray(siteMemberships.id, membershipIds)))
+    await Promise.all(memberships.map((membership) => (
+      safeDeleteSiteSearchDocument(input.siteId, 'profile', membership.userId)
+    )))
 
     revalidatePublicProfiles()
 

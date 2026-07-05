@@ -6,6 +6,7 @@ import { prunePostValueBlocksForTemplate } from '@/lib/actions/posts/post-templa
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializePost } from '@/lib/utils/content-serializer'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 const config = {
   entityName: 'Post',
@@ -53,6 +54,7 @@ const config = {
 
     return updateValues
   },
+  afterUpdate: (row: typeof posts.$inferSelect) => safeSyncSiteSearchDocument('post', row),
 }
 
 export const GET = getResourceHandler(config)

@@ -78,6 +78,8 @@ interface CreateResourceConfig {
    * unsetting an existing homepage/default flag or extra body validation.
    * Return a NextResponse to abort with that error. */
   beforeInsert?: (data: any, siteId: string) => Promise<NextResponse | void> | NextResponse | void
+  /** Runs after insert with the returned row. */
+  afterInsert?: (row: any) => Promise<void> | void
 }
 
 async function findResourceById(table: any, id: string) {
@@ -166,6 +168,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)
       const result = await db.insert(config.table).values(insertValues).returning() as any[]
       const newRow = result[0]
+      if (config.afterInsert) await config.afterInsert(newRow)
       revalidateResourceTags(config.revalidateTags)
 
       return NextResponse.json({ data: config.serializeResponse ? config.serializeResponse(newRow) : newRow, error: null }, { status: 201 })
@@ -201,6 +204,8 @@ interface ItemResourceConfig {
   serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful update. */
   revalidateTags?: string[]
+  /** Runs after update with the returned row. */
+  afterUpdate?: (row: any) => Promise<void> | void
 }
 
 function revalidateResourceTags(tags?: string[]) {
@@ -324,6 +329,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
         .where(eq(config.table.id, entityId))
         .returning() as any[]
       const updatedRow = updateResult[0]
+      if (config.afterUpdate) await config.afterUpdate(updatedRow)
       revalidateResourceTags(config.revalidateTags)
 
       return NextResponse.json({ data: config.serializeResponse ? config.serializeResponse(updatedRow) : updatedRow, error: null })

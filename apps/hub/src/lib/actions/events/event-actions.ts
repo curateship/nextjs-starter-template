@@ -18,6 +18,10 @@ import {
   mergeEventTemplateBlocks,
   pruneEventValueBlocksForTemplate,
 } from './event-template-inheritance'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 
 type EventRow = typeof events.$inferSelect
 
@@ -251,6 +255,7 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
       return { data: null, error: 'Failed to update event' }
     }
 
+    await safeSyncSiteSearchDocument('event', updatedEvent)
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`event-${eventId}`)
@@ -274,6 +279,7 @@ export async function deleteEventAction(eventId: string) {
 
     // Delete the event
     await db.delete(events).where(eq(events.id, eventId))
+    await safeDeleteSiteSearchDocument(event.siteId, 'event', eventId)
 
     // Revalidate cache
     revalidateTag('events')
@@ -327,6 +333,7 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
     }
 
     await db.delete(events).where(inArray(events.id, eventIds))
+    await Promise.all(eventRows.map((event) => safeDeleteSiteSearchDocument(event.siteId, 'event', event.id)))
 
     revalidateTag('events')
 
@@ -385,6 +392,7 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
       return { data: null, error: 'Failed to create duplicate event' }
     }
 
+    await safeSyncSiteSearchDocument('event', newEvent)
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`site-${originalEvent.siteId}`)
@@ -434,6 +442,7 @@ export async function updateEventBlocksAction(eventId: string, contentBlocks: Re
         updatedAt: new Date()
       })
       .where(eq(events.id, eventId))
+    await safeSyncSiteSearchDocument('event', { ...event, contentBlocks: valueBlocks })
 
     // Revalidate cache
     revalidateTag('events')

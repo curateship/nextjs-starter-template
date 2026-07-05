@@ -13,6 +13,7 @@ import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
 import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "../blocks/categories-listing/PageCategoriesListingBlock"
+import { PageSiteSearchBlock } from "../blocks/site-search/PageSiteSearchBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -123,6 +124,13 @@ export function PageBlockEditorDialog({
                     content={draftContent}
                     onContentChange={onContentChange}
                     siteId={siteId}
+                  />
+                )}
+
+                {selectedBlock.type === "site-search" && (
+                  <PageSiteSearchBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
                   />
                 )}
 

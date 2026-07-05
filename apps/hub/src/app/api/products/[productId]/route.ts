@@ -1,6 +1,7 @@
 import { products } from '@/lib/db/schema'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializeProduct } from '@/lib/utils/content-serializer'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 const config = {
   entityName: 'Product',
@@ -19,6 +20,7 @@ const config = {
     featured_image: 'featuredImage',
   },
   revalidateTags: ['listing-views'],
+  afterUpdate: (row: typeof products.$inferSelect) => safeSyncSiteSearchDocument('product', row),
 }
 
 export const GET = getResourceHandler(config)

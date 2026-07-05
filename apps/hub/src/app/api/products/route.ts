@@ -1,6 +1,7 @@
 import { products } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializeProduct } from '@/lib/utils/content-serializer'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 export const POST = createResourceHandler({
   entityName: 'Product',
@@ -16,4 +17,5 @@ export const POST = createResourceHandler({
     metaDescription: data.meta_description || null,
     contentBlocks,
   }),
+  afterInsert: (row) => safeSyncSiteSearchDocument('product', row),
 })

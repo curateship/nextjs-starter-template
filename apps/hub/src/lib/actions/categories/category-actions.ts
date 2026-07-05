@@ -19,6 +19,10 @@ import {
   pruneCategoryValueBlocksForTemplate,
 } from './category-template-inheritance'
 import { getDefaultCategoryTemplateIdForSite } from './category-template-ensure'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 
 type CategoryRow = typeof categories.$inferSelect
 
@@ -322,6 +326,7 @@ export async function createCategoryAction(
       return { data: null, error: 'Failed to create category' }
     }
 
+    await safeSyncSiteSearchDocument('category', newCategory)
     revalidateTag('categories')
     revalidateTag(`site-${siteId}`)
 
@@ -445,6 +450,7 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       return { data: null, error: 'Failed to update category' }
     }
 
+    await safeSyncSiteSearchDocument('category', updatedCategory)
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
     revalidateTag(`site-${category.siteId}`)
@@ -494,6 +500,7 @@ export async function deleteCategoryAction(categoryId: string) {
     await db
       .delete(categories)
       .where(inArray(categories.id, allIdsToDelete))
+    await Promise.all(allIdsToDelete.map((id) => safeDeleteSiteSearchDocument(category.siteId, 'category', id)))
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
@@ -566,6 +573,10 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
     }
 
     const idsArray = Array.from(allIdsToDelete)
+    const rowsToDelete = await db
+      .select({ id: categories.id, siteId: categories.siteId })
+      .from(categories)
+      .where(inArray(categories.id, idsArray))
 
     // Delete all content relationships
     await db
@@ -576,6 +587,7 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
     await db
       .delete(categories)
       .where(inArray(categories.id, idsArray))
+    await Promise.all(rowsToDelete.map((category) => safeDeleteSiteSearchDocument(category.siteId, 'category', category.id)))
 
     revalidateTag('categories')
 
@@ -625,6 +637,7 @@ export async function updateCategoryBlockValuesAction(categoryId: string, conten
         updatedAt: new Date(),
       })
       .where(eq(categories.id, categoryId))
+    await safeSyncSiteSearchDocument('category', { ...category, contentBlocks: valueBlocks })
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
