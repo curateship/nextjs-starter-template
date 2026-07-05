@@ -72,6 +72,18 @@ function terminalThemeFor(isDarkTheme: boolean) {
   return isDarkTheme ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
 }
 
+const ALTERNATE_SCREEN_MODE_CODES = new Set([47, 1047, 1049])
+
+function hasTerminalMode(params: (number | number[])[], modes: Set<number>) {
+  return params.some((param) =>
+    Array.isArray(param) ? param.some((value) => modes.has(value)) : modes.has(param)
+  )
+}
+
+function syncScrollableState(container: HTMLElement, terminal: Terminal) {
+  container.classList.toggle("terminal-has-scrollback", terminal.buffer.active.baseY > 0)
+}
+
 export function TerminalPane({
   active,
   focusNonce,
@@ -147,16 +159,25 @@ export function TerminalPane({
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
-    // Claude Code erases the scrollback buffer (CSI 3 J) on every redraw
-    // taller than the viewport, which kills the scrollbar. Swallow only that
-    // sequence; plain screen clears (CSI 2 J) still work.
+    // Full-screen TUIs switch xterm to an alternate buffer, which has no
+    // scrollback. Keep the normal buffer so long agent sessions remain
+    // scrollable, and ignore explicit scrollback erase requests.
     const scrollbackGuard = terminal.parser.registerCsiHandler(
       { final: "J" },
       (params) => params[0] === 3
     )
+    const alternateScreenSetGuard = terminal.parser.registerCsiHandler(
+      { prefix: "?", final: "h" },
+      (params) => hasTerminalMode(params, ALTERNATE_SCREEN_MODE_CODES)
+    )
+    const alternateScreenResetGuard = terminal.parser.registerCsiHandler(
+      { prefix: "?", final: "l" },
+      (params) => hasTerminalMode(params, ALTERNATE_SCREEN_MODE_CODES)
+    )
     terminal.open(container)
     terminalRef.current = terminal
     fitRef.current = fit
+    syncScrollableState(container, terminal)
 
     // Render on the GPU instead of the DOM. This is the difference between
     // smooth and janky when several agents stream output at once. If WebGL is
@@ -180,6 +201,7 @@ export function TerminalPane({
 
       try {
         terminal.refresh(0, terminal.rows - 1)
+        syncScrollableState(container, terminal)
       } catch {
         // xterm can throw while the panel is hidden during resize.
       }
@@ -196,6 +218,7 @@ export function TerminalPane({
         try {
           fit.fit()
           refreshTerminal()
+          syncScrollableState(container, terminal)
           onSizeChange(terminal.cols || 80, terminal.rows || 24)
           void resizeNativeTerminal(
             terminalId,
@@ -212,6 +235,7 @@ export function TerminalPane({
       try {
         fit.fit()
         refreshTerminal()
+        syncScrollableState(container, terminal)
         const cols = terminal.cols || 80
         const rows = terminal.rows || 24
         onSizeChange(cols, rows)
@@ -234,6 +258,11 @@ export function TerminalPane({
         onError(readableError(error))
       )
     })
+    const scrollDisposable = terminal.onScroll(() => syncScrollableState(container, terminal))
+    const resizeDisposable = terminal.onResize(() => syncScrollableState(container, terminal))
+    const writeParsedDisposable = terminal.onWriteParsed(() =>
+      syncScrollableState(container, terminal)
+    )
     const keyDisposable = terminal.onKey(({ domEvent }) => {
       if (domEvent.key !== "Enter") return
       if (domEvent.metaKey || domEvent.ctrlKey || domEvent.altKey) return
@@ -255,7 +284,7 @@ export function TerminalPane({
       // the next frame; forcing a full-viewport refresh() on every chunk (as we
       // did before) redrew every cell on the GPU for each burst of streamed
       // output, which is what made the IDE crawl while agents were working.
-      terminal.write(data)
+      terminal.write(data, () => syncScrollableState(container, terminal))
     })
       .then((dispose) => {
         if (cancelled) {
@@ -276,8 +305,13 @@ export function TerminalPane({
       unlisten?.()
       observer.disconnect()
       dataDisposable.dispose()
+      scrollDisposable.dispose()
+      resizeDisposable.dispose()
+      writeParsedDisposable.dispose()
       keyDisposable.dispose()
       scrollbackGuard.dispose()
+      alternateScreenSetGuard.dispose()
+      alternateScreenResetGuard.dispose()
       webglAddon?.dispose()
       terminal.dispose()
       terminalRef.current = null
