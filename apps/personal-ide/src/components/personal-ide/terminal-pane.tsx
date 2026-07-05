@@ -101,13 +101,8 @@ export function TerminalPane({
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const frameRef = useRef<number | null>(null)
-  const activeRef = useRef(active)
   const isDarkThemeRef = useRef(isDarkTheme)
   const startupCommandSentRef = useRef(false)
-
-  useEffect(() => {
-    activeRef.current = active
-  }, [active])
 
   useEffect(() => {
     isDarkThemeRef.current = isDarkTheme
@@ -143,7 +138,10 @@ export function TerminalPane({
       convertEol: false,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
-      minimumContrastRatio: 4.5,
+      // Leave minimumContrastRatio at its default (1). Forcing a ratio makes
+      // xterm recompute a contrast-adjusted color for every cell, which defeats
+      // the WebGL glyph-atlas cache and is a large part of why the GPU renderer
+      // felt slower, not faster. The themes below already have strong contrast.
       scrollback: TERMINAL_SCROLLBACK_LINES,
       theme: terminalThemeFor(isDarkThemeRef.current),
     })
@@ -253,9 +251,11 @@ export function TerminalPane({
       }
       const data = new Uint8Array(event.payload.data)
       onTerminalOutput(workspaceId, terminalId, event.payload.data)
-      terminal.write(data, () => {
-        if (activeRef.current) refreshTerminal()
-      })
+      // Just write. xterm's render service already repaints the changed rows on
+      // the next frame; forcing a full-viewport refresh() on every chunk (as we
+      // did before) redrew every cell on the GPU for each burst of streamed
+      // output, which is what made the IDE crawl while agents were working.
+      terminal.write(data)
     })
       .then((dispose) => {
         if (cancelled) {

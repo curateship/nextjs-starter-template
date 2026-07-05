@@ -12,6 +12,11 @@ import {
 } from "@/app/terminal"
 import type { WorkspaceStatus, WorkspaceTerminalState } from "@/app/types"
 
+// How long a workspace's terminal can stay silent before we call the agent
+// idle and flip the badge to "waiting". Agents stream output far more often
+// than this while working, so the badge stays steady until they truly stop.
+const AGENT_IDLE_TIMEOUT_MS = 2500
+
 type UseTerminalSessionsOptions = {
   activeWorkspaceId: string
   onError: (message: string) => void
@@ -30,6 +35,10 @@ export function useTerminalSessions({
   const [workspaceStatuses, setWorkspaceStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const terminalSizeRef = useRef({ cols: 80, rows: 24 })
   const workspaceStatusTimersRef = useRef<Record<string, number>>({})
+  // Workspaces with an in-flight agent session. Once a workspace is in here,
+  // any further terminal output keeps it "running"; it leaves only when the
+  // output goes quiet (timer below) or the user sends input.
+  const runningWorkspacesRef = useRef<Set<string>>(new Set())
 
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
 
@@ -42,6 +51,7 @@ export function useTerminalSessions({
     const runningTimer = workspaceStatusTimersRef.current[workspaceId]
     if (runningTimer) window.clearTimeout(runningTimer)
     delete workspaceStatusTimersRef.current[workspaceId]
+    runningWorkspacesRef.current.delete(workspaceId)
 
     setWorkspaceStatuses((current) => {
       if (!current[workspaceId]) return current
@@ -63,24 +73,36 @@ export function useTerminalSessions({
         terminalsByWorkspaceRef.current
       ).terminals.some((terminal) => terminal.id === terminalId)
       if (!terminalExists) return
-      if (!looksLikeAgentOutput(data)) return
-      const agent = detectTerminalAgent(data)
-      if (agent) {
-        setTerminalsByWorkspace((current) => {
-          const state = terminalStateFor(workspaceId, current)
-          const item = state.terminals.find((terminal) => terminal.id === terminalId)
-          if (!item || item.agent === agent) return current
-          return {
-            ...current,
-            [workspaceId]: {
-              ...state,
-              terminals: state.terminals.map((terminal) =>
-                terminal.id === terminalId ? { ...terminal, agent } : terminal
-              ),
-            },
-          }
-        })
+
+      // A workspace becomes "running" only when we see a real agent marker
+      // (⏺ / "esc to interrupt" / the Codex banner). But an agent's spinner and
+      // token stream keep redrawing without re-emitting that marker every chunk,
+      // so once a session is running we let ANY further output keep it alive.
+      // This is what stops the badge from flapping running↔waiting mid-work.
+      const hasAgentMarker = looksLikeAgentOutput(data)
+      if (!hasAgentMarker && !runningWorkspacesRef.current.has(workspaceId)) return
+
+      if (hasAgentMarker) {
+        const agent = detectTerminalAgent(data)
+        if (agent) {
+          setTerminalsByWorkspace((current) => {
+            const state = terminalStateFor(workspaceId, current)
+            const item = state.terminals.find((terminal) => terminal.id === terminalId)
+            if (!item || item.agent === agent) return current
+            return {
+              ...current,
+              [workspaceId]: {
+                ...state,
+                terminals: state.terminals.map((terminal) =>
+                  terminal.id === terminalId ? { ...terminal, agent } : terminal
+                ),
+              },
+            }
+          })
+        }
       }
+
+      runningWorkspacesRef.current.add(workspaceId)
       setWorkspaceStatuses((current) =>
         current[workspaceId] === "running"
           ? current
@@ -89,9 +111,10 @@ export function useTerminalSessions({
       const currentTimer = workspaceStatusTimersRef.current[workspaceId]
       if (currentTimer) window.clearTimeout(currentTimer)
       workspaceStatusTimersRef.current[workspaceId] = window.setTimeout(() => {
+        runningWorkspacesRef.current.delete(workspaceId)
         setWorkspaceStatuses((current) => ({ ...current, [workspaceId]: "waiting" }))
         delete workspaceStatusTimersRef.current[workspaceId]
-      }, 2500)
+      }, AGENT_IDLE_TIMEOUT_MS)
     },
     []
   )
