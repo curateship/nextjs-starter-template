@@ -361,6 +361,52 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
     {
+      id: "section-trading",
+      title: "Trading",
+      entries: [
+        {
+          type: "item",
+          id: "item-trade",
+          label: "Trade",
+          href: "/trade",
+          icon: "layoutDashboard",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-bots",
+          label: "Bots",
+          href: "/bots",
+          icon: "workflow",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-portfolio",
+          label: "Portfolio",
+          href: "/portfolio",
+          icon: "heartPulse",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-wallets",
+          label: "Wallets",
+          href: "/wallets",
+          icon: "creditCard",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-audit",
+          label: "Audit Log",
+          href: "/audit",
+          icon: "shieldCheck",
+          visible: true,
+        },
+      ],
+    },
+    {
       id: "section-platform-settings",
       title: "Platform Settings",
       entries: [

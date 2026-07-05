@@ -164,6 +164,13 @@ describe("custom shell workspaces", () => {
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
+      { type: "item", label: "Trade", href: "/trade", visible: true },
+      { type: "item", label: "Bots", href: "/bots", visible: true },
+      { type: "item", label: "Portfolio", href: "/portfolio", visible: true },
+      { type: "item", label: "Wallets", href: "/wallets", visible: true },
+      { type: "item", label: "Audit Log", href: "/audit", visible: true },
+    ])
+    expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Feedback",
@@ -208,7 +215,7 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
+    expect(secondSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Feedback",

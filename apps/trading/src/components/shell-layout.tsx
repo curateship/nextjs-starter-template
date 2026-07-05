@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Outlet, useRouterState } from "@tanstack/react-router"
 
-import { DashboardContent } from "@/components/demo/dashboard-content"
+import { DashboardContent } from "@/components/ui/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"

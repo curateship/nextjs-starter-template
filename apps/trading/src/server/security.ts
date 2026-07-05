@@ -11,20 +11,19 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 
+import { now, uuid } from "@/server/util"
+
+export { now, uuid }
+
 export const SESSION_COOKIE_NAME = "custom_shell_session"
-const TEN_YEARS_IN_HOURS = 24 * 365 * 10
+// This app can sign trades, so a leaked session token is a trading
+// credential — default to 30 days rather than the shell's decade-long
+// default. Override with CUSTOM_SHELL_SESSION_TTL_HOURS.
+const DEFAULT_SESSION_TTL_HOURS = 24 * 30
 const SESSION_TTL_HOURS = Number.parseInt(
-  process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),
+  process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(DEFAULT_SESSION_TTL_HOURS),
   10
 )
-
-export function now() {
-  return new Date()
-}
-
-export function uuid() {
-  return randomUUID()
-}
 
 export function createSessionToken() {
   return randomUUID() + randomUUID()

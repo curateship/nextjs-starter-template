@@ -1,0 +1,617 @@
+import * as React from "react"
+import { Loader2Icon } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
+import {
+  getOrderErrorMessage,
+  placeOrder,
+  updateLeverage,
+  type PlaceOrderResponse,
+} from "@/lib/api/orders"
+import { placePaperOrder } from "@/lib/api/paper"
+import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
+import type { MarketRow } from "@/lib/hl/hooks"
+import { cn } from "@/lib/utils"
+
+type SizeUnit = "usd" | "coin" | "pct"
+
+type TicketState = {
+  side: "buy" | "sell"
+  orderType: "market" | "limit"
+  px: string
+  szInput: string
+  szUnit: SizeUnit
+  tif: "Gtc" | "Ioc" | "Alo"
+  reduceOnly: boolean
+  leverage: number
+  isCross: boolean
+}
+
+export type TicketPrefill = {
+  px: string
+  side?: "buy" | "sell"
+}
+
+export function OrderTicket({
+  walletId,
+  paperWalletId,
+  market,
+  marketRow,
+  markPx,
+  equity,
+  positionSzi,
+  prefill,
+  disabledReason,
+}: {
+  walletId: string | null
+  /** When set, orders route to the in-house paper engine instead. */
+  paperWalletId?: string | null
+  market: string
+  marketRow: MarketRow | null
+  markPx: number
+  equity: number
+  positionSzi: number
+  prefill: TicketPrefill | null
+  disabledReason: string | null
+}) {
+  const isPaper = Boolean(paperWalletId)
+  const maxLeverage = marketRow?.maxLeverage ?? 1
+  const [state, setState] = React.useState<TicketState>({
+    side: "buy",
+    orderType: "limit",
+    px: "",
+    szInput: "",
+    szUnit: "usd",
+    tif: "Gtc",
+    reduceOnly: false,
+    leverage: Math.min(5, maxLeverage),
+    isCross: true,
+  })
+  const [confirming, setConfirming] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [applyingLeverage, setApplyingLeverage] = React.useState(false)
+  const [status, setStatus] = React.useState<{
+    tone: "ok" | "error"
+    text: string
+  } | null>(null)
+
+  // Render-phase state adjustments (React's sanctioned reset pattern) —
+  // clear the ticket when the market changes, apply book-click prefills.
+  const [prevMarket, setPrevMarket] = React.useState(market)
+  if (prevMarket !== market) {
+    setPrevMarket(market)
+    setState((current) => ({ ...current, px: "", szInput: "" }))
+    setStatus(null)
+  }
+  const [prevPrefill, setPrevPrefill] = React.useState(prefill)
+  if (prevPrefill !== prefill) {
+    setPrevPrefill(prefill)
+    if (prefill) {
+      setState((current) => ({
+        ...current,
+        orderType: "limit",
+        px: prefill.px,
+        side: prefill.side ?? current.side,
+      }))
+    }
+  }
+
+  const executionPx =
+    state.orderType === "limit" && state.px ? Number(state.px) : markPx
+  const effectiveLeverage = isPaper ? 1 : state.leverage
+  const szCoin = resolveSizeCoin(
+    { ...state, leverage: effectiveLeverage },
+    executionPx,
+    equity
+  )
+  const preview = previewOrder({
+    side: state.side,
+    px: executionPx,
+    sz: szCoin,
+    leverage: effectiveLeverage,
+    maxLeverage,
+    isTaker: state.orderType === "market" || state.tif === "Ioc",
+  })
+
+  const submitDisabled =
+    Boolean(disabledReason) ||
+    busy ||
+    (!walletId && !paperWalletId) ||
+    szCoin <= 0 ||
+    (state.orderType === "limit" && !(Number(state.px) > 0))
+
+  async function applyLeverage() {
+    if (!walletId) return
+    setApplyingLeverage(true)
+    setStatus(null)
+    try {
+      await updateLeverage({
+        walletId,
+        market,
+        leverage: state.leverage,
+        isCross: state.isCross,
+      })
+      setStatus({
+        tone: "ok",
+        text: `Leverage set to ${state.leverage}x ${state.isCross ? "cross" : "isolated"}.`,
+      })
+    } catch (error) {
+      setStatus({ tone: "error", text: getOrderErrorMessage(error) })
+    } finally {
+      setApplyingLeverage(false)
+    }
+  }
+
+  async function submit() {
+    if (!walletId && !paperWalletId) return
+    setBusy(true)
+    setStatus(null)
+    try {
+      if (paperWalletId) {
+        await placePaperOrder({
+          paperWalletId,
+          coin: market,
+          side: state.side,
+          orderType: state.orderType,
+          px: state.orderType === "limit" ? state.px : undefined,
+          sz: szCoin.toFixed(8),
+          tif: state.tif,
+          reduceOnly: state.reduceOnly,
+        })
+        setConfirming(false)
+        setStatus({
+          tone: "ok",
+          text: "Paper order submitted — fills simulate from live market data.",
+        })
+        setState((current) => ({ ...current, szInput: "" }))
+        return
+      }
+
+      const result: PlaceOrderResponse = await placeOrder({
+        walletId: walletId as string,
+        market,
+        side: state.side,
+        orderType: state.orderType,
+        px: state.orderType === "limit" ? state.px : undefined,
+        sz: szCoin.toFixed(8),
+        reduceOnly: state.reduceOnly,
+        tif: state.tif,
+        leverage: state.leverage,
+      })
+      setConfirming(false)
+      setStatus({
+        tone: "ok",
+        text:
+          result.kind === "filled"
+            ? `Filled ${result.totalSz} ${market} @ ${result.avgPx}`
+            : `Resting order #${result.oid} @ ${result.px}`,
+      })
+      setState((current) => ({ ...current, szInput: "" }))
+    } catch (error) {
+      setConfirming(false)
+      setStatus({ tone: "error", text: getOrderErrorMessage(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-3 p-3 text-xs">
+        <div className="grid grid-cols-2 gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={state.side === "buy" ? "default" : "outline"}
+            className={cn(
+              state.side === "buy" &&
+                "bg-emerald-600 text-white hover:bg-emerald-700"
+            )}
+            onClick={() => setState({ ...state, side: "buy" })}
+          >
+            Buy / Long
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={state.side === "sell" ? "default" : "outline"}
+            className={cn(
+              state.side === "sell" && "bg-red-600 text-white hover:bg-red-700"
+            )}
+            onClick={() => setState({ ...state, side: "sell" })}
+          >
+            Sell / Short
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-1">
+            <Label className="text-[11px]">Type</Label>
+            <Select
+              value={state.orderType}
+              onValueChange={(value) =>
+                setState({ ...state, orderType: value as "market" | "limit" })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="limit">Limit</SelectItem>
+                <SelectItem value="market">Market</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-[11px]">Time in force</Label>
+            <Select
+              value={state.tif}
+              disabled={state.orderType === "market"}
+              onValueChange={(value) =>
+                setState({ ...state, tif: value as TicketState["tif"] })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Gtc">GTC</SelectItem>
+                <SelectItem value="Ioc">IOC</SelectItem>
+                <SelectItem value="Alo">Post only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {state.orderType === "limit" ? (
+          <div className="grid gap-1">
+            <Label htmlFor="ticket-px" className="text-[11px]">
+              Limit price
+            </Label>
+            <Input
+              id="ticket-px"
+              value={state.px}
+              placeholder={markPx ? String(markPx) : "0.0"}
+              inputMode="decimal"
+              className="h-8 font-mono"
+              onChange={(event) =>
+                setState({ ...state, px: event.target.value.trim() })
+              }
+            />
+          </div>
+        ) : null}
+
+        <div className="grid gap-1">
+          <Label htmlFor="ticket-sz" className="text-[11px]">
+            Size
+          </Label>
+          <div className="flex gap-1">
+            <Input
+              id="ticket-sz"
+              value={state.szInput}
+              placeholder="0"
+              inputMode="decimal"
+              className="h-8 flex-1 font-mono"
+              onChange={(event) =>
+                setState({ ...state, szInput: event.target.value.trim() })
+              }
+            />
+            <Select
+              value={state.szUnit}
+              onValueChange={(value) =>
+                setState({ ...state, szUnit: value as SizeUnit })
+              }
+            >
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usd">USD</SelectItem>
+                <SelectItem value="coin">{market}</SelectItem>
+                <SelectItem value="pct">% equity</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {szCoin > 0 ? (
+            <span className="text-[11px] text-muted-foreground">
+              ≈ {szCoin.toFixed(Math.min(6, marketRow?.szDecimals ?? 4))}{" "}
+              {market} (${preview.notionalUsd.toFixed(2)})
+            </span>
+          ) : null}
+        </div>
+
+        {isPaper ? null : (
+        <div className="grid gap-1">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px]">Leverage</Label>
+            <span className="font-mono">{state.leverage}x</span>
+          </div>
+          <Slider
+            value={[state.leverage]}
+            min={1}
+            max={maxLeverage}
+            step={1}
+            onValueChange={([value]) =>
+              setState({ ...state, leverage: value })
+            }
+          />
+          <div className="mt-1 flex items-center gap-1">
+            <Select
+              value={state.isCross ? "cross" : "isolated"}
+              onValueChange={(value) =>
+                setState({ ...state, isCross: value === "cross" })
+              }
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cross">Cross</SelectItem>
+                <SelectItem value="isolated">Isolated</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!walletId || applyingLeverage}
+              onClick={() => void applyLeverage()}
+            >
+              {applyingLeverage ? (
+                <Loader2Icon className="size-3 animate-spin" />
+              ) : null}
+              Apply
+            </Button>
+          </div>
+        </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="ticket-reduce-only"
+            checked={state.reduceOnly}
+            onCheckedChange={(checked) =>
+              setState({ ...state, reduceOnly: checked === true })
+            }
+          />
+          <Label htmlFor="ticket-reduce-only" className="text-[11px]">
+            Reduce only
+          </Label>
+        </div>
+
+        <div className="grid gap-1 rounded-md border bg-muted/30 p-2 font-mono text-[11px] tabular-nums">
+          <PreviewRow label="Order value" value={`$${preview.notionalUsd.toFixed(2)}`} />
+          <PreviewRow
+            label="Margin required"
+            value={`$${preview.marginRequiredUsd.toFixed(2)}`}
+          />
+          <PreviewRow label="Est. fee" value={`$${preview.estFeeUsd.toFixed(3)}`} />
+          <PreviewRow
+            label="Est. liq. price"
+            value={
+              preview.estLiquidationPx
+                ? preview.estLiquidationPx.toFixed(2)
+                : "—"
+            }
+          />
+        </div>
+
+        <Button
+          type="button"
+          disabled={submitDisabled}
+          className={cn(
+            "w-full",
+            state.side === "buy"
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              : "bg-red-600 text-white hover:bg-red-700"
+          )}
+          onClick={() => setConfirming(true)}
+        >
+          {disabledReason ??
+            `${state.side === "buy" ? "Buy" : "Sell"} ${market}`}
+        </Button>
+
+        {status ? (
+          <div
+            className={cn(
+              "rounded-md border px-2 py-1.5",
+              status.tone === "ok"
+                ? "border-emerald-600/30 bg-emerald-600/10 text-emerald-700"
+                : "border-destructive/30 bg-destructive/10 text-destructive"
+            )}
+          >
+            {status.text}
+          </div>
+        ) : null}
+      </div>
+
+      <ConfirmOrderDialog
+        open={confirming}
+        busy={busy}
+        market={market}
+        state={state}
+        szCoin={szCoin}
+        executionPx={executionPx}
+        notionalUsd={preview.notionalUsd}
+        estLiquidationPx={preview.estLiquidationPx}
+        positionSzi={positionSzi}
+        onOpenChange={setConfirming}
+        onConfirm={() => void submit()}
+      />
+    </ScrollArea>
+  )
+}
+
+function ConfirmOrderDialog({
+  open,
+  busy,
+  market,
+  state,
+  szCoin,
+  executionPx,
+  notionalUsd,
+  estLiquidationPx,
+  positionSzi,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  busy: boolean
+  market: string
+  state: TicketState
+  szCoin: number
+  executionPx: number
+  notionalUsd: number
+  estLiquidationPx: number | null
+  positionSzi: number
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            Confirm {state.side === "buy" ? "Buy" : "Sell"} {market}
+          </DialogTitle>
+          <DialogDescription>
+            Review the order before it is signed and sent to Hyperliquid.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-2 text-sm">
+          <SummaryRow label="Market" value={`${market}-PERP`} />
+          <SummaryRow
+            label="Side"
+            value={
+              <Badge
+                className={
+                  state.side === "buy" ? "bg-emerald-600" : "bg-red-600"
+                }
+              >
+                {state.side === "buy" ? "Buy / Long" : "Sell / Short"}
+              </Badge>
+            }
+          />
+          <SummaryRow
+            label="Type"
+            value={
+              state.orderType === "market"
+                ? "Market"
+                : `Limit @ ${state.px} (${state.tif})`
+            }
+          />
+          <SummaryRow
+            label="Size"
+            value={`${szCoin.toFixed(6)} ${market} ≈ $${notionalUsd.toFixed(2)}`}
+          />
+          <SummaryRow
+            label="Est. price"
+            value={executionPx ? executionPx.toString() : "—"}
+          />
+          <SummaryRow
+            label="Reduce only"
+            value={state.reduceOnly ? "Yes" : "No"}
+          />
+          <SummaryRow
+            label="Leverage"
+            value={`${state.leverage}x ${state.isCross ? "cross" : "isolated"}`}
+          />
+          <SummaryRow
+            label="Est. liq. price"
+            value={estLiquidationPx ? estLiquidationPx.toFixed(2) : "—"}
+          />
+          {positionSzi !== 0 ? (
+            <SummaryRow
+              label="Current position"
+              value={`${positionSzi} ${market}`}
+            />
+          ) : null}
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={busy}
+              className={
+                state.side === "buy"
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "bg-red-600 text-white hover:bg-red-700"
+              }
+              onClick={onConfirm}
+            >
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {busy ? "Submitting..." : "Confirm order"}
+            </Button>
+          </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function SummaryRow({
+  label,
+  value,
+}: {
+  label: string
+  value: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{value}</span>
+    </div>
+  )
+}
+
+function resolveSizeCoin(
+  state: TicketState,
+  executionPx: number,
+  equity: number
+): number {
+  const input = Number(state.szInput)
+  if (!Number.isFinite(input) || input <= 0) return 0
+  if (state.szUnit === "coin") return input
+  if (state.szUnit === "usd") return usdToBaseSize(input, executionPx)
+  const usd = (equity * Math.min(input, 100)) / 100
+  return usdToBaseSize(usd * state.leverage, executionPx)
+}

@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'worker/dist']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,6 +18,37 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+  },
+  {
+    // The worker is a plain Node process: it must never pull in the web
+    // server runtime or React — one bad import crashes it at boot.
+    files: ['worker/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@tanstack/react-start*',
+                'react',
+                'react-dom',
+                '@/components/*',
+                '@/routes/*',
+                '@/lib/api/*',
+                '@/server/security',
+                '@/server/origin',
+              ],
+              message:
+                'Worker code must stay free of web-server and React imports.',
+            },
+          ],
+        },
+      ],
     },
   },
 ])
