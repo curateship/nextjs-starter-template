@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "tsx --test $(find src -name '*.test.ts' -o -name '*.test.tsx')",
     "seed:directory-scale": "tsx scripts/seed-directory-scale.ts",
+    "search:rebuild": "node --conditions=react-server --import tsx scripts/rebuild-site-search-index.ts",
     "db:generate": "npm exec --package drizzle-kit@0.31.10 -- drizzle-kit generate",
     "db:migrate": "npm exec --package drizzle-kit@0.31.10 -- drizzle-kit migrate",
     "db:push": "npm exec --package drizzle-kit@0.31.10 -- drizzle-kit push",

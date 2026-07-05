@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { authUsers, media } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
+import { safeSyncProfileSearchDocumentsForUser } from '@/lib/actions/site-search/site-search-index'
 
 const AVATAR_IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
 const EMAIL_CHANGE_WINDOW_MS = 15 * 60 * 1000
@@ -177,6 +178,7 @@ export async function updateProfile(formData: FormData) {
     }
 
     if (Object.keys(updates).length > 0 || Object.keys(profileUpdates).length > 0) {
+      await safeSyncProfileSearchDocumentsForUser(authUser.id)
       revalidateTag('public-profile')
     }
 

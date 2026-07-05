@@ -6,6 +6,7 @@ import { pruneDirectoryValueBlocksForTemplate } from '@/lib/actions/directories/
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializeDirectory } from '@/lib/utils/content-serializer'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 const config = {
   entityName: 'Directory',
@@ -23,6 +24,7 @@ const config = {
     template_id: 'templateId',
   },
   revalidateTags: ['directory', 'listing-views'],
+  afterUpdate: (row: typeof directories.$inferSelect) => safeSyncSiteSearchDocument('directory', row),
   transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => {
     if (updates.is_published === true) {
       updateValues.status = 'published'

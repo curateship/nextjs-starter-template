@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { pages } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializePage } from '@/lib/utils/content-serializer'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 export const POST = createResourceHandler({
   entityName: 'Page',
@@ -28,4 +29,5 @@ export const POST = createResourceHandler({
     displayOrder: nextOrder,
     metaDescription: data.meta_description || null,
   }),
+  afterInsert: (row) => safeSyncSiteSearchDocument('page', row),
 })

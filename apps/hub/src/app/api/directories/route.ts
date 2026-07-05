@@ -6,6 +6,7 @@ import { pruneDirectoryValueBlocksForTemplate } from '@/lib/actions/directories/
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializeDirectory } from '@/lib/utils/content-serializer'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
 
 export const POST = createResourceHandler({
   entityName: 'Directory',
@@ -47,4 +48,5 @@ export const POST = createResourceHandler({
     metaDescription: data.meta_description || null,
     contentBlocks,
   }),
+  afterInsert: (row) => safeSyncSiteSearchDocument('directory', row),
 })

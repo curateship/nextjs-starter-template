@@ -14,6 +14,10 @@ import {
   requireOwnedSite,
   validateContentSlugUpdate,
 } from '@/lib/actions/content/content-action-helpers'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 
 type ProductRow = typeof products.$inferSelect
 
@@ -248,6 +252,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: 'Failed to update product' }
     }
 
+    await safeSyncSiteSearchDocument('product', updated)
     revalidateProductFrontend(product.siteId, productId)
 
     return {
@@ -276,6 +281,7 @@ export async function deleteProductAction(productId: string): Promise<{ success:
 
     // Delete the product
     await db.delete(products).where(eq(products.id, productId))
+    await safeDeleteSiteSearchDocument(product.siteId, 'product', productId)
 
     revalidateProductFrontend(product.siteId, productId)
 
@@ -328,6 +334,7 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
     }
 
     await db.delete(products).where(inArray(products.id, productIds))
+    await Promise.all(productRows.map((product) => safeDeleteSiteSearchDocument(product.siteId, 'product', product.id)))
 
     revalidateTag('listing-views')
     revalidateTag('products')
@@ -382,6 +389,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
       return { data: null, error: 'Failed to duplicate product' }
     }
 
+    await safeSyncSiteSearchDocument('product', newProduct)
     revalidateProductFrontend(originalProduct.siteId, newProduct.id)
 
     return { data: serializeProduct(newProduct), error: null }
@@ -442,6 +450,7 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
         updatedAt: new Date(),
       })
       .where(eq(products.id, productId))
+    await safeSyncSiteSearchDocument('product', { ...product, contentBlocks })
 
     revalidateProductFrontend(product.siteId, productId)
 

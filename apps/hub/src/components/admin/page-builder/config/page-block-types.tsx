@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags, Search } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -126,6 +126,25 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       subtitle: '',
       parentCategoryId: '',
       chipsToShow: 20,
+      visibility: {},
+    }
+  },
+  {
+    type: 'site-search',
+    name: 'Site Search',
+    icon: Search,
+    description: 'Search public pages, posts, products, listings, events, categories, and profiles',
+    defaultContent: {
+      title: 'Search',
+      subtitle: 'Find anything on this site',
+      placeholder: 'Search this site...',
+      emptyText: 'Enter a search term to find public content.',
+      noResultsText: 'No results found.',
+      enabledTypes: ['page', 'post', 'product', 'directory', 'event', 'category', 'profile'],
+      pageSize: 12,
+      showTypeChips: true,
+      showImages: true,
+      showSummaries: true,
       visibility: {},
     }
   },

@@ -23,6 +23,10 @@ import {
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  safeDeleteSiteSearchDocument,
+  safeSyncSiteSearchDocument,
+} from '@/lib/actions/site-search/site-search-index'
 export type DirectoryStatus = 'draft' | 'published'
 
 export interface Directory {
@@ -260,6 +264,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
       return { data: null, error: 'Failed to update directory' }
     }
 
+    await safeSyncSiteSearchDocument('directory', updatedDirectory)
     // Revalidate cache
     revalidateTag('directory')
     revalidateTag('listing-views')
@@ -292,6 +297,7 @@ export async function deleteDirectoryAction(directoryId: string) {
       await tx.delete(directories)
         .where(eq(directories.id, directoryId))
     })
+    await safeDeleteSiteSearchDocument(directory.siteId, 'directory', directoryId)
 
     // Revalidate cache
     revalidateTag('directory')
@@ -359,6 +365,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       await tx.delete(directories)
         .where(inArray(directories.id, directoryIds))
     })
+    await Promise.all(foundDirectories.map((directory) => safeDeleteSiteSearchDocument(directory.siteId, 'directory', directory.id)))
 
     revalidateTag('directory')
     revalidateTag('listing-views')
@@ -417,6 +424,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
       return { data: null, error: 'Failed to create duplicate directory' }
     }
 
+    await safeSyncSiteSearchDocument('directory', newDirectory)
     // Revalidate cache
     revalidateTag('directory')
     revalidateTag('listing-views')
@@ -616,6 +624,11 @@ export async function updateDirectoryBlockValuesAction(directoryId: string, cont
     await db.update(directories)
       .set(updates)
       .where(eq(directories.id, directoryId))
+    await safeSyncSiteSearchDocument('directory', {
+      ...directory,
+      contentBlocks: valueBlocks,
+      metaDescription: derivedMetaDescription || directory.metaDescription,
+    })
 
     // Revalidate cache
     revalidateTag('directory')
