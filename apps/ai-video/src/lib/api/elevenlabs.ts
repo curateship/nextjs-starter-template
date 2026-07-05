@@ -2,17 +2,16 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { ElevenLabsVoice, VoiceoverResult } from "@/server/elevenlabs"
+import {
+  VOICE_MODEL_IDS,
+  voiceDefaultsSchema,
+  voiceSettingsSchema,
+  type VoiceDefaults,
+  type VoiceModelId,
+  type VoiceSettings,
+} from "@/lib/voice-settings"
 
 export type { ElevenLabsVoice, VoiceoverResult }
-
-// TTS models the Voice dialog offers. All support the word-level timestamps the
-// karaoke captions need. Edit this list to add/remove models (e.g. eleven_v3).
-export const VOICE_MODEL_IDS = [
-  "eleven_multilingual_v2",
-  "eleven_turbo_v2_5",
-  "eleven_flash_v2_5",
-] as const
-export type VoiceModelId = (typeof VOICE_MODEL_IDS)[number]
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : ""
@@ -63,7 +62,10 @@ function mapVoiceConfigError(message: string) {
 }
 
 const listVoicesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ voices: ElevenLabsVoice[] }> => {
+  async (): Promise<{
+    voices: ElevenLabsVoice[]
+    defaults: VoiceDefaults | null
+  }> => {
     const { listVoicesForCurrentUser } = await import("@/server/elevenlabs")
     return listVoicesForCurrentUser()
   }
@@ -72,16 +74,33 @@ const listVoicesFn = createServerFn({ method: "GET" }).handler(
 const generateVoiceoverFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
-      voiceId: z.string().min(1).max(64),
+      // Letters/digits only — the id lands in the ElevenLabs URL path, so
+      // this blocks path/query injection against the API key's account.
+      voiceId: z.string().regex(/^[A-Za-z0-9]{1,64}$/),
       text: z.string().min(1).max(5000),
       modelId: z.enum(VOICE_MODEL_IDS),
+      voiceSettings: voiceSettingsSchema.optional(),
     })
   )
   .handler(async ({ data }): Promise<VoiceoverResult> => {
     const { generateVoiceoverForCurrentUser } = await import(
       "@/server/elevenlabs"
     )
-    return generateVoiceoverForCurrentUser(data.voiceId, data.text, data.modelId)
+    return generateVoiceoverForCurrentUser(
+      data.voiceId,
+      data.text,
+      data.modelId,
+      data.voiceSettings
+    )
+  })
+
+const saveVoiceDefaultsFn = createServerFn({ method: "POST" })
+  .inputValidator(voiceDefaultsSchema)
+  .handler(async ({ data }): Promise<void> => {
+    const { saveVoiceDefaultsForCurrentUser } = await import(
+      "@/server/elevenlabs"
+    )
+    return saveVoiceDefaultsForCurrentUser(data)
   })
 
 export function listElevenLabsVoices() {
@@ -92,6 +111,11 @@ export function generateVoiceover(input: {
   voiceId: string
   text: string
   modelId: VoiceModelId
+  voiceSettings?: VoiceSettings
 }) {
   return generateVoiceoverFn({ data: input })
+}
+
+export function saveVoiceDefaults(defaults: VoiceDefaults) {
+  return saveVoiceDefaultsFn({ data: defaults })
 }

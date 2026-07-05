@@ -17,6 +17,7 @@ import {
   shellTopNavigationItemSchema,
   shellTopRightNavigationItemSchema,
 } from "@/lib/shell-config-schema"
+import { voiceDefaultsSchema, type VoiceDefaults } from "@/lib/voice-settings"
 import { db, type AiVideoDb } from "@/server/db"
 import { aiVideoWorkspaces, type AiVideoWorkspace } from "@/server/schema"
 import { now, uuid } from "@/server/security"
@@ -33,6 +34,8 @@ export type WorkspaceSettings = {
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Saved ElevenLabs voiceover defaults; null until the user saves one.
+  voiceDefaults: VoiceDefaults | null
 }
 
 const workspaceSettingsSchema = z
@@ -45,6 +48,8 @@ const workspaceSettingsSchema = z
     topNavigation: z.array(shellTopNavigationItemSchema),
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
+    // Default fills rows saved before voice defaults existed.
+    voiceDefaults: voiceDefaultsSchema.nullable().default(null),
   })
   .strict()
 
