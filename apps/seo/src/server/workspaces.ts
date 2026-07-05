@@ -361,6 +361,68 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
     {
+      id: "section-keyword-research",
+      title: "SEO",
+      entries: [
+        {
+          type: "item",
+          id: "item-overview",
+          label: "Overview",
+          href: "/",
+          icon: "layoutDashboard",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-keywords",
+          label: "Keywords",
+          href: "/keywords",
+          icon: "tag",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-clusters",
+          label: "Clusters",
+          href: "/clusters",
+          icon: "folderOpen",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-content-plan",
+          label: "Content Plan",
+          href: "/content-plan",
+          icon: "clipboardCheck",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-rankings",
+          label: "Rankings",
+          href: "/rankings",
+          icon: "barChart3",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-competitors",
+          label: "Competitors",
+          href: "/competitors",
+          icon: "users",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-api-usage",
+          label: "API Usage",
+          href: "/usage",
+          icon: "creditCard",
+          visible: true,
+        },
+      ],
+    },
+    {
       id: "section-platform-settings",
       title: "Platform Settings",
       entries: [

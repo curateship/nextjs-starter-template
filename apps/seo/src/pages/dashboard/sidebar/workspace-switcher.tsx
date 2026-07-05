@@ -91,7 +91,7 @@ export function WorkspaceSwitcher({
   const handleCreate = async () => {
     const workspaceName = name.trim()
     if (!workspaceName) {
-      setError("Workspace name is required")
+      setError("Project name is required")
       return
     }
 
@@ -143,7 +143,7 @@ export function WorkspaceSwitcher({
                     className="rounded-md border-0 p-2 outline-none transition-colors hover:bg-muted focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:bg-muted"
                   >
                     <ChevronsUpDownIcon className="h-4 w-4" />
-                    <span className="sr-only">Change workspace</span>
+                    <span className="sr-only">Change project</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -153,7 +153,7 @@ export function WorkspaceSwitcher({
                   sideOffset={4}
                 >
                   <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Workspaces
+                    Projects
                   </DropdownMenuLabel>
                   {workspaces.map((workspace) => {
                     const displayName = workspace.active
@@ -204,7 +204,7 @@ export function WorkspaceSwitcher({
                         {renderShellIcon("settings")}
                       </div>
                       <div className="font-medium text-muted-foreground">
-                        Manage workspaces
+                        Manage projects
                       </div>
                     </Link>
                   </DropdownMenuItem>
@@ -221,7 +221,7 @@ export function WorkspaceSwitcher({
                       <PlusIcon className="size-4" />
                     </div>
                     <div className="font-medium text-muted-foreground">
-                      Add workspace
+                      Add project
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -234,9 +234,10 @@ export function WorkspaceSwitcher({
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New workspace</DialogTitle>
+            <DialogTitle>New project</DialogTitle>
             <DialogDescription>
-              Create a private project workspace.
+              Create a new SEO project. You can set its domain afterward in
+              Settings.
             </DialogDescription>
           </DialogHeader>
           <form

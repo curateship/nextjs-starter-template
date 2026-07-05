@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 .output
+.tanstack
+.nitro
 *.local
 
 # Editor directories and files
