@@ -42,6 +42,11 @@ import {
   getSiteSponsorsAction,
   type Sponsor
 } from "@/lib/actions/sponsors/sponsor-actions"
+import {
+  getSponsorReportLinksAction,
+  type SponsorReportLinkStatus
+} from "@/lib/actions/sponsors/sponsor-portal-actions"
+import { SponsorReportLinkCell } from "@/components/admin/sponsors/SponsorReportLinkCell"
 import { cn } from "@/lib/utils/tailwind"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import { ExternalLink, Handshake, Pencil, Plus, Trash2 } from "lucide-react"
@@ -58,6 +63,7 @@ export default function SponsorsPage() {
   const [filter, setFilter] = useState<SponsorFilter>("all")
   const [formOpen, setFormOpen] = useState(false)
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null)
+  const [reportLinks, setReportLinks] = useState<Record<string, SponsorReportLinkStatus>>({})
   const [deleteSponsor, setDeleteSponsor] = useState<Sponsor | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
@@ -71,13 +77,17 @@ export default function SponsorsPage() {
     async function loadSponsors() {
       if (!currentSite?.id) {
         setSponsors([])
+        setReportLinks({})
         setLoading(false)
         return
       }
 
       setLoading(true)
       setError(null)
-      const { data, error: loadError } = await getSiteSponsorsAction(currentSite.id)
+      const [{ data, error: loadError }, linksResult] = await Promise.all([
+        getSiteSponsorsAction(currentSite.id),
+        getSponsorReportLinksAction(currentSite.id)
+      ])
 
       if (cancelled) return
 
@@ -87,6 +97,7 @@ export default function SponsorsPage() {
       } else {
         setSponsors(data || [])
       }
+      setReportLinks(linksResult.data || {})
       setLoading(false)
     }
 
@@ -279,6 +290,7 @@ export default function SponsorsPage() {
                       URL
                     </AdminSortButton>
                   </TableHead>
+                  <TableHead column="meta">Report Link</TableHead>
                   <TableHead column="meta">
                     <AdminSortButton
                       active={sponsorSort.sortColumn === "modified"}
@@ -293,16 +305,16 @@ export default function SponsorsPage() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <AdminListSkeleton columns={6} rowCount={5} actionCount={2} />
+                  <AdminListSkeleton columns={7} rowCount={5} actionCount={2} />
                 ) : error ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
+                    <TableCell colSpan={7} className="h-32 text-center">
                       <p className="text-sm text-red-600">{error}</p>
                     </TableCell>
                   </TableRow>
                 ) : filteredSponsors.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
+                    <TableCell colSpan={7} className="h-32 text-center">
                       <Handshake className="mx-auto h-10 w-10 text-muted-foreground" />
                       <p className="mt-4 text-sm text-muted-foreground">
                         {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
@@ -368,6 +380,20 @@ export default function SponsorsPage() {
                             <span className="truncate">{sponsor.url}</span>
                             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                           </a>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <SponsorReportLinkCell
+                            sponsorId={sponsor.id}
+                            link={reportLinks[sponsor.id] ?? null}
+                            onLinkChange={(sponsorId, link) => {
+                              setReportLinks((current) => {
+                                const next = { ...current }
+                                if (link) next[sponsorId] = link
+                                else delete next[sponsorId]
+                                return next
+                              })
+                            }}
+                          />
                         </TableCell>
                         <TableCell column="mutedMeta">{formatDate(sponsor.updated_at)}</TableCell>
                         <TableCell column="meta">

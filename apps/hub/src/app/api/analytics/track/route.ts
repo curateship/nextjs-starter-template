@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sites } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { sites, sponsors } from '@/lib/db/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 interface TrackEvent {
   type: string
@@ -11,6 +12,9 @@ interface TrackEvent {
   referrer?: string
   daily_visitor?: boolean
   timestamp?: string
+  sponsor_id?: string
+  placement?: string
+  post_id?: string
 }
 
 const MAX_EVENTS_PER_REQUEST = 20
@@ -66,6 +70,86 @@ function getEventDay(timestamp: string | undefined): string {
 
 function incrementCounter(counters: Record<string, number>, key: string) {
   counters[key] = (counters[key] ?? 0) + 1
+}
+
+const MAX_PLACEMENT_LENGTH = 64
+
+interface SponsorImpressionGroup {
+  sponsorId: string
+  day: string
+  placement: string
+  sourcePath: string
+  postId: string | null
+  impressions: number
+}
+
+function cleanPlacement(placement: string | undefined): string {
+  if (typeof placement !== 'string') return 'post_editor'
+  const trimmed = placement.trim().slice(0, MAX_PLACEMENT_LENGTH)
+  return /^[a-z0-9_-]+$/i.test(trimmed) ? trimmed : 'post_editor'
+}
+
+// Sponsor impressions are client-reported and unauthenticated by design (same as
+// pageviews). Counts are advisory, not billing-grade: within the rate limit a client
+// can inflate impressions for a sponsor on this site. Cross-site inflation is blocked
+// by persistSponsorImpressions verifying the sponsor belongs to the resolved site.
+function collectSponsorImpressions(events: TrackEvent[]): Map<string, SponsorImpressionGroup> {
+  const groups = new Map<string, SponsorImpressionGroup>()
+
+  for (const event of events) {
+    if (!event || event.type !== 'sponsor_impression') continue
+    if (typeof event.sponsor_id !== 'string' || !UUID_REGEX.test(event.sponsor_id)) continue
+
+    const sourcePath = cleanPagePath(event.page_path)
+    if (!sourcePath) continue
+
+    const day = getEventDay(event.timestamp)
+    const placement = cleanPlacement(event.placement)
+    const postId = typeof event.post_id === 'string' && UUID_REGEX.test(event.post_id) ? event.post_id : null
+
+    const key = `${event.sponsor_id}|${day}|${placement}|${sourcePath}`
+    const group = groups.get(key) ?? { sponsorId: event.sponsor_id, day, placement, sourcePath, postId, impressions: 0 }
+    group.impressions += 1
+    groups.set(key, group)
+  }
+
+  return groups
+}
+
+async function persistSponsorImpressions(siteId: string, groups: Map<string, SponsorImpressionGroup>) {
+  if (!groups.size) return
+
+  const sponsorIds = Array.from(new Set(Array.from(groups.values()).map((group) => group.sponsorId)))
+  const validRows = await db
+    .select({ id: sponsors.id })
+    .from(sponsors)
+    .where(and(eq(sponsors.siteId, siteId), inArray(sponsors.id, sponsorIds)))
+  const validIds = new Set(validRows.map((row) => row.id))
+
+  const validGroups = Array.from(groups.values()).filter((group) => validIds.has(group.sponsorId))
+  if (!validGroups.length) return
+
+  // Each group is unique on (sponsor_id, day, placement, source_path) — the conflict
+  // target — so a single multi-row upsert can't affect the same row twice.
+  const rows = validGroups.map((group) => sql`(
+    ${siteId}::uuid,
+    ${group.sponsorId}::uuid,
+    ${group.day}::date,
+    ${group.placement},
+    ${group.sourcePath},
+    ${group.postId}::uuid,
+    ${group.impressions},
+    0,
+    now()
+  )`)
+
+  await db.execute(sql`
+    INSERT INTO sponsor_daily_analytics (site_id, sponsor_id, day, placement, source_path, post_id, impressions, clicks, updated_at)
+    VALUES ${sql.join(rows, sql`, `)}
+    ON CONFLICT (sponsor_id, day, placement, source_path) DO UPDATE SET
+      impressions = sponsor_daily_analytics.impressions + EXCLUDED.impressions,
+      updated_at = now()
+  `)
 }
 
 export async function POST(request: NextRequest) {
@@ -130,6 +214,12 @@ export async function POST(request: NextRequest) {
 
       groups.set(day, group)
     }
+
+    const sponsorGroups = collectSponsorImpressions(events)
+
+    if (!groups.size && !sponsorGroups.size) return new NextResponse(null, { status: 204 })
+
+    await persistSponsorImpressions(site.id, sponsorGroups)
 
     if (!groups.size) return new NextResponse(null, { status: 204 })
 
