@@ -14,6 +14,7 @@ import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "../blocks/categories-listing/PageCategoriesListingBlock"
 import { PageSiteSearchBlock } from "../blocks/site-search/PageSiteSearchBlock"
+import { PageMemberDirectoryBlock } from "../blocks/member-directory/PageMemberDirectoryBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -129,6 +130,13 @@ export function PageBlockEditorDialog({
 
                 {selectedBlock.type === "site-search" && (
                   <PageSiteSearchBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+
+                {selectedBlock.type === "member-directory" && (
+                  <PageMemberDirectoryBlock
                     content={draftContent}
                     onContentChange={onContentChange}
                   />

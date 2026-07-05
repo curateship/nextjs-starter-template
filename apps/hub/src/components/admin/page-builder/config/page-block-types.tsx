@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags, Search } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags, Search, Users } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -145,6 +145,25 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       showTypeChips: true,
       showImages: true,
       showSummaries: true,
+      visibility: {},
+    }
+  },
+  {
+    type: 'member-directory',
+    name: 'Member Directory',
+    icon: Users,
+    description: 'Show active site members with links to public profiles',
+    defaultContent: {
+      title: 'Members',
+      subtitle: '',
+      layout: 'grid',
+      columns: 3,
+      itemsPerPage: 24,
+      sortBy: 'name',
+      sortOrder: 'asc',
+      showSearch: true,
+      showRoleChips: true,
+      includedRoles: ['owner', 'admin', 'member'],
       visibility: {},
     }
   },
