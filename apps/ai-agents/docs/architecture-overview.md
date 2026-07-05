@@ -9,7 +9,7 @@ It is built on the `custom-shell` template (Vite + TanStack Start, TanStack
 Router file routes, Drizzle + Postgres, session auth, shadcn/ui) and follows
 the same conventions as its sibling apps (`ai-video`, `antidetect`):
 
-- App port **3006**, own Postgres via `docker-compose.yml` (**54323**, db `ai_agents`)
+- App port **3008**, own Postgres via `docker-compose.yml` (**54323**, db `ai_agents`)
 - Env vars prefixed `AI_AGENTS_*` (see `.env.example`)
 - Hand-written sequential SQL migrations in `drizzle/`, applied with psql
 - Type checking runs with `npm run typecheck`

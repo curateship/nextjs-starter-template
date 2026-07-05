@@ -32,6 +32,8 @@ The current apps are:
 - `apps/ai-video` - AI Video app
 - `apps/anti-detect` - Antidetect app
 - `apps/ai-agents` - AI Agents app
+- `apps/seo` - SEO app
+- `apps/trading` - Trading app
 - `apps/personal-ide` - desktop Personal IDE app
 
 `packages/` is reserved for shared code when a real shared package is needed. `services/` currently contains `traefik-config-writer`.
@@ -70,7 +72,10 @@ Local app ports live in `local-apps.json`:
   "custom-shell": 3002,
   "core": 3003,
   "ai-video": 3004,
-  "anti-detect": 3005
+  "anti-detect": 3005,
+  "seo": 3009,
+  "ai-agents": 3008,
+  "trading": 3007
 }
 ```
 
@@ -83,6 +88,9 @@ Current local URLs:
 - Core: `http://localhost:3003`
 - AI Video: `http://localhost:3004`
 - Antidetect: `http://localhost:3005`
+- SEO: `http://localhost:3009`
+- AI Agents: `http://localhost:3008`
+- Trading: `http://localhost:3007`
 
 ## Personal IDE
 

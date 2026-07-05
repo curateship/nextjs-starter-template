@@ -9,6 +9,9 @@ This document describes the current local dev server setup for the apps in this 
 - Core: `http://localhost:3003`
 - AI Video: `http://localhost:3004`
 - Antidetect: `http://localhost:3005`
+- SEO: `http://localhost:3009`
+- AI Agents: `http://localhost:3008`
+- Trading: `http://localhost:3007`
 
 ## Why These Ports
 
@@ -19,6 +22,9 @@ The local apps now use a simple fixed port layout so they are easier to remember
 - `3003`
 - `3004`
 - `3005`
+- `3007`
+- `3008`
+- `3009`
 
 This replaces the previous mix of `3000`, `5173`, and `5174`.
 
@@ -42,6 +48,14 @@ The app-level dev setup and Personal IDE read that file:
 - `apps/anti-detect/vite.config.ts`
   - `server.port = localAppPorts["anti-detect"]`
   - `server.strictPort = true`
+- `apps/seo/vite.config.ts`
+  - `server.port = localAppPorts.seo`
+  - `server.strictPort = true`
+- `apps/ai-agents/vite.config.ts`
+  - `server.port = localAppPorts["ai-agents"]`
+  - `server.strictPort = true`
+- `apps/trading/vite.config.ts`
+  - `server.port = 3007`
 
 `strictPort: true` is enabled for the TanStack Start apps so they fail instead of silently moving to another port. These apps include their UI and backend in one dev server, so there is no separate Python API dev server.
 
@@ -64,4 +78,7 @@ custom-shell: http://localhost:3002
 core: http://localhost:3003
 ai-video: http://localhost:3004
 anti-detect: http://localhost:3005
+seo: http://localhost:3009
+ai-agents: http://localhost:3008
+trading: http://localhost:3007
 ```

@@ -9,7 +9,7 @@ npm run db:up --workspace=ai-agents
 npm run dev --workspace=ai-agents
 ```
 
-The local app runs at `http://localhost:3006`.
+The local app runs at `http://localhost:3008`.
 
 ## Media Library Storage
 
