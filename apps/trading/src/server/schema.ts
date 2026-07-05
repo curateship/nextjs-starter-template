@@ -618,6 +618,202 @@ export const tradingPaperFills = pgTable(
   ]
 )
 
+export const scannerTrades = pgTable(
+  "scanner_trades",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tid: bigint("tid", { mode: "number" }).notNull(),
+    ts: timestamp("ts", { withTimezone: true }).notNull(),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    side: varchar("side", { length: 4 }).notNull(),
+    px: numeric("px").notNull(),
+    sz: numeric("sz").notNull(),
+    notional: numeric("notional").notNull(),
+    buyer: varchar("buyer", { length: 42 }).notNull(),
+    seller: varchar("seller", { length: 42 }).notNull(),
+  },
+  (table) => [
+    check("scanner_trades_side_check", sql`${table.side} in ('buy', 'sell')`),
+    uniqueIndex("ux_scanner_trades_tid").on(table.tid),
+    index("ix_scanner_trades_ts").on(table.ts),
+    index("ix_scanner_trades_coin_ts").on(table.coin, table.ts),
+    index("ix_scanner_trades_buyer_ts").on(table.buyer, table.ts),
+    index("ix_scanner_trades_seller_ts").on(table.seller, table.ts),
+  ]
+)
+
+export const scannerWallets = pgTable(
+  "scanner_wallets",
+  {
+    address: varchar("address", { length: 42 }).primaryKey(),
+    label: varchar("label", { length: 255 }),
+    tracked: boolean("tracked").notNull().default(false),
+    ignored: boolean("ignored").notNull().default(false),
+    autoLabels: jsonb("auto_labels").notNull().default([]),
+    qualityScore: integer("quality_score"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_scanner_wallets_last_seen_at").on(table.lastSeenAt),
+    index("ix_scanner_wallets_tracked").on(table.tracked),
+  ]
+)
+
+export const scannerWalletStats = pgTable("scanner_wallet_stats", {
+  address: varchar("address", { length: 42 })
+    .primaryKey()
+    .references(() => scannerWallets.address, { onDelete: "cascade" }),
+  accountValue: numeric("account_value"),
+  pnl7d: numeric("pnl_7d"),
+  pnl30d: numeric("pnl_30d"),
+  winRate: numeric("win_rate"),
+  fillCount30d: integer("fill_count_30d"),
+  avgTradeNotional: numeric("avg_trade_notional"),
+  largestWin: numeric("largest_win"),
+  largestLoss: numeric("largest_loss"),
+  topCoins: jsonb("top_coins"),
+  openPositions: jsonb("open_positions"),
+  avgHoldMinutes: numeric("avg_hold_minutes"),
+  portfolioHistory: jsonb("portfolio_history"),
+  statsUpdatedAt: timestamp("stats_updated_at", {
+    withTimezone: true,
+  }).notNull(),
+})
+
+export const scannerWalletDaily = pgTable(
+  "scanner_wallet_daily",
+  {
+    address: varchar("address", { length: 42 }).notNull(),
+    day: date("day").notNull(),
+    tradeCount: integer("trade_count").notNull().default(0),
+    notional: numeric("notional").notNull().default("0"),
+    buyNotional: numeric("buy_notional").notNull().default("0"),
+    sellNotional: numeric("sell_notional").notNull().default("0"),
+  },
+  (table) => [
+    primaryKey({
+      name: "scanner_wallet_daily_pkey",
+      columns: [table.address, table.day],
+    }),
+  ]
+)
+
+export const scannerPositions = pgTable(
+  "scanner_positions",
+  {
+    address: varchar("address", { length: 42 }).notNull(),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    szi: numeric("szi").notNull(),
+    entryPx: numeric("entry_px"),
+    notional: numeric("notional").notNull(),
+    leverage: numeric("leverage"),
+    unrealizedPnl: numeric("unrealized_pnl"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "scanner_positions_pkey",
+      columns: [table.address, table.coin],
+    }),
+  ]
+)
+
+export const scannerPositionEvents = pgTable(
+  "scanner_position_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    address: varchar("address", { length: 42 }).notNull(),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    eventType: varchar("event_type", { length: 20 }).notNull(),
+    prevSzi: numeric("prev_szi"),
+    newSzi: numeric("new_szi"),
+    prevNotional: numeric("prev_notional"),
+    newNotional: numeric("new_notional"),
+    ts: timestamp("ts", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "scanner_position_events_type_check",
+      sql`${table.eventType} in ('opened', 'closed', 'increased', 'reduced', 'flipped', 'reopened')`
+    ),
+    index("ix_scanner_position_events_ts").on(table.ts),
+    index("ix_scanner_position_events_address_ts").on(table.address, table.ts),
+    index("ix_scanner_position_events_coin_ts").on(table.coin, table.ts),
+  ]
+)
+
+export const scannerAlerts = pgTable(
+  "scanner_alerts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    type: varchar("type", { length: 40 }).notNull(),
+    coin: varchar("coin", { length: 20 }),
+    address: varchar("address", { length: 42 }),
+    title: text("title").notNull(),
+    body: text("body"),
+    data: jsonb("data"),
+    dedupeKey: varchar("dedupe_key", { length: 160 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ux_scanner_alerts_dedupe_key")
+      .on(table.dedupeKey)
+      .where(sql`${table.dedupeKey} is not null`),
+    index("ix_scanner_alerts_created_at").on(table.createdAt),
+    index("ix_scanner_alerts_read_at").on(table.readAt),
+  ]
+)
+
+export const scannerCrowdSignals = pgTable(
+  "scanner_crowd_signals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    direction: varchar("direction", { length: 5 }).notNull(),
+    score: numeric("score").notNull(),
+    walletCount: integer("wallet_count").notNull(),
+    notional: numeric("notional").notNull(),
+    avgQuality: numeric("avg_quality"),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    data: jsonb("data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "scanner_crowd_signals_direction_check",
+      sql`${table.direction} in ('long', 'short')`
+    ),
+    index("ix_scanner_crowd_signals_created_at").on(table.createdAt),
+    index("ix_scanner_crowd_signals_coin_created_at").on(
+      table.coin,
+      table.createdAt
+    ),
+  ]
+)
+
+export const scannerBookMetrics = pgTable("scanner_book_metrics", {
+  coin: varchar("coin", { length: 20 }).primaryKey(),
+  mid: numeric("mid"),
+  spreadBps: numeric("spread_bps"),
+  bidLiquidity: jsonb("bid_liquidity"),
+  askLiquidity: jsonb("ask_liquidity"),
+  imbalance: numeric("imbalance"),
+  walls: jsonb("walls"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+// Single-row runtime switch (id = 'default') for pausing the scanner worker
+// from the UI without a restart. The worker polls `paused`.
+export const scannerControl = pgTable("scanner_control", {
+  id: varchar("id", { length: 20 }).primaryKey(),
+  paused: boolean("paused").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export const tradingWorkerHeartbeats = pgTable("worker_heartbeats", {
   id: varchar("id", { length: 36 }).primaryKey(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -646,6 +842,15 @@ export type TradingAccountSnapshot =
   typeof tradingAccountSnapshots.$inferSelect
 export type TradingWorkerHeartbeat =
   typeof tradingWorkerHeartbeats.$inferSelect
+export type ScannerTrade = typeof scannerTrades.$inferSelect
+export type ScannerWallet = typeof scannerWallets.$inferSelect
+export type ScannerWalletStats = typeof scannerWalletStats.$inferSelect
+export type ScannerPosition = typeof scannerPositions.$inferSelect
+export type ScannerPositionEvent = typeof scannerPositionEvents.$inferSelect
+export type ScannerAlert = typeof scannerAlerts.$inferSelect
+export type ScannerCrowdSignal = typeof scannerCrowdSignals.$inferSelect
+export type ScannerBookMetrics = typeof scannerBookMetrics.$inferSelect
+export type ScannerControl = typeof scannerControl.$inferSelect
 export type TradingPaperWallet = typeof tradingPaperWallets.$inferSelect
 export type TradingPaperPosition = typeof tradingPaperPositions.$inferSelect
 export type TradingPaperOrder = typeof tradingPaperOrders.$inferSelect
