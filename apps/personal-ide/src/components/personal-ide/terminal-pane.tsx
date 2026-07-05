@@ -148,6 +148,13 @@ export function TerminalPane({
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
+    // Claude Code erases the scrollback buffer (CSI 3 J) on every redraw
+    // taller than the viewport, which kills the scrollbar. Swallow only that
+    // sequence; plain screen clears (CSI 2 J) still work.
+    const scrollbackGuard = terminal.parser.registerCsiHandler(
+      { final: "J" },
+      (params) => params[0] === 3
+    )
     terminal.open(container)
     terminalRef.current = terminal
     fitRef.current = fit
@@ -252,6 +259,7 @@ export function TerminalPane({
       observer.disconnect()
       dataDisposable.dispose()
       keyDisposable.dispose()
+      scrollbackGuard.dispose()
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
