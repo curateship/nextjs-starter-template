@@ -41,6 +41,9 @@ export function getAuthErrorMessage(error: unknown) {
 
 const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
   async () => {
+    void import("@/server/scheduler").then((scheduler) =>
+      scheduler.ensureSchedulerStarted()
+    )
     const user = await findCurrentUser()
     return user ? serializeUser(user) : null
   }

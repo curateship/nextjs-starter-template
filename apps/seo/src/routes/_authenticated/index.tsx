@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { Dashboard2Content } from "@/components/dashboard2"
+import { ProjectOverviewDashboard } from "@/components/project-overview"
+import { loadCurrentProjectOverview } from "@/lib/api/seo-projects"
 
 export const Route = createFileRoute("/_authenticated/")({
-  component: Dashboard2Content,
+  loader: () => loadCurrentProjectOverview(),
+  component: OverviewRoute,
 })
+
+function OverviewRoute() {
+  const { project, overview } = Route.useLoaderData()
+  return <ProjectOverviewDashboard project={project} overview={overview} />
+}

@@ -110,7 +110,7 @@ export function WorkspacesDashboard({
   async function saveWorkspace() {
     const name = form.name.trim()
     if (!name) {
-      setError("Workspace name is required")
+      setError("Project name is required")
       return
     }
 
@@ -162,7 +162,7 @@ export function WorkspacesDashboard({
         controls={
           <DashboardToolbarButton type="button" onClick={openCreateForm}>
             <PlusIcon className="size-4" />
-            Add Workspace
+            Add Project
           </DashboardToolbarButton>
         }
         header={
@@ -170,7 +170,7 @@ export function WorkspacesDashboard({
             <TableRow>
               <TableHead column="main">
                 <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
-                  Workspace
+                  Project
                 </TableSortButton>
               </TableHead>
               <TableHead column="meta">
@@ -183,12 +183,12 @@ export function WorkspacesDashboard({
           </TableHeader>
         }
         isEmpty={sortedWorkspaces.length === 0}
-        emptyText="No workspaces found."
+        emptyText="No projects found."
         emptyColSpan={3}
         footer={{
           type: "summary",
           count: sortedWorkspaces.length,
-          label: "workspaces",
+          label: "projects",
         }}
       >
         {sortedWorkspaces.map((workspace) => (
@@ -294,10 +294,10 @@ function WorkspaceFormDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>
-            {editing ? "Edit Workspace" : "Add Workspace"}
+            {editing ? "Edit Project" : "Add Project"}
           </DialogTitle>
           <DialogDescription>
-            Choose the name and icon shown in the workspace switcher.
+            Choose the name and icon shown in the project switcher.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-4 sm:grid-cols-2">
@@ -373,16 +373,16 @@ function DeleteWorkspaceDialog({
     <Dialog open={Boolean(workspace)} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>Delete Workspace</DialogTitle>
+          <DialogTitle>Delete Project</DialogTitle>
           <DialogDescription>
-            This deletes the workspace.
+            This deletes the project and all of its keyword data.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <p className="text-sm">
             Delete{" "}
             <span className="font-medium">
-              {workspace?.name ?? "this workspace"}
+              {workspace?.name ?? "this project"}
             </span>
             ?
           </p>

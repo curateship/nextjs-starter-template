@@ -164,6 +164,25 @@ describe("custom shell workspaces", () => {
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
+      { type: "item", label: "Overview", href: "/", visible: true },
+      { type: "item", label: "Keywords", href: "/keywords", visible: true },
+      { type: "item", label: "Clusters", href: "/clusters", visible: true },
+      {
+        type: "item",
+        label: "Content Plan",
+        href: "/content-plan",
+        visible: true,
+      },
+      { type: "item", label: "Rankings", href: "/rankings", visible: true },
+      {
+        type: "item",
+        label: "Competitors",
+        href: "/competitors",
+        visible: true,
+      },
+      { type: "item", label: "API Usage", href: "/usage", visible: true },
+    ])
+    expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Settings",
@@ -184,14 +203,12 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
-      {
-        type: "item",
-        label: "Settings",
-        href: "/admin/settings",
-        visible: true,
-      },
-    ])
+    expect(secondSettings.sections[0]?.entries[0]).toMatchObject({
+      type: "item",
+      label: "Overview",
+      href: "/",
+      visible: true,
+    })
 
     const updatedWorkspace = await updateUserWorkspace(
       userId,

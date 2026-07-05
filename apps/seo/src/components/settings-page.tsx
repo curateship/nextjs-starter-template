@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
+import { ProjectSettings } from "@/components/project-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
@@ -8,10 +9,14 @@ import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 
 const settingsTabs = [
+  { id: "project", label: "Project" },
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
 ] as const
+
+// Tabs that manage SEO project data and save themselves (not the shell config).
+const selfSavingTabs: SettingsTabId[] = ["project"]
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
 type SaveStatus = "idle" | "saving" | "saved"
@@ -20,7 +25,7 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
   return settingsTabs.some((tab) => tab.id === segment)
     ? (segment as SettingsTabId)
-    : "general"
+    : "project"
 }
 
 export function SettingsPage({
@@ -39,6 +44,7 @@ export function SettingsPage({
   onSaveConfig: () => Promise<boolean>
 }) {
   const isSaving = saveStatus === "saving"
+  const selfSaving = selfSavingTabs.includes(activeTab)
 
   return (
     <div className="w-full pb-8">
@@ -46,32 +52,34 @@ export function SettingsPage({
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Configure the shell defaults for this workspace.
+            Configure this project and the shell defaults for this workspace.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {saveStatus === "saved" ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-              <CheckIcon className="h-4 w-4" />
-              Saved
-            </span>
-          ) : null}
-          <DashboardToolbarButton
-            type="button"
-            onClick={onSaveConfig}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
-              <SaveIcon className="h-4 w-4" />
-            )}
-            {isSaving ? "Saving" : "Save"}
-          </DashboardToolbarButton>
-        </div>
+        {selfSaving ? null : (
+          <div className="flex items-center gap-3">
+            {saveStatus === "saved" ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                <CheckIcon className="h-4 w-4" />
+                Saved
+              </span>
+            ) : null}
+            <DashboardToolbarButton
+              type="button"
+              onClick={onSaveConfig}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
+              {isSaving ? "Saving" : "Save"}
+            </DashboardToolbarButton>
+          </div>
+        )}
       </div>
 
-      {settingsError ? (
+      {settingsError && !selfSaving ? (
         <div
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -94,6 +102,7 @@ export function SettingsPage({
         </nav>
 
         <div className="min-w-0 flex-1">
+          {activeTab === "project" ? <ProjectSettings /> : null}
           {activeTab === "general" ? (
             <GeneralSettings
               config={config}
@@ -139,7 +148,7 @@ function SettingsTabLink({
       : "text-muted-foreground hover:text-foreground"
   )
 
-  if (tabId === "general") {
+  if (tabId === "project") {
     return (
       <Link to="/admin/settings" className={className}>
         {label}
