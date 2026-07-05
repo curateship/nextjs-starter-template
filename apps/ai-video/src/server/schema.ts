@@ -118,7 +118,7 @@ export const aiVideoApiUsageEvents = pgTable(
     ),
     check(
       "api_usage_feature_check",
-      sql`${table.feature} in ('text_generation', 'caption_generation', 'video_analysis', 'voiceover', 'image_generation', 'ai_video_generation', 'script_generation', 'carousel_generation', 'export_description')`
+      sql`${table.feature} in ('text_generation', 'caption_generation', 'video_analysis', 'voiceover', 'image_generation', 'ai_video_generation', 'script_generation', 'carousel_generation', 'export_description', 'jump_cut_analysis')`
     ),
     check(
       "api_usage_status_check",

@@ -56,7 +56,7 @@ const PROFILE_USER_AGENT =
 const INSTAGRAM_APP_ID = "936619743392459"
 
 // Container extensions yt-dlp may produce, mapped to the media pipeline's
-// allowed video MIME types (see VIDEO_TYPES in media.ts).
+// allowed video MIME types (see VIDEO_TYPES in media-types.ts).
 const EXTENSION_MIME_TYPES: Record<string, string> = {
   mp4: "video/mp4",
   m4v: "video/mp4",

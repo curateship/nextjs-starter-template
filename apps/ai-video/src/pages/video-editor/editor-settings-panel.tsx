@@ -10,6 +10,7 @@ import {
   PauseIcon,
   PenLineIcon,
   PlayIcon,
+  ScissorsIcon,
   ShapesIcon,
   SparklesIcon,
   Trash2Icon,
@@ -21,6 +22,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
 import { useShellRuntime } from "@/components/shell-runtime"
@@ -91,6 +93,12 @@ import {
   type ProjectReelBriefResult,
   type ScriptBeat,
 } from "@/lib/api/script-writer"
+import {
+  analyzeJumpCuts,
+  getJumpCutErrorMessage,
+  type JumpCutSensitivity,
+  type JumpCutSuggestion,
+} from "@/lib/api/jump-cuts"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -109,6 +117,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  findClip,
   useEditor,
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
@@ -132,7 +141,7 @@ export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
             <h2 className="truncate text-sm font-semibold" title={clip.name}>
               {clip.name}
             </h2>
-            <p className="text-xs tabular-nums text-muted-foreground">
+            <p className="text-xs text-muted-foreground tabular-nums">
               {formatTimecode(clip.startMs)} –{" "}
               {formatTimecode(clip.startMs + clip.durationMs)}
             </p>
@@ -317,7 +326,9 @@ function TextStyleFields({
             id={`${idPrefix}-highlight-toggle`}
             checked={!!highlightColor}
             onCheckedChange={(on) =>
-              onChange({ highlightColor: on ? highlightColor || "#ffffff" : undefined })
+              onChange({
+                highlightColor: on ? highlightColor || "#ffffff" : undefined,
+              })
             }
             aria-label="Toggle highlight background"
           />
@@ -345,11 +356,7 @@ type TextDraft = {
   highlightColor?: string
 }
 
-function brandColor(
-  brandKit: BrandKitConfig,
-  name: string,
-  fallback: string
-) {
+function brandColor(brandKit: BrandKitConfig, name: string, fallback: string) {
   return (
     brandKit.colors.find(
       (color) => color.name.toLowerCase() === name.toLowerCase()
@@ -386,12 +393,14 @@ type ElementTileAction =
   | "sound-effect"
   | "ai-video"
   | "brief"
+  | "jump-cut"
 
 const PROJECT_ONLY_TILE_ACTIONS = new Set<ElementTileAction>([
   "captions",
   "script",
   "brief",
   "ai-video",
+  "jump-cut",
 ])
 
 type EditorTile = {
@@ -412,6 +421,7 @@ const ELEMENT_TILES: EditorTile[] = [
 const AI_TILES: EditorTile[] = [
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
+  { label: "Jump Cut", icon: ScissorsIcon, action: "jump-cut" },
   { label: "Brief to Reel", icon: FileTextIcon, action: "brief" },
   { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
   { label: "AI Script", icon: PenLineIcon, action: "script" },
@@ -455,6 +465,7 @@ function EditorToolTilesPanel({
   const [briefOpen, setBriefOpen] = React.useState(false)
   const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
   const [aiVideoOpen, setAiVideoOpen] = React.useState(false)
+  const [jumpCutOpen, setJumpCutOpen] = React.useState(false)
 
   const actions: Record<ElementTileAction, () => void> = {
     text: () => setTextOpen(true),
@@ -464,6 +475,7 @@ function EditorToolTilesPanel({
     brief: () => setBriefOpen(true),
     "sound-effect": () => setSoundEffectOpen(true),
     "ai-video": () => setAiVideoOpen(true),
+    "jump-cut": () => setJumpCutOpen(true),
   }
 
   // Project-scoped generation tiles call project-only server fns, so hide them
@@ -472,17 +484,14 @@ function EditorToolTilesPanel({
   const tiles =
     kind === "template"
       ? panelTiles.filter(
-          (tile) =>
-            !tile.action || !PROJECT_ONLY_TILE_ACTIONS.has(tile.action)
+          (tile) => !tile.action || !PROJECT_ONLY_TILE_ACTIONS.has(tile.action)
         )
       : panelTiles
 
   return (
     <div>
       <h2 className="text-sm font-semibold">{title}</h2>
-      <p className="text-xs text-muted-foreground">
-        {description}
-      </p>
+      <p className="text-xs text-muted-foreground">{description}</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {tiles.map((tile) => {
           const unavailable =
@@ -520,6 +529,7 @@ function EditorToolTilesPanel({
       <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
       <BriefToReelDialog open={briefOpen} onOpenChange={setBriefOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
+      <JumpCutDialog open={jumpCutOpen} onOpenChange={setJumpCutOpen} />
       <SoundEffectDialog
         open={soundEffectOpen}
         onOpenChange={setSoundEffectOpen}
@@ -716,6 +726,330 @@ function SoundEffectDialog({
   )
 }
 
+type JumpCutApplyMode = "review" | "auto"
+
+const JUMP_CUT_SENSITIVITY_OPTIONS: {
+  value: JumpCutSensitivity
+  label: string
+}[] = [
+  { value: "conservative", label: "Conservative" },
+  { value: "balanced", label: "Balanced" },
+  { value: "tight", label: "Tight" },
+]
+
+const JUMP_CUT_APPLY_MODE_OPTIONS: {
+  value: JumpCutApplyMode
+  label: string
+}[] = [
+  { value: "review", label: "Review first" },
+  { value: "auto", label: "Auto cut dead air" },
+]
+
+function JumpCutDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { state, dispatch, clock, documentId, flushSave } = useEditor()
+  const [sensitivity, setSensitivity] =
+    React.useState<JumpCutSensitivity>("balanced")
+  const [applyMode, setApplyMode] = React.useState<JumpCutApplyMode>("review")
+  const [suggestions, setSuggestions] = React.useState<JumpCutSuggestion[]>([])
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [analyzing, setAnalyzing] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [hasAnalyzed, setHasAnalyzed] = React.useState(false)
+  const [applied, setApplied] = React.useState<{
+    count: number
+    removedMs: number
+  } | null>(null)
+
+  const selectedClip =
+    state.selectedClipId !== null
+      ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
+      : null
+  const selectedSuggestions = suggestions.filter((suggestion) =>
+    selectedIds.has(suggestion.id)
+  )
+  const totalRemovedMs = totalJumpCutRemovedMs(selectedSuggestions)
+  const hasReviewSuggestions = suggestions.length > 0 && applyMode === "review"
+  const analyzeButtonText = applyMode === "auto" ? "Auto Cut" : "Analyze"
+
+  function clearAnalysisResults() {
+    setSuggestions([])
+    setSelectedIds(new Set())
+    setError(null)
+    setHasAnalyzed(false)
+    setApplied(null)
+  }
+
+  function reset() {
+    setSensitivity("balanced")
+    setApplyMode("review")
+    setAnalyzing(false)
+    clearAnalysisResults()
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (!next) reset()
+    onOpenChange(next)
+  }
+
+  function applySuggestions(items: JumpCutSuggestion[]) {
+    if (!selectedClip || !items.length) return
+    dispatch({
+      type: "APPLY_JUMP_CUTS",
+      clipId: selectedClip.id,
+      removals: items.map((suggestion) => ({
+        clipStartMs: suggestion.clipStartMs,
+        clipEndMs: suggestion.clipEndMs,
+      })),
+    })
+    setApplied({
+      count: items.length,
+      removedMs: totalJumpCutRemovedMs(items),
+    })
+    setSuggestions([])
+    setSelectedIds(new Set())
+  }
+
+  async function handleAnalyze() {
+    if (!isJumpCutSelection(selectedClip)) {
+      setError("Select a video or audio clip first")
+      return
+    }
+
+    setAnalyzing(true)
+    clearAnalysisResults()
+
+    try {
+      await flushSave()
+      const result = await analyzeJumpCuts({
+        projectId: documentId,
+        clipId: selectedClip.id,
+        sensitivity,
+      })
+      setHasAnalyzed(true)
+      if (applyMode === "auto") {
+        applySuggestions(result.suggestions)
+        return
+      }
+      setSuggestions(result.suggestions)
+      setSelectedIds(
+        new Set(result.suggestions.map((suggestion) => suggestion.id))
+      )
+    } catch (analyzeError) {
+      setError(getJumpCutErrorMessage(analyzeError))
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  function toggleSuggestion(id: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  function previewSuggestion(suggestion: JumpCutSuggestion) {
+    clock.pause()
+    clock.seek(suggestion.timelineStartMs)
+  }
+
+  const emptyAfterAnalyze =
+    hasAnalyzed && !analyzing && !suggestions.length && !applied && !error
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>AI Jump Cut</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-background p-3">
+              <div className="text-sm font-medium">
+                {selectedClip ? selectedClip.name : "No clip selected"}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {selectedClip
+                  ? `${selectedClip.kind} · ${formatTimecode(selectedClip.durationMs)}`
+                  : "Select a video or audio clip."}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="jump-cut-sensitivity">Sensitivity</Label>
+                <Select
+                  value={sensitivity}
+                  onValueChange={(value) =>
+                    setSensitivity(value as JumpCutSensitivity)
+                  }
+                >
+                  <SelectTrigger id="jump-cut-sensitivity">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JUMP_CUT_SENSITIVITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="jump-cut-mode">Mode</Label>
+                <Select
+                  value={applyMode}
+                  onValueChange={(value) =>
+                    setApplyMode(value as JumpCutApplyMode)
+                  }
+                >
+                  <SelectTrigger id="jump-cut-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JUMP_CUT_APPLY_MODE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            ) : null}
+
+            {applied ? (
+              <div className="rounded-md border bg-background p-3 text-sm">
+                <div className="font-medium">Applied {applied.count} cuts</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Removed {formatDurationShort(applied.removedMs)}. Undo is
+                  available from the editor toolbar.
+                </div>
+              </div>
+            ) : null}
+
+            {emptyAfterAnalyze ? (
+              <div className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
+                No removable dead air found.
+              </div>
+            ) : null}
+
+            {suggestions.length > 0 ? (
+              <div className="space-y-2">
+                {suggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="flex gap-3 rounded-md border bg-background p-3"
+                  >
+                    <Checkbox
+                      checked={selectedIds.has(suggestion.id)}
+                      onCheckedChange={(checked) =>
+                        toggleSuggestion(suggestion.id, checked === true)
+                      }
+                      aria-label={`Select cut at ${formatTimecode(
+                        suggestion.timelineStartMs
+                      )}`}
+                    />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {formatTimecode(suggestion.timelineStartMs)} -{" "}
+                          {formatTimecode(suggestion.timelineEndMs)}
+                        </span>
+                        <Badge variant="outline">{suggestion.reason}</Badge>
+                        <Badge variant="secondary">
+                          {formatDurationShort(suggestion.removedDurationMs)}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {suggestion.confidence} confidence
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => previewSuggestion(suggestion)}
+                    >
+                      <PlayIcon className="size-4" />
+                      Preview
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+          >
+            Close
+          </Button>
+          {hasReviewSuggestions ? (
+            <Button
+              type="button"
+              disabled={selectedSuggestions.length === 0}
+              onClick={() => applySuggestions(selectedSuggestions)}
+            >
+              <ScissorsIcon className="size-4" />
+              Apply {selectedSuggestions.length}
+              {totalRemovedMs
+                ? ` · ${formatDurationShort(totalRemovedMs)}`
+                : ""}
+            </Button>
+          ) : (
+            <Button type="button" disabled={analyzing} onClick={handleAnalyze}>
+              {analyzing ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <ScissorsIcon className="size-4" />
+              )}
+              {analyzeButtonText}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function isJumpCutSelection(
+  clip: EditorClip | null
+): clip is EditorClip & { mediaId: string } {
+  return (
+    !!clip?.mediaId &&
+    (clip.kind === "video" || clip.kind === "audio")
+  )
+}
+
+function totalJumpCutRemovedMs(suggestions: JumpCutSuggestion[]) {
+  return suggestions.reduce(
+    (sum, suggestion) => sum + suggestion.removedDurationMs,
+    0
+  )
+}
+
+function formatDurationShort(ms: number) {
+  return `${(Math.max(0, ms) / 1000).toFixed(2)}s`
+}
+
 type AiVideoStep = "frame" | "motion" | "review"
 
 const AI_VIDEO_DURATIONS: AiVideoDurationSeconds[] = [4, 6, 8]
@@ -775,8 +1109,9 @@ function AiVideoDialog({
         if (isAiVideoReviewStepGeneration(latest)) {
           setStep("review")
         }
-        setSelectedFrameId((current) =>
-          current || defaultFirstFrameId(frameData.firstFrames, projectAspect)
+        setSelectedFrameId(
+          (current) =>
+            current || defaultFirstFrameId(frameData.firstFrames, projectAspect)
         )
       })
       .catch((error) => {
@@ -837,7 +1172,9 @@ function AiVideoDialog({
         const bMatch = b.aspect_ratio === projectAspect
         if (aMatch !== bMatch) return aMatch ? -1 : 1
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
       })
   }, [firstFrames, projectAspect, search])
 
@@ -895,7 +1232,10 @@ function AiVideoDialog({
     setInserting(true)
     setGenerationError(null)
     try {
-      const durationMs = await loadMediaDurationMs(generation.media.url, "video")
+      const durationMs = await loadMediaDurationMs(
+        generation.media.url,
+        "video"
+      )
       dispatch({
         type: "ADD_CLIP",
         clip: {
@@ -939,328 +1279,344 @@ function AiVideoDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>AI Video</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              {(["frame", "motion", "review"] as AiVideoStep[]).map(
-                (item, index) => (
-                  <div
-                    key={item}
-                    className={cn(
-                      "rounded-md border px-2 py-1.5 text-center font-medium capitalize",
-                      step === item
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "bg-background text-muted-foreground"
-                    )}
-                  >
-                    {index + 1}. {item}
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>AI Video</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {(["frame", "motion", "review"] as AiVideoStep[]).map(
+                  (item, index) => (
+                    <div
+                      key={item}
+                      className={cn(
+                        "rounded-md border px-2 py-1.5 text-center font-medium capitalize",
+                        step === item
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground"
+                      )}
+                    >
+                      {index + 1}. {item}
+                    </div>
+                  )
+                )}
+              </div>
+
+              {loadError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {loadError}
+                </p>
+              ) : null}
+
+              {step === "frame" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="ai-video-frame-search">First Frame</Label>
+                    <Input
+                      id="ai-video-frame-search"
+                      type="search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search first frames..."
+                    />
                   </div>
-                )
-              )}
-            </div>
 
-            {loadError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {loadError}
-              </p>
-            ) : null}
-
-            {step === "frame" ? (
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ai-video-frame-search">First Frame</Label>
-                  <Input
-                    id="ai-video-frame-search"
-                    type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search first frames..."
-                  />
-                </div>
-
-                <div className="overflow-x-auto rounded-md border p-6">
-                  {loading ? (
-                    <div className="grid h-32 place-items-center sm:h-40 lg:h-[180px]">
-                      <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : visibleFrames.length ? (
-                    <div className="flex min-w-max items-center gap-8">
-                      {visibleFrames.map((frame) => {
-                        const supported = isAiVideoFirstFrameSupported(frame)
-                        const mismatch =
-                          supported && frame.aspect_ratio !== projectAspect
-                        return (
-                          <button
-                            key={frame.id}
-                            type="button"
-                            disabled={!supported}
-                            onClick={() => setSelectedFrameId(frame.id)}
-                            className={cn(
-                              "group relative h-32 shrink-0 overflow-hidden rounded-sm border bg-background text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-40 lg:h-[180px]",
-                              aiVideoFrameAspectClass(frame.aspect_ratio),
-                              selectedFrameId === frame.id &&
-                                "border-2 border-green-500 ring-2 ring-green-500/25"
-                            )}
-                          >
-                            {frame.image_url ? (
-                              <img
-                                src={frame.image_url}
-                                alt={frame.name}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="grid h-full w-full place-items-center bg-muted">
-                                <ImageIcon className="size-6 text-muted-foreground" />
+                  <div className="overflow-x-auto rounded-md border p-6">
+                    {loading ? (
+                      <div className="grid h-32 place-items-center sm:h-40 lg:h-[180px]">
+                        <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : visibleFrames.length ? (
+                      <div className="flex min-w-max items-center gap-8">
+                        {visibleFrames.map((frame) => {
+                          const supported = isAiVideoFirstFrameSupported(frame)
+                          const mismatch =
+                            supported && frame.aspect_ratio !== projectAspect
+                          return (
+                            <button
+                              key={frame.id}
+                              type="button"
+                              disabled={!supported}
+                              onClick={() => setSelectedFrameId(frame.id)}
+                              className={cn(
+                                "group relative h-32 shrink-0 overflow-hidden rounded-sm border bg-background text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-40 lg:h-[180px]",
+                                aiVideoFrameAspectClass(frame.aspect_ratio),
+                                selectedFrameId === frame.id &&
+                                  "border-2 border-green-500 ring-2 ring-green-500/25"
+                              )}
+                            >
+                              {frame.image_url ? (
+                                <img
+                                  src={frame.image_url}
+                                  alt={frame.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="grid h-full w-full place-items-center bg-muted">
+                                  <ImageIcon className="size-6 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                                <div className="truncate text-xs font-medium text-white">
+                                  {frame.name}
+                                </div>
                               </div>
-                            )}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                              <div className="truncate text-xs font-medium text-white">
-                                {frame.name}
+                              <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+                                <Badge variant="secondary">
+                                  {frame.aspect_ratio}
+                                </Badge>
+                                {mismatch ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-background/90"
+                                  >
+                                    Mismatch
+                                  </Badge>
+                                ) : null}
+                                {!supported ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-background/90"
+                                  >
+                                    Unsupported
+                                  </Badge>
+                                ) : null}
                               </div>
-                            </div>
-                            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-                              <Badge variant="secondary">{frame.aspect_ratio}</Badge>
-                              {mismatch ? (
-                                <Badge variant="outline" className="bg-background/90">
-                                  Mismatch
-                                </Badge>
-                              ) : null}
-                              {!supported ? (
-                                <Badge variant="outline" className="bg-background/90">
-                                  Unsupported
-                                </Badge>
-                              ) : null}
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="grid h-40 place-items-center text-center text-sm text-muted-foreground">
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="grid h-40 place-items-center text-center text-sm text-muted-foreground">
+                        <div>
+                          <ImageIcon className="mx-auto mb-2 size-8" />
+                          <p>No first frames found.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
-                        <ImageIcon className="mx-auto mb-2 size-8" />
-                        <p>No first frames found.</p>
+                        <h3 className="text-sm font-medium">
+                          Create First Frame
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Save a new First Frame asset, then use it here.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCreateOpen(true)}
+                      >
+                        Create
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {step === "motion" ? (
+                <div className="space-y-4">
+                  {selectedFrame ? (
+                    <div className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                      <div className="flex h-40 items-center justify-center rounded-md bg-muted p-2 sm:h-36">
+                        <div
+                          className={cn(
+                            "h-full max-w-full overflow-hidden rounded-sm bg-muted",
+                            aiVideoFrameAspectClass(selectedFrame.aspect_ratio)
+                          )}
+                        >
+                          {selectedFrame.image_url ? (
+                            <img
+                              src={selectedFrame.image_url}
+                              alt={selectedFrame.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center">
+                              <ImageIcon className="size-6 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-medium">
+                          {selectedFrame.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedFrame.actor.name} ·{" "}
+                          {selectedFrame.aspect_ratio}
+                        </p>
+                        {selectedFrame.aspect_ratio !== projectAspect ? (
+                          <p className="mt-2 text-xs text-amber-700">
+                            This frame does not match the project aspect.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="grid gap-2">
+                    <Label htmlFor="ai-video-motion">Motion Prompt</Label>
+                    <Textarea
+                      id="ai-video-motion"
+                      rows={5}
+                      value={motionPrompt}
+                      onChange={(event) => setMotionPrompt(event.target.value)}
+                      placeholder="Describe camera movement, subject motion, lighting changes, and mood."
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Duration</Label>
+                    <Select
+                      value={String(durationSeconds)}
+                      onValueChange={(value) =>
+                        setDurationSeconds(
+                          Number(value) as AiVideoDurationSeconds
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AI_VIDEO_DURATIONS.map((duration) => (
+                          <SelectItem key={duration} value={String(duration)}>
+                            {duration}s
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {generationError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {generationError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {step === "review" ? (
+                <div className="space-y-4">
+                  {generation?.status === "ready" && generation.media ? (
+                    <>
+                      <video
+                        src={generation.media.url}
+                        controls
+                        muted
+                        className="max-h-[420px] w-full rounded-md border bg-black"
+                      />
+                      <div className="text-sm">
+                        <p className="font-medium">
+                          {generation.media.original_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {generation.duration_seconds}s ·{" "}
+                          {generation.aspect_ratio} · muted on insert
+                        </p>
+                      </div>
+                    </>
+                  ) : generation?.status === "error" ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {generation.error_message ?? "AI video generation failed"}
+                    </p>
+                  ) : (
+                    <div className="grid h-52 place-items-center rounded-md border bg-background text-center">
+                      <div>
+                        <Loader2Icon className="mx-auto mb-3 size-8 animate-spin text-muted-foreground" />
+                        <p className="text-sm font-medium">Generating video</p>
+                        <p className="text-xs text-muted-foreground">
+                          This can take a few minutes.
+                        </p>
                       </div>
                     </div>
                   )}
+                  {generationError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {generationError}
+                    </p>
+                  ) : null}
                 </div>
-
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-medium">Create First Frame</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Save a new First Frame asset, then use it here.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCreateOpen(true)}
-                    >
-                      Create
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {step === "motion" ? (
-              <div className="space-y-4">
-                {selectedFrame ? (
-                  <div className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[140px_minmax(0,1fr)]">
-                    <div className="flex h-40 items-center justify-center rounded-md bg-muted p-2 sm:h-36">
-                      <div
-                        className={cn(
-                          "h-full max-w-full overflow-hidden rounded-sm bg-muted",
-                          aiVideoFrameAspectClass(selectedFrame.aspect_ratio)
-                        )}
-                      >
-                        {selectedFrame.image_url ? (
-                          <img
-                            src={selectedFrame.image_url}
-                            alt={selectedFrame.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="grid h-full w-full place-items-center">
-                            <ImageIcon className="size-6 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-medium">
-                        {selectedFrame.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedFrame.actor.name} · {selectedFrame.aspect_ratio}
-                      </p>
-                      {selectedFrame.aspect_ratio !== projectAspect ? (
-                        <p className="mt-2 text-xs text-amber-700">
-                          This frame does not match the project aspect.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="grid gap-2">
-                  <Label htmlFor="ai-video-motion">Motion Prompt</Label>
-                  <Textarea
-                    id="ai-video-motion"
-                    rows={5}
-                    value={motionPrompt}
-                    onChange={(event) => setMotionPrompt(event.target.value)}
-                    placeholder="Describe camera movement, subject motion, lighting changes, and mood."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Duration</Label>
-                  <Select
-                    value={String(durationSeconds)}
-                    onValueChange={(value) =>
-                      setDurationSeconds(Number(value) as AiVideoDurationSeconds)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AI_VIDEO_DURATIONS.map((duration) => (
-                        <SelectItem key={duration} value={String(duration)}>
-                          {duration}s
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {generationError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {generationError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {step === "review" ? (
-              <div className="space-y-4">
-                {generation?.status === "ready" && generation.media ? (
-                  <>
-                    <video
-                      src={generation.media.url}
-                      controls
-                      muted
-                      className="max-h-[420px] w-full rounded-md border bg-black"
-                    />
-                    <div className="text-sm">
-                      <p className="font-medium">{generation.media.original_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {generation.duration_seconds}s · {generation.aspect_ratio} · muted on insert
-                      </p>
-                    </div>
-                  </>
-                ) : generation?.status === "error" ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {generation.error_message ?? "AI video generation failed"}
-                  </p>
-                ) : (
-                  <div className="grid h-52 place-items-center rounded-md border bg-background text-center">
-                    <div>
-                      <Loader2Icon className="mx-auto mb-3 size-8 animate-spin text-muted-foreground" />
-                      <p className="text-sm font-medium">Generating video</p>
-                      <p className="text-xs text-muted-foreground">
-                        This can take a few minutes.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {generationError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {generationError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          {step === "frame" ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={!canContinue}
-                onClick={() => setStep("motion")}
-              >
-                Continue
-              </Button>
-            </>
-          ) : step === "motion" ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={startingGeneration}
-                onClick={() => setStep("frame")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                disabled={!canGenerate}
-                onClick={handleGenerateVideo}
-              >
-                {startingGeneration ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <VideoIcon className="size-4" />
-                )}
-                {startingGeneration ? "Starting" : "Generate"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-              >
-                Done
-              </Button>
-              <Button type="button" variant="outline" onClick={startOver}>
-                Start Over
-              </Button>
-              <Button
-                type="button"
-                disabled={
-                  inserting ||
-                  generation?.status !== "ready" ||
-                  !generation.media
-                }
-                onClick={handleInsertGeneratedVideo}
-              >
-                {inserting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <VideoIcon className="size-4" />
-                )}
-                {inserting ? "Inserting" : "Insert Clip"}
-              </Button>
-            </>
-          )}
-        </DialogFooter>
-      </DialogContent>
+              ) : null}
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            {step === "frame" ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!canContinue}
+                  onClick={() => setStep("motion")}
+                >
+                  Continue
+                </Button>
+              </>
+            ) : step === "motion" ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={startingGeneration}
+                  onClick={() => setStep("frame")}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!canGenerate}
+                  onClick={handleGenerateVideo}
+                >
+                  {startingGeneration ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <VideoIcon className="size-4" />
+                  )}
+                  {startingGeneration ? "Starting" : "Generate"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                >
+                  Done
+                </Button>
+                <Button type="button" variant="outline" onClick={startOver}>
+                  Start Over
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    inserting ||
+                    generation?.status !== "ready" ||
+                    !generation.media
+                  }
+                  onClick={handleInsertGeneratedVideo}
+                >
+                  {inserting ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <VideoIcon className="size-4" />
+                  )}
+                  {inserting ? "Inserting" : "Insert Clip"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
       <FirstFrameCreateDialog
         open={createOpen}
@@ -1522,7 +1878,10 @@ function CaptionsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !generating && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !generating && onOpenChange(next)}
+    >
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Generate Captions</DialogTitle>
@@ -1618,7 +1977,7 @@ function VoiceStyleFields({
             <Label htmlFor={`${idPrefix}-style-${field.key}`}>
               {field.label}
             </Label>
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {style[field.key].toFixed(2)}
             </span>
           </div>
@@ -1636,9 +1995,7 @@ function VoiceStyleFields({
         </div>
       ))}
       <div className="flex items-center justify-between">
-        <Label htmlFor={`${idPrefix}-style-speaker-boost`}>
-          Speaker boost
-        </Label>
+        <Label htmlFor={`${idPrefix}-style-speaker-boost`}>Speaker boost</Label>
         <Switch
           id={`${idPrefix}-style-speaker-boost`}
           checked={style.speakerBoost}
@@ -1973,10 +2330,9 @@ function VoiceDialog({
                   <div>
                     <div className="text-sm font-medium">Voice style</div>
                     <p className="text-xs text-muted-foreground">
-                      Adjustments apply to this generation only. Save as
-                      default keeps them as this workspace&apos;s AI Video
-                      default — your ElevenLabs account voice settings are not
-                      edited.
+                      Adjustments apply to this generation only. Save as default
+                      keeps them as this workspace&apos;s AI Video default —
+                      your ElevenLabs account voice settings are not edited.
                     </p>
                   </div>
                   <VoiceStyleFields
@@ -2306,7 +2662,8 @@ function BriefToReelDialog({
             {step === "topic" ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Generate a brief from this template&apos;s analyzed source reel.
+                  Generate a brief from this template&apos;s analyzed source
+                  reel.
                 </p>
                 <div className="space-y-1.5">
                   <Label htmlFor="brief-topic">Topic</Label>
@@ -2345,8 +2702,13 @@ function BriefToReelDialog({
                     ["Promise", brief.brief.promise],
                     ["CTA", brief.brief.cta],
                   ].map(([label, value]) => (
-                    <div key={label} className="rounded-md border bg-background p-3">
-                      <div className="text-xs text-muted-foreground">{label}</div>
+                    <div
+                      key={label}
+                      className="rounded-md border bg-background p-3"
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {label}
+                      </div>
                       <p className="text-sm">{value}</p>
                     </div>
                   ))}
@@ -2358,7 +2720,7 @@ function BriefToReelDialog({
                         <Badge variant="secondary" className="capitalize">
                           {beat.role}
                         </Badge>
-                        <span className="text-xs tabular-nums text-muted-foreground">
+                        <span className="text-xs text-muted-foreground tabular-nums">
                           {formatTimecode(beat.startMs)} –{" "}
                           {formatTimecode(beat.endMs)}
                         </span>
@@ -2371,7 +2733,9 @@ function BriefToReelDialog({
                   ))}
                 </div>
                 <div className="rounded-md border bg-background p-3">
-                  <div className="text-xs text-muted-foreground">Asset checklist</div>
+                  <div className="text-xs text-muted-foreground">
+                    Asset checklist
+                  </div>
                   <ul className="mt-1 list-disc space-y-1 pl-4 text-sm">
                     {brief.assetChecklist.map((item) => (
                       <li key={item}>{item}</li>
@@ -2379,7 +2743,9 @@ function BriefToReelDialog({
                   </ul>
                 </div>
                 <div className="rounded-md border bg-background p-3">
-                  <div className="text-xs text-muted-foreground">Caption draft</div>
+                  <div className="text-xs text-muted-foreground">
+                    Caption draft
+                  </div>
                   <p className="mt-1 text-sm">{brief.captionDraft}</p>
                 </div>
                 <div className="space-y-1.5">
@@ -2397,8 +2763,8 @@ function BriefToReelDialog({
             {step === "voice" ? (
               notConfigured ? (
                 <p className="text-sm text-muted-foreground">
-                  ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API key
-                  in Settings → AI Providers to generate voiceovers.
+                  ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API
+                  key in Settings → AI Providers to generate voiceovers.
                 </p>
               ) : (
                 <>
@@ -2427,7 +2793,9 @@ function BriefToReelDialog({
                     <Label htmlFor="brief-model">Model</Label>
                     <Select
                       value={modelId}
-                      onValueChange={(value) => setModelId(value as VoiceModelId)}
+                      onValueChange={(value) =>
+                        setModelId(value as VoiceModelId)
+                      }
                     >
                       <SelectTrigger id="brief-model" className="w-full">
                         <SelectValue />
@@ -2475,14 +2843,22 @@ function BriefToReelDialog({
             {step === "insert" && voiceover ? (
               <div className="space-y-3">
                 <div className="rounded-md border bg-background p-3">
-                  <p className="text-sm font-medium">{voiceover.media.original_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {addCaptions ? voiceover.captions.length : 0} synced caption clips
+                  <p className="text-sm font-medium">
+                    {voiceover.media.original_name}
                   </p>
-                  <audio controls src={voiceover.media.url} className="mt-3 w-full" />
+                  <p className="text-xs text-muted-foreground">
+                    {addCaptions ? voiceover.captions.length : 0} synced caption
+                    clips
+                  </p>
+                  <audio
+                    controls
+                    src={voiceover.media.url}
+                    className="mt-3 w-full"
+                  />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  The original template audio will be muted when this voiceover is inserted.
+                  The original template audio will be muted when this voiceover
+                  is inserted.
                 </p>
               </div>
             ) : null}
@@ -2491,10 +2867,18 @@ function BriefToReelDialog({
         <DialogFooter variant="plain">
           {step === "topic" ? (
             <>
-              <Button type="button" variant="outline" onClick={() => handleClose(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleClose(false)}
+              >
                 Cancel
               </Button>
-              <Button type="button" disabled={generatingBrief} onClick={handleGenerateBrief}>
+              <Button
+                type="button"
+                disabled={generatingBrief}
+                onClick={handleGenerateBrief}
+              >
                 {generatingBrief ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
@@ -2506,7 +2890,11 @@ function BriefToReelDialog({
           ) : null}
           {step === "brief" ? (
             <>
-              <Button type="button" variant="outline" onClick={() => setStep("topic")}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep("topic")}
+              >
                 Back
               </Button>
               <Button type="button" variant="outline" onClick={handleCopyBrief}>
@@ -2550,7 +2938,11 @@ function BriefToReelDialog({
           ) : null}
           {step === "insert" ? (
             <>
-              <Button type="button" variant="outline" onClick={() => setStep("voice")}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep("voice")}
+              >
                 Back
               </Button>
               <Button type="button" onClick={handleInsert}>
@@ -2676,7 +3068,7 @@ function ScriptDialog({
                       <Badge variant="secondary" className="capitalize">
                         {beat.role}
                       </Badge>
-                      <span className="text-xs tabular-nums text-muted-foreground">
+                      <span className="text-xs text-muted-foreground tabular-nums">
                         {formatTimecode(beat.startMs)} –{" "}
                         {formatTimecode(beat.endMs)}
                       </span>

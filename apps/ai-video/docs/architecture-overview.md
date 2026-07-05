@@ -64,10 +64,14 @@ module, and `lib/api` wrapper.
 8. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.
-9. **AI Script Writer** (`script-writer.ts`) — for a project created from a
+9. **AI Jump-Cut Assistant** (`jump-cuts.ts`) — analyzes the selected audible
+   clip with OpenAI word timestamps plus ffmpeg silence detection, then either
+   shows reviewable dead-air cuts or applies them automatically through the
+   normal editor undo path.
+10. **AI Script Writer** (`script-writer.ts`) — for a project created from a
    template, the user enters a topic and Gemini writes a beat-matched script
    mirroring the source reel's segment roles/timings; insertable as captions.
-10. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
+11. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
    — see below.
 
 ## Export / Render

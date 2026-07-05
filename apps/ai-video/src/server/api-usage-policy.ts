@@ -22,6 +22,7 @@ export const API_USAGE_FEATURES = [
   "script_generation",
   "carousel_generation",
   "export_description",
+  "jump_cut_analysis",
 ] as const
 
 export const API_USAGE_EVENT_STATUSES = [
@@ -46,6 +47,7 @@ const API_USAGE_FEATURE_CREDITS: Record<ApiUsageFeature, number> = {
   script_generation: 1,
   carousel_generation: 1,
   export_description: 1,
+  jump_cut_analysis: 2,
 }
 
 export function creditsForApiUsageFeature(feature: ApiUsageFeature) {

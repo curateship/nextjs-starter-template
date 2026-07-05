@@ -9,6 +9,7 @@ import {
 } from "@/lib/first-frame-models"
 import { db } from "@/server/db"
 import { deleteFromR2 } from "@/server/media-storage"
+import { mediaExtensionForMimeType } from "@/server/media-types"
 import { actorImageUrl, mediaFileUrl } from "@/server/media-urls"
 import { getOwnedActor, normalizeActorTags } from "@/server/actors"
 import { getOwnedMedia, saveGeneratedImageToLibrary } from "@/server/media"
@@ -137,7 +138,7 @@ export async function createFirstFrameForCurrentUser(
     user.id,
     image.bytes,
     image.mimeType,
-    `${name}.${extensionForMimeType(image.mimeType)}`
+    `${name}.${mediaExtensionForMimeType(image.mimeType)}`
   )
 
   const createdAt = now()
@@ -271,7 +272,7 @@ export async function regenerateFirstFrameForCurrentUser(
     user.id,
     image.bytes,
     image.mimeType,
-    `${name}.${extensionForMimeType(image.mimeType)}`
+    `${name}.${mediaExtensionForMimeType(image.mimeType)}`
   )
 
   try {
@@ -504,10 +505,4 @@ Preserve the actor's identity and make the image feel like the opening compositi
 function parseTags(value: unknown) {
   if (!Array.isArray(value)) return []
   return value.filter((tag): tag is string => typeof tag === "string")
-}
-
-function extensionForMimeType(mimeType: string) {
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
-  if (mimeType === "image/webp") return "webp"
-  return "png"
 }
