@@ -3,5 +3,6 @@
   "custom-shell": 3002,
   "core": 3003,
   "ai-video": 3004,
-  "anti-detect": 3005
+  "anti-detect": 3005,
+  "trading": 3007
 }
