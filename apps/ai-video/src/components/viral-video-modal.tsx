@@ -88,6 +88,14 @@ export function ViralVideoModal({
   const navigate = useNavigate()
   const videoId = video?.id ?? videoIdProp ?? null
   const [result, setResult] = React.useState<LoadResult | null>(null)
+  const videoRef = React.useRef<HTMLVideoElement | null>(null)
+  // Last clicked timestamp, tagged with its video id so opening a different
+  // video drops the selection without an effect (same idea as LoadResult).
+  const [activeSeek, setActiveSeek] = React.useState<{
+    videoId: string
+    key: string
+  } | null>(null)
+  const activeSeekKey = activeSeek?.videoId === videoId ? activeSeek.key : null
   const [templateOpen, setTemplateOpen] = React.useState(false)
   const [templateName, setTemplateName] = React.useState("")
   const [templateError, setTemplateError] = React.useState<string | null>(null)
@@ -116,6 +124,17 @@ export function ViralVideoModal({
   const current = result?.videoId === videoId ? result : null
   const detail = current && "detail" in current ? current.detail : null
   const analysis = detail?.analysis ?? null
+
+  // Seeks the native player to a timestamp and starts playback. No-ops when
+  // the video element isn't mounted (missing media). A rejected play() (e.g.
+  // autoplay policy) is ignored — the seek still lands, controls still work.
+  function seekToMs(ms: number, key: string) {
+    const player = videoRef.current
+    if (!player || !videoId) return
+    player.currentTime = ms / 1000
+    void player.play().catch(() => undefined)
+    setActiveSeek({ videoId, key })
+  }
 
   function openTemplateDialog() {
     if (!detail) return
@@ -183,6 +202,7 @@ export function ViralVideoModal({
                 <div>
                   {detail.media_url ? (
                     <video
+                      ref={videoRef}
                       controls
                       playsInline
                       src={detail.media_url}
@@ -238,9 +258,18 @@ export function ViralVideoModal({
                         </div>
                         <div>
                           {analysis.segments.map((segment, index) => (
-                            <div
+                            <button
                               key={`${segment.role}-${index}`}
-                              className="p-3"
+                              type="button"
+                              aria-label={`Play ${ROLE_LABELS[segment.role]} at ${formatTimecode(segment.startMs)}`}
+                              onClick={() =>
+                                seekToMs(segment.startMs, `segment-${index}`)
+                              }
+                              className={cn(
+                                "block w-full cursor-pointer p-3 text-left transition-colors last:rounded-b-lg hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                                activeSeekKey === `segment-${index}` &&
+                                  "bg-muted/60"
+                              )}
                             >
                               <div className="mb-1 flex items-center gap-2">
                                 <Badge
@@ -257,7 +286,7 @@ export function ViralVideoModal({
                                 </span>
                               </div>
                               <p className="text-sm">{segment.summary}</p>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -279,14 +308,28 @@ export function ViralVideoModal({
                           {analysis.scenes.map((scene, index) => (
                             <Badge
                               key={index}
+                              asChild
                               variant="outline"
                               className="font-mono"
                             >
-                              {(
-                                (scene.endMs - scene.startMs) /
-                                1000
-                              ).toFixed(1)}
-                              s
+                              <button
+                                type="button"
+                                aria-label={`Play scene ${index + 1} at ${formatTimecode(scene.startMs)}`}
+                                onClick={() =>
+                                  seekToMs(scene.startMs, `scene-${index}`)
+                                }
+                                className={cn(
+                                  "cursor-pointer transition-colors hover:bg-muted",
+                                  activeSeekKey === `scene-${index}` &&
+                                    "bg-muted"
+                                )}
+                              >
+                                {(
+                                  (scene.endMs - scene.startMs) /
+                                  1000
+                                ).toFixed(1)}
+                                s
+                              </button>
                             </Badge>
                           ))}
                         </div>
@@ -301,12 +344,24 @@ export function ViralVideoModal({
                         <ScrollArea className="h-56">
                           <div className="space-y-1.5 pr-3">
                             {analysis.transcript.map((line, index) => (
-                              <p key={index} className="text-sm">
+                              <button
+                                key={index}
+                                type="button"
+                                aria-label={`Play transcript at ${formatTimecode(line.startMs)}`}
+                                onClick={() =>
+                                  seekToMs(line.startMs, `transcript-${index}`)
+                                }
+                                className={cn(
+                                  "block w-full cursor-pointer rounded-md px-1.5 py-0.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                                  activeSeekKey === `transcript-${index}` &&
+                                    "bg-muted/60"
+                                )}
+                              >
                                 <span className="mr-2 font-mono text-xs text-muted-foreground">
                                   {formatTimecode(line.startMs)}
                                 </span>
                                 {line.text}
-                              </p>
+                              </button>
                             ))}
                           </div>
                         </ScrollArea>

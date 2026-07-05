@@ -1,3 +1,8 @@
+import {
+  voiceoverRequestBody,
+  type VoiceDefaults,
+  type VoiceSettings,
+} from "@/lib/voice-settings"
 import { chunkWords, type CaptionLine } from "@/server/captions"
 import { withApiUsage } from "@/server/api-usage"
 import { getLlmKey } from "@/server/llm-keys"
@@ -8,6 +13,11 @@ import {
 } from "@/server/media"
 import { requireAppOrigin } from "@/server/origin"
 import { requireUser } from "@/server/security"
+import {
+  getOrCreateCurrentWorkspace,
+  parseWorkspaceSettingsForReset,
+  updateUserWorkspace,
+} from "@/server/workspaces"
 
 // ElevenLabs text-to-speech integration. Mirrors the Gemini/OpenAI pattern:
 // server-only, key resolved via getLlmKey (settings row or env var),
@@ -51,20 +61,30 @@ async function requireElevenLabsKey(): Promise<string> {
   return key
 }
 
-// Lists the workspace account's saved voices ("My Voices") for the picker. Any
-// signed-in user can read them; managing the key stays an admin Settings action.
+// Lists the workspace account's saved voices ("My Voices") for the picker,
+// plus the workspace's saved voice defaults so the dialogs can prefill in the
+// same round trip. Any signed-in user can read them; managing the key stays an
+// admin Settings action.
 export async function listVoicesForCurrentUser(): Promise<{
   voices: ElevenLabsVoice[]
+  defaults: VoiceDefaults | null
 }> {
-  await requireUser()
+  const user = await requireUser()
   const apiKey = await requireElevenLabsKey()
 
-  const response = await fetch(
-    `${ELEVENLABS_BASE_URL}/v2/voices?voice_type=saved&page_size=100&sort=name&sort_direction=asc&include_total_count=false`,
-    {
-      headers: { "xi-api-key": apiKey },
-    }
-  )
+  // The workspace read (defaults) and the voices fetch are independent — run
+  // them concurrently so the dialog doesn't pay DB + API latency in sequence.
+  const [workspace, response] = await Promise.all([
+    getOrCreateCurrentWorkspace(user.id),
+    fetch(
+      `${ELEVENLABS_BASE_URL}/v2/voices?voice_type=saved&page_size=100&sort=name&sort_direction=asc&include_total_count=false`,
+      {
+        headers: { "xi-api-key": apiKey },
+      }
+    ),
+  ])
+  const defaults = parseWorkspaceSettingsForReset(workspace.settings).settings
+    .voiceDefaults
   if (!response.ok) {
     throw await elevenLabsError("Voice list failed", response)
   }
@@ -78,6 +98,7 @@ export async function listVoicesForCurrentUser(): Promise<{
     }[]
   }
   return {
+    defaults,
     voices: (payload.voices ?? []).map((voice) => ({
       id: voice.voice_id,
       name: voice.name,
@@ -90,6 +111,20 @@ export async function listVoicesForCurrentUser(): Promise<{
   }
 }
 
+// Persists the workspace's voiceover defaults ("Save as default" in the Voice
+// dialog). Only AI Video settings change — no ElevenLabs API call is made.
+export async function saveVoiceDefaultsForCurrentUser(
+  defaults: VoiceDefaults
+): Promise<void> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const workspace = await getOrCreateCurrentWorkspace(user.id)
+  await updateUserWorkspace(user.id, workspace.id, {
+    name: workspace.name,
+    settings: { voiceDefaults: defaults },
+  })
+}
+
 // Synthesizes `text` in the chosen voice/model, saves the MP3 to the media
 // library, and returns it alongside karaoke caption lines built from the
 // word-level timings. Synchronous from the caller's view (a few seconds) — the
@@ -97,7 +132,8 @@ export async function listVoicesForCurrentUser(): Promise<{
 export async function generateVoiceoverForCurrentUser(
   voiceId: string,
   text: string,
-  modelId: string
+  modelId: string,
+  voiceSettings?: VoiceSettings
 ): Promise<VoiceoverResult> {
   requireAppOrigin()
   const user = await requireUser()
@@ -114,14 +150,16 @@ export async function generateVoiceoverForCurrentUser(
     },
     async () => {
       const response = await fetch(
-        `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${voiceId}/with-timestamps`,
+        `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps`,
         {
           method: "POST",
           headers: {
             "xi-api-key": apiKey,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ text, model_id: modelId }),
+          body: JSON.stringify(
+            voiceoverRequestBody(text, modelId, voiceSettings)
+          ),
         }
       )
       if (!response.ok) {

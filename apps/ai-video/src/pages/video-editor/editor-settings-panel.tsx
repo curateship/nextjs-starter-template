@@ -64,10 +64,19 @@ import {
   getVoiceGenerationErrorMessage,
   getVoiceLoadErrorMessage,
   listElevenLabsVoices,
+  saveVoiceDefaults,
   type ElevenLabsVoice,
-  type VoiceModelId,
   type VoiceoverResult,
 } from "@/lib/api/elevenlabs"
+import {
+  createDefaultVoiceSettings,
+  pickVoiceSettings,
+  VOICE_SPEED_MAX,
+  VOICE_SPEED_MIN,
+  type VoiceDefaults,
+  type VoiceModelId,
+  type VoiceSettings,
+} from "@/lib/voice-settings"
 import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
   DEFAULT_TEXT_FONT_ID,
@@ -1581,6 +1590,85 @@ const VOICE_MODELS: { id: VoiceModelId; label: string }[] = [
 ]
 const ELEVENLABS_NOT_CONFIGURED_MESSAGE = "ElevenLabs is not configured"
 
+// Request-level ElevenLabs voice style controls, shared by the Voice dialog
+// and the Brief to Reel voice step. Values are sent as `voice_settings` once
+// saved defaults load or the user adjusts a control (untouched dialogs omit
+// them entirely); the stored ElevenLabs account voice is never edited.
+const VOICE_STYLE_SLIDERS = [
+  { key: "stability", label: "Stability", min: 0, max: 1 },
+  { key: "similarityBoost", label: "Similarity boost", min: 0, max: 1 },
+  { key: "styleExaggeration", label: "Style exaggeration", min: 0, max: 1 },
+  { key: "speed", label: "Speed", min: VOICE_SPEED_MIN, max: VOICE_SPEED_MAX },
+] as const
+
+function VoiceStyleFields({
+  idPrefix,
+  style,
+  onChange,
+}: {
+  idPrefix: string
+  style: VoiceSettings
+  onChange: (style: VoiceSettings) => void
+}) {
+  return (
+    <div className="space-y-3">
+      {VOICE_STYLE_SLIDERS.map((field) => (
+        <div key={field.key} className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor={`${idPrefix}-style-${field.key}`}>
+              {field.label}
+            </Label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {style[field.key].toFixed(2)}
+            </span>
+          </div>
+          <Slider
+            id={`${idPrefix}-style-${field.key}`}
+            value={[style[field.key]]}
+            min={field.min}
+            max={field.max}
+            step={0.05}
+            onValueChange={(value) =>
+              onChange({ ...style, [field.key]: value[0] })
+            }
+            aria-label={field.label}
+          />
+        </div>
+      ))}
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`${idPrefix}-style-speaker-boost`}>
+          Speaker boost
+        </Label>
+        <Switch
+          id={`${idPrefix}-style-speaker-boost`}
+          checked={style.speakerBoost}
+          onCheckedChange={(checked) =>
+            onChange({ ...style, speakerBoost: checked })
+          }
+          aria-label="Speaker boost"
+        />
+      </div>
+    </div>
+  )
+}
+
+// The voice a voiceover flow should select once voices load: the saved
+// default while it still exists in the loaded list (it may have been removed
+// from the ElevenLabs account), else the previous selection, else the first
+// voice. Called inside a functional state update so `previousVoiceId` is
+// never a stale closure value.
+function prefillVoiceId(
+  defaults: VoiceDefaults | null,
+  voices: ElevenLabsVoice[],
+  previousVoiceId: string
+) {
+  const savedVoiceId =
+    defaults && voices.some((voice) => voice.id === defaults.voiceId)
+      ? defaults.voiceId
+      : ""
+  return savedVoiceId || previousVoiceId || voices[0]?.id || ""
+}
+
 // Generates an ElevenLabs voiceover, drops the audio at the playhead, and —
 // when "Add captions" is on — a synced karaoke caption track built from the
 // voice's word timings (reusing the same text-clip styling as the Captions
@@ -1598,12 +1686,19 @@ function VoiceDialog({
   const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
   const [modelId, setModelId] = React.useState<VoiceModelId>(VOICE_MODELS[0].id)
+  // Request-level style for this generation; prefilled from saved defaults.
+  // null = untouched with no saved default — generation then omits
+  // voice_settings so the ElevenLabs account voice settings keep applying.
+  const [voiceStyle, setVoiceStyle] = React.useState<VoiceSettings | null>(null)
+  const styleValues = voiceStyle ?? createDefaultVoiceSettings()
   const [text, setText] = React.useState("")
   // Captions on by default — the point is a synced, captioned voiceover.
   const [addCaptions, setAddCaptions] = React.useState(true)
   // Caption style (shared controls/state with the Captions dialog).
   const captionStyle = useCaptionStyle()
   const [generating, setGenerating] = React.useState(false)
+  const [savingDefault, setSavingDefault] = React.useState(false)
+  const [savedDefault, setSavedDefault] = React.useState(false)
   const [voiceLoadError, setVoiceLoadError] = React.useState<string | null>(
     null
   )
@@ -1635,7 +1730,13 @@ function VoiceDialog({
       .then((result) => {
         if (!active) return
         setVoices(result.voices)
-        setVoiceId((prev) => prev || result.voices[0]?.id || "")
+        setVoiceId((prev) =>
+          prefillVoiceId(result.defaults, result.voices, prev)
+        )
+        if (result.defaults) {
+          setModelId(result.defaults.modelId)
+          setVoiceStyle(pickVoiceSettings(result.defaults))
+        }
         setVoiceLoadError(null)
       })
       .catch((loadError) => {
@@ -1658,8 +1759,30 @@ function VoiceDialog({
       setText("")
       setVoiceLoadError(null)
       setGenerateError(null)
+      setSavedDefault(false)
     }
     onOpenChange(next)
+  }
+
+  // Persists the current voice/model/style as the workspace default. Only AI
+  // Video settings change — the ElevenLabs account voice is not edited.
+  async function handleSaveDefault() {
+    if (!voiceId) return
+    setSavingDefault(true)
+    setGenerateError(null)
+    try {
+      await saveVoiceDefaults({
+        ...styleValues,
+        voiceId,
+        voiceName: selectedVoice?.name ?? "",
+        modelId,
+      })
+      setSavedDefault(true)
+    } catch {
+      setGenerateError("Could not save the voice defaults.")
+    } finally {
+      setSavingDefault(false)
+    }
   }
 
   async function handleGenerate() {
@@ -1675,6 +1798,7 @@ function VoiceDialog({
         voiceId,
         text: text.trim(),
         modelId,
+        voiceSettings: voiceStyle ?? undefined,
       })
       // Anchor the audio and its captions to the same playhead so they stay in
       // sync: ADD_CLIP places the audio at exactly atMs, and each caption's
@@ -1783,6 +1907,7 @@ function VoiceDialog({
                       onValueChange={(value) => {
                         stopPreview()
                         setVoiceId(value)
+                        setSavedDefault(false)
                       }}
                       disabled={
                         !voices || voices.length === 0 || !!voiceLoadError
@@ -1827,7 +1952,10 @@ function VoiceDialog({
                   <Label htmlFor="voice-model">Model</Label>
                   <Select
                     value={modelId}
-                    onValueChange={(value) => setModelId(value as VoiceModelId)}
+                    onValueChange={(value) => {
+                      setModelId(value as VoiceModelId)
+                      setSavedDefault(false)
+                    }}
                   >
                     <SelectTrigger id="voice-model" className="w-full">
                       <SelectValue />
@@ -1840,6 +1968,25 @@ function VoiceDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-sm font-medium">Voice style</div>
+                    <p className="text-xs text-muted-foreground">
+                      Adjustments apply to this generation only. Save as
+                      default keeps them as this workspace&apos;s AI Video
+                      default — your ElevenLabs account voice settings are not
+                      edited.
+                    </p>
+                  </div>
+                  <VoiceStyleFields
+                    idPrefix="voice"
+                    style={styleValues}
+                    onChange={(style) => {
+                      setVoiceStyle(style)
+                      setSavedDefault(false)
+                    }}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="voice-text">Text</Label>
@@ -1879,6 +2026,24 @@ function VoiceDialog({
           </div>
         </DialogBody>
         <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            className="mr-auto"
+            disabled={
+              generating ||
+              savingDefault ||
+              notConfigured ||
+              !!voiceLoadError ||
+              !voiceId
+            }
+            onClick={handleSaveDefault}
+          >
+            {savingDefault ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : null}
+            {savedDefault ? "Saved as default" : "Save as default"}
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -1937,6 +2102,10 @@ function BriefToReelDialog({
   const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
   const [modelId, setModelId] = React.useState<VoiceModelId>(VOICE_MODELS[0].id)
+  // Request-level style for this generation; prefilled from saved defaults.
+  // null = untouched with no saved default — generation then omits
+  // voice_settings so the ElevenLabs account voice settings keep applying.
+  const [voiceStyle, setVoiceStyle] = React.useState<VoiceSettings | null>(null)
   const [addCaptions, setAddCaptions] = React.useState(true)
   const [voiceover, setVoiceover] = React.useState<VoiceoverResult | null>(null)
   const [generatingBrief, setGeneratingBrief] = React.useState(false)
@@ -1958,7 +2127,13 @@ function BriefToReelDialog({
       .then((result) => {
         if (!active) return
         setVoices(result.voices)
-        setVoiceId((prev) => prev || result.voices[0]?.id || "")
+        setVoiceId((prev) =>
+          prefillVoiceId(result.defaults, result.voices, prev)
+        )
+        if (result.defaults) {
+          setModelId(result.defaults.modelId)
+          setVoiceStyle(pickVoiceSettings(result.defaults))
+        }
         setVoiceLoadError(null)
       })
       .catch((loadError) => {
@@ -2045,6 +2220,7 @@ function BriefToReelDialog({
         voiceId,
         text: voiceoverText.trim(),
         modelId,
+        voiceSettings: voiceStyle ?? undefined,
       })
       setVoiceover(result)
       setStep("insert")
@@ -2265,6 +2441,11 @@ function BriefToReelDialog({
                       </SelectContent>
                     </Select>
                   </div>
+                  <VoiceStyleFields
+                    idPrefix="brief"
+                    style={voiceStyle ?? createDefaultVoiceSettings()}
+                    onChange={setVoiceStyle}
+                  />
                   <div className="flex items-center justify-between">
                     <Label htmlFor="brief-captions-toggle">Add captions</Label>
                     <Switch
