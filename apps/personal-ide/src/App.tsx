@@ -152,6 +152,7 @@ function App() {
     handleTerminalInput,
     handleTerminalOutput,
     handleTerminalSizeChange,
+    pruneWorkspaceTerminals,
     removeWorkspaceTerminals,
     selectTerminal,
     setTerminalTab,
@@ -266,6 +267,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillSlugs))
   }, [pinnedSkillSlugs])
+
+  useEffect(() => {
+    // Drop restored terminal sessions whose workspace was deleted while the
+    // app was closed; their PTYs would fail to start.
+    if (!workspaceList.workspaces.length) return
+    pruneWorkspaceTerminals(workspaceList.workspaces.map((workspace) => workspace.id))
+  }, [workspaceList.workspaces, pruneWorkspaceTerminals])
 
   useEffect(() => {
     const preventContextMenu = (event: MouseEvent) => event.preventDefault()

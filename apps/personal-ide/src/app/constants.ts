@@ -24,6 +24,7 @@ export const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 
 export const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 export const APP_THEME_STORAGE_KEY = "personal-ide:theme"
+export const TERMINAL_SESSIONS_STORAGE_KEY = "personal-ide:terminal-sessions"
 export const SHARED_SKILLS_PATH = ".agents/skills"
 export const SETTINGS_TAB_PATH = "__personal_ide_settings__"
 export const REPO_TAB_PATH_PREFIX = "__personal_ide_repo__/"

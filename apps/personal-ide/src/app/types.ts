@@ -103,9 +103,12 @@ export type GitStatus = {
 
 export type GitRefreshMode = "basic" | "full"
 
+export type TerminalAgent = "claude" | "codex"
+
 export type TerminalItem = {
   id: string
   name: string
+  agent?: TerminalAgent
   startupCommand?: string
 }
 

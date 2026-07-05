@@ -3,8 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { killNativeTerminal } from "@/app/native/terminal"
 import { readableError } from "@/app/path"
 import {
+  detectTerminalAgent,
+  loadPersistedTerminalSessions,
   looksLikeAgentOutput,
   nextTerminalName,
+  persistTerminalSessions,
   terminalStateFor,
 } from "@/app/terminal"
 import type { WorkspaceStatus, WorkspaceTerminalState } from "@/app/types"
@@ -22,8 +25,8 @@ export function useTerminalSessions({
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
   const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
     Record<string, WorkspaceTerminalState>
-  >({})
-  const terminalsByWorkspaceRef = useRef<Record<string, WorkspaceTerminalState>>({})
+  >(loadPersistedTerminalSessions)
+  const terminalsByWorkspaceRef = useRef(terminalsByWorkspace)
   const [workspaceStatuses, setWorkspaceStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const terminalSizeRef = useRef({ cols: 80, rows: 24 })
   const workspaceStatusTimersRef = useRef<Record<string, number>>({})
@@ -32,6 +35,7 @@ export function useTerminalSessions({
 
   useEffect(() => {
     terminalsByWorkspaceRef.current = terminalsByWorkspace
+    persistTerminalSessions(terminalsByWorkspace)
   }, [terminalsByWorkspace])
 
   const clearWorkspaceStatus = useCallback((workspaceId: string) => {
@@ -60,6 +64,23 @@ export function useTerminalSessions({
       ).terminals.some((terminal) => terminal.id === terminalId)
       if (!terminalExists) return
       if (!looksLikeAgentOutput(data)) return
+      const agent = detectTerminalAgent(data)
+      if (agent) {
+        setTerminalsByWorkspace((current) => {
+          const state = terminalStateFor(workspaceId, current)
+          const item = state.terminals.find((terminal) => terminal.id === terminalId)
+          if (!item || item.agent === agent) return current
+          return {
+            ...current,
+            [workspaceId]: {
+              ...state,
+              terminals: state.terminals.map((terminal) =>
+                terminal.id === terminalId ? { ...terminal, agent } : terminal
+              ),
+            },
+          }
+        })
+      }
       setWorkspaceStatuses((current) =>
         current[workspaceId] === "running"
           ? current
@@ -175,6 +196,17 @@ export function useTerminalSessions({
     )
   }
 
+  const pruneWorkspaceTerminals = useCallback((validWorkspaceIds: string[]) => {
+    const valid = new Set(validWorkspaceIds)
+    setTerminalsByWorkspace((current) => {
+      const stale = Object.keys(current).filter((workspaceId) => !valid.has(workspaceId))
+      if (!stale.length) return current
+      const next = { ...current }
+      stale.forEach((workspaceId) => delete next[workspaceId])
+      return next
+    })
+  }, [])
+
   function removeWorkspaceTerminals(workspaceId: string) {
     clearWorkspaceStatus(workspaceId)
     const nextTerminalStates = { ...terminalsByWorkspaceRef.current }
@@ -201,6 +233,7 @@ export function useTerminalSessions({
     handleTerminalInput,
     handleTerminalOutput,
     handleTerminalSizeChange,
+    pruneWorkspaceTerminals,
     removeWorkspaceTerminals,
     selectTerminal,
     setTerminalTab,
