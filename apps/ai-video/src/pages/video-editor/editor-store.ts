@@ -1,14 +1,14 @@
 import * as React from "react"
 
-import type { SoundEffectId } from "@/lib/sound-effects"
-import type { TextFontId } from "@/lib/text-fonts"
-import { PlaybackClock } from "@/pages/video-editor/playback-clock"
+import type { SoundEffectId } from "../../lib/sound-effects.ts"
+import type { TextFontId } from "../../lib/text-fonts.ts"
+import { PlaybackClock } from "./playback-clock.ts"
 import {
   DEFAULT_PX_PER_SECOND,
   editorId,
   getSlotReflowPlacements,
   MIN_CLIP_MS,
-} from "@/pages/video-editor/timeline-utils"
+} from "./timeline-utils.ts"
 
 export type ClipKind = "video" | "audio" | "image" | "text"
 
@@ -117,6 +117,11 @@ export type EditorAction =
       type: "INSERT_VOICEOVER_BUNDLE"
       audioClip: EditorClip
       captionClips: EditorClip[]
+    }
+  | {
+      type: "APPLY_JUMP_CUTS"
+      clipId: string
+      removals: { clipStartMs: number; clipEndMs: number }[]
     }
   | { type: "ADD_TRACK" }
   | { type: "DELETE_CLIP"; clipId: string }
@@ -236,6 +241,29 @@ function withTrack(
   update: (track: EditorTrack) => EditorTrack
 ) {
   return tracks.map((track) => (track.id === trackId ? update(track) : track))
+}
+
+function normalizeJumpCutRemovals(
+  removals: { clipStartMs: number; clipEndMs: number }[],
+  durationMs: number
+) {
+  const sorted = removals
+    .map((removal) => ({
+      startMs: Math.max(0, Math.min(removal.clipStartMs, durationMs)),
+      endMs: Math.max(0, Math.min(removal.clipEndMs, durationMs)),
+    }))
+    .filter((removal) => removal.endMs - removal.startMs >= MIN_CLIP_MS)
+    .sort((a, b) => a.startMs - b.startMs)
+  const merged: { startMs: number; endMs: number }[] = []
+  for (const removal of sorted) {
+    const previous = merged[merged.length - 1]
+    if (previous && removal.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, removal.endMs)
+    } else {
+      merged.push({ ...removal })
+    }
+  }
+  return merged
 }
 
 // Push the current tracks onto the undo stack (called by mutating actions).
@@ -382,6 +410,60 @@ export function editorReducer(
       return {
         ...pushUndo(state, nextTracks),
         selectedClipId: action.audioClip.id,
+      }
+    }
+
+    case "APPLY_JUMP_CUTS": {
+      const found = findClip(state.tracks, action.clipId)
+      if (
+        !found ||
+        (found.clip.kind !== "video" && found.clip.kind !== "audio")
+      ) {
+        return state
+      }
+
+      const removals = normalizeJumpCutRemovals(
+        action.removals,
+        found.clip.durationMs
+      )
+      if (!removals.length) return state
+
+      let sourceCursorMs = 0
+      let timelineCursorMs = found.clip.startMs
+      let first = true
+      const clips: EditorClip[] = []
+      const addKeptSegment = (endMs: number) => {
+        const durationMs = endMs - sourceCursorMs
+        if (durationMs < MIN_CLIP_MS) return
+        const id = first ? found.clip.id : editorId()
+        first = false
+        clips.push({
+          ...found.clip,
+          id,
+          startMs: timelineCursorMs,
+          durationMs,
+          trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+        })
+        timelineCursorMs += durationMs
+      }
+
+      for (const removal of removals) {
+        addKeptSegment(removal.startMs)
+        sourceCursorMs = removal.endMs
+      }
+      addKeptSegment(found.clip.durationMs)
+      if (!clips.length) return state
+
+      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
+        ...track,
+        clips: sortClips([
+          ...track.clips.filter((clip) => clip.id !== found.clip.id),
+          ...clips,
+        ]),
+      }))
+      return {
+        ...pushUndo(state, tracks),
+        selectedClipId: clips[0].id,
       }
     }
 

@@ -8,6 +8,7 @@ export const apiUsageFeatureLabels: Record<string, string> = {
   script_generation: "Script",
   carousel_generation: "Carousel",
   export_description: "Export caption",
+  jump_cut_analysis: "Jump cut analysis",
 }
 
 export function formatApiUsageFeature(feature: string) {

@@ -12,39 +12,15 @@ import {
   type MediaSource,
 } from "@/server/media-list-filter"
 import { deleteFromR2, uploadToR2 } from "@/server/media-storage"
+import {
+  ALLOWED_TYPES,
+  AUDIO_TYPES,
+  IMAGE_TYPES,
+  mediaExtensionForMimeType,
+} from "@/server/media-types"
 import { mediaFileUrl } from "@/server/media-urls"
 import { aiVideoMedia, type AiVideoMedia } from "@/server/schema"
 import { now, uuid } from "@/server/security"
-
-export const IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
-])
-export const VIDEO_TYPES = new Set([
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-msvideo",
-  "video/x-matroska",
-])
-export const AUDIO_TYPES = new Set([
-  "audio/mpeg",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/mp4",
-  "audio/x-m4a",
-  "audio/aac",
-  "audio/ogg",
-])
-export const ALLOWED_TYPES = new Set([
-  ...IMAGE_TYPES,
-  ...VIDEO_TYPES,
-  ...AUDIO_TYPES,
-])
 
 const MEDIA_MAX_BYTES = 500 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
@@ -214,7 +190,7 @@ export function storedFilename(originalName: string, mimeType: string) {
   const extensionIndex = originalName.lastIndexOf(".")
   const base =
     extensionIndex > -1 ? originalName.slice(0, extensionIndex) : originalName
-  const extension = defaultExtensionForMimeType(mimeType)
+  const extension = mediaExtensionForMimeType(mimeType)
   const cleanBase =
     base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") ||
     "media"
@@ -442,23 +418,4 @@ export function serializeMedia(row: AiVideoMedia): MediaItem {
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
-}
-
-function defaultExtensionForMimeType(mimeType: string) {
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
-  if (mimeType === "image/png") return "png"
-  if (mimeType === "image/gif") return "gif"
-  if (mimeType === "image/webp") return "webp"
-  if (mimeType === "image/svg+xml") return "svg"
-  if (mimeType === "video/mp4") return "mp4"
-  if (mimeType === "video/webm") return "webm"
-  if (mimeType === "video/quicktime") return "mov"
-  if (mimeType === "video/x-msvideo") return "avi"
-  if (mimeType === "video/x-matroska") return "mkv"
-  if (mimeType === "audio/mpeg") return "mp3"
-  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav"
-  if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "m4a"
-  if (mimeType === "audio/aac") return "aac"
-  if (mimeType === "audio/ogg") return "ogg"
-  return ""
 }

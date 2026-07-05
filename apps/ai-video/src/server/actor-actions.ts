@@ -15,6 +15,7 @@ import {
 import { db } from "@/server/db"
 import { getLlmKey } from "@/server/llm-keys"
 import { getOwnedMedia, saveGeneratedImageToLibrary } from "@/server/media"
+import { mediaExtensionForMimeType } from "@/server/media-types"
 import {
   bodyToBytes,
   deleteFromR2,
@@ -121,7 +122,7 @@ async function saveActorImageToLibrary(
       userId,
       image.bytes,
       image.mimeType,
-      `${actorName}.${extensionForMimeType(image.mimeType)}`
+      `${actorName}.${mediaExtensionForMimeType(image.mimeType)}`
     )
   } catch (error) {
     console.error("Actor image library copy failed", error)
@@ -399,7 +400,7 @@ async function generateOpenAiImage(
       form.append(
         "image",
         new Blob([Buffer.from(bytes)], { type: referenceMedia.mimeType }),
-        `reference.${extensionForMimeType(referenceMedia.mimeType)}`
+        `reference.${mediaExtensionForMimeType(referenceMedia.mimeType)}`
       )
       return fetch("https://api.openai.com/v1/images/edits", {
         method: "POST",
@@ -479,13 +480,9 @@ function actorImageStoragePath(
   actorId: string,
   mimeType: string
 ) {
-  return `actors/${userId}/${actorId}/${uuid()}.${extensionForMimeType(mimeType)}`
-}
-
-function extensionForMimeType(mimeType: string) {
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
-  if (mimeType === "image/webp") return "webp"
-  return "png"
+  return `actors/${userId}/${actorId}/${uuid()}.${mediaExtensionForMimeType(
+    mimeType
+  )}`
 }
 
 type OpenAiImageResponse = {
