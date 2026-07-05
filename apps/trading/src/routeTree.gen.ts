@@ -13,6 +13,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
+import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
+import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
+import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
+import { Route as AuthenticatedBotsNewRouteImport } from './routes/_authenticated/bots/new'
+import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -38,6 +45,41 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedWalletsRoute = AuthenticatedWalletsRouteImport.update({
+  id: '/wallets',
+  path: '/wallets',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
+  id: '/trade',
+  path: '/trade',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBotsIndexRoute = AuthenticatedBotsIndexRouteImport.update({
+  id: '/bots/',
+  path: '/bots/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBotsNewRoute = AuthenticatedBotsNewRouteImport.update({
+  id: '/bots/new',
+  path: '/bots/new',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
+  id: '/bots/$botId',
+  path: '/bots/$botId',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminSettingsRoute =
@@ -84,23 +126,37 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/audit': typeof AuthenticatedAuditRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
+  '/trade': typeof AuthenticatedTradeRoute
+  '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
+  '/bots/new': typeof AuthenticatedBotsNewRoute
+  '/bots/': typeof AuthenticatedBotsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/audit': typeof AuthenticatedAuditRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
+  '/trade': typeof AuthenticatedTradeRoute
+  '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
+  '/bots/new': typeof AuthenticatedBotsNewRoute
+  '/bots': typeof AuthenticatedBotsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -109,12 +165,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
+  '/_authenticated/trade': typeof AuthenticatedTradeRoute
+  '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/bots/$botId': typeof AuthenticatedBotsBotIdRoute
+  '/_authenticated/bots/new': typeof AuthenticatedBotsNewRoute
+  '/_authenticated/bots/': typeof AuthenticatedBotsIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -124,23 +187,37 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/audit'
+    | '/portfolio'
+    | '/trade'
+    | '/wallets'
     | '/workspaces'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/bots/$botId'
+    | '/bots/new'
+    | '/bots/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/audit'
+    | '/portfolio'
+    | '/trade'
+    | '/wallets'
     | '/workspaces'
     | '/'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/bots/$botId'
+    | '/bots/new'
+    | '/bots'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -148,12 +225,19 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/audit'
+    | '/_authenticated/portfolio'
+    | '/_authenticated/trade'
+    | '/_authenticated/wallets'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/bots/$botId'
+    | '/_authenticated/bots/new'
+    | '/_authenticated/bots/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -193,6 +277,55 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/wallets': {
+      id: '/_authenticated/wallets'
+      path: '/wallets'
+      fullPath: '/wallets'
+      preLoaderRoute: typeof AuthenticatedWalletsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/trade': {
+      id: '/_authenticated/trade'
+      path: '/trade'
+      fullPath: '/trade'
+      preLoaderRoute: typeof AuthenticatedTradeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/portfolio': {
+      id: '/_authenticated/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/audit': {
+      id: '/_authenticated/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuthenticatedAuditRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/bots/': {
+      id: '/_authenticated/bots/'
+      path: '/bots'
+      fullPath: '/bots/'
+      preLoaderRoute: typeof AuthenticatedBotsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/bots/new': {
+      id: '/_authenticated/bots/new'
+      path: '/bots/new'
+      fullPath: '/bots/new'
+      preLoaderRoute: typeof AuthenticatedBotsNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/bots/$botId': {
+      id: '/_authenticated/bots/$botId'
+      path: '/bots/$botId'
+      fullPath: '/bots/$botId'
+      preLoaderRoute: typeof AuthenticatedBotsBotIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings': {
@@ -277,21 +410,35 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
+  AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
+  AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedBotsBotIdRoute: typeof AuthenticatedBotsBotIdRoute
+  AuthenticatedBotsNewRoute: typeof AuthenticatedBotsNewRoute
+  AuthenticatedBotsIndexRoute: typeof AuthenticatedBotsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
+  AuthenticatedTradeRoute: AuthenticatedTradeRoute,
+  AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedBotsBotIdRoute: AuthenticatedBotsBotIdRoute,
+  AuthenticatedBotsNewRoute: AuthenticatedBotsNewRoute,
+  AuthenticatedBotsIndexRoute: AuthenticatedBotsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
