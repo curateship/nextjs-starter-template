@@ -123,6 +123,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-newsletter-automations", "Automations", "/admin/newsletters/automations", "zap"),
             child("child-newsletter-templates", "Templates", "/admin/newsletters/templates", "file"),
           ], ["/admin/newsletters"]),
+          item("item-forms", "Forms", "/admin/forms", "clipboard"),
           item("item-events", "Events", "/admin/events", "events", [
             child("child-event-templates", "Templates", "/admin/events/templates", "file"),
           ], ["/admin/events/builder"]),

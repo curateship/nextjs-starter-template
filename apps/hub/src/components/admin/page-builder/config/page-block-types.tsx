@@ -23,6 +23,7 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
         placeholder: 'Enter your email address',
         buttonText: 'Subscribe',
         redirectUrl: '',
+        followUpFormSlug: '',
         identifier: '',
         layout: 'inline',
       },

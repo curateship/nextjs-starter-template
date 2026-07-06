@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
-import { useEffect, useCallback, useMemo } from "react"
+import { useEffect, useCallback, useMemo, useState } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import { TrustedByBadgeFields } from "./DefaultHeroConfig"
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { validateUrl } from "@/lib/utils/url-validator"
+import { getGuidedFormsBySite, type GuidedForm } from "@/lib/actions/guided-forms/guided-form-actions"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -87,6 +88,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
   const emailTemplateEditorContent = useMemo(() => ({
     htmlContent: typeof content.emailTemplateBody === 'string' ? content.emailTemplateBody : '',
   }), [content.emailTemplateBody])
+  const [forms, setForms] = useState<GuidedForm[]>([])
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     const updated = {
@@ -102,6 +104,17 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
   const handleEmailTemplateChange = useCallback((htmlContent: string) => {
     onContentChange('emailTemplateBody', htmlContent)
   }, [onContentChange])
+
+  useEffect(() => {
+    let cancelled = false
+    getGuidedFormsBySite(siteId, { pageSize: 100 }).then((result) => {
+      if (cancelled) return
+      setForms((result.data ?? []).filter((form) => form.status === 'published'))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [siteId])
 
   const ActivePanel = HERO_STYLES[heroStyle]?.AdminPanel
 
@@ -279,6 +292,24 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                         placeholder="/thank-you"
                       />
                       <p className="text-xs text-muted-foreground">Optional URL to send visitors to after subscribing</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emailFollowUpForm">Follow-up form</Label>
+                      <Select
+                        value={content.emailForm?.followUpFormSlug || 'none'}
+                        onValueChange={(v) => onContentChange('emailForm', { ...content.emailForm, followUpFormSlug: v === 'none' ? '' : v })}
+                      >
+                        <SelectTrigger id="emailFollowUpForm">
+                          <SelectValue placeholder="No follow-up form" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No follow-up form</SelectItem>
+                          {forms.map((form) => (
+                            <SelectItem key={form.id} value={form.slug}>{form.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Shown after the visitor submits their email.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="emailFormIdentifier">Identifier</Label>
