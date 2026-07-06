@@ -13,7 +13,7 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts"
 
-import { useCandles, type Candle } from "@/lib/hl/hooks"
+import { useCandles } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { bollinger, ema, macd, rsi, vwap } from "@/lib/strategies/indicators"
@@ -56,6 +56,29 @@ export type ChartMarker = {
   text?: string
 }
 
+/**
+ * Structural candle accepted by the shared chart view — covers both the live
+ * `CandleWsEvent` (string fields) and the backtest `HistoryCandle` (numeric).
+ */
+export type ChartCandle = {
+  /** Open time, ms since epoch. */
+  t: number
+  o: string | number
+  h: string | number
+  l: string | number
+  c: string | number
+  v: string | number
+}
+
+/** Generic extra line series (e.g. a strategy's breakout channel). */
+export type ChartOverlayLine = {
+  id: string
+  label: string
+  color: string
+  dashed?: boolean
+  points: { time: number; value: number }[]
+}
+
 /** Transient shift+drag measurement overlay, in container-local pixels. */
 type Measurement = {
   left: number
@@ -73,24 +96,44 @@ const DRAG_HIT_PX = 6
 /** After a drop, hold the line at its new price until the backend confirms. */
 const DROP_HOLD_MS = 8_000
 
-export function PriceChart({
-  network,
-  coin,
-  interval,
+/**
+ * Data-agnostic chart view shared by the live trading terminal and the
+ * backtest workspace: candles + volume, indicator overlays and oscillator
+ * sub-panes, price lines (draggable when asked), buy/sell markers, and the
+ * shift-click measure tool. Feed it candles from any source.
+ */
+export function PriceChartView({
+  candles,
+  loading = false,
+  coin = "",
+  dataKey = "static",
   priceLines = [],
   markers = [],
   indicators = [],
+  overlayLines = [],
+  visibleStartMs,
+  onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
 }: {
-  network: TradingNetwork
-  coin: string
-  interval: CandleInterval
+  /** Candles to render, ascending by open time. */
+  candles: ChartCandle[]
+  loading?: boolean
+  /** Coin label for the loading state. */
+  coin?: string
+  /** Identity of the candle series; a change forces a full data reset. */
+  dataKey?: string
   priceLines?: ChartPriceLine[]
   /** Buy/sell arrows at fill times. */
   markers?: ChartMarker[]
   /** Technical-indicator overlays and oscillator sub-panes. */
   indicators?: IndicatorConfig[]
+  /** Generic extra line series (e.g. strategy channels). */
+  overlayLines?: ChartOverlayLine[]
+  /** Show from this time (ms) instead of fitting all content (hides warmup). */
+  visibleStartMs?: number
+  /** Crosshair candle readout; null when the cursor leaves the chart. */
+  onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired on right-click with the price under the cursor. */
@@ -120,6 +163,11 @@ export function PriceChart({
     Map<string, { price: number; until: number }>
   >(new Map())
   const lastTimeRef = React.useRef<number>(0)
+  const dataKeyRef = React.useRef<string | null>(null)
+  const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
+  const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
+    new Map()
+  )
   const [ready, setReady] = React.useState(false)
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
   const measuringRef = React.useRef<{
@@ -129,14 +177,14 @@ export function PriceChart({
   } | null>(null)
   const measureLockedRef = React.useRef(false)
 
-  const { candles, loading } = useCandles(network, coin, interval)
-
   const dragEndRef = React.useRef(onLineDragEnd)
   const contextMenuRef = React.useRef(onChartContextMenu)
+  const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
   React.useEffect(() => {
     dragEndRef.current = onLineDragEnd
     contextMenuRef.current = onChartContextMenu
-  }, [onLineDragEnd, onChartContextMenu])
+    crosshairOhlcRef.current = onCrosshairOhlc
+  }, [onLineDragEnd, onChartContextMenu, onCrosshairOhlc])
 
   React.useEffect(() => {
     const container = containerRef.current
@@ -203,6 +251,16 @@ export function PriceChart({
         volumeSeriesRef.current = volumeSeries
         markersPluginRef.current = createSeriesMarkers(candleSeries, [])
         setReady(true)
+
+        chart.subscribeCrosshairMove((param) => {
+          if (!crosshairOhlcRef.current) return
+          const time = param.time as number | undefined
+          crosshairOhlcRef.current(
+            time !== undefined
+              ? (candleByTimeRef.current.get(time) ?? null)
+              : null
+          )
+        })
 
         // --- order-line dragging + right-click order menu -----------------
         const paneY = (event: MouseEvent) =>
@@ -403,12 +461,14 @@ export function PriceChart({
 
     const priceLines = priceLineRefs.current
     const indicatorSeries = indicatorSeriesRef.current
+    const overlaySeries = overlaySeriesRef.current
     return () => {
       disposed = true
       observer?.disconnect()
       detachPointerHandlers?.()
       priceLines.clear()
       indicatorSeries.clear()
+      overlaySeries.clear()
       seriesCtorsRef.current = null
       markersPluginRef.current = null
       candleSeriesRef.current = null
@@ -426,8 +486,13 @@ export function PriceChart({
       return
     }
 
+    const byTime = new Map<number, ChartCandle>()
+    for (const candle of candles) byTime.set(Math.floor(candle.t / 1000), candle)
+    candleByTimeRef.current = byTime
+
     const last = candles[candles.length - 1]
     const isIncremental =
+      dataKeyRef.current === dataKey &&
       lastTimeRef.current > 0 &&
       last.t >= lastTimeRef.current &&
       candles.length > 1 &&
@@ -439,14 +504,18 @@ export function PriceChart({
     } else {
       candleSeries.setData(candles.map(toCandleData))
       volumeSeries.setData(candles.map(toVolumeData))
-      chartRef.current?.timeScale().fitContent()
+      if (visibleStartMs && visibleStartMs < last.t) {
+        chartRef.current?.timeScale().setVisibleRange({
+          from: (visibleStartMs / 1000) as UTCTimestamp,
+          to: (last.t / 1000) as UTCTimestamp,
+        })
+      } else {
+        chartRef.current?.timeScale().fitContent()
+      }
     }
+    dataKeyRef.current = dataKey
     lastTimeRef.current = last.t
-  }, [ready, candles])
-
-  React.useEffect(() => {
-    lastTimeRef.current = 0
-  }, [network, coin, interval])
+  }, [ready, candles, dataKey, visibleStartMs])
 
   // Reconcile indicator series with the config: full rebuild on change so
   // oscillator sub-pane indices stay dense as they are toggled on/off.
@@ -541,6 +610,41 @@ export function PriceChart({
       if (panes[i].getSeries().length === 0) chart.removePane(i)
     }
   }, [ready, indicators])
+
+  // Generic extra line series (precomputed points, e.g. strategy channels).
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const ctors = seriesCtorsRef.current
+    if (!ready || !chart || !ctors) return
+
+    const map = overlaySeriesRef.current
+    for (const series of map.values()) chart.removeSeries(series)
+    map.clear()
+
+    for (const overlay of overlayLines) {
+      const series = chart.addSeries(
+        ctors.LineSeries,
+        {
+          color: overlay.color,
+          lineWidth: 1,
+          lineStyle: overlay.dashed ? 2 : 0,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        },
+        0
+      )
+      series.setData(
+        overlay.points.map(
+          (point): LineData => ({
+            time: (point.time / 1000) as UTCTimestamp,
+            value: point.value,
+          })
+        )
+      )
+      map.set(overlay.id, series)
+    }
+  }, [ready, overlayLines])
 
   // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
   React.useEffect(() => {
@@ -718,7 +822,50 @@ export function PriceChart({
   )
 }
 
-function toCandleData(candle: Candle): CandlestickData {
+/**
+ * Live trading chart: the shared view fed by the websocket candle stream.
+ */
+export function PriceChart({
+  network,
+  coin,
+  interval,
+  priceLines = [],
+  markers = [],
+  indicators = [],
+  onLineDragEnd,
+  onChartContextMenu,
+}: {
+  network: TradingNetwork
+  coin: string
+  interval: CandleInterval
+  priceLines?: ChartPriceLine[]
+  /** Buy/sell arrows at fill times. */
+  markers?: ChartMarker[]
+  /** Technical-indicator overlays and oscillator sub-panes. */
+  indicators?: IndicatorConfig[]
+  /** Fired when a draggable price line is dropped at a new price. */
+  onLineDragEnd?: (id: string, price: number) => void
+  /** Fired on right-click with the price under the cursor. */
+  onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
+}) {
+  const { candles, loading } = useCandles(network, coin, interval)
+
+  return (
+    <PriceChartView
+      candles={candles}
+      loading={loading}
+      coin={coin}
+      dataKey={`${network}:${coin}:${interval}`}
+      priceLines={priceLines}
+      markers={markers}
+      indicators={indicators}
+      onLineDragEnd={onLineDragEnd}
+      onChartContextMenu={onChartContextMenu}
+    />
+  )
+}
+
+function toCandleData(candle: ChartCandle): CandlestickData {
   return {
     time: (candle.t / 1000) as UTCTimestamp,
     open: Number(candle.o),
@@ -728,7 +875,7 @@ function toCandleData(candle: Candle): CandlestickData {
   }
 }
 
-function toVolumeData(candle: Candle): HistogramData {
+function toVolumeData(candle: ChartCandle): HistogramData {
   return {
     time: (candle.t / 1000) as UTCTimestamp,
     value: Number(candle.v),

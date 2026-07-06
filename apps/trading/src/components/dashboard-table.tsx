@@ -65,7 +65,8 @@ type DashboardTableFooter =
     }
 
 type DashboardTableBaseProps = {
-  title: string
+  /** Toolbar title — a string or e.g. a breadcrumb trail. */
+  title: React.ReactNode
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
@@ -204,7 +205,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
         rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}${footer.hasMore ? "+" : ""}`}
         firstDisabled
         previousDisabled
-        nextDisabled={!footer.hasMore || footer.loading}
+        nextDisabled={!footer.hasMore || (footer.loading ?? false)}
         lastDisabled
         onNext={footer.onLoadMore}
         nextIcon={footer.loading ? <Loader2Icon className="size-4 animate-spin" /> : undefined}
