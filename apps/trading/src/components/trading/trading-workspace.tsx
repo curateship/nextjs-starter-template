@@ -28,6 +28,14 @@ import {
 import { PriceChart, type ChartPriceLine } from "@/components/trading/price-chart"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -46,6 +54,15 @@ import type { WalletItem } from "@/lib/api/wallets"
 import { useAllMids, useMarketRows, useWebData2 } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
+import {
+  DEFAULT_INDICATORS,
+  INDICATOR_LABELS,
+  INDICATOR_PARAM_FIELDS,
+  indicatorColor,
+  primaryColorSlot,
+  type IndicatorConfig,
+  type IndicatorType,
+} from "@/lib/trading/indicators-config"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { cn } from "@/lib/utils"
 
@@ -282,6 +299,7 @@ export function TradingWorkspace({
   const outerLayout = usePersistedLayout("trading-layout-vertical")
   const innerLayout = usePersistedLayout("trading-layout-horizontal")
   const rightLayout = usePersistedLayout("trading-layout-right")
+  const [indicators, setIndicators] = usePersistedIndicators()
 
   const ticketDisabledReason = isPaper
     ? null
@@ -355,6 +373,10 @@ export function TradingWorkspace({
                       {candidate}
                     </Button>
                   ))}
+                  <IndicatorsMenu
+                    indicators={indicators}
+                    onChange={setIndicators}
+                  />
                 </div>
                 <div className="min-h-0 flex-1">
                   <PriceChart
@@ -362,6 +384,7 @@ export function TradingWorkspace({
                     coin={market}
                     interval={interval}
                     priceLines={priceLines}
+                    indicators={indicators}
                     onLineDragEnd={handleLineDragEnd}
                     onChartContextMenu={handleChartContextMenu}
                   />
@@ -576,4 +599,147 @@ function usePersistedLayout(key: string) {
   )
 
   return { defaultLayout, onLayoutChanged }
+}
+
+/** Accepts a value only if it matches the current canonical indicator shape. */
+function isIndicatorConfig(value: unknown): value is IndicatorConfig {
+  if (!value || typeof value !== "object") return false
+  const config = value as Record<string, unknown>
+  if (typeof config.id !== "string" || typeof config.enabled !== "boolean") {
+    return false
+  }
+  if (config.color !== undefined && typeof config.color !== "string") return false
+  if (typeof config.type !== "string" || !(config.type in INDICATOR_PARAM_FIELDS)) {
+    return false
+  }
+  const params = config.params
+  if (!params || typeof params !== "object") return false
+  return INDICATOR_PARAM_FIELDS[config.type as IndicatorType].every((field) => {
+    const value = (params as Record<string, unknown>)[field.key]
+    return typeof value === "number" && Number.isFinite(value) && value > 0
+  })
+}
+
+/**
+ * Hard cut: localStorage prefs are non-authoritative. Use them only when the
+ * whole blob matches the current canonical shape; otherwise discard and reset
+ * to defaults — no field-by-field migration or coercion of stale state.
+ */
+function loadPersistedIndicators(): IndicatorConfig[] {
+  try {
+    const raw = localStorage.getItem("trading-indicators")
+    if (!raw) return DEFAULT_INDICATORS
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) return parsed
+    console.warn("Invalid trading-indicators in storage; resetting to defaults.")
+  } catch {
+    // Unreadable or blocked storage — treat as absent.
+  }
+  return DEFAULT_INDICATORS
+}
+
+function usePersistedIndicators() {
+  const [indicators, setIndicators] =
+    React.useState<IndicatorConfig[]>(loadPersistedIndicators)
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem("trading-indicators", JSON.stringify(indicators))
+    } catch {
+      // storage full/blocked — config just won't persist
+    }
+  }, [indicators])
+
+  return [indicators, setIndicators] as const
+}
+
+function IndicatorsMenu({
+  indicators,
+  onChange,
+}: {
+  indicators: IndicatorConfig[]
+  onChange: React.Dispatch<React.SetStateAction<IndicatorConfig[]>>
+}) {
+  const activeCount = indicators.filter((ind) => ind.enabled).length
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+
+  const update = (id: string, patch: Partial<IndicatorConfig>) =>
+    onChange((prev) =>
+      prev.map((ind) => (ind.id === id ? { ...ind, ...patch } : ind))
+    )
+  const setParam = (ind: IndicatorConfig, key: string, raw: string) => {
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) return
+    update(ind.id, { params: { ...ind.params, [key]: value } })
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-6 px-2 text-xs"
+        >
+          Indicators{activeCount ? ` (${activeCount})` : ""}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 gap-1 p-2">
+        {indicators.map((ind) => (
+          <div key={ind.id} className="rounded px-1 py-1 hover:bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`ind-${ind.id}`}
+                checked={ind.enabled}
+                onCheckedChange={(checked) =>
+                  update(ind.id, { enabled: checked === true })
+                }
+              />
+              <Label
+                htmlFor={`ind-${ind.id}`}
+                className="flex-1 cursor-pointer text-xs font-medium"
+              >
+                {INDICATOR_LABELS[ind.type]}
+                {ind.type === "ema" ? ` ${ind.params.period}` : ""}
+              </Label>
+              <input
+                type="color"
+                aria-label={`${INDICATOR_LABELS[ind.type]} color`}
+                className="h-5 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
+                value={ind.color ?? indicatorColor(primaryColorSlot(ind), isDark)}
+                onChange={(event) =>
+                  update(ind.id, { color: event.target.value })
+                }
+              />
+            </div>
+            {ind.enabled && INDICATOR_PARAM_FIELDS[ind.type].length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-2 pl-6">
+                {INDICATOR_PARAM_FIELDS[ind.type].map((field) => (
+                  <label
+                    key={field.key}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                  >
+                    {field.label}
+                    <Input
+                      type="number"
+                      min={field.step ?? 1}
+                      step={field.step ?? 1}
+                      value={ind.params[field.key] ?? ""}
+                      onChange={(event) =>
+                        setParam(ind, field.key, event.target.value)
+                      }
+                      className="h-6 w-14 px-1 text-xs"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
 }

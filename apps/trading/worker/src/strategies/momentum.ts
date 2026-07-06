@@ -7,7 +7,7 @@ import {
   highest,
   lowest,
   rsi,
-} from "./indicators"
+} from "@/lib/strategies/indicators"
 
 export type MomentumState = {
   /** Entry the strategy wants executed; consumed once emitted. */
