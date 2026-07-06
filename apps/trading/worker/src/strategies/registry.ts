@@ -1,0 +1,16 @@
+import type { Strategy } from "./contract"
+import { copyStrategy } from "./copy"
+import { dcaStrategy } from "./dca"
+import { gridStrategy } from "./grid"
+import { momentumStrategy } from "./momentum"
+
+/**
+ * Strategy registry keyed by strategyType. Shared by the live bot runner and
+ * the backtest engine so both dispatch to the exact same strategy logic.
+ */
+export const strategies: Partial<Record<string, Strategy<never, unknown>>> = {
+  grid: gridStrategy as unknown as Strategy<never, unknown>,
+  dca: dcaStrategy as unknown as Strategy<never, unknown>,
+  momentum: momentumStrategy as unknown as Strategy<never, unknown>,
+  copy: copyStrategy as unknown as Strategy<never, unknown>,
+}
