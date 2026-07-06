@@ -390,6 +390,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-pnl",
+          label: "PnL",
+          href: "/pnl",
+          icon: "calendar",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-wallets",
           label: "Wallets",
           href: "/wallets",
