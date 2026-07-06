@@ -16,6 +16,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
+import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
@@ -69,6 +70,11 @@ const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
 const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
+  id: '/pnl',
+  path: '/pnl',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
@@ -217,6 +224,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/pnl'
     | '/portfolio'
     | '/trade'
     | '/wallets'
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/audit'
+    | '/pnl'
     | '/portfolio'
     | '/trade'
     | '/wallets'
@@ -332,6 +343,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audit'
+    | '/_authenticated/pnl'
     | '/_authenticated/portfolio'
     | '/_authenticated/trade'
     | '/_authenticated/wallets'
@@ -413,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/portfolio'
       fullPath: '/portfolio'
       preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/pnl': {
+      id: '/_authenticated/pnl'
+      path: '/pnl'
+      fullPath: '/pnl'
+      preLoaderRoute: typeof AuthenticatedPnlRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/audit': {
@@ -606,6 +625,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
@@ -629,6 +649,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
