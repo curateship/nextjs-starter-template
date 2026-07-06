@@ -166,7 +166,9 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       { type: "item", label: "Trade", href: "/trade", visible: true },
       { type: "item", label: "Bots", href: "/bots", visible: true },
+      { type: "item", label: "Backtest", href: "/backtest", visible: true },
       { type: "item", label: "Portfolio", href: "/portfolio", visible: true },
+      { type: "item", label: "PnL", href: "/pnl", visible: true },
       { type: "item", label: "Wallets", href: "/wallets", visible: true },
       { type: "item", label: "Audit Log", href: "/audit", visible: true },
     ])

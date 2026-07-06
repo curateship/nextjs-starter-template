@@ -28,10 +28,8 @@ import { PaperBroker } from "./brokers/paper"
 import type { BotBroker } from "./brokers/types"
 import { marketHub, type MarketHub } from "./market-hub"
 import { diffOrders, type ExistingOrder } from "./order-differ"
-import { copyStrategy } from "./strategies/copy"
-import { dcaStrategy } from "./strategies/dca"
-import { gridStrategy } from "./strategies/grid"
-import { momentumStrategy } from "./strategies/momentum"
+import { applyRiskFilter } from "./risk-filter"
+import { strategies } from "./strategies/registry"
 import type {
   BrokerFill,
   DesiredOrder,
@@ -45,13 +43,6 @@ const PERSIST_THROTTLE_MS = 2_000
 const DEFAULT_PAPER_EQUITY = 10_000
 
 type BotStatus = TradingBot["status"]
-
-const strategies: Partial<Record<string, Strategy<never, unknown>>> = {
-  grid: gridStrategy as unknown as Strategy<never, unknown>,
-  dca: dcaStrategy as unknown as Strategy<never, unknown>,
-  momentum: momentumStrategy as unknown as Strategy<never, unknown>,
-  copy: copyStrategy as unknown as Strategy<never, unknown>,
-}
 
 export class BotRunner {
   readonly bot: TradingBot
@@ -392,7 +383,11 @@ export class BotRunner {
         this.ctx(),
         this.params as never
       )
-      const filtered = this.applyRiskFilter(desired)
+      const filtered = applyRiskFilter(desired, {
+        mid: Number(this.hub.mid(this.botNetwork, this.bot.market)),
+        position: this.broker?.positionState() ?? null,
+        risk: this.risk,
+      })
       const actions = diffOrders(filtered, [...this.openOrders.values()])
 
       for (const action of actions) {
@@ -425,33 +420,6 @@ export class BotRunner {
     } finally {
       this.evaluating = false
     }
-  }
-
-  private applyRiskFilter(desired: DesiredOrder[]): DesiredOrder[] {
-    const mid = Number(this.hub.mid(this.botNetwork, this.bot.market))
-    const position = this.broker?.positionState()
-    const positionNotional = position
-      ? Math.abs(Number(position.szi)) * (mid || Number(position.entryPx))
-      : 0
-
-    let budget = Math.max(
-      0,
-      this.risk.maxPositionNotionalUsd - positionNotional
-    )
-    const kept: DesiredOrder[] = []
-    for (const order of desired) {
-      if (kept.length >= this.risk.maxOpenOrders) break
-      if (order.reduceOnly) {
-        kept.push(order)
-        continue
-      }
-      const px = order.px ? Number(order.px) : mid
-      const notional = Number(order.sz) * px
-      if (notional > budget) continue
-      budget -= notional
-      kept.push(order)
-    }
-    return kept
   }
 
   private async placeOrder(desired: DesiredOrder) {

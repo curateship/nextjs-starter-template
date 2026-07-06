@@ -382,6 +382,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-backtest",
+          label: "Backtest",
+          href: "/backtest",
+          icon: "flask-conical",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-portfolio",
           label: "Portfolio",
           href: "/portfolio",

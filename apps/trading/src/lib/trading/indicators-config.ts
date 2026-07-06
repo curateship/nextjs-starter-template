@@ -71,6 +71,9 @@ type ThemeHex = { light: string; dark: string }
 const PALETTE: Record<string, ThemeHex> = {
   "ema-20": { light: "#2563eb", dark: "#60a5fa" },
   "ema-50": { light: "#ea580c", dark: "#fb923c" },
+  // Strategy-derived EMAs on the backtest chart.
+  "ema-fast": { light: "#2563eb", dark: "#60a5fa" },
+  "ema-slow": { light: "#ea580c", dark: "#fb923c" },
   vwap: { light: "#7c3aed", dark: "#a78bfa" },
   "bollinger-mid": { light: "#0891b2", dark: "#22d3ee" },
   "bollinger-band": { light: "#94a3b8", dark: "#64748b" },
