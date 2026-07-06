@@ -21,6 +21,8 @@ const UP_COLOR = "#089981"
 const DOWN_COLOR = "#f23645"
 const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
+const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
+const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
 
 export type ChartPriceLine = {
   id: string
@@ -40,6 +42,19 @@ export type ChartMarker = {
   time: number
   side: "buy" | "sell"
   text?: string
+}
+
+/** Transient shift+drag measurement overlay, in container-local pixels. */
+type Measurement = {
+  left: number
+  top: number
+  width: number
+  height: number
+  up: boolean
+  pctText: string
+  priceText: string
+  bars: number
+  daysText: string
 }
 
 const DRAG_HIT_PX = 6
@@ -81,6 +96,13 @@ export function PriceChart({
   >(new Map())
   const lastTimeRef = React.useRef<number>(0)
   const [ready, setReady] = React.useState(false)
+  const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
+  const measuringRef = React.useRef<{
+    startX: number
+    startY: number
+    startPrice: number
+  } | null>(null)
+  const measureLockedRef = React.useRef(false)
 
   const { candles, loading } = useCandles(network, coin, interval)
 
@@ -158,6 +180,56 @@ export function PriceChart({
         // --- order-line dragging + right-click order menu -----------------
         const paneY = (event: MouseEvent) =>
           event.clientY - container.getBoundingClientRect().top
+        const paneX = (event: MouseEvent) =>
+          event.clientX - container.getBoundingClientRect().left
+        const priceFormatter = candleSeries.priceFormatter()
+
+        // Wipe the measurement and hand pan/zoom back to the chart.
+        const clearMeasure = () => {
+          if (!measuringRef.current) return
+          measuringRef.current = null
+          measureLockedRef.current = false
+          chart.applyOptions({ handleScroll: true, handleScale: true })
+          container.style.cursor = ""
+          setMeasurement(null)
+        }
+
+        // Build the measure-tool readout from the anchor and the cursor point.
+        const computeMeasurement = (
+          anchor: { startX: number; startY: number; startPrice: number },
+          x: number,
+          y: number,
+          endPrice: number
+        ): Measurement => {
+          const timeScale = chart.timeScale()
+          const pct = ((endPrice - anchor.startPrice) / anchor.startPrice) * 100
+          const priceDelta = endPrice - anchor.startPrice
+          const startLogical = timeScale.coordinateToLogical(anchor.startX)
+          const endLogical = timeScale.coordinateToLogical(x)
+          const bars =
+            startLogical !== null && endLogical !== null
+              ? Math.abs(Math.round(endLogical - startLogical))
+              : 0
+          const startTime = timeScale.coordinateToTime(anchor.startX)
+          const endTime = timeScale.coordinateToTime(x)
+          const days =
+            startTime !== null && endTime !== null
+              ? Math.abs(Number(endTime) - Number(startTime)) / 86_400
+              : 0
+          return {
+            left: Math.min(anchor.startX, x),
+            top: Math.min(anchor.startY, y),
+            width: Math.abs(x - anchor.startX),
+            height: Math.abs(y - anchor.startY),
+            up: endPrice >= anchor.startPrice,
+            pctText: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+            priceText: `${priceDelta >= 0 ? "+" : ""}${priceFormatter.format(
+              priceDelta
+            )}`,
+            bars,
+            daysText: formatDays(days),
+          }
+        }
 
         const hitTestLine = (y: number): string | null => {
           for (const [id, spec] of lineSpecsRef.current) {
@@ -172,6 +244,36 @@ export function PriceChart({
 
         const onMouseDown = (event: MouseEvent) => {
           if (event.button !== 0) return
+          // Measure tool (TradingView-style): shift-click anchors the start and
+          // the result follows the cursor (no button held). The next click locks
+          // the result in place; a further click anywhere dismisses it.
+          if (measuringRef.current) {
+            if (measureLockedRef.current) {
+              clearMeasure()
+            } else {
+              measureLockedRef.current = true
+              container.style.cursor = ""
+            }
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          if (event.shiftKey) {
+            const startPrice = candleSeries.coordinateToPrice(paneY(event))
+            if (startPrice !== null) {
+              measuringRef.current = {
+                startX: paneX(event),
+                startY: paneY(event),
+                startPrice,
+              }
+              measureLockedRef.current = false
+              chart.applyOptions({ handleScroll: false, handleScale: false })
+              container.style.cursor = "crosshair"
+              event.preventDefault()
+              event.stopPropagation()
+            }
+            return
+          }
           const id = hitTestLine(paneY(event))
           if (!id) return
           const line = priceLineRefs.current.get(id)
@@ -183,6 +285,19 @@ export function PriceChart({
         }
 
         const onMouseMove = (event: MouseEvent) => {
+          const measuring = measuringRef.current
+          if (measuring) {
+            if (measureLockedRef.current) return
+            const y = paneY(event)
+            const endPrice = candleSeries.coordinateToPrice(y)
+            if (endPrice !== null) {
+              setMeasurement(
+                computeMeasurement(measuring, paneX(event), y, endPrice)
+              )
+            }
+            event.preventDefault()
+            return
+          }
           const y = paneY(event)
           const dragging = draggingRef.current
           if (dragging) {
@@ -209,6 +324,10 @@ export function PriceChart({
           dragEndRef.current?.(dragging.id, dragging.price)
         }
 
+        const onKeyDown = (event: KeyboardEvent) => {
+          if (event.key === "Escape") clearMeasure()
+        }
+
         const onContextMenu = (event: MouseEvent) => {
           if (!contextMenuRef.current) return
           event.preventDefault()
@@ -223,12 +342,14 @@ export function PriceChart({
         container.addEventListener("mouseup", endDrag)
         container.addEventListener("mouseleave", endDrag)
         container.addEventListener("contextmenu", onContextMenu)
+        window.addEventListener("keydown", onKeyDown)
         detachPointerHandlers = () => {
           container.removeEventListener("mousedown", onMouseDown, true)
           container.removeEventListener("mousemove", onMouseMove)
           container.removeEventListener("mouseup", endDrag)
           container.removeEventListener("mouseleave", endDrag)
           container.removeEventListener("contextmenu", onContextMenu)
+          window.removeEventListener("keydown", onKeyDown)
         }
 
         // Re-read theme tokens when the html class flips light/dark.
@@ -371,6 +492,41 @@ export function PriceChart({
           Loading {coin} candles…
         </div>
       ) : null}
+      {measurement ? (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+          <div
+            className="absolute border"
+            style={{
+              left: measurement.left,
+              top: measurement.top,
+              width: measurement.width,
+              height: measurement.height,
+              backgroundColor: measurement.up
+                ? MEASURE_UP_FILL
+                : MEASURE_DOWN_FILL,
+              borderColor: measurement.up ? UP_COLOR : DOWN_COLOR,
+            }}
+          />
+          <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded px-2 py-1 text-center text-white shadow-md"
+            style={{
+              left: measurement.left + measurement.width / 2,
+              top: measurement.top + measurement.height / 2,
+              backgroundColor: measurement.up ? UP_COLOR : DOWN_COLOR,
+            }}
+          >
+            <div className="text-sm font-semibold leading-tight">
+              {measurement.pctText}
+            </div>
+            <div className="text-xs leading-tight opacity-90">
+              {measurement.priceText}
+            </div>
+            <div className="text-xs leading-tight opacity-90">
+              {measurement.bars} bars · {measurement.daysText}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -391,6 +547,14 @@ function toVolumeData(candle: Candle): HistogramData {
     value: Number(candle.v),
     color: Number(candle.c) >= Number(candle.o) ? UP_VOLUME : DOWN_VOLUME,
   }
+}
+
+/** Days label for the measure tool: finer precision for shorter spans. */
+function formatDays(days: number): string {
+  let decimals = 0
+  if (days < 1) decimals = 2
+  else if (days < 10) decimals = 1
+  return `${days.toFixed(decimals)}d`
 }
 
 /**
