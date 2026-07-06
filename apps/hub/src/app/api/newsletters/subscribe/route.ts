@@ -17,6 +17,7 @@ import {
   upsertSystemNewsletterContact,
 } from '@/lib/actions/newsletters/system-contact-sync'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
+import { generateGuidedFormContactToken } from '@/lib/utils/guided-form-contact-token'
 import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { UUID_REGEX } from '@/lib/utils/validation'
@@ -178,7 +179,12 @@ export async function POST(request: NextRequest) {
       console.error('Pages hero email error:', error)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      contactProof: result.id
+        ? generateGuidedFormContactToken({ siteId, email })
+        : null,
+    })
   } catch (error) {
     console.error('Newsletter subscribe error:', error)
     return NextResponse.json(

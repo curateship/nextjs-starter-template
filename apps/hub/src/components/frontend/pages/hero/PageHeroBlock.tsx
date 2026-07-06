@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { HERO_STYLE_RENDERERS } from ".";
+import { GuidedFormBlock } from "@/components/frontend/forms/GuidedFormBlock";
 
 // Fields that were previously at the content root before the styleConfig migration
 const LEGACY_STYLE_FIELDS = [
@@ -21,6 +22,7 @@ interface EmailFormConfig {
   placeholder?: string;
   buttonText?: string;
   redirectUrl?: string;
+  followUpFormSlug?: string;
   identifier?: string;
   layout?: 'inline' | 'stacked';
 }
@@ -150,6 +152,8 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 // Email subscription form component
 const EmailSubscriptionForm = ({ config, alignment, siteId, blockId }: { config: EmailFormConfig; alignment?: string; siteId?: string; blockId?: string }) => {
   const [email, setEmail] = useState('');
+  const [submittedEmail, setSubmittedEmail] = useState('');
+  const [contactProof, setContactProof] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -185,11 +189,19 @@ const EmailSubscriptionForm = ({ config, alignment, siteId, blockId }: { config:
       });
 
       if (!res.ok) throw new Error('Subscription failed');
+      const data = await res.json().catch(() => null) as { contactProof?: string | null } | null;
 
+      const subscribedEmail = email.trim().toLowerCase();
       setEmail('');
       const redirectUrl = getRedirectUrl();
       if (redirectUrl) {
         window.location.assign(redirectUrl);
+        return;
+      }
+      if (config.followUpFormSlug && siteId) {
+        setContactProof(typeof data?.contactProof === 'string' ? data.contactProof : '');
+        setSubmittedEmail(subscribedEmail);
+        setStatus('idle');
         return;
       }
       setStatus('idle');
@@ -198,6 +210,20 @@ const EmailSubscriptionForm = ({ config, alignment, siteId, blockId }: { config:
       setErrorMessage('Something went wrong. Please try again.');
     }
   };
+
+  if (submittedEmail && config.followUpFormSlug && siteId) {
+    return (
+      <div className={`mt-6 w-full max-w-2xl ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}>
+        <GuidedFormBlock
+          siteId={siteId}
+          content={{ formSlug: config.followUpFormSlug }}
+          contactEmail={submittedEmail}
+          contactProof={contactProof}
+          embedded
+        />
+      </div>
+    );
+  }
 
   return (
     <form
