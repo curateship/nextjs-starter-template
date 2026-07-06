@@ -453,6 +453,66 @@ export const tradingBotCommands = pgTable(
   ]
 )
 
+export const tradingBacktests = pgTable(
+  "backtests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Re-run lineage: the first run's id; re-runs share it. */
+    groupId: varchar("group_id", { length: 36 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    strategyType: varchar("strategy_type", { length: 20 }).notNull(),
+    market: varchar("market", { length: 20 }).notNull(),
+    network: varchar("network", { length: 10 }).notNull(),
+    interval: varchar("interval", { length: 5 }).notNull(),
+    params: jsonb("params").notNull(),
+    riskParams: jsonb("risk_params").notNull(),
+    /** BacktestCosts: fee/slippage assumptions in bps. */
+    costs: jsonb("costs").notNull(),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    startingEquity: numeric("starting_equity").notNull(),
+    status: varchar("status", { length: 10 }).notNull().default("pending"),
+    error: text("error"),
+    /** BacktestResult from src/lib/backtest/types, or null until done. */
+    result: jsonb("result"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "backtests_status_check",
+      sql`${table.status} in ('pending', 'running', 'done', 'error')`
+    ),
+    index("ix_backtests_user_id_created_at").on(table.userId, table.createdAt),
+    index("ix_backtests_status_created_at").on(table.status, table.createdAt),
+    index("ix_backtests_user_id_group_id").on(table.userId, table.groupId),
+  ]
+)
+
+export const tradingStrategyDefaults = pgTable(
+  "strategy_defaults",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    strategyType: varchar("strategy_type", { length: 20 }).notNull(),
+    /** Form seed values (ParamValues), not validated runnable params. */
+    params: jsonb("params").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.strategyType] }),
+    check(
+      "strategy_defaults_strategy_type_check",
+      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'copy')`
+    ),
+  ]
+)
+
 export const tradingAuditLog = pgTable(
   "audit_log",
   {
@@ -837,6 +897,7 @@ export type TradingBotOrder = typeof tradingBotOrders.$inferSelect
 export type TradingBotTrade = typeof tradingBotTrades.$inferSelect
 export type TradingBotEvent = typeof tradingBotEvents.$inferSelect
 export type TradingBotCommand = typeof tradingBotCommands.$inferSelect
+export type TradingBacktest = typeof tradingBacktests.$inferSelect
 export type TradingAuditLogEntry = typeof tradingAuditLog.$inferSelect
 export type TradingAccountSnapshot =
   typeof tradingAccountSnapshots.$inferSelect
