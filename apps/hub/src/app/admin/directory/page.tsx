@@ -11,10 +11,9 @@ import {
   deleteDirectoryAction,
   duplicateDirectoryAction,
   getDirectoryByIdAction,
-  getSiteDirectoriesWithCategoriesAction,
   type Directory,
 } from "@/lib/actions/directories/directory-actions"
-import type { DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
+import { getDirectoryCursorListAction, type DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
 
 const CreateDirectoryModal = dynamic(
   () =>
@@ -129,7 +128,7 @@ export default function DirectoriesPage() {
       duplicateTitle={(directory) => `${directory.title || "Listing"} Copy`}
       emptyButtonLabel="Add Your First Listing"
       emptyTitle={() => "No listings found for the current filters."}
-      getItems={getSiteDirectoriesWithCategoriesAction}
+      getCursorItems={getDirectoryCursorListAction}
       getIsPublished={(directory) => directory.status === "published"}
       icon={FolderOpen}
       itemLabel="Listing"

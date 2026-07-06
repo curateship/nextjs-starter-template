@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, directories, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import type { DirectoryStatus } from './directory-actions'
+import { buildDirectoryCursorListQuery, type DirectoryAdminCursorListParams } from './directory-admin-list'
 
 type DirectoryListStatus = 'all' | 'published' | 'draft'
 type DirectoryListSort = 'default' | 'title' | 'modified'
@@ -378,4 +379,11 @@ export async function searchSiteDirectoriesAction(siteId: string, options?: {
     data: result.data?.rows ?? null,
     error: result.error,
   }
+}
+
+export async function getDirectoryCursorListAction(params: DirectoryAdminCursorListParams): Promise<{
+  data: DirectoryListPage | null
+  error: string | null
+}> {
+  return getDirectoryListPageAction(buildDirectoryCursorListQuery(params))
 }
