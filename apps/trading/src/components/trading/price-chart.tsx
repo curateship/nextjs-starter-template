@@ -6,6 +6,9 @@ import type {
   IPriceLine,
   ISeriesApi,
   ISeriesMarkersPluginApi,
+  LineData,
+  SeriesDefinition,
+  SeriesType,
   Time,
   UTCTimestamp,
 } from "lightweight-charts"
@@ -13,6 +16,12 @@ import type {
 import { useCandles, type Candle } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
+import { bollinger, ema, macd, rsi, vwap } from "@/lib/strategies/indicators"
+import {
+  indicatorColor,
+  OSCILLATORS,
+  type IndicatorConfig,
+} from "@/lib/trading/indicators-config"
 
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
@@ -23,6 +32,9 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
+// MACD histogram polarity (theme-independent, like volume).
+const MACD_UP = "rgba(8, 153, 129, 0.5)"
+const MACD_DOWN = "rgba(242, 54, 69, 0.5)"
 
 export type ChartPriceLine = {
   id: string
@@ -67,6 +79,7 @@ export function PriceChart({
   interval,
   priceLines = [],
   markers = [],
+  indicators = [],
   onLineDragEnd,
   onChartContextMenu,
 }: {
@@ -76,6 +89,8 @@ export function PriceChart({
   priceLines?: ChartPriceLine[]
   /** Buy/sell arrows at fill times. */
   markers?: ChartMarker[]
+  /** Technical-indicator overlays and oscillator sub-panes. */
+  indicators?: IndicatorConfig[]
   /** Fired when a draggable price line is dropped at a new price. */
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired on right-click with the price under the cursor. */
@@ -85,6 +100,16 @@ export function PriceChart({
   const chartRef = React.useRef<IChartApi | null>(null)
   const candleSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
   const volumeSeriesRef = React.useRef<ISeriesApi<"Histogram"> | null>(null)
+  const seriesCtorsRef = React.useRef<{
+    LineSeries: SeriesDefinition<"Line">
+    HistogramSeries: SeriesDefinition<"Histogram">
+  } | null>(null)
+  const indicatorSeriesRef = React.useRef<
+    Map<
+      string,
+      { series: ISeriesApi<SeriesType>; recolor?: (isDark: boolean) => string }
+    >
+  >(new Map())
   const priceLineRefs = React.useRef<Map<string, IPriceLine>>(new Map())
   const markersPluginRef = React.useRef<ISeriesMarkersPluginApi<Time> | null>(
     null
@@ -127,8 +152,10 @@ export function PriceChart({
         createSeriesMarkers,
         CandlestickSeries,
         HistogramSeries,
+        LineSeries,
       }) => {
         if (disposed || !container) return
+        seriesCtorsRef.current = { LineSeries, HistogramSeries }
 
         const theme = chartTheme()
         const chart = createChart(container, {
@@ -362,6 +389,10 @@ export function PriceChart({
               horzLines: { color: next.gridColor },
             },
           })
+          const dark = document.documentElement.classList.contains("dark")
+          for (const { series, recolor } of indicatorSeriesRef.current.values()) {
+            if (recolor) series.applyOptions({ color: recolor(dark) })
+          }
         })
         observer.observe(document.documentElement, {
           attributes: true,
@@ -371,11 +402,14 @@ export function PriceChart({
     )
 
     const priceLines = priceLineRefs.current
+    const indicatorSeries = indicatorSeriesRef.current
     return () => {
       disposed = true
       observer?.disconnect()
       detachPointerHandlers?.()
       priceLines.clear()
+      indicatorSeries.clear()
+      seriesCtorsRef.current = null
       markersPluginRef.current = null
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
@@ -413,6 +447,159 @@ export function PriceChart({
   React.useEffect(() => {
     lastTimeRef.current = 0
   }, [network, coin, interval])
+
+  // Reconcile indicator series with the config: full rebuild on change so
+  // oscillator sub-pane indices stay dense as they are toggled on/off.
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const ctors = seriesCtorsRef.current
+    if (!ready || !chart || !ctors) return
+
+    const map = indicatorSeriesRef.current
+    for (const { series } of map.values()) chart.removeSeries(series)
+    map.clear()
+
+    const isDark = document.documentElement.classList.contains("dark")
+    const guide = indicatorColor("guide", isDark)
+    const oscillators = indicators.filter(
+      (ind) => ind.enabled && OSCILLATORS.includes(ind.type)
+    )
+    const paneOf = (id: string) =>
+      oscillators.findIndex((ind) => ind.id === id) + 1
+
+    const addLine = (
+      key: string,
+      slot: string,
+      override: string | undefined,
+      paneIndex: number,
+      opts?: { width?: 1 | 2; dashed?: boolean }
+    ) => {
+      const recolor = override
+        ? undefined
+        : (dark: boolean) => indicatorColor(slot, dark)
+      const series = chart.addSeries(
+        ctors.LineSeries,
+        {
+          color: override ?? indicatorColor(slot, isDark),
+          lineWidth: opts?.width ?? 2,
+          lineStyle: opts?.dashed ? 2 : 0,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        },
+        paneIndex
+      )
+      map.set(key, { series, recolor })
+      return series
+    }
+
+    for (const ind of indicators) {
+      if (!ind.enabled) continue
+      if (ind.type === "ema") {
+        addLine(ind.id, ind.id, ind.color, 0)
+      } else if (ind.type === "vwap") {
+        addLine("vwap", "vwap", ind.color, 0)
+      } else if (ind.type === "bollinger") {
+        addLine("bollinger-upper", "bollinger-band", undefined, 0, { width: 1 })
+        addLine("bollinger-mid", "bollinger-mid", ind.color, 0, { dashed: true })
+        addLine("bollinger-lower", "bollinger-band", undefined, 0, { width: 1 })
+      } else if (ind.type === "rsi") {
+        const series = addLine("rsi", "rsi", ind.color, paneOf(ind.id))
+        for (const level of [70, 30]) {
+          series.createPriceLine({
+            price: level,
+            color: guide,
+            lineStyle: 2,
+            lineWidth: 1,
+            axisLabelVisible: true,
+            title: String(level),
+          })
+        }
+      } else if (ind.type === "macd") {
+        const pane = paneOf(ind.id)
+        const hist = chart.addSeries(
+          ctors.HistogramSeries,
+          { priceLineVisible: false, lastValueVisible: false },
+          pane
+        )
+        map.set("macd-hist", { series: hist })
+        const line = addLine("macd-line", "macd-line", ind.color, pane)
+        addLine("macd-signal", "macd-signal", undefined, pane)
+        line.createPriceLine({
+          price: 0,
+          color: guide,
+          lineStyle: 2,
+          lineWidth: 1,
+          axisLabelVisible: false,
+        })
+      }
+    }
+
+    // Drop sub-panes left empty after disabling an oscillator.
+    const panes = chart.panes()
+    for (let i = panes.length - 1; i >= 1; i -= 1) {
+      if (panes[i].getSeries().length === 0) chart.removePane(i)
+    }
+  }, [ready, indicators])
+
+  // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
+  React.useEffect(() => {
+    const map = indicatorSeriesRef.current
+    if (!ready || candles.length === 0 || map.size === 0) return
+
+    const closes = candles.map((candle) => Number(candle.c))
+    const at = (i: number) => (candles[i].t / 1000) as UTCTimestamp
+    const toLine = (values: number[]): LineData[] => {
+      const data: LineData[] = []
+      for (let i = 0; i < values.length; i += 1) {
+        if (!Number.isNaN(values[i])) data.push({ time: at(i), value: values[i] })
+      }
+      return data
+    }
+    const setLine = (key: string, values: number[]) => {
+      const entry = map.get(key)
+      if (entry) (entry.series as ISeriesApi<"Line">).setData(toLine(values))
+    }
+
+    for (const ind of indicators) {
+      if (!ind.enabled) continue
+      if (ind.type === "ema") {
+        setLine(ind.id, ema(closes, ind.params.period))
+      } else if (ind.type === "vwap") {
+        setLine("vwap", vwap(candles))
+      } else if (ind.type === "bollinger") {
+        const bands = bollinger(closes, ind.params.period, ind.params.k)
+        setLine("bollinger-upper", bands.upper)
+        setLine("bollinger-mid", bands.mid)
+        setLine("bollinger-lower", bands.lower)
+      } else if (ind.type === "rsi") {
+        setLine("rsi", rsi(closes, ind.params.period))
+      } else if (ind.type === "macd") {
+        const result = macd(
+          closes,
+          ind.params.fast,
+          ind.params.slow,
+          ind.params.signal
+        )
+        setLine("macd-line", result.macd)
+        setLine("macd-signal", result.signal)
+        const histEntry = map.get("macd-hist")
+        if (histEntry) {
+          const data: HistogramData[] = []
+          for (let i = 0; i < result.hist.length; i += 1) {
+            if (!Number.isNaN(result.hist[i])) {
+              data.push({
+                time: at(i),
+                value: result.hist[i],
+                color: result.hist[i] >= 0 ? MACD_UP : MACD_DOWN,
+              })
+            }
+          }
+          ;(histEntry.series as ISeriesApi<"Histogram">).setData(data)
+        }
+      }
+    }
+  }, [ready, candles, indicators])
 
   React.useEffect(() => {
     const candleSeries = candleSeriesRef.current
