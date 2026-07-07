@@ -11,7 +11,7 @@ import { CANDLE_INTERVALS } from "@/lib/hl/ws"
  */
 export const runDraftSchema = z.object({
   name: z.string().max(255).optional(),
-  strategy: z.enum(["grid", "dca", "momentum"]),
+  strategy: z.enum(["grid", "dca", "momentum", "qqe"]),
   market: z.string().min(1).max(20),
   /** Additional markets the config is also run on (one row per market). */
   extraMarkets: z.array(z.string().min(1).max(20)).max(7).optional(),

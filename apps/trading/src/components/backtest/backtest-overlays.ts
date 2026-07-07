@@ -1,10 +1,13 @@
 import type {
+  ChartBarColor,
   ChartMarker,
   ChartOverlayLine,
   ChartPriceLine,
+  ChartZone,
 } from "@/components/trading/price-chart"
 import type { BacktestResult } from "@/lib/backtest/types"
 import { highest, lowest } from "@/lib/strategies/indicators"
+import { computeConsolidation, computeQqeSeries } from "@/lib/strategies/qqe"
 import type { StrategyParams } from "@/lib/strategies/params"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -15,6 +18,8 @@ const CHANNEL_LOWER = "#f59e0b"
 const LEVEL_COLOR = "#a1a1aa"
 const TP_COLOR = "#089981"
 const SL_COLOR = "#f23645"
+const QQE_NEUTRAL = "#f59e0b"
+const QQE_ZONE_DEFAULT = "#2962ff"
 
 export type StrategyChartOverlays = {
   /** Rendered through the shared indicator system (theme-aware). */
@@ -23,6 +28,16 @@ export type StrategyChartOverlays = {
   overlayLines: ChartOverlayLine[]
   /** Grid levels / TP / SL / DCA ladder. */
   priceLines: ChartPriceLine[]
+  /** Filled rectangles (QQE consolidation zones). */
+  zones: ChartZone[]
+  /** Per-bar candle recoloring (QQE state). */
+  barColors: ChartBarColor[]
+  /**
+   * Raw indicator signals (TradingView-style Buy/Sell labels), independent of
+   * position state — fills only mark actual trades, so e.g. repeat sell
+   * signals while already short would otherwise be invisible.
+   */
+  markers: ChartMarker[]
 }
 
 /**
@@ -39,6 +54,9 @@ export function buildStrategyOverlays(
   const indicators: IndicatorConfig[] = []
   const overlayLines: ChartOverlayLine[] = []
   const priceLines: ChartPriceLine[] = []
+  const zones: ChartZone[] = []
+  const barColors: ChartBarColor[] = []
+  const markers: ChartMarker[] = []
 
   if (params.strategyType === "momentum") {
     // The QFL base doubles as the stop line when stopMode = "base".
@@ -132,6 +150,47 @@ export function buildStrategyOverlays(
         draggable: true,
       })
     }
+  } else if (params.strategyType === "qqe" && candles.length > 0) {
+    // Same shared math the strategy trades on, so visuals match signals.
+    // QqeParams is a structural superset of QqeInputs, so params passes as-is.
+    const qqe = computeQqeSeries(candles, params)
+    const cons = computeConsolidation(
+      candles,
+      params.loopbackPeriod,
+      params.minConsolidationLen
+    )
+
+    for (let i = 0; i < candles.length; i += 1) {
+      const pass = params.consolidationFilter ? !cons.inZone[i] : true
+      if (qqe.buy[i] && pass) {
+        markers.push({ time: candles[i].t, side: "buy" })
+      } else if (qqe.sell[i] && pass) {
+        markers.push({ time: candles[i].t, side: "sell" })
+      }
+    }
+
+    if (params.colorBars) {
+      for (let i = 0; i < candles.length; i += 1) {
+        const state = qqe.barColor[i]
+        if (!state) continue
+        const color =
+          state === "green" ? TP_COLOR : state === "red" ? SL_COLOR : QQE_NEUTRAL
+        barColors.push({ time: candles[i].t, color })
+      }
+    }
+    if (params.paintConsolidation) {
+      const fill = hexWithAlpha(params.zoneColor ?? QQE_ZONE_DEFAULT, 0.2)
+      for (const zone of cons.zones) {
+        zones.push({
+          id: `qqe-zone-${zone.startIndex}`,
+          fromMs: candles[zone.startIndex].t,
+          toMs: candles[zone.endIndex].t,
+          top: zone.high,
+          bottom: zone.low,
+          fillColor: fill,
+        })
+      }
+    }
   } else if (params.strategyType === "dca") {
     // Ladder anchors on the cycle's base fill; before a run, preview from the
     // latest close as "if the cycle started now".
@@ -172,7 +231,15 @@ export function buildStrategyOverlays(
     }
   }
 
-  return { indicators, overlayLines, priceLines }
+  return { indicators, overlayLines, priceLines, zones, barColors, markers }
+}
+
+/** "#rrggbb" → "rgba(r, g, b, a)". */
+function hexWithAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 /** Entry/exit arrows for each round trip, plus the open position's entry. */

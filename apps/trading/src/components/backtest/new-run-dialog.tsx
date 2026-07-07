@@ -4,6 +4,7 @@ import { ArrowRightIcon, Loader2Icon, XIcon } from "lucide-react"
 import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
 import {
   buildParams,
+  INTERVAL_STRATEGIES,
   PARAM_DEFAULTS,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
@@ -46,7 +47,7 @@ import { cn } from "@/lib/utils"
 import type { RunDraft } from "./run-draft"
 
 /** Backtestable strategies; copy needs event replay and stays live-only. */
-const STRATEGY_CHOICES: StrategyType[] = ["momentum", "grid", "dca"]
+const STRATEGY_CHOICES: StrategyType[] = ["momentum", "qqe", "grid", "dca"]
 
 /** Main market + additional markets a run is replayed across. */
 const MAX_MARKETS = 8
@@ -155,7 +156,7 @@ export function NewRunDialog({
   )
   const [params, setParams] = React.useState<ParamValues>(() => {
     const seedParams = initial?.params ?? initialSeed.params
-    return initialStrategy === "momentum"
+    return INTERVAL_STRATEGIES.includes(initialStrategy)
       ? { ...seedParams, interval: initialInterval }
       : seedParams
   })
@@ -180,7 +181,7 @@ export function NewRunDialog({
     if (seed.takerFeeBps !== undefined) setTaker(String(seed.takerFeeBps))
     if (seed.makerFeeBps !== undefined) setMaker(String(seed.makerFeeBps))
     if (seed.slippageBps !== undefined) setSlippage(String(seed.slippageBps))
-    if (next === "momentum") {
+    if (INTERVAL_STRATEGIES.includes(next)) {
       setParams({ ...seed.params, interval: nextInterval })
     } else if (
       next === "grid" &&
@@ -207,14 +208,14 @@ export function NewRunDialog({
 
   function selectTimeframe(next: CandleInterval) {
     setTimeframe(next)
-    if (strategy === "momentum") {
+    if (INTERVAL_STRATEGIES.includes(strategy)) {
       setParams((current) => ({ ...current, interval: next }))
     }
   }
 
   function changeParam(key: string, value: string) {
     setParams((current) => ({ ...current, [key]: value }))
-    if (key === "interval" && strategy === "momentum") {
+    if (key === "interval" && INTERVAL_STRATEGIES.includes(strategy)) {
       setTimeframe(value as CandleInterval)
     }
   }

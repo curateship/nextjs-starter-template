@@ -87,6 +87,26 @@ export type ChartOverlayLine = {
   points: { time: number; value: number }[]
 }
 
+/** Filled rectangle between two prices over a time span (e.g. a consolidation zone). */
+export type ChartZone = {
+  id: string
+  fromMs: number
+  toMs: number
+  top: number
+  bottom: number
+  /** rgba() fill; keep translucent so candles stay legible. */
+  fillColor: string
+  borderColor?: string
+}
+
+/** Per-bar candle recoloring keyed by candle open time (ms). */
+export type ChartBarColor = {
+  time: number
+  color: string
+  borderColor?: string
+  wickColor?: string
+}
+
 /** Transient shift+drag measurement overlay, in container-local pixels. */
 type Measurement = {
   left: number
@@ -119,6 +139,8 @@ export function PriceChartView({
   markers = [],
   indicators = [],
   overlayLines = [],
+  zones = [],
+  barColors = [],
   visibleStartMs,
   focusRange = null,
   onCrosshairOhlc,
@@ -139,6 +161,10 @@ export function PriceChartView({
   indicators?: IndicatorConfig[]
   /** Generic extra line series (e.g. strategy channels). */
   overlayLines?: ChartOverlayLine[]
+  /** Filled rectangles (e.g. consolidation zones). */
+  zones?: ChartZone[]
+  /** Per-bar candle recoloring (e.g. QQE state); unlisted bars keep defaults. */
+  barColors?: ChartBarColor[]
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
   /** Zoom to this window (ms); clearing it restores the default view. */
@@ -157,6 +183,7 @@ export function PriceChartView({
   const seriesCtorsRef = React.useRef<{
     LineSeries: SeriesDefinition<"Line">
     HistogramSeries: SeriesDefinition<"Histogram">
+    BaselineSeries: SeriesDefinition<"Baseline">
   } | null>(null)
   const indicatorSeriesRef = React.useRef<
     Map<
@@ -182,6 +209,10 @@ export function PriceChartView({
   const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
     new Map()
   )
+  // One 2-point baseline series per zone: the baseline fill only spans the
+  // series' data range, so each paints exactly one rectangle.
+  const zoneSeriesRef = React.useRef<ISeriesApi<"Baseline">[]>([])
+  const lastBarColorsRef = React.useRef<ChartBarColor[]>([])
   const [ready, setReady] = React.useState(false)
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
   const measuringRef = React.useRef<{
@@ -215,9 +246,10 @@ export function PriceChartView({
         CandlestickSeries,
         HistogramSeries,
         LineSeries,
+        BaselineSeries,
       }) => {
         if (disposed || !container) return
-        seriesCtorsRef.current = { LineSeries, HistogramSeries }
+        seriesCtorsRef.current = { LineSeries, HistogramSeries, BaselineSeries }
 
         const theme = chartTheme()
         const chart = createChart(container, {
@@ -507,8 +539,19 @@ export function PriceChartView({
     for (const candle of candles) byTime.set(Math.floor(candle.t / 1000), candle)
     candleByTimeRef.current = byTime
 
+    const colorMap = barColors.length
+      ? new Map(barColors.map((bar) => [Math.floor(bar.time / 1000), bar]))
+      : undefined
+    // A new recoloring must repaint every bar, not just the last one.
+    const previousColors = lastBarColorsRef.current
+    const colorsChanged =
+      previousColors !== barColors &&
+      (previousColors.length > 0 || barColors.length > 0)
+    lastBarColorsRef.current = barColors
+
     const last = candles[candles.length - 1]
     const isIncremental =
+      !colorsChanged &&
       dataKeyRef.current === dataKey &&
       lastTimeRef.current > 0 &&
       last.t >= lastTimeRef.current &&
@@ -516,10 +559,10 @@ export function PriceChartView({
       candles[0].t < lastTimeRef.current
 
     if (isIncremental) {
-      candleSeries.update(toCandleData(last))
+      candleSeries.update(toCandleData(last, colorMap))
       volumeSeries.update(toVolumeData(last))
     } else {
-      candleSeries.setData(candles.map(toCandleData))
+      candleSeries.setData(candles.map((candle) => toCandleData(candle, colorMap)))
       volumeSeries.setData(candles.map(toVolumeData))
       if (visibleStartMs && visibleStartMs < last.t) {
         chartRef.current?.timeScale().setVisibleRange({
@@ -532,7 +575,7 @@ export function PriceChartView({
     }
     dataKeyRef.current = dataKey
     lastTimeRef.current = last.t
-  }, [ready, candles, dataKey, visibleStartMs])
+  }, [ready, candles, dataKey, visibleStartMs, barColors])
 
   // Zoom to a focused window (e.g. a selected backtest trade); clearing the
   // focus restores the default view for the loaded data.
@@ -689,6 +732,44 @@ export function PriceChartView({
       map.set(overlay.id, series)
     }
   }, [ready, overlayLines])
+
+  // Filled zone rectangles: a 2-point baseline series fills from `top` down
+  // to `baseValue.price = bottom` across exactly the zone's time span.
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const ctors = seriesCtorsRef.current
+    if (!ready || !chart || !ctors) return
+
+    for (const series of zoneSeriesRef.current) chart.removeSeries(series)
+    zoneSeriesRef.current = []
+
+    for (const zone of zones) {
+      if (!(zone.top > zone.bottom) || !(zone.toMs > zone.fromMs)) continue
+      const series = chart.addSeries(
+        ctors.BaselineSeries,
+        {
+          baseValue: { type: "price", price: zone.bottom },
+          topFillColor1: zone.fillColor,
+          topFillColor2: zone.fillColor,
+          topLineColor: zone.borderColor ?? "transparent",
+          bottomFillColor1: "transparent",
+          bottomFillColor2: "transparent",
+          bottomLineColor: "transparent",
+          lineWidth: 1,
+          lineVisible: Boolean(zone.borderColor),
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        },
+        0
+      )
+      series.setData([
+        { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.top },
+        { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.top },
+      ])
+      zoneSeriesRef.current.push(series)
+    }
+  }, [ready, zones])
 
   // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
   React.useEffect(() => {
@@ -952,13 +1033,25 @@ export function PriceChart({
   )
 }
 
-function toCandleData(candle: ChartCandle): CandlestickData {
+function toCandleData(
+  candle: ChartCandle,
+  colors?: Map<number, ChartBarColor>
+): CandlestickData {
+  const sec = Math.floor(candle.t / 1000)
+  const bar = colors?.get(sec)
   return {
-    time: (candle.t / 1000) as UTCTimestamp,
+    time: sec as UTCTimestamp,
     open: Number(candle.o),
     high: Number(candle.h),
     low: Number(candle.l),
     close: Number(candle.c),
+    ...(bar
+      ? {
+          color: bar.color,
+          borderColor: bar.borderColor ?? bar.color,
+          wickColor: bar.wickColor ?? bar.color,
+        }
+      : {}),
   }
 }
 

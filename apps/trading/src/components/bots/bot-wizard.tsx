@@ -42,7 +42,7 @@ import {
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
-const STRATEGY_TYPES: StrategyType[] = ["grid", "dca", "momentum", "copy"]
+const STRATEGY_TYPES: StrategyType[] = ["grid", "dca", "momentum", "qqe", "copy"]
 
 export function BotWizard({
   network,

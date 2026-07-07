@@ -95,6 +95,46 @@ export const momentumParamsSchema = z
     }
   })
 
+export const qqeParamsSchema = z.object({
+  strategyType: z.literal("qqe"),
+  interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
+  rsiPeriod: z.number().int().min(2).max(100),
+  rsiSmoothing: z.number().int().min(1).max(50),
+  qqeFactor: z.number().positive().max(20),
+  threshold: z.number().min(0).max(50),
+  maType: z.enum([
+    "ALMA",
+    "EMA",
+    "DEMA",
+    "TEMA",
+    "WMA",
+    "VWMA",
+    "SMA",
+    "SMMA",
+    "HMA",
+    "LSMA",
+    "PEMA",
+  ]),
+  lsmaOffset: z.number().int().min(0).max(100).optional(),
+  almaOffset: z.number().min(0).max(1).optional(),
+  almaSigma: z.number().positive().max(50).optional(),
+  rsiSource: z.enum(["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"]),
+  /** Paint candles green/red/orange by QQE state on the backtest chart. */
+  colorBars: z.boolean(),
+  /** Suppress signals while the market sits in a consolidation zone. */
+  consolidationFilter: z.boolean(),
+  loopbackPeriod: z.number().int().min(2).max(400),
+  minConsolidationLen: z.number().int().min(2).max(100),
+  paintConsolidation: z.boolean(),
+  zoneColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Must be a #rrggbb hex color")
+    .optional(),
+  orderSizeUsd: z.number().positive(),
+  takeProfitPct: z.number().positive().max(100).optional(),
+  stopLossPct: z.number().positive().max(100).optional(),
+})
+
 export const copyParamsSchema = z
   .object({
     strategyType: z.literal("copy"),
@@ -125,6 +165,7 @@ export const strategyParamsSchema = z.discriminatedUnion("strategyType", [
   gridParamsSchema,
   dcaParamsSchema,
   momentumParamsSchema,
+  qqeParamsSchema,
   copyParamsSchema,
 ])
 
@@ -144,6 +185,7 @@ export const riskParamsSchema = z.object({
 export type GridParams = z.infer<typeof gridParamsSchema>
 export type DcaParams = z.infer<typeof dcaParamsSchema>
 export type MomentumParams = z.infer<typeof momentumParamsSchema>
+export type QqeParams = z.infer<typeof qqeParamsSchema>
 export type CopyParams = z.infer<typeof copyParamsSchema>
 export type StrategyParams = z.infer<typeof strategyParamsSchema>
 export type RiskParams = z.infer<typeof riskParamsSchema>
@@ -153,6 +195,7 @@ export const STRATEGY_LABELS: Record<StrategyType, string> = {
   grid: "Grid",
   dca: "DCA / Martingale",
   momentum: "Momentum",
+  qqe: "QQE + Consolidation",
   copy: "Copy Trader",
 }
 
@@ -160,6 +203,7 @@ export const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   grid: "Ladders resting buys and sells across a price range; re-arms the opposite side after each fill.",
   dca: "Averages in with martingale safety orders and exits the whole position at a take-profit from average entry.",
   momentum: "Enters on EMA cross, RSI, or breakout signals at candle close; exits on a trailing stop or a break of the QFL base.",
+  qqe: "Stop-and-reverse on the smoothed RSI's first cross out of the 50±threshold channel, filtered by a zigzag consolidation detector; optional TP/SL.",
   copy: "Mirrors every fill of a Hyperliquid address with scaled size at market, capped by slippage.",
 }
 

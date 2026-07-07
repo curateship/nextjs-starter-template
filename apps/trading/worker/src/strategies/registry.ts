@@ -3,6 +3,7 @@ import { copyStrategy } from "./copy"
 import { dcaStrategy } from "./dca"
 import { gridStrategy } from "./grid"
 import { momentumStrategy } from "./momentum"
+import { qqeStrategy } from "./qqe"
 
 /**
  * Strategy registry keyed by strategyType. Shared by the live bot runner and
@@ -12,5 +13,6 @@ export const strategies: Partial<Record<string, Strategy<never, unknown>>> = {
   grid: gridStrategy as unknown as Strategy<never, unknown>,
   dca: dcaStrategy as unknown as Strategy<never, unknown>,
   momentum: momentumStrategy as unknown as Strategy<never, unknown>,
+  qqe: qqeStrategy as unknown as Strategy<never, unknown>,
   copy: copyStrategy as unknown as Strategy<never, unknown>,
 }

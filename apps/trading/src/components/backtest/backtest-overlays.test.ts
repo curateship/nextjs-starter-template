@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { BacktestResult } from "@/lib/backtest/types"
+import { computeConsolidation } from "@/lib/strategies/qqe"
 import type { StrategyParams } from "@/lib/strategies/params"
 import type { HistoryCandle } from "@/server/backtest/history"
 
@@ -111,6 +112,73 @@ describe("buildStrategyOverlays", () => {
       price: 90,
       draggable: true,
     })
+  })
+
+  it("paints QQE consolidation zones and bar colors from candles", () => {
+    const params = {
+      strategyType: "qqe",
+      interval: "1h",
+      rsiPeriod: 5,
+      rsiSmoothing: 3,
+      qqeFactor: 4.238,
+      threshold: 10,
+      maType: "EMA",
+      rsiSource: "close",
+      colorBars: true,
+      consolidationFilter: true,
+      loopbackPeriod: 5,
+      minConsolidationLen: 3,
+      paintConsolidation: true,
+      zoneColor: "#2962ff",
+      orderSizeUsd: 100,
+    } as StrategyParams
+    // A flat oscillating range: consolidates and stays orange/neutral.
+    const candles = Array.from({ length: 80 }, (_, i) =>
+      candle(i * 1000, i % 10 < 5 ? 105 : 95)
+    )
+    const { zones, barColors, markers } = buildStrategyOverlays(params, candles, null)
+
+    // Signal labels only fire on bars the causal filter saw as out-of-zone
+    // (a zone's retroactively painted head may still contain them).
+    const { inZone } = computeConsolidation(candles, 5, 3)
+    const indexByTime = new Map(candles.map((c, i) => [c.t, i]))
+    for (const marker of markers) {
+      expect(marker.side === "buy" || marker.side === "sell").toBe(true)
+      expect(inZone[indexByTime.get(marker.time)!]).toBe(false)
+    }
+
+    expect(zones.length).toBeGreaterThan(0)
+    for (const zone of zones) {
+      expect(zone.top).toBeGreaterThan(zone.bottom)
+      expect(zone.toMs).toBeGreaterThan(zone.fromMs)
+      expect(zone.fillColor).toBe("rgba(41, 98, 255, 0.2)")
+    }
+    expect(barColors.length).toBeGreaterThan(0)
+    const palette = new Set(["#089981", "#f23645", "#f59e0b"])
+    for (const bar of barColors) expect(palette.has(bar.color)).toBe(true)
+  })
+
+  it("emits no QQE visuals when both paint toggles are off", () => {
+    const params = {
+      strategyType: "qqe",
+      interval: "1h",
+      rsiPeriod: 5,
+      rsiSmoothing: 3,
+      qqeFactor: 4.238,
+      threshold: 10,
+      maType: "EMA",
+      rsiSource: "close",
+      colorBars: false,
+      consolidationFilter: true,
+      loopbackPeriod: 5,
+      minConsolidationLen: 3,
+      paintConsolidation: false,
+      orderSizeUsd: 100,
+    } as StrategyParams
+    const candles = Array.from({ length: 80 }, (_, i) => candle(i * 1000, 100))
+    const { zones, barColors } = buildStrategyOverlays(params, candles, null)
+    expect(zones).toHaveLength(0)
+    expect(barColors).toHaveLength(0)
   })
 
   it("anchors the DCA ladder on the base fill, or last close for preview", () => {
