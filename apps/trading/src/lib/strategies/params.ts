@@ -49,7 +49,13 @@ export const momentumParamsSchema = z
     rsiBuyBelow: z.number().min(1).max(50).optional(),
     rsiSellAbove: z.number().min(50).max(99).optional(),
     breakoutLookback: z.number().int().min(5).max(400).optional(),
+    /** Exit mechanism: trailing percent stop, or a break of the QFL base. */
+    stopMode: z.enum(["trailing", "base"]).optional(),
     trailingStopPct: z.number().positive().max(50).optional(),
+    /** QFL base: bars to scan for a new base low (stopMode = "base"). */
+    basePeriods: z.number().int().min(4).max(400).optional(),
+    /** QFL base: bars the low must hold to confirm a base. */
+    pumpPeriods: z.number().int().min(2).max(200).optional(),
     orderSizeUsd: z.number().positive(),
     direction: z.enum(["long", "short", "both"]),
   })
@@ -79,6 +85,12 @@ export const momentumParamsSchema = z
       ctx.addIssue({
         code: "custom",
         message: "Breakout needs breakoutLookback.",
+      })
+    }
+    if (params.stopMode === "base" && (!params.basePeriods || !params.pumpPeriods)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Base stop needs basePeriods and pumpPeriods.",
       })
     }
   })
@@ -147,7 +159,7 @@ export const STRATEGY_LABELS: Record<StrategyType, string> = {
 export const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   grid: "Ladders resting buys and sells across a price range; re-arms the opposite side after each fill.",
   dca: "Averages in with martingale safety orders and exits the whole position at a take-profit from average entry.",
-  momentum: "Enters on EMA cross, RSI, or breakout signals at candle close; manages a trailing stop.",
+  momentum: "Enters on EMA cross, RSI, or breakout signals at candle close; exits on a trailing stop or a break of the QFL base.",
   copy: "Mirrors every fill of a Hyperliquid address with scaled size at market, capped by slippage.",
 }
 

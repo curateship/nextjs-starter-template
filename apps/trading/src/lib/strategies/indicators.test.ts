@@ -8,11 +8,35 @@ import {
   highest,
   lowest,
   macd,
+  qflBase,
   rsi,
   sma,
   stddev,
   vwap,
 } from "./indicators"
+
+describe("qflBase", () => {
+  const low = (l: number) => ({ l })
+
+  it("confirms a base at a swing low that holds, then keeps the level flat", () => {
+    // Downtrend into a low of 10 at index 5, then price holds above it.
+    const lows = [20, 18, 16, 14, 12, 10, 12, 13, 14, 15, 16, 17]
+    const { raw } = qflBase(lows.map(low), 4, 2)
+    // Once the base is confirmed it holds at the swing low (10).
+    const last = raw[raw.length - 1]
+    expect(last).toBe(10)
+    // The base never sits above the low that formed it.
+    for (const value of raw) {
+      if (!Number.isNaN(value)) expect(value).toBeLessThanOrEqual(20)
+    }
+  })
+
+  it("is NaN before any base is confirmed", () => {
+    const lows = [5, 4, 3, 2, 1].map(low) // strictly falling — no held low yet
+    const { raw } = qflBase(lows, 4, 2)
+    expect(Number.isNaN(raw[0])).toBe(true)
+  })
+})
 
 describe("indicators", () => {
   it("computes EMA that tracks a constant series exactly", () => {

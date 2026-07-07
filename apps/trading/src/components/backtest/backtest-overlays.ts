@@ -41,6 +41,18 @@ export function buildStrategyOverlays(
   const priceLines: ChartPriceLine[] = []
 
   if (params.strategyType === "momentum") {
+    // The QFL base doubles as the stop line when stopMode = "base".
+    if (params.stopMode === "base" && params.basePeriods && params.pumpPeriods) {
+      indicators.push({
+        id: "base",
+        type: "base",
+        enabled: true,
+        params: {
+          basePeriods: params.basePeriods,
+          pumpPeriods: params.pumpPeriods,
+        },
+      })
+    }
     if (params.signal === "ema_cross" && params.emaFast && params.emaSlow) {
       indicators.push(
         { id: "ema-fast", type: "ema", enabled: true, params: { period: params.emaFast } },

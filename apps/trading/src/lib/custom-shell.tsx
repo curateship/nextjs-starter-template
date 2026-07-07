@@ -3,6 +3,8 @@ import {
   iconNames,
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
+
+import { DEFAULT_MAX_CANDLES } from "@/lib/backtest/types"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -251,6 +253,8 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   dashboardRowsPerPage: number
+  /** Candles loaded per trading chart, and the backtest window ceiling. */
+  maxCandles: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -273,6 +277,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
+    maxCandles: DEFAULT_MAX_CANDLES,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

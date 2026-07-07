@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
 import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
 import type { RiskParams, StrategyParams } from "@/lib/strategies/params"
@@ -13,7 +13,7 @@ import { now, uuid } from "@/server/util"
 
 export type CreateBacktestInput = {
   name: string
-  /** Re-run lineage; omitted for a fresh run (group = the new row's id). */
+  /** Market-group lineage; omitted for the first row (group = its own id). */
   groupId?: string
   market: string
   network: TradingNetwork
@@ -56,6 +56,48 @@ export async function createUserBacktest(
     })
     .returning()
   if (!row) throw new Error("Backtest was not created")
+  return row
+}
+
+/**
+ * Re-runs an existing row in place: rewrites its config and puts it back in
+ * "running" with the old result cleared. Keeps the id, so group lineage (and
+ * the main row's id == groupId) survives re-runs.
+ */
+export async function resetUserBacktest(
+  userId: string,
+  backtestId: string,
+  input: CreateBacktestInput,
+  database: CustomShellDb = db
+): Promise<TradingBacktest> {
+  const [row] = await database
+    .update(tradingBacktests)
+    .set({
+      name: input.name.slice(0, 255),
+      strategyType: input.params.strategyType,
+      market: input.market,
+      network: input.network,
+      interval: input.interval,
+      params: input.params,
+      riskParams: input.riskParams,
+      costs: input.costs,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      startingEquity: String(input.startingEquity),
+      status: "running",
+      error: null,
+      result: null,
+      startedAt: now(),
+      completedAt: null,
+    })
+    .where(
+      and(
+        eq(tradingBacktests.id, backtestId),
+        eq(tradingBacktests.userId, userId)
+      )
+    )
+    .returning()
+  if (!row) throw new Error("Backtest was not found")
   return row
 }
 
@@ -113,6 +155,15 @@ export async function listUserBacktests(
       tradeCount: sql<
         string | null
       >`(${tradingBacktests.result} #>> '{stats,all,trades}')`,
+      maxDrawdownPct: sql<
+        string | null
+      >`(${tradingBacktests.result} #>> '{stats,maxDrawdownPct}')`,
+      winRate: sql<
+        string | null
+      >`(${tradingBacktests.result} #>> '{stats,all,winRate}')`,
+      sharpe: sql<
+        string | null
+      >`(${tradingBacktests.result} #>> '{stats,all,sharpe}')`,
     })
     .from(tradingBacktests)
     .where(eq(tradingBacktests.userId, userId))
@@ -195,6 +246,31 @@ export async function saveUserStrategyDefaults(
       ],
       set: { params: defaults, updatedAt: now() },
     })
+}
+
+/** Sibling runs of a group — one per market — for the workspace switcher. */
+export async function listGroupRuns(
+  userId: string,
+  groupId: string,
+  database: CustomShellDb = db
+) {
+  return database
+    .select({
+      id: tradingBacktests.id,
+      market: tradingBacktests.market,
+      status: tradingBacktests.status,
+      netPnlPct: sql<
+        string | null
+      >`(${tradingBacktests.result} #>> '{stats,netPnlPct}')`,
+    })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.groupId, groupId)
+      )
+    )
+    .orderBy(asc(tradingBacktests.createdAt))
 }
 
 export async function getUserBacktest(

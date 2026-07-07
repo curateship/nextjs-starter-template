@@ -7,6 +7,11 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import {
+  clampMaxCandles,
+  MAX_CANDLES_LIMIT,
+  MIN_CANDLES,
+} from "@/lib/backtest/types"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
@@ -52,6 +57,12 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  maxCandles: z
+    .number()
+    .int()
+    .min(MIN_CANDLES)
+    .max(MAX_CANDLES_LIMIT)
+    .catch(MAX_CANDLES_LIMIT),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -214,6 +225,7 @@ function parseShellGlobals(value: unknown) {
       )
         ? settings.dashboardRowsPerPage
         : fallback.dashboardRowsPerPage,
+    maxCandles: clampMaxCandles(settings.maxCandles),
   }
 }
 
@@ -223,5 +235,6 @@ function pickShellGlobals(settings: ShellConfig) {
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
+    maxCandles: clampMaxCandles(settings.maxCandles),
   }
 }

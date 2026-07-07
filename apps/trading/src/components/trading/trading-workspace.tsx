@@ -630,12 +630,26 @@ function loadPersistedIndicators(): IndicatorConfig[] {
     const raw = localStorage.getItem("trading-indicators")
     if (!raw) return DEFAULT_INDICATORS
     const parsed: unknown = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) return parsed
+    if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) {
+      return withMissingDefaults(parsed)
+    }
     console.warn("Invalid trading-indicators in storage; resetting to defaults.")
   } catch {
     // Unreadable or blocked storage — treat as absent.
   }
   return DEFAULT_INDICATORS
+}
+
+/**
+ * Appends default indicators the stored list predates (e.g. a "Base" added
+ * after the user first saved their prefs) so new indicators always show up,
+ * without touching their existing customizations. Additive only — no
+ * field-by-field migration of stored entries.
+ */
+function withMissingDefaults(stored: IndicatorConfig[]): IndicatorConfig[] {
+  const ids = new Set(stored.map((config) => config.id))
+  const missing = DEFAULT_INDICATORS.filter((config) => !ids.has(config.id))
+  return missing.length ? [...stored, ...missing] : stored
 }
 
 function usePersistedIndicators() {

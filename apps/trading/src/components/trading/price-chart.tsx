@@ -13,10 +13,18 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts"
 
+import { useShellRuntime } from "@/components/shell-layout"
 import { useCandles } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
-import { bollinger, ema, macd, rsi, vwap } from "@/lib/strategies/indicators"
+import {
+  bollinger,
+  ema,
+  macd,
+  qflBase,
+  rsi,
+  vwap,
+} from "@/lib/strategies/indicators"
 import {
   indicatorColor,
   OSCILLATORS,
@@ -112,6 +120,7 @@ export function PriceChartView({
   indicators = [],
   overlayLines = [],
   visibleStartMs,
+  focusRange = null,
   onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
@@ -132,6 +141,8 @@ export function PriceChartView({
   overlayLines?: ChartOverlayLine[]
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
+  /** Zoom to this window (ms); clearing it restores the default view. */
+  focusRange?: { fromMs: number; toMs: number } | null
   /** Crosshair candle readout; null when the cursor leaves the chart. */
   onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
@@ -165,6 +176,9 @@ export function PriceChartView({
   const lastTimeRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
+  // One short line series per QFL base mark — separate series so marks never
+  // connect to each other across the gaps between them.
+  const baseSeriesRef = React.useRef<ISeriesApi<"Line">[]>([])
   const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
     new Map()
   )
@@ -451,6 +465,9 @@ export function PriceChartView({
           for (const { series, recolor } of indicatorSeriesRef.current.values()) {
             if (recolor) series.applyOptions({ color: recolor(dark) })
           }
+          for (const series of baseSeriesRef.current) {
+            series.applyOptions({ color: indicatorColor("base", dark) })
+          }
         })
         observer.observe(document.documentElement, {
           attributes: true,
@@ -517,6 +534,31 @@ export function PriceChartView({
     lastTimeRef.current = last.t
   }, [ready, candles, dataKey, visibleStartMs])
 
+  // Zoom to a focused window (e.g. a selected backtest trade); clearing the
+  // focus restores the default view for the loaded data.
+  const hadFocusRef = React.useRef(false)
+  React.useEffect(() => {
+    const chart = chartRef.current
+    if (!ready || !chart || lastTimeRef.current === 0) return
+    const timeScale = chart.timeScale()
+    if (focusRange) {
+      timeScale.setVisibleRange({
+        from: (focusRange.fromMs / 1000) as UTCTimestamp,
+        to: (focusRange.toMs / 1000) as UTCTimestamp,
+      })
+    } else if (hadFocusRef.current) {
+      if (visibleStartMs && visibleStartMs < lastTimeRef.current) {
+        timeScale.setVisibleRange({
+          from: (visibleStartMs / 1000) as UTCTimestamp,
+          to: (lastTimeRef.current / 1000) as UTCTimestamp,
+        })
+      } else {
+        timeScale.fitContent()
+      }
+    }
+    hadFocusRef.current = Boolean(focusRange)
+  }, [ready, focusRange, visibleStartMs])
+
   // Reconcile indicator series with the config: full rebuild on change so
   // oscillator sub-pane indices stay dense as they are toggled on/off.
   React.useEffect(() => {
@@ -568,6 +610,8 @@ export function PriceChartView({
         addLine(ind.id, ind.id, ind.color, 0)
       } else if (ind.type === "vwap") {
         addLine("vwap", "vwap", ind.color, 0)
+      } else if (ind.type === "base") {
+        // Rendered as separate per-mark series in the data effect below.
       } else if (ind.type === "bollinger") {
         addLine("bollinger-upper", "bollinger-band", undefined, 0, { width: 1 })
         addLine("bollinger-mid", "bollinger-mid", ind.color, 0, { dashed: true })
@@ -649,7 +693,14 @@ export function PriceChartView({
   // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
   React.useEffect(() => {
     const map = indicatorSeriesRef.current
-    if (!ready || candles.length === 0 || map.size === 0) return
+    const chart = chartRef.current
+    const ctors = seriesCtorsRef.current
+    if (!ready || candles.length === 0 || !chart || !ctors) return
+
+    // Rebuild QFL base marks from scratch each run (candles/config change).
+    for (const series of baseSeriesRef.current) chart.removeSeries(series)
+    baseSeriesRef.current = []
+    const isDark = document.documentElement.classList.contains("dark")
 
     const closes = candles.map((candle) => Number(candle.c))
     const at = (i: number) => (candles[i].t / 1000) as UTCTimestamp
@@ -671,6 +722,41 @@ export function PriceChartView({
         setLine(ind.id, ema(closes, ind.params.period))
       } else if (ind.type === "vwap") {
         setLine("vwap", vwap(candles))
+      } else if (ind.type === "base") {
+        const { line } = qflBase(
+          candles,
+          ind.params.basePeriods,
+          ind.params.pumpPeriods
+        )
+        const color = ind.color ?? indicatorColor("base", isDark)
+        // Draw each contiguous run of equal value as its own 2-point series so
+        // bases are separate short horizontal marks, never joined to each other.
+        let i = 0
+        while (i < line.length) {
+          if (Number.isNaN(line[i])) {
+            i += 1
+            continue
+          }
+          let j = i
+          while (j + 1 < line.length && line[j + 1] === line[i]) j += 1
+          const series = chart.addSeries(
+            ctors.LineSeries,
+            {
+              color,
+              lineWidth: 3,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            },
+            0
+          )
+          series.setData([
+            { time: at(i), value: line[i] },
+            { time: at(j), value: line[i] },
+          ])
+          baseSeriesRef.current.push(series)
+          i = j + 1
+        }
       } else if (ind.type === "bollinger") {
         const bands = bollinger(closes, ind.params.period, ind.params.k)
         setLine("bollinger-upper", bands.upper)
@@ -848,7 +934,8 @@ export function PriceChart({
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
 }) {
-  const { candles, loading } = useCandles(network, coin, interval)
+  const maxCandles = useShellRuntime().config.maxCandles
+  const { candles, loading } = useCandles(network, coin, interval, maxCandles)
 
   return (
     <PriceChartView

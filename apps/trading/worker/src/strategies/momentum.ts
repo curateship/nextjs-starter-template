@@ -6,6 +6,7 @@ import {
   ema,
   highest,
   lowest,
+  qflBase,
   rsi,
 } from "@/lib/strategies/indicators"
 
@@ -66,11 +67,31 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
 
   onTick: (ctx, params) => {
     const state = ctx.state
-    if (!params.trailingStopPct || !ctx.position || state.exitRequested) return
+    if (!ctx.position || state.exitRequested) return
     const mid = Number(ctx.mid)
     if (!(mid > 0)) return
-
     const szi = Number(ctx.position.szi)
+
+    // QFL base stop: exit a long when price breaks below the current base
+    // (its support). The base is a swing-low support, so it only guards longs;
+    // shorts exit on the opposite signal. Recomputed here from closed candles
+    // — cheap and needs no stored state.
+    if (params.stopMode === "base") {
+      if (szi <= 0 || !params.basePeriods || !params.pumpPeriods) return
+      const candles = ctx
+        .candles(params.interval, params.basePeriods + params.pumpPeriods + 2)
+        .filter((candle) => candle.T <= ctx.now)
+      const { raw } = qflBase(candles, params.basePeriods, params.pumpPeriods)
+      const level = raw[raw.length - 1]
+      if (Number.isNaN(level)) return
+      if (mid <= level) {
+        requestExit(ctx, `Price broke the QFL base at ${ctx.mid}.`)
+      }
+      return
+    }
+
+    // Trailing percent stop.
+    if (!params.trailingStopPct) return
     const pct = params.trailingStopPct / 100
     if (szi > 0) {
       const candidate = mid * (1 - pct)

@@ -15,8 +15,10 @@ export function StrategyInputs({
   strategy,
   values,
   disabled,
+  readOnly = false,
   mid,
   windowDays,
+  maxWindowDays,
   equity,
   costs,
   onChange,
@@ -29,8 +31,12 @@ export function StrategyInputs({
   strategy: StrategyType | null
   values: ParamValues
   disabled: boolean
+  /** Loaded run — inputs are a read-only snapshot, no Reset. */
+  readOnly?: boolean
   mid: number
   windowDays: string
+  /** Largest lookback the current interval can fetch (interval-aware). */
+  maxWindowDays: number
   equity: string
   /** Fee/slippage assumptions in bps (form strings). */
   costs: { taker: string; maker: string; slippage: string }
@@ -38,7 +44,7 @@ export function StrategyInputs({
   onWindowChange: (value: string) => void
   onEquityChange: (value: string) => void
   onCostsChange: (key: "taker" | "maker" | "slippage", value: string) => void
-  onReset: () => void
+  onReset?: () => void
   onNewRun: () => void
 }) {
   if (!strategy) {
@@ -61,17 +67,23 @@ export function StrategyInputs({
         <span className="text-[11px] font-semibold text-foreground/80">
           Inputs · {STRATEGY_LABELS[strategy]}
         </span>
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        >
-          Reset
-        </button>
+        {readOnly ? (
+          <span className="text-[10px] text-muted-foreground">Read-only</span>
+        ) : onReset ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Reset
+          </button>
+        ) : null}
       </div>
       <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
         <div className="grid gap-2">
-          <Label className="text-xs">Date range (days back, 1–90)</Label>
+          <Label className="text-xs">
+            Date range (days back, 1–{maxWindowDays})
+          </Label>
           <Input
             value={windowDays}
             inputMode="numeric"

@@ -17,7 +17,6 @@ import {
   type CandleInterval,
 } from "@/lib/hl/ws"
 
-const CANDLE_HISTORY = 500
 const META_REFRESH_MS = 30_000
 const TAPE_LENGTH = 60
 
@@ -55,7 +54,9 @@ export function useAllMids(network: TradingNetwork) {
 export function useCandles(
   network: TradingNetwork,
   coin: string,
-  interval: CandleInterval
+  interval: CandleInterval,
+  /** History depth to load — the user's Max chart candles setting. */
+  maxCandles: number
 ) {
   const key = `${network}:${coin}:${interval}`
   const [state, setState] = React.useState<Keyed<{
@@ -71,7 +72,7 @@ export function useCandles(
       .candleSnapshot({
         coin,
         interval,
-        startTime: Date.now() - intervalMs * CANDLE_HISTORY,
+        startTime: Date.now() - intervalMs * maxCandles,
       })
       .then((snapshot) => {
         if (cancelled) return
@@ -99,7 +100,7 @@ export function useCandles(
           return {
             key,
             data: {
-              candles: mergeCandle(prev.data.candles, candle),
+              candles: mergeCandle(prev.data.candles, candle, maxCandles),
               seeded: prev.data.seeded,
             },
           }
@@ -112,7 +113,7 @@ export function useCandles(
       cancelled = true
       unsubscribe()
     }
-  }, [network, coin, interval, key])
+  }, [network, coin, interval, key, maxCandles])
 
   const current = state?.key === key ? state.data : null
   return {
@@ -237,10 +238,14 @@ function mergeSnapshot(snapshot: Candle[], streamed: Candle[]): Candle[] {
   return [...byTime.values()].sort((a, b) => a.t - b.t)
 }
 
-function mergeCandle(current: Candle[], candle: Candle): Candle[] {
+function mergeCandle(
+  current: Candle[],
+  candle: Candle,
+  maxCandles: number
+): Candle[] {
   const last = current[current.length - 1]
   if (!last || candle.t > last.t) {
-    return [...current, candle].slice(-CANDLE_HISTORY * 2)
+    return [...current, candle].slice(-maxCandles * 2)
   }
   if (candle.t === last.t) {
     const next = current.slice(0, -1)

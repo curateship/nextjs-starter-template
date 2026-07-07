@@ -29,7 +29,8 @@ import {
   saveStrategyDefaults,
   type StrategyRunDefaults,
 } from "@/lib/api/backtests"
-import { DEFAULT_BACKTEST_COSTS } from "@/lib/backtest/types"
+import { useShellRuntime } from "@/components/shell-layout"
+import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
@@ -71,6 +72,7 @@ export function StrategyDefaultsDialog({
   )
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const maxCandles = useShellRuntime().config.maxCandles
 
   function resetToBuiltIns() {
     setValues(PARAM_DEFAULTS[strategy])
@@ -89,8 +91,10 @@ export function StrategyDefaultsDialog({
     const takerNum = Number(taker)
     const makerNum = Number(maker)
     const slipNum = Number(slippage)
-    if (!(windowNum >= 1 && windowNum <= 90)) {
-      return setError("Date range must be between 1 and 90 days.")
+    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, maxCandles))) {
+      return setError(
+        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, maxCandles)} days.`
+      )
     }
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
     if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
@@ -154,7 +158,9 @@ export function StrategyDefaultsDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Date range (days back, 1–90)</Label>
+              <Label>
+                Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
+              </Label>
               <Input
                 value={windowDays}
                 inputMode="numeric"
