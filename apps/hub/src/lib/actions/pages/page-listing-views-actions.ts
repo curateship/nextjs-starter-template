@@ -3,6 +3,7 @@
 import { sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
+import { getDirectoryFeaturedJoin } from '@/lib/actions/directories/directory-featured-activation'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
 export type ListingViewsContentType = 'products' | 'posts' | 'directory'
@@ -29,6 +30,7 @@ export interface ListingViewsItem {
   rating: number | null
   address: string | null
   categories: ListingViewsCategory[]
+  featured: boolean
 }
 
 export interface ListingViewsData {
@@ -57,6 +59,7 @@ interface ListingViewsRow extends Record<string, unknown> {
   address?: string | null
   country?: string | null
   categories?: unknown
+  featured_priority?: number | null
 }
 
 function normalizeCategoryIds(categoryIds?: string[]) {
@@ -150,6 +153,7 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       rating: row.rating == null ? null : Number(row.rating),
       address: formatDirectoryAddress(row.address, row.country) || null,
       categories: mapListingCategories(row.categories),
+      featured: row.featured_priority != null,
     }))
 
   return {
@@ -277,7 +281,8 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         end as rating,
         nullif(core_block.content #>> '{address}', '') as address,
         null as country,
-        ${getDirectoryCategoriesSelect(includeCategories)} as categories
+        ${getDirectoryCategoriesSelect(includeCategories)} as categories,
+        featured.priority as featured_priority
       from directory d
       inner join sites s on s.id = d.site_id
       inner join users u on u.id = s.user_id
@@ -287,6 +292,7 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         where block.value->>'type' = 'directory-core'
         limit 1
       ) core_block on true
+      ${getDirectoryFeaturedJoin(sql`d`)}
       ${getCategoryJoin(categoryIds, 'directory', sql`d.id`)}
       where d.site_id = ${site_id}
         and d.status = 'published'
@@ -296,7 +302,7 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
     ),
     paged as (
       select * from filtered
-      order by ${getOrderByClause(sortBy, sortOrder)}
+      order by (featured_priority is not null) desc, featured_priority desc nulls last, ${getOrderByClause(sortBy, sortOrder)}
       limit ${limit}
       offset ${offset}
     )
@@ -322,7 +328,7 @@ const getCachedListingData = unstable_cache(
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v12'],
+  ['listing-data-v13'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']

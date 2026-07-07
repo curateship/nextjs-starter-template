@@ -4,6 +4,7 @@ import { useEffect, useState, type HTMLAttributes } from "react"
 import Link from "next/link"
 import { MapPin } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { Rating } from "@/components/shadcnblocks/rating"
 import {
   getDirectoryRelatedListingsAction,
@@ -39,6 +40,7 @@ const PREVIEW_ITEMS: DirectoryRelatedListingItem[] = [
     meta_description: "A short listing description appears here.",
     rating: 4.8,
     address: "123 Main Street",
+    featured: false,
     category: {
       id: "preview-category",
       title: "Sample Category",
@@ -181,6 +183,7 @@ export function DirectoryRelatedListingBlock({
                 ) : null}
 
                 <div className="min-w-0 flex-1">
+                  {item.featured ? <FeaturedBadge className="mb-1" /> : null}
                   {visibility.listingTitle !== false ? (
                     <Link
                       href={href}

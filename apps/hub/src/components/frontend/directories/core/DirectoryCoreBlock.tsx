@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions/directories/directory-core"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
+import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { Rating } from "@/components/shadcnblocks/rating"
 import { Card, CardSection } from "@/components/ui/card"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
@@ -28,6 +29,7 @@ interface DirectoryCoreBlockProps {
   }
   loginPath?: string
   siteId?: string | null
+  isFeatured?: boolean
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
@@ -77,7 +79,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-export function DirectoryCoreBlock({ content, directory, loginPath, siteId, cardProps }: DirectoryCoreBlockProps) {
+export function DirectoryCoreBlock({ content, directory, loginPath, siteId, isFeatured = false, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -151,6 +153,7 @@ export function DirectoryCoreBlock({ content, directory, loginPath, siteId, card
       ) : null}
 
       <CardSection className={menuLinks.length > 0 && visibility.menuLinks !== false ? "pb-3" : undefined}>
+        {isFeatured ? <FeaturedBadge className="mb-2" /> : null}
         {visibility.title !== false ? (
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}

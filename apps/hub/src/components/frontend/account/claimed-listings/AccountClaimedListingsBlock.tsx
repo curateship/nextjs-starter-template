@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { ExternalLink, Loader2 } from "lucide-react"
 
 import {
@@ -9,10 +9,18 @@ import {
   type ClaimedDirectoryCategory,
   type ClaimedDirectoryEditorItem
 } from "@/lib/actions/directories/directory-claim-actions"
+import {
+  confirmDirectoryFeaturedCheckoutAction,
+  createDirectoryFeaturedCheckoutAction,
+  getMyDirectoryFeaturedUpgradeStateAction,
+  type MyDirectoryFeaturedUpgradePlan
+} from "@/lib/actions/directories/directory-monetization-actions"
+import { formatCentsAmount } from "@/lib/actions/directories/directory-featured-helpers"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
+import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
@@ -117,6 +125,16 @@ function statusBadge(item: ClaimedDirectoryEditorItem | null) {
   return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
 }
 
+type FeaturedUpgradeState = Awaited<ReturnType<typeof getMyDirectoryFeaturedUpgradeStateAction>>
+
+function formatFeaturedDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value))
+}
+
+function formatPlanPrice(plan: MyDirectoryFeaturedUpgradePlan) {
+  return formatCentsAmount(plan.amount, plan.currency)
+}
+
 export function AccountClaimedListingsBlock({
   siteId,
   content,
@@ -134,6 +152,12 @@ export function AccountClaimedListingsBlock({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [featuredState, setFeaturedState] = useState<FeaturedUpgradeState | null>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState("")
+  const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null)
+  const [upgradeError, setUpgradeError] = useState<string | null>(null)
+  const [upgradePending, setUpgradePending] = useState(false)
+  const confirmAttempted = useRef(false)
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || null, [items, selectedId])
 
@@ -181,6 +205,86 @@ export function AccountClaimedListingsBlock({
     }
     setDraft(createDraft(selectedItem))
   }, [selectedItem])
+
+  // Clear-then-load with a cancelled flag so switching listings never shows the
+  // previous listing's featured status, even when responses arrive out of order
+  useEffect(() => {
+    if (isPreview || !selectedItem?.id || upgradePending) return
+
+    let cancelled = false
+    setFeaturedState(null)
+    getMyDirectoryFeaturedUpgradeStateAction(siteId, selectedItem.id)
+      .then((result) => {
+        if (cancelled) return
+        setFeaturedState(result)
+        setSelectedPlanId((current) => {
+          if (current && result.plans.some((plan) => plan.id === current)) return current
+          return result.plans[0]?.id || ""
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setFeaturedState(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isPreview, selectedItem?.id, siteId, upgradePending])
+
+  // Complete a Stripe success redirect (?featured_session=cs_...) before
+  // loading upgrade state so the new entitlement is visible immediately
+  useEffect(() => {
+    if (isPreview || confirmAttempted.current) return
+    confirmAttempted.current = true
+
+    const params = new URLSearchParams(window.location.search)
+    const sessionId = params.get("featured_session")
+    const cancelled = params.get("featured_checkout") === "cancelled"
+    if (!sessionId && !cancelled) return
+
+    params.delete("featured_session")
+    params.delete("featured_checkout")
+    const query = params.toString()
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`)
+
+    if (cancelled) {
+      setUpgradeError("Checkout was cancelled. Your listing was not upgraded.")
+      return
+    }
+
+    setUpgradePending(true)
+    confirmDirectoryFeaturedCheckoutAction({ siteId, sessionId: sessionId! })
+      .then((result) => {
+        if (result.success) {
+          setUpgradeMessage("Payment received — your listing is now featured.")
+        } else {
+          setUpgradeError(result.error || "We could not confirm the payment yet. It will activate automatically once Stripe notifies us.")
+        }
+      })
+      .finally(() => setUpgradePending(false))
+  }, [isPreview, siteId])
+
+  const handleBuyUpgrade = async () => {
+    if (!selectedItem || !selectedPlanId || isPreview) return
+
+    setUpgradeError(null)
+    setUpgradeMessage(null)
+    setUpgradePending(true)
+    const result = await createDirectoryFeaturedCheckoutAction({
+      siteId,
+      directoryId: selectedItem.id,
+      planId: selectedPlanId,
+      returnPath: window.location.pathname,
+    })
+
+    if (!result.success || !result.url) {
+      setUpgradePending(false)
+      setUpgradeError(result.error || "Failed to start checkout")
+      return
+    }
+
+    window.location.href = result.url
+  }
 
   const customTemplateById = useMemo(
     () => new Map(customBlockTemplates.map((template) => [template.id, template])),
@@ -320,6 +424,9 @@ export function AccountClaimedListingsBlock({
 
           <div className="flex flex-wrap items-center gap-3">
             {statusBadge(selectedItem)}
+            {featuredState?.featuredUntil ? (
+              <FeaturedBadge>Featured until {formatFeaturedDate(featuredState.featuredUntil)}</FeaturedBadge>
+            ) : null}
             {selectedItem?.pending_edit ? (
               <p className="text-sm text-muted-foreground">Latest submitted changes are waiting for admin review.</p>
             ) : null}
@@ -407,6 +514,62 @@ export function AccountClaimedListingsBlock({
               ) : null}
             </CardContent>
           </Card>
+
+          {visibility.upgrade !== false && (featuredState?.plans.length || featuredState?.featuredUntil || upgradeMessage || upgradeError) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Featured Upgrade</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {featuredState?.featuredUntil
+                    ? `Current status: Featured until ${formatFeaturedDate(featuredState.featuredUntil)}${featuredState.activePlanName ? ` (${featuredState.activePlanName})` : ""}.`
+                    : "Current status: Not featured. Buy an upgrade to show this listing first with a Featured badge."}
+                </p>
+
+                {featuredState?.plans.length ? (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {featuredState.plans.map((plan) => {
+                        const price = formatPlanPrice(plan)
+                        const isSelected = selectedPlanId === plan.id
+
+                        return (
+                          <button
+                            key={plan.id}
+                            type="button"
+                            onClick={() => setSelectedPlanId(plan.id)}
+                            className={`rounded-lg border p-3 text-left text-sm transition-colors ${isSelected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/30"}`}
+                            aria-pressed={isSelected}
+                          >
+                            <span className="block font-medium">{plan.name}</span>
+                            <span className="block text-muted-foreground">
+                              {plan.duration_days} days{price ? ` · ${price}` : ""}
+                            </span>
+                            {plan.description ? (
+                              <span className="mt-1 block text-xs text-muted-foreground">{plan.description}</span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleBuyUpgrade}
+                      disabled={upgradePending || !selectedPlanId || isPreview}
+                    >
+                      {upgradePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Buy Upgrade
+                    </Button>
+                  </>
+                ) : null}
+
+                {upgradeMessage ? <p className="text-sm text-green-700">{upgradeMessage}</p> : null}
+                {upgradeError ? <p className="text-sm text-red-600">{upgradeError}</p> : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {blocks.map((block) => {
             if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {

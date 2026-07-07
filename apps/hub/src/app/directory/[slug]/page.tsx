@@ -20,6 +20,8 @@ import {
   mergeDirectoryTemplateBlocks,
 } from "@/lib/actions/directories/directory-template-inheritance"
 import { getDirectoryRelatedListingsAction } from "@/lib/actions/directories/directory-related-listing-actions"
+import { getDirectoryFeaturedUntil } from "@/lib/actions/directories/directory-featured-activation"
+import { isDirectoryFeaturedNow } from "@/lib/actions/directories/directory-featured-helpers"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -209,8 +211,8 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   }
 
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
-  // Related-listing data and breadcrumbs are independent — fetch in parallel
-  const [relatedListingData, breadcrumbs] = await Promise.all([
+  // Related-listing data, breadcrumbs, and featured state are independent — fetch in parallel
+  const [relatedListingData, breadcrumbs, featuredUntil] = await Promise.all([
     prefetchRelatedListingData(blocks, site.id, directory.id),
     shouldShowFrontendBreadcrumbs(site.settings, 'directories')
       ? getContentBreadcrumbItems({
@@ -221,6 +223,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
           rootCategoryId: getDirectoryTemplateDefaultCategoryParentId(directory.contentBlocks || {}),
         })
       : Promise.resolve([]),
+    getDirectoryFeaturedUntil(site.id, directory.id),
   ])
   const googleMapsApiKey = needsGoogleMapsConfig && pageData.googleMapsApiKey
     ? safeDecrypt(pageData.googleMapsApiKey)
@@ -245,6 +248,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         breadcrumbs={breadcrumbs}
         googleMapsEmbedApiKey={googleMapsApiKey}
         relatedListingData={relatedListingData}
+        isFeatured={isDirectoryFeaturedNow(featuredUntil)}
       />
     </>
   )

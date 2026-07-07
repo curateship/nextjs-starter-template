@@ -52,6 +52,8 @@ interface DirectoryBlockRendererProps {
   // Server-prefetched related-listing items keyed by block id (pages pattern) —
   // lets the block render with data in the initial HTML, no client fetch
   relatedListingData?: Record<string, DirectoryRelatedListingItem[]>
+  // Active paid Featured entitlement — shows the Featured badge in the core block
+  isFeatured?: boolean
 }
 
 export function DirectoryBlockRenderer({
@@ -65,6 +67,7 @@ export function DirectoryBlockRenderer({
   renderRichTextBody,
   renderBlockOverlay,
   relatedListingData,
+  isFeatured = false,
 }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
@@ -138,6 +141,7 @@ export function DirectoryBlockRenderer({
           directory={directory}
           loginPath={loginPath}
           siteId={site.id}
+          isFeatured={isFeatured}
           cardProps={getBlockCardProps(block, "overflow-hidden")}
         />
       )
