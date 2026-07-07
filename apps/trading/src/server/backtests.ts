@@ -7,6 +7,7 @@ import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
   tradingBacktests,
   tradingStrategyDefaults,
+  tradingStrategyTemplates,
   type TradingBacktest,
 } from "@/server/schema"
 import { now, uuid } from "@/server/util"
@@ -246,6 +247,106 @@ export async function saveUserStrategyDefaults(
       ],
       set: { params: defaults, updatedAt: now() },
     })
+}
+
+/**
+ * Named run-config templates for a user — many per strategy, alongside the
+ * single main default. `params` is the same full run config as the default.
+ */
+export async function listUserStrategyTemplates(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<
+  { id: string; strategyType: string; name: string; params: Record<string, unknown> }[]
+> {
+  const rows = await database
+    .select({
+      id: tradingStrategyTemplates.id,
+      strategyType: tradingStrategyTemplates.strategyType,
+      name: tradingStrategyTemplates.name,
+      params: tradingStrategyTemplates.params,
+    })
+    .from(tradingStrategyTemplates)
+    .where(eq(tradingStrategyTemplates.userId, userId))
+    .orderBy(asc(tradingStrategyTemplates.name))
+
+  return rows.map((row) => ({
+    id: row.id,
+    strategyType: row.strategyType,
+    name: row.name,
+    params: row.params as Record<string, unknown>,
+  }))
+}
+
+/**
+ * Saves a template. With `id`, updates that user's existing row (and errors if
+ * it's gone); otherwise inserts, overwriting any of the user's templates with
+ * the same (strategy, name). Returns the row id.
+ */
+export async function saveUserStrategyTemplate(
+  userId: string,
+  input: {
+    id?: string
+    strategyType: string
+    name: string
+    params: Record<string, unknown>
+  },
+  database: CustomShellDb = db
+): Promise<{ id: string }> {
+  if (input.id) {
+    const updated = await database
+      .update(tradingStrategyTemplates)
+      .set({ name: input.name, params: input.params, updatedAt: now() })
+      .where(
+        and(
+          eq(tradingStrategyTemplates.id, input.id),
+          eq(tradingStrategyTemplates.userId, userId)
+        )
+      )
+      .returning({ id: tradingStrategyTemplates.id })
+    if (!updated[0]) {
+      throw new Error("Template not found — it may have been deleted.")
+    }
+    return { id: updated[0].id }
+  }
+
+  const id = uuid()
+  const [row] = await database
+    .insert(tradingStrategyTemplates)
+    .values({
+      id,
+      userId,
+      strategyType: input.strategyType,
+      name: input.name,
+      params: input.params,
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    .onConflictDoUpdate({
+      target: [
+        tradingStrategyTemplates.userId,
+        tradingStrategyTemplates.strategyType,
+        tradingStrategyTemplates.name,
+      ],
+      set: { params: input.params, updatedAt: now() },
+    })
+    .returning({ id: tradingStrategyTemplates.id })
+  return { id: row.id }
+}
+
+export async function deleteUserStrategyTemplate(
+  userId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<void> {
+  await database
+    .delete(tradingStrategyTemplates)
+    .where(
+      and(
+        eq(tradingStrategyTemplates.id, id),
+        eq(tradingStrategyTemplates.userId, userId)
+      )
+    )
 }
 
 /** Sibling runs of a group — one per market — for the workspace switcher. */

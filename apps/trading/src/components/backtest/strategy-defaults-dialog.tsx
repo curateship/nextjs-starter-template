@@ -1,7 +1,18 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  CopyIcon,
+  InfoIcon,
+  Loader2Icon,
+  Trash2Icon,
+} from "lucide-react"
 
-import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
+import { AdditionalMarketsField } from "@/components/backtest/additional-markets-field"
+import { pctToBps, uniqueCopyName } from "@/components/backtest/template-config"
+import {
+  StrategyParamFields,
+  type ParamSection,
+} from "@/components/bots/strategy-param-fields"
 import {
   PARAM_DEFAULTS,
   type ParamValues,
@@ -26,11 +37,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  deleteStrategyTemplate,
   saveStrategyDefaults,
+  saveStrategyTemplate,
   type StrategyRunDefaults,
+  type StrategyTemplate,
 } from "@/lib/api/backtests"
 import { useShellRuntime } from "@/components/shell-layout"
 import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
+import { useMarketRows } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
@@ -39,9 +60,14 @@ import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
  * date range, equity, and fee/slippage assumptions. Every New Run for the
  * strategy seeds from these. Mount with `key={strategy}` so state resets.
  */
+/** Template dropdown sentinels — distinct from any real template id. */
+const MAIN_DEFAULT = "__default__"
+const NEW_TEMPLATE = "__new__"
+
 export function StrategyDefaultsDialog({
   strategy,
   initial,
+  templates,
   open,
   onOpenChange,
   onSaved,
@@ -49,6 +75,8 @@ export function StrategyDefaultsDialog({
   strategy: StrategyType
   /** Current seeds: built-ins overlaid with the user's saved defaults. */
   initial: StrategyRunDefaults
+  /** This strategy's saved templates, for the dropdown. */
+  templates: StrategyTemplate[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => void
@@ -70,11 +98,140 @@ export function StrategyDefaultsDialog({
   const [slippage, setSlippage] = React.useState(
     String(initial.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps)
   )
+  // Optional blended fee %; when non-empty it overrides taker + maker bps.
+  const [feePct, setFeePct] = React.useState(
+    initial.feePct != null ? String(initial.feePct) : ""
+  )
+  const [market, setMarket] = React.useState(initial.market ?? "BTC")
+  const [extraMarkets, setExtraMarkets] = React.useState<string[]>(
+    initial.extraMarkets ?? []
+  )
+  const markets = useMarketRows("mainnet")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // Collapsed param cards, keyed by title; cards default to open.
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({})
+  // Which config the form is bound to: main default, an existing template
+  // (its id), or a not-yet-saved new template.
+  const [selection, setSelection] = React.useState<string>(MAIN_DEFAULT)
+  // Editable label for the current selection: the main default's display name,
+  // an existing template's name, or the new template's name.
+  const [configName, setConfigName] = React.useState(initial.name ?? "")
   const maxCandles = useShellRuntime().config.maxCandles
 
+  const mainDefaultLabel = initial.name?.trim() || "Main default"
+
+  const editingTemplate = selection !== MAIN_DEFAULT
+  const existingTemplateId =
+    selection !== MAIN_DEFAULT && selection !== NEW_TEMPLATE ? selection : undefined
+
+  /** Load a stored config into the form fields. */
+  function applyConfig(config: StrategyRunDefaults) {
+    setValues({ ...PARAM_DEFAULTS[strategy], ...config.params } as ParamValues)
+    setTimeframe((config.interval as CandleInterval | undefined) ?? "15m")
+    setWindowDays(String(config.windowDays ?? 30))
+    setEquity(String(config.equity ?? 10_000))
+    setTaker(String(config.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps))
+    setMaker(String(config.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps))
+    setSlippage(String(config.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps))
+    setFeePct(config.feePct != null ? String(config.feePct) : "")
+    setMarket(config.market ?? "BTC")
+    setExtraMarkets(config.extraMarkets ?? [])
+  }
+
+  // Per-order notional, pulled from whichever size field the strategy uses.
+  const orderSizeUsd =
+    Number(
+      values.orderSizeUsd ||
+        values.sizePerLevelUsd ||
+        values.baseOrderUsd ||
+        values.fixedUsd ||
+        ""
+    ) || 0
+
+  /** Tooltip text translating a bps cost into % and $ for the current order size. */
+  function costTip(bpsStr: string): string {
+    const bps = Number(bpsStr)
+    if (!Number.isFinite(bps)) return "Enter a value in basis points (1 bps = 0.01%)."
+    const pct = bps / 100
+    if (orderSizeUsd > 0) {
+      const dollars = (orderSizeUsd * bps) / 10_000
+      return `${bps} bps = ${pct}% ≈ $${dollars.toFixed(2)} per $${orderSizeUsd.toLocaleString()} order`
+    }
+    return `${bps} bps = ${pct}% — set an order size to see the $ cost`
+  }
+
+  /** Tooltip text for a value entered directly as a percent. */
+  function pctTip(pctStr: string): string {
+    const pct = Number(pctStr)
+    if (!Number.isFinite(pct) || pctStr.trim() === "")
+      return "Optional. A flat % applied to every fill, overriding taker + maker."
+    if (orderSizeUsd > 0) {
+      const dollars = (orderSizeUsd * pct) / 100
+      return `${pct}% = ${pct * 100} bps ≈ $${dollars.toFixed(2)} per $${orderSizeUsd.toLocaleString()} order`
+    }
+    return `${pct}% = ${pct * 100} bps — set an order size to see the $ cost`
+  }
+
+  /** A field label with an (i) icon that reveals its $/% translation on hover. */
+  function feeLabel(text: string, tip: string) {
+    return (
+      <div className="flex items-center gap-1">
+        <Label>{text}</Label>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${text} info`}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <InfoIcon className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{tip}</TooltipContent>
+        </Tooltip>
+      </div>
+    )
+  }
+
+  const feeOverride = feePct.trim() !== ""
+  // The bps that the blended % resolves to, shown in the disabled taker/maker fields.
+  const blendedBps =
+    feeOverride && Number.isFinite(Number(feePct))
+      ? String(pctToBps(Number(feePct)))
+      : ""
+
+  function selectTemplate(value: string) {
+    setError(null)
+    setSelection(value)
+    if (value === MAIN_DEFAULT) {
+      applyConfig(initial)
+      setConfigName(initial.name ?? "")
+    } else if (value === NEW_TEMPLATE) {
+      // Keep the current form values as the starting point for the new template.
+      setConfigName("")
+    } else {
+      const template = templates.find((row) => row.id === value)
+      if (template) {
+        applyConfig(template.config)
+        setConfigName(template.name)
+      }
+    }
+  }
+
+  // QQE splits its params across three cards; every other strategy is one card.
+  const paramCards: { title: string; section?: ParamSection }[] =
+    strategy === "qqe"
+      ? [
+          { title: `${STRATEGY_LABELS[strategy]} parameters`, section: "core" },
+          { title: "Consolidation", section: "consolidation" },
+          { title: "Take profit & stop loss", section: "exits" },
+        ]
+      : [{ title: `${STRATEGY_LABELS[strategy]} parameters` }]
+
   function resetToBuiltIns() {
+    setSelection(MAIN_DEFAULT)
+    setConfigName("")
     setValues(PARAM_DEFAULTS[strategy])
     setTimeframe("15m")
     setWindowDays("30")
@@ -82,9 +239,13 @@ export function StrategyDefaultsDialog({
     setTaker(String(DEFAULT_BACKTEST_COSTS.takerFeeBps))
     setMaker(String(DEFAULT_BACKTEST_COSTS.makerFeeBps))
     setSlippage(String(DEFAULT_BACKTEST_COSTS.slippageBps))
+    setFeePct("")
+    setMarket("BTC")
+    setExtraMarkets([])
   }
 
-  async function save() {
+  /** Validate the form and build the run config, or set an error and return null. */
+  function buildConfig(): StrategyRunDefaults | null {
     setError(null)
     const windowNum = Number(windowDays)
     const equityNum = Number(equity)
@@ -92,32 +253,57 @@ export function StrategyDefaultsDialog({
     const makerNum = Number(maker)
     const slipNum = Number(slippage)
     if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, maxCandles))) {
-      return setError(
+      setError(
         `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, maxCandles)} days.`
       )
+      return null
     }
-    if (!(equityNum > 0)) return setError("Starting equity must be positive.")
-    if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
-      return setError("Fees must be between 0 and 50 bps.")
+    if (!(equityNum > 0)) {
+      setError("Starting equity must be positive.")
+      return null
+    }
+    // A blended fee % overrides the individual taker/maker bps.
+    let takerBps = takerNum
+    let makerBps = makerNum
+    if (feeOverride) {
+      const p = Number(feePct)
+      if (!(p >= 0 && p <= 0.5)) {
+        setError("Fee % must be between 0 and 0.5% (0–50 bps).")
+        return null
+      }
+      takerBps = pctToBps(p)
+      makerBps = pctToBps(p)
+    } else if (
+      !(takerNum >= 0 && takerNum <= 50) ||
+      !(makerNum >= 0 && makerNum <= 50)
+    ) {
+      setError("Fees must be between 0 and 50 bps.")
+      return null
     }
     if (!(slipNum >= 0 && slipNum <= 100)) {
-      return setError("Slippage must be between 0 and 100 bps.")
+      setError("Slippage must be between 0 and 100 bps.")
+      return null
     }
+    return {
+      params: values,
+      interval,
+      windowDays: Math.round(windowNum),
+      equity: equityNum,
+      takerFeeBps: takerBps,
+      makerFeeBps: makerBps,
+      slippageBps: slipNum,
+      feePct: feeOverride ? Number(feePct) : undefined,
+      market,
+      // Grid bounds are absolute prices, so a grid config stays single-market.
+      extraMarkets:
+        strategy === "grid" || extraMarkets.length === 0 ? undefined : extraMarkets,
+    }
+  }
 
+  async function run(action: () => Promise<unknown>) {
     setBusy(true)
     try {
-      await saveStrategyDefaults({
-        strategyType: strategy,
-        defaults: {
-          params: values,
-          interval,
-          windowDays: Math.round(windowNum),
-          equity: equityNum,
-          takerFeeBps: takerNum,
-          makerFeeBps: makerNum,
-          slippageBps: slipNum,
-        },
-      })
+      await action()
       onOpenChange(false)
       onSaved()
     } catch (err) {
@@ -125,6 +311,47 @@ export function StrategyDefaultsDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  async function saveDefaults() {
+    const config = buildConfig()
+    if (!config) return
+    const named = { ...config, name: configName.trim() || undefined }
+    await run(() => saveStrategyDefaults({ strategyType: strategy, defaults: named }))
+  }
+
+  async function saveTemplate() {
+    const name = configName.trim()
+    if (!name) {
+      setError("Enter a template name.")
+      return
+    }
+    const config = buildConfig()
+    if (!config) return
+    await run(() =>
+      saveStrategyTemplate({
+        id: existingTemplateId,
+        strategyType: strategy,
+        name,
+        config,
+      })
+    )
+  }
+
+  async function deleteTemplate() {
+    if (!existingTemplateId) return
+    await run(() => deleteStrategyTemplate(existingTemplateId))
+  }
+
+  async function duplicateTemplate() {
+    if (selection === NEW_TEMPLATE) return
+    const config = buildConfig()
+    if (!config) return
+    const name = uniqueCopyName(
+      configName.trim() || "Main default",
+      templates.map((row) => row.name)
+    )
+    await run(() => saveStrategyTemplate({ strategyType: strategy, name, config }))
   }
 
   return (
@@ -137,7 +364,72 @@ export function StrategyDefaultsDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-5 overflow-y-auto">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <TooltipProvider>
+          <div className="grid gap-2">
+            <Label>Template</Label>
+            <div className="flex gap-2">
+              <Select
+                value={selection}
+                disabled={busy}
+                onValueChange={selectTemplate}
+              >
+                <SelectTrigger className="h-8 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={MAIN_DEFAULT}>{mainDefaultLabel}</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={NEW_TEMPLATE}>+ New template</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                className="h-8 flex-1"
+                placeholder={editingTemplate ? "Template name" : "Main default"}
+                value={configName}
+                disabled={busy}
+                maxLength={80}
+                onChange={(event) => setConfigName(event.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The main default seeds every New Run unless you pick a template.
+            </p>
+          </div>
+
+          <div className="grid gap-3 rounded-lg border p-4">
+            <Label>General settings</Label>
+            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label>Market</Label>
+              <Select
+                value={market}
+                disabled={busy}
+                onValueChange={(coin) => {
+                  setMarket(coin)
+                  setExtraMarkets((current) =>
+                    current.filter((extra) => extra !== coin)
+                  )
+                }}
+              >
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(markets.length > 0
+                    ? markets.map((row) => row.coin)
+                    : [market]
+                  ).map((coin) => (
+                    <SelectItem key={coin} value={coin}>
+                      {coin}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-2">
               <Label>Timeframe</Label>
               <Select
@@ -145,7 +437,7 @@ export function StrategyDefaultsDialog({
                 disabled={busy}
                 onValueChange={(value) => setTimeframe(value as CandleInterval)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-8 w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,6 +454,7 @@ export function StrategyDefaultsDialog({
                 Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
               </Label>
               <Input
+                className="h-8"
                 value={windowDays}
                 inputMode="numeric"
                 disabled={busy}
@@ -171,6 +464,7 @@ export function StrategyDefaultsDialog({
             <div className="grid gap-2">
               <Label>Starting equity (USD)</Label>
               <Input
+                className="h-8"
                 value={equity}
                 inputMode="decimal"
                 disabled={busy}
@@ -178,8 +472,9 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label>Slippage (bps, taker fills)</Label>
+              {feeLabel("Slippage (bps, taker fills)", costTip(slippage))}
               <Input
+                className="h-8"
                 value={slippage}
                 inputMode="decimal"
                 disabled={busy}
@@ -187,55 +482,144 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label>Taker fee (bps)</Label>
+              {feeLabel(
+                "Taker fee (bps)",
+                feeOverride ? "Overridden by the blended Fee %." : costTip(taker)
+              )}
               <Input
-                value={taker}
+                className="h-8"
+                value={feeOverride ? blendedBps : taker}
                 inputMode="decimal"
-                disabled={busy}
+                disabled={busy || feeOverride}
                 onChange={(event) => setTaker(event.target.value.trim())}
               />
             </div>
             <div className="grid gap-2">
-              <Label>Maker fee (bps)</Label>
+              {feeLabel(
+                "Maker fee (bps)",
+                feeOverride ? "Overridden by the blended Fee %." : costTip(maker)
+              )}
               <Input
-                value={maker}
+                className="h-8"
+                value={feeOverride ? blendedBps : maker}
                 inputMode="decimal"
-                disabled={busy}
+                disabled={busy || feeOverride}
                 onChange={(event) => setMaker(event.target.value.trim())}
               />
             </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label>{STRATEGY_LABELS[strategy]} parameters</Label>
-            <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              {feeLabel("Fee % (optional)", pctTip(feePct))}
+              <Input
+                className="h-8"
+                value={feePct}
+                inputMode="decimal"
+                placeholder="e.g. 0.045"
+                disabled={busy}
+                onChange={(event) => setFeePct(event.target.value.trim())}
+              />
+            </div>
+            {strategy === "qqe" ? (
               <StrategyParamFields
                 strategy={strategy}
                 values={values}
                 disabled={busy}
                 mid={0}
+                section="size"
                 onChange={(key, value) =>
                   setValues((current) => ({ ...current, [key]: value }))
                 }
               />
+            ) : null}
             </div>
+            <AdditionalMarketsField
+              market={market}
+              extraMarkets={extraMarkets}
+              markets={markets}
+              disabled={busy}
+              isGrid={strategy === "grid"}
+              onChange={setExtraMarkets}
+            />
           </div>
+
+          {paramCards.map((group) => {
+            const open = !collapsed[group.title]
+            return (
+              <div key={group.title} className="grid gap-3 rounded-lg border p-4">
+                <button
+                  type="button"
+                  className="flex items-center justify-between text-left"
+                  onClick={() =>
+                    setCollapsed((current) => ({
+                      ...current,
+                      [group.title]: !current[group.title],
+                    }))
+                  }
+                >
+                  <Label className="cursor-pointer">{group.title}</Label>
+                  <ChevronDownIcon
+                    className={`size-4 text-muted-foreground transition-transform ${
+                      open ? "" : "-rotate-90"
+                    }`}
+                  />
+                </button>
+                {open ? (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <StrategyParamFields
+                      strategy={strategy}
+                      values={values}
+                      disabled={busy}
+                      mid={0}
+                      section={group.section}
+                      onChange={(key, value) =>
+                        setValues((current) => ({ ...current, [key]: value }))
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
 
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </div>
           ) : null}
+          </TooltipProvider>
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={busy}
-            onClick={resetToBuiltIns}
-          >
-            Reset to built-ins
-          </Button>
+          <div className="mr-auto flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={resetToBuiltIns}
+            >
+              Reset to built-ins
+            </Button>
+            {selection !== NEW_TEMPLATE ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void duplicateTemplate()}
+              >
+                <CopyIcon className="size-4" />
+                Duplicate template
+              </Button>
+            ) : null}
+            {existingTemplateId ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void deleteTemplate()}
+              >
+                <Trash2Icon className="size-4" />
+                Delete
+              </Button>
+            ) : null}
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -244,10 +628,17 @@ export function StrategyDefaultsDialog({
           >
             Cancel
           </Button>
-          <Button type="button" disabled={busy} onClick={() => void save()}>
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            Save defaults
-          </Button>
+          {editingTemplate ? (
+            <Button type="button" disabled={busy} onClick={() => void saveTemplate()}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {existingTemplateId ? "Save template" : "Create template"}
+            </Button>
+          ) : (
+            <Button type="button" disabled={busy} onClick={() => void saveDefaults()}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Save defaults
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

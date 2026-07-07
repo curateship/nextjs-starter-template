@@ -135,6 +135,13 @@ const INTERVAL_MS: Record<BacktestInterval, number> = {
 export const MAX_RUN_BARS = 5000
 
 /**
+ * Most additional markets a single config may replay across. Runs are
+ * synchronous and sequential, so this bounds one request's server + upstream
+ * cost. Shared by the run/config validators and the market-picker UI.
+ */
+export const MAX_EXTRA_MARKETS = 50
+
+/**
  * Largest lookback window, in whole days, worth requesting for an interval —
  * so daily/4h can reach multi-year history while fine intervals stay within
  * what the API retains. `maxBars` lets the user's configured candle ceiling
