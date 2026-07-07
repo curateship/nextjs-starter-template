@@ -406,10 +406,26 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-alerts",
+          label: "Alerts",
+          href: "/alerts",
+          icon: "bell",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-competitors",
           label: "Competitors",
           href: "/competitors",
           icon: "users",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-backlinks",
+          label: "Backlinks",
+          href: "/backlinks",
+          icon: "link",
           visible: true,
         },
         {

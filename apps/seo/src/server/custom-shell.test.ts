@@ -174,12 +174,14 @@ describe("custom shell workspaces", () => {
         visible: true,
       },
       { type: "item", label: "Rankings", href: "/rankings", visible: true },
+      { type: "item", label: "Alerts", href: "/alerts", visible: true },
       {
         type: "item",
         label: "Competitors",
         href: "/competitors",
         visible: true,
       },
+      { type: "item", label: "Backlinks", href: "/backlinks", visible: true },
       { type: "item", label: "API Usage", href: "/usage", visible: true },
     ])
     expect(defaultSettings.sections[1]?.entries).toMatchObject([

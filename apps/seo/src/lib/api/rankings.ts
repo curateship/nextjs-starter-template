@@ -6,9 +6,15 @@ import type {
   RankingHistoryEntry,
   RankingRow,
   RankingSortField,
+  RankingTrendPoint,
 } from "@/server/rank-tracker"
 
-export type { RankingHistoryEntry, RankingRow, RankingSortField }
+export type {
+  RankingHistoryEntry,
+  RankingRow,
+  RankingSortField,
+  RankingTrendPoint,
+}
 
 export function getRankingErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ranking request failed."
@@ -78,6 +84,21 @@ const rankingHistoryFn = createServerFn({ method: "POST" })
     }
   )
 
+const rankingTrendFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    projectIdSchema.extend({
+      days: z.number().int().min(7).max(365).optional(),
+    })
+  )
+  .handler(async ({ data }): Promise<{ points: RankingTrendPoint[] }> => {
+    const user = await requireUser()
+    const { getRankingTrendForProject } = await import("@/server/rank-tracker")
+    const points = await getRankingTrendForProject(user.id, data.projectId, {
+      days: data.days,
+    })
+    return { points }
+  })
+
 const createRankCheckJobFn = createServerFn({ method: "POST" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<{ job: KeywordJobItem }> => {
@@ -118,6 +139,10 @@ export function listRankings(input: {
 
 export function getRankingHistory(projectId: string, projectKeywordId: string) {
   return rankingHistoryFn({ data: { projectId, projectKeywordId } })
+}
+
+export function getRankingTrend(projectId: string, days?: number) {
+  return rankingTrendFn({ data: { projectId, days } })
 }
 
 export function createRankCheckJob(projectId: string) {

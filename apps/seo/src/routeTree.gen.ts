@@ -19,6 +19,8 @@ import { Route as AuthenticatedKeywordsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedContentPlanRouteImport } from './routes/_authenticated/content-plan'
 import { Route as AuthenticatedCompetitorsRouteImport } from './routes/_authenticated/competitors'
 import { Route as AuthenticatedClustersRouteImport } from './routes/_authenticated/clusters'
+import { Route as AuthenticatedBacklinksRouteImport } from './routes/_authenticated/backlinks'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -78,6 +80,16 @@ const AuthenticatedClustersRoute = AuthenticatedClustersRouteImport.update({
   path: '/clusters',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBacklinksRoute = AuthenticatedBacklinksRouteImport.update({
+  id: '/backlinks',
+  path: '/backlinks',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -122,6 +134,8 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/backlinks': typeof AuthenticatedBacklinksRoute
   '/clusters': typeof AuthenticatedClustersRoute
   '/competitors': typeof AuthenticatedCompetitorsRoute
   '/content-plan': typeof AuthenticatedContentPlanRoute
@@ -139,6 +153,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/backlinks': typeof AuthenticatedBacklinksRoute
   '/clusters': typeof AuthenticatedClustersRoute
   '/competitors': typeof AuthenticatedCompetitorsRoute
   '/content-plan': typeof AuthenticatedContentPlanRoute
@@ -159,6 +175,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/backlinks': typeof AuthenticatedBacklinksRoute
   '/_authenticated/clusters': typeof AuthenticatedClustersRoute
   '/_authenticated/competitors': typeof AuthenticatedCompetitorsRoute
   '/_authenticated/content-plan': typeof AuthenticatedContentPlanRoute
@@ -180,6 +198,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/alerts'
+    | '/backlinks'
     | '/clusters'
     | '/competitors'
     | '/content-plan'
@@ -197,6 +217,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/alerts'
+    | '/backlinks'
     | '/clusters'
     | '/competitors'
     | '/content-plan'
@@ -216,6 +238,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/alerts'
+    | '/_authenticated/backlinks'
     | '/_authenticated/clusters'
     | '/_authenticated/competitors'
     | '/_authenticated/content-plan'
@@ -311,6 +335,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClustersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/backlinks': {
+      id: '/_authenticated/backlinks'
+      path: '/backlinks'
+      fullPath: '/backlinks'
+      preLoaderRoute: typeof AuthenticatedBacklinksRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
       path: '/admin/settings'
@@ -393,6 +431,8 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedBacklinksRoute: typeof AuthenticatedBacklinksRoute
   AuthenticatedClustersRoute: typeof AuthenticatedClustersRoute
   AuthenticatedCompetitorsRoute: typeof AuthenticatedCompetitorsRoute
   AuthenticatedContentPlanRoute: typeof AuthenticatedContentPlanRoute
@@ -408,6 +448,8 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedBacklinksRoute: AuthenticatedBacklinksRoute,
   AuthenticatedClustersRoute: AuthenticatedClustersRoute,
   AuthenticatedCompetitorsRoute: AuthenticatedCompetitorsRoute,
   AuthenticatedContentPlanRoute: AuthenticatedContentPlanRoute,

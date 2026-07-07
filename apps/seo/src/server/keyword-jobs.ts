@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
   calculateOpportunityScore,
@@ -204,13 +204,69 @@ function clampLimit(limit: number | undefined, max: number) {
   return Math.max(10, Math.min(limit ?? 300, max, 1000))
 }
 
-async function insertAndRunJob(
+const DEFAULT_MAX_ACTIVE_JOBS_PER_USER = 10
+const DEFAULT_MAX_JOBS_PER_HOUR_PER_USER = 60
+
+/**
+ * Caps how many jobs a user can queue: a concurrency limit (pending/running at
+ * once) and a rolling one-hour creation limit. Every DataForSEO job costs
+ * money, so this bounds accidental or malicious flooding regardless of job
+ * type. Limits are generous for normal use and env-tunable; scheduled runs
+ * stay well under them.
+ */
+export async function assertUserJobLimits(
+  database: CustomShellDb,
+  userId: string
+) {
+  const maxActive = envLimit(
+    "MAX_ACTIVE_JOBS_PER_USER",
+    DEFAULT_MAX_ACTIVE_JOBS_PER_USER
+  )
+  const [active] = await database
+    .select({ value: count() })
+    .from(keywordJobs)
+    .where(
+      and(
+        eq(keywordJobs.userId, userId),
+        inArray(keywordJobs.status, ["pending", "running"])
+      )
+    )
+  if ((active?.value ?? 0) >= maxActive) {
+    throw new Error(
+      `You already have ${maxActive} ${maxActive === 1 ? "job" : "jobs"} in progress. Wait for them to finish before starting another.`
+    )
+  }
+
+  const maxPerHour = envLimit(
+    "MAX_JOBS_PER_HOUR_PER_USER",
+    DEFAULT_MAX_JOBS_PER_HOUR_PER_USER
+  )
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  const [recent] = await database
+    .select({ value: count() })
+    .from(keywordJobs)
+    .where(
+      and(
+        eq(keywordJobs.userId, userId),
+        sql`${keywordJobs.createdAt} >= ${hourAgo}`
+      )
+    )
+  if ((recent?.value ?? 0) >= maxPerHour) {
+    throw new Error(
+      "You have started too many jobs in the past hour. Try again later."
+    )
+  }
+}
+
+export async function insertAndRunJob(
   userId: string,
   projectId: string,
   type: KeywordJobType,
   input: unknown,
   database: CustomShellDb
 ) {
+  await assertUserJobLimits(database, userId)
+
   const [job] = await database
     .insert(keywordJobs)
     .values({ userId, projectId, type, input, status: "pending" })
@@ -423,6 +479,21 @@ export async function runKeywordJob(
       return
     }
 
+    if (job.type === "backlink_discovery") {
+      const { runBacklinkDiscovery } = await import("@/server/backlink-jobs")
+      const errors = await runBacklinkDiscovery(database, job, project, context)
+      await updateJob(database, job.id, {
+        status: "completed",
+        progress: 100,
+        currentStep: errors.length
+          ? `Completed with ${errors.length} failed request(s)`
+          : "Completed",
+        errorMessage: errors.length ? errors.slice(0, 3).join("; ") : null,
+        completedAt: new Date(),
+      })
+      return
+    }
+
     let discovered: DiscoveredKeyword[]
     let source: string
     if (job.type === "seed_research") {
@@ -520,7 +591,7 @@ async function updateJob(
     .where(eq(keywordJobs.id, jobId))
 }
 
-async function setStep(
+export async function setStep(
   database: CustomShellDb,
   jobId: string,
   progress: number,
@@ -1164,6 +1235,34 @@ async function runRankCheck(
         (result) => result.items ?? []
       )
       const match = matchSerpPosition(items, normalizedDomain)
+
+      // Movement alert against the most recent prior check. The first check
+      // for a keyword is the baseline and never alerts.
+      const [prior] = await database
+        .select({ position: keywordRankings.position })
+        .from(keywordRankings)
+        .where(
+          and(
+            eq(keywordRankings.projectId, project.id),
+            eq(keywordRankings.keywordId, item.keywordId)
+          )
+        )
+        .orderBy(desc(keywordRankings.checkedAt))
+        .limit(1)
+      if (prior) {
+        const { recordRankingAlert } = await import("@/server/ranking-alerts")
+        await recordRankingAlert(
+          {
+            projectId: project.id,
+            keywordId: item.keywordId,
+            keyword: item.keyword,
+            previousPosition: prior.position,
+            newPosition: match.position,
+          },
+          database
+        )
+      }
+
       await database.insert(keywordRankings).values({
         projectId: project.id,
         keywordId: item.keywordId,
