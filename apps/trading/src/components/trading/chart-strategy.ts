@@ -19,6 +19,8 @@ export type ChartStrategyState = {
   showIndicators: boolean
   showZones: boolean
   showBarColors: boolean
+  /** QQE only — paint the previous swing high/low marks. */
+  showSwings: boolean
   /** QQE only — gate signals to fire outside consolidation. */
   consolidationFilter: boolean
 }
@@ -30,6 +32,7 @@ export const DEFAULT_CHART_STRATEGY: ChartStrategyState = {
   showIndicators: true,
   showZones: true,
   showBarColors: false,
+  showSwings: true,
   consolidationFilter: true,
 }
 
@@ -71,6 +74,7 @@ export function buildChartStrategyOverlays(
       ...PARAM_DEFAULTS[state.strategy],
       consolidationFilter: state.consolidationFilter ? "true" : "false",
       paintConsolidation: "true",
+      paintSwings: "true",
       colorBars: "true",
     })
   )
@@ -93,9 +97,14 @@ export function buildChartStrategyOverlays(
   const limit = Math.max(0, state.maxSignals)
   const recent = <T>(items: T[]) => (limit > 0 ? items.slice(-limit) : [])
 
+  // Swing marks toggle on their own; other overlay lines follow Indicators.
+  const overlayLines = overlays.overlayLines.filter((line) =>
+    line.id.startsWith("swing-") ? state.showSwings : state.showIndicators
+  )
+
   return {
     indicators: state.showIndicators ? overlays.indicators : [],
-    overlayLines: state.showIndicators ? overlays.overlayLines : [],
+    overlayLines,
     // DCA/Grid ladders live in priceLines; gate them with the same toggle.
     priceLines: state.showIndicators ? overlays.priceLines : [],
     zones: state.showZones ? recent(overlays.zones) : [],

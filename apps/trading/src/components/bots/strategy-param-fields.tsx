@@ -21,7 +21,12 @@ import type { StrategyType } from "@/lib/strategies/params"
  * QQE fields split into cardable groups so callers can render the consolidation
  * and stop-loss controls as their own cards, separate from the core params.
  */
-export type ParamSection = "core" | "consolidation" | "exits" | "size"
+export type ParamSection =
+  | "core"
+  | "consolidation"
+  | "swing"
+  | "exits"
+  | "size"
 
 export function StrategyParamFields({
   strategy,
@@ -247,14 +252,29 @@ export function StrategyParamFields({
             : null}
         </>
       )
+      const swingStop = values.swingStopLoss === "true"
+      const swing = (
+        <>
+          {check("paintSwings", "Show swing high/low on chart")}
+          {text("swingLookback", "Swing lookback")}
+          {check("swingStopLoss", "Use swing low/high as stop loss (overrides SL %)")}
+        </>
+      )
       const exits = (
         <>
           {text("takeProfitPct", "Take profit % (optional)")}
-          {text("stopLossPct", "Stop loss % (optional)")}
+          {swingStop ? (
+            <Field label="Stop loss % (optional)">
+              <Input value="Overridden by swing stop" disabled readOnly />
+            </Field>
+          ) : (
+            text("stopLossPct", "Stop loss % (optional)")
+          )}
         </>
       )
       const size = text("orderSizeUsd", "Order size (USD)")
       if (section === "consolidation") return consolidation
+      if (section === "swing") return swing
       if (section === "exits") return exits
       if (section === "size") return size
       return (
@@ -308,6 +328,7 @@ export function StrategyParamFields({
             <>
               {size}
               {consolidation}
+              {swing}
               {exits}
             </>
           ) : null}

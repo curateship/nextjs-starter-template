@@ -2,6 +2,7 @@ import type { QqeParams } from "@/lib/strategies/params"
 import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
 import {
   computeQqeSeries,
+  computeSwings,
   initialConsolidationState,
   stepConsolidation,
   type ConsolidationState,
@@ -16,6 +17,11 @@ export type QqeState = {
   /** Open time of the last candle fed to the machine. */
   lastBarT: number
   inZone: boolean
+  /** Previous swing high/low as of the last closed candle (null before first). */
+  swingHigh: number | null
+  swingLow: number | null
+  /** Absolute stop snapshotted at entry when swingStopLoss is on. */
+  stopPrice: number | null
 }
 
 /** EMA/RSI converge well within this window; only consolidation needs anchoring. */
@@ -44,6 +50,9 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     cons: initialConsolidationState(),
     lastBarT: 0,
     inZone: false,
+    swingHigh: null,
+    swingLow: null,
+    stopPrice: null,
   }),
 
   onCandleClose: (ctx, params) => {
@@ -69,6 +78,11 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     const last = window.length - 1
 
     const next: QqeState = { ...state, cons: { ...state.cons } }
+
+    // Previous swing high/low as of this close (used to snapshot the stop at entry).
+    const swings = computeSwings(window, params.swingLookback)
+    next.swingHigh = Number.isNaN(swings.swingHigh[last]) ? null : swings.swingHigh[last]
+    next.swingLow = Number.isNaN(swings.swingLow[last]) ? null : swings.swingLow[last]
     if (params.consolidationFilter) {
       const start = candles.findIndex((candle) => candle.t > state.lastBarT)
       if (start >= 0) {
@@ -104,21 +118,29 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
   onTick: (ctx, params) => {
     const state = ctx.state
     if (!ctx.position || state.exitRequested) return
-    if (!params.takeProfitPct && !params.stopLossPct) return
+    if (!params.takeProfitPct && !params.stopLossPct && !params.swingStopLoss) return
     const mid = Number(ctx.mid)
     const entry = Number(ctx.position.entryPx)
     if (!(mid > 0) || !(entry > 0)) return
     const szi = Number(ctx.position.szi)
 
+    // When enabled, the swing stop replaces the % stop (an absolute price level
+    // snapshotted at entry). Take profit % is unaffected.
+    const swingStop = params.swingStopLoss ? state.stopPrice : null
+
     if (szi > 0) {
       if (params.takeProfitPct && mid >= entry * (1 + params.takeProfitPct / 100)) {
         requestExit(ctx, `Take profit hit at ${ctx.mid}.`)
+      } else if (swingStop !== null) {
+        if (mid <= swingStop) requestExit(ctx, `Swing stop hit at ${ctx.mid}.`)
       } else if (params.stopLossPct && mid <= entry * (1 - params.stopLossPct / 100)) {
         requestExit(ctx, `Stop loss hit at ${ctx.mid}.`)
       }
     } else if (szi < 0) {
       if (params.takeProfitPct && mid <= entry * (1 - params.takeProfitPct / 100)) {
         requestExit(ctx, `Take profit hit at ${ctx.mid}.`)
+      } else if (swingStop !== null) {
+        if (mid >= swingStop) requestExit(ctx, `Swing stop hit at ${ctx.mid}.`)
       } else if (params.stopLossPct && mid >= entry * (1 + params.stopLossPct / 100)) {
         requestExit(ctx, `Stop loss hit at ${ctx.mid}.`)
       }
@@ -127,7 +149,12 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
 
   onFill: (ctx) => {
     if (!ctx.position) {
-      ctx.setState({ ...ctx.state, pendingEntry: null, exitRequested: false })
+      ctx.setState({
+        ...ctx.state,
+        pendingEntry: null,
+        exitRequested: false,
+        stopPrice: null,
+      })
     }
   },
 
@@ -153,7 +180,13 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
 
     if (state.pendingEntry) {
       const side = state.pendingEntry === "long" ? "buy" : "sell"
-      ctx.setState({ ...state, pendingEntry: null })
+      // Snapshot the swing stop at entry: swing low for longs, high for shorts.
+      const stopPrice = params.swingStopLoss
+        ? side === "buy"
+          ? state.swingLow
+          : state.swingHigh
+        : null
+      ctx.setState({ ...state, pendingEntry: null, stopPrice })
       // Close any opposite position first, then open the new one.
       if (szi !== 0 && Math.sign(szi) !== (side === "buy" ? 1 : -1)) {
         orders.push({

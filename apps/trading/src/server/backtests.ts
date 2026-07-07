@@ -144,6 +144,8 @@ export async function listUserBacktests(
       endTime: tradingBacktests.endTime,
       startingEquity: tradingBacktests.startingEquity,
       status: tradingBacktests.status,
+      reviewStatus: tradingBacktests.reviewStatus,
+      pinned: tradingBacktests.pinned,
       error: tradingBacktests.error,
       createdAt: tradingBacktests.createdAt,
       completedAt: tradingBacktests.completedAt,
@@ -205,6 +207,34 @@ export async function deleteUserBacktests(
     .where(and(eq(tradingBacktests.userId, userId), or(...facets)))
     .returning({ id: tradingBacktests.id })
   return deleted.length
+}
+
+/**
+ * Sets the triage status and/or pinned flag on every row of the given run
+ * groups (status/pin are group-level). Scoped to the user. Returns rows changed.
+ */
+export async function setUserBacktestStatus(
+  userId: string,
+  input: { groupIds: string[]; reviewStatus?: "review" | "archived"; pinned?: boolean },
+  database: CustomShellDb = db
+): Promise<number> {
+  if (input.groupIds.length === 0) return 0
+  const set: { reviewStatus?: string; pinned?: boolean } = {}
+  if (input.reviewStatus !== undefined) set.reviewStatus = input.reviewStatus
+  if (input.pinned !== undefined) set.pinned = input.pinned
+  if (Object.keys(set).length === 0) return 0
+
+  const updated = await database
+    .update(tradingBacktests)
+    .set(set)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        inArray(tradingBacktests.groupId, input.groupIds)
+      )
+    )
+    .returning({ id: tradingBacktests.id })
+  return updated.length
 }
 
 /**

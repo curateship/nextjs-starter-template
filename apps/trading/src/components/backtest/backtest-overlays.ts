@@ -7,7 +7,11 @@ import type {
 } from "@/components/trading/price-chart"
 import type { BacktestResult } from "@/lib/backtest/types"
 import { highest, lowest } from "@/lib/strategies/indicators"
-import { computeConsolidation, computeQqeSeries } from "@/lib/strategies/qqe"
+import {
+  computeConsolidation,
+  computeQqeSeries,
+  computeSwings,
+} from "@/lib/strategies/qqe"
 import type { StrategyParams } from "@/lib/strategies/params"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -188,6 +192,39 @@ export function buildStrategyOverlays(
           top: zone.high,
           bottom: zone.low,
           fillColor: fill,
+        })
+      }
+    }
+    if (params.paintSwings) {
+      // A short horizontal mark at each swing pivot (not a held-forward line —
+      // that reads as a jumbled staircase). Each mark is its own 2-point series
+      // so lightweight-charts doesn't bridge them into a zigzag.
+      const swings = computeSwings(candles, params.swingLookback)
+      // A short mark centered on the pivot bar — long segments float as shelves
+      // above/below later candles once price moves away from the pivot.
+      const HALF = 2
+      const mark = (pivot: { index: number; value: number }): ChartOverlayLine["points"] => {
+        const start = Math.max(0, pivot.index - HALF)
+        const end = Math.min(pivot.index + HALF, candles.length - 1)
+        return [
+          { time: candles[start].t, value: pivot.value },
+          { time: candles[end].t, value: pivot.value },
+        ]
+      }
+      for (const pivot of swings.highPivots) {
+        overlayLines.push({
+          id: `swing-high-${pivot.index}`,
+          label: "",
+          color: TP_COLOR,
+          points: mark(pivot),
+        })
+      }
+      for (const pivot of swings.lowPivots) {
+        overlayLines.push({
+          id: `swing-low-${pivot.index}`,
+          label: "",
+          color: SL_COLOR,
+          points: mark(pivot),
         })
       }
     }

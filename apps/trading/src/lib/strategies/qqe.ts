@@ -258,6 +258,72 @@ export function stepConsolidation(
   return state.conscnt > minLength
 }
 
+export type SwingPivot = { index: number; value: number }
+
+export type SwingSeries = {
+  /** Discrete confirmed swing pivots (a bar that tops/bottoms `lookback` bars each side). */
+  highPivots: SwingPivot[]
+  lowPivots: SwingPivot[]
+  /**
+   * Price of the most recent pivot *confirmed* by each bar, held forward
+   * (NaN before the first). A pivot at index p is confirmed at bar p+lookback,
+   * so this series has no look-ahead — safe for the stop-loss.
+   */
+  swingHigh: number[]
+  swingLow: number[]
+}
+
+/**
+ * Two-sided swing pivots: bar `p` is a swing high when its high strictly
+ * exceeds every bar within `lookback` bars on both sides (swing low = strictly
+ * below), giving sparse, meaningful structure rather than every local wiggle.
+ * Returns the discrete pivots (for painting a short mark at each) plus a
+ * held-forward "most recent confirmed pivot" series (for the swing stop).
+ */
+export function computeSwings(
+  candles: { h: number | string; l: number | string }[],
+  lookback: number
+): SwingSeries {
+  const n = candles.length
+  const highs = candles.map((candle) => Number(candle.h))
+  const lows = candles.map((candle) => Number(candle.l))
+  const highPivots: SwingPivot[] = []
+  const lowPivots: SwingPivot[] = []
+
+  for (let p = lookback; p < n - lookback; p += 1) {
+    let isHigh = true
+    let isLow = true
+    for (let j = p - lookback; j <= p + lookback && (isHigh || isLow); j += 1) {
+      if (j === p) continue
+      if (highs[j] >= highs[p]) isHigh = false
+      if (lows[j] <= lows[p]) isLow = false
+    }
+    if (isHigh) highPivots.push({ index: p, value: highs[p] })
+    if (isLow) lowPivots.push({ index: p, value: lows[p] })
+  }
+
+  const swingHigh = new Array<number>(n).fill(Number.NaN)
+  const swingLow = new Array<number>(n).fill(Number.NaN)
+  let hi = 0
+  let lo = 0
+  let lastHigh = Number.NaN
+  let lastLow = Number.NaN
+  for (let i = 0; i < n; i += 1) {
+    while (hi < highPivots.length && highPivots[hi].index + lookback <= i) {
+      lastHigh = highPivots[hi].value
+      hi += 1
+    }
+    while (lo < lowPivots.length && lowPivots[lo].index + lookback <= i) {
+      lastLow = lowPivots[lo].value
+      lo += 1
+    }
+    swingHigh[i] = lastHigh
+    swingLow[i] = lastLow
+  }
+
+  return { highPivots, lowPivots, swingHigh, swingLow }
+}
+
 /** Batch form of the machine over a full candle series (chart overlays). */
 export function computeConsolidation(
   candles: { h: number | string; l: number | string }[],

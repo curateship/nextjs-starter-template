@@ -612,6 +612,7 @@ const STRATEGY_TOGGLES: Record<StrategyType, StrategyToggle[]> = {
     { key: "showSignals", label: "Trigger signals" },
     { key: "consolidationFilter", label: "Consolidation filter" },
     { key: "showZones", label: "Consolidation zones" },
+    { key: "showSwings", label: "Swing high / low" },
     { key: "showBarColors", label: "Bar colors" },
     { key: "showIndicators", label: "Indicators" },
   ],
