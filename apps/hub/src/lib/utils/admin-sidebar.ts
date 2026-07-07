@@ -113,9 +113,10 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
           item("item-directory", "Directory", "/admin/directory", "directory", [
             child("child-directory-saved", "Saved", "/admin/directory/saved", "bookmark"),
             child("child-directory-claims", "Claims", "/admin/directory/claims", "clipboard"),
+            child("child-directory-monetization", "Monetization", "/admin/directory/monetization", "cart"),
             child("child-directory-custom-blocks", "Custom Blocks", "/admin/directory/custom-blocks", "grid"),
             child("child-directory-templates", "Templates", "/admin/directory/templates", "file"),
-          ], ["/admin/directory/builder", "/admin/directory/claims", "/admin/directory/saved"]),
+          ], ["/admin/directory/builder", "/admin/directory/claims", "/admin/directory/saved", "/admin/directory/monetization"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
             child("child-newsletter-tags", "Tags", "/admin/newsletters/tags", "categories"),
@@ -232,6 +233,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "event-templates": "child-event-templates",
   "directory-custom-blocks": "child-directory-custom-blocks",
   "directory-claims": "child-directory-claims",
+  "directory-monetization": "child-directory-monetization",
   "directory-saved": "child-directory-saved",
   "directory-templates": "child-directory-templates",
   "newsletter-contacts": "child-newsletter-contacts",
@@ -402,7 +404,7 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
 
 // Default children added after sidebar configs were first persisted, keyed by parent item id
 const INJECTED_DEFAULT_CHILDREN: Record<string, string[]> = {
-  "item-directory": ["child-directory-saved"],
+  "item-directory": ["child-directory-saved", "child-directory-monetization"],
   "item-categories": ["child-category-templates"],
   "item-events": ["child-event-templates"],
 }

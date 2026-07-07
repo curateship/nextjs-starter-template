@@ -3,6 +3,7 @@
 import { unstable_cache } from 'next/cache'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { getDirectoryFeaturedJoin } from '@/lib/actions/directories/directory-featured-activation'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
 const DEFAULT_ITEMS_TO_SHOW = 5
@@ -17,6 +18,7 @@ export interface DirectoryRelatedListingItem {
   meta_description: string | null
   rating: number | null
   address: string | null
+  featured: boolean
   category: {
     id: string
     title: string
@@ -32,6 +34,7 @@ interface DirectoryRelatedListingRow extends Record<string, unknown> {
   meta_description: string | null
   rating: string | number | null
   address: string | null
+  featured_priority: number | null
   category_id: string | null
   category_title: string | null
   category_slug: string | null
@@ -50,6 +53,7 @@ function toRelatedListingItem(row: DirectoryRelatedListingRow): DirectoryRelated
     meta_description: row.meta_description || null,
     rating: Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, ratingValue) : null,
     address: row.address || null,
+    featured: row.featured_priority != null,
     category: row.category_id && row.category_title && row.category_slug
       ? {
           id: row.category_id,
@@ -114,6 +118,7 @@ const getCachedDirectoryRelatedListings = unstable_cache(
           else null
         end as rating,
         nullif(core_block.content #>> '{address}', '') as address,
+        featured.priority as featured_priority,
         related_category.id as category_id,
         related_category.title as category_title,
         related_category.slug as category_slug
@@ -124,6 +129,7 @@ const getCachedDirectoryRelatedListings = unstable_cache(
         where block.value->>'type' = 'directory-core'
         limit 1
       ) core_block on true
+      ${getDirectoryFeaturedJoin(sql`d`)}
       left join lateral (
         select c.id, c.title, c.slug
         from category_relationships cr
@@ -148,7 +154,7 @@ const getCachedDirectoryRelatedListings = unstable_cache(
           where cr.content_id = d.id
             and cr.content_type = 'directory'
         )
-      order by d.display_order asc, d.created_at desc, d.id asc
+      order by (featured.priority is not null) desc, featured.priority desc nulls last, d.display_order asc, d.created_at desc, d.id asc
       limit ${limit}
     `)
 
@@ -157,9 +163,11 @@ const getCachedDirectoryRelatedListings = unstable_cache(
       return item ? [item] : []
     })
   },
-  ['directory-related-listing-v3'],
+  ['directory-related-listing-v4'],
   {
-    revalidate: false,
+    // Hourly revalidation bounds how long an expired Featured entitlement can
+    // keep boosting this cached list (expiry is time-based, not event-based)
+    revalidate: 3600,
     tags: ['directory', 'categories', 'content-categories', 'all'],
   }
 )

@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { authUsers, hubNotifications } from '@/lib/db/schema'
 
-export type HubNotificationType = 'product_order' | 'directory_claim' | 'directory_owner_edit' | 'newsletter_paused'
+export type HubNotificationType = 'product_order' | 'directory_claim' | 'directory_owner_edit' | 'directory_featured' | 'newsletter_paused'
 
 type CreateHubNotificationInput = {
   type: HubNotificationType

@@ -5,6 +5,10 @@ import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getProductIdFromPurchaseMetadata, recordPaidPurchase } from '@/lib/actions/products/paid-purchase-recording'
+import {
+  activateDirectoryFeaturedEntitlement,
+  isDirectoryFeaturedPurchaseMetadata,
+} from '@/lib/actions/directories/directory-featured-activation'
 
 /**
  * Stripe Webhook Handler
@@ -69,8 +73,33 @@ export async function POST(req: NextRequest) {
 
     // Handle the event
     switch (event.type) {
+      // async_payment_succeeded is the paid signal for delayed payment methods
+      // (bank debits etc.) whose checkout.session.completed arrives unpaid.
+      // Both recordPaidPurchase and the featured activation are idempotent.
+      case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
+
+        if (isDirectoryFeaturedPurchaseMetadata(session.metadata)) {
+          if (matchedSiteId) {
+            const result = await activateDirectoryFeaturedEntitlement({
+              siteId: matchedSiteId,
+              metadata: session.metadata,
+              paymentStatus: session.payment_status,
+              stripeSessionId: session.id,
+              stripePaymentIntentId: typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id ?? null,
+              amountTotal: session.amount_total,
+              currency: session.currency,
+            })
+
+            if (result.error) {
+              console.error('Directory featured activation failed:', result.error)
+            }
+          }
+          break
+        }
 
         const customerEmail = session.customer_details?.email
         const sessionSiteId = matchedSiteId || session.metadata?.siteId
@@ -107,6 +136,14 @@ export async function POST(req: NextRequest) {
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
+
+        // Directory featured upgrades are activated from checkout.session.completed
+        // (or the success-redirect confirmation); the payment intent carries the
+        // same metadata so it can be recognized and skipped here.
+        if (isDirectoryFeaturedPurchaseMetadata(paymentIntent.metadata)) {
+          break
+        }
+
         let fullPaymentIntent = paymentIntent
 
         if (matchedStripe) {

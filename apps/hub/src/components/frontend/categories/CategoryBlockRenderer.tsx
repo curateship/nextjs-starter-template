@@ -31,6 +31,7 @@ const TEMPLATE_PREVIEW_LISTING_ITEMS: ListingViewsItem[] = [1, 2, 3].map((index)
   categories: [
     { id: "preview-category", title: "Sample Category", slug: "sample-category", parent_id: null },
   ],
+  featured: false,
 }))
 
 function getTemplatePreviewListingData(itemsToShow?: unknown): ListingViewsData {

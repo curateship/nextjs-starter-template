@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardFooter, CardHeader } from "@/components/ui/card"
+import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { ArrowRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 import { Rating } from "@/components/shadcnblocks/rating"
@@ -309,6 +310,7 @@ export function ListingViewsBlock({
       const address = listingStyle === "directory" && showAddressElement ? item.address?.trim() : ""
       const categoryChips = listingStyle === "directory" ? getCategoryChips(item) : []
       const metaDescription = listingStyle === "directory" && showMetaDescriptionElement ? getMetaDescription(item) : ""
+      const featuredBadge = contentType === "directory" && item.featured ? <FeaturedBadge /> : null
 
       return (
         <Card
@@ -348,6 +350,7 @@ export function ListingViewsBlock({
             aria-label={`Read ${itemLabel}`}
           >
             <CardHeader className={isCompactMobileCard ? "p-3 pb-3 md:p-4 md:pb-3" : undefined}>
+              {featuredBadge}
               {showTitleElement && <h3 className={isCompactMobileCard ? "text-sm font-semibold leading-snug md:text-xl" : "text-base md:text-xl"}>{item.title}</h3>}
               {rating && (
                 <div className={isCompactMobileCard ? "flex flex-col gap-1.5 text-xs text-muted-foreground md:gap-2 md:text-sm" : "flex flex-col gap-2 text-sm text-muted-foreground"}>
@@ -446,6 +449,7 @@ export function ListingViewsBlock({
           </div>
         )}
         <Link href={href} className="flex flex-col gap-2 hover:opacity-75 transition-opacity">
+          {contentType === "directory" && item.featured && <FeaturedBadge className="mt-3" />}
           {showTitleElement && <h3 className="pt-3 text-base tracking-tight md:text-xl">{item.title}</h3>}
           {showDescriptionElement && item.richText && (
             <p className="text-muted-foreground text-base py-2">{getItemSummary(item)}</p>
