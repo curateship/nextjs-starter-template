@@ -399,6 +399,20 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       ],
     },
     {
+      id: "section-automation",
+      title: "Automation",
+      entries: [
+        {
+          type: "item",
+          id: "item-automation",
+          label: "Automation",
+          href: "/admin/automation",
+          icon: "workflow",
+          visible: true,
+        },
+      ],
+    },
+    {
       id: "section-platform-settings",
       title: "Platform Settings",
       entries: [
