@@ -240,6 +240,7 @@ function normalizeConfig(settings: ShellConfig | null) {
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
     maxCandles: clampMaxCandles(settings.maxCandles),
+    adminRoute: settings.adminRoute ?? fallback.adminRoute,
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation

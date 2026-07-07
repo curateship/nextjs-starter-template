@@ -63,6 +63,7 @@ const shellConfigSchema = z.object({
     .min(MIN_CANDLES)
     .max(MAX_CANDLES_LIMIT)
     .catch(MAX_CANDLES_LIMIT),
+  adminRoute: z.string().catch(""),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -187,6 +188,18 @@ export function loadShellSettings() {
   return loadShellSettingsFn()
 }
 
+/**
+ * The configured home/admin redirect target, or null when it's unset or not a
+ * safe internal path. Only internal absolute paths are allowed — external or
+ * protocol-relative values are ignored to avoid an open redirect.
+ */
+export function configuredRouteTarget(
+  adminRoute: string | null | undefined
+): string | null {
+  const target = (adminRoute ?? "").trim()
+  return target.startsWith("/") && !target.startsWith("//") ? target : null
+}
+
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
 }
@@ -226,6 +239,10 @@ function parseShellGlobals(value: unknown) {
         ? settings.dashboardRowsPerPage
         : fallback.dashboardRowsPerPage,
     maxCandles: clampMaxCandles(settings.maxCandles),
+    adminRoute:
+      typeof settings.adminRoute === "string"
+        ? settings.adminRoute
+        : fallback.adminRoute,
   }
 }
 
@@ -236,5 +253,6 @@ function pickShellGlobals(settings: ShellConfig) {
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     maxCandles: clampMaxCandles(settings.maxCandles),
+    adminRoute: settings.adminRoute,
   }
 }

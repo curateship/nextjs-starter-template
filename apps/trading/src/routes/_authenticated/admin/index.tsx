@@ -7,10 +7,10 @@ import {
 } from "@/lib/api/shell-settings"
 
 /**
- * The home route. Redirects to the route configured in General Settings
- * (`adminRoute`), or shows the workspace overview when that's empty.
+ * `/admin` shows the workspace overview by default. When General Settings sets
+ * an `adminRoute`, it forwards there instead.
  */
-export const Route = createFileRoute("/_authenticated/")({
+export const Route = createFileRoute("/_authenticated/admin/")({
   loader: async () => {
     const { settings } = await loadShellSettings()
     const target = configuredRouteTarget(settings.adminRoute)
