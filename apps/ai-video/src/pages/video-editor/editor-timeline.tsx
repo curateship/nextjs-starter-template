@@ -28,9 +28,12 @@ import {
 } from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
 import {
+  cancelProjectRender,
   getProjectErrorMessage,
   getProjectRender,
+  RENDER_QUALITY_OPTIONS,
   startProjectRender,
+  type ProjectRenderInfo,
   type RenderQuality,
 } from "@/lib/api/video-projects"
 import {
@@ -625,12 +628,6 @@ function TimelineToolbar({
 const RENDER_POLL_MS = 2_000
 const RENDER_POLL_GIVE_UP_MS = 12 * 60_000
 
-const QUALITY_OPTIONS: { value: RenderQuality; label: string; hint: string }[] = [
-  { value: "high", label: "High", hint: "1080p" },
-  { value: "medium", label: "Medium", hint: "720p" },
-  { value: "low", label: "Low", hint: "480p" },
-]
-
 // Export modal launched from the toolbar: pick quality + filename, start the
 // server-side render, and open the Project Export preview when it finishes.
 // The render runs in the background, so closing the modal mid-render is fine —
@@ -653,8 +650,9 @@ export function ExportControls({
   const [quality, setQuality] = React.useState<RenderQuality>("high")
   const [filename, setFilename] = React.useState(defaultFilename)
   const [status, setStatus] = React.useState<
-    "idle" | "rendering" | "ready" | "error"
+    "idle" | "queued" | "rendering" | "ready" | "error"
   >("idle")
+  const [queuePosition, setQueuePosition] = React.useState<number | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [starting, setStarting] = React.useState(false)
   const [completedExport, setCompletedExport] =
@@ -667,6 +665,12 @@ export function ExportControls({
   React.useEffect(() => {
     filenameRef.current = filename
   }, [filename])
+
+  const applyRenderInfo = React.useCallback((info: ProjectRenderInfo) => {
+    setStatus(info.status)
+    setQueuePosition(info.queue_position)
+    setError(info.error)
+  }, [])
 
   const openCompletedExport = React.useCallback(async () => {
     try {
@@ -696,30 +700,34 @@ export function ExportControls({
     getProjectRender(projectId)
       .then((info) => {
         if (!active) return
-        setStatus(info.status)
-        setError(info.error)
+        applyRenderInfo(info)
       })
       .catch(() => undefined)
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [applyRenderInfo, projectId])
 
-  // Poll while rendering; give up past the server's own render timeout so a
-  // crashed render can't wedge the indicator. Opens the preview on completion.
+  // Poll while queued or rendering; give up past the server's own render
+  // timeout so a crashed render can't wedge the indicator. The give-up clock
+  // only runs while rendering (the effect re-mounts on the queued→rendering
+  // transition, so startedAt marks when the current status began) — a long
+  // queue must not trip "Export timed out". Opens the preview on completion.
   React.useEffect(() => {
-    if (status !== "rendering") return
+    if (status !== "rendering" && status !== "queued") return
     const startedAt = Date.now()
     const timer = setInterval(() => {
-      if (Date.now() - startedAt > RENDER_POLL_GIVE_UP_MS) {
+      if (
+        status === "rendering" &&
+        Date.now() - startedAt > RENDER_POLL_GIVE_UP_MS
+      ) {
         setStatus("error")
         setError("Export timed out")
         return
       }
       getProjectRender(projectId)
         .then((info) => {
-          setStatus(info.status)
-          setError(info.error)
+          applyRenderInfo(info)
           if (info.status === "ready" && previewPendingRef.current) {
             previewPendingRef.current = false
             void openCompletedExport()
@@ -728,7 +736,7 @@ export function ExportControls({
         .catch(() => undefined)
     }, RENDER_POLL_MS)
     return () => clearInterval(timer)
-  }, [openCompletedExport, projectId, status])
+  }, [applyRenderInfo, openCompletedExport, projectId, status])
 
   async function handleStartExport() {
     setStarting(true)
@@ -739,7 +747,7 @@ export function ExportControls({
       await flushSave()
       const info = await startProjectRender(projectId, quality)
       previewPendingRef.current = true
-      setStatus(info.status)
+      applyRenderInfo(info)
       if (info.status === "ready") {
         previewPendingRef.current = false
         await openCompletedExport()
@@ -752,7 +760,22 @@ export function ExportControls({
     }
   }
 
-  const rendering = starting || status === "rendering"
+  async function handleCancelExport() {
+    try {
+      const info = await cancelProjectRender(projectId)
+      previewPendingRef.current = false
+      applyRenderInfo(info)
+    } catch (cancelError) {
+      setError(getProjectErrorMessage(cancelError))
+    }
+  }
+
+  const queued = status === "queued"
+  const rendering = starting || status === "rendering" || queued
+  const queuedLabel =
+    queuePosition && queuePosition > 0
+      ? `Queued (#${queuePosition} in queue)…`
+      : "Queued…"
 
   function handleOpenExport() {
     setFilename(defaultFilename)
@@ -765,7 +788,7 @@ export function ExportControls({
         {rendering ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader2Icon className="size-3.5 animate-spin" />
-            Exporting…
+            {queued ? queuedLabel : "Exporting…"}
           </span>
         ) : null}
         <Button type="button" size="sm" onClick={handleOpenExport}>
@@ -784,7 +807,7 @@ export function ExportControls({
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Loader2Icon className="size-4 animate-spin" />
-                  Exporting your video…
+                  {queued ? queuedLabel : "Exporting your video…"}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   You can close this window — the export keeps running and your
@@ -823,7 +846,7 @@ export function ExportControls({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {QUALITY_OPTIONS.map((option) => (
+                      {RENDER_QUALITY_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}{" "}
                           <span className="text-muted-foreground">
@@ -839,13 +862,24 @@ export function ExportControls({
           </DialogBody>
           <DialogFooter variant="plain">
             {rendering ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setModalOpen(false)}
-              >
-                Close
-              </Button>
+              <>
+                {queued ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancelExport}
+                  >
+                    Cancel export
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </>
             ) : (
               <>
                 <Button

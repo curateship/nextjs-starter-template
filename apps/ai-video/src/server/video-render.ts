@@ -16,11 +16,13 @@ import {
 } from "@/server/media-storage"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
-import { requireCanonicalTimeline } from "@/lib/timeline-schema"
+import {
+  requireCanonicalTimeline,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+} from "@/lib/timeline-schema"
 import type { BrandKitConfig } from "@/lib/ai-video"
-import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
-import { now, requireUser } from "@/server/security"
+import { now } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
 import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
 import type {
@@ -30,8 +32,9 @@ import type {
   EditorTrack,
 } from "@/pages/video-editor/editor-store"
 
-// Exports run in-process like viral video processing: the row's render_status
-// is the job state and the editor polls it (no job queue).
+// Exports run through the render_jobs queue (render-queue.ts): a bounded
+// worker claims jobs and awaits renderProject. The project row's render_*
+// columns mirror the latest render for the UI to poll.
 
 // Output frame size per project aspect (the full-quality 1080-class size;
 // lower qualities scale this down).
@@ -74,8 +77,19 @@ const DESIGN_HEIGHT = 1080
 // Inactive karaoke words render at this opacity; the active word is full.
 const KARAOKE_DIM = 0.5
 // Hard caps so a runaway timeline can't pin the server.
-const MAX_TIMELINE_MS = 10 * 60_000
+export const MAX_TIMELINE_MS = 10 * 60_000
 const RENDER_TIMEOUT_MS = 10 * 60_000
+
+// render_error is shown in the UI, so only these known messages pass through
+// verbatim — anything else (R2/SDK internals, ffmpeg stderr wrappers) is
+// logged server-side and surfaced as the generic "Render failed".
+const SAFE_RENDER_ERRORS = new Set([
+  "Nothing to export",
+  "Timeline too long to export",
+  "A clip's media file no longer exists",
+  "ffmpeg is not installed",
+  SAVED_TIMELINE_INVALID_MESSAGE,
+])
 
 const PUBLIC_ASSET_DIR = fileURLToPath(new URL("../../public", import.meta.url))
 const FONT_DIR = path.join(PUBLIC_ASSET_DIR, "fonts")
@@ -95,12 +109,6 @@ function loadResvg() {
   return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
 }
 
-export type ProjectRenderInfo = {
-  status: "idle" | "rendering" | "ready" | "error"
-  error: string | null
-  rendered_at: string | null
-}
-
 async function getOwnedProject(userId: string, projectId: string) {
   const [row] = await db
     .select()
@@ -115,61 +123,8 @@ async function getOwnedProject(userId: string, projectId: string) {
   return row
 }
 
-function serializeRender(row: {
-  renderStatus: string | null
-  renderError: string | null
-  renderedAt: Date | null
-}): ProjectRenderInfo {
-  return {
-    status: (row.renderStatus as ProjectRenderInfo["status"]) ?? "idle",
-    error: row.renderError,
-    rendered_at: row.renderedAt ? row.renderedAt.toISOString() : null,
-  }
-}
-
-export async function getProjectRenderForCurrentUser(
-  projectId: string
-): Promise<ProjectRenderInfo> {
-  const user = await requireUser()
-  const row = await getOwnedProject(user.id, projectId)
-  return serializeRender(row)
-}
-
-// Kicks off an export. Deliberately no in-progress guard: re-clicking after a
-// crashed render must not be locked out, and a duplicate run just overwrites
-// the same R2 key (single-user cost only).
-export async function startProjectRenderForCurrentUser(
-  projectId: string,
-  quality: RenderQuality = "high"
-): Promise<ProjectRenderInfo> {
-  requireAppOrigin()
-  const user = await requireUser()
-  const row = await getOwnedProject(user.id, projectId)
-
-  const timeline = requireCanonicalTimeline(row.timeline)
-  const durationMs = timelineEndMs(timeline?.tracks ?? [])
-  if (durationMs <= 0) {
-    throw new Error("Nothing to export")
-  }
-  if (durationMs > MAX_TIMELINE_MS) {
-    throw new Error("Timeline too long to export")
-  }
-
-  await db
-    .update(aiVideoProjects)
-    .set({ renderStatus: "rendering", renderError: null })
-    .where(eq(aiVideoProjects.id, projectId))
-
-  void renderProject(projectId, user.id, quality).catch((error) => {
-    // renderProject records its own failures; this guards the status write.
-    console.error("Project render crashed", projectId, error)
-  })
-
-  return { status: "rendering", error: null, rendered_at: null }
-}
-
 // Latest clip end across all tracks — the export duration.
-function timelineEndMs(tracks: EditorTrack[]) {
+export function timelineEndMs(tracks: EditorTrack[]) {
   let max = 0
   for (const track of tracks) {
     for (const clip of track.clips ?? []) {
@@ -210,9 +165,10 @@ function flattenForRender(tracks: EditorTrack[]) {
   return { visuals, audio }
 }
 
-// The full render pipeline. Any throw lands in render_error; the tmp dir is
-// always cleaned up.
-async function renderProject(
+// The full render pipeline, awaited by the render-queue worker. Any throw is
+// mirrored to render_error and rethrown so the job can be marked failed; the
+// tmp dir is always cleaned up.
+export async function renderProject(
   projectId: string,
   userId: string,
   quality: RenderQuality
@@ -223,6 +179,13 @@ async function renderProject(
     const timeline = requireCanonicalTimeline(row.timeline)
     const size = renderSize(timeline.aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
+    // Revalidate at run time: the timeline may have changed since enqueue.
+    if (durationMs <= 0) {
+      throw new Error("Nothing to export")
+    }
+    if (durationMs > MAX_TIMELINE_MS) {
+      throw new Error("Timeline too long to export")
+    }
     const { visuals, audio } = flattenForRender(timeline.tracks)
 
     // Resolve every referenced media row, scoped to the owner — a timeline
@@ -321,11 +284,12 @@ async function renderProject(
       .set({
         renderStatus: "error",
         renderError:
-          error instanceof Error && error.message
-            ? error.message.slice(0, 500)
+          error instanceof Error && SAFE_RENDER_ERRORS.has(error.message)
+            ? error.message
             : "Render failed",
       })
       .where(eq(aiVideoProjects.id, projectId))
+    throw error
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

@@ -22,6 +22,8 @@ export type ProjectItem = {
   clip_count: number
   duration_ms: number
   timeline_error: string | null
+  // Latest-render mirror (render-queue.ts) for the dashboard status badge.
+  render_status: "idle" | "queued" | "rendering" | "ready" | "error"
   created_at: string
   updated_at: string
 }
@@ -90,6 +92,8 @@ function serializeProjectFromTimeline(
     clip_count: stats.clipCount,
     duration_ms: stats.durationMs,
     timeline_error: timelineError,
+    render_status:
+      (row.renderStatus as ProjectItem["render_status"]) ?? "idle",
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
