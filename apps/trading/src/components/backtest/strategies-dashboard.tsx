@@ -49,6 +49,7 @@ import {
   type BacktestListItem,
   type StrategyDefaultsMap,
   type StrategyRunDefaults,
+  type StrategyTemplate,
 } from "@/lib/api/backtests"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useMarketRows } from "@/lib/hl/hooks"
@@ -288,9 +289,11 @@ function DeleteSelectedButton({
 function NewRunButton({
   defaultStrategy,
   userDefaults,
+  templates,
 }: {
   defaultStrategy?: StrategyType
   userDefaults?: StrategyDefaultsMap
+  templates?: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
   const markets = useMarketRows("mainnet")
@@ -310,6 +313,7 @@ function NewRunButton({
         defaultInterval="15m"
         defaultStrategy={defaultStrategy}
         userDefaults={userDefaults}
+        templates={templates}
         onContinue={(draft) =>
           void navigate({ to: "/backtest", search: { draft } })
         }
@@ -355,9 +359,11 @@ type StrategySort = "strategy" | "groups" | "executions" | "best" | "last"
 export function StrategiesOverview({
   runs,
   strategyDefaults,
+  templates,
 }: {
   runs: BacktestListItem[]
   strategyDefaults: StrategyDefaultsMap
+  templates: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
   const router = useRouter()
@@ -434,7 +440,7 @@ export function StrategiesOverview({
                 onDone={selection.clear}
               />
             ) : null}
-            <NewRunButton userDefaults={strategyDefaults} />
+            <NewRunButton userDefaults={strategyDefaults} templates={templates} />
           </>
         }
         header={
@@ -550,6 +556,7 @@ export function StrategiesOverview({
           key={editing}
           strategy={editing}
           initial={seedFor(editing)}
+          templates={templates.filter((t) => t.strategyType === editing)}
           open
           onOpenChange={(next) => {
             if (!next) setEditing(null)
@@ -607,10 +614,12 @@ export function StrategyRunsDashboard({
   runs,
   strategyType,
   strategyDefaults,
+  templates,
 }: {
   runs: BacktestListItem[]
   strategyType: StrategyType
   strategyDefaults: StrategyDefaultsMap
+  templates: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
   const state = useTableState<GroupSort>("last")
@@ -715,6 +724,7 @@ export function StrategyRunsDashboard({
             <NewRunButton
               defaultStrategy={strategyType}
               userDefaults={strategyDefaults}
+              templates={templates}
             />
           </>
         }

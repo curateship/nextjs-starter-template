@@ -29,6 +29,7 @@ import {
   type BacktestGroupRun,
   type BacktestListItem,
   type StrategyDefaultsMap,
+  type StrategyTemplate,
 } from "@/lib/api/backtests"
 import {
   DEFAULT_BACKTEST_COSTS,
@@ -91,6 +92,7 @@ type ChartRequest =
 export function BacktestDashboard({
   initialRuns,
   strategyDefaults,
+  templates,
   runId,
   draft = null,
   onRunIdChange,
@@ -99,6 +101,7 @@ export function BacktestDashboard({
 }: {
   initialRuns: BacktestListItem[]
   strategyDefaults?: StrategyDefaultsMap
+  templates?: StrategyTemplate[]
   runId: string | null
   /** Configured-but-not-executed run being tuned before its first execution. */
   draft?: RunDraft | null
@@ -615,6 +618,7 @@ export function BacktestDashboard({
         defaultMarket={market}
         defaultInterval={interval}
         userDefaults={strategyDefaults}
+        templates={templates}
         onContinue={onNewDraft}
       />
     </div>

@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import {
   DEFAULT_BACKTEST_COSTS,
+  MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
   maxWindowDays,
   type BacktestCosts,
@@ -69,6 +70,11 @@ export type BacktestListItem = {
 
 /** Per-user New Run seeds for one strategy: params plus run config. */
 export type StrategyRunDefaults = {
+  /** Optional display label for the main default (templates name themselves). */
+  name?: string
+  /** Default main market, and extra markets the run replays across. */
+  market?: string
+  extraMarkets?: string[]
   params: Record<string, string>
   interval?: BacktestInterval
   windowDays?: number
@@ -76,6 +82,8 @@ export type StrategyRunDefaults = {
   takerFeeBps?: number
   makerFeeBps?: number
   slippageBps?: number
+  /** Optional blended fee %; when set it drives both maker + taker (baked into the bps). */
+  feePct?: number
 }
 
 /** Per-user New Run seeds, keyed by strategy type. */
@@ -83,9 +91,18 @@ export type StrategyDefaultsMap = Partial<
   Record<StrategyType, StrategyRunDefaults>
 >
 
+/** A named run-config template — full config, same shape as the main default. */
+export type StrategyTemplate = {
+  id: string
+  strategyType: StrategyType
+  name: string
+  config: StrategyRunDefaults
+}
+
 export type BacktestListResponse = {
   runs: BacktestListItem[]
   strategyDefaults: StrategyDefaultsMap
+  templates: StrategyTemplate[]
 }
 
 export type BacktestDetail = {
@@ -139,8 +156,12 @@ const runBacktestSchema = z
     groupId: z.string().min(1).optional(),
     /** Main market — the workspace opens on this one's run. */
     market: z.string().min(1).max(20),
-    /** Additional markets: the same config is replayed on each (one row per market). */
-    extraMarkets: z.array(z.string().min(1).max(20)).max(7).optional(),
+    /**
+     * Additional markets: the same config is replayed on each (one row per
+     * market). Runs are synchronous and sequential, so this is bounded to keep
+     * a single request from pinning the server and hammering the upstream API.
+     */
+    extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
     interval: z.enum(CANDLE_INTERVALS),
     windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
     startingEquity: z.number().positive().max(100_000_000),
@@ -381,17 +402,26 @@ async function executeRun(
 
 const loadBacktestsFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<BacktestListResponse> => {
-    const { listUserBacktests, getUserStrategyDefaults } = await import(
-      "@/server/backtests"
-    )
+    const {
+      listUserBacktests,
+      getUserStrategyDefaults,
+      listUserStrategyTemplates,
+    } = await import("@/server/backtests")
     const user = await requireUser()
-    const [rows, strategyDefaults] = await Promise.all([
+    const [rows, strategyDefaults, templates] = await Promise.all([
       listUserBacktests(user.id),
       getUserStrategyDefaults(user.id),
+      listUserStrategyTemplates(user.id),
     ])
     return {
       runs: rows.map(serializeListItem),
       strategyDefaults: strategyDefaults as StrategyDefaultsMap,
+      templates: templates.map((row) => ({
+        id: row.id,
+        strategyType: row.strategyType as StrategyType,
+        name: row.name,
+        config: row.params as StrategyRunDefaults,
+      })),
     }
   }
 )
@@ -506,23 +536,32 @@ export function deleteBacktests(input: z.input<typeof deleteBacktestsSchema>) {
   return deleteBacktestsFn({ data: input })
 }
 
+/** Full run config (ParamValues seeds + run settings); shared by defaults + templates. */
+const strategyConfigSchema = z.object({
+  /** Optional display label for the main default. */
+  name: z.string().max(80).optional(),
+  /** Default markets seeded into New Run. */
+  market: z.string().min(1).max(20).optional(),
+  extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
+  /** ParamValues form seeds; validated for shape, not runnability. */
+  params: z
+    .record(z.string().max(40), z.string().max(100))
+    .refine((params) => Object.keys(params).length <= 60, "Too many parameters."),
+  interval: z.enum(CANDLE_INTERVALS).optional(),
+  windowDays: z.number().int().min(1).max(MAX_RUN_BARS).optional(),
+  equity: z.number().positive().max(100_000_000).optional(),
+  takerFeeBps: z.number().min(0).max(50).optional(),
+  makerFeeBps: z.number().min(0).max(50).optional(),
+  slippageBps: z.number().min(0).max(100).optional(),
+  /** Blended fee % (0–0.5); a UI convenience that also sets taker+maker bps. */
+  feePct: z.number().min(0).max(0.5).optional(),
+})
+
+const strategyTypeSchema = z.enum(["grid", "dca", "momentum", "qqe", "copy"])
+
 const saveStrategyDefaultsSchema = z.object({
-  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "copy"]),
-  defaults: z.object({
-    /** ParamValues form seeds; validated for shape, not runnability. */
-    params: z
-      .record(z.string().max(40), z.string().max(100))
-      .refine(
-        (params) => Object.keys(params).length <= 60,
-        "Too many parameters."
-      ),
-    interval: z.enum(CANDLE_INTERVALS).optional(),
-    windowDays: z.number().int().min(1).max(MAX_RUN_BARS).optional(),
-    equity: z.number().positive().max(100_000_000).optional(),
-    takerFeeBps: z.number().min(0).max(50).optional(),
-    makerFeeBps: z.number().min(0).max(50).optional(),
-    slippageBps: z.number().min(0).max(100).optional(),
-  }),
+  strategyType: strategyTypeSchema,
+  defaults: strategyConfigSchema,
 })
 
 const saveStrategyDefaultsFn = createServerFn({ method: "POST" })
@@ -540,6 +579,52 @@ export function saveStrategyDefaults(
   input: z.input<typeof saveStrategyDefaultsSchema>
 ) {
   return saveStrategyDefaultsFn({ data: input })
+}
+
+const saveStrategyTemplateSchema = z.object({
+  /** Present when updating an existing template; omitted to create a new one. */
+  id: z.string().min(1).max(36).optional(),
+  strategyType: strategyTypeSchema,
+  name: z.string().trim().min(1).max(80),
+  config: strategyConfigSchema,
+})
+
+const saveStrategyTemplateFn = createServerFn({ method: "POST" })
+  .inputValidator(saveStrategyTemplateSchema)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { saveUserStrategyTemplate } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+    return saveUserStrategyTemplate(user.id, {
+      id: data.id,
+      strategyType: data.strategyType,
+      name: data.name,
+      params: data.config,
+    })
+  })
+
+export function saveStrategyTemplate(
+  input: z.input<typeof saveStrategyTemplateSchema>
+) {
+  return saveStrategyTemplateFn({ data: input })
+}
+
+const deleteStrategyTemplateSchema = z.object({ id: z.string().min(1).max(36) })
+
+const deleteStrategyTemplateFn = createServerFn({ method: "POST" })
+  .inputValidator(deleteStrategyTemplateSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { deleteUserStrategyTemplate } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+    await deleteUserStrategyTemplate(user.id, data.id)
+    return { ok: true }
+  })
+
+export function deleteStrategyTemplate(id: string) {
+  return deleteStrategyTemplateFn({ data: { id } })
 }
 
 export function loadBacktests() {

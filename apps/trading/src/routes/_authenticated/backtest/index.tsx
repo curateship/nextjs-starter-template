@@ -25,12 +25,18 @@ export const Route = createFileRoute("/_authenticated/backtest/")({
  * so price levels can be tuned before the first execution.
  */
 function BacktestRoute() {
-  const { runs, strategyDefaults } = Route.useLoaderData()
+  const { runs, strategyDefaults, templates } = Route.useLoaderData()
   const { run, draft } = Route.useSearch()
   const navigate = Route.useNavigate()
 
   if (!run && !draft) {
-    return <StrategiesOverview runs={runs} strategyDefaults={strategyDefaults} />
+    return (
+      <StrategiesOverview
+        runs={runs}
+        strategyDefaults={strategyDefaults}
+        templates={templates}
+      />
+    )
   }
 
   return (
@@ -45,6 +51,7 @@ function BacktestRoute() {
         key={run ?? `draft:${draft ? JSON.stringify(draft) : ""}`}
         initialRuns={runs}
         strategyDefaults={strategyDefaults}
+        templates={templates}
         runId={run ?? null}
         draft={draft ?? null}
         onRunIdChange={(id) =>

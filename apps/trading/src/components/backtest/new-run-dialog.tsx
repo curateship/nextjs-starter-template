@@ -1,6 +1,7 @@
 import * as React from "react"
-import { ArrowRightIcon, Loader2Icon, XIcon } from "lucide-react"
+import { ArrowRightIcon, Loader2Icon } from "lucide-react"
 
+import { AdditionalMarketsField } from "@/components/backtest/additional-markets-field"
 import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
 import {
   buildParams,
@@ -8,7 +9,6 @@ import {
   PARAM_DEFAULTS,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,6 +31,7 @@ import {
 import type {
   StrategyDefaultsMap,
   StrategyRunDefaults,
+  StrategyTemplate,
 } from "@/lib/api/backtests"
 import { useShellRuntime } from "@/components/shell-layout"
 import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
@@ -48,9 +49,6 @@ import type { RunDraft } from "./run-draft"
 
 /** Backtestable strategies; copy needs event replay and stays live-only. */
 const STRATEGY_CHOICES: StrategyType[] = ["momentum", "qqe", "grid", "dca"]
-
-/** Main market + additional markets a run is replayed across. */
-const MAX_MARKETS = 8
 
 /** Default grid range: ±10% around the market's mid. */
 function gridBounds(mid: number) {
@@ -74,6 +72,7 @@ export function NewRunDialog({
   defaultInterval,
   defaultStrategy = "momentum",
   userDefaults,
+  templates,
   initial,
   lockStrategy = false,
   title = "New Backtest Run",
@@ -89,6 +88,8 @@ export function NewRunDialog({
   defaultStrategy?: StrategyType
   /** Per-user parameter seeds (Strategies → settings), over the built-ins. */
   userDefaults?: StrategyDefaultsMap
+  /** Saved run-config templates (all strategies); filtered to the picked one. */
+  templates?: StrategyTemplate[]
   /** Full seed config (edit mode) — overrides the defaults above. */
   initial?: RunDraft
   /** Edit mode: a run group's strategy can't change on re-run. */
@@ -122,9 +123,11 @@ export function NewRunDialog({
 
   const [name, setName] = React.useState(initial?.name ?? "")
   const [strategy, setStrategy] = React.useState<StrategyType>(initialStrategy)
-  const [market, setMarket] = React.useState(initial?.market ?? defaultMarket)
+  const [market, setMarket] = React.useState(
+    initial?.market ?? initialSeed.market ?? defaultMarket
+  )
   const [extraMarkets, setExtraMarkets] = React.useState<string[]>(
-    initial?.extraMarkets ?? []
+    initial?.extraMarkets ?? initialSeed.extraMarkets ?? []
   )
   const [interval, setTimeframe] = React.useState<CandleInterval>(initialInterval)
   const [windowDays, setWindowDays] = React.useState(
@@ -167,15 +170,18 @@ export function NewRunDialog({
     Number(markets.find((row) => row.coin === coin)?.markPx ?? 0)
   const mid = midOf(market)
 
-  function selectStrategy(next: StrategyType) {
-    if (lockStrategy) return
-    setStrategy(next)
-    setError(null)
-    // Grid bounds are absolute prices — a grid config can't span markets.
-    if (next === "grid") setExtraMarkets([])
-    const seed = seedFor(next)
+  const [templateId, setTemplateId] = React.useState<string>("__default__")
+  const strategyTemplates = (templates ?? []).filter(
+    (row) => row.strategyType === strategy
+  )
+
+  /** Apply a run-config seed (default or template) into the form for `next`. */
+  function applySeed(next: StrategyType, seed: StrategyRunDefaults) {
     const nextInterval = seed.interval ?? interval
     setTimeframe(nextInterval)
+    if (seed.market) setMarket(seed.market)
+    // Grid is single-market; other strategies replay the seeded basket.
+    setExtraMarkets(next === "grid" ? [] : (seed.extraMarkets ?? []))
     if (seed.windowDays) setWindowDays(String(seed.windowDays))
     if (seed.equity) setEquity(String(seed.equity))
     if (seed.takerFeeBps !== undefined) setTaker(String(seed.takerFeeBps))
@@ -193,6 +199,31 @@ export function NewRunDialog({
     } else {
       setParams(seed.params)
     }
+  }
+
+  function selectStrategy(next: StrategyType) {
+    if (lockStrategy) return
+    setStrategy(next)
+    setError(null)
+    setTemplateId("__default__")
+    // Grid bounds are absolute prices — a grid config can't span markets.
+    if (next === "grid") setExtraMarkets([])
+    applySeed(next, seedFor(next))
+  }
+
+  function selectTemplate(id: string) {
+    setTemplateId(id)
+    setError(null)
+    if (id === "__default__") {
+      applySeed(strategy, seedFor(strategy))
+      return
+    }
+    const template = strategyTemplates.find((row) => row.id === id)
+    if (!template) return
+    applySeed(strategy, {
+      ...template.config,
+      params: { ...PARAM_DEFAULTS[strategy], ...template.config.params },
+    })
   }
 
   function selectMarket(coin: string) {
@@ -330,6 +361,25 @@ export function NewRunDialog({
             </div>
           </div>
 
+          {strategyTemplates.length > 0 ? (
+            <div className="grid gap-2">
+              <Label>Template</Label>
+              <Select value={templateId} onValueChange={selectTemplate}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Main default</SelectItem>
+                  {strategyTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Market</Label>
@@ -368,70 +418,14 @@ export function NewRunDialog({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label>
-              Additional markets{" "}
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            {strategy === "grid" ? (
-              <p className="text-xs text-muted-foreground">
-                Grid bounds are absolute prices, so a grid run stays on one
-                market.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {extraMarkets.map((coin) => (
-                    <Badge key={coin} variant="secondary" className="gap-1 font-mono">
-                      {coin}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${coin}`}
-                        onClick={() =>
-                          setExtraMarkets((current) =>
-                            current.filter((extra) => extra !== coin)
-                          )
-                        }
-                      >
-                        <XIcon className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {extraMarkets.length < MAX_MARKETS - 1 ? (
-                    <Select
-                      value=""
-                      onValueChange={(coin) =>
-                        setExtraMarkets((current) =>
-                          current.includes(coin) ? current : [...current, coin]
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder="Add market" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {markets
-                          .filter(
-                            (row) =>
-                              row.coin !== market &&
-                              !extraMarkets.includes(row.coin)
-                          )
-                          .map((row) => (
-                            <SelectItem key={row.coin} value={row.coin}>
-                              {row.coin}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  The same config also runs on each additional market — a
-                  strategy that only works on one market is usually curve-fit.
-                </p>
-              </>
-            )}
-          </div>
+          <AdditionalMarketsField
+            market={market}
+            extraMarkets={extraMarkets}
+            markets={markets}
+            isGrid={strategy === "grid"}
+            hint="The same config also runs on each additional market — a strategy that only works on one market is usually curve-fit."
+            onChange={setExtraMarkets}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">

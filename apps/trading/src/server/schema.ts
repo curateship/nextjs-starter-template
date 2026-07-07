@@ -508,7 +508,39 @@ export const tradingStrategyDefaults = pgTable(
     primaryKey({ columns: [table.userId, table.strategyType] }),
     check(
       "strategy_defaults_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'copy')`
+      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'copy')`
+    ),
+  ]
+)
+
+/**
+ * Named run-config templates: many per (user, strategy), on top of the single
+ * main default in {@link tradingStrategyDefaults}. `params` holds the same full
+ * run config (form seeds + interval/window/equity/costs) and is picked when
+ * starting a New Run.
+ */
+export const tradingStrategyTemplates = pgTable(
+  "strategy_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    strategyType: varchar("strategy_type", { length: 20 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    params: jsonb("params").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("strategy_templates_user_strategy_name").on(
+      table.userId,
+      table.strategyType,
+      table.name
+    ),
+    check(
+      "strategy_templates_strategy_type_check",
+      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'copy')`
     ),
   ]
 )

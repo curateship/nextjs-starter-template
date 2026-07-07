@@ -13,13 +13,14 @@ export const Route = createFileRoute("/_authenticated/backtest/$strategyType/")(
 })
 
 function StrategyRunsRoute() {
-  const { runs, strategyDefaults } = Route.useLoaderData()
+  const { runs, strategyDefaults, templates } = Route.useLoaderData()
   const { strategyType } = Route.useParams()
   return (
     <StrategyRunsDashboard
       runs={runs}
       strategyType={strategyType as StrategyType}
       strategyDefaults={strategyDefaults}
+      templates={templates}
     />
   )
 }

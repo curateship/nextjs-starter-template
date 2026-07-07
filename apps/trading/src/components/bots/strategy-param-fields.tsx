@@ -17,12 +17,19 @@ import {
 } from "@/components/ui/select"
 import type { StrategyType } from "@/lib/strategies/params"
 
+/**
+ * QQE fields split into cardable groups so callers can render the consolidation
+ * and stop-loss controls as their own cards, separate from the core params.
+ */
+export type ParamSection = "core" | "consolidation" | "exits" | "size"
+
 export function StrategyParamFields({
   strategy,
   values,
   disabled,
   onChange,
   mid = 0,
+  section,
 }: {
   strategy: StrategyType
   values: ParamValues
@@ -30,6 +37,11 @@ export function StrategyParamFields({
   onChange: (key: string, value: string) => void
   /** Live mid price of the market; enables the % hints. */
   mid?: number
+  /**
+   * For QQE, render only one group of fields. Omit to render everything (the
+   * default used by callers that show all params in a single card).
+   */
+  section?: ParamSection
 }) {
   const text = (
     key: string,
@@ -82,7 +94,7 @@ export function StrategyParamFields({
   ) => {
     const enabled = (values[key] ?? "") !== ""
     return (
-      <div key={key} className="grid gap-2 sm:col-span-2">
+      <div key={key} className="grid gap-2 sm:col-span-full">
         <div className="flex items-center gap-2">
           <Checkbox
             id={`toggle-${key}`}
@@ -122,7 +134,7 @@ export function StrategyParamFields({
   }
 
   const check = (key: string, label: string) => (
-    <div key={key} className="flex items-center gap-2">
+    <div key={key} className="flex items-center gap-2 sm:col-span-full">
       <Checkbox
         id={`check-${key}`}
         checked={values[key] === "true"}
@@ -223,7 +235,28 @@ export function StrategyParamFields({
           ])}
         </>
       )
-    case "qqe":
+    case "qqe": {
+      const consolidation = (
+        <>
+          {check("consolidationFilter", "Consolidation filter")}
+          {text("loopbackPeriod", "Loopback period")}
+          {text("minConsolidationLen", "Min consolidation length")}
+          {check("paintConsolidation", "Paint consolidation area")}
+          {values.paintConsolidation === "true"
+            ? text("zoneColor", "Zone color (hex)", "#2962ff")
+            : null}
+        </>
+      )
+      const exits = (
+        <>
+          {text("takeProfitPct", "Take profit % (optional)")}
+          {text("stopLossPct", "Stop loss % (optional)")}
+        </>
+      )
+      const size = text("orderSizeUsd", "Order size (USD)")
+      if (section === "consolidation") return consolidation
+      if (section === "exits") return exits
+      if (section === "size") return size
       return (
         <>
           {select("interval", "Candle interval", [
@@ -267,19 +300,20 @@ export function StrategyParamFields({
             ["hlc3", "HLC3"],
             ["ohlc4", "OHLC4"],
           ])}
-          {check("consolidationFilter", "Consolidation filter")}
-          {text("loopbackPeriod", "Loopback period")}
-          {text("minConsolidationLen", "Min consolidation length")}
           {check("colorBars", "Color bars by QQE state")}
-          {check("paintConsolidation", "Paint consolidation area")}
-          {values.paintConsolidation === "true"
-            ? text("zoneColor", "Zone color (hex)", "#2962ff")
-            : null}
-          {text("orderSizeUsd", "Order size (USD)")}
-          {text("takeProfitPct", "Take profit % (optional)")}
-          {text("stopLossPct", "Stop loss % (optional)")}
+          {/* Size, consolidation & exits render as their own cards; when no
+              section filter is applied (single-card callers) include them
+              inline so nothing is dropped. */}
+          {section === undefined ? (
+            <>
+              {size}
+              {consolidation}
+              {exits}
+            </>
+          ) : null}
         </>
       )
+    }
     case "copy":
       return (
         <>
