@@ -1,18 +1,16 @@
 import * as React from "react"
-import {
-  ChevronDownIcon,
-  CopyIcon,
-  InfoIcon,
-  Loader2Icon,
-  Trash2Icon,
-} from "lucide-react"
+import { CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 
 import { AdditionalMarketsField } from "@/components/backtest/additional-markets-field"
-import { pctToBps, uniqueCopyName } from "@/components/backtest/template-config"
 import {
-  StrategyParamFields,
-  type ParamSection,
-} from "@/components/bots/strategy-param-fields"
+  FeeLabel,
+  StrategyParamCards,
+  feeCostTip,
+  feePctTip,
+  orderSizeFromValues,
+} from "@/components/backtest/run-config-fields"
+import { pctToBps, uniqueCopyName } from "@/components/backtest/template-config"
+import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
 import {
   PARAM_DEFAULTS,
   type ParamValues,
@@ -36,12 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   deleteStrategyTemplate,
   saveStrategyDefaults,
@@ -109,8 +102,6 @@ export function StrategyDefaultsDialog({
   const markets = useMarketRows("mainnet")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  // Collapsed param cards, keyed by title; cards default to open.
-  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({})
   // Which config the form is bound to: main default, an existing template
   // (its id), or a not-yet-saved new template.
   const [selection, setSelection] = React.useState<string>(MAIN_DEFAULT)
@@ -139,61 +130,7 @@ export function StrategyDefaultsDialog({
     setExtraMarkets(config.extraMarkets ?? [])
   }
 
-  // Per-order notional, pulled from whichever size field the strategy uses.
-  const orderSizeUsd =
-    Number(
-      values.orderSizeUsd ||
-        values.sizePerLevelUsd ||
-        values.baseOrderUsd ||
-        values.fixedUsd ||
-        ""
-    ) || 0
-
-  /** Tooltip text translating a bps cost into % and $ for the current order size. */
-  function costTip(bpsStr: string): string {
-    const bps = Number(bpsStr)
-    if (!Number.isFinite(bps)) return "Enter a value in basis points (1 bps = 0.01%)."
-    const pct = bps / 100
-    if (orderSizeUsd > 0) {
-      const dollars = (orderSizeUsd * bps) / 10_000
-      return `${bps} bps = ${pct}% ≈ $${dollars.toFixed(2)} per $${orderSizeUsd.toLocaleString()} order`
-    }
-    return `${bps} bps = ${pct}% — set an order size to see the $ cost`
-  }
-
-  /** Tooltip text for a value entered directly as a percent. */
-  function pctTip(pctStr: string): string {
-    const pct = Number(pctStr)
-    if (!Number.isFinite(pct) || pctStr.trim() === "")
-      return "Optional. A flat % applied to every fill, overriding taker + maker."
-    if (orderSizeUsd > 0) {
-      const dollars = (orderSizeUsd * pct) / 100
-      return `${pct}% = ${pct * 100} bps ≈ $${dollars.toFixed(2)} per $${orderSizeUsd.toLocaleString()} order`
-    }
-    return `${pct}% = ${pct * 100} bps — set an order size to see the $ cost`
-  }
-
-  /** A field label with an (i) icon that reveals its $/% translation on hover. */
-  function feeLabel(text: string, tip: string) {
-    return (
-      <div className="flex items-center gap-1">
-        <Label>{text}</Label>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={`${text} info`}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <InfoIcon className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{tip}</TooltipContent>
-        </Tooltip>
-      </div>
-    )
-  }
-
+  const orderSizeUsd = orderSizeFromValues(values)
   const feeOverride = feePct.trim() !== ""
   // The bps that the blended % resolves to, shown in the disabled taker/maker fields.
   const blendedBps =
@@ -219,15 +156,6 @@ export function StrategyDefaultsDialog({
     }
   }
 
-  // QQE splits its params across three cards; every other strategy is one card.
-  const paramCards: { title: string; section?: ParamSection }[] =
-    strategy === "qqe"
-      ? [
-          { title: `${STRATEGY_LABELS[strategy]} parameters`, section: "core" },
-          { title: "Consolidation", section: "consolidation" },
-          { title: "Take profit & stop loss", section: "exits" },
-        ]
-      : [{ title: `${STRATEGY_LABELS[strategy]} parameters` }]
 
   function resetToBuiltIns() {
     setSelection(MAIN_DEFAULT)
@@ -472,7 +400,10 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              {feeLabel("Slippage (bps, taker fills)", costTip(slippage))}
+              <FeeLabel
+                text="Slippage (bps, taker fills)"
+                tip={feeCostTip(slippage, orderSizeUsd)}
+              />
               <Input
                 className="h-8"
                 value={slippage}
@@ -482,10 +413,14 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              {feeLabel(
-                "Taker fee (bps)",
-                feeOverride ? "Overridden by the blended Fee %." : costTip(taker)
-              )}
+              <FeeLabel
+                text="Taker fee (bps)"
+                tip={
+                  feeOverride
+                    ? "Overridden by the blended Fee %."
+                    : feeCostTip(taker, orderSizeUsd)
+                }
+              />
               <Input
                 className="h-8"
                 value={feeOverride ? blendedBps : taker}
@@ -495,10 +430,14 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              {feeLabel(
-                "Maker fee (bps)",
-                feeOverride ? "Overridden by the blended Fee %." : costTip(maker)
-              )}
+              <FeeLabel
+                text="Maker fee (bps)"
+                tip={
+                  feeOverride
+                    ? "Overridden by the blended Fee %."
+                    : feeCostTip(maker, orderSizeUsd)
+                }
+              />
               <Input
                 className="h-8"
                 value={feeOverride ? blendedBps : maker}
@@ -508,7 +447,7 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              {feeLabel("Fee % (optional)", pctTip(feePct))}
+              <FeeLabel text="Fee % (optional)" tip={feePctTip(feePct, orderSizeUsd)} />
               <Input
                 className="h-8"
                 value={feePct}
@@ -541,44 +480,14 @@ export function StrategyDefaultsDialog({
             />
           </div>
 
-          {paramCards.map((group) => {
-            const open = !collapsed[group.title]
-            return (
-              <div key={group.title} className="grid gap-3 rounded-lg border p-4">
-                <button
-                  type="button"
-                  className="flex items-center justify-between text-left"
-                  onClick={() =>
-                    setCollapsed((current) => ({
-                      ...current,
-                      [group.title]: !current[group.title],
-                    }))
-                  }
-                >
-                  <Label className="cursor-pointer">{group.title}</Label>
-                  <ChevronDownIcon
-                    className={`size-4 text-muted-foreground transition-transform ${
-                      open ? "" : "-rotate-90"
-                    }`}
-                  />
-                </button>
-                {open ? (
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <StrategyParamFields
-                      strategy={strategy}
-                      values={values}
-                      disabled={busy}
-                      mid={0}
-                      section={group.section}
-                      onChange={(key, value) =>
-                        setValues((current) => ({ ...current, [key]: value }))
-                      }
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
+          <StrategyParamCards
+            strategy={strategy}
+            values={values}
+            disabled={busy}
+            onChange={(key, value) =>
+              setValues((current) => ({ ...current, [key]: value }))
+            }
+          />
 
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

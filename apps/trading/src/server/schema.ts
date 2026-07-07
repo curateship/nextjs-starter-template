@@ -475,6 +475,12 @@ export const tradingBacktests = pgTable(
     endTime: timestamp("end_time", { withTimezone: true }).notNull(),
     startingEquity: numeric("starting_equity").notNull(),
     status: varchar("status", { length: 10 }).notNull().default("pending"),
+    /** Triage workflow state — group-level, distinct from execution `status`. */
+    reviewStatus: varchar("review_status", { length: 10 })
+      .notNull()
+      .default("review"),
+    /** Group-level flag: pinned runs sort to the top of the dashboard. */
+    pinned: boolean("pinned").notNull().default(false),
     error: text("error"),
     /** BacktestResult from src/lib/backtest/types, or null until done. */
     result: jsonb("result"),
@@ -486,6 +492,10 @@ export const tradingBacktests = pgTable(
     check(
       "backtests_status_check",
       sql`${table.status} in ('pending', 'running', 'done', 'error')`
+    ),
+    check(
+      "backtests_review_status_check",
+      sql`${table.reviewStatus} in ('review', 'archived')`
     ),
     index("ix_backtests_user_id_created_at").on(table.userId, table.createdAt),
     index("ix_backtests_status_created_at").on(table.status, table.createdAt),

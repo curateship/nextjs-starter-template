@@ -1,10 +1,14 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  ChevronDownIcon,
   HistoryIcon,
   LayersIcon,
+  ListFilterIcon,
   ListIcon,
   Loader2Icon,
+  PinIcon,
+  PinOffIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -19,6 +23,13 @@ import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -45,6 +56,7 @@ import {
   deleteBacktests,
   loadBacktest,
   runBacktest,
+  updateRunStatus,
   type BacktestDetail,
   type BacktestListItem,
   type StrategyDefaultsMap,
@@ -64,6 +76,7 @@ import { cn } from "@/lib/utils"
 
 import { pct, signedUsd, toneClass, usd, windowDaysOf } from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
+import { RunStatusMenuItems } from "./run-status-menu"
 import type { RunDraft } from "./run-draft"
 import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
 
@@ -84,6 +97,12 @@ const STATUS_TONE: Record<BacktestListItem["status"], string> = {
   running: "text-amber-600",
   done: "text-emerald-600",
   error: "text-red-500",
+}
+
+/** Triage status coloring — archived reads as muted, review as normal. */
+const REVIEW_TONE: Record<BacktestListItem["reviewStatus"], string> = {
+  review: "text-foreground",
+  archived: "text-muted-foreground",
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -598,6 +617,8 @@ type GroupRow = {
   interval: string
   windowDays: number
   status: BacktestListItem["status"]
+  reviewStatus: BacktestListItem["reviewStatus"]
+  pinned: boolean
   /** Main (first) market's stats, representative of the run. */
   netPnlPct: number | null
   startingEquity: number
@@ -608,7 +629,56 @@ type GroupRow = {
   lastRunAt: number
 }
 
-type GroupSort = "name" | "markets" | "net" | "last"
+type GroupSort =
+  | "name"
+  | "markets"
+  | "interval"
+  | "window"
+  | "status"
+  | "starting"
+  | "net"
+  | "total"
+  | "monthly"
+  | "trades"
+  | "last"
+
+/** Which triage buckets are shown; pinned runs also always surface at the top. */
+type RunFilter = "review" | "pinned" | "archived"
+
+const INTERVAL_ORDER = ["1m", "5m", "15m", "1h", "4h", "1d"]
+const intervalRank = (interval: string) => {
+  const index = INTERVAL_ORDER.indexOf(interval)
+  return index === -1 ? INTERVAL_ORDER.length : index
+}
+
+/** Ascending comparison of two run groups by the given column. */
+function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
+  const nullable = (value: number | null) => value ?? -Infinity
+  switch (column) {
+    case "name":
+      return a.name.localeCompare(b.name)
+    case "markets":
+      return a.markets.length - b.markets.length
+    case "interval":
+      return intervalRank(a.interval) - intervalRank(b.interval)
+    case "window":
+      return a.windowDays - b.windowDays
+    case "status":
+      return a.reviewStatus.localeCompare(b.reviewStatus)
+    case "starting":
+      return a.startingEquity - b.startingEquity
+    case "net":
+      return nullable(a.netPnlPct) - nullable(b.netPnlPct)
+    case "total":
+      return nullable(a.netPnl) - nullable(b.netPnl)
+    case "monthly":
+      return nullable(a.monthlyPnlPct) - nullable(b.monthlyPnlPct)
+    case "trades":
+      return nullable(a.tradeCount) - nullable(b.tradeCount)
+    case "last":
+      return a.lastRunAt - b.lastRunAt
+  }
+}
 
 export function StrategyRunsDashboard({
   runs,
@@ -622,11 +692,16 @@ export function StrategyRunsDashboard({
   templates: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
   const state = useTableState<GroupSort>("last")
   const selection = useSelection()
   const [editing, setEditing] = React.useState<GroupRow | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<GroupRow | null>(
     null
+  )
+  // Which triage buckets are visible; archived is hidden by default.
+  const [filter, setFilter] = React.useState<Set<RunFilter>>(
+    () => new Set<RunFilter>(["review", "pinned"])
   )
 
   const groups = React.useMemo<GroupRow[]>(() => {
@@ -649,6 +724,8 @@ export function StrategyRunsDashboard({
         interval: main.interval,
         windowDays,
         status: main.status,
+        reviewStatus: main.reviewStatus,
+        pinned: main.pinned,
         netPnlPct: main.netPnlPct,
         startingEquity: main.startingEquity,
         netPnl: main.netPnl,
@@ -666,26 +743,53 @@ export function StrategyRunsDashboard({
 
   const filtered = React.useMemo(() => {
     const query = state.search.trim().toLowerCase()
-    const matches = query
-      ? groups.filter(
-          (group) =>
-            group.name.toLowerCase().includes(query) ||
-            group.markets.some((coin) => coin.toLowerCase().includes(query))
-        )
-      : groups
+    const matches = groups.filter((group) => {
+      const inBucket =
+        (filter.has("review") && group.reviewStatus === "review") ||
+        (filter.has("archived") && group.reviewStatus === "archived") ||
+        (filter.has("pinned") && group.pinned)
+      if (!inBucket) return false
+      if (!query) return true
+      return (
+        group.name.toLowerCase().includes(query) ||
+        group.markets.some((coin) => coin.toLowerCase().includes(query))
+      )
+    })
     const direction = state.sortDirection === "asc" ? 1 : -1
     return [...matches].sort((a, b) => {
-      if (state.sortColumn === "name") return a.name.localeCompare(b.name) * direction
-      if (state.sortColumn === "markets")
-        return (a.markets.length - b.markets.length) * direction
-      if (state.sortColumn === "net")
-        return ((a.netPnlPct ?? -Infinity) - (b.netPnlPct ?? -Infinity)) * direction
-      return (a.lastRunAt - b.lastRunAt) * direction
+      // Pinned runs always float to the top, regardless of the sort column.
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      return compareGroups(a, b, state.sortColumn) * direction
     })
-  }, [groups, state.search, state.sortColumn, state.sortDirection])
+  }, [groups, filter, state.search, state.sortColumn, state.sortDirection])
 
   const { rows: pageRows, totalPages } = paginate(filtered, state.page, state.pageSize)
   const visibleIds = pageRows.map((group) => group.groupId)
+
+  async function applyStatus(
+    groupIds: string[],
+    patch: { reviewStatus?: "review" | "archived"; pinned?: boolean }
+  ) {
+    if (groupIds.length === 0) return
+    await updateRunStatus({ groupIds, ...patch })
+    await router.invalidate()
+  }
+
+  async function applyToSelection(patch: {
+    reviewStatus?: "review" | "archived"
+    pinned?: boolean
+  }) {
+    await applyStatus([...selection.selected], patch)
+    selection.clear()
+  }
+
+  const toggleFilter = (facet: RunFilter) =>
+    setFilter((current) => {
+      const next = new Set(current)
+      if (next.has(facet)) next.delete(facet)
+      else next.add(facet)
+      return next
+    })
 
   return (
     <div className="w-full pb-8">
@@ -704,23 +808,71 @@ export function StrategyRunsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
-            {selection.selected.size ? (
-              <DeleteSelectedButton
-                count={selection.selected.size}
-                description={`This permanently deletes ${selection.selected.size} ${selection.selected.size === 1 ? "run" : "runs"} including all re-run history.`}
-                onDelete={async () => {
-                  await deleteBacktests({ groupIds: [...selection.selected] })
-                }}
-                onDone={selection.clear}
-              />
-            ) : null}
             <DashboardToolbarSearch
               name="run-search"
               aria-label="Search runs"
               placeholder="Search runs..."
+              className="sm:mr-auto"
               value={state.search}
               onChange={(event) => state.setSearch(event.target.value)}
             />
+            {selection.selected.size ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <DashboardToolbarButton type="button">
+                      Status ({selection.selected.size})
+                      <ChevronDownIcon className="size-4" />
+                    </DashboardToolbarButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <RunStatusMenuItems
+                      onApply={(patch) => void applyToSelection(patch)}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DeleteSelectedButton
+                  count={selection.selected.size}
+                  description={`This permanently deletes ${selection.selected.size} ${selection.selected.size === 1 ? "run" : "runs"} including all re-run history.`}
+                  onDelete={async () => {
+                    await deleteBacktests({ groupIds: [...selection.selected] })
+                  }}
+                  onDone={selection.clear}
+                />
+              </>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <DashboardToolbarButton type="button" variant="outline">
+                  <ListFilterIcon className="size-4" />
+                  Filter
+                </DashboardToolbarButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Show</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={filter.has("review")}
+                  onCheckedChange={() => toggleFilter("review")}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  Review
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={filter.has("pinned")}
+                  onCheckedChange={() => toggleFilter("pinned")}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  Pinned
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={filter.has("archived")}
+                  onCheckedChange={() => toggleFilter("archived")}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  Archived
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <NewRunButton
               defaultStrategy={strategyType}
               userDefaults={strategyDefaults}
@@ -750,14 +902,14 @@ export function StrategyRunsDashboard({
                 </TableSortButton>
               </TableHead>
               {sortHead("Markets", "markets", state)}
-              <TableHead column="meta">Timeframe</TableHead>
-              <TableHead column="meta">Window</TableHead>
-              <TableHead column="meta">Status</TableHead>
-              <TableHead column="meta">Starting</TableHead>
+              {sortHead("Timeframe", "interval", state)}
+              {sortHead("Window", "window", state)}
+              {sortHead("Status", "status", state)}
+              {sortHead("Starting", "starting", state)}
               {sortHead("Net P&L %", "net", state)}
-              <TableHead column="meta">Total P&L</TableHead>
-              <TableHead column="meta">Monthly avg %</TableHead>
-              <TableHead column="meta">Trades</TableHead>
+              {sortHead("Total P&L", "total", state)}
+              {sortHead("Monthly avg %", "monthly", state)}
+              {sortHead("Trades", "trades", state)}
               {sortHead("Last run", "last", state)}
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -780,7 +932,10 @@ export function StrategyRunsDashboard({
         {pageRows.map((group) => (
           <TableRow
             key={group.groupId}
-            className="cursor-pointer"
+            className={cn(
+              "cursor-pointer",
+              group.pinned && "border-l-2 border-amber-500 bg-amber-500/5"
+            )}
             onClick={() =>
               void navigate({
                 to: "/backtest/$strategyType/$groupId",
@@ -796,7 +951,12 @@ export function StrategyRunsDashboard({
               />
             </TableCell>
             <TableCell column="main" className="font-medium">
-              {group.name}
+              <span className="inline-flex items-center gap-1.5">
+                {group.pinned ? (
+                  <PinIcon className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                ) : null}
+                {group.name}
+              </span>
             </TableCell>
             <TableCell column="meta" className="text-xs">
               <span
@@ -819,8 +979,15 @@ export function StrategyRunsDashboard({
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
               {group.windowDays}d
             </TableCell>
-            <TableCell column="meta" className={cn("text-xs", STATUS_TONE[group.status])}>
-              {group.status}
+            <TableCell column="meta" className="text-xs capitalize">
+              <span className={REVIEW_TONE[group.reviewStatus]}>
+                {group.reviewStatus}
+              </span>
+              {group.status !== "done" ? (
+                <span className={cn("ml-1", STATUS_TONE[group.status])}>
+                  · {group.status}
+                </span>
+              ) : null}
             </TableCell>
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
               {usd(group.startingEquity)}
@@ -868,6 +1035,22 @@ export function StrategyRunsDashboard({
             </TableCell>
             <TableCell column="meta" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={group.pinned ? `Unpin ${group.name}` : `Pin ${group.name}`}
+                  onClick={() =>
+                    void applyStatus([group.groupId], { pinned: !group.pinned })
+                  }
+                >
+                  {group.pinned ? (
+                    <PinOffIcon className="size-4 text-muted-foreground" />
+                  ) : (
+                    <PinIcon className="size-4 text-muted-foreground" />
+                  )}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -1011,6 +1194,11 @@ function EditRunDialog({
       defaultInterval={initial.interval}
       initial={initial}
       lockStrategy
+      statusTarget={{
+        groupId: group.groupId,
+        reviewStatus: group.reviewStatus,
+        pinned: group.pinned,
+      }}
       title="Edit Run"
       description="Adjust the settings and re-run. Markets already in the run are replaced with fresh results; newly added markets are added to the run."
       submitLabel="Re-run"

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   computeConsolidation,
   computeQqeSeries,
+  computeSwings,
   initialConsolidationState,
   stepConsolidation,
   type QqeInputs,
@@ -135,5 +136,37 @@ describe("computeConsolidation", () => {
     const { inZone } = computeConsolidation([...range, ...breakout], prd, conslen)
     expect(inZone[range.length - 1]).toBe(true)
     expect(inZone.at(-1)).toBe(false)
+  })
+})
+
+describe("computeSwings", () => {
+  // idx2 is a two-sided high pivot (20); idx4 a two-sided low pivot (5).
+  const candles = [
+    bar(10, 8),
+    bar(11, 7),
+    bar(20, 9),
+    bar(12, 6),
+    bar(11, 5),
+    bar(13, 8),
+    bar(14, 9),
+    bar(15, 10),
+  ]
+
+  it("detects the two-sided high and low pivots", () => {
+    const { highPivots, lowPivots } = computeSwings(candles, 2)
+    expect(highPivots).toEqual([{ index: 2, value: 20 }])
+    expect(lowPivots).toEqual([{ index: 4, value: 5 }])
+  })
+
+  it("holds each confirmed pivot forward, with no look-ahead", () => {
+    const { swingHigh, swingLow } = computeSwings(candles, 2)
+    // High pivot at idx2 is confirmed lookback (2) bars later, at idx4.
+    expect(Number.isNaN(swingHigh[3])).toBe(true)
+    expect(swingHigh[4]).toBe(20)
+    expect(swingHigh[7]).toBe(20)
+    // Low pivot at idx4 is confirmed at idx6.
+    expect(Number.isNaN(swingLow[5])).toBe(true)
+    expect(swingLow[6]).toBe(5)
+    expect(swingLow[7]).toBe(5)
   })
 })

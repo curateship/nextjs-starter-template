@@ -53,6 +53,10 @@ export type BacktestListItem = {
   network: string
   interval: string
   status: "pending" | "running" | "done" | "error"
+  /** Triage workflow state (group-level). */
+  reviewStatus: "review" | "archived"
+  /** Pinned to the top of the run list (group-level). */
+  pinned: boolean
   error: string | null
   startTime: string
   endTime: string
@@ -528,12 +532,39 @@ const deleteBacktestsFn = createServerFn({ method: "POST" })
     return { deleted }
   })
 
+const updateRunStatusSchema = z
+  .object({
+    groupIds: z.array(z.string().min(1)).min(1).max(500),
+    reviewStatus: z.enum(["review", "archived"]).optional(),
+    pinned: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.reviewStatus === undefined && data.pinned === undefined) {
+      ctx.addIssue({ code: "custom", message: "Nothing to update." })
+    }
+  })
+
+const updateRunStatusFn = createServerFn({ method: "POST" })
+  .inputValidator(updateRunStatusSchema)
+  .handler(async ({ data }): Promise<{ updated: number }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { setUserBacktestStatus } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+    const updated = await setUserBacktestStatus(user.id, data)
+    return { updated }
+  })
+
 export function runBacktest(input: z.input<typeof runBacktestSchema>) {
   return runBacktestFn({ data: input })
 }
 
 export function deleteBacktests(input: z.input<typeof deleteBacktestsSchema>) {
   return deleteBacktestsFn({ data: input })
+}
+
+export function updateRunStatus(input: z.input<typeof updateRunStatusSchema>) {
+  return updateRunStatusFn({ data: input })
 }
 
 /** Full run config (ParamValues seeds + run settings); shared by defaults + templates. */
@@ -652,6 +683,8 @@ type ListRow = {
   network: string
   interval: string
   status: string
+  reviewStatus: string
+  pinned: boolean
   error: string | null
   startTime: Date
   endTime: Date
@@ -676,6 +709,8 @@ function serializeListItem(row: ListRow): BacktestListItem {
     network: row.network,
     interval: row.interval,
     status: row.status as BacktestListItem["status"],
+    reviewStatus: row.reviewStatus as BacktestListItem["reviewStatus"],
+    pinned: row.pinned,
     error: row.error,
     startTime: row.startTime.toISOString(),
     endTime: row.endTime.toISOString(),

@@ -130,6 +130,12 @@ export const qqeParamsSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Must be a #rrggbb hex color")
     .optional(),
+  /** Paint the previous swing high/low (trailing-pivot structure). */
+  paintSwings: z.boolean(),
+  /** Trailing window (bars) a bar must top/bottom to count as a swing pivot. */
+  swingLookback: z.number().int().min(2).max(400),
+  /** Exit at the swing low (long) / swing high (short) instead of stopLossPct. */
+  swingStopLoss: z.boolean(),
   orderSizeUsd: z.number().positive(),
   takeProfitPct: z.number().positive().max(100).optional(),
   stopLossPct: z.number().positive().max(100).optional(),

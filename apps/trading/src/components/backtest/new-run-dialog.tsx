@@ -1,7 +1,22 @@
 import * as React from "react"
-import { ArrowRightIcon, Loader2Icon } from "lucide-react"
+import { useRouter } from "@tanstack/react-router"
+import {
+  ArrowRightIcon,
+  ChevronDownIcon,
+  Loader2Icon,
+  PinIcon,
+} from "lucide-react"
 
 import { AdditionalMarketsField } from "@/components/backtest/additional-markets-field"
+import { RunStatusMenuItems } from "@/components/backtest/run-status-menu"
+import {
+  FeeLabel,
+  StrategyParamCards,
+  feeCostTip,
+  feePctTip,
+  orderSizeFromValues,
+} from "@/components/backtest/run-config-fields"
+import { pctToBps } from "@/components/backtest/template-config"
 import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
 import {
   buildParams,
@@ -28,10 +43,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type {
-  StrategyDefaultsMap,
-  StrategyRunDefaults,
-  StrategyTemplate,
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import {
+  updateRunStatus,
+  type StrategyDefaultsMap,
+  type StrategyRunDefaults,
+  type StrategyTemplate,
 } from "@/lib/api/backtests"
 import { useShellRuntime } from "@/components/shell-layout"
 import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
@@ -75,6 +97,7 @@ export function NewRunDialog({
   templates,
   initial,
   lockStrategy = false,
+  statusTarget,
   title = "New Backtest Run",
   description = "Name the run, pick a strategy and markets, then set its parameters. Continue to fine-tune price levels on the chart before running.",
   submitLabel = "Continue",
@@ -94,6 +117,12 @@ export function NewRunDialog({
   initial?: RunDraft
   /** Edit mode: a run group's strategy can't change on re-run. */
   lockStrategy?: boolean
+  /** Edit mode: enables an inline triage-status control for this run group. */
+  statusTarget?: {
+    groupId: string
+    reviewStatus: "review" | "archived"
+    pinned: boolean
+  }
   title?: string
   description?: string
   submitLabel?: string
@@ -163,12 +192,36 @@ export function NewRunDialog({
       ? { ...seedParams, interval: initialInterval }
       : seedParams
   })
+  // Optional blended fee %; when non-empty it overrides taker + maker bps.
+  const [feePct, setFeePct] = React.useState(
+    initialSeed.feePct != null ? String(initialSeed.feePct) : ""
+  )
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Optimistic triage state for the edit-mode status control.
+  const router = useRouter()
+  const [runStatus, setRunStatus] = React.useState(statusTarget)
+
+  async function changeStatus(patch: {
+    reviewStatus?: "review" | "archived"
+    pinned?: boolean
+  }) {
+    if (!runStatus) return
+    setRunStatus({ ...runStatus, ...patch })
+    await updateRunStatus({ groupIds: [runStatus.groupId], ...patch })
+    await router.invalidate()
+  }
 
   const midOf = (coin: string) =>
     Number(markets.find((row) => row.coin === coin)?.markPx ?? 0)
   const mid = midOf(market)
+
+  const orderSizeUsd = orderSizeFromValues(params)
+  const feeOverride = feePct.trim() !== ""
+  const blendedBps =
+    feeOverride && Number.isFinite(Number(feePct))
+      ? String(pctToBps(Number(feePct)))
+      : ""
 
   const [templateId, setTemplateId] = React.useState<string>("__default__")
   const strategyTemplates = (templates ?? []).filter(
@@ -187,6 +240,7 @@ export function NewRunDialog({
     if (seed.takerFeeBps !== undefined) setTaker(String(seed.takerFeeBps))
     if (seed.makerFeeBps !== undefined) setMaker(String(seed.makerFeeBps))
     if (seed.slippageBps !== undefined) setSlippage(String(seed.slippageBps))
+    setFeePct(seed.feePct != null ? String(seed.feePct) : "")
     if (INTERVAL_STRATEGIES.includes(next)) {
       setParams({ ...seed.params, interval: nextInterval })
     } else if (
@@ -268,8 +322,8 @@ export function NewRunDialog({
     }
     const equityNum = Number(equity)
     const windowNum = Number(windowDays)
-    const takerNum = Number(taker)
-    const makerNum = Number(maker)
+    let takerNum = Number(taker)
+    let makerNum = Number(maker)
     const slipNum = Number(slippage)
     const maxWindow = maxWindowDays(interval, maxCandles)
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
@@ -278,7 +332,18 @@ export function NewRunDialog({
         `Date range for ${interval} must be between 1 and ${maxWindow} days (max ${maxCandles} candles — change in Settings).`
       )
     }
-    if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
+    // A blended fee % overrides the individual taker/maker bps.
+    if (feeOverride) {
+      const p = Number(feePct)
+      if (!(p >= 0 && p <= 0.5)) {
+        return setError("Fee % must be between 0 and 0.5% (0–50 bps).")
+      }
+      takerNum = pctToBps(p)
+      makerNum = pctToBps(p)
+    } else if (
+      !(takerNum >= 0 && takerNum <= 50) ||
+      !(makerNum >= 0 && makerNum <= 50)
+    ) {
       return setError("Fees must be between 0 and 50 bps.")
     }
     if (!(slipNum >= 0 && slipNum <= 100)) {
@@ -324,6 +389,7 @@ export function NewRunDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-5 overflow-y-auto">
+          <TooltipProvider>
           <div className="grid gap-2">
             <Label htmlFor="run-name">
               Run name{" "}
@@ -337,6 +403,30 @@ export function NewRunDialog({
               onChange={(event) => setName(event.target.value)}
             />
           </div>
+
+          {runStatus ? (
+            <div className="grid gap-2">
+              <Label>Status</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 w-fit justify-between gap-2 capitalize"
+                  >
+                    {runStatus.pinned ? <PinIcon className="size-4" /> : null}
+                    {runStatus.reviewStatus}
+                    <ChevronDownIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <RunStatusMenuItems
+                    onApply={(patch) => void changeStatus(patch)}
+                  />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
 
           <div className="grid gap-2">
             <Label>Strategy</Label>
@@ -380,124 +470,161 @@ export function NewRunDialog({
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Market</Label>
-              <Select value={market} onValueChange={selectMarket}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(markets.length > 0 ? markets.map((row) => row.coin) : [market]).map(
-                    (coin) => (
+          <div className="grid gap-3 rounded-lg border p-4">
+            <Label>General settings</Label>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-2">
+                <Label>Market</Label>
+                <Select value={market} onValueChange={selectMarket}>
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(markets.length > 0
+                      ? markets.map((row) => row.coin)
+                      : [market]
+                    ).map((coin) => (
                       <SelectItem key={coin} value={coin}>
                         {coin}
                       </SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Timeframe</Label>
+                <Select
+                  value={interval}
+                  onValueChange={(value) => selectTimeframe(value as CandleInterval)}
+                >
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CANDLE_INTERVALS.map((tf) => (
+                      <SelectItem key={tf} value={tf}>
+                        {tf}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="run-window">
+                  Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
+                </Label>
+                <Input
+                  id="run-window"
+                  className="h-8"
+                  value={windowDays}
+                  inputMode="numeric"
+                  onChange={(event) => setWindowDays(event.target.value.trim())}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="run-equity">Starting equity (USD)</Label>
+                <Input
+                  id="run-equity"
+                  className="h-8"
+                  value={equity}
+                  inputMode="decimal"
+                  onChange={(event) => setEquity(event.target.value.trim())}
+                />
+              </div>
+              <div className="grid gap-2">
+                <FeeLabel
+                  text="Slippage (bps, taker fills)"
+                  tip={feeCostTip(slippage, orderSizeUsd)}
+                />
+                <Input
+                  className="h-8"
+                  value={slippage}
+                  inputMode="decimal"
+                  onChange={(event) => setSlippage(event.target.value.trim())}
+                />
+              </div>
+              <div className="grid gap-2">
+                <FeeLabel
+                  text="Taker fee (bps)"
+                  tip={
+                    feeOverride
+                      ? "Overridden by the blended Fee %."
+                      : feeCostTip(taker, orderSizeUsd)
+                  }
+                />
+                <Input
+                  className="h-8"
+                  value={feeOverride ? blendedBps : taker}
+                  inputMode="decimal"
+                  disabled={feeOverride}
+                  onChange={(event) => setTaker(event.target.value.trim())}
+                />
+              </div>
+              <div className="grid gap-2">
+                <FeeLabel
+                  text="Maker fee (bps)"
+                  tip={
+                    feeOverride
+                      ? "Overridden by the blended Fee %."
+                      : feeCostTip(maker, orderSizeUsd)
+                  }
+                />
+                <Input
+                  className="h-8"
+                  value={feeOverride ? blendedBps : maker}
+                  inputMode="decimal"
+                  disabled={feeOverride}
+                  onChange={(event) => setMaker(event.target.value.trim())}
+                />
+              </div>
+              <div className="grid gap-2">
+                <FeeLabel
+                  text="Fee % (optional)"
+                  tip={feePctTip(feePct, orderSizeUsd)}
+                />
+                <Input
+                  className="h-8"
+                  value={feePct}
+                  inputMode="decimal"
+                  placeholder="e.g. 0.045"
+                  onChange={(event) => setFeePct(event.target.value.trim())}
+                />
+              </div>
+              {strategy === "qqe" ? (
+                <StrategyParamFields
+                  strategy={strategy}
+                  values={params}
+                  disabled={false}
+                  mid={mid}
+                  section="size"
+                  onChange={changeParam}
+                />
+              ) : null}
             </div>
-            <div className="grid gap-2">
-              <Label>Timeframe</Label>
-              <Select
-                value={interval}
-                onValueChange={(value) => selectTimeframe(value as CandleInterval)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CANDLE_INTERVALS.map((tf) => (
-                    <SelectItem key={tf} value={tf}>
-                      {tf}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <AdditionalMarketsField
+              market={market}
+              extraMarkets={extraMarkets}
+              markets={markets}
+              isGrid={strategy === "grid"}
+              hint="The same config also runs on each additional market — a strategy that only works on one market is usually curve-fit."
+              onChange={setExtraMarkets}
+            />
           </div>
 
-          <AdditionalMarketsField
-            market={market}
-            extraMarkets={extraMarkets}
-            markets={markets}
-            isGrid={strategy === "grid"}
-            hint="The same config also runs on each additional market — a strategy that only works on one market is usually curve-fit."
-            onChange={setExtraMarkets}
+          <StrategyParamCards
+            strategy={strategy}
+            values={params}
+            disabled={false}
+            mid={mid}
+            onChange={changeParam}
           />
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="run-window">
-                Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
-              </Label>
-              <Input
-                id="run-window"
-                value={windowDays}
-                inputMode="numeric"
-                onChange={(event) => setWindowDays(event.target.value.trim())}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="run-equity">Starting equity (USD)</Label>
-              <Input
-                id="run-equity"
-                value={equity}
-                inputMode="decimal"
-                onChange={(event) => setEquity(event.target.value.trim())}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="run-taker">Taker fee (bps)</Label>
-              <Input
-                id="run-taker"
-                value={taker}
-                inputMode="decimal"
-                onChange={(event) => setTaker(event.target.value.trim())}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="run-maker">Maker fee (bps)</Label>
-              <Input
-                id="run-maker"
-                value={maker}
-                inputMode="decimal"
-                onChange={(event) => setMaker(event.target.value.trim())}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="run-slippage">Slippage (bps)</Label>
-              <Input
-                id="run-slippage"
-                value={slippage}
-                inputMode="decimal"
-                onChange={(event) => setSlippage(event.target.value.trim())}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label>{STRATEGY_LABELS[strategy]} parameters</Label>
-            <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
-              <StrategyParamFields
-                strategy={strategy}
-                values={params}
-                disabled={false}
-                mid={mid}
-                onChange={changeParam}
-              />
-            </div>
-          </div>
 
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </div>
           ) : null}
+          </TooltipProvider>
         </DialogBody>
         <DialogFooter>
           <Button
