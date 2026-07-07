@@ -9,6 +9,21 @@ import {
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Pins a `<TableHeader>` to the top of a scroll container with a light-gray
+ * fill. Pair with {@link STICKY_SCROLL_OVERRIDES} on the enclosing ScrollArea.
+ */
+export const STICKY_TABLE_HEADER =
+  "sticky top-0 z-20 bg-[#fcfcfc] dark:bg-neutral-900 [&_tr]:border-b [&_th]:bg-[#fcfcfc] dark:[&_th]:bg-neutral-900"
+
+/**
+ * ScrollArea class overrides that let a sticky `<TableHeader>` pin to the
+ * scroll viewport: neutralize Radix's `display:table` content wrapper and the
+ * Table's own `overflow-x` container so neither intercepts the sticky context.
+ */
+export const STICKY_SCROLL_OVERRIDES =
+  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=table-container]]:overflow-visible"
+
 type TableHeadProps = React.ComponentProps<"th"> & {
   column?: "main" | "meta" | "preview" | "select"
 }

@@ -5,6 +5,8 @@ import { formatPriceDisplay } from "@/components/trading/format"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  STICKY_SCROLL_OVERRIDES,
+  STICKY_TABLE_HEADER,
   Table,
   TableBody,
   TableCell,
@@ -56,9 +58,9 @@ export function PaperPositionsTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Market</TableHead>
             <TableHead>Size</TableHead>
@@ -151,9 +153,9 @@ export function PaperOpenOrdersTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Time</TableHead>
             <TableHead>Market</TableHead>
@@ -221,9 +223,9 @@ export function PaperFillsTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Time</TableHead>
             <TableHead>Market</TableHead>

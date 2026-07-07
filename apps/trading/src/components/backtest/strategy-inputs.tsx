@@ -5,6 +5,7 @@ import type { ParamValues } from "@/components/bots/strategy-params-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
 /**
@@ -79,7 +80,8 @@ export function StrategyInputs({
           </button>
         ) : null}
       </div>
-      <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="grid content-start gap-3 p-3">
         <div className="grid gap-2">
           <Label className="text-xs">
             Date range (days back, 1–{maxWindowDays})
@@ -139,7 +141,8 @@ export function StrategyInputs({
           mid={mid}
           onChange={onChange}
         />
-      </div>
+        </div>
+      </ScrollArea>
     </div>
   )
 }

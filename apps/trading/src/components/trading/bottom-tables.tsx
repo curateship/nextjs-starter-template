@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  STICKY_SCROLL_OVERRIDES,
+  STICKY_TABLE_HEADER,
   Table,
   TableBody,
   TableCell,
@@ -90,9 +92,9 @@ export function PositionsTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Market</TableHead>
             <TableHead>Size</TableHead>
@@ -267,9 +269,9 @@ export function OpenOrdersTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Time</TableHead>
             <TableHead>Market</TableHead>
@@ -391,9 +393,9 @@ export function FillsTable({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
       <Table>
-        <TableHeader>
+        <TableHeader className={STICKY_TABLE_HEADER}>
           <TableRow>
             <TableHead>Time</TableHead>
             <TableHead>Market</TableHead>

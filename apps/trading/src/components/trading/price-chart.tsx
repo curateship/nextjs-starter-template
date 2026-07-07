@@ -40,6 +40,25 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
+/** Pulsing pointer that locates a focused trade's entry/exit on the chart. */
+const FOCUS_COLOR = "#2962ff"
+/** Stable default so the pointer effect doesn't re-run for unfocused charts. */
+const EMPTY_FOCUS_POINTS: ChartFocusPoint[] = []
+
+// lightweight-charts sizes fill-arrow markers from bar spacing with these
+// rounding rules; we mirror them so a focus ring centers on the arrow at any
+// zoom. See its series-markers geometry.
+const ceiledOdd = (x: number) => {
+  const c = Math.ceil(x)
+  return c % 2 === 0 ? c - 1 : c
+}
+const ceiledEven = (x: number) => {
+  const c = Math.ceil(x)
+  return c % 2 !== 0 ? c - 1 : c
+}
+/** Half an arrow marker's height for a given bar spacing (its offset off the bar). */
+const halfArrowHeight = (barSpacing: number) =>
+  ceiledEven(ceiledOdd(Math.min(Math.max(barSpacing, 12), 30))) / 2
 // MACD histogram polarity (theme-independent, like volume).
 const MACD_UP = "rgba(8, 153, 129, 0.5)"
 const MACD_DOWN = "rgba(242, 54, 69, 0.5)"
@@ -62,6 +81,15 @@ export type ChartMarker = {
   time: number
   side: "buy" | "sell"
   text?: string
+}
+
+/** A fill pulsed on the chart to locate a focused trade among the arrows. */
+export type ChartFocusPoint = {
+  /** Fill time, ms epoch — aligns with the trade's buy/sell arrow. */
+  time: number
+  /** Matches the arrow at this fill: buys sit below the bar, sells above. */
+  side: "buy" | "sell"
+  label: string
 }
 
 /**
@@ -142,7 +170,7 @@ export function PriceChartView({
   zones = [],
   barColors = [],
   visibleStartMs,
-  focusRange = null,
+  focusPoints = EMPTY_FOCUS_POINTS,
   onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
@@ -167,8 +195,8 @@ export function PriceChartView({
   barColors?: ChartBarColor[]
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
-  /** Zoom to this window (ms); clearing it restores the default view. */
-  focusRange?: { fromMs: number; toMs: number } | null
+  /** Points pulsed on the chart to locate a focused trade among the arrows. */
+  focusPoints?: ChartFocusPoint[]
   /** Crosshair candle readout; null when the cursor leaves the chart. */
   onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
@@ -214,6 +242,9 @@ export function PriceChartView({
   const zoneSeriesRef = React.useRef<ISeriesApi<"Baseline">[]>([])
   const lastBarColorsRef = React.useRef<ChartBarColor[]>([])
   const [ready, setReady] = React.useState(false)
+  const [focusPixels, setFocusPixels] = React.useState<
+    { x: number; y: number; label: string; placement: "above" | "below" }[]
+  >([])
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
   const measuringRef = React.useRef<{
     startX: number
@@ -577,30 +608,71 @@ export function PriceChartView({
     lastTimeRef.current = last.t
   }, [ready, candles, dataKey, visibleStartMs, barColors])
 
-  // Zoom to a focused window (e.g. a selected backtest trade); clearing the
-  // focus restores the default view for the loaded data.
-  const hadFocusRef = React.useRef(false)
+  // Pan (without changing zoom) so a newly focused trade's pulsing pointer is
+  // centered in view — the user's current zoom level is preserved.
   React.useEffect(() => {
     const chart = chartRef.current
-    if (!ready || !chart || lastTimeRef.current === 0) return
+    if (!ready || !chart || lastTimeRef.current === 0 || focusPoints.length === 0)
+      return
     const timeScale = chart.timeScale()
-    if (focusRange) {
-      timeScale.setVisibleRange({
-        from: (focusRange.fromMs / 1000) as UTCTimestamp,
-        to: (focusRange.toMs / 1000) as UTCTimestamp,
-      })
-    } else if (hadFocusRef.current) {
-      if (visibleStartMs && visibleStartMs < lastTimeRef.current) {
-        timeScale.setVisibleRange({
-          from: (visibleStartMs / 1000) as UTCTimestamp,
-          to: (lastTimeRef.current / 1000) as UTCTimestamp,
-        })
-      } else {
-        timeScale.fitContent()
-      }
+    const visible = timeScale.getVisibleRange()
+    if (!visible) return
+    const width = (visible.to as number) - (visible.from as number)
+    const times = focusPoints.map((point) => point.time / 1000)
+    const center = (Math.min(...times) + Math.max(...times)) / 2
+    timeScale.setVisibleRange({
+      from: (center - width / 2) as UTCTimestamp,
+      to: (center + width / 2) as UTCTimestamp,
+    })
+  }, [ready, focusPoints])
+
+  // Track the pixel position of each focus point so the pulsing pointer stays
+  // pinned to it as the user pans, zooms, or the pane resizes.
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const series = candleSeriesRef.current
+    if (!ready || !chart || !series || focusPoints.length === 0) {
+      setFocusPixels([])
+      return
     }
-    hadFocusRef.current = Boolean(focusRange)
-  }, [ready, focusRange, visibleStartMs])
+    const timeScale = chart.timeScale()
+    const recompute = () => {
+      // Center the ring on the fill's arrow: buys draw below the bar, sells
+      // above, each offset from the bar extreme by half the arrow height.
+      const halfArrow = halfArrowHeight(timeScale.options().barSpacing)
+      const next: {
+        x: number
+        y: number
+        label: string
+        placement: "above" | "below"
+      }[] = []
+      for (const point of focusPoints) {
+        const sec = Math.floor(point.time / 1000)
+        const x = timeScale.timeToCoordinate(sec as UTCTimestamp)
+        const candle = candleByTimeRef.current.get(sec)
+        if (x == null || !candle) continue
+        const below = point.side === "buy"
+        const anchorPrice = Number(below ? candle.l : candle.h)
+        const anchorY = series.priceToCoordinate(anchorPrice)
+        if (anchorY == null) continue
+        next.push({
+          x,
+          y: below ? anchorY + halfArrow : anchorY - halfArrow,
+          label: point.label,
+          placement: below ? "below" : "above",
+        })
+      }
+      setFocusPixels(next)
+    }
+    recompute()
+    timeScale.subscribeVisibleTimeRangeChange(recompute)
+    const observer = new ResizeObserver(recompute)
+    if (containerRef.current) observer.observe(containerRef.current)
+    return () => {
+      timeScale.unsubscribeVisibleTimeRangeChange(recompute)
+      observer.disconnect()
+    }
+  }, [ready, focusPoints])
 
   // Reconcile indicator series with the config: full rebuild on change so
   // oscillator sub-pane indices stay dense as they are toggled on/off.
@@ -983,6 +1055,35 @@ export function PriceChartView({
               {measurement.bars} bars · {measurement.daysText}
             </div>
           </div>
+        </div>
+      ) : null}
+      {focusPixels.length > 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+          {focusPixels.map((point) => (
+            <div
+              key={point.label}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: point.x, top: point.y }}
+            >
+              {/* Hollow pulsing rings encircle the fill's arrow without hiding it. */}
+              <span
+                className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border-2"
+                style={{ borderColor: FOCUS_COLOR }}
+              />
+              <span
+                className="absolute left-1/2 top-1/2 block h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
+                style={{ borderColor: FOCUS_COLOR }}
+              />
+              <span
+                className={`absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow ${
+                  point.placement === "below" ? "top-full mt-1" : "bottom-full mb-1"
+                }`}
+                style={{ backgroundColor: FOCUS_COLOR }}
+              >
+                {point.label}
+              </span>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
