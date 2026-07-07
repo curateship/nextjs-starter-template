@@ -13,6 +13,11 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts"
 
+import {
+  buildChartStrategyOverlays,
+  EMPTY_STRATEGY_OVERLAYS,
+  type ChartStrategyState,
+} from "@/components/trading/chart-strategy"
 import { useShellRuntime } from "@/components/shell-layout"
 import { useCandles } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
@@ -1100,6 +1105,7 @@ export function PriceChart({
   priceLines = [],
   markers = [],
   indicators = [],
+  chartStrategy,
   onLineDragEnd,
   onChartContextMenu,
 }: {
@@ -1111,6 +1117,8 @@ export function PriceChart({
   markers?: ChartMarker[]
   /** Technical-indicator overlays and oscillator sub-panes. */
   indicators?: IndicatorConfig[]
+  /** When set, paints the selected strategy's signals/overlays over the chart. */
+  chartStrategy?: ChartStrategyState | null
   /** Fired when a draggable price line is dropped at a new price. */
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired on right-click with the price under the cursor. */
@@ -1119,15 +1127,26 @@ export function PriceChart({
   const maxCandles = useShellRuntime().config.maxCandles
   const { candles, loading } = useCandles(network, coin, interval, maxCandles)
 
+  const strategy = React.useMemo(
+    () =>
+      chartStrategy
+        ? buildChartStrategyOverlays(candles, chartStrategy)
+        : EMPTY_STRATEGY_OVERLAYS,
+    [candles, chartStrategy]
+  )
+
   return (
     <PriceChartView
       candles={candles}
       loading={loading}
       coin={coin}
       dataKey={`${network}:${coin}:${interval}`}
-      priceLines={priceLines}
-      markers={markers}
-      indicators={indicators}
+      priceLines={[...priceLines, ...strategy.priceLines]}
+      markers={[...markers, ...strategy.markers]}
+      indicators={[...indicators, ...strategy.indicators]}
+      overlayLines={strategy.overlayLines}
+      zones={strategy.zones}
+      barColors={strategy.barColors}
       onLineDragEnd={onLineDragEnd}
       onChartContextMenu={onChartContextMenu}
     />

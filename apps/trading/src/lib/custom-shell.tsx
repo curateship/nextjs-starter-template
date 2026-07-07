@@ -255,6 +255,8 @@ export type ShellConfig = {
   dashboardRowsPerPage: number
   /** Candles loaded per trading chart, and the backtest window ceiling. */
   maxCandles: number
+  /** Route the /admin URL loads; empty = the default overview at the home route. */
+  adminRoute: string
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -278,6 +280,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     maxCandles: DEFAULT_MAX_CANDLES,
+    adminRoute: "",
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

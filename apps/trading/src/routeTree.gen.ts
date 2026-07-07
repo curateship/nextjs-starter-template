@@ -21,6 +21,7 @@ import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
 import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedScannerWhaleTradesRouteImport } from './routes/_authenticated/scanner/whale-trades'
 import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_authenticated/scanner/positions'
 import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_authenticated/scanner/leaderboard'
@@ -102,6 +103,11 @@ const AuthenticatedBacktestIndexRoute =
     path: '/backtest/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedScannerWhaleTradesRoute =
   AuthenticatedScannerWhaleTradesRouteImport.update({
     id: '/scanner/whale-trades',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/backtest/': typeof AuthenticatedBacktestIndexRoute
   '/bots/': typeof AuthenticatedBotsIndexRoute
   '/scanner/': typeof AuthenticatedScannerIndexRoute
@@ -265,6 +272,7 @@ export interface FileRoutesByTo {
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/backtest': typeof AuthenticatedBacktestIndexRoute
   '/bots': typeof AuthenticatedBotsIndexRoute
   '/scanner': typeof AuthenticatedScannerIndexRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/_authenticated/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
   '/_authenticated/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/_authenticated/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/backtest/': typeof AuthenticatedBacktestIndexRoute
   '/_authenticated/bots/': typeof AuthenticatedBotsIndexRoute
   '/_authenticated/scanner/': typeof AuthenticatedScannerIndexRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/scanner/leaderboard'
     | '/scanner/positions'
     | '/scanner/whale-trades'
+    | '/admin/'
     | '/backtest/'
     | '/bots/'
     | '/scanner/'
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/scanner/leaderboard'
     | '/scanner/positions'
     | '/scanner/whale-trades'
+    | '/admin'
     | '/backtest'
     | '/bots'
     | '/scanner'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scanner/leaderboard'
     | '/_authenticated/scanner/positions'
     | '/_authenticated/scanner/whale-trades'
+    | '/_authenticated/admin/'
     | '/_authenticated/backtest/'
     | '/_authenticated/bots/'
     | '/_authenticated/scanner/'
@@ -499,6 +511,13 @@ declare module '@tanstack/react-router' {
       path: '/backtest'
       fullPath: '/backtest/'
       preLoaderRoute: typeof AuthenticatedBacktestIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scanner/whale-trades': {
@@ -703,6 +722,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedScannerLeaderboardRoute: typeof AuthenticatedScannerLeaderboardRoute
   AuthenticatedScannerPositionsRoute: typeof AuthenticatedScannerPositionsRoute
   AuthenticatedScannerWhaleTradesRoute: typeof AuthenticatedScannerWhaleTradesRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedBacktestIndexRoute: typeof AuthenticatedBacktestIndexRoute
   AuthenticatedBotsIndexRoute: typeof AuthenticatedBotsIndexRoute
   AuthenticatedScannerIndexRoute: typeof AuthenticatedScannerIndexRoute
@@ -731,6 +751,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedScannerLeaderboardRoute: AuthenticatedScannerLeaderboardRoute,
   AuthenticatedScannerPositionsRoute: AuthenticatedScannerPositionsRoute,
   AuthenticatedScannerWhaleTradesRoute: AuthenticatedScannerWhaleTradesRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedBacktestIndexRoute: AuthenticatedBacktestIndexRoute,
   AuthenticatedBotsIndexRoute: AuthenticatedBotsIndexRoute,
   AuthenticatedScannerIndexRoute: AuthenticatedScannerIndexRoute,
