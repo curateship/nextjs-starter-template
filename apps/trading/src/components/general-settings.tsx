@@ -24,6 +24,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import { MAX_CANDLES_LIMIT, MIN_CANDLES } from "@/lib/backtest/types"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -106,6 +107,34 @@ export function GeneralSettings({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="max-candles">Max chart candles</Label>
+            <Input
+              id="max-candles"
+              type="number"
+              inputMode="numeric"
+              min={MIN_CANDLES}
+              max={MAX_CANDLES_LIMIT}
+              className="w-32"
+              value={config.maxCandles}
+              disabled={isSaving}
+              onChange={(event) => {
+                const next = Number(event.target.value)
+                onConfigChange({
+                  ...config,
+                  maxCandles: Number.isFinite(next)
+                    ? next
+                    : config.maxCandles,
+                })
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Candles loaded per trading chart, and the per-timeframe ceiling
+              for backtest runs ({MIN_CANDLES}–{MAX_CANDLES_LIMIT}). Lower it to
+              speed up charts and runs.
+            </p>
           </div>
 
           <div className="grid gap-2">

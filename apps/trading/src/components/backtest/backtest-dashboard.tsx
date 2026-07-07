@@ -7,6 +7,7 @@ import {
   paramsToValues,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
+import { useShellRuntime } from "@/components/shell-layout"
 import {
   PriceChartView,
   type ChartCandle,
@@ -22,14 +23,17 @@ import {
   loadChartCandles,
   runBacktest,
   type BacktestDetail,
+  type BacktestGroupRun,
   type BacktestListItem,
   type StrategyDefaultsMap,
 } from "@/lib/api/backtests"
 import {
   DEFAULT_BACKTEST_COSTS,
+  maxWindowDays,
   type BacktestResult,
+  type BacktestTrade,
 } from "@/lib/backtest/types"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   DEFAULT_RISK_PARAMS,
@@ -98,6 +102,7 @@ export function BacktestDashboard({
 }) {
   const markets = useMarketRows("mainnet")
   const router = useRouter()
+  const maxCandles = useShellRuntime().config.maxCandles
 
   // Chart config — the source of truth for what the chart shows. The route
   // keys this component by run/draft, so mount-time seeding is enough.
@@ -126,22 +131,46 @@ export function BacktestDashboard({
   const [runState, setRunState] = React.useState<{
     id: string
     detail: BacktestDetail | null
-  }>({ id: "", detail: null })
+    groupRuns: BacktestGroupRun[]
+  }>({ id: "", detail: null, groupRuns: [] })
   const [chartState, setChartState] = React.useState<{
     key: string
     candles: HistoryCandle[]
     simStartMs: number
   }>({ key: "", candles: EMPTY_CANDLES, simStartMs: 0 })
   const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
+  /** Trade clicked in the List of Trades — the chart zooms to its window. */
+  const [focusedTrade, setFocusedTrade] = React.useState<BacktestTrade | null>(
+    null
+  )
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   const run = runId && runState.id === runId ? runState.detail : null
+  const groupRuns = runId && runState.id === runId ? runState.groupRuns : []
   const result: BacktestResult | null =
     run?.status === "done" ? (run.result ?? null) : null
+  // A loaded run is immutable — its config rail is read-only. Editing only
+  // happens in draft mode, before the first (and only) execution.
+  const readOnly = Boolean(run)
 
-  const windowNum = clampWindow(windowDays)
+  // A different result invalidates the selection (trade numbers restart at 1).
+  React.useEffect(() => setFocusedTrade(null), [result])
+
+  const focusRange = React.useMemo(() => {
+    if (!focusedTrade) return null
+    const pad = Math.max(
+      (focusedTrade.exitTime - focusedTrade.entryTime) * 0.4,
+      candleIntervalMs(interval) * 10
+    )
+    return {
+      fromMs: focusedTrade.entryTime - pad,
+      toMs: focusedTrade.exitTime + pad,
+    }
+  }, [focusedTrade, interval])
+
+  const windowNum = clampWindow(windowDays, interval, maxCandles)
   const debouncedWindow = useDebouncedValue(windowNum, WINDOW_DEBOUNCE_MS)
 
   // Run mode only while the loaded run still matches the chart config. The
@@ -225,7 +254,11 @@ export function BacktestDashboard({
       try {
         const res = await loadBacktest(runId)
         if (cancelled || !res.backtest) return
-        setRunState({ id: runId, detail: res.backtest })
+        setRunState({
+          id: runId,
+          detail: res.backtest,
+          groupRuns: res.groupRuns,
+        })
         // Sync the config rail to the run. Runs once per mount — the route
         // keys this component by run id, so a run change remounts it.
         hydrate(res.backtest)
@@ -243,13 +276,15 @@ export function BacktestDashboard({
     onRunIdChange(id)
   }
 
-  /** Runs the draft's first execution, or re-runs the loaded run's config. */
+  /**
+   * Runs the draft across its market basket — one immutable result per market,
+   * all in one group. Runs never re-execute; a new config is a new run.
+   */
   async function execute() {
-    const strategyType = run?.strategyType ?? draft?.strategy
-    if (!strategyType) return
+    if (!draft || run) return
     setError(null)
     const parsed = strategyParamsSchema.safeParse(
-      buildParams(strategyType, params)
+      buildParams(draft.strategy, params)
     )
     if (!parsed.success) {
       setError(
@@ -268,8 +303,10 @@ export function BacktestDashboard({
     const makerNum = Number(maker)
     const slipNum = Number(slippage)
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
-    if (!(windowNum >= 1 && windowNum <= 90)) {
-      return setError("Date range must be between 1 and 90 days.")
+    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, maxCandles))) {
+      return setError(
+        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, maxCandles)} days (max ${maxCandles} candles — change in Settings).`
+      )
     }
     if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
       return setError("Fees must be between 0 and 50 bps.")
@@ -281,9 +318,9 @@ export function BacktestDashboard({
     setBusy(true)
     try {
       const res = await runBacktest({
-        name: run ? undefined : draft?.name,
-        rerunOf: run?.id,
+        name: draft.name,
         market,
+        extraMarkets: draft.extraMarkets,
         interval,
         windowDays: windowNum,
         startingEquity: equityNum,
@@ -291,11 +328,11 @@ export function BacktestDashboard({
         makerFeeBps: makerNum,
         slippageBps: slipNum,
         params: parsed.data,
-        riskParams: run?.riskParams ?? DEFAULT_RISK_PARAMS,
+        riskParams: DEFAULT_RISK_PARAMS,
       })
       onRunIdChange(res.backtestId)
       // Refresh the route loader so Recent and the drill-down tables see the
-      // new execution (search-only navigation doesn't re-run loaders).
+      // new run (search-only navigation doesn't re-run loaders).
       void router.invalidate()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Backtest failed")
@@ -347,11 +384,6 @@ export function BacktestDashboard({
   const markPrice =
     runMatchesConfig && candles.length ? candles[candles.length - 1].c : 0
 
-  const staleHint =
-    run && result && !runMatchesConfig
-      ? `Results from ${run.market} · ${run.interval} · ${windowDaysOf(run)}d — Re-run to update`
-      : null
-
   const lastCandle = candles.length ? candles[candles.length - 1] : null
   const readout = ohlc ?? lastCandle
 
@@ -364,19 +396,21 @@ export function BacktestDashboard({
         market={market}
         markets={markets}
         onMarketChange={setMarket}
+        marketReadOnly={readOnly}
+        groupRuns={groupRuns}
+        currentRunId={run?.id ?? null}
         markPrice={mid}
         dayChangePct={dayChangePct}
         runName={run?.name ?? draft?.name ?? (draft ? "New run" : null)}
         strategyLabel={strategyType ? STRATEGY_LABELS[strategyType] : null}
         isDraft={!run && Boolean(draft)}
         dateRangeText={describeWindow(windowNum)}
-        staleHint={staleHint}
         runs={initialRuns}
         onSelectRun={selectRun}
         onViewAll={onViewAll}
         onNewRun={() => setDialogOpen(true)}
         onRun={() => void execute()}
-        runAction={run ? "rerun" : draft ? "run" : null}
+        runAction={!run && draft ? "run" : null}
         running={busy}
       />
       {error || run?.status === "error" ? (
@@ -401,9 +435,11 @@ export function BacktestDashboard({
               <StrategyInputs
                 strategy={strategyType}
                 values={params}
-                disabled={busy}
+                disabled={busy || readOnly}
+                readOnly={readOnly}
                 mid={mid}
                 windowDays={windowDays}
+                maxWindowDays={maxWindowDays(interval, maxCandles)}
                 equity={equity}
                 onChange={(key, value) => {
                   setParams((current) => ({ ...current, [key]: value }))
@@ -419,10 +455,7 @@ export function BacktestDashboard({
                   else if (key === "maker") setMaker(value)
                   else setSlippage(value)
                 }}
-                onReset={() => {
-                  if (run) hydrate(run)
-                  else if (draft) setParams(draft.params)
-                }}
+                onReset={draft ? () => setParams(draft.params) : undefined}
                 onNewRun={() => setDialogOpen(true)}
               />
             </ResizablePanel>
@@ -435,6 +468,7 @@ export function BacktestDashboard({
                       <button
                         key={tf}
                         type="button"
+                        disabled={readOnly}
                         onClick={() => {
                           setTimeframe(tf)
                           if (strategyType === "momentum") {
@@ -442,7 +476,7 @@ export function BacktestDashboard({
                           }
                         }}
                         className={cn(
-                          "rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground",
+                          "rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50",
                           interval === tf && "bg-muted text-foreground"
                         )}
                       >
@@ -485,8 +519,9 @@ export function BacktestDashboard({
                     priceLines={overlays.priceLines}
                     markers={markers}
                     visibleStartMs={chartState.simStartMs || undefined}
+                    focusRange={focusRange}
                     onCrosshairOhlc={setOhlc}
-                    onLineDragEnd={handleLineDrag}
+                    onLineDragEnd={readOnly ? undefined : handleLineDrag}
                   />
                 </div>
               </div>
@@ -519,6 +554,8 @@ export function BacktestDashboard({
             result={result}
             startingEquity={Number(equity) || 0}
             markPrice={markPrice}
+            selectedTradeN={focusedTrade?.n ?? null}
+            onSelectTrade={setFocusedTrade}
           />
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -536,11 +573,15 @@ export function BacktestDashboard({
   )
 }
 
-/** Clamp the free-text window input to something fetchable. */
-function clampWindow(value: string): number {
+/** Clamp the free-text window input to what the interval + setting allow. */
+function clampWindow(
+  value: string,
+  interval: CandleInterval,
+  maxCandles: number
+): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 1) return 30
-  return Math.min(90, Math.round(parsed))
+  return Math.min(maxWindowDays(interval, maxCandles), Math.round(parsed))
 }
 
 /** "Jun 6 – Jul 6 · 30d" for the header date range. */

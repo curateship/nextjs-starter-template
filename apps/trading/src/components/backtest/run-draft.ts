@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { MAX_RUN_BARS } from "@/lib/backtest/types"
 import { CANDLE_INTERVALS } from "@/lib/hl/ws"
 
 /**
@@ -12,8 +13,10 @@ export const runDraftSchema = z.object({
   name: z.string().max(255).optional(),
   strategy: z.enum(["grid", "dca", "momentum"]),
   market: z.string().min(1).max(20),
+  /** Additional markets the config is also run on (one row per market). */
+  extraMarkets: z.array(z.string().min(1).max(20)).max(7).optional(),
   interval: z.enum(CANDLE_INTERVALS),
-  windowDays: z.number().int().min(1).max(90),
+  windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
   equity: z.number().positive(),
   takerFeeBps: z.number().min(0).max(50).optional(),
   makerFeeBps: z.number().min(0).max(50).optional(),

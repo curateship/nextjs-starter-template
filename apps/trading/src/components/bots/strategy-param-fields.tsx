@@ -187,7 +187,18 @@ export function StrategyParamFields({
           {values.signal === "breakout"
             ? text("breakoutLookback", "Breakout lookback (candles)")
             : null}
-          {text("trailingStopPct", "Trailing stop % (optional)")}
+          {select("stopMode", "Stop / exit", [
+            ["trailing", "Trailing stop %"],
+            ["base", "QFL base break"],
+          ])}
+          {(values.stopMode ?? "trailing") === "base" ? (
+            <>
+              {text("basePeriods", "Base periods (scan for low)")}
+              {text("pumpPeriods", "Pump periods (hold to confirm)")}
+            </>
+          ) : (
+            text("trailingStopPct", "Trailing stop % (optional)")
+          )}
           {text("orderSizeUsd", "Order size (USD)")}
           {select("direction", "Direction", [
             ["both", "Long & short"],

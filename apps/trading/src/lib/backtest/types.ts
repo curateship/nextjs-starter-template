@@ -110,3 +110,59 @@ export const DEFAULT_BACKTEST_COSTS: BacktestCosts = {
   makerFeeBps: 1.5,
   slippageBps: 0,
 }
+
+/** Candle intervals the backtest engine and history fetch support. */
+export const BACKTEST_INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
+export type BacktestInterval = (typeof BACKTEST_INTERVALS)[number]
+
+const INTERVAL_MS: Record<BacktestInterval, number> = {
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
+}
+
+/**
+ * Hyperliquid's candleSnapshot serves at most ~5000 candles per interval:
+ * recent-history retention for fine intervals (1h ≈ 7mo, 4h ≈ 2.3yr), and
+ * full history for daily (bounded instead by each coin's listing). Cap a run
+ * near that ceiling so the window can't ask for bars the API won't return.
+ * At the exact maximum, a momentum run's warmup is squeezed to near zero — a
+ * negligible cold-start over thousands of bars.
+ */
+export const MAX_RUN_BARS = 5000
+
+/**
+ * Largest lookback window, in whole days, worth requesting for an interval —
+ * so daily/4h can reach multi-year history while fine intervals stay within
+ * what the API retains. `maxBars` lets the user's configured candle ceiling
+ * (Settings → Max backtest candles) tighten this for speed; it defaults to,
+ * and is bounded by, the API's per-interval ceiling.
+ */
+export function maxWindowDays(
+  interval: BacktestInterval,
+  maxBars: number = MAX_RUN_BARS
+): number {
+  const bars = Math.min(MAX_RUN_BARS, Math.max(1, maxBars))
+  return Math.max(1, Math.floor((bars * INTERVAL_MS[interval]) / 86_400_000))
+}
+
+/**
+ * User-configurable candle ceiling bounds (Settings → Max chart candles).
+ * Applies everywhere candles are loaded: the count a live trading chart
+ * fetches, and the per-interval window ceiling for backtest runs.
+ * Lowering it speeds up charts and runs. Never exceeds the API's per-interval
+ * retention (MAX_RUN_BARS).
+ */
+export const MAX_CANDLES_LIMIT = MAX_RUN_BARS
+export const MIN_CANDLES = 50
+export const DEFAULT_MAX_CANDLES = MAX_CANDLES_LIMIT
+
+export function clampMaxCandles(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_MAX_CANDLES
+  }
+  return Math.min(MAX_CANDLES_LIMIT, Math.max(MIN_CANDLES, Math.round(value)))
+}

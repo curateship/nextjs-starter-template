@@ -290,6 +290,13 @@ class BacktestRunner {
     // Resolve the purpose onto the fill so strategy.onFill (e.g. DCA) can read it.
     fill.purpose = purpose
 
+    // Stamp fills/trades at the bar's OPEN time so their chart markers line up
+    // with the candles and indicator lines (both keyed by open time). The
+    // close step runs at candle.T (= the next candle's open time), which would
+    // otherwise push every signal marker one bar to the right of the cross.
+    // `this.now` stays the close time for daily-PnL/cooldown bookkeeping.
+    fill.time = this.candlesNum[this.currentIndex]?.t ?? fill.time
+
     this.fills.push({
       t: fill.time,
       side: fill.side,

@@ -137,6 +137,69 @@ export function macd(
   return { macd: macdLine, signal: signalLine, hist }
 }
 
+type LowCandle = { l: number | string }
+
+/**
+ * QFL (Quickfingers Luc) base scanner. A "base" is confirmed at the lowest low
+ * of the last `basePeriods` bars once that low has held for `pumpPeriods` bars
+ * (price bounced off it without making a lower low). Adapted from rex_wolfe's
+ * Pine v5 "QFL Zaphod". Returns:
+ *  - `raw`: the confirmed base level held at each bar (no look-ahead) — what a
+ *    stop reads as the current support.
+ *  - `line`: a SHORT horizontal mark drawn at each base's low bar (NaN
+ *    elsewhere) — what to plot, so bases show as separate short lines rather
+ *    than one level held across the whole chart.
+ * Both are NaN until the first base is confirmed.
+ */
+export function qflBase(
+  candles: LowCandle[],
+  basePeriods: number,
+  pumpPeriods: number
+): { raw: number[]; line: number[] } {
+  const n = candles.length
+  const raw = new Array<number>(n).fill(Number.NaN)
+  const line = new Array<number>(n).fill(Number.NaN)
+  if (n === 0 || basePeriods < 4) return { raw, line }
+  // Pine clamps pumpPeriods below basePeriods.
+  const pump = pumpPeriods >= basePeriods ? basePeriods - 1 : pumpPeriods
+
+  const lows = candles.map((candle) => Number(candle.l))
+  // lowestLow[i] = min low over the trailing basePeriods window.
+  const lowestLow = new Array<number>(n).fill(Number.NaN)
+  for (let i = basePeriods - 1; i < n; i += 1) {
+    let lo = Infinity
+    for (let j = i - basePeriods + 1; j <= i; j += 1) lo = Math.min(lo, lows[j])
+    lowestLow[i] = lo
+  }
+
+  // Short marks span a few bars each side of the low that formed the base.
+  const halfSpan = Math.max(2, Math.round(pump))
+  let current = Number.NaN
+  for (let i = 0; i < n; i += 1) {
+    const prior = lowestLow[i - pump - 1]
+    const held = lowestLow[i - pump]
+    const now = lowestLow[i]
+    // A new low was set `pump` bars ago and has held ever since.
+    const newBase =
+      i - pump - 1 >= 0 &&
+      !Number.isNaN(prior) &&
+      !Number.isNaN(held) &&
+      !Number.isNaN(now) &&
+      prior > held &&
+      held === now
+    if (newBase) {
+      current = now
+      const lowBar = i - pump
+      const from = Math.max(0, lowBar - halfSpan)
+      const to = Math.min(n - 1, lowBar + halfSpan)
+      for (let k = from; k <= to; k += 1) line[k] = now
+    }
+    raw[i] = current
+  }
+
+  return { raw, line }
+}
+
 /**
  * Session-anchored VWAP: cumulative Σ(typicalPrice·volume)/Σvolume that
  * resets at each UTC-day boundary. `t` is a ms epoch; h/l/c/v may be strings.

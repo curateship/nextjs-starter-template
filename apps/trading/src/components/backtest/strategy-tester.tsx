@@ -23,7 +23,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { BacktestResult, SideStats } from "@/lib/backtest/types"
+import type {
+  BacktestResult,
+  BacktestTrade,
+  SideStats,
+} from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
 
 import {
@@ -43,10 +47,16 @@ export function StrategyTester({
   result,
   startingEquity,
   markPrice,
+  selectedTradeN = null,
+  onSelectTrade,
 }: {
   result: BacktestResult | null
   startingEquity: number
   markPrice: number
+  /** Trade number highlighted in the list (chart is zoomed to it). */
+  selectedTradeN?: number | null
+  /** Row click — null when the selected trade is clicked again. */
+  onSelectTrade?: (trade: BacktestTrade | null) => void
 }) {
   const stats = result?.stats
   const net = stats?.netPnl ?? 0
@@ -90,7 +100,12 @@ export function StrategyTester({
           <PerformanceSummary stats={stats ?? null} />
         </TabsContent>
         <TabsContent value="trades" className="m-0">
-          <TradesTable result={result} markPrice={markPrice} />
+          <TradesTable
+            result={result}
+            markPrice={markPrice}
+            selectedTradeN={selectedTradeN}
+            onSelectTrade={onSelectTrade}
+          />
         </TabsContent>
       </div>
     </Tabs>
@@ -303,9 +318,13 @@ function PerfCell({ value, tone }: { value: string; tone?: number }) {
 function TradesTable({
   result,
   markPrice,
+  selectedTradeN,
+  onSelectTrade,
 }: {
   result: BacktestResult | null
   markPrice: number
+  selectedTradeN: number | null
+  onSelectTrade?: (trade: BacktestTrade | null) => void
 }) {
   if (!result || (result.trades.length === 0 && !result.openPosition)) {
     return <Empty text="No trades — run a backtest or adjust the strategy." />
@@ -331,7 +350,16 @@ function TradesTable({
       </TableHeader>
       <TableBody>
         {result.trades.map((trade) => (
-          <TableRow key={trade.n} className="font-mono text-[11px]">
+          <TableRow
+            key={trade.n}
+            onClick={() =>
+              onSelectTrade?.(trade.n === selectedTradeN ? null : trade)
+            }
+            className={cn(
+              "cursor-pointer font-mono text-[11px]",
+              trade.n === selectedTradeN && "bg-muted/60 hover:bg-muted/60"
+            )}
+          >
             <TableCell className="text-muted-foreground">{trade.n}</TableCell>
             <TableCell
               className={cn(

@@ -3,6 +3,8 @@ import { z } from "zod"
 
 import {
   DEFAULT_BACKTEST_COSTS,
+  MAX_RUN_BARS,
+  maxWindowDays,
   type BacktestCosts,
   type BacktestResult,
 } from "@/lib/backtest/types"
@@ -16,6 +18,7 @@ import {
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
 import type { HistoryCandle } from "@/server/backtest/history"
+import type { CreateBacktestInput } from "@/server/backtests"
 
 const CANDLE_INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
 type BacktestInterval = (typeof CANDLE_INTERVALS)[number]
@@ -32,8 +35,6 @@ const INTERVAL_MS: Record<BacktestInterval, number> = {
 
 /** Candles the runner pre-loads before simStart so signals are warmed up. */
 const MOMENTUM_WARMUP_CANDLES = 400
-/** Guards result size and run time; also enforced by the history fetch cap. */
-const MAX_BARS = 10_000
 
 export type BacktestListItem = {
   id: string
@@ -53,6 +54,10 @@ export type BacktestListItem = {
   netPnl: number | null
   netPnlPct: number | null
   tradeCount: number | null
+  maxDrawdownPct: number | null
+  /** Fraction 0..1. */
+  winRate: number | null
+  sharpe: number | null
 }
 
 /** Per-user New Run seeds for one strategy: params plus run config. */
@@ -98,8 +103,18 @@ export type BacktestDetail = {
   result: BacktestResult | null
 }
 
+/** Sibling run of the same group (one per market). */
+export type BacktestGroupRun = {
+  id: string
+  market: string
+  status: "pending" | "running" | "done" | "error"
+  netPnlPct: number | null
+}
+
 export type BacktestDetailResponse = {
   backtest: BacktestDetail | null
+  /** All runs in the loaded run's group, for the market switcher. */
+  groupRuns: BacktestGroupRun[]
 }
 
 export type BacktestCandlesResponse = {
@@ -110,11 +125,17 @@ export type BacktestCandlesResponse = {
 const runBacktestSchema = z
   .object({
     name: z.string().max(255).optional(),
-    /** Re-run of an existing backtest: joins its group and reuses its name. */
-    rerunOf: z.string().min(1).optional(),
+    /**
+     * Re-run into an existing run group: markets already in the group are
+     * replaced in place, new markets are added as new rows.
+     */
+    groupId: z.string().min(1).optional(),
+    /** Main market — the workspace opens on this one's run. */
     market: z.string().min(1).max(20),
+    /** Additional markets: the same config is replayed on each (one row per market). */
+    extraMarkets: z.array(z.string().min(1).max(20)).max(7).optional(),
     interval: z.enum(CANDLE_INTERVALS),
-    windowDays: z.number().int().min(1).max(90),
+    windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
     startingEquity: z.number().positive().max(100_000_000),
     takerFeeBps: z.number().min(0).max(50).optional(),
     makerFeeBps: z.number().min(0).max(50).optional(),
@@ -142,12 +163,26 @@ const runBacktestSchema = z
         path: ["interval"],
       })
     }
-    const bars = (data.windowDays * 86_400_000) / INTERVAL_MS[data.interval]
-    if (bars > MAX_BARS) {
+    const markets = [data.market, ...(data.extraMarkets ?? [])]
+    if (data.params.strategyType === "grid" && markets.length > 1) {
       ctx.addIssue({
         code: "custom",
         message:
-          "That window is too long for this timeframe (over 10,000 bars). Shorten the window or use a coarser timeframe.",
+          "Grid bounds are absolute prices, so a grid config can't be replayed across markets.",
+        path: ["extraMarkets"],
+      })
+    }
+    if (new Set(markets).size !== markets.length) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Duplicate markets selected.",
+        path: ["extraMarkets"],
+      })
+    }
+    if (data.windowDays > maxWindowDays(data.interval)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `That window is too long for ${data.interval} candles — Hyperliquid serves at most ~${MAX_RUN_BARS} bars per interval (${maxWindowDays(data.interval)} days at ${data.interval}). Shorten the window or use a coarser timeframe.`,
         path: ["windowDays"],
       })
     }
@@ -168,9 +203,10 @@ const runBacktestFn = createServerFn({ method: "POST" })
     const { requireAppOrigin } = await import("@/server/origin")
     const {
       createUserBacktest,
+      resetUserBacktest,
       finishUserBacktest,
       failUserBacktest,
-      getUserBacktest,
+      listGroupRuns,
     } = await import("@/server/backtests")
     requireAppOrigin()
     const user = await requireUser()
@@ -182,9 +218,10 @@ const runBacktestFn = createServerFn({ method: "POST" })
     try {
       return await executeRun(user.id, data, {
         createUserBacktest,
+        resetUserBacktest,
         finishUserBacktest,
         failUserBacktest,
-        getUserBacktest,
+        listGroupRuns,
       })
     } finally {
       inFlightRuns.delete(user.id)
@@ -194,20 +231,26 @@ const runBacktestFn = createServerFn({ method: "POST" })
 type BacktestServer = Pick<
   typeof import("@/server/backtests"),
   | "createUserBacktest"
+  | "resetUserBacktest"
   | "finishUserBacktest"
   | "failUserBacktest"
-  | "getUserBacktest"
+  | "listGroupRuns"
 >
 
 /** Domain errors safe to surface verbatim; anything else is genericized. */
 function isKnownRunError(message: string): boolean {
   return (
-    message === "Backtest not found" ||
     message.startsWith("No candle history") ||
     message.includes("can't be backtested")
   )
 }
 
+/**
+ * Runs one config across its market basket: one backtests row per market, all
+ * sharing a groupId. With `groupId` set it re-runs into that existing group —
+ * markets already in the group are replaced in place (same row id), new
+ * markets are added. Returns the main (first) market's run id.
+ */
 async function executeRun(
   userId: string,
   data: z.infer<typeof runBacktestSchema>,
@@ -215,99 +258,115 @@ async function executeRun(
 ): Promise<{ backtestId: string }> {
   const {
     createUserBacktest,
+    resetUserBacktest,
     finishUserBacktest,
     failUserBacktest,
-    getUserBacktest,
+    listGroupRuns,
   } = server
 
-  // Re-runs join the original run's group and keep its name.
-  const original = data.rerunOf
-    ? await getUserBacktest(userId, data.rerunOf)
-    : null
-  if (data.rerunOf && !original) throw new Error("Backtest not found")
+  const markets = [data.market, ...(data.extraMarkets ?? [])]
 
+  // Re-run: map the group's existing rows by market so results replace.
+  const existingByMarket = new Map<string, string>()
+  if (data.groupId) {
+    const siblings = await listGroupRuns(userId, data.groupId)
+    if (siblings.length === 0) throw new Error("Run not found.")
+    for (const sibling of siblings) {
+      existingByMarket.set(sibling.market, sibling.id)
+    }
+  }
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
   const name =
-    original?.name ||
     data.name?.trim() ||
-    `${data.params.strategyType} · ${data.market} · ${data.interval}`
+    `${data.params.strategyType} · ${markets.join(", ")} · ${data.interval}`
   const costs: BacktestCosts = {
     takerFeeBps: data.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps,
     makerFeeBps: data.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps,
     slippageBps: data.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps,
   }
 
-  // Persist the run first so it appears in history even if the engine throws.
-  const backtest = await createUserBacktest(userId, {
-    name,
-    groupId: original?.groupId,
-    market: data.market,
-    network: "mainnet",
-    interval: data.interval,
-    params: data.params,
-    riskParams: data.riskParams,
-    costs,
-    startTime,
-    endTime,
-    startingEquity: data.startingEquity,
-  })
+  // The engine is pure — importing it server-side pulls no worker runtime.
+  const { fetchCandleHistory } = await import("@/server/backtest/history")
+  const { strategies } = await import("../../../worker/src/strategies/registry")
+  const { runBacktest: runEngine } = await import(
+    "../../../worker/src/backtest/runner"
+  )
 
-  try {
-    // A backtest is a fast deterministic computation, so we run it inline
-    // here (no worker/queue). The engine is pure — importing it server-side
-    // pulls no worker-only runtime.
-    const { fetchCandleHistory } = await import("@/server/backtest/history")
-    const { strategies } = await import(
-      "../../../worker/src/strategies/registry"
-    )
-    const { runBacktest: runEngine } = await import(
-      "../../../worker/src/backtest/runner"
-    )
+  const interval = data.interval
+  const warmupBars =
+    data.params.strategyType === "momentum" ? MOMENTUM_WARMUP_CANDLES : 0
+  const simStartMs = startTime.getTime()
+  const fetchStart = simStartMs - warmupBars * INTERVAL_MS[interval]
 
-    const interval = data.interval
-    const warmupBars =
-      data.params.strategyType === "momentum" ? MOMENTUM_WARMUP_CANDLES : 0
-    const simStartMs = startTime.getTime()
-    const fetchStart = simStartMs - warmupBars * INTERVAL_MS[interval]
-    const candles = await fetchCandleHistory(
-      data.market,
+  let mainId: string | null = null
+  let mainError: string | null = null
+  for (const market of markets) {
+    // Persist each row first so it appears in history even if its run throws.
+    const input: CreateBacktestInput = {
+      name,
+      groupId: data.groupId ?? mainId ?? undefined,
+      market,
+      network: "mainnet",
       interval,
-      fetchStart,
-      endTime.getTime()
-    )
-    if (candles.length === 0) {
-      throw new Error("No candle history for that market and window.")
-    }
-    const strategy = strategies[data.params.strategyType]
-    if (!strategy) {
-      throw new Error(`Strategy "${data.params.strategyType}" can't be backtested.`)
-    }
-
-    const result = runEngine({
-      strategy,
       params: data.params,
       riskParams: data.riskParams,
-      candles,
-      simStartMs,
-      startingEquity: data.startingEquity,
-      market: data.market,
-      interval,
       costs,
-    })
-    await finishUserBacktest(backtest.id, result)
-  } catch (error) {
-    // Don't leak upstream/internal error text to the stored row or client.
-    console.error("backtest run failed", backtest.id, error)
-    const message =
-      error instanceof Error && isKnownRunError(error.message)
-        ? error.message
-        : "Backtest failed — check the server logs."
-    await failUserBacktest(backtest.id, message)
-    throw new Error(message)
+      startTime,
+      endTime,
+      startingEquity: data.startingEquity,
+    }
+    const existingId = existingByMarket.get(market)
+    const backtest = existingId
+      ? await resetUserBacktest(userId, existingId, input)
+      : await createUserBacktest(userId, input)
+    mainId = mainId ?? backtest.id
+
+    try {
+      const candles = await fetchCandleHistory(
+        market,
+        interval,
+        fetchStart,
+        endTime.getTime()
+      )
+      if (candles.length === 0) {
+        throw new Error(`No candle history for ${market} in that window.`)
+      }
+      const strategy = strategies[data.params.strategyType]
+      if (!strategy) {
+        throw new Error(
+          `Strategy "${data.params.strategyType}" can't be backtested.`
+        )
+      }
+
+      const result = runEngine({
+        strategy,
+        params: data.params,
+        riskParams: data.riskParams,
+        candles,
+        simStartMs,
+        startingEquity: data.startingEquity,
+        market,
+        interval,
+        costs,
+      })
+      await finishUserBacktest(backtest.id, result)
+    } catch (error) {
+      // Don't leak upstream/internal error text to the stored row or client.
+      console.error("backtest run failed", backtest.id, error)
+      const message =
+        error instanceof Error && isKnownRunError(error.message)
+          ? error.message
+          : "Backtest failed — check the server logs."
+      await failUserBacktest(backtest.id, message)
+      if (market === data.market) mainError = message
+    }
   }
 
-  return { backtestId: backtest.id }
+  // Extra-market failures show on their own rows; only the main market's
+  // failure blocks opening the workspace.
+  if (mainError) throw new Error(mainError)
+  return { backtestId: mainId as string }
 }
 
 const loadBacktestsFn = createServerFn({ method: "GET" }).handler(
@@ -330,10 +389,23 @@ const loadBacktestsFn = createServerFn({ method: "GET" }).handler(
 const loadBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(backtestIdSchema)
   .handler(async ({ data }): Promise<BacktestDetailResponse> => {
-    const { getUserBacktest } = await import("@/server/backtests")
+    const { getUserBacktest, listGroupRuns } = await import(
+      "@/server/backtests"
+    )
     const user = await requireUser()
     const row = await getUserBacktest(user.id, data.backtestId)
-    return { backtest: row ? serializeDetail(row) : null }
+    if (!row) return { backtest: null, groupRuns: [] }
+    const siblings = await listGroupRuns(user.id, row.groupId)
+    return {
+      backtest: serializeDetail(row),
+      groupRuns: siblings.map((sibling) => ({
+        id: sibling.id,
+        market: sibling.market,
+        status: sibling.status as BacktestGroupRun["status"],
+        netPnlPct:
+          sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
+      })),
+    }
   })
 
 const loadBacktestCandlesFn = createServerFn({ method: "POST" })
@@ -366,7 +438,7 @@ const MAX_CHART_BARS = 5_000
 const chartCandlesSchema = z.object({
   market: z.string().min(1).max(20),
   interval: z.enum(CANDLE_INTERVALS),
-  windowDays: z.number().int().min(1).max(90),
+  windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
 })
 
 /** Config-mode candles: the window the user is browsing, ending now. */
@@ -435,7 +507,7 @@ const saveStrategyDefaultsSchema = z.object({
         "Too many parameters."
       ),
     interval: z.enum(CANDLE_INTERVALS).optional(),
-    windowDays: z.number().int().min(1).max(90).optional(),
+    windowDays: z.number().int().min(1).max(MAX_RUN_BARS).optional(),
     equity: z.number().positive().max(100_000_000).optional(),
     takerFeeBps: z.number().min(0).max(50).optional(),
     makerFeeBps: z.number().min(0).max(50).optional(),
@@ -494,6 +566,9 @@ type ListRow = {
   netPnl: string | null
   netPnlPct: string | null
   tradeCount: string | null
+  maxDrawdownPct: string | null
+  winRate: string | null
+  sharpe: string | null
 }
 
 function serializeListItem(row: ListRow): BacktestListItem {
@@ -515,6 +590,10 @@ function serializeListItem(row: ListRow): BacktestListItem {
     netPnl: row.netPnl === null ? null : Number(row.netPnl),
     netPnlPct: row.netPnlPct === null ? null : Number(row.netPnlPct),
     tradeCount: row.tradeCount === null ? null : Number(row.tradeCount),
+    maxDrawdownPct:
+      row.maxDrawdownPct === null ? null : Number(row.maxDrawdownPct),
+    winRate: row.winRate === null ? null : Number(row.winRate),
+    sharpe: row.sharpe === null ? null : Number(row.sharpe),
   }
 }
 

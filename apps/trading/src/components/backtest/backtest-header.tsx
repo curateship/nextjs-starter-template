@@ -4,10 +4,12 @@ import {
   Loader2Icon,
   PlayIcon,
   PlusIcon,
-  RotateCcwIcon,
 } from "lucide-react"
 
-import type { BacktestListItem } from "@/lib/api/backtests"
+import type {
+  BacktestGroupRun,
+  BacktestListItem,
+} from "@/lib/api/backtests"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,13 +36,15 @@ export function BacktestHeader({
   market,
   markets,
   onMarketChange,
+  marketReadOnly,
+  groupRuns,
+  currentRunId,
   markPrice,
   dayChangePct,
   runName,
   strategyLabel,
   isDraft,
   dateRangeText,
-  staleHint,
   runs,
   onSelectRun,
   onViewAll,
@@ -52,6 +56,11 @@ export function BacktestHeader({
   market: string
   markets: MarketOption[]
   onMarketChange: (coin: string) => void
+  /** Loaded run — the market is fixed; switch via the group tabs instead. */
+  marketReadOnly: boolean
+  /** Sibling runs (one per market) of the loaded run's group. */
+  groupRuns: BacktestGroupRun[]
+  currentRunId: string | null
   markPrice: number
   dayChangePct: number | null
   /** Loaded run or draft name, null when browsing without either. */
@@ -60,15 +69,13 @@ export function BacktestHeader({
   /** Configured but not executed yet. */
   isDraft: boolean
   dateRangeText: string
-  /** Non-null when the loaded results no longer match the chart config. */
-  staleHint: string | null
   runs: BacktestListItem[]
   onSelectRun: (id: string) => void
   onViewAll: () => void
   onNewRun: () => void
   onRun: () => void
-  /** "run" = first execution of a draft; "rerun" = loaded run's config. */
-  runAction: "run" | "rerun" | null
+  /** "run" = execute a draft across its markets; null once a run is loaded. */
+  runAction: "run" | null
   running: boolean
 }) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
@@ -79,63 +86,92 @@ export function BacktestHeader({
 
   return (
     <div className="flex items-center gap-4 border-b px-4 py-2">
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
-          >
-            <span className="text-sm font-bold">{market}</span>
-            <ChevronDownIcon className="size-3 text-muted-foreground" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-0">
-          <div className="border-b p-2">
-            <Input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search markets"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="max-h-72 overflow-y-auto p-1">
-            {filtered.map((row) => {
-              const change = changePct(row)
-              return (
-                <button
-                  key={row.coin}
-                  type="button"
-                  onClick={() => {
-                    onMarketChange(row.coin)
-                    setPickerOpen(false)
-                    setSearch("")
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted",
-                    row.coin === market && "bg-muted"
-                  )}
-                >
-                  <span className="text-xs font-medium">{row.coin}</span>
-                  <span
+      {marketReadOnly ? (
+        <span className="text-sm font-bold">{market}</span>
+      ) : (
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
+            >
+              <span className="text-sm font-bold">{market}</span>
+              <ChevronDownIcon className="size-3 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 p-0">
+            <div className="border-b p-2">
+              <Input
+                autoFocus
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search markets"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto p-1">
+              {filtered.map((row) => {
+                const change = changePct(row)
+                return (
+                  <button
+                    key={row.coin}
+                    type="button"
+                    onClick={() => {
+                      onMarketChange(row.coin)
+                      setPickerOpen(false)
+                      setSearch("")
+                    }}
                     className={cn(
-                      "font-mono text-[11px]",
-                      change !== null ? toneClass(change) : "text-muted-foreground"
+                      "flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted",
+                      row.coin === market && "bg-muted"
                     )}
                   >
-                    {change !== null ? pct(change) : "—"}
-                  </span>
-                </button>
-              )
-            })}
-            {filtered.length === 0 ? (
-              <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
-                No markets
-              </div>
-            ) : null}
-          </div>
-        </PopoverContent>
-      </Popover>
+                    <span className="text-xs font-medium">{row.coin}</span>
+                    <span
+                      className={cn(
+                        "font-mono text-[11px]",
+                        change !== null ? toneClass(change) : "text-muted-foreground"
+                      )}
+                    >
+                      {change !== null ? pct(change) : "—"}
+                    </span>
+                  </button>
+                )
+              })}
+              {filtered.length === 0 ? (
+                <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
+                  No markets
+                </div>
+              ) : null}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      {groupRuns.length > 1 ? (
+        <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+          {groupRuns.map((groupRun) => (
+            <button
+              key={groupRun.id}
+              type="button"
+              onClick={() => onSelectRun(groupRun.id)}
+              title={
+                groupRun.status === "done" && groupRun.netPnlPct !== null
+                  ? `${groupRun.market} · ${pct(groupRun.netPnlPct)}`
+                  : `${groupRun.market} · ${groupRun.status}`
+              }
+              className={cn(
+                "rounded px-2 py-1 text-[11px] font-medium",
+                groupRun.id === currentRunId
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {groupRun.market}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="flex flex-col leading-tight">
         <span
@@ -182,12 +218,6 @@ export function BacktestHeader({
       )}
 
       <div className="flex-1" />
-
-      {staleHint ? (
-        <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-400">
-          {staleHint}
-        </span>
-      ) : null}
 
       <span className="font-mono text-[11px] text-muted-foreground">
         {dateRangeText}
@@ -258,12 +288,10 @@ export function BacktestHeader({
         >
           {running ? (
             <Loader2Icon className="size-3.5 animate-spin" />
-          ) : runAction === "run" ? (
-            <PlayIcon className="size-3.5" />
           ) : (
-            <RotateCcwIcon className="size-3.5" />
+            <PlayIcon className="size-3.5" />
           )}
-          {runAction === "run" ? "Run Backtest" : "Re-run Backtest"}
+          Run Backtest
         </Button>
       ) : null}
     </div>

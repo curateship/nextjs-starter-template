@@ -32,7 +32,10 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     rsiBuyBelow: "30",
     rsiSellAbove: "70",
     breakoutLookback: "20",
+    stopMode: "trailing",
     trailingStopPct: "2",
+    basePeriods: "36",
+    pumpPeriods: "8",
     orderSizeUsd: "250",
     direction: "both",
   },
@@ -94,7 +97,8 @@ export function buildParams(
         takeProfitPct: num("takeProfitPct"),
         stopLossPct: num("stopLossPct"),
       }
-    case "momentum":
+    case "momentum": {
+      const stopMode = values.stopMode === "base" ? "base" : "trailing"
       return {
         strategyType: "momentum",
         signal: values.signal,
@@ -105,10 +109,15 @@ export function buildParams(
         rsiBuyBelow: num("rsiBuyBelow"),
         rsiSellAbove: num("rsiSellAbove"),
         breakoutLookback: num("breakoutLookback"),
-        trailingStopPct: num("trailingStopPct"),
+        stopMode,
+        // Only the active stop's params are sent, so switching modes is clean.
+        trailingStopPct: stopMode === "trailing" ? num("trailingStopPct") : undefined,
+        basePeriods: stopMode === "base" ? num("basePeriods") : undefined,
+        pumpPeriods: stopMode === "base" ? num("pumpPeriods") : undefined,
         orderSizeUsd: num("orderSizeUsd"),
         direction: values.direction,
       }
+    }
     case "copy":
       return {
         strategyType: "copy",

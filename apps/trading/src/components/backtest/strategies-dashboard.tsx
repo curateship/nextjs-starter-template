@@ -36,24 +36,34 @@ import {
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
-import { PARAM_DEFAULTS } from "@/components/bots/strategy-params-form"
+import {
+  buildParams,
+  PARAM_DEFAULTS,
+  paramsToValues,
+} from "@/components/bots/strategy-params-form"
 import {
   deleteBacktests,
+  loadBacktest,
+  runBacktest,
+  type BacktestDetail,
   type BacktestListItem,
   type StrategyDefaultsMap,
   type StrategyRunDefaults,
 } from "@/lib/api/backtests"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useMarketRows } from "@/lib/hl/hooks"
+import type { CandleInterval } from "@/lib/hl/ws"
 import {
   STRATEGY_DESCRIPTIONS,
   STRATEGY_LABELS,
+  strategyParamsSchema,
   type StrategyType,
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
 import { pct, signedUsd, toneClass, windowDaysOf } from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
+import type { RunDraft } from "./run-draft"
 import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
@@ -573,22 +583,19 @@ export function StrategiesOverview({
 
 type GroupRow = {
   groupId: string
+  /** The main market's run id — the row the edit modal loads config from. */
+  mainId: string
   name: string
-  market: string
+  markets: string[]
   interval: string
   windowDays: number
-  executions: number
   status: BacktestListItem["status"]
+  /** Main (first) market's net %, representative of the run. */
   netPnlPct: number | null
   lastRunAt: number
 }
 
-type GroupSort =
-  | "name"
-  | "market"
-  | "executions"
-  | "net"
-  | "last"
+type GroupSort = "name" | "markets" | "net" | "last"
 
 export function StrategyRunsDashboard({
   runs,
@@ -602,6 +609,10 @@ export function StrategyRunsDashboard({
   const navigate = useNavigate()
   const state = useTableState<GroupSort>("last")
   const selection = useSelection()
+  const [editing, setEditing] = React.useState<GroupRow | null>(null)
+  const [pendingDelete, setPendingDelete] = React.useState<GroupRow | null>(
+    null
+  )
 
   const groups = React.useMemo<GroupRow[]>(() => {
     const byGroup = new Map<string, BacktestListItem[]>()
@@ -611,19 +622,21 @@ export function StrategyRunsDashboard({
       if (list) list.push(run)
       else byGroup.set(run.groupId, [run])
     }
-    // runs arrive newest-first, so index 0 is the latest execution.
-    return [...byGroup.entries()].map(([groupId, executions]) => {
-      const latest = executions[0]
+    return [...byGroup.entries()].map(([groupId, groupRuns]) => {
+      // The main market's row shares the group id; it drives the summary.
+      const main = groupRuns.find((run) => run.id === groupId) ?? groupRuns[0]
       return {
         groupId,
-        name: latest.name,
-        market: latest.market,
-        interval: latest.interval,
-        windowDays: windowDaysOf(latest),
-        executions: executions.length,
-        status: latest.status,
-        netPnlPct: latest.netPnlPct,
-        lastRunAt: Date.parse(latest.createdAt),
+        mainId: main.id,
+        name: main.name,
+        markets: groupRuns.map((run) => run.market),
+        interval: main.interval,
+        windowDays: windowDaysOf(main),
+        status: main.status,
+        netPnlPct: main.netPnlPct,
+        lastRunAt: Math.max(
+          ...groupRuns.map((run) => Date.parse(run.createdAt))
+        ),
       }
     })
   }, [runs, strategyType])
@@ -634,16 +647,14 @@ export function StrategyRunsDashboard({
       ? groups.filter(
           (group) =>
             group.name.toLowerCase().includes(query) ||
-            group.market.toLowerCase().includes(query)
+            group.markets.some((coin) => coin.toLowerCase().includes(query))
         )
       : groups
     const direction = state.sortDirection === "asc" ? 1 : -1
     return [...matches].sort((a, b) => {
       if (state.sortColumn === "name") return a.name.localeCompare(b.name) * direction
-      if (state.sortColumn === "market")
-        return a.market.localeCompare(b.market) * direction
-      if (state.sortColumn === "executions")
-        return (a.executions - b.executions) * direction
+      if (state.sortColumn === "markets")
+        return (a.markets.length - b.markets.length) * direction
       if (state.sortColumn === "net")
         return ((a.netPnlPct ?? -Infinity) - (b.netPnlPct ?? -Infinity)) * direction
       return (a.lastRunAt - b.lastRunAt) * direction
@@ -714,13 +725,13 @@ export function StrategyRunsDashboard({
                   Run
                 </TableSortButton>
               </TableHead>
-              {sortHead("Market", "market", state)}
+              {sortHead("Markets", "markets", state)}
               <TableHead column="meta">Timeframe</TableHead>
               <TableHead column="meta">Window</TableHead>
-              {sortHead("Executions", "executions", state)}
               <TableHead column="meta">Status</TableHead>
               {sortHead("Net P&L %", "net", state)}
               {sortHead("Last run", "last", state)}
+              <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
@@ -759,15 +770,14 @@ export function StrategyRunsDashboard({
             <TableCell column="main" className="font-medium">
               {group.name}
             </TableCell>
-            <TableCell column="meta">{group.market}</TableCell>
+            <TableCell column="meta" className="text-xs">
+              <span className="font-mono">{group.markets.join(", ")}</span>
+            </TableCell>
             <TableCell column="meta" className="font-mono text-xs">
               {group.interval}
             </TableCell>
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
               {group.windowDays}d
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {group.executions}
             </TableCell>
             <TableCell column="meta" className={cn("text-xs", STATUS_TONE[group.status])}>
               {group.status}
@@ -786,18 +796,184 @@ export function StrategyRunsDashboard({
             <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
               {dateTimeFormatter.format(group.lastRunAt)}
             </TableCell>
+            <TableCell column="meta" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={`Edit ${group.name}`}
+                  onClick={() => setEditing(group)}
+                >
+                  <SettingsIcon className="size-4 text-muted-foreground" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={`Delete ${group.name}`}
+                  onClick={() => setPendingDelete(group)}
+                >
+                  <Trash2Icon className="size-4 text-muted-foreground hover:text-destructive" />
+                </Button>
+              </div>
+            </TableCell>
           </TableRow>
         ))}
       </DashboardTable>
+
+      {editing ? (
+        <EditRunDialog
+          key={editing.groupId}
+          group={editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        description={
+          pendingDelete
+            ? `This permanently deletes "${pendingDelete.name}" including all ${pendingDelete.markets.length} market ${pendingDelete.markets.length === 1 ? "result" : "results"}.`
+            : ""
+        }
+        onDelete={async () => {
+          if (pendingDelete) {
+            await deleteBacktests({ groupIds: [pendingDelete.groupId] })
+          }
+        }}
+      />
     </div>
   )
 }
 
+/**
+ * Loads a run group's full config into the shared run dialog; Re-run executes
+ * the edited config back into the same group — existing markets are replaced
+ * with fresh results, newly added markets are added to the run.
+ */
+function EditRunDialog({
+  group,
+  onClose,
+}: {
+  group: GroupRow
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const markets = useMarketRows("mainnet")
+  const [loaded, setLoaded] = React.useState<{
+    detail: BacktestDetail
+    groupMarkets: string[]
+  } | null>(null)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    void loadBacktest(group.mainId)
+      .then((res) => {
+        if (cancelled) return
+        if (!res.backtest) {
+          setLoadError("Run not found.")
+          return
+        }
+        setLoaded({
+          detail: res.backtest,
+          groupMarkets: res.groupRuns.map((run) => run.market),
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Failed to load the run configuration.")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [group.mainId])
+
+  if (!loaded) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) onClose()
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Edit Run</DialogTitle>
+            <DialogDescription>
+              {loadError ?? "Loading the run configuration…"}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  const { detail, groupMarkets } = loaded
+  const extraMarkets = groupMarkets.filter((coin) => coin !== detail.market)
+  const initial: RunDraft = {
+    name: detail.name,
+    strategy: detail.strategyType as RunDraft["strategy"],
+    market: detail.market,
+    extraMarkets: extraMarkets.length ? extraMarkets : undefined,
+    interval: detail.interval as CandleInterval,
+    windowDays: windowDaysOf(detail),
+    equity: detail.startingEquity,
+    takerFeeBps: detail.costs.takerFeeBps,
+    makerFeeBps: detail.costs.makerFeeBps,
+    slippageBps: detail.costs.slippageBps,
+    params: paramsToValues(detail.params),
+  }
+
+  return (
+    <NewRunDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
+      markets={markets}
+      defaultMarket={detail.market}
+      defaultInterval={initial.interval}
+      initial={initial}
+      lockStrategy
+      title="Edit Run"
+      description="Adjust the settings and re-run. Markets already in the run are replaced with fresh results; newly added markets are added to the run."
+      submitLabel="Re-run"
+      onContinue={async (draft) => {
+        const parsed = strategyParamsSchema.safeParse(
+          buildParams(draft.strategy, draft.params)
+        )
+        if (!parsed.success) throw new Error("Invalid strategy parameters.")
+        await runBacktest({
+          name: draft.name,
+          groupId: group.groupId,
+          market: draft.market,
+          extraMarkets: draft.extraMarkets,
+          interval: draft.interval,
+          windowDays: draft.windowDays,
+          startingEquity: draft.equity,
+          takerFeeBps: draft.takerFeeBps,
+          makerFeeBps: draft.makerFeeBps,
+          slippageBps: draft.slippageBps,
+          params: parsed.data,
+          riskParams: detail.riskParams,
+        })
+        await router.invalidate()
+      }}
+    />
+  )
+}
+
 // ---------------------------------------------------------------------------
-// Level 3 — /strategies/$strategyType/$groupId: a run's re-run history.
+// Level 3 — /backtest/$strategyType/$groupId: one result row per market.
 // ---------------------------------------------------------------------------
 
-type ExecutionSort = "n" | "ran" | "market" | "net" | "trades"
+type MarketSort = "market" | "net" | "dd" | "win" | "sharpe" | "trades"
 
 export function RunHistoryDashboard({
   runs,
@@ -809,31 +985,35 @@ export function RunHistoryDashboard({
   groupId: string
 }) {
   const navigate = useNavigate()
-  const state = useTableState<ExecutionSort>("ran")
+  const state = useTableState<MarketSort>("net")
   const selection = useSelection()
 
-  const executions = React.useMemo(() => {
-    const own = runs
-      .filter((run) => run.groupId === groupId)
-      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
-    return own.map((run, index) => ({ ...run, n: index + 1 }))
-  }, [runs, groupId])
+  const marketRuns = React.useMemo(
+    () => runs.filter((run) => run.groupId === groupId),
+    [runs, groupId]
+  )
 
-  const runName = executions[executions.length - 1]?.name ?? "Run"
+  const main =
+    marketRuns.find((run) => run.id === groupId) ?? marketRuns[0] ?? null
+  const runName = main?.name ?? "Run"
 
   const sorted = React.useMemo(() => {
     const direction = state.sortDirection === "asc" ? 1 : -1
-    return [...executions].sort((a, b) => {
-      if (state.sortColumn === "n") return (a.n - b.n) * direction
+    const num = (value: number | null) => value ?? -Infinity
+    return [...marketRuns].sort((a, b) => {
       if (state.sortColumn === "market")
         return a.market.localeCompare(b.market) * direction
-      if (state.sortColumn === "net")
-        return ((a.netPnlPct ?? -Infinity) - (b.netPnlPct ?? -Infinity)) * direction
+      if (state.sortColumn === "dd")
+        return (num(a.maxDrawdownPct) - num(b.maxDrawdownPct)) * direction
+      if (state.sortColumn === "win")
+        return (num(a.winRate) - num(b.winRate)) * direction
+      if (state.sortColumn === "sharpe")
+        return (num(a.sharpe) - num(b.sharpe)) * direction
       if (state.sortColumn === "trades")
-        return ((a.tradeCount ?? -1) - (b.tradeCount ?? -1)) * direction
-      return (Date.parse(a.createdAt) - Date.parse(b.createdAt)) * direction
+        return (num(a.tradeCount) - num(b.tradeCount)) * direction
+      return (num(a.netPnlPct) - num(b.netPnlPct)) * direction
     })
-  }, [executions, state.sortColumn, state.sortDirection])
+  }, [marketRuns, state.sortColumn, state.sortDirection])
 
   const { rows: pageRows, totalPages } = paginate(sorted, state.page, state.pageSize)
   const visibleIds = pageRows.map((run) => run.id)
@@ -854,14 +1034,14 @@ export function RunHistoryDashboard({
           />
         }
         icon={<HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={executions.length}
+        count={marketRuns.length}
         selectedCount={selection.selected.size}
         onClearSelection={selection.clear}
         controls={
           selection.selected.size ? (
             <DeleteSelectedButton
               count={selection.selected.size}
-              description={`This permanently deletes ${selection.selected.size} ${selection.selected.size === 1 ? "execution" : "executions"} from this run's history.`}
+              description={`This permanently deletes ${selection.selected.size} market ${selection.selected.size === 1 ? "result" : "results"} from this run.`}
               onDelete={async () => {
                 await deleteBacktests({ ids: [...selection.selected] })
               }}
@@ -878,23 +1058,22 @@ export function RunHistoryDashboard({
                   onCheckedChange={(checked) =>
                     selection.toggleVisible(visibleIds, checked === true)
                   }
-                  aria-label="Select visible executions"
+                  aria-label="Select visible markets"
                 />
               </TableHead>
-              {sortHead("#", "n", state)}
-              {sortHead("Ran at", "ran", state)}
               {sortHead("Market", "market", state)}
-              <TableHead column="meta">Timeframe</TableHead>
-              <TableHead column="meta">Window</TableHead>
               <TableHead column="meta">Status</TableHead>
               {sortHead("Net P&L", "net", state)}
+              {sortHead("Max DD", "dd", state)}
+              {sortHead("Win rate", "win", state)}
+              {sortHead("Sharpe", "sharpe", state)}
               {sortHead("Trades", "trades", state)}
             </TableRow>
           </TableHeader>
         }
         isEmpty={pageRows.length === 0}
-        emptyText="No executions in this run."
-        emptyColSpan={9}
+        emptyText="No market results in this run."
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page: state.page,
@@ -918,21 +1097,11 @@ export function RunHistoryDashboard({
               <Checkbox
                 checked={selection.selected.has(run.id)}
                 onCheckedChange={() => selection.toggle(run.id)}
-                aria-label={`Select execution ${run.n}`}
+                aria-label={`Select ${run.market}`}
               />
             </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {run.n}
-            </TableCell>
-            <TableCell column="meta" className="font-mono text-xs tabular-nums">
-              {dateTimeFormatter.format(Date.parse(run.createdAt))}
-            </TableCell>
-            <TableCell column="meta">{run.market}</TableCell>
-            <TableCell column="meta" className="font-mono text-xs">
-              {run.interval}
-            </TableCell>
-            <TableCell column="meta" className="font-mono text-xs tabular-nums">
-              {windowDaysOf(run)}d
+            <TableCell column="main" className="font-medium">
+              {run.market}
             </TableCell>
             <TableCell column="meta" className={cn("text-xs", STATUS_TONE[run.status])}>
               {run.status === "error" ? (
@@ -951,6 +1120,17 @@ export function RunHistoryDashboard({
               {run.status === "done" && run.netPnl !== null
                 ? `${signedUsd(run.netPnl)}${run.netPnlPct !== null ? ` (${pct(run.netPnlPct)})` : ""}`
                 : "—"}
+            </TableCell>
+            <TableCell column="meta" className="font-mono tabular-nums text-red-500">
+              {run.maxDrawdownPct !== null
+                ? `-${run.maxDrawdownPct.toFixed(2)}%`
+                : "—"}
+            </TableCell>
+            <TableCell column="meta" className="font-mono tabular-nums">
+              {run.winRate !== null ? `${(run.winRate * 100).toFixed(1)}%` : "—"}
+            </TableCell>
+            <TableCell column="meta" className="font-mono tabular-nums">
+              {run.sharpe !== null ? run.sharpe.toFixed(2) : "—"}
             </TableCell>
             <TableCell column="meta" className="font-mono tabular-nums">
               {run.tradeCount ?? "—"}

@@ -15,6 +15,7 @@ import {
   type ShellConfig,
   type ShellItem,
 } from "@/lib/custom-shell"
+import { clampMaxCandles } from "@/lib/backtest/types"
 import type { AuthUser } from "@/lib/api/auth"
 import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
@@ -215,6 +216,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     )
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
+    maxCandles: clampMaxCandles(settings.maxCandles),
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
