@@ -107,6 +107,12 @@ export type BacktestListResponse = {
   runs: BacktestListItem[]
   strategyDefaults: StrategyDefaultsMap
   templates: StrategyTemplate[]
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
 }
 
 export type BacktestDetail = {
@@ -404,21 +410,34 @@ async function executeRun(
   return { backtestId: mainId as string }
 }
 
-const loadBacktestsFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<BacktestListResponse> => {
+const loadBacktestsSchema = z.object({
+  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "copy"]).optional(),
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
+})
+
+const loadBacktestsFn = createServerFn({ method: "GET" })
+  .inputValidator(loadBacktestsSchema)
+  .handler(async ({ data }): Promise<BacktestListResponse> => {
     const {
       listUserBacktests,
       getUserStrategyDefaults,
       listUserStrategyTemplates,
     } = await import("@/server/backtests")
     const user = await requireUser()
-    const [rows, strategyDefaults, templates] = await Promise.all([
-      listUserBacktests(user.id),
+    const page = data.page ?? 1
+    const pageSize = data.pageSize ?? 20
+    const [list, strategyDefaults, templates] = await Promise.all([
+      listUserBacktests(user.id, {
+        strategyType: data.strategyType,
+        page,
+        pageSize: data.strategyType ? pageSize : 500,
+      }),
       getUserStrategyDefaults(user.id),
       listUserStrategyTemplates(user.id),
     ])
     return {
-      runs: rows.map(serializeListItem),
+      runs: list.rows.map(serializeListItem),
       strategyDefaults: strategyDefaults as StrategyDefaultsMap,
       templates: templates.map((row) => ({
         id: row.id,
@@ -426,9 +445,16 @@ const loadBacktestsFn = createServerFn({ method: "GET" }).handler(
         name: row.name,
         config: row.params as StrategyRunDefaults,
       })),
+      pagination: data.strategyType
+        ? {
+            page,
+            pageSize,
+            total: list.totalGroups,
+            totalPages: Math.max(1, Math.ceil(list.totalGroups / pageSize)),
+          }
+        : undefined,
     }
-  }
-)
+  })
 
 const loadBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(backtestIdSchema)
@@ -658,8 +684,8 @@ export function deleteStrategyTemplate(id: string) {
   return deleteStrategyTemplateFn({ data: { id } })
 }
 
-export function loadBacktests() {
-  return loadBacktestsFn()
+export function loadBacktests(input: z.input<typeof loadBacktestsSchema> = {}) {
+  return loadBacktestsFn({ data: input })
 }
 
 export function loadBacktest(backtestId: string) {

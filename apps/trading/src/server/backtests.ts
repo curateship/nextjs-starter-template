@@ -129,9 +129,45 @@ export async function failUserBacktest(
 /** Recent runs for the list page + header dropdown; omits the heavy result. */
 export async function listUserBacktests(
   userId: string,
+  options: {
+    strategyType?: string
+    page?: number
+    pageSize?: number
+  } = {},
   database: CustomShellDb = db
 ) {
-  return database
+  const page = Math.max(1, options.page ?? 1)
+  const maxPageSize = options.strategyType ? 100 : 500
+  const pageSize = Math.min(Math.max(1, options.pageSize ?? 500), maxPageSize)
+  const where = options.strategyType
+    ? and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.strategyType, options.strategyType)
+      )
+    : eq(tradingBacktests.userId, userId)
+
+  const [{ totalGroups = 0 } = { totalGroups: 0 }] = await database
+    .select({
+      totalGroups: sql<number>`count(distinct ${tradingBacktests.groupId})::int`,
+    })
+    .from(tradingBacktests)
+    .where(where)
+
+  const groups = await database
+    .select({ groupId: tradingBacktests.groupId })
+    .from(tradingBacktests)
+    .where(where)
+    .groupBy(tradingBacktests.groupId)
+    .orderBy(
+      sql`bool_or(${tradingBacktests.pinned}) desc`,
+      sql`max(${tradingBacktests.createdAt}) desc`
+    )
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  if (groups.length === 0) return { rows: [], totalGroups }
+
+  const rows = await database
     .select({
       id: tradingBacktests.id,
       groupId: tradingBacktests.groupId,
@@ -169,9 +205,18 @@ export async function listUserBacktests(
       >`(${tradingBacktests.result} #>> '{stats,all,sharpe}')`,
     })
     .from(tradingBacktests)
-    .where(eq(tradingBacktests.userId, userId))
-    .orderBy(desc(tradingBacktests.createdAt))
-    .limit(500)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        inArray(
+          tradingBacktests.groupId,
+          groups.map((group) => group.groupId)
+        )
+      )
+    )
+    .orderBy(desc(tradingBacktests.pinned), desc(tradingBacktests.createdAt))
+
+  return { rows, totalGroups }
 }
 
 export type DeleteBacktestsFilter = {
