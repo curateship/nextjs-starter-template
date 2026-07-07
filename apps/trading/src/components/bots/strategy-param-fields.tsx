@@ -121,6 +121,22 @@ export function StrategyParamFields({
     )
   }
 
+  const check = (key: string, label: string) => (
+    <div key={key} className="flex items-center gap-2">
+      <Checkbox
+        id={`check-${key}`}
+        checked={values[key] === "true"}
+        disabled={disabled}
+        onCheckedChange={(checked) =>
+          onChange(key, checked === true ? "true" : "false")
+        }
+      />
+      <Label htmlFor={`check-${key}`} className="text-xs">
+        {label}
+      </Label>
+    </div>
+  )
+
   switch (strategy) {
     case "grid":
       return (
@@ -205,6 +221,63 @@ export function StrategyParamFields({
             ["long", "Long only"],
             ["short", "Short only"],
           ])}
+        </>
+      )
+    case "qqe":
+      return (
+        <>
+          {select("interval", "Candle interval", [
+            ["1m", "1m"],
+            ["5m", "5m"],
+            ["15m", "15m"],
+            ["1h", "1h"],
+            ["4h", "4h"],
+            ["1d", "1d"],
+          ])}
+          {text("rsiPeriod", "RSI length")}
+          {text("rsiSmoothing", "RSI smoothing")}
+          {text("qqeFactor", "Fast QQE factor")}
+          {text("threshold", "Threshold")}
+          {select("maType", "MA type", [
+            ["EMA", "EMA"],
+            ["SMA", "SMA"],
+            ["WMA", "WMA"],
+            ["VWMA", "VWMA"],
+            ["SMMA", "SMMA"],
+            ["DEMA", "DEMA"],
+            ["TEMA", "TEMA"],
+            ["HMA", "HMA"],
+            ["LSMA", "LSMA"],
+            ["ALMA", "ALMA"],
+            ["PEMA", "PEMA"],
+          ])}
+          {values.maType === "LSMA" ? text("lsmaOffset", "LSMA offset") : null}
+          {values.maType === "ALMA" ? (
+            <>
+              {text("almaOffset", "ALMA offset")}
+              {text("almaSigma", "ALMA sigma")}
+            </>
+          ) : null}
+          {select("rsiSource", "RSI source", [
+            ["close", "Close"],
+            ["open", "Open"],
+            ["high", "High"],
+            ["low", "Low"],
+            ["hl2", "HL2"],
+            ["hlc3", "HLC3"],
+            ["ohlc4", "OHLC4"],
+          ])}
+          {check("consolidationFilter", "Consolidation filter")}
+          {text("loopbackPeriod", "Loopback period")}
+          {text("minConsolidationLen", "Min consolidation length")}
+          {check("colorBars", "Color bars by QQE state")}
+          {check("paintConsolidation", "Paint consolidation area")}
+          {values.paintConsolidation === "true"
+            ? text("zoneColor", "Zone color (hex)", "#2962ff")
+            : null}
+          {text("orderSizeUsd", "Order size (USD)")}
+          {text("takeProfitPct", "Take profit % (optional)")}
+          {text("stopLossPct", "Stop loss % (optional)")}
         </>
       )
     case "copy":

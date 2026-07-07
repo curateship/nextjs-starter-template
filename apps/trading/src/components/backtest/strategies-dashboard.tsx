@@ -68,12 +68,13 @@ import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-const STRATEGY_TYPES: StrategyType[] = ["momentum", "grid", "dca", "copy"]
+const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "grid", "dca", "copy"]
 
 const STRATEGY_KIND: Record<StrategyType, string> = {
   grid: "Range",
   dca: "Averaging",
   momentum: "Trend",
+  qqe: "Oscillator",
   copy: "Mirror",
 }
 

@@ -42,6 +42,197 @@ function toRsi(avgGain: number, avgLoss: number): number {
   return 100 - 100 / (1 + avgGain / avgLoss)
 }
 
+/** Linearly-weighted moving average; NaN until `period` samples exist. */
+export function wma(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN)
+  if (period <= 0) return out
+  const denom = (period * (period + 1)) / 2
+  for (let i = period - 1; i < values.length; i += 1) {
+    let acc = 0
+    for (let j = 0; j < period; j += 1) acc += values[i - j] * (period - j)
+    out[i] = acc / denom
+  }
+  return out
+}
+
+/** Wilder-smoothed (RMA) moving average; NaN until `period` samples exist. */
+export function smma(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN)
+  if (period <= 0 || values.length < period) return out
+  let previous = 0
+  for (let i = 0; i < period; i += 1) previous += values[i]
+  previous /= period
+  out[period - 1] = previous
+  for (let i = period; i < values.length; i += 1) {
+    previous = (previous * (period - 1) + values[i]) / period
+    out[i] = previous
+  }
+  return out
+}
+
+/** Double exponential moving average: 2·EMA − EMA(EMA). */
+export function dema(values: number[], period: number): number[] {
+  const e1 = ema(values, period)
+  const e2 = ema(e1, period)
+  return e1.map((v, i) => 2 * v - e2[i])
+}
+
+/** Triple exponential moving average: 3·(EMA − EMA²) + EMA³. */
+export function tema(values: number[], period: number): number[] {
+  const e1 = ema(values, period)
+  const e2 = ema(e1, period)
+  const e3 = ema(e2, period)
+  return e1.map((v, i) => 3 * (v - e2[i]) + e3[i])
+}
+
+/** Pentuple exponential moving average (Bruno Pio's 8-stage EMA blend). */
+export function pema(values: number[], period: number): number[] {
+  const e1 = ema(values, period)
+  const e2 = ema(e1, period)
+  const e3 = ema(e2, period)
+  const e4 = ema(e3, period)
+  const e5 = ema(e4, period)
+  const e6 = ema(e5, period)
+  const e7 = ema(e6, period)
+  const e8 = ema(e7, period)
+  return e1.map(
+    (v, i) =>
+      8 * v - 28 * e2[i] + 56 * e3[i] - 70 * e4[i] + 56 * e5[i] - 28 * e6[i] + 8 * e7[i] - e8[i]
+  )
+}
+
+/** Hull moving average: WMA(2·WMA(n/2) − WMA(n), √n). */
+export function hma(values: number[], period: number): number[] {
+  const half = wma(values, Math.max(1, Math.floor(period / 2)))
+  const full = wma(values, period)
+  const diff = half.map((v, i) => 2 * v - full[i])
+  return afterNanPrefix(diff, (tail) =>
+    wma(tail, Math.max(1, Math.round(Math.sqrt(period))))
+  )
+}
+
+/** Volume-weighted moving average; NaN until `period` samples exist. */
+export function vwma(values: number[], volumes: number[], period: number): number[] {
+  const pv = values.map((value, i) => value * (volumes[i] ?? Number.NaN))
+  const num = sma(pv, period)
+  const den = sma(volumes.slice(0, values.length), period)
+  return num.map((value, i) => value / den[i])
+}
+
+/** Least-squares (linear regression) value `offset` bars back from the fit's end. */
+export function lsma(values: number[], period: number, offset: number): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN)
+  if (period <= 0) return out
+  const sumX = ((period - 1) * period) / 2
+  const sumX2 = ((period - 1) * period * (2 * period - 1)) / 6
+  const denom = period * sumX2 - sumX * sumX
+  for (let i = period - 1; i < values.length; i += 1) {
+    let sumY = 0
+    let sumXY = 0
+    for (let j = 0; j < period; j += 1) {
+      const y = values[i - period + 1 + j]
+      sumY += y
+      sumXY += j * y
+    }
+    const slope = denom === 0 ? 0 : (period * sumXY - sumX * sumY) / denom
+    const intercept = (sumY - slope * sumX) / period
+    out[i] = intercept + slope * (period - 1 - offset)
+  }
+  return out
+}
+
+/** Arnaud Legoux moving average (gaussian-weighted window). */
+export function alma(
+  values: number[],
+  period: number,
+  offset: number,
+  sigma: number
+): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN)
+  if (period <= 0 || sigma <= 0) return out
+  const m = offset * (period - 1)
+  const s = period / sigma
+  const weights: number[] = []
+  let norm = 0
+  for (let j = 0; j < period; j += 1) {
+    const w = Math.exp(-((j - m) * (j - m)) / (2 * s * s))
+    weights.push(w)
+    norm += w
+  }
+  for (let i = period - 1; i < values.length; i += 1) {
+    let acc = 0
+    for (let j = 0; j < period; j += 1) acc += values[i - period + 1 + j] * weights[j]
+    out[i] = acc / norm
+  }
+  return out
+}
+
+export type MaType =
+  | "ALMA"
+  | "EMA"
+  | "DEMA"
+  | "TEMA"
+  | "WMA"
+  | "VWMA"
+  | "SMA"
+  | "SMMA"
+  | "HMA"
+  | "LSMA"
+  | "PEMA"
+
+/** Applies `fn` past any leading-NaN prefix, re-padding the prefix with NaN. */
+function afterNanPrefix(values: number[], fn: (tail: number[]) => number[]): number[] {
+  const start = values.findIndex((value) => !Number.isNaN(value))
+  if (start < 0) return new Array<number>(values.length).fill(Number.NaN)
+  if (start === 0) return fn(values)
+  return new Array<number>(start).fill(Number.NaN).concat(fn(values.slice(start)))
+}
+
+/**
+ * Dispatches to the selected MA. Leading-NaN warmup prefixes (e.g. RSI
+ * output) are trimmed before computing and re-padded after — `ema` seeds
+ * from the first sample, so feeding it NaN would poison the whole series.
+ */
+export function movingAverage(
+  type: MaType,
+  values: number[],
+  period: number,
+  opts?: {
+    volumes?: number[]
+    lsmaOffset?: number
+    almaOffset?: number
+    almaSigma?: number
+  }
+): number[] {
+  const start = Math.max(0, values.findIndex((value) => !Number.isNaN(value)))
+  return afterNanPrefix(values, (tail) => {
+    switch (type) {
+      case "EMA":
+        return ema(tail, period)
+      case "SMA":
+        return sma(tail, period)
+      case "WMA":
+        return wma(tail, period)
+      case "SMMA":
+        return smma(tail, period)
+      case "DEMA":
+        return dema(tail, period)
+      case "TEMA":
+        return tema(tail, period)
+      case "HMA":
+        return hma(tail, period)
+      case "PEMA":
+        return pema(tail, period)
+      case "VWMA":
+        return vwma(tail, (opts?.volumes ?? []).slice(start), period)
+      case "LSMA":
+        return lsma(tail, period, opts?.lsmaOffset ?? 0)
+      case "ALMA":
+        return alma(tail, period, opts?.almaOffset ?? 0.85, opts?.almaSigma ?? 6)
+    }
+  })
+}
+
 export function highest(values: number[]): number {
   return values.reduce((max, value) => Math.max(max, value), -Infinity)
 }

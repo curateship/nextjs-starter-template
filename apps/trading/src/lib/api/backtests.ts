@@ -33,8 +33,15 @@ const INTERVAL_MS: Record<BacktestInterval, number> = {
   "1d": 86_400_000,
 }
 
-/** Candles the runner pre-loads before simStart so signals are warmed up. */
-const MOMENTUM_WARMUP_CANDLES = 400
+/**
+ * Candles the runner pre-loads before simStart so signals are warmed up.
+ * 1500 (not 400): QQE's consolidation machine is path-dependent from its
+ * first bar, and TradingView anchors it at the chart's full loaded history —
+ * a deeper anchor converges zone edges (and thus filtered signals) to TV's.
+ * Must stay equal to the chart fetch (CHART_WARMUP_CANDLES) so painted zones
+ * and engine signals share an anchor.
+ */
+const SIGNAL_WARMUP_CANDLES = 1500
 
 export type BacktestListItem = {
   id: string
@@ -153,13 +160,14 @@ const runBacktestSchema = z
       })
     }
     if (
-      data.params.strategyType === "momentum" &&
+      (data.params.strategyType === "momentum" ||
+        data.params.strategyType === "qqe") &&
       data.params.interval !== data.interval
     ) {
       ctx.addIssue({
         code: "custom",
         message:
-          "Backtest timeframe must match the momentum signal interval.",
+          "Backtest timeframe must match the strategy's signal interval.",
         path: ["interval"],
       })
     }
@@ -295,7 +303,9 @@ async function executeRun(
 
   const interval = data.interval
   const warmupBars =
-    data.params.strategyType === "momentum" ? MOMENTUM_WARMUP_CANDLES : 0
+    data.params.strategyType === "momentum" || data.params.strategyType === "qqe"
+      ? SIGNAL_WARMUP_CANDLES
+      : 0
   const simStartMs = startTime.getTime()
   const fetchStart = simStartMs - warmupBars * INTERVAL_MS[interval]
 
@@ -431,7 +441,7 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
   })
 
 /** Extra history before the window so indicator overlays have warmup. */
-const CHART_WARMUP_CANDLES = MOMENTUM_WARMUP_CANDLES
+const CHART_WARMUP_CANDLES = SIGNAL_WARMUP_CANDLES
 /** Display cap so 1m × 90d configs stay renderable. */
 const MAX_CHART_BARS = 5_000
 
@@ -467,7 +477,7 @@ const deleteBacktestsSchema = z
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
     strategyTypes: z
-      .array(z.enum(["grid", "dca", "momentum", "copy"]))
+      .array(z.enum(["grid", "dca", "momentum", "qqe", "copy"]))
       .max(4)
       .optional(),
   })
@@ -497,7 +507,7 @@ export function deleteBacktests(input: z.input<typeof deleteBacktestsSchema>) {
 }
 
 const saveStrategyDefaultsSchema = z.object({
-  strategyType: z.enum(["grid", "dca", "momentum", "copy"]),
+  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "copy"]),
   defaults: z.object({
     /** ParamValues form seeds; validated for shape, not runnability. */
     params: z

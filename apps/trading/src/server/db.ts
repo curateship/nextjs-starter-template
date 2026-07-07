@@ -16,6 +16,13 @@ const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 })
 
+// An idle pooled connection dying (remote reset, dropped NAT mapping) emits
+// "error" on the pool; without a handler that's an uncaught exception that
+// crashes the process. The pool replaces the dead client on the next query.
+pool.on("error", (error) => {
+  console.error("pg pool idle client error:", error.message)
+})
+
 export let db = drizzle(pool, { schema })
 export type CustomShellDb = typeof db
 

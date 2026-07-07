@@ -39,6 +39,27 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     orderSizeUsd: "250",
     direction: "both",
   },
+  qqe: {
+    interval: "15m",
+    rsiPeriod: "14",
+    rsiSmoothing: "5",
+    qqeFactor: "4.238",
+    threshold: "10",
+    maType: "EMA",
+    lsmaOffset: "0",
+    almaOffset: "0.85",
+    almaSigma: "6",
+    rsiSource: "close",
+    colorBars: "true",
+    consolidationFilter: "true",
+    loopbackPeriod: "50",
+    minConsolidationLen: "5",
+    paintConsolidation: "true",
+    zoneColor: "#2962ff",
+    orderSizeUsd: "250",
+    takeProfitPct: "",
+    stopLossPct: "",
+  },
   copy: {
     sourceAddress: "",
     sizeMode: "ratio",
@@ -48,6 +69,9 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     maxSlippageBps: "50",
   },
 }
+
+/** Strategies whose signal interval must match the backtest timeframe. */
+export const INTERVAL_STRATEGIES: StrategyType[] = ["momentum", "qqe"]
 
 /** Inverse of buildParams — string form values from stored params. */
 export function paramsToValues(params: StrategyParams): ParamValues {
@@ -118,6 +142,30 @@ export function buildParams(
         direction: values.direction,
       }
     }
+    case "qqe":
+      return {
+        strategyType: "qqe",
+        interval: values.interval,
+        rsiPeriod: num("rsiPeriod"),
+        rsiSmoothing: num("rsiSmoothing"),
+        qqeFactor: num("qqeFactor"),
+        threshold: num("threshold"),
+        maType: values.maType,
+        // Only the active MA's tuning params are sent, like momentum's stops.
+        lsmaOffset: values.maType === "LSMA" ? num("lsmaOffset") : undefined,
+        almaOffset: values.maType === "ALMA" ? num("almaOffset") : undefined,
+        almaSigma: values.maType === "ALMA" ? num("almaSigma") : undefined,
+        rsiSource: values.rsiSource,
+        colorBars: values.colorBars === "true",
+        consolidationFilter: values.consolidationFilter === "true",
+        loopbackPeriod: num("loopbackPeriod"),
+        minConsolidationLen: num("minConsolidationLen"),
+        paintConsolidation: values.paintConsolidation === "true",
+        zoneColor: str("zoneColor"),
+        orderSizeUsd: num("orderSizeUsd"),
+        takeProfitPct: num("takeProfitPct"),
+        stopLossPct: num("stopLossPct"),
+      }
     case "copy":
       return {
         strategyType: "copy",

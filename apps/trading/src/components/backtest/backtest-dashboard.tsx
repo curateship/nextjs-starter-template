@@ -4,6 +4,7 @@ import type { Layout } from "react-resizable-panels"
 
 import {
   buildParams,
+  INTERVAL_STRATEGIES,
   paramsToValues,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
@@ -69,6 +70,9 @@ const EMPTY_OVERLAYS: StrategyChartOverlays = {
   indicators: [],
   overlayLines: [],
   priceLines: [],
+  zones: [],
+  barColors: [],
+  markers: [],
 }
 const WINDOW_DEBOUNCE_MS = 500
 
@@ -368,10 +372,12 @@ export function BacktestDashboard({
     }))
   }
 
-  const markers = React.useMemo(
-    () => (runMatchesConfig && result ? buildRunMarkers(result) : []),
-    [runMatchesConfig, result]
-  )
+  // qqe renders TradingView-style: indicator signal labels only, never fill
+  // arrows. Every other strategy shows the run's fill arrows.
+  const markers = React.useMemo(() => {
+    if (strategyType === "qqe") return overlays.markers
+    return runMatchesConfig && result ? buildRunMarkers(result) : []
+  }, [strategyType, overlays, runMatchesConfig, result])
 
   const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
   const selectedRow = markets.find((row) => row.coin === market)
@@ -471,7 +477,7 @@ export function BacktestDashboard({
                         disabled={readOnly}
                         onClick={() => {
                           setTimeframe(tf)
-                          if (strategyType === "momentum") {
+                          if (strategyType && INTERVAL_STRATEGIES.includes(strategyType)) {
                             setParams((current) => ({ ...current, interval: tf }))
                           }
                         }}
@@ -517,6 +523,8 @@ export function BacktestDashboard({
                     indicators={overlays.indicators}
                     overlayLines={overlays.overlayLines}
                     priceLines={overlays.priceLines}
+                    zones={overlays.zones}
+                    barColors={overlays.barColors}
                     markers={markers}
                     visibleStartMs={chartState.simStartMs || undefined}
                     focusRange={focusRange}
