@@ -1,5 +1,6 @@
+import type { ReactNode } from "react"
+
 import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -9,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { TradingNetwork } from "@/lib/hl/network"
+import { cn } from "@/lib/utils"
 
 export type WalletOption = {
   /** Select value: wallet id, or `paper:<id>` for in-house paper wallets. */
@@ -26,35 +27,34 @@ export type AccountSummary = {
 }
 
 export function AccountStrip({
-  network,
   options,
   selectedValue,
   onWalletChange,
-  summary,
-  isPaper,
-  workerOnline,
+  left,
+  actions,
 }: {
-  network: TradingNetwork
   options: WalletOption[]
   selectedValue: string | null
   onWalletChange: (value: string) => void
-  summary: AccountSummary | null
-  isPaper: boolean
-  workerOnline?: boolean
+  /** Market/coin info rendered on the left of the bar. */
+  left?: ReactNode
+  /** Controls rendered next to the wallet select (e.g. panel settings). */
+  actions?: ReactNode
 }) {
-  const equity = summary?.equity ?? 0
-  const unrealized = summary?.unrealized ?? 0
-  const marginUsed = summary?.marginUsed ?? 0
-  const marginPct = equity > 0 ? (marginUsed / equity) * 100 : 0
   const exchangeOptions = options.filter((option) => option.kind !== "paper")
   const paperOptions = options.filter((option) => option.kind === "paper")
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b bg-background px-3 py-2">
-      <div className="flex items-center gap-2">
-        <Label htmlFor="active-wallet" className="text-xs text-muted-foreground">
-          Wallet
-        </Label>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/50 px-3 py-2">
+      {left}
+      {options.length === 0 ? (
+        <span className="text-xs text-muted-foreground">
+          Create a Paper Wallet or import a Sandbox wallet on the Wallets page.
+        </span>
+      ) : null}
+
+      <div className="ml-auto flex items-center gap-2">
+        {actions}
         <Select
           value={selectedValue ?? ""}
           onValueChange={onWalletChange}
@@ -89,42 +89,52 @@ export function AccountStrip({
             ) : null}
           </SelectContent>
         </Select>
-        {isPaper ? (
-          <Badge variant="outline">paper</Badge>
-        ) : (
-          <Badge variant={network === "mainnet" ? "default" : "secondary"}>
-            {network === "testnet" ? "sandbox" : network}
-          </Badge>
-        )}
-        {workerOnline === false ? (
-          <Badge variant="destructive">bot worker offline</Badge>
-        ) : null}
       </div>
-
-      <Stat label="Equity" value={formatUsd(equity)} />
-      <Stat
-        label="Unrealized PnL"
-        value={formatUsd(unrealized)}
-        tone={unrealized > 0 ? "up" : unrealized < 0 ? "down" : undefined}
-      />
-      <Stat
-        label={isPaper ? "Position value" : "Margin used"}
-        value={`${formatUsd(marginUsed)}${isPaper ? "" : ` (${marginPct.toFixed(1)}%)`}`}
-      />
-      <Stat
-        label={isPaper ? "Cash" : "Withdrawable"}
-        value={formatUsd(summary?.withdrawable ?? 0)}
-      />
-      {options.length === 0 ? (
-        <span className="text-xs text-muted-foreground">
-          Create a Paper Wallet or import a Sandbox wallet on the Wallets page.
-        </span>
-      ) : null}
     </div>
   )
 }
 
-function Stat({
+/** Account KPIs shown beneath the order ticket. */
+export function AccountSummaryPanel({
+  summary,
+  isPaper,
+  workerOnline,
+}: {
+  summary: AccountSummary | null
+  isPaper: boolean
+  workerOnline?: boolean
+}) {
+  const equity = summary?.equity ?? 0
+  const unrealized = summary?.unrealized ?? 0
+  const marginUsed = summary?.marginUsed ?? 0
+  const marginPct = equity > 0 ? (marginUsed / equity) * 100 : 0
+
+  return (
+    <div className="flex flex-col gap-2 border-t p-3">
+      {workerOnline === false ? (
+        <Badge variant="destructive" className="w-fit">
+          bot worker offline
+        </Badge>
+      ) : null}
+      <SummaryRow label="Equity" value={formatUsd(equity)} />
+      <SummaryRow
+        label="Unrealized PnL"
+        value={formatUsd(unrealized)}
+        tone={unrealized > 0 ? "up" : unrealized < 0 ? "down" : undefined}
+      />
+      <SummaryRow
+        label={isPaper ? "Position value" : "Margin used"}
+        value={`${formatUsd(marginUsed)}${isPaper ? "" : ` (${marginPct.toFixed(1)}%)`}`}
+      />
+      <SummaryRow
+        label={isPaper ? "Cash" : "Withdrawable"}
+        value={formatUsd(summary?.withdrawable ?? 0)}
+      />
+    </div>
+  )
+}
+
+function SummaryRow({
   label,
   value,
   tone,
@@ -134,18 +144,14 @@ function Stat({
   tone?: "up" | "down"
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] text-muted-foreground uppercase">
-        {label}
-      </span>
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="text-muted-foreground">{label}</span>
       <span
-        className={
-          tone === "up"
-            ? "font-mono text-xs text-emerald-600 tabular-nums"
-            : tone === "down"
-              ? "font-mono text-xs text-red-500 tabular-nums"
-              : "font-mono text-xs tabular-nums"
-        }
+        className={cn(
+          "font-mono tabular-nums",
+          tone === "up" && "text-emerald-600",
+          tone === "down" && "text-red-500"
+        )}
       >
         {value}
       </span>

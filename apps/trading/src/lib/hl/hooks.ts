@@ -180,6 +180,7 @@ export type MarketRow = {
   szDecimals: number
   maxLeverage: number
   markPx: string
+  oraclePx: string
   prevDayPx: string
   funding: string
   openInterest: string
@@ -207,6 +208,7 @@ export function useMarketRows(network: TradingNetwork) {
             szDecimals: asset.szDecimals,
             maxLeverage: asset.maxLeverage,
             markPx: ctx.markPx,
+            oraclePx: ctx.oraclePx,
             prevDayPx: ctx.prevDayPx,
             funding: ctx.funding,
             openInterest: ctx.openInterest,

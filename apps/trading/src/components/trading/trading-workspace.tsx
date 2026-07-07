@@ -1,10 +1,12 @@
 import * as React from "react"
+import { SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
 
 import {
   AccountStrip,
+  AccountSummaryPanel,
   type AccountSummary,
   type WalletOption,
 } from "@/components/trading/account-strip"
@@ -13,6 +15,7 @@ import {
   OpenOrdersTable,
   PositionsTable,
 } from "@/components/trading/bottom-tables"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   ChartOrderMenu,
   type ChartMenuState,
@@ -29,6 +32,14 @@ import { PriceChart, type ChartPriceLine } from "@/components/trading/price-char
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -51,7 +62,13 @@ import {
 } from "@/lib/api/paper"
 import type { PaperWalletItem } from "@/lib/api/paper"
 import type { WalletItem } from "@/lib/api/wallets"
-import { useAllMids, useMarketRows, useWebData2 } from "@/lib/hl/hooks"
+import { formatCompactUsd, formatPriceDisplay } from "@/components/trading/format"
+import {
+  useAllMids,
+  useMarketRows,
+  useWebData2,
+  type MarketRow,
+} from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
@@ -64,9 +81,17 @@ import {
   type IndicatorType,
 } from "@/lib/trading/indicators-config"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
+import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 
 export const PAPER_WALLET_PREFIX = "paper:"
+
+// Bottom-panel tabs share the backtest workspace's underline styling: a light
+// gray bar with active tabs marked by an underline instead of a filled box.
+const BOTTOM_TABS_LIST =
+  "h-auto w-full justify-start gap-4 rounded-none border-none bg-muted/50 px-4 py-0"
+const BOTTOM_TAB_TRIGGER =
+  "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
 
 export function TradingWorkspace({
   network,
@@ -300,6 +325,7 @@ export function TradingWorkspace({
   const innerLayout = usePersistedLayout("trading-layout-horizontal")
   const rightLayout = usePersistedLayout("trading-layout-right")
   const [indicators, setIndicators] = usePersistedIndicators()
+  const [panels, setPanels] = usePersistedPanels()
 
   const ticketDisabledReason = isPaper
     ? null
@@ -312,13 +338,11 @@ export function TradingWorkspace({
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col">
       <AccountStrip
-        network={network}
         options={options}
         selectedValue={selectedValue}
         onWalletChange={onWalletChange}
-        summary={summary}
-        isPaper={isPaper}
-        workerOnline={workerOnline}
+        left={<MarketInfoBar marketRow={marketRow} price={markPx} />}
+        actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
 
       {notice ? (
@@ -356,7 +380,7 @@ export function TradingWorkspace({
             <ResizableHandle withHandle />
             <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
               <div className="flex h-full min-h-0 flex-col">
-                <div className="flex items-center gap-1 border-b px-2 py-1">
+                <div className="flex items-center gap-1 border-b bg-muted/50 px-2 py-1">
                   <span className="mr-2 text-sm font-semibold">{market}</span>
                   {CANDLE_INTERVALS.map((candidate) => (
                     <Button
@@ -391,41 +415,60 @@ export function TradingWorkspace({
                 </div>
               </div>
             </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="book-tape" defaultSize="18%" minSize="12%">
-              <ResizablePanelGroup
-                orientation="vertical"
-                defaultLayout={rightLayout.defaultLayout}
-                onLayoutChanged={rightLayout.onLayoutChanged}
-              >
-                <ResizablePanel id="book" defaultSize="60%" minSize="20%">
-                  <OrderBook
-                    network={network}
-                    coin={market}
-                    onPriceClick={(px) => setPrefill({ px })}
-                  />
-                </ResizablePanel>
+            {panels.orderBook || panels.marketDepth ? (
+              <>
                 <ResizableHandle withHandle />
-                <ResizablePanel id="tape" defaultSize="40%" minSize="15%">
-                  <TradesTape network={network} coin={market} />
+                <ResizablePanel id="book-tape" defaultSize="18%" minSize="12%">
+                  <ResizablePanelGroup
+                    orientation="vertical"
+                    defaultLayout={rightLayout.defaultLayout}
+                    onLayoutChanged={rightLayout.onLayoutChanged}
+                  >
+                    {panels.orderBook ? (
+                      <ResizablePanel id="book" defaultSize="60%" minSize="20%">
+                        <OrderBook
+                          network={network}
+                          coin={market}
+                          onPriceClick={(px) => setPrefill({ px })}
+                        />
+                      </ResizablePanel>
+                    ) : null}
+                    {panels.orderBook && panels.marketDepth ? (
+                      <ResizableHandle withHandle />
+                    ) : null}
+                    {panels.marketDepth ? (
+                      <ResizablePanel id="tape" defaultSize="40%" minSize="15%">
+                        <TradesTape network={network} coin={market} />
+                      </ResizablePanel>
+                    ) : null}
+                  </ResizablePanelGroup>
                 </ResizablePanel>
-              </ResizablePanelGroup>
-            </ResizablePanel>
+              </>
+            ) : null}
             <ResizableHandle withHandle />
             <ResizablePanel id="ticket" defaultSize="18%" minSize="14%">
-              <OrderTicket
-                walletId={
-                  selectedWallet?.is_active ? (selectedWallet?.id ?? null) : null
-                }
-                paperWalletId={paperWalletId}
-                market={market}
-                marketRow={marketRow}
-                markPx={markPx}
-                equity={equity}
-                positionSzi={positionSzi}
-                prefill={prefill}
-                disabledReason={ticketDisabledReason}
-              />
+              <ScrollArea className="h-full">
+                <OrderTicket
+                  walletId={
+                    selectedWallet?.is_active
+                      ? (selectedWallet?.id ?? null)
+                      : null
+                  }
+                  paperWalletId={paperWalletId}
+                  market={market}
+                  marketRow={marketRow}
+                  markPx={markPx}
+                  equity={equity}
+                  positionSzi={positionSzi}
+                  prefill={prefill}
+                  disabledReason={ticketDisabledReason}
+                />
+                <AccountSummaryPanel
+                  summary={summary}
+                  isPaper={isPaper}
+                  workerOnline={workerOnline}
+                />
+              </ScrollArea>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
@@ -477,23 +520,14 @@ function PaperBottomTabs({
 
   return (
     <Tabs defaultValue="positions" className="flex h-full min-h-0 flex-col gap-0">
-      <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-        <TabsTrigger
-          value="positions"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+      <TabsList variant="line" className={BOTTOM_TABS_LIST}>
+        <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
           Positions{positionCount ? ` (${positionCount})` : ""}
         </TabsTrigger>
-        <TabsTrigger
-          value="orders"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+        <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
           Open Orders{orderCount ? ` (${orderCount})` : ""}
         </TabsTrigger>
-        <TabsTrigger
-          value="fills"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+        <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
           Fills
         </TabsTrigger>
       </TabsList>
@@ -535,23 +569,14 @@ function SandboxBottomTabs({
       defaultValue="positions"
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-        <TabsTrigger
-          value="positions"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+      <TabsList variant="line" className={BOTTOM_TABS_LIST}>
+        <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
           Positions{positionCount ? ` (${positionCount})` : ""}
         </TabsTrigger>
-        <TabsTrigger
-          value="orders"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+        <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
           Open Orders{orderCount ? ` (${orderCount})` : ""}
         </TabsTrigger>
-        <TabsTrigger
-          value="fills"
-          className="rounded-none data-[state=active]:bg-muted"
-        >
+        <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
           Fills
         </TabsTrigger>
       </TabsList>
@@ -574,6 +599,117 @@ function SandboxBottomTabs({
         <FillsTable network={network} address={accountAddress} />
       </TabsContent>
     </Tabs>
+  )
+}
+
+type PanelVisibility = { orderBook: boolean; marketDepth: boolean }
+
+const PANELS_STORAGE_KEY = "trading-visible-panels"
+const DEFAULT_PANELS: PanelVisibility = { orderBook: true, marketDepth: true }
+
+const PANEL_OPTIONS: { key: keyof PanelVisibility; label: string }[] = [
+  { key: "orderBook", label: "Order Book" },
+  { key: "marketDepth", label: "Market Depth" },
+]
+
+/** Cog dropdown to show/hide dashboard panels. */
+function PanelSettings({
+  panels,
+  onChange,
+}: {
+  panels: PanelVisibility
+  onChange: (next: PanelVisibility) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground"
+          aria-label="Panel settings"
+        >
+          <SettingsIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuLabel className="text-[11px]">Panels</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {PANEL_OPTIONS.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option.key}
+            checked={panels[option.key]}
+            onSelect={(event) => event.preventDefault()}
+            onCheckedChange={(checked) =>
+              onChange({ ...panels, [option.key]: checked })
+            }
+          >
+            {option.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** Panel visibility, persisted to localStorage (unknown keys fall to default). */
+function usePersistedPanels() {
+  return usePersistedState<PanelVisibility>(
+    PANELS_STORAGE_KEY,
+    DEFAULT_PANELS,
+    (raw) => ({ ...DEFAULT_PANELS, ...(JSON.parse(raw) as Partial<PanelVisibility>) })
+  )
+}
+
+/** Selected-market summary shown on the left of the account bar. */
+function MarketInfoBar({
+  marketRow,
+  price,
+}: {
+  marketRow: MarketRow | null
+  price: number
+}) {
+  if (!marketRow) {
+    return <span className="text-sm font-semibold text-muted-foreground">—</span>
+  }
+  const prev = Number(marketRow.prevDayPx)
+  const change = prev > 0 ? ((price - prev) / prev) * 100 : 0
+  const funding = Number(marketRow.funding) * 100
+  const openInterestUsd = Number(marketRow.openInterest) * price
+  const tone = change >= 0 ? "text-emerald-600" : "text-red-500"
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-base font-bold">{marketRow.coin}</span>
+        <span className="text-[10px] text-muted-foreground">
+          Perp · {marketRow.maxLeverage}x
+        </span>
+      </div>
+      <div className="flex flex-col leading-tight">
+        <span className={cn("font-mono text-sm font-semibold tabular-nums", tone)}>
+          {price > 0 ? formatPriceDisplay(String(price)) : "—"}
+        </span>
+        <span className={cn("font-mono text-[10px] tabular-nums", tone)}>
+          {change >= 0 ? "+" : ""}
+          {change.toFixed(2)}%
+        </span>
+      </div>
+      <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
+      <MarketStat label="Index" value={formatPriceDisplay(marketRow.oraclePx)} />
+      <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />
+      <MarketStat label="24h Vol" value={formatCompactUsd(Number(marketRow.dayNtlVlm))} />
+      <MarketStat label="Open Interest" value={formatCompactUsd(openInterestUsd)} />
+    </div>
+  )
+}
+
+function MarketStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
+      <span className="font-mono text-xs tabular-nums">{value}</span>
+    </div>
   )
 }
 
@@ -625,18 +761,12 @@ function isIndicatorConfig(value: unknown): value is IndicatorConfig {
  * whole blob matches the current canonical shape; otherwise discard and reset
  * to defaults — no field-by-field migration or coercion of stale state.
  */
-function loadPersistedIndicators(): IndicatorConfig[] {
-  try {
-    const raw = localStorage.getItem("trading-indicators")
-    if (!raw) return DEFAULT_INDICATORS
-    const parsed: unknown = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) {
-      return withMissingDefaults(parsed)
-    }
-    console.warn("Invalid trading-indicators in storage; resetting to defaults.")
-  } catch {
-    // Unreadable or blocked storage — treat as absent.
+function parsePersistedIndicators(raw: string): IndicatorConfig[] {
+  const parsed: unknown = JSON.parse(raw)
+  if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) {
+    return withMissingDefaults(parsed)
   }
+  console.warn("Invalid trading-indicators in storage; resetting to defaults.")
   return DEFAULT_INDICATORS
 }
 
@@ -653,18 +783,11 @@ function withMissingDefaults(stored: IndicatorConfig[]): IndicatorConfig[] {
 }
 
 function usePersistedIndicators() {
-  const [indicators, setIndicators] =
-    React.useState<IndicatorConfig[]>(loadPersistedIndicators)
-
-  React.useEffect(() => {
-    try {
-      localStorage.setItem("trading-indicators", JSON.stringify(indicators))
-    } catch {
-      // storage full/blocked — config just won't persist
-    }
-  }, [indicators])
-
-  return [indicators, setIndicators] as const
+  return usePersistedState<IndicatorConfig[]>(
+    "trading-indicators",
+    DEFAULT_INDICATORS,
+    parsePersistedIndicators
+  )
 }
 
 function IndicatorsMenu({
