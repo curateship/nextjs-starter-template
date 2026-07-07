@@ -9,8 +9,23 @@ import {
   TrendingUpIcon,
   XIcon,
 } from "lucide-react"
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 import { DashboardTable } from "@/components/dashboard-table"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -44,11 +59,13 @@ import {
   createRankCheckJob,
   getRankingErrorMessage,
   getRankingHistory,
+  getRankingTrend,
   listRankings,
   setKeywordTracking,
   type RankingHistoryEntry,
   type RankingRow,
   type RankingSortField,
+  type RankingTrendPoint,
 } from "@/lib/api/rankings"
 import type { ProjectItem } from "@/lib/api/seo-projects"
 
@@ -232,6 +249,8 @@ export function RankingsDashboard({ project }: { project: ProjectItem }) {
           {error}
         </div>
       ) : null}
+
+      <RankingTrendChart projectId={projectId} refreshToken={refreshToken} />
 
       <DashboardTable
         title="Rankings"
@@ -427,6 +446,132 @@ export function RankingsDashboard({ project }: { project: ProjectItem }) {
   )
 }
 
+const trendChartConfig = {
+  visibility: { label: "Visibility", color: "var(--chart-2)" },
+  avgPosition: { label: "Avg position", color: "var(--chart-4)" },
+} satisfies ChartConfig
+
+const trendDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+})
+
+function formatTrendDate(date: string) {
+  return trendDateFormatter.format(new Date(`${date}T00:00:00Z`))
+}
+
+function RankingTrendChart({
+  projectId,
+  refreshToken,
+}: {
+  projectId: string
+  refreshToken: number
+}) {
+  const [points, setPoints] = React.useState<RankingTrendPoint[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let active = true
+    getRankingTrend(projectId, 30)
+      .then((data) => {
+        if (active) setPoints(data.points)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId, refreshToken])
+
+  if (loading && !points.length) return null
+
+  return (
+    <div className="mb-4 rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10">
+      <div className="mb-3 flex items-center gap-2">
+        <LineChartIcon className="size-4 text-muted-foreground" />
+        <span className="text-sm font-medium sm:text-base">
+          Visibility trend
+        </span>
+        <span className="text-xs text-muted-foreground">Last 30 days</span>
+      </div>
+      {points.length < 2 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Run rank checks on at least two different days to see the visibility
+          trend.
+        </p>
+      ) : (
+        <ChartContainer
+          config={trendChartConfig}
+          className="aspect-auto h-56 w-full"
+        >
+          <LineChart
+            data={points}
+            margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              minTickGap={24}
+              tickFormatter={formatTrendDate}
+            />
+            <YAxis
+              yAxisId="visibility"
+              domain={[0, 100]}
+              tickLine={false}
+              axisLine={false}
+              width={34}
+            />
+            <YAxis
+              yAxisId="position"
+              orientation="right"
+              reversed
+              domain={[1, "auto"]}
+              allowDecimals={false}
+              tickLine={false}
+              axisLine={false}
+              width={34}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent labelFormatter={(_, payload) => {
+                  const point = payload?.[0]?.payload as
+                    | RankingTrendPoint
+                    | undefined
+                  if (!point) return null
+                  return `${formatTrendDate(point.date)} · top 3: ${point.top3} · top 10: ${point.top10} · top 100: ${point.top100}`
+                }} />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              yAxisId="visibility"
+              dataKey="visibility"
+              type="monotone"
+              stroke="var(--color-visibility)"
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              yAxisId="position"
+              dataKey="avgPosition"
+              type="monotone"
+              stroke="var(--color-avgPosition)"
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              dot={false}
+              connectNulls
+            />
+          </LineChart>
+        </ChartContainer>
+      )}
+    </div>
+  )
+}
+
 function PositionBadge({
   position,
   checked,
@@ -473,6 +618,60 @@ function ChangeIndicator({ change }: { change: number | null }) {
       <TrendingDownIcon className="size-3.5" />
       {change}
     </span>
+  )
+}
+
+const historyChartConfig = {
+  position: { label: "Position", color: "var(--chart-2)" },
+} satisfies ChartConfig
+
+function HistoryLineChart({ history }: { history: RankingHistoryEntry[] }) {
+  const data = history.map((entry) => ({
+    label: dateTimeFormatter.format(new Date(entry.checkedAt)),
+    position: entry.position,
+  }))
+  const hasPositions = data.some((entry) => entry.position != null)
+
+  if (!hasPositions) {
+    return (
+      <p className="py-4 text-sm text-muted-foreground">
+        Not in the top 100 on any check yet.
+      </p>
+    )
+  }
+
+  return (
+    <ChartContainer
+      config={historyChartConfig}
+      className="aspect-auto h-40 w-full"
+    >
+      <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          minTickGap={32}
+        />
+        <YAxis
+          reversed
+          domain={[1, "auto"]}
+          allowDecimals={false}
+          tickLine={false}
+          axisLine={false}
+          width={30}
+        />
+        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <Line
+          dataKey="position"
+          type="monotone"
+          stroke="var(--color-position)"
+          strokeWidth={2}
+          dot={{ r: 2.5 }}
+          connectNulls={false}
+        />
+      </LineChart>
+    </ChartContainer>
   )
 }
 
@@ -551,37 +750,7 @@ function RankingHistoryDialog({
                 <div className="mb-1 text-xs font-medium text-muted-foreground">
                   Position history
                 </div>
-                <div className="flex h-24 items-end gap-1">
-                  {history.map((entry) => (
-                    <div
-                      key={entry.checkedAt}
-                      className={
-                        entry.position != null
-                          ? "flex-1 rounded-t-sm bg-primary/60"
-                          : "flex-1 rounded-t-sm bg-muted"
-                      }
-                      style={{
-                        height:
-                          entry.position != null
-                            ? `${Math.max(4, ((101 - Math.min(entry.position, 100)) / 100) * 100)}%`
-                            : "4%",
-                      }}
-                      title={`${dateTimeFormatter.format(new Date(entry.checkedAt))}: ${
-                        entry.position != null
-                          ? `#${entry.position}`
-                          : "not in top 100"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {dateTimeFormatter.format(new Date(history[0]!.checkedAt))}
-                  </span>
-                  <span>
-                    {dateTimeFormatter.format(new Date(latest!.checkedAt))}
-                  </span>
-                </div>
+                <HistoryLineChart history={history} />
               </div>
 
               <div>

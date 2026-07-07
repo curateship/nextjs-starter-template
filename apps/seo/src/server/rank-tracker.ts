@@ -215,6 +215,74 @@ export async function listRankingsForProject(
   }
 }
 
+export type RankingTrendPoint = {
+  /** Check day, YYYY-MM-DD (UTC). */
+  date: string
+  avgPosition: number | null
+  top3: number
+  top10: number
+  top100: number
+  /** Rank checks recorded that day (including "not in top 100" results). */
+  checks: number
+  /**
+   * 0-100 visibility score: average of (101 - position) over the day's
+   * checks, counting unranked keywords as 0.
+   */
+  visibility: number
+}
+
+export async function getRankingTrendForProject(
+  userId: string,
+  projectId: string,
+  input: { days?: number } = {},
+  database: CustomShellDb = db
+): Promise<RankingTrendPoint[]> {
+  await getOwnedProject(userId, projectId, database)
+
+  const days = Math.max(7, Math.min(input.days ?? 30, 365))
+  const result = await database.execute(sql`
+    select
+      to_char(date_trunc('day', r.checked_at at time zone 'UTC'), 'YYYY-MM-DD') as date,
+      avg(r.position)::float as avg_position,
+      count(*) filter (where r.position <= 3)::int as top3,
+      count(*) filter (where r.position <= 10)::int as top10,
+      count(*) filter (where r.position is not null)::int as top100,
+      count(*)::int as checks,
+      avg(coalesce(101 - r.position, 0))::float as visibility
+    from ${keywordRankings} r
+    where r.project_id = ${projectId}
+      and r.checked_at >= now() - make_interval(days => ${days})
+    group by 1
+    order by 1
+  `)
+
+  const rows = result.rows as Array<{
+    date: string
+    avg_position: number | null
+    top3: number
+    top10: number
+    top100: number
+    checks: number
+    visibility: number | null
+  }>
+
+  return rows.map((row) => ({
+    date: row.date,
+    avgPosition:
+      row.avg_position != null
+        ? Math.round(Number(row.avg_position) * 10) / 10
+        : null,
+    top3: row.top3,
+    top10: row.top10,
+    top100: row.top100,
+    checks: row.checks,
+    visibility:
+      row.visibility != null
+        ? Math.round(Number(row.visibility) * 10) / 10
+        : 0,
+  }))
+}
+
 export type RankingHistoryEntry = {
   position: number | null
   rankingUrl: string | null

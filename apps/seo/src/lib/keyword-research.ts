@@ -6,6 +6,7 @@ export type KeywordJobType =
   | "intent_enrichment"
   | "difficulty_enrichment"
   | "rank_check"
+  | "backlink_discovery"
 
 export type KeywordJobStatus =
   | "pending"
@@ -38,6 +39,25 @@ export const KEYWORD_SOURCES = [
   "competitor_gap",
 ] as const
 export type KeywordSource = (typeof KEYWORD_SOURCES)[number]
+
+export const ALERT_TYPES = [
+  "new_ranking",
+  "lost_ranking",
+  "entered_top_10",
+  "left_top_10",
+  "big_gain",
+  "big_drop",
+] as const
+export type AlertType = (typeof ALERT_TYPES)[number]
+
+export const alertTypeLabels: Record<AlertType, string> = {
+  new_ranking: "New ranking",
+  lost_ranking: "Lost ranking",
+  entered_top_10: "Entered top 10",
+  left_top_10: "Left top 10",
+  big_gain: "Big gain",
+  big_drop: "Big drop",
+}
 
 export type MonthlySearch = {
   year: number

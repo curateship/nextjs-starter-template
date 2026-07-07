@@ -515,6 +515,116 @@ export const keywordRankings = pgTable(
   ]
 )
 
+export const keywordRankingAlerts = pgTable(
+  "keyword_ranking_alerts",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()::text`),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    keywordId: varchar("keyword_id", { length: 36 })
+      .notNull()
+      .references(() => keywords.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    previousPosition: integer("previous_position"),
+    newPosition: integer("new_position"),
+    delta: integer("delta"),
+    keywordSnapshot: text("keyword_snapshot").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "keyword_ranking_alerts_type_check",
+      sql`${table.type} in ('new_ranking', 'lost_ranking', 'entered_top_10', 'left_top_10', 'big_gain', 'big_drop')`
+    ),
+    index("idx_keyword_ranking_alerts_project_created").on(
+      table.projectId,
+      table.createdAt
+    ),
+    index("idx_keyword_ranking_alerts_project_read").on(
+      table.projectId,
+      table.readAt
+    ),
+  ]
+)
+
+export const backlinkProspects = pgTable(
+  "backlink_prospects",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()::text`),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    referringDomain: text("referring_domain").notNull(),
+    normalizedDomain: text("normalized_domain").notNull(),
+    domainRank: integer("domain_rank"),
+    backlinksCount: integer("backlinks_count"),
+    referringTo: jsonb("referring_to"),
+    status: text("status").notNull().default("new"),
+    contactUrl: text("contact_url"),
+    contactEmail: text("contact_email"),
+    notes: text("notes"),
+    discoveredVia: text("discovered_via")
+      .notNull()
+      .default("domain_intersection"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("backlink_prospects_project_id_normalized_domain_key").on(
+      table.projectId,
+      table.normalizedDomain
+    ),
+    check(
+      "backlink_prospects_status_check",
+      sql`${table.status} in ('new', 'qualified', 'contacted', 'replied', 'won', 'rejected')`
+    ),
+    index("idx_backlink_prospects_project_status").on(
+      table.projectId,
+      table.status
+    ),
+    index("idx_backlink_prospects_project_rank").on(
+      table.projectId,
+      table.domainRank
+    ),
+  ]
+)
+
+export const backlinkSnapshots = pgTable(
+  "backlink_snapshots",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()::text`),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    target: text("target").notNull(),
+    domainRank: integer("domain_rank"),
+    backlinks: integer("backlinks"),
+    referringDomains: integer("referring_domains"),
+    referringPages: integer("referring_pages"),
+    brokenBacklinks: integer("broken_backlinks"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("backlink_snapshots_project_id_key").on(table.projectId),
+  ]
+)
+
 export const dataforseoLocationsLanguages = pgTable(
   "dataforseo_locations_languages",
   {
@@ -558,3 +668,6 @@ export type KeywordMetric = typeof keywordMetrics.$inferSelect
 export type ProjectKeyword = typeof projectKeywords.$inferSelect
 export type KeywordRanking = typeof keywordRankings.$inferSelect
 export type KeywordCluster = typeof keywordClusters.$inferSelect
+export type KeywordRankingAlert = typeof keywordRankingAlerts.$inferSelect
+export type BacklinkProspectRecord = typeof backlinkProspects.$inferSelect
+export type BacklinkSnapshot = typeof backlinkSnapshots.$inferSelect
