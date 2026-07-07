@@ -59,6 +59,23 @@ export function ShellLayout({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  // Full-bleed workspaces manage their own height and scrolling, so they drop
+  // the padded DashboardContent wrapper: the live trade terminal always, and
+  // the backtest chart workspace when opened with ?run= / ?draft= (the
+  // strategies list at /backtest keeps its padding).
+  const fullBleed = useRouterState({
+    select: (state) => {
+      const search = state.location.search as {
+        run?: string
+        draft?: unknown
+      }
+      return (
+        state.location.pathname === "/trade" ||
+        (state.location.pathname === "/backtest" &&
+          Boolean(search.run || search.draft))
+      )
+    },
+  })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
@@ -185,7 +202,13 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent>
+            <DashboardContent
+              className={
+                fullBleed
+                  ? "overflow-hidden p-0 space-y-0 sm:p-0 sm:space-y-0 md:p-0"
+                  : undefined
+              }
+            >
               <Outlet />
             </DashboardContent>
           </SidebarInset>

@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestResult } from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
 
@@ -38,7 +39,8 @@ export function BacktestSummary({
     open && markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
 
   return (
-    <div className="flex min-h-0 flex-col overflow-y-auto border-l">
+    <ScrollArea className="h-full">
+      <div className="flex flex-col">
       <div className="px-3 pt-3 pb-1 text-xs font-bold">Backtest Summary</div>
 
       <div className="grid grid-cols-2 gap-2 p-3 pt-2">
@@ -76,8 +78,6 @@ export function BacktestSummary({
         />
       </div>
 
-      <Divider />
-
       <div className="flex flex-col gap-2 p-3">
         <span className="text-[11px] font-semibold text-foreground/80">
           Current Position
@@ -110,8 +110,6 @@ export function BacktestSummary({
         )}
       </div>
 
-      <Divider />
-
       <div className="flex flex-col gap-2 p-3">
         <span className="text-[11px] font-semibold text-foreground/80">Properties</span>
         <Row label="Market" value={config.market} />
@@ -137,7 +135,8 @@ export function BacktestSummary({
           on high/low cross. Same risk gating as live.
         </p>
       </div>
-    </div>
+      </div>
+    </ScrollArea>
   )
 }
 
@@ -194,6 +193,3 @@ function Row({
   )
 }
 
-function Divider() {
-  return <div className="mx-3 h-px bg-border" />
-}

@@ -12,6 +12,8 @@ import { useShellRuntime } from "@/components/shell-layout"
 import {
   PriceChartView,
   type ChartCandle,
+  type ChartFocusPoint,
+  type ChartMarker,
 } from "@/components/trading/price-chart"
 import {
   ResizableHandle,
@@ -34,7 +36,7 @@ import {
   type BacktestResult,
   type BacktestTrade,
 } from "@/lib/backtest/types"
-import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
+import { useMarketRows } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   DEFAULT_RISK_PARAMS,
@@ -150,6 +152,8 @@ export function BacktestDashboard({
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [inputsOpen, setInputsOpen] = React.useState(true)
+  const [summaryOpen, setSummaryOpen] = React.useState(true)
 
   const run = runId && runState.id === runId ? runState.detail : null
   const groupRuns = runId && runState.id === runId ? runState.groupRuns : []
@@ -162,17 +166,25 @@ export function BacktestDashboard({
   // A different result invalidates the selection (trade numbers restart at 1).
   React.useEffect(() => setFocusedTrade(null), [result])
 
-  const focusRange = React.useMemo(() => {
-    if (!focusedTrade) return null
-    const pad = Math.max(
-      (focusedTrade.exitTime - focusedTrade.entryTime) * 0.4,
-      candleIntervalMs(interval) * 10
-    )
-    return {
-      fromMs: focusedTrade.entryTime - pad,
-      toMs: focusedTrade.exitTime + pad,
-    }
-  }, [focusedTrade, interval])
+  // Pulsing rings on the focused trade's entry and exit arrows, so it stands
+  // out from all the other fill arrows on the chart. Sides match the arrows:
+  // a long enters with a buy and exits with a sell (shorts are reversed).
+  const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
+    if (!focusedTrade) return []
+    const long = focusedTrade.side === "long"
+    return [
+      {
+        time: focusedTrade.entryTime,
+        side: long ? "buy" : "sell",
+        label: "Entry",
+      },
+      {
+        time: focusedTrade.exitTime,
+        side: long ? "sell" : "buy",
+        label: "Exit",
+      },
+    ]
+  }, [focusedTrade])
 
   const windowNum = clampWindow(windowDays, interval, maxCandles)
   const debouncedWindow = useDebouncedValue(windowNum, WINDOW_DEBOUNCE_MS)
@@ -373,11 +385,21 @@ export function BacktestDashboard({
   }
 
   // qqe renders TradingView-style: indicator signal labels only, never fill
-  // arrows. Every other strategy shows the run's fill arrows.
+  // arrows. Every other strategy already draws every trade's fill arrows (so a
+  // focused trade's arrows are present for its pulsing rings). qqe has none, so
+  // there we add just the focused trade's buy/sell arrows for the rings.
   const markers = React.useMemo(() => {
-    if (strategyType === "qqe") return overlays.markers
+    if (strategyType === "qqe") {
+      if (!focusedTrade) return overlays.markers
+      const long = focusedTrade.side === "long"
+      const focusMarkers: ChartMarker[] = [
+        { time: focusedTrade.entryTime, side: long ? "buy" : "sell" },
+        { time: focusedTrade.exitTime, side: long ? "sell" : "buy" },
+      ]
+      return [...overlays.markers, ...focusMarkers]
+    }
     return runMatchesConfig && result ? buildRunMarkers(result) : []
-  }, [strategyType, overlays, runMatchesConfig, result])
+  }, [strategyType, overlays, runMatchesConfig, result, focusedTrade])
 
   const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
   const selectedRow = markets.find((row) => row.coin === market)
@@ -418,6 +440,20 @@ export function BacktestDashboard({
         onRun={() => void execute()}
         runAction={!run && draft ? "run" : null}
         running={busy}
+        inputsOpen={inputsOpen}
+        onToggleInputs={() => setInputsOpen((open) => !open)}
+        summaryOpen={summaryOpen}
+        onToggleSummary={() => setSummaryOpen((open) => !open)}
+        onBack={() => {
+          if (run) {
+            void router.navigate({
+              to: "/backtest/$strategyType/$groupId",
+              params: { strategyType: run.strategyType, groupId: run.groupId },
+            })
+          } else {
+            onViewAll()
+          }
+        }}
       />
       {error || run?.status === "error" ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-1.5 text-xs text-destructive">
@@ -437,6 +473,7 @@ export function BacktestDashboard({
             defaultLayout={innerLayout.defaultLayout}
             onLayoutChanged={innerLayout.onLayoutChanged}
           >
+            {inputsOpen ? (
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
               <StrategyInputs
                 strategy={strategyType}
@@ -465,7 +502,8 @@ export function BacktestDashboard({
                 onNewRun={() => setDialogOpen(true)}
               />
             </ResizablePanel>
-            <ResizableHandle withHandle />
+            ) : null}
+            {inputsOpen ? <ResizableHandle withHandle /> : null}
             <ResizablePanel id="chart" defaultSize="60%" minSize="30%">
               <div className="flex h-full min-h-0 flex-col">
                 <div className="flex items-center gap-3 border-b px-3 py-1.5">
@@ -527,14 +565,15 @@ export function BacktestDashboard({
                     barColors={overlays.barColors}
                     markers={markers}
                     visibleStartMs={chartState.simStartMs || undefined}
-                    focusRange={focusRange}
+                    focusPoints={focusPoints}
                     onCrosshairOhlc={setOhlc}
                     onLineDragEnd={readOnly ? undefined : handleLineDrag}
                   />
                 </div>
               </div>
             </ResizablePanel>
-            <ResizableHandle withHandle />
+            {summaryOpen ? <ResizableHandle withHandle /> : null}
+            {summaryOpen ? (
             <ResizablePanel id="summary" defaultSize="20%" minSize="13%">
               <BacktestSummary
                 result={result}
@@ -554,6 +593,7 @@ export function BacktestDashboard({
                 }}
               />
             </ResizablePanel>
+            ) : null}
           </ResizablePanelGroup>
         </ResizablePanel>
         <ResizableHandle withHandle />

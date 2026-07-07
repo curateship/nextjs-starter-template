@@ -789,7 +789,19 @@ export function StrategyRunsDashboard({
               {group.name}
             </TableCell>
             <TableCell column="meta" className="text-xs">
-              <span className="font-mono">{group.markets.join(", ")}</span>
+              <span
+                className="inline-flex items-center gap-1.5"
+                title={group.markets.join(", ")}
+              >
+                <span className="font-mono">
+                  {group.markets.slice(0, 3).join(", ")}
+                </span>
+                {group.markets.length > 3 ? (
+                  <Badge variant="secondary" className="font-mono tabular-nums">
+                    +{group.markets.length - 3}
+                  </Badge>
+                ) : null}
+              </span>
             </TableCell>
             <TableCell column="meta" className="font-mono text-xs">
               {group.interval}

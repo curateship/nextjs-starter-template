@@ -1,7 +1,10 @@
 import * as React from "react"
 import {
+  ArrowLeftIcon,
   ChevronDownIcon,
   Loader2Icon,
+  PanelLeftIcon,
+  PanelRightIcon,
   PlayIcon,
   PlusIcon,
 } from "lucide-react"
@@ -52,6 +55,11 @@ export function BacktestHeader({
   onRun,
   runAction,
   running,
+  inputsOpen,
+  onToggleInputs,
+  summaryOpen,
+  onToggleSummary,
+  onBack,
 }: {
   market: string
   markets: MarketOption[]
@@ -77,6 +85,14 @@ export function BacktestHeader({
   /** "run" = execute a draft across its markets; null once a run is loaded. */
   runAction: "run" | null
   running: boolean
+  /** Left inputs rail visibility + toggle. */
+  inputsOpen: boolean
+  onToggleInputs: () => void
+  /** Right summary rail visibility + toggle. */
+  summaryOpen: boolean
+  onToggleSummary: () => void
+  /** Return to the group's run-results dashboard. */
+  onBack: () => void
 }) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -85,7 +101,19 @@ export function BacktestHeader({
     .slice(0, 100)
 
   return (
-    <div className="flex items-center gap-4 border-b px-4 py-2">
+    <div className="flex items-center gap-4 border-b bg-muted/50 px-4 py-2">
+      <div className="flex items-center gap-1">
+        <IconButton label="Back to run results" onClick={onBack}>
+          <ArrowLeftIcon className="size-4" />
+        </IconButton>
+        <IconButton
+          label={inputsOpen ? "Hide inputs panel" : "Show inputs panel"}
+          onClick={onToggleInputs}
+        >
+          <PanelLeftIcon className="size-4" />
+        </IconButton>
+      </div>
+
       {marketReadOnly ? (
         <span className="text-sm font-bold">{market}</span>
       ) : (
@@ -294,7 +322,38 @@ export function BacktestHeader({
           Run Backtest
         </Button>
       ) : null}
+
+      <IconButton
+        label={summaryOpen ? "Hide summary panel" : "Show summary panel"}
+        onClick={onToggleSummary}
+      >
+        <PanelRightIcon className="size-4" />
+      </IconButton>
     </div>
+  )
+}
+
+/** Ghost icon button used for the header's back/panel toggles. */
+function IconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 shrink-0 text-muted-foreground"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   )
 }
 

@@ -15,13 +15,18 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import {
+  STICKY_SCROLL_OVERRIDES,
+  STICKY_TABLE_HEADER,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
+  type TableSortDirection,
 } from "@/components/ui/table"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
   BacktestResult,
@@ -62,18 +67,21 @@ export function StrategyTester({
   const net = stats?.netPnl ?? 0
 
   return (
-    <Tabs defaultValue="overview" className="flex h-full min-h-0 flex-col gap-0">
-      <div className="flex items-center gap-4 border-b px-4">
-        <TabsList className="h-auto gap-4 rounded-none border-none bg-transparent p-0">
+    <Tabs defaultValue="trades" className="flex h-full min-h-0 flex-col gap-0">
+      <div className="flex items-center gap-4 bg-muted/50 px-4">
+        <TabsList
+          variant="line"
+          className="h-auto gap-4 rounded-none border-none bg-transparent p-0"
+        >
           {[
+            ["trades", "List of Trades"],
             ["overview", "Overview"],
             ["performance", "Performance Summary"],
-            ["trades", "List of Trades"],
           ].map(([value, label]) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="rounded-none border-b-2 border-transparent px-0 py-2.5 text-xs font-semibold text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              className="rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
             >
               {label}
             </TabsTrigger>
@@ -92,13 +100,7 @@ export function StrategyTester({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <TabsContent value="overview" className="m-0">
-          <Overview result={result} startingEquity={startingEquity} />
-        </TabsContent>
-        <TabsContent value="performance" className="m-0">
-          <PerformanceSummary stats={stats ?? null} />
-        </TabsContent>
+      <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
         <TabsContent value="trades" className="m-0">
           <TradesTable
             result={result}
@@ -107,7 +109,13 @@ export function StrategyTester({
             onSelectTrade={onSelectTrade}
           />
         </TabsContent>
-      </div>
+        <TabsContent value="overview" className="m-0">
+          <Overview result={result} startingEquity={startingEquity} />
+        </TabsContent>
+        <TabsContent value="performance" className="m-0">
+          <PerformanceSummary stats={stats ?? null} />
+        </TabsContent>
+      </ScrollArea>
     </Tabs>
   )
 }
@@ -315,6 +323,39 @@ function PerfCell({ value, tone }: { value: string; tone?: number }) {
   )
 }
 
+type TradeSortKey =
+  | "n"
+  | "side"
+  | "entryTime"
+  | "entryPx"
+  | "exitTime"
+  | "exitPx"
+  | "amount"
+  | "pnl"
+  | "returnPct"
+  | "cumPnl"
+
+/** Entry notional in dollars (fill price × base size). */
+const tradeAmount = (trade: BacktestTrade) => trade.entryPx * trade.qty
+
+const TRADE_COLUMNS: {
+  key: TradeSortKey
+  label: string
+  right?: boolean
+  value: (trade: BacktestTrade) => number | string
+}[] = [
+  { key: "n", label: "#", value: (t) => t.n },
+  { key: "side", label: "Side", value: (t) => t.side },
+  { key: "entryTime", label: "Entry", value: (t) => t.entryTime },
+  { key: "entryPx", label: "Entry Px", right: true, value: (t) => t.entryPx },
+  { key: "exitTime", label: "Exit", value: (t) => t.exitTime },
+  { key: "exitPx", label: "Exit Px", right: true, value: (t) => t.exitPx },
+  { key: "amount", label: "Amount", right: true, value: tradeAmount },
+  { key: "pnl", label: "P&L", right: true, value: (t) => t.pnl },
+  { key: "returnPct", label: "Return", right: true, value: (t) => t.returnPct },
+  { key: "cumPnl", label: "Cum. P&L", right: true, value: (t) => t.cumPnl },
+]
+
 function TradesTable({
   result,
   markPrice,
@@ -326,30 +367,63 @@ function TradesTable({
   selectedTradeN: number | null
   onSelectTrade?: (trade: BacktestTrade | null) => void
 }) {
+  const [sort, setSort] = React.useState<{
+    key: TradeSortKey
+    dir: TableSortDirection
+  }>({ key: "n", dir: "asc" })
+
+  const trades = result?.trades ?? EMPTY_TRADES
+  const sortedTrades = React.useMemo(() => {
+    const column = TRADE_COLUMNS.find((c) => c.key === sort.key) ?? TRADE_COLUMNS[0]
+    const rows = [...trades]
+    rows.sort((a, b) => {
+      const av = column.value(a)
+      const bv = column.value(b)
+      const cmp =
+        typeof av === "number" && typeof bv === "number"
+          ? av - bv
+          : String(av).localeCompare(String(bv))
+      return sort.dir === "asc" ? cmp : -cmp
+    })
+    return rows
+  }, [trades, sort])
+
   if (!result || (result.trades.length === 0 && !result.openPosition)) {
     return <Empty text="No trades — run a backtest or adjust the strategy." />
   }
   const open = result.openPosition
   const openPnl = open && markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
 
+  const toggleSort = (key: TradeSortKey) =>
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" }
+    )
+
   return (
     <Table>
-      <TableHeader>
+      <TableHeader className={STICKY_TABLE_HEADER}>
         <TableRow>
-          <TableHead className="w-10">#</TableHead>
-          <TableHead>Side</TableHead>
-          <TableHead>Entry</TableHead>
-          <TableHead className="text-right">Entry Px</TableHead>
-          <TableHead>Exit</TableHead>
-          <TableHead className="text-right">Exit Px</TableHead>
-          <TableHead className="text-right">Qty</TableHead>
-          <TableHead className="text-right">P&L</TableHead>
-          <TableHead className="text-right">Return</TableHead>
-          <TableHead className="text-right">Cum. P&L</TableHead>
+          {TRADE_COLUMNS.map((column) => (
+            <TableHead
+              key={column.key}
+              className={column.right ? "text-right" : undefined}
+            >
+              <TableSortButton
+                active={sort.key === column.key}
+                direction={sort.dir}
+                onClick={() => toggleSort(column.key)}
+                className={column.right ? "ml-auto flex-row-reverse" : undefined}
+              >
+                {column.label}
+              </TableSortButton>
+            </TableHead>
+          ))}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {result.trades.map((trade) => (
+        {sortedTrades.map((trade) => (
           <TableRow
             key={trade.n}
             onClick={() =>
@@ -373,7 +447,7 @@ function TradesTable({
             <TableCell className="text-right">{fmtPrice(trade.entryPx)}</TableCell>
             <TableCell className="text-muted-foreground">{fmtDate(trade.exitTime)}</TableCell>
             <TableCell className="text-right">{fmtPrice(trade.exitPx)}</TableCell>
-            <TableCell className="text-right text-muted-foreground">{num(trade.qty, 4)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{usd(tradeAmount(trade))}</TableCell>
             <TableCell className={cn("text-right", toneClass(trade.pnl))}>{signedUsd(trade.pnl)}</TableCell>
             <TableCell className={cn("text-right", toneClass(trade.returnPct))}>{pct(trade.returnPct)}</TableCell>
             <TableCell className={cn("text-right", toneClass(trade.cumPnl))}>{signedUsd(trade.cumPnl)}</TableCell>
@@ -389,7 +463,7 @@ function TradesTable({
             <TableCell className="text-right">{fmtPrice(open.entryPx)}</TableCell>
             <TableCell className="text-muted-foreground">—</TableCell>
             <TableCell className="text-right">{markPrice > 0 ? fmtPrice(markPrice) : "—"}</TableCell>
-            <TableCell className="text-right text-muted-foreground">{num(Math.abs(open.szi), 4)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{usd(open.entryPx * Math.abs(open.szi))}</TableCell>
             <TableCell className={cn("text-right", toneClass(openPnl))}>{signedUsd(openPnl)}</TableCell>
             <TableCell className="text-right text-muted-foreground">—</TableCell>
             <TableCell className="text-right text-muted-foreground">—</TableCell>
@@ -399,6 +473,8 @@ function TradesTable({
     </Table>
   )
 }
+
+const EMPTY_TRADES: BacktestTrade[] = []
 
 function MetricCard({
   label,
@@ -439,6 +515,7 @@ function Empty({ text }: { text: string }) {
 
 function fmtDate(ms: number): string {
   return new Date(ms).toLocaleString("en-US", {
+    year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
