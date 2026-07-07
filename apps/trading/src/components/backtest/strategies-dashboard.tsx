@@ -61,7 +61,7 @@ import {
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
-import { pct, signedUsd, toneClass, windowDaysOf } from "./backtest-format"
+import { pct, signedUsd, toneClass, usd, windowDaysOf } from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
 import type { RunDraft } from "./run-draft"
 import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
@@ -590,8 +590,13 @@ type GroupRow = {
   interval: string
   windowDays: number
   status: BacktestListItem["status"]
-  /** Main (first) market's net %, representative of the run. */
+  /** Main (first) market's stats, representative of the run. */
   netPnlPct: number | null
+  startingEquity: number
+  netPnl: number | null
+  tradeCount: number | null
+  /** Net % averaged to a 30-day month (pro-rata over the run window). */
+  monthlyPnlPct: number | null
   lastRunAt: number
 }
 
@@ -625,15 +630,23 @@ export function StrategyRunsDashboard({
     return [...byGroup.entries()].map(([groupId, groupRuns]) => {
       // The main market's row shares the group id; it drives the summary.
       const main = groupRuns.find((run) => run.id === groupId) ?? groupRuns[0]
+      const windowDays = windowDaysOf(main)
       return {
         groupId,
         mainId: main.id,
         name: main.name,
         markets: groupRuns.map((run) => run.market),
         interval: main.interval,
-        windowDays: windowDaysOf(main),
+        windowDays,
         status: main.status,
         netPnlPct: main.netPnlPct,
+        startingEquity: main.startingEquity,
+        netPnl: main.netPnl,
+        tradeCount: main.tradeCount,
+        monthlyPnlPct:
+          main.netPnlPct === null
+            ? null
+            : (main.netPnlPct / windowDays) * 30,
         lastRunAt: Math.max(
           ...groupRuns.map((run) => Date.parse(run.createdAt))
         ),
@@ -729,7 +742,11 @@ export function StrategyRunsDashboard({
               <TableHead column="meta">Timeframe</TableHead>
               <TableHead column="meta">Window</TableHead>
               <TableHead column="meta">Status</TableHead>
+              <TableHead column="meta">Starting</TableHead>
               {sortHead("Net P&L %", "net", state)}
+              <TableHead column="meta">Total P&L</TableHead>
+              <TableHead column="meta">Monthly avg %</TableHead>
+              <TableHead column="meta">Trades</TableHead>
               {sortHead("Last run", "last", state)}
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -737,7 +754,7 @@ export function StrategyRunsDashboard({
         }
         isEmpty={pageRows.length === 0}
         emptyText="No runs for this strategy yet — create one with New Run."
-        emptyColSpan={9}
+        emptyColSpan={13}
         footer={{
           type: "pagination",
           page: state.page,
@@ -782,6 +799,9 @@ export function StrategyRunsDashboard({
             <TableCell column="meta" className={cn("text-xs", STATUS_TONE[group.status])}>
               {group.status}
             </TableCell>
+            <TableCell column="meta" className="font-mono text-xs tabular-nums">
+              {usd(group.startingEquity)}
+            </TableCell>
             <TableCell
               column="meta"
               className={cn(
@@ -792,6 +812,33 @@ export function StrategyRunsDashboard({
               {group.status === "done" && group.netPnlPct !== null
                 ? pct(group.netPnlPct)
                 : "—"}
+            </TableCell>
+            <TableCell
+              column="meta"
+              className={cn(
+                "font-mono tabular-nums",
+                group.netPnl !== null ? toneClass(group.netPnl) : undefined
+              )}
+            >
+              {group.status === "done" && group.netPnl !== null
+                ? signedUsd(group.netPnl)
+                : "—"}
+            </TableCell>
+            <TableCell
+              column="meta"
+              className={cn(
+                "font-mono tabular-nums",
+                group.monthlyPnlPct !== null
+                  ? toneClass(group.monthlyPnlPct)
+                  : undefined
+              )}
+            >
+              {group.status === "done" && group.monthlyPnlPct !== null
+                ? pct(group.monthlyPnlPct)
+                : "—"}
+            </TableCell>
+            <TableCell column="meta" className="font-mono text-xs tabular-nums">
+              {group.tradeCount ?? "—"}
             </TableCell>
             <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
               {dateTimeFormatter.format(group.lastRunAt)}
