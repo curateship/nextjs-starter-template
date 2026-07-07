@@ -11,9 +11,16 @@ import type {
   ProjectItem,
   ProjectListResponse,
 } from "@/server/video-projects"
-import type { ProjectRenderInfo, RenderQuality } from "@/server/video-render"
+import type {
+  BatchRenderItem,
+  BatchRenderResponse,
+  ProjectRenderInfo,
+} from "@/server/render-queue"
+import type { RenderQuality } from "@/server/video-render"
 
 export type {
+  BatchRenderItem,
+  BatchRenderResponse,
   ProjectDetail,
   ProjectItem,
   ProjectListResponse,
@@ -21,6 +28,18 @@ export type {
   ProjectTimeline,
   RenderQuality,
 }
+
+// Canonical export-quality choices for every quality picker (editor modal,
+// dashboard bulk export). Mirrors the server's QUALITY_PRESETS.
+export const RENDER_QUALITY_OPTIONS: {
+  value: RenderQuality
+  label: string
+  hint: string
+}[] = [
+  { value: "high", label: "High", hint: "1080p" },
+  { value: "medium", label: "Medium", hint: "720p" },
+  { value: "low", label: "Low", hint: "480p" },
+]
 
 const projectNameSchema = z.string().min(1).max(255)
 
@@ -33,6 +52,8 @@ const projectSafeErrorMessages = new Set([
   "Project not found",
   "Nothing to export",
   "Timeline too long to export",
+  "No queued export to cancel",
+  "Too many exports queued",
   SAVED_TIMELINE_INVALID_MESSAGE,
 ])
 
@@ -123,17 +144,38 @@ const startRenderFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
-    const { startProjectRenderForCurrentUser } =
-      await import("@/server/video-render")
-    return startProjectRenderForCurrentUser(data.projectId, data.quality)
+    const { enqueueProjectRenderForCurrentUser } =
+      await import("@/server/render-queue")
+    return enqueueProjectRenderForCurrentUser(data.projectId, data.quality)
   })
 
 const getRenderFn = createServerFn({ method: "GET" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
     const { getProjectRenderForCurrentUser } =
-      await import("@/server/video-render")
+      await import("@/server/render-queue")
     return getProjectRenderForCurrentUser(data.projectId)
+  })
+
+const enqueueRendersFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      projectIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+      quality: z.enum(["high", "medium", "low"]),
+    })
+  )
+  .handler(async ({ data }): Promise<BatchRenderResponse> => {
+    const { enqueueProjectRendersForCurrentUser } =
+      await import("@/server/render-queue")
+    return enqueueProjectRendersForCurrentUser(data.projectIds, data.quality)
+  })
+
+const cancelRenderFn = createServerFn({ method: "POST" })
+  .inputValidator(projectIdSchema)
+  .handler(async ({ data }): Promise<ProjectRenderInfo> => {
+    const { cancelProjectRenderForCurrentUser } =
+      await import("@/server/render-queue")
+    return cancelProjectRenderForCurrentUser(data.projectId)
   })
 
 export function startProjectRender(
@@ -145,6 +187,17 @@ export function startProjectRender(
 
 export function getProjectRender(projectId: string) {
   return getRenderFn({ data: { projectId } })
+}
+
+export function enqueueProjectRenders(
+  projectIds: string[],
+  quality: RenderQuality
+) {
+  return enqueueRendersFn({ data: { projectIds, quality } })
+}
+
+export function cancelProjectRender(projectId: string) {
+  return cancelRenderFn({ data: { projectId } })
 }
 
 const bulkDeleteProjectsFn = createServerFn({ method: "POST" })

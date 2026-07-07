@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
@@ -524,11 +525,52 @@ export const aiVideoProjects = pgTable(
   (table) => [
     check(
       "video_projects_render_status_check",
-      sql`${table.renderStatus} in ('rendering', 'ready', 'error')`
+      sql`${table.renderStatus} in ('queued', 'rendering', 'ready', 'error')`
     ),
     index("ix_video_projects_user_id").on(table.userId),
     index("ix_video_projects_user_created").on(table.userId, table.createdAt),
     index("ix_video_projects_template_id").on(table.templateId),
+  ]
+)
+
+export const aiVideoRenderJobs = pgTable(
+  "render_jobs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoProjects.id, { onDelete: "cascade" }),
+    quality: varchar("quality", { length: 10 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    // Running jobs hold a lease the worker keeps extending; a lease that
+    // expires marks the job as orphaned (crashed process) for reclaim.
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "render_jobs_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'error', 'cancelled')`
+    ),
+    check(
+      "render_jobs_quality_check",
+      sql`${table.quality} in ('high', 'medium', 'low')`
+    ),
+    // One active job per project — duplicate enqueues become no-op conflicts.
+    uniqueIndex("ux_render_jobs_project_active")
+      .on(table.projectId)
+      .where(sql`${table.status} in ('queued', 'running')`),
+    index("ix_render_jobs_status_created").on(table.status, table.createdAt),
+    index("ix_render_jobs_user_id").on(table.userId),
   ]
 )
 
@@ -680,6 +722,7 @@ export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
 export type AiVideoGeneration = typeof aiVideoGenerations.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
+export type AiVideoRenderJob = typeof aiVideoRenderJobs.$inferSelect
 export type AiVideoCarousel = typeof aiVideoCarousels.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect

@@ -9,6 +9,7 @@ import {
   Loader2Icon,
   PlusIcon,
   Trash2Icon,
+  UploadIcon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -52,10 +53,13 @@ import {
   bulkDeleteProjects,
   createProject,
   deleteProject,
+  enqueueProjectRenders,
   getProjectErrorMessage,
   listProjects,
   renameProject,
+  RENDER_QUALITY_OPTIONS,
   type ProjectItem,
+  type RenderQuality,
 } from "@/lib/api/video-projects"
 import {
   createProjectFromTemplate,
@@ -74,6 +78,9 @@ type ProjectModalState =
   | { type: "create" }
   | { type: "rename"; project: ProjectItem }
   | null
+
+// How often the dashboard refreshes while any project is queued/rendering.
+const RENDER_STATUS_POLL_MS = 5_000
 
 // Timeline length for list rows / gallery tiles, as m:ss.
 function formatDuration(ms: number) {
@@ -112,6 +119,10 @@ export function ProjectsDashboard() {
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<
     string | null
   >(null)
+  // Bulk export: the ids picked when the quality dialog opened (null = closed).
+  const [exportIds, setExportIds] = React.useState<string[] | null>(null)
+  const [exportQuality, setExportQuality] = React.useState<RenderQuality>("high")
+  const [exporting, setExporting] = React.useState(false)
 
   // One-time load; `loading` starts true so no state resets are needed here.
   React.useEffect(() => {
@@ -135,6 +146,26 @@ export function ProjectsDashboard() {
       active = false
     }
   }, [])
+
+  // Silent refresh for render-status badges; load errors keep the stale list.
+  const refetchProjects = React.useCallback(() => {
+    listProjects()
+      .then((data) => setProjects(data.projects))
+      .catch(() => undefined)
+  }, [])
+
+  // Keep render-status badges live: refetch while any project is queued or
+  // rendering, stop once everything settles.
+  const hasActiveRenders = projects.some(
+    (project) =>
+      project.render_status === "queued" ||
+      project.render_status === "rendering"
+  )
+  React.useEffect(() => {
+    if (!hasActiveRenders) return
+    const timer = setInterval(refetchProjects, RENDER_STATUS_POLL_MS)
+    return () => clearInterval(timer)
+  }, [hasActiveRenders, refetchProjects])
 
   const filteredProjects = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -297,18 +328,69 @@ export function ProjectsDashboard() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
   }
 
+  function openExportDialog() {
+    setExportIds(Array.from(selectedIds))
+    setError(null)
+    setNotice(null)
+  }
+
+  // Queues one render job per selected project and summarizes the outcome
+  // (queued / already in progress / skipped with the per-project reason).
+  async function confirmExport() {
+    if (!exportIds?.length) return
+    setExporting(true)
+    try {
+      const { results } = await enqueueProjectRenders(exportIds, exportQuality)
+      const namesById = new Map(
+        projects.map((project) => [project.id, project.name])
+      )
+      const queued = results.filter((item) => item.outcome === "queued").length
+      const active = results.filter(
+        (item) => item.outcome === "already_active"
+      ).length
+      const skipped = results.filter((item) => item.outcome === "skipped")
+      const parts: string[] = []
+      if (queued) parts.push(`Queued ${queued} export${queued === 1 ? "" : "s"}.`)
+      if (active) parts.push(`${active} already in progress.`)
+      if (skipped.length) {
+        const details = skipped
+          .map(
+            (item) =>
+              `${namesById.get(item.project_id) ?? "Unknown project"} (${item.reason ?? "not exportable"})`
+          )
+          .join(", ")
+        parts.push(`Skipped ${skipped.length}: ${details}.`)
+      }
+      setNotice(parts.join(" ") || "Nothing to export.")
+      clearSelection(exportIds)
+      setExportIds(null)
+      // Pick up the mirrored queued/rendering statuses right away.
+      refetchProjects()
+    } catch (exportError) {
+      setError(getProjectErrorMessage(exportError))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const primaryDisabled = submitting || !name.trim()
   const controls = (
     <>
       {selectedIds.size > 0 ? (
-        <DashboardToolbarButton
-          type="button"
-          variant="destructive"
-          onClick={() => setDeleteIds(Array.from(selectedIds))}
-        >
-          <Trash2Icon className="size-4" />
-          Delete {selectedIds.size}
-        </DashboardToolbarButton>
+        <>
+          <DashboardToolbarButton type="button" onClick={openExportDialog}>
+            <UploadIcon className="size-4" />
+            Export {selectedIds.size}
+          </DashboardToolbarButton>
+          <DashboardToolbarButton
+            type="button"
+            variant="destructive"
+            onClick={() => setDeleteIds(Array.from(selectedIds))}
+          >
+            <Trash2Icon className="size-4" />
+            Delete {selectedIds.size}
+          </DashboardToolbarButton>
+        </>
       ) : null}
       <DashboardToolbarSearch
         name="project-search"
@@ -460,6 +542,7 @@ export function ProjectsDashboard() {
                     Clips
                   </TableSortButton>
                 </TableHead>
+                <TableHead column="meta">Export</TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
                   <TableSortButton
                     active={sortColumn === "edited"}
@@ -475,7 +558,7 @@ export function ProjectsDashboard() {
           }
           isEmpty={loading || paginatedProjects.length === 0}
           emptyText={loading ? "Loading projects..." : "No projects found."}
-          emptyColSpan={6}
+          emptyColSpan={7}
           footer={paginationFooter}
         >
           {paginatedProjects.map((project) => (
@@ -641,6 +724,70 @@ export function ProjectsDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!exportIds}
+        onOpenChange={(open) => !open && setExportIds(null)}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>
+              Export{" "}
+              {(exportIds?.length ?? 0) === 1
+                ? "Project"
+                : `${exportIds?.length ?? 0} Projects`}
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Each project is queued for export and rendered in the
+                background. Finished exports appear in the Exports gallery.
+              </p>
+              <div className="grid gap-2">
+                <Label htmlFor="bulk-export-quality">Quality</Label>
+                <Select
+                  value={exportQuality}
+                  onValueChange={(value) =>
+                    setExportQuality(value as RenderQuality)
+                  }
+                >
+                  <SelectTrigger id="bulk-export-quality" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RENDER_QUALITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}{" "}
+                        <span className="text-muted-foreground">
+                          ({option.hint})
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setExportIds(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={exporting} onClick={confirmExport}>
+              {exporting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <UploadIcon className="size-4" />
+              )}
+              {exporting ? "Queueing" : "Export"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -711,6 +858,9 @@ function ProjectTableRow({
           <Badge variant="outline">{project.clip_count}</Badge>
         )}
       </TableCell>
+      <TableCell column="meta">
+        <RenderStatusBadge status={project.render_status} />
+      </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(project.updated_at))}
       </TableCell>
@@ -772,6 +922,9 @@ function ProjectGalleryItem({
         aria-label={`Open ${project.name}`}
       >
         <ClapperboardIcon className="size-8 text-muted-foreground" />
+        <span className="absolute top-2 left-2">
+          <RenderStatusBadge status={project.render_status} />
+        </span>
         <span className="absolute bottom-2 left-2">
           <Badge variant="secondary">
             {formatDuration(project.duration_ms)}
@@ -838,6 +991,28 @@ function EmptyProjects({ loading }: { loading: boolean }) {
       </div>
     </div>
   )
+}
+
+// Latest-render mirror as a small badge; idle projects show nothing.
+function RenderStatusBadge({
+  status,
+}: {
+  status: ProjectItem["render_status"]
+}) {
+  if (status === "idle") return null
+  if (status === "queued") return <Badge variant="outline">Queued</Badge>
+  if (status === "rendering") {
+    return (
+      <Badge variant="secondary">
+        <Loader2Icon className="size-3 animate-spin" />
+        Rendering
+      </Badge>
+    )
+  }
+  if (status === "error") {
+    return <Badge variant="destructive">Export failed</Badge>
+  }
+  return <Badge variant="secondary">Exported</Badge>
 }
 
 function ProjectTypeBadge({ project }: { project: ProjectItem }) {

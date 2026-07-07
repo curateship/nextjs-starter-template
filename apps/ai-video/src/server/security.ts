@@ -22,6 +22,12 @@ void import("@/server/creator-watch")
   .then((module) => module.registerWatchScheduler())
   .catch(() => undefined)
 
+// Render queue worker: always-on (renders are core, unlike the opt-in
+// watcher). Also reclaims jobs orphaned by a previous process on boot.
+void import("@/server/render-queue")
+  .then((module) => module.registerRenderWorker())
+  .catch(() => undefined)
+
 export const SESSION_COOKIE_NAME = "ai_video_session"
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7
 const SESSION_TTL_HOURS = Number.parseInt(
