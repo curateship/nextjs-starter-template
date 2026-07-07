@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminContactsIndexRouteImport } from './routes/_authenticated/admin/contacts/index'
 import { Route as AuthenticatedAdminCampaignsIndexRouteImport } from './routes/_authenticated/admin/campaigns/index'
 import { Route as AuthenticatedAdminCallsIndexRouteImport } from './routes/_authenticated/admin/calls/index'
+import { Route as AuthenticatedAdminAutomationIndexRouteImport } from './routes/_authenticated/admin/automation/index'
 import { Route as AuthenticatedAdminAgentsIndexRouteImport } from './routes/_authenticated/admin/agents/index'
 import { Route as ApiV1VapiWebhookRouteImport } from './routes/api/v1/vapi/webhook'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
@@ -88,6 +89,12 @@ const AuthenticatedAdminCallsIndexRoute =
     path: '/admin/calls/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminAutomationIndexRoute =
+  AuthenticatedAdminAutomationIndexRouteImport.update({
+    id: '/admin/automation/',
+    path: '/admin/automation/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminAgentsIndexRoute =
   AuthenticatedAdminAgentsIndexRouteImport.update({
     id: '/admin/agents/',
@@ -143,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/vapi/webhook': typeof ApiV1VapiWebhookRoute
   '/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
+  '/admin/automation/': typeof AuthenticatedAdminAutomationIndexRoute
   '/admin/calls/': typeof AuthenticatedAdminCallsIndexRoute
   '/admin/campaigns/': typeof AuthenticatedAdminCampaignsIndexRoute
   '/admin/contacts/': typeof AuthenticatedAdminContactsIndexRoute
@@ -162,6 +170,7 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/vapi/webhook': typeof ApiV1VapiWebhookRoute
   '/admin/agents': typeof AuthenticatedAdminAgentsIndexRoute
+  '/admin/automation': typeof AuthenticatedAdminAutomationIndexRoute
   '/admin/calls': typeof AuthenticatedAdminCallsIndexRoute
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsIndexRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsIndexRoute
@@ -183,6 +192,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/vapi/webhook': typeof ApiV1VapiWebhookRoute
   '/_authenticated/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
+  '/_authenticated/admin/automation/': typeof AuthenticatedAdminAutomationIndexRoute
   '/_authenticated/admin/calls/': typeof AuthenticatedAdminCallsIndexRoute
   '/_authenticated/admin/campaigns/': typeof AuthenticatedAdminCampaignsIndexRoute
   '/_authenticated/admin/contacts/': typeof AuthenticatedAdminContactsIndexRoute
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/api/v1/vapi/webhook'
     | '/admin/agents/'
+    | '/admin/automation/'
     | '/admin/calls/'
     | '/admin/campaigns/'
     | '/admin/contacts/'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/api/v1/vapi/webhook'
     | '/admin/agents'
+    | '/admin/automation'
     | '/admin/calls'
     | '/admin/campaigns'
     | '/admin/contacts'
@@ -243,6 +255,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/vapi/webhook'
     | '/_authenticated/admin/agents/'
+    | '/_authenticated/admin/automation/'
     | '/_authenticated/admin/calls/'
     | '/_authenticated/admin/campaigns/'
     | '/_authenticated/admin/contacts/'
@@ -333,6 +346,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/calls'
       fullPath: '/admin/calls/'
       preLoaderRoute: typeof AuthenticatedAdminCallsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/automation/': {
+      id: '/_authenticated/admin/automation/'
+      path: '/admin/automation'
+      fullPath: '/admin/automation/'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/agents/': {
@@ -426,6 +446,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminAgentsAgentIdRoute: typeof AuthenticatedAdminAgentsAgentIdRoute
   AuthenticatedAdminCampaignsCampaignIdRoute: typeof AuthenticatedAdminCampaignsCampaignIdRoute
   AuthenticatedAdminAgentsIndexRoute: typeof AuthenticatedAdminAgentsIndexRoute
+  AuthenticatedAdminAutomationIndexRoute: typeof AuthenticatedAdminAutomationIndexRoute
   AuthenticatedAdminCallsIndexRoute: typeof AuthenticatedAdminCallsIndexRoute
   AuthenticatedAdminCampaignsIndexRoute: typeof AuthenticatedAdminCampaignsIndexRoute
   AuthenticatedAdminContactsIndexRoute: typeof AuthenticatedAdminContactsIndexRoute
@@ -442,6 +463,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminCampaignsCampaignIdRoute:
     AuthenticatedAdminCampaignsCampaignIdRoute,
   AuthenticatedAdminAgentsIndexRoute: AuthenticatedAdminAgentsIndexRoute,
+  AuthenticatedAdminAutomationIndexRoute:
+    AuthenticatedAdminAutomationIndexRoute,
   AuthenticatedAdminCallsIndexRoute: AuthenticatedAdminCallsIndexRoute,
   AuthenticatedAdminCampaignsIndexRoute: AuthenticatedAdminCampaignsIndexRoute,
   AuthenticatedAdminContactsIndexRoute: AuthenticatedAdminContactsIndexRoute,
