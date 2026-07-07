@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SettingsIcon } from "lucide-react"
+import { ChevronDownIcon, SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -31,12 +31,26 @@ import {
 import { PriceChart, type ChartPriceLine } from "@/components/trading/price-chart"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
+import {
+  CHART_STRATEGIES,
+  DEFAULT_CHART_STRATEGY,
+  type ChartStrategyState,
+} from "@/components/trading/chart-strategy"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -71,6 +85,7 @@ import {
 } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
+import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 import {
   DEFAULT_INDICATORS,
   INDICATOR_LABELS,
@@ -326,6 +341,15 @@ export function TradingWorkspace({
   const rightLayout = usePersistedLayout("trading-layout-right")
   const [indicators, setIndicators] = usePersistedIndicators()
   const [panels, setPanels] = usePersistedPanels()
+  const [chartStrategy, setChartStrategy] = usePersistedState<ChartStrategyState>(
+    "trading-chart-strategy",
+    DEFAULT_CHART_STRATEGY,
+    (raw) => ({
+      ...DEFAULT_CHART_STRATEGY,
+      ...(JSON.parse(raw) as Partial<ChartStrategyState>),
+    })
+  )
+  const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
 
   const ticketDisabledReason = isPaper
     ? null
@@ -401,6 +425,11 @@ export function TradingWorkspace({
                     indicators={indicators}
                     onChange={setIndicators}
                   />
+                  <StrategyToolbar
+                    state={chartStrategy}
+                    onChange={setChartStrategy}
+                    onOpenSettings={() => setStrategySettingsOpen(true)}
+                  />
                 </div>
                 <div className="min-h-0 flex-1">
                   <PriceChart
@@ -409,6 +438,7 @@ export function TradingWorkspace({
                     interval={interval}
                     priceLines={priceLines}
                     indicators={indicators}
+                    chartStrategy={chartStrategy.strategy ? chartStrategy : null}
                     onLineDragEnd={handleLineDragEnd}
                     onChartContextMenu={handleChartContextMenu}
                   />
@@ -504,7 +534,170 @@ export function TradingWorkspace({
         }}
         onClose={() => setChartMenu(null)}
       />
+
+      <StrategySettingsDialog
+        open={strategySettingsOpen}
+        onOpenChange={setStrategySettingsOpen}
+        state={chartStrategy}
+        onChange={setChartStrategy}
+      />
     </div>
+  )
+}
+
+/** Chart-toolbar strategy picker + settings-cog trigger. */
+function StrategyToolbar({
+  state,
+  onChange,
+  onOpenSettings,
+}: {
+  state: ChartStrategyState
+  onChange: (next: ChartStrategyState) => void
+  onOpenSettings: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
+            {state.strategy ? STRATEGY_LABELS[state.strategy] : "Strategy"}
+            <ChevronDownIcon className="size-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="text-[11px]">
+            Apply strategy
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioGroup
+            value={state.strategy ?? "none"}
+            onValueChange={(value) =>
+              onChange({
+                ...state,
+                strategy: value === "none" ? null : (value as StrategyType),
+              })
+            }
+          >
+            <DropdownMenuRadioItem value="none">
+              No strategy
+            </DropdownMenuRadioItem>
+            {CHART_STRATEGIES.map((strategy) => (
+              <DropdownMenuRadioItem key={strategy} value={strategy}>
+                {STRATEGY_LABELS[strategy]}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6 text-muted-foreground"
+        aria-label="Strategy display settings"
+        title="Strategy display settings"
+        disabled={!state.strategy}
+        onClick={onOpenSettings}
+      >
+        <SettingsIcon className="size-3.5" />
+      </Button>
+    </div>
+  )
+}
+
+type StrategyToggle = { key: keyof ChartStrategyState; label: string }
+
+/** Which display toggles each strategy actually paints. */
+const STRATEGY_TOGGLES: Record<StrategyType, StrategyToggle[]> = {
+  qqe: [
+    { key: "showSignals", label: "Trigger signals" },
+    { key: "consolidationFilter", label: "Consolidation filter" },
+    { key: "showZones", label: "Consolidation zones" },
+    { key: "showBarColors", label: "Bar colors" },
+    { key: "showIndicators", label: "Indicators" },
+  ],
+  momentum: [
+    { key: "showSignals", label: "Trigger signals" },
+    { key: "showIndicators", label: "Indicators (EMA / RSI / channel)" },
+  ],
+  dca: [{ key: "showIndicators", label: "Order ladder" }],
+  grid: [{ key: "showIndicators", label: "Grid levels" }],
+  copy: [],
+}
+
+/** Strategies that emit buy/sell signals (so the signal cap is relevant). */
+const SIGNAL_STRATEGIES: StrategyType[] = ["qqe", "momentum"]
+
+/** Modal to cap painted signals and choose which of a strategy's overlays show. */
+function StrategySettingsDialog({
+  open,
+  onOpenChange,
+  state,
+  onChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  state: ChartStrategyState
+  onChange: (next: ChartStrategyState) => void
+}) {
+  if (!state.strategy) return null
+  const toggles = STRATEGY_TOGGLES[state.strategy]
+  const hasSignals = SIGNAL_STRATEGIES.includes(state.strategy)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>{STRATEGY_LABELS[state.strategy]} display</DialogTitle>
+          <DialogDescription>
+            Choose which of this strategy's overlays to paint on the chart
+            {hasSignals ? ", and cap how many recent signals show." : "."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 px-6 py-4">
+          {hasSignals ? (
+            <div className="grid gap-1.5">
+              <Label htmlFor="max-signals" className="text-xs">
+                Max recent signals
+              </Label>
+              <Input
+                id="max-signals"
+                type="number"
+                min={1}
+                max={500}
+                value={state.maxSignals}
+                className="h-8 w-28 text-xs"
+                onChange={(event) =>
+                  onChange({
+                    ...state,
+                    maxSignals: Math.max(0, Number(event.target.value) || 0),
+                  })
+                }
+              />
+              <span className="text-[11px] text-muted-foreground">
+                Keeps only the most recent signals so the strategy never paints
+                the whole chart.
+              </span>
+            </div>
+          ) : null}
+          <div className="grid gap-2">
+            {toggles.map((toggle) => (
+              <label
+                key={toggle.key}
+                className="flex cursor-pointer items-center gap-2 text-xs"
+              >
+                <Checkbox
+                  checked={Boolean(state[toggle.key])}
+                  onCheckedChange={(checked) =>
+                    onChange({ ...state, [toggle.key]: checked === true })
+                  }
+                />
+                {toggle.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
