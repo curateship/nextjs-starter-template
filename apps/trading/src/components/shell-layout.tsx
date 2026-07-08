@@ -60,18 +60,23 @@ export function ShellLayout({
     select: (state) => state.location.pathname,
   })
   // Full-bleed workspaces manage their own height and scrolling, so they drop
-  // the padded DashboardContent wrapper: the live trade terminal always, and
-  // the backtest chart workspace when opened with ?run= / ?draft= (the
-  // strategies list at /backtest keeps its padding).
+  // the padded DashboardContent wrapper: the live trade terminal and the bot
+  // workspace always, and the backtest chart workspace when opened with
+  // ?run= / ?draft= (the strategies list at /backtest and the bot fleet list
+  // keep their padding). Read the resolved location, not the pending one —
+  // during navigation the outgoing page is still on screen, and flipping the
+  // padding early makes it jump for a split second.
   const fullBleed = useRouterState({
     select: (state) => {
-      const search = state.location.search as {
+      const location = state.resolvedLocation ?? state.location
+      const search = location.search as {
         run?: string
         draft?: unknown
       }
       return (
-        state.location.pathname === "/trade" ||
-        (state.location.pathname === "/backtest" &&
+        location.pathname === "/trade" ||
+        /^\/bots\/.+/.test(location.pathname) ||
+        (location.pathname === "/backtest" &&
           Boolean(search.run || search.draft))
       )
     },

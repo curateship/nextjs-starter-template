@@ -10,6 +10,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { NewBotDialog } from "@/components/bots/new-bot-dialog"
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +51,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   const [busyBotId, setBusyBotId] = React.useState<string | null>(null)
   const [pendingGlobal, setPendingGlobal] = React.useState<PendingGlobal | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<BotListItem | null>(null)
+  const [newBotOpen, setNewBotOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
 
@@ -135,7 +137,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
             </DashboardToolbarButton>
             <DashboardToolbarButton
               type="button"
-              onClick={() => void router.navigate({ to: "/bots/new" })}
+              onClick={() => setNewBotOpen(true)}
             >
               <PlusIcon className="size-4" />
               New Bot
@@ -259,6 +261,14 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
           </TableRow>
         ))}
       </DashboardTable>
+
+      <NewBotDialog
+        open={newBotOpen}
+        onOpenChange={setNewBotOpen}
+        onCreated={(botId) =>
+          void router.navigate({ to: "/bots/$botId", params: { botId } })
+        }
+      />
 
       <Dialog
         open={Boolean(pendingGlobal)}

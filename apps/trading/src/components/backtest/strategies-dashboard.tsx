@@ -685,11 +685,20 @@ export function StrategyRunsDashboard({
   strategyType,
   strategyDefaults,
   templates,
+  pagination,
+  onPaginationChange,
 }: {
   runs: BacktestListItem[]
   strategyType: StrategyType
   strategyDefaults: StrategyDefaultsMap
   templates: StrategyTemplate[]
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
+  onPaginationChange?: (patch: { page?: number; pageSize?: number }) => void
 }) {
   const navigate = useNavigate()
   const router = useRouter()
@@ -763,7 +772,10 @@ export function StrategyRunsDashboard({
     })
   }, [groups, filter, state.search, state.sortColumn, state.sortDirection])
 
-  const { rows: pageRows, totalPages } = paginate(filtered, state.page, state.pageSize)
+  const serverPaged = pagination !== undefined && onPaginationChange !== undefined
+  const { rows: pageRows, totalPages } = serverPaged
+    ? { rows: filtered, totalPages: pagination.totalPages }
+    : paginate(filtered, state.page, state.pageSize)
   const visibleIds = pageRows.map((group) => group.groupId)
 
   async function applyStatus(
@@ -920,13 +932,17 @@ export function StrategyRunsDashboard({
         emptyColSpan={13}
         footer={{
           type: "pagination",
-          page: state.page,
-          pageSize: state.pageSize,
-          total: filtered.length,
+          page: pagination?.page ?? state.page,
+          pageSize: pagination?.pageSize ?? state.pageSize,
+          total: pagination?.total ?? filtered.length,
           totalPages,
           pageSizeOptions,
-          onPageChange: state.setPage,
-          onPageSizeChange: state.setPageSize,
+          onPageChange: serverPaged
+            ? (page) => onPaginationChange({ page })
+            : state.setPage,
+          onPageSizeChange: serverPaged
+            ? (pageSize) => onPaginationChange({ page: 1, pageSize })
+            : state.setPageSize,
         }}
       >
         {pageRows.map((group) => (

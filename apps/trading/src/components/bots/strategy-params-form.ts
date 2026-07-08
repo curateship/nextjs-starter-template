@@ -76,6 +76,18 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
 /** Strategies whose signal interval must match the backtest timeframe. */
 export const INTERVAL_STRATEGIES: StrategyType[] = ["momentum", "qqe"]
 
+/**
+ * The protective-order (SL/TP) form keys each strategy exposes in the bot
+ * workspace's right rail; everything else in `params` stays bot-managed.
+ */
+export const PROTECTIVE_KEYS: Record<StrategyType, string[]> = {
+  grid: ["takeProfitPx", "stopLossPx"],
+  dca: ["takeProfitPct", "stopLossPct"],
+  momentum: ["stopMode", "trailingStopPct", "basePeriods", "pumpPeriods"],
+  qqe: ["takeProfitPct", "stopLossPct", "swingStopLoss"],
+  copy: [],
+}
+
 /** Inverse of buildParams — string form values from stored params. */
 export function paramsToValues(params: StrategyParams): ParamValues {
   const defaults = PARAM_DEFAULTS[params.strategyType]
