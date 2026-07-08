@@ -626,6 +626,10 @@ type GroupRow = {
   tradeCount: number | null
   /** Net % averaged to a 30-day month (pro-rata over the run window). */
   monthlyPnlPct: number | null
+  /** Mean per-market max drawdown % across the group's completed markets. */
+  avgDrawdownPct: number | null
+  /** Worst single-market max drawdown % in the group (shown as a tooltip). */
+  worstDrawdownPct: number | null
   lastRunAt: number
 }
 
@@ -639,6 +643,7 @@ type GroupSort =
   | "net"
   | "total"
   | "monthly"
+  | "avgDd"
   | "trades"
   | "last"
 
@@ -673,6 +678,8 @@ function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
       return nullable(a.netPnl) - nullable(b.netPnl)
     case "monthly":
       return nullable(a.monthlyPnlPct) - nullable(b.monthlyPnlPct)
+    case "avgDd":
+      return nullable(a.avgDrawdownPct) - nullable(b.avgDrawdownPct)
     case "trades":
       return nullable(a.tradeCount) - nullable(b.tradeCount)
     case "last":
@@ -725,6 +732,17 @@ export function StrategyRunsDashboard({
       // The main market's row shares the group id; it drives the summary.
       const main = groupRuns.find((run) => run.id === groupId) ?? groupRuns[0]
       const windowDays = windowDaysOf(main)
+      // Drawdown is averaged across every completed market, not read off the
+      // main market alone — a basket's real risk is the spread of its markets.
+      const drawdowns = groupRuns
+        .filter((run) => run.status === "done" && run.maxDrawdownPct !== null)
+        .map((run) => run.maxDrawdownPct as number)
+      const avgDrawdownPct =
+        drawdowns.length > 0
+          ? drawdowns.reduce((sum, value) => sum + value, 0) / drawdowns.length
+          : null
+      const worstDrawdownPct =
+        drawdowns.length > 0 ? Math.max(...drawdowns) : null
       return {
         groupId,
         mainId: main.id,
@@ -743,6 +761,8 @@ export function StrategyRunsDashboard({
           main.netPnlPct === null
             ? null
             : (main.netPnlPct / windowDays) * 30,
+        avgDrawdownPct,
+        worstDrawdownPct,
         lastRunAt: Math.max(
           ...groupRuns.map((run) => Date.parse(run.createdAt))
         ),
@@ -921,6 +941,7 @@ export function StrategyRunsDashboard({
               {sortHead("Net P&L %", "net", state)}
               {sortHead("Total P&L", "total", state)}
               {sortHead("Monthly avg %", "monthly", state)}
+              {sortHead("Avg DD", "avgDd", state)}
               {sortHead("Trades", "trades", state)}
               {sortHead("Last run", "last", state)}
               <TableHead column="meta">Actions</TableHead>
@@ -929,7 +950,7 @@ export function StrategyRunsDashboard({
         }
         isEmpty={pageRows.length === 0}
         emptyText="No runs for this strategy yet — create one with New Run."
-        emptyColSpan={13}
+        emptyColSpan={14}
         footer={{
           type: "pagination",
           page: pagination?.page ?? state.page,
@@ -1041,6 +1062,19 @@ export function StrategyRunsDashboard({
             >
               {group.status === "done" && group.monthlyPnlPct !== null
                 ? pct(group.monthlyPnlPct)
+                : "—"}
+            </TableCell>
+            <TableCell
+              column="meta"
+              className="font-mono tabular-nums text-red-500"
+              title={
+                group.worstDrawdownPct !== null
+                  ? `Worst market: -${group.worstDrawdownPct.toFixed(2)}%`
+                  : undefined
+              }
+            >
+              {group.status === "done" && group.avgDrawdownPct !== null
+                ? `-${group.avgDrawdownPct.toFixed(2)}%`
                 : "—"}
             </TableCell>
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
