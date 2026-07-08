@@ -228,17 +228,19 @@ describe("buildStrategyOverlays", () => {
     expect(new Set(markers.map((m) => m.time))).toEqual(
       new Set([candles[10].t, candles[12].t, candles[20].t, candles[22].t])
     )
-    // Each re-buy entry gets a pink arrow marker (long entry → "buy" arrow).
+    // Each re-buy entry gets a pink "R" chip (long entry → "buy" side).
     const rebuyMarkers = markers.filter((m) => m.color === "#ec4899")
     expect(rebuyMarkers).toHaveLength(2)
-    expect(rebuyMarkers.every((m) => m.side === "buy" && m.text === "Re-buy")).toBe(true)
+    expect(rebuyMarkers.every((m) => m.side === "buy" && m.letter === "R")).toBe(true)
     expect(new Set(rebuyMarkers.map((m) => m.time))).toEqual(
       new Set([candles[10].t, candles[20].t])
     )
-    // The exit arrows are plain (a long exit is an uncolored sell).
-    const exitMarkers = markers.filter((m) => !m.color)
+    // The exit chips are red "C" closes (a long exit is a sell).
+    const exitMarkers = markers.filter((m) => m.letter === "C")
     expect(exitMarkers).toHaveLength(2)
-    expect(exitMarkers.every((m) => m.side === "sell")).toBe(true)
+    expect(exitMarkers.every((m) => m.side === "sell" && m.color === "#f23645")).toBe(
+      true
+    )
   })
 
   it("does not paint re-buy bars when trendReentry is off", () => {
@@ -330,9 +332,9 @@ describe("buildRunMarkers", () => {
       openPosition: { side: "short", szi: -1, entryPx: 105, entryTime: 30 },
     })
     expect(buildRunMarkers(result)).toEqual([
-      { time: 10, side: "buy" },
-      { time: 20, side: "sell" },
-      { time: 30, side: "sell" },
+      { time: 10, side: "buy", price: 100, letter: "O", color: "#089981" },
+      { time: 20, side: "sell", price: 110, letter: "C", color: "#f23645" },
+      { time: 30, side: "sell", price: 105, letter: "O", color: "#089981" },
     ])
   })
 })

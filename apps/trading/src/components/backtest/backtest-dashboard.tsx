@@ -178,11 +178,13 @@ export function BacktestDashboard({
         time: focusedTrade.entryTime,
         side: long ? "buy" : "sell",
         label: "Entry",
+        price: focusedTrade.entryPx,
       },
       {
         time: focusedTrade.exitTime,
         side: long ? "sell" : "buy",
         label: "Exit",
+        price: focusedTrade.exitPx,
       },
     ]
   }, [focusedTrade])
@@ -385,13 +387,25 @@ export function BacktestDashboard({
     }))
   }
 
-  // Every strategy draws an arrow at each real entry and exit, matching the
-  // trades table. qqe builds its arrows (with pink re-entries) inside its
-  // overlays from the run result; the others use buildRunMarkers. The focused
-  // trade's pulsing rings come from focusPoints, not these markers.
+  // Entry times the strategy flagged as trend re-entries ("R" chips), so the
+  // trade list can tag those rows to match the chart. Derived like the chart's
+  // markers; populated for QQE at the run's own timeframe.
+  const reentryTimes = React.useMemo(() => {
+    const set = new Set<number>()
+    if (strategyType === "qqe") {
+      for (const m of overlays.markers) if (m.letter === "R") set.add(m.time)
+    }
+    return set
+  }, [strategyType, overlays])
+
   const markers = React.useMemo(() => {
-    if (strategyType === "qqe") return overlays.markers
-    return runMatchesConfig && result ? buildRunMarkers(result) : []
+    if (!result) return []
+    // QQE shows its re-entry (R) chips only at the run's own timeframe, where its
+    // signal math lines up with the candles. At any other display timeframe (and
+    // for every other strategy) fall back to plain open/close chips: they need
+    // only fill times and prices, so they stay correct on any candles.
+    if (strategyType === "qqe" && runMatchesConfig) return overlays.markers
+    return buildRunMarkers(result)
   }, [strategyType, overlays, runMatchesConfig, result])
 
   const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
@@ -505,10 +519,16 @@ export function BacktestDashboard({
                       <button
                         key={tf}
                         type="button"
-                        disabled={readOnly}
                         onClick={() => {
+                          // On a saved run, this only changes the chart's display
+                          // timeframe (to inspect candles) — not the immutable run,
+                          // so don't touch its params.
                           setTimeframe(tf)
-                          if (strategyType && INTERVAL_STRATEGIES.includes(strategyType)) {
+                          if (
+                            !readOnly &&
+                            strategyType &&
+                            INTERVAL_STRATEGIES.includes(strategyType)
+                          ) {
                             setParams((current) => ({ ...current, interval: tf }))
                           }
                         }}
@@ -597,6 +617,7 @@ export function BacktestDashboard({
             markPrice={markPrice}
             selectedTradeN={focusedTrade?.n ?? null}
             onSelectTrade={setFocusedTrade}
+            reentryTimes={reentryTimes}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

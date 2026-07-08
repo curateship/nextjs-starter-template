@@ -54,6 +54,7 @@ export function StrategyTester({
   markPrice,
   selectedTradeN = null,
   onSelectTrade,
+  reentryTimes,
 }: {
   result: BacktestResult | null
   startingEquity: number
@@ -62,6 +63,8 @@ export function StrategyTester({
   selectedTradeN?: number | null
   /** Row click — null when the selected trade is clicked again. */
   onSelectTrade?: (trade: BacktestTrade | null) => void
+  /** Entry times that are trend re-entries ("R"), so those rows get tagged. */
+  reentryTimes?: Set<number>
 }) {
   const stats = result?.stats
   const net = stats?.netPnl ?? 0
@@ -107,6 +110,7 @@ export function StrategyTester({
             markPrice={markPrice}
             selectedTradeN={selectedTradeN}
             onSelectTrade={onSelectTrade}
+            reentryTimes={reentryTimes}
           />
         </TabsContent>
         <TabsContent value="overview" className="m-0">
@@ -361,11 +365,13 @@ function TradesTable({
   markPrice,
   selectedTradeN,
   onSelectTrade,
+  reentryTimes,
 }: {
   result: BacktestResult | null
   markPrice: number
   selectedTradeN: number | null
   onSelectTrade?: (trade: BacktestTrade | null) => void
+  reentryTimes?: Set<number>
 }) {
   const [sort, setSort] = React.useState<{
     key: TradeSortKey
@@ -442,6 +448,15 @@ function TradesTable({
               )}
             >
               {trade.side === "long" ? "Long" : "Short"}
+              {reentryTimes?.has(trade.entryTime) ? (
+                <span
+                  className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-bold text-white"
+                  style={{ backgroundColor: "#ec4899" }}
+                  title="Trend re-entry (re-buy)"
+                >
+                  R
+                </span>
+              ) : null}
             </TableCell>
             <TableCell className="text-muted-foreground">{fmtDate(trade.entryTime)}</TableCell>
             <TableCell className="text-right">{fmtPrice(trade.entryPx)}</TableCell>
