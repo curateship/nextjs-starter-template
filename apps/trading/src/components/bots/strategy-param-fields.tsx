@@ -345,6 +345,40 @@ export function StrategyParamFields({
         </>
       )
     }
+    case "vwap":
+      return (
+        <>
+          {select("mode", "Mode", [
+            ["reversion", "Mean reversion (bands)"],
+            ["cross", "VWAP cross (trend)"],
+          ])}
+          {select("interval", "Candle interval", [
+            ["1m", "1m"],
+            ["5m", "5m"],
+            ["15m", "15m"],
+            ["1h", "1h"],
+            ["4h", "4h"],
+            ["1d", "1d"],
+          ])}
+          {(values.mode ?? "reversion") === "reversion" ? (
+            <>
+              {text("bandK", "Band width (σ)")}
+              {select("exitAt", "Exit target", [
+                ["vwap", "VWAP line"],
+                ["band", "Opposite band"],
+              ])}
+            </>
+          ) : null}
+          {text("orderSizeUsd", "Order size (USD)")}
+          {select("direction", "Direction", [
+            ["both", "Long & short"],
+            ["long", "Long only"],
+            ["short", "Short only"],
+          ])}
+          {text("takeProfitPct", "Take profit % (optional)")}
+          {text("stopLossPct", "Stop loss % (optional)")}
+        </>
+      )
     case "copy":
       return (
         <>

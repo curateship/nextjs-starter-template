@@ -392,6 +392,21 @@ function ProtectiveFields({
         </>
       )
     }
+    case "vwap":
+      return (
+        <>
+          {pctInput(
+            "takeProfitPct",
+            "Take profit % (empty = none)",
+            targetHint("takeProfitPct", entryPx, long)
+          )}
+          {pctInput(
+            "stopLossPct",
+            "Stop loss % (empty = none)",
+            targetHint("stopLossPct", entryPx, !long)
+          )}
+        </>
+      )
     case "copy":
       return (
         <div className="rounded-lg border border-dashed p-4 text-center text-[11px] text-muted-foreground">

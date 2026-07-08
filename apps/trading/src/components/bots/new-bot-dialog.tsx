@@ -45,7 +45,7 @@ import {
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
-const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "grid", "dca", "copy"]
+const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "vwap", "grid", "dca", "copy"]
 
 /**
  * Minimal bot creation: name, strategy, template, wallet, mode. Everything

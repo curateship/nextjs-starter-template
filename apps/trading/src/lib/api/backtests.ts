@@ -192,7 +192,8 @@ const runBacktestSchema = z
     }
     if (
       (data.params.strategyType === "momentum" ||
-        data.params.strategyType === "qqe") &&
+        data.params.strategyType === "qqe" ||
+        data.params.strategyType === "vwap") &&
       data.params.interval !== data.interval
     ) {
       ctx.addIssue({
@@ -345,7 +346,9 @@ async function executeRun(
 
   const interval = data.interval
   const warmupBars =
-    data.params.strategyType === "momentum" || data.params.strategyType === "qqe"
+    data.params.strategyType === "momentum" ||
+    data.params.strategyType === "qqe" ||
+    data.params.strategyType === "vwap"
       ? SIGNAL_WARMUP_CANDLES
       : 0
   const simStartMs = startTime.getTime()
@@ -418,8 +421,213 @@ async function executeRun(
   return { backtestId: mainId as string }
 }
 
+// --- Walk-forward validation -------------------------------------------------
+
+const DAY_MS = 86_400_000
+
+const walkForwardSchema = z
+  .object({
+    market: z.string().min(1).max(20),
+    extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
+    interval: z.enum(CANDLE_INTERVALS),
+    windowDays: z.number().int().min(4).max(MAX_RUN_BARS),
+    /** Fraction of the window used to fit; the rest is held out to test. */
+    trainPct: z.number().min(0.3).max(0.9),
+    startingEquity: z.number().positive().max(100_000_000),
+    takerFeeBps: z.number().min(0).max(50).optional(),
+    makerFeeBps: z.number().min(0).max(50).optional(),
+    slippageBps: z.number().min(0).max(100).optional(),
+    params: strategyParamsSchema,
+    riskParams: riskParamsSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.params.strategyType === "copy") {
+      ctx.addIssue({ code: "custom", message: "Copy trading can't be backtested.", path: ["params"] })
+    }
+    if (
+      (data.params.strategyType === "momentum" ||
+        data.params.strategyType === "qqe" ||
+        data.params.strategyType === "vwap") &&
+      data.params.interval !== data.interval
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Backtest timeframe must match the strategy's signal interval.",
+        path: ["interval"],
+      })
+    }
+    const markets = [data.market, ...(data.extraMarkets ?? [])]
+    if (new Set(markets).size !== markets.length) {
+      ctx.addIssue({ code: "custom", message: "Duplicate markets selected.", path: ["extraMarkets"] })
+    }
+    if (data.windowDays > maxWindowDays(data.interval)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `That window is too long for ${data.interval} candles.`,
+        path: ["windowDays"],
+      })
+    }
+  })
+
+/** Blended, diversified metrics for a train or test window. */
+export type WalkForwardPhase = {
+  fromMs: number
+  toMs: number
+  days: number
+  /** Equal-capital blended return across the basket. */
+  netPnlPct: number
+  /** Drawdown of the summed portfolio equity curve. */
+  maxDrawdownPct: number
+  /** Fraction of markets that were net-positive. */
+  winRate: number
+  trades: number
+}
+
+export type WalkForwardResult = {
+  markets: string[]
+  train: WalkForwardPhase
+  test: WalkForwardPhase
+  /** OOS positive and within range of train / OOS positive but weak / OOS negative. */
+  verdict: "holds" | "weak" | "fails"
+}
+
+const walkForwardFn = createServerFn({ method: "POST" })
+  .inputValidator(walkForwardSchema)
+  .handler(async ({ data }): Promise<WalkForwardResult> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    requireAppOrigin()
+    const user = await requireUser()
+    if (inFlightRuns.has(user.id)) {
+      throw new Error("A backtest is already running — wait for it to finish.")
+    }
+    inFlightRuns.add(user.id)
+    try {
+      return await evaluateWalkForward(data)
+    } catch (error) {
+      // Don't leak upstream/internal error text to the client (matches executeRun).
+      console.error("walk-forward run failed", error)
+      throw new Error(runFailureMessage(error))
+    } finally {
+      inFlightRuns.delete(user.id)
+    }
+  })
+
+/** Pure walk-forward evaluation (no auth/DB): fetch, run train + test, blend. */
+async function evaluateWalkForward(
+  data: z.infer<typeof walkForwardSchema>
+): Promise<WalkForwardResult> {
+  const { fetchCandleHistory } = await import("@/server/backtest/history")
+  const { strategies } = await import("../../../worker/src/strategies/registry")
+  const { runBacktest: runEngine } = await import("../../../worker/src/backtest/runner")
+
+  const strategy = strategies[data.params.strategyType]
+  if (!strategy) throw new Error(`Strategy "${data.params.strategyType}" can't be backtested.`)
+
+  const markets = [data.market, ...(data.extraMarkets ?? [])]
+  const interval = data.interval
+  const costs: BacktestCosts = {
+    takerFeeBps: data.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps,
+    makerFeeBps: data.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps,
+    slippageBps: data.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps,
+  }
+  const warmupBars =
+    data.params.strategyType === "momentum" ||
+    data.params.strategyType === "qqe" ||
+    data.params.strategyType === "vwap"
+      ? SIGNAL_WARMUP_CANDLES
+      : 0
+
+  const endMs = Date.now()
+  const totalStartMs = endMs - data.windowDays * DAY_MS
+  const trainEndMs = totalStartMs + Math.round(data.windowDays * data.trainPct) * DAY_MS
+  const fetchStart = totalStartMs - warmupBars * INTERVAL_MS[interval]
+
+  const trainRuns: BacktestResult[] = []
+  const testRuns: BacktestResult[] = []
+  const kept: string[] = []
+  for (const market of markets) {
+    const candles = await fetchCandleHistory(market, interval, fetchStart, endMs)
+    // Skip markets without a full window (newer listings), like the scripts do.
+    if (candles.length === 0 || candles[0].t > totalStartMs) continue
+    // Train: fit window only (candles sliced so the engine can't see the future).
+    const trainCandles = candles.filter((c) => c.t <= trainEndMs)
+    const base = { strategy, params: data.params, riskParams: data.riskParams, startingEquity: data.startingEquity, market, interval, costs } as const
+    trainRuns.push(runEngine({ ...base, candles: trainCandles, simStartMs: totalStartMs }))
+    // Test: fresh capital, trading only the held-out window (warmup from before).
+    testRuns.push(runEngine({ ...base, candles, simStartMs: trainEndMs }))
+    kept.push(market)
+  }
+  if (kept.length === 0) {
+    throw new Error("No candle history for those markets in that window.")
+  }
+
+  const trainDays = (trainEndMs - totalStartMs) / DAY_MS
+  const testDays = (endMs - trainEndMs) / DAY_MS
+  const train = aggregatePhase(trainRuns, data.startingEquity, totalStartMs, trainEndMs, trainDays)
+  const test = aggregatePhase(testRuns, data.startingEquity, trainEndMs, endMs, testDays)
+
+  const trDaily = train.netPnlPct / trainDays
+  const teDaily = test.netPnlPct / testDays
+  const verdict = teDaily <= 0 ? "fails" : teDaily >= trDaily * 0.4 ? "holds" : "weak"
+  return { markets: kept, train, test, verdict }
+}
+
+function aggregatePhase(
+  runs: BacktestResult[],
+  equityPerMarket: number,
+  fromMs: number,
+  toMs: number,
+  days: number
+): WalkForwardPhase {
+  let netPnl = 0
+  let winners = 0
+  let trades = 0
+  for (const run of runs) {
+    netPnl += run.stats.netPnl
+    if (run.stats.netPnlPct > 0) winners += 1
+    trades += run.stats.all.trades
+  }
+  const totalEquity = equityPerMarket * runs.length
+  return {
+    fromMs,
+    toMs,
+    days,
+    netPnlPct: totalEquity > 0 ? (netPnl / totalEquity) * 100 : 0,
+    maxDrawdownPct: portfolioDrawdown(runs, equityPerMarket),
+    winRate: runs.length > 0 ? winners / runs.length : 0,
+    trades,
+  }
+}
+
+/** Drawdown % of the summed per-market equity curves (diversified portfolio). */
+function portfolioDrawdown(runs: BacktestResult[], equityPerMarket: number): number {
+  const times = new Set<number>()
+  for (const r of runs) for (const p of r.equityCurve) times.add(p.t)
+  const axis = [...times].sort((a, b) => a - b)
+  if (axis.length === 0) return 0
+  const portfolio = new Array<number>(axis.length).fill(0)
+  for (const r of runs) {
+    let j = 0
+    let last = equityPerMarket
+    for (let k = 0; k < axis.length; k += 1) {
+      while (j < r.equityCurve.length && r.equityCurve[j].t <= axis[k]) {
+        last = r.equityCurve[j].eq
+        j += 1
+      }
+      portfolio[k] += last
+    }
+  }
+  let peak = -Infinity
+  let dd = 0
+  for (const v of portfolio) {
+    if (v > peak) peak = v
+    if (peak > 0) dd = Math.max(dd, ((peak - v) / peak) * 100)
+  }
+  return dd
+}
+
 const loadBacktestsSchema = z.object({
-  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "copy"]).optional(),
+  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"]).optional(),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(100).optional(),
 })
@@ -545,7 +753,7 @@ const deleteBacktestsSchema = z
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
     strategyTypes: z
-      .array(z.enum(["grid", "dca", "momentum", "qqe", "copy"]))
+      .array(z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"]))
       .max(4)
       .optional(),
   })
@@ -593,6 +801,10 @@ export function runBacktest(input: z.input<typeof runBacktestSchema>) {
   return runBacktestFn({ data: input })
 }
 
+export function runWalkForward(input: z.input<typeof walkForwardSchema>) {
+  return walkForwardFn({ data: input })
+}
+
 export function deleteBacktests(input: z.input<typeof deleteBacktestsSchema>) {
   return deleteBacktestsFn({ data: input })
 }
@@ -622,7 +834,7 @@ const strategyConfigSchema = z.object({
   feePct: z.number().min(0).max(0.5).optional(),
 })
 
-const strategyTypeSchema = z.enum(["grid", "dca", "momentum", "qqe", "copy"])
+const strategyTypeSchema = z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"])
 
 const saveStrategyDefaultsSchema = z.object({
   strategyType: strategyTypeSchema,
