@@ -284,6 +284,17 @@ function isKnownRunError(message: string): boolean {
   )
 }
 
+/** Maps a run failure to a user-safe message; upstream/internal text never leaks. */
+function runFailureMessage(error: unknown): string {
+  if (error instanceof Error) {
+    if (isKnownRunError(error.message)) return error.message
+    if (error.message.includes("429") || error.message.includes("Too Many Requests")) {
+      return "Hyperliquid rate-limited the candle download for this market. Wait a minute and re-run."
+    }
+  }
+  return "Backtest failed — check the server logs."
+}
+
 /**
  * Runs one config across its market basket: one backtests row per market, all
  * sharing a groupId. With `groupId` set it re-runs into that existing group —
@@ -395,10 +406,7 @@ async function executeRun(
     } catch (error) {
       // Don't leak upstream/internal error text to the stored row or client.
       console.error("backtest run failed", backtest.id, error)
-      const message =
-        error instanceof Error && isKnownRunError(error.message)
-          ? error.message
-          : "Backtest failed — check the server logs."
+      const message = runFailureMessage(error)
       await failUserBacktest(backtest.id, message)
       if (market === data.market) mainError = message
     }

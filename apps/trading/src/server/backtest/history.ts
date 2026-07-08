@@ -33,6 +33,16 @@ const PAGE_LIMIT = 5000
 const MAX_PAGES = 20
 /** Hard safety cap; the API call site also validates the window up front. */
 const MAX_BARS = 12_000
+/**
+ * Hyperliquid rate-limits bursts of candleSnapshot pages with a 429 — which a
+ * multi-market backtest (one request fetching every market's candles back to
+ * back) trips easily. Retry the page with exponential backoff instead of
+ * failing the whole run on a later market.
+ */
+const RATE_LIMIT_RETRIES = 6
+const RATE_LIMIT_BASE_MS = 1_000
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let infoClient: InfoClient | null = null
 
@@ -67,13 +77,27 @@ export async function fetchCandleHistory(
 
   let cursor = startMs
   for (let page = 0; page < MAX_PAGES; page += 1) {
-    const snapshot = await info.candleSnapshot({
-      coin,
-      interval,
-      startTime: cursor,
-      endTime: endMs,
-    })
-    if (snapshot.length === 0) break
+    // A full final page can advance the cursor past endMs (last.t + step > end);
+    // requesting startTime > endTime makes Hyperliquid 500, so stop here.
+    if (cursor > endMs) break
+    let snapshot: Awaited<ReturnType<typeof info.candleSnapshot>> | undefined
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        snapshot = await info.candleSnapshot({
+          coin,
+          interval,
+          startTime: cursor,
+          endTime: endMs,
+        })
+        break
+      } catch (error) {
+        const rateLimited =
+          error instanceof Error && error.message.includes("429")
+        if (!rateLimited || attempt >= RATE_LIMIT_RETRIES) throw error
+        await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt)
+      }
+    }
+    if (!snapshot || snapshot.length === 0) break
 
     for (const candle of snapshot) {
       byTime.set(candle.t, {
