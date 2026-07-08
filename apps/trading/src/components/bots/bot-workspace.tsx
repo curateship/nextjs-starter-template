@@ -22,7 +22,11 @@ import {
   PROTECTIVE_KEYS,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
-import { PriceChart, type ChartMarker } from "@/components/trading/price-chart"
+import {
+  PriceChart,
+  type ChartMarker,
+  type PriceChartHandle,
+} from "@/components/trading/price-chart"
 import { Button } from "@/components/ui/button"
 import {
   ResizableHandle,
@@ -60,12 +64,14 @@ function BotChartMenu({
   market,
   items,
   onPick,
+  onResetView,
   onClose,
 }: {
   menu: { price: number; x: number; y: number } | null
   market: string
   items: BotChartMenuItem[]
   onPick: (item: BotChartMenuItem) => void
+  onResetView: () => void
   onClose: () => void
 }) {
   React.useEffect(() => {
@@ -122,6 +128,19 @@ function BotChartMenu({
             TP / SL already set — drag the lines to move them.
           </div>
         )}
+        <div className="my-1 border-t" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => {
+            onResetView()
+            onClose()
+          }}
+        >
+          Reset View
+        </Button>
       </div>
     </>
   )
@@ -173,6 +192,13 @@ export function BotWorkspace({
     x: number
     y: number
   } | null>(null)
+  const chartApiRef = React.useRef<PriceChartHandle | null>(null)
+  const registerChartApi = React.useCallback(
+    (api: PriceChartHandle | null) => {
+      chartApiRef.current = api
+    },
+    []
+  )
 
   // Full param values, for the left rail's read-only display.
   const seed = React.useMemo(() => paramsToValues(bot.params), [bot.params])
@@ -414,6 +440,7 @@ export function BotWorkspace({
                       markers={markers}
                       onLineDragEnd={handleLineDrag}
                       onChartContextMenu={handleChartContextMenu}
+                      registerApi={registerChartApi}
                     />
                   </div>
                 </div>
@@ -459,6 +486,7 @@ export function BotWorkspace({
         market={bot.market}
         items={chartMenuItems}
         onPick={pickMenuItem}
+        onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
 

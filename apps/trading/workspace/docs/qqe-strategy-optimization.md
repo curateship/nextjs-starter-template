@@ -103,6 +103,83 @@ Results vs the 4h v3 champion:
 
 **1h is worse on every axis** — lower returns, higher drawdowns (portfolio DD doubles), ~16× the trade count (fee/slippage drag and live execution risk), and BTC actually loses money on 1h. Windows differ (6.2 vs 16.4 months) so the comparison isn't perfectly apples-to-apples, but the direction is unambiguous. **4h remains the deployment timeframe.**
 
+## 1h 200-day walk-forward retest (July 8, 2026)
+
+Retested 1h specifically against the user's lower target: at least 3-5%/mo with
+portfolio drawdown below 30%, using the back-testing rules. Window: 200 days of
+Binance 1h candles, 25 fixed markets, 140-day train / 60-day out-of-sample
+split, 1x sizing, taker 4.5 bps, maker 1.5 bps, 4 bps slippage, and no risk
+kill switch hiding drawdown.
+
+Best bounded config: **threshold 10, smoothing 8, TP3, trend re-entry on,
+max 10 re-entries, no stop**.
+
+| Phase | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Train, 140d | 12.75% | 7.97% | 23/25 | 1,594 |
+| Out-of-sample, 60d | **24.11%** | **6.35%** | **25/25** | 964 |
+
+Saved run group: **"QQE 1h 200d WF OOS — TP3 reentry cap10 25m 4bps slip"**.
+
+Full 200-day continuous run with the same settings, also saved as
+**"QQE 1h 200d full — TP3 reentry cap10 25m 4bps slip"**:
+
+| Window | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Full 200d | **16.45%** | **7.97%** | 24/25 | 2,570 |
+
+Two-year continuous run with the same settings, saved as
+**"QQE 1h 2y full — TP3 reentry cap10 25m 4bps slip"**:
+
+| Window | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Full 730d | **21.25%** | **6.59%** | **25/25** | 11,005 |
+
+Three-year stress test on 25 completely different markets, saved as
+**"QQE 1h 3y alternate 25 — TP3 reentry cap10 4bps slip"**. This excluded every
+market from the first 1h basket and used ETC, XLM, TRX, EOS, VET, NEO, THETA,
+ALGO, MKR, COMP, SNX, SUSHI, YFI, ZEC, DASH, ONT, IOTA, XTZ, KSM, EGLD, RUNE,
+ENJ, MANA, SAND, GALA.
+
+| Window | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Full 3y, alternate basket | **18.85%** | **9.90%** | **25/25** | 15,524 |
+
+Important caveat: this is a basket strategy. Portfolio drawdown passes cleanly,
+and the saved out-of-sample half kept every market below 30% drawdown, but the
+training half had one ugly single-market period (AVAX -71.5%, 82.7% max DD)
+that recovered at the portfolio level. In the full 200-day run AVAX was the
+only loser (-7.15% total, -1.07%/mo) and had the same 82.7% max DD. Do not run
+this as a one-coin bot. In the two-year run all markets were green, but AAVE
+still had a 40.6% single-market drawdown. The three-year alternate basket also
+held up, but had several rough standalone drawdowns: SUSHI 59.3%, DASH 56.3%,
+MKR 53.5%, VET 51.1%, ENJ 50.4%.
+
+## 4h 5-year retest on older 25-market basket (July 8, 2026)
+
+Retested 4h over a true five-year window. Because many current high-volume coins
+did not exist five years ago, the fixed basket used older Binance-listed markets:
+BTC, ETH, BNB, XRP, ADA, DOGE, SOL, LINK, LTC, BCH, DOT, UNI, AVAX, AAVE, FIL,
+ATOM, ETC, XLM, TRX, EOS, VET, NEO, THETA, ALGO, MKR. Costs stayed the same:
+1x sizing, taker 4.5 bps, maker 1.5 bps, 4 bps slippage.
+
+I first checked the prior 4h settings, then adapted parameters for this 5-year
+4h basket. Best result was **threshold 8, smoothing 5, TP6, trend re-entry on,
+max 10 re-entries, no stop**.
+
+Saved run group: **"QQE 4h 5y adapted — thr8 sf5 TP6 reentry cap10 25m 4bps slip"**.
+
+| Window | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Full 5y | **7.36%** | **21.27%** | 23/25 | 5,548 |
+
+This passes the original 3-5%/mo and <30% portfolio-DD target, but it is **not
+similar to the 1h two-year result** (21.25%/mo, 6.59% DD). It is much rougher:
+XLM lost -249% with 209% max DD, ATOM lost -108% with 105% max DD, and NEO had
+94% max DD. The basket survived because the winners were large and drawdowns
+did not fully align, but this is not a clean deployment candidate without a
+market filter or per-market kill rule.
+
 ## 8h timeframe campaign (July 7, 2026) — close second, 4h still wins
 
 Added first-class `8h` interval support to the app (candle lists, MS maps, param enums, UI selects — Hyperliquid serves it natively), then ran the same campaign shape: tuning phases U1/U2 on the 10 core markets (500-day window like 4h), 25-market validation saved as run group **"QQE 8h optimized — 25-market validation"**.

@@ -26,6 +26,9 @@ const QQE_NEUTRAL = "#f59e0b"
 const QQE_ZONE_DEFAULT = "#2962ff"
 /** Trend re-entry ("re-buy") bars — pink, legible on both chart themes. */
 const QQE_REENTRY = "#ec4899"
+/** Trade chips read by open/close, not buy/sell: green "O" opens, red "C" closes. */
+const OPEN_COLOR = "#089981"
+const CLOSE_COLOR = "#f23645"
 
 export type StrategyChartOverlays = {
   /** Rendered through the shared indicator system (theme-aware). */
@@ -182,24 +185,39 @@ export function buildStrategyOverlays(
     // so the user can still see where signals would fire.
     const reentryTimes = new Set<number>()
     if (result) {
-      const markEntry = (time: number, side: "long" | "short") => {
+      const markEntry = (
+        time: number,
+        side: "long" | "short",
+        price: number
+      ) => {
         const reentry = Boolean(params.trendReentry) && !freshTimes.has(time)
         if (reentry) reentryTimes.add(time)
+        const mside = side === "long" ? "buy" : "sell"
         markers.push({
           time,
-          side: side === "long" ? "buy" : "sell",
-          ...(reentry ? { color: QQE_REENTRY, text: "Re-buy" } : {}),
+          side: mside,
+          price,
+          letter: reentry ? "R" : "O",
+          color: reentry ? QQE_REENTRY : OPEN_COLOR,
         })
       }
       for (const trade of result.trades) {
-        markEntry(trade.entryTime, trade.side)
+        markEntry(trade.entryTime, trade.side, trade.entryPx)
+        const exitSide = trade.side === "long" ? "sell" : "buy"
         markers.push({
           time: trade.exitTime,
-          side: trade.side === "long" ? "sell" : "buy",
+          side: exitSide,
+          price: trade.exitPx,
+          letter: "C",
+          color: CLOSE_COLOR,
         })
       }
       if (result.openPosition) {
-        markEntry(result.openPosition.entryTime, result.openPosition.side)
+        markEntry(
+          result.openPosition.entryTime,
+          result.openPosition.side,
+          result.openPosition.entryPx
+        )
       }
     } else {
       for (let i = 0; i < candles.length; i += 1) {
@@ -340,18 +358,39 @@ function hexWithAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-/** Entry/exit arrows for each round trip, plus the open position's entry. */
+/** Price-pinned "O" (open) / "C" (close) chips for each round trip, plus any
+ * still-open position's entry. Letters read by open/close, not buy/sell. */
 export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
   const markers: ChartMarker[] = []
+  const open = (time: number, side: "buy" | "sell", price: number): ChartMarker => ({
+    time,
+    side,
+    price,
+    letter: "O",
+    color: OPEN_COLOR,
+  })
+  const close = (time: number, side: "buy" | "sell", price: number): ChartMarker => ({
+    time,
+    side,
+    price,
+    letter: "C",
+    color: CLOSE_COLOR,
+  })
   for (const trade of result.trades) {
-    markers.push({ time: trade.entryTime, side: trade.side === "long" ? "buy" : "sell" })
-    markers.push({ time: trade.exitTime, side: trade.side === "long" ? "sell" : "buy" })
+    const entrySide = trade.side === "long" ? "buy" : "sell"
+    markers.push(open(trade.entryTime, entrySide, trade.entryPx))
+    markers.push(
+      close(trade.exitTime, entrySide === "buy" ? "sell" : "buy", trade.exitPx)
+    )
   }
   if (result.openPosition) {
-    markers.push({
-      time: result.openPosition.entryTime,
-      side: result.openPosition.side === "long" ? "buy" : "sell",
-    })
+    markers.push(
+      open(
+        result.openPosition.entryTime,
+        result.openPosition.side === "long" ? "buy" : "sell",
+        result.openPosition.entryPx
+      )
+    )
   }
   return markers
 }

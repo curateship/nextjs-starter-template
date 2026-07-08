@@ -85,18 +85,33 @@ export type ChartMarker = {
   /** Fill time, ms epoch. */
   time: number
   side: "buy" | "sell"
-  text?: string
   /** Override the default side color (e.g. pink for QQE trend re-entries). */
   color?: string
+  /**
+   * Exact fill price. When set, the marker renders as a price-pinned O/C/R chip
+   * sitting on the candle at that price (see `letter`); when absent it falls
+   * back to a library arrow above/below the bar (live orders have no price).
+   */
+  price?: number
+  /** Chip letter for a priced marker: O = open, C = close, R = re-entry. */
+  letter?: "O" | "C" | "R"
 }
 
-/** A fill pulsed on the chart to locate a focused trade among the arrows. */
+/** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
+export type PriceChartHandle = {
+  /** Re-frame the chart to its default view and re-enable price auto-scaling. */
+  resetView: () => void
+}
+
+/** A fill pulsed on the chart to locate a focused trade among the markers. */
 export type ChartFocusPoint = {
-  /** Fill time, ms epoch — aligns with the trade's buy/sell arrow. */
+  /** Fill time, ms epoch — aligns with the trade's buy/sell marker. */
   time: number
   /** Matches the arrow at this fill: buys sit below the bar, sells above. */
   side: "buy" | "sell"
   label: string
+  /** Exact fill price — centers the ring on the price-pinned chip when set. */
+  price?: number
 }
 
 /**
@@ -181,6 +196,7 @@ export function PriceChartView({
   onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
+  registerApi,
 }: {
   /** Candles to render, ascending by open time. */
   candles: ChartCandle[]
@@ -210,6 +226,11 @@ export function PriceChartView({
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
+  /**
+   * Receives the chart's imperative handle (e.g. `resetView`) once mounted, and
+   * null on unmount — lets a parent wire "Reset View" into its own menu.
+   */
+  registerApi?: (api: PriceChartHandle | null) => void
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const chartRef = React.useRef<IChartApi | null>(null)
@@ -252,6 +273,20 @@ export function PriceChartView({
   const [focusPixels, setFocusPixels] = React.useState<
     { x: number; y: number; label: string; placement: "above" | "below" }[]
   >([])
+  // Pixel positions of price-pinned open/close/re-entry chips, kept in sync with
+  // pan/zoom/resize the same way the focus ring is.
+  const [markerPixels, setMarkerPixels] = React.useState<
+    { x: number; y: number; letter: string; color: string }[]
+  >([])
+  // Built-in right-click "Reset View" menu (viewport coords); only used when the
+  // parent hasn't taken over the context menu with its own handler.
+  const [resetMenu, setResetMenu] = React.useState<{ x: number; y: number } | null>(
+    null
+  )
+  // Bumped to force the marker/focus overlays to re-pin after a change that
+  // doesn't fire the time-range event on its own (e.g. Reset View re-fitting
+  // the price axis), so chips don't float off their candles.
+  const [overlayRevision, setOverlayRevision] = React.useState(0)
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
   const measuringRef = React.useRef<{
     startX: number
@@ -268,6 +303,44 @@ export function PriceChartView({
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
   }, [onLineDragEnd, onChartContextMenu, onCrosshairOhlc])
+
+  // After the price axis re-fits on a later frame (Reset View, click-to-focus
+  // pan), re-pin the chip/focus overlays so none are left floating off their
+  // candles. Two frames covers the reflow and the following paint.
+  const repinOverlaysAfterReflow = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      setOverlayRevision((n) => n + 1)
+      requestAnimationFrame(() => setOverlayRevision((n) => n + 1))
+    })
+  }, [])
+
+  // Reset View: back to the chart's default zoom and scroll — the most recent
+  // bars at a comfortable bar spacing — with price auto-scale switched back on
+  // in case the user dragged the axis.
+  const resetView = React.useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    chart.timeScale().resetTimeScale()
+    chart.priceScale("right").applyOptions({ autoScale: true })
+    repinOverlaysAfterReflow()
+  }, [repinOverlaysAfterReflow])
+
+  // Hand the imperative API up so a parent can add "Reset View" to its own menu.
+  React.useEffect(() => {
+    if (!registerApi) return
+    registerApi({ resetView })
+    return () => registerApi(null)
+  }, [registerApi, resetView])
+
+  // Close the built-in menu on Escape (outside clicks are caught by its overlay).
+  React.useEffect(() => {
+    if (!resetMenu) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setResetMenu(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [resetMenu])
 
   React.useEffect(() => {
     const container = containerRef.current
@@ -498,12 +571,17 @@ export function PriceChartView({
         }
 
         const onContextMenu = (event: MouseEvent) => {
-          if (!contextMenuRef.current) return
           event.preventDefault()
-          const price = candleSeries.coordinateToPrice(paneY(event))
-          if (price !== null && price > 0) {
-            contextMenuRef.current(price, event.clientX, event.clientY)
+          // Parent owns the menu (e.g. the live chart's trading actions) → hand
+          // it the price and let it render. Otherwise show our built-in menu.
+          if (contextMenuRef.current) {
+            const price = candleSeries.coordinateToPrice(paneY(event))
+            if (price !== null && price > 0) {
+              contextMenuRef.current(price, event.clientX, event.clientY)
+            }
+            return
           }
+          setResetMenu({ x: event.clientX, y: event.clientY })
         }
 
         container.addEventListener("mousedown", onMouseDown, true)
@@ -631,7 +709,10 @@ export function PriceChartView({
       from: (center - width / 2) as UTCTimestamp,
       to: (center + width / 2) as UTCTimestamp,
     })
-  }, [ready, focusPoints])
+    // Panning re-fits the price axis a frame later — re-pin so the chips don't
+    // float off their candles after a trade is clicked.
+    repinOverlaysAfterReflow()
+  }, [ready, focusPoints, repinOverlaysAfterReflow])
 
   // Track the pixel position of each focus point so the pulsing pointer stays
   // pinned to it as the user pans, zooms, or the pane resizes.
@@ -659,12 +740,20 @@ export function PriceChartView({
         const candle = candleByTimeRef.current.get(sec)
         if (x == null || !candle) continue
         const below = point.side === "buy"
-        const anchorPrice = Number(below ? candle.l : candle.h)
-        const anchorY = series.priceToCoordinate(anchorPrice)
-        if (anchorY == null) continue
+        // Center on the price-pinned chip when a fill price is known; otherwise
+        // fall back to the bar extreme plus the arrow offset (live orders).
+        let y: number | null
+        if (point.price != null) {
+          y = series.priceToCoordinate(point.price)
+        } else {
+          const anchorPrice = Number(below ? candle.l : candle.h)
+          const anchorY = series.priceToCoordinate(anchorPrice)
+          y = anchorY == null ? null : below ? anchorY + halfArrow : anchorY - halfArrow
+        }
+        if (y == null) continue
         next.push({
           x,
-          y: below ? anchorY + halfArrow : anchorY - halfArrow,
+          y,
           label: point.label,
           placement: below ? "below" : "above",
         })
@@ -679,7 +768,76 @@ export function PriceChartView({
       timeScale.unsubscribeVisibleTimeRangeChange(recompute)
       observer.disconnect()
     }
-  }, [ready, focusPoints])
+  }, [ready, focusPoints, overlayRevision])
+
+  // Pin each priced open/close/re-entry chip to its exact fill price on the
+  // candle, re-projecting on pan/zoom/resize and dropping any that scroll off
+  // screen so the DOM only ever holds the chips currently visible.
+  const pricedMarkers = React.useMemo(
+    () => markers.filter((m) => m.price != null && m.letter),
+    [markers]
+  )
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const series = candleSeriesRef.current
+    if (!ready || !chart || !series || pricedMarkers.length === 0) {
+      setMarkerPixels([])
+      return
+    }
+    const timeScale = chart.timeScale()
+    const recompute = () => {
+      const width = timeScale.width()
+      const next: { x: number; y: number; letter: string; color: string }[] = []
+      for (const marker of pricedMarkers) {
+        const sec = Math.floor(marker.time / 1000)
+        const x = timeScale.timeToCoordinate(sec as UTCTimestamp)
+        // Off-screen (or price out of the visible scale) → don't render it.
+        if (x == null || x < 0 || x > width) continue
+        const y = series.priceToCoordinate(marker.price as number)
+        if (y == null) continue
+        next.push({
+          x,
+          y,
+          letter: marker.letter as string,
+          color:
+            marker.color ??
+            (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
+        })
+      }
+      // Declutter: chips landing on the same spot (e.g. a close and a re-open on
+      // one candle) would stack. Nudge each colliding chip right so they sit
+      // side by side; the y (fill price) stays exact, only the x drifts.
+      const STEP = 16 // chip width (14px) + a small gap
+      // Break same-candle ties by what happened, not by price: the close (C)
+      // comes before the re-open (O/R). Otherwise the left-right order flips on
+      // tiny fill-price differences and a close-and-reopen looks like two closes.
+      const rank = (c: { letter: string }) => (c.letter === "C" ? 0 : 1)
+      next.sort((a, b) => a.x - b.x || rank(a) - rank(b) || a.y - b.y)
+      const placed: { x: number; y: number }[] = []
+      for (const chip of next) {
+        let guard = 0
+        while (
+          guard < 20 &&
+          placed.some(
+            (p) => Math.abs(p.x - chip.x) < STEP && Math.abs(p.y - chip.y) < STEP
+          )
+        ) {
+          chip.x += STEP
+          guard += 1
+        }
+        placed.push({ x: chip.x, y: chip.y })
+      }
+      setMarkerPixels(next)
+    }
+    recompute()
+    timeScale.subscribeVisibleTimeRangeChange(recompute)
+    const observer = new ResizeObserver(recompute)
+    if (containerRef.current) observer.observe(containerRef.current)
+    return () => {
+      timeScale.unsubscribeVisibleTimeRangeChange(recompute)
+      observer.disconnect()
+    }
+  }, [ready, pricedMarkers, overlayRevision])
 
   // Reconcile indicator series with the config: full rebuild on change so
   // oscillator sub-pane indices stay dense as they are toggled on/off.
@@ -1009,14 +1167,16 @@ export function PriceChartView({
     const plugin = markersPluginRef.current
     if (!ready || !plugin) return
     plugin.setMarkers(
+      // Priced markers render as price-pinned chips in the DOM overlay below;
+      // only unpriced markers (live orders) fall back to library arrows.
       [...markers]
+        .filter((marker) => marker.price == null)
         .sort((a, b) => a.time - b.time)
         .map((marker) => ({
           time: Math.floor(marker.time / 1000) as UTCTimestamp,
           position: marker.side === "buy" ? "belowBar" : "aboveBar",
           shape: marker.side === "buy" ? "arrowUp" : "arrowDown",
           color: marker.color ?? (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
-          ...(marker.text ? { text: marker.text } : {}),
         }))
     )
   }, [ready, markers])
@@ -1064,6 +1224,25 @@ export function PriceChartView({
           </div>
         </div>
       ) : null}
+      {markerPixels.length > 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+          {markerPixels.map((m, i) => (
+            <div
+              key={`${m.letter}-${m.x}-${m.y}-${i}`}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: m.x, top: m.y }}
+            >
+              {/* Solid chip: O = open, C = close, R = re-entry, pinned to fill price. */}
+              <span
+                className="flex h-[14px] w-[14px] items-center justify-center rounded-[4px] text-[9px] font-bold leading-none text-white shadow-sm"
+                style={{ backgroundColor: m.color }}
+              >
+                {m.letter}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {focusPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
           {focusPixels.map((point) => (
@@ -1093,6 +1272,36 @@ export function PriceChartView({
           ))}
         </div>
       ) : null}
+      {resetMenu ? (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setResetMenu(null)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setResetMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-40 rounded-md border bg-popover p-1 text-sm shadow-md"
+            style={{
+              left: Math.min(resetMenu.x, window.innerWidth - 180),
+              top: Math.min(resetMenu.y, window.innerHeight - 80),
+            }}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+              onClick={() => {
+                resetView()
+                setResetMenu(null)
+              }}
+            >
+              Reset View
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -1110,6 +1319,7 @@ export function PriceChart({
   chartStrategy,
   onLineDragEnd,
   onChartContextMenu,
+  registerApi,
 }: {
   network: TradingNetwork
   coin: string
@@ -1125,6 +1335,8 @@ export function PriceChart({
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
+  /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
+  registerApi?: (api: PriceChartHandle | null) => void
 }) {
   const maxCandles = useShellRuntime().config.maxCandles
   const { candles, loading } = useCandles(network, coin, interval, maxCandles)
@@ -1151,6 +1363,7 @@ export function PriceChart({
       barColors={strategy.barColors}
       onLineDragEnd={onLineDragEnd}
       onChartContextMenu={onChartContextMenu}
+      registerApi={registerApi}
     />
   )
 }

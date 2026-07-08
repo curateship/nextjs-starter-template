@@ -5,33 +5,25 @@ have to repeat myself. Plain English on purpose.
 
 ## The setup
 
-- **Test at least 20 markets**, not one. A strategy that only works on one coin
+- **Test at least 20 markets at once**, not one. A strategy that only works on one coin
   is almost always a fluke.
-- **Include high-vol and low-vol coins** (or a clear category like mid-caps) so
-  we see the full picture, not a flattering slice.
-- **Match the timeframe to the strategy.** VWAP is an intraday tool → use 15m,
-  not 4h or daily. Using the wrong timeframe breaks the strategy.
+- **Do not overfit**
+- **Include high-vol, mid-vol and low-vol** coins so we get a range of variants
+- **Match the timeframe to the strategy.** Using the wrong timeframe breaks the strategy.
 - **Backtest data comes from Binance, not Hyperliquid.** Hyperliquid only serves
   ~5,000 candles per timeframe (15m ≈ 52 days), which is too short. Binance keeps
   years of history and lists more coins, so all backtest candles come from
-  Binance. Hyperliquid is still used for live trading, order books, and slippage.
+  Binance. Hyperliquid is still used for live trading, order booworkspace/docs/back-testing-rule.mdks, and slippage.
 
 ## Costs — the thing that makes or breaks it
 
 - **Always include trading costs: slippage + fees** (Hyperliquid taker fee is
-  ~0.045%). A strategy that trades a lot dies on costs even if each cost is tiny.
-- **Never just pick a slippage number to make it look good.** Slippage is set by
-  the market, not by us. Measure the *real* cost from the live order book for our
-  *actual order size*.
-- **Slippage depends on order size.** Published "0.5–3%" numbers are for big
+  ~0.045%). Slippage fees is usually 4 or 0.04%. Published "0.5–3%" numbers are for big
   ($100k) orders. A small $2k order costs far less (often 0.01–0.05%). Match the
   cost assumption to the size we'll really trade.
 - **Add a stress buffer.** The measured cost is a calm-market number. Strategies
   usually trade during fast moves, where the real cost is 2–3× higher. Plan
   around the higher number.
-- **Find the break-even cost** — the cost level where profit hits zero — and make
-  sure the real cost is comfortably *below* it. If the real cost is close to
-  break-even, the edge is too fragile to trust.
 
 ## Don't fool yourself (overfitting)
 
@@ -79,7 +71,6 @@ have to repeat myself. Plain English on purpose.
    us the cost assumption is fair.
 4. **Paper-trade on the live market** (fake money, real prices, going forward) →
    the only true test of real fill quality. No backtest can replace this.
-5. **Real money, small at first** → only after the steps above pass.
 
 ## Save the final results
 
