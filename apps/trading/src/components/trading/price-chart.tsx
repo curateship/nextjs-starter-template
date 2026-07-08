@@ -86,6 +86,8 @@ export type ChartMarker = {
   time: number
   side: "buy" | "sell"
   text?: string
+  /** Override the default side color (e.g. pink for QQE trend re-entries). */
+  color?: string
 }
 
 /** A fill pulsed on the chart to locate a focused trade among the arrows. */
@@ -1013,7 +1015,7 @@ export function PriceChartView({
           time: Math.floor(marker.time / 1000) as UTCTimestamp,
           position: marker.side === "buy" ? "belowBar" : "aboveBar",
           shape: marker.side === "buy" ? "arrowUp" : "arrowDown",
-          color: marker.side === "buy" ? UP_COLOR : DOWN_COLOR,
+          color: marker.color ?? (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
           ...(marker.text ? { text: marker.text } : {}),
         }))
     )
