@@ -414,26 +414,31 @@ export function Field({
 
 export function RiskField({
   label,
+  help,
   value,
   disabled,
   onChange,
 }: {
   label: string
+  help?: string
   value: number
   disabled: boolean
   onChange: (value: number) => void
 }) {
   return (
     <Field label={label}>
-      <Input
-        value={String(value)}
-        inputMode="decimal"
-        disabled={disabled}
-        onChange={(event) => {
-          const next = Number(event.target.value)
-          if (Number.isFinite(next)) onChange(next)
-        }}
-      />
+      <div className="grid gap-1">
+        <Input
+          value={String(value)}
+          inputMode="decimal"
+          disabled={disabled}
+          onChange={(event) => {
+            const next = Number(event.target.value)
+            if (Number.isFinite(next)) onChange(next)
+          }}
+        />
+        {help ? <div className="text-[11px] text-muted-foreground">{help}</div> : null}
+      </div>
     </Field>
   )
 }
@@ -450,43 +455,50 @@ export function RiskFieldsGrid({
   return (
     <>
       <RiskField
-        label="Max position notional (USD)"
+        label="Max money in one market"
+        help="Caps how large one market can get."
         value={risk.maxPositionNotionalUsd}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, maxPositionNotionalUsd: value })}
       />
       <RiskField
         label="Max leverage"
+        help="1 means no borrowed size."
         value={risk.maxLeverage}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, maxLeverage: value })}
       />
       <RiskField
-        label="Daily loss limit (USD, auto-pause)"
+        label="Daily loss stop"
+        help="Stops after this much loss in one day."
         value={risk.dailyLossLimitUsd}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, dailyLossLimitUsd: value })}
       />
       <RiskField
-        label="Max drawdown % (kill + flatten)"
+        label="Account drawdown stop"
+        help="Stops if the account falls this far from its high."
         value={risk.maxDrawdownPct}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, maxDrawdownPct: value })}
       />
       <RiskField
         label="Max open orders"
+        help="Caps resting orders at one time."
         value={risk.maxOpenOrders}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, maxOpenOrders: value })}
       />
       <RiskField
-        label="Cooldown after N losses"
+        label="Pause after losses"
+        help="0 means never pause for a loss streak."
         value={risk.cooldownLosses}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, cooldownLosses: value })}
       />
       <RiskField
-        label="Cooldown minutes"
+        label="Pause length"
+        help="Minutes to wait after the loss streak."
         value={risk.cooldownMinutes}
         disabled={busy}
         onChange={(value) => onChange({ ...risk, cooldownMinutes: value })}

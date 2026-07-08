@@ -39,7 +39,6 @@ import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import {
-  DEFAULT_RISK_PARAMS,
   STRATEGY_LABELS,
   strategyParamsSchema,
 } from "@/lib/strategies/params"
@@ -347,7 +346,7 @@ export function BacktestDashboard({
         makerFeeBps: makerNum,
         slippageBps: slipNum,
         params: parsed.data,
-        riskParams: DEFAULT_RISK_PARAMS,
+        riskParams: draft.riskParams,
       })
       onRunIdChange(res.backtestId)
       // Refresh the route loader so Recent and the drill-down tables see the

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { MAX_EXTRA_MARKETS, MAX_RUN_BARS } from "@/lib/backtest/types"
 import { CANDLE_INTERVALS } from "@/lib/hl/ws"
+import { riskParamsSchema } from "@/lib/strategies/params"
 
 /**
  * A configured-but-not-yet-executed run. The New Run modal produces one, the
@@ -21,6 +22,7 @@ export const runDraftSchema = z.object({
   takerFeeBps: z.number().min(0).max(50).optional(),
   makerFeeBps: z.number().min(0).max(50).optional(),
   slippageBps: z.number().min(0).max(100).optional(),
+  riskParams: riskParamsSchema,
   /** ParamValues form seeds. */
   params: z.record(z.string(), z.string()),
 })

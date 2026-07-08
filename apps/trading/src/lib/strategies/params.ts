@@ -280,3 +280,13 @@ export const DEFAULT_RISK_PARAMS: RiskParams = {
   cooldownLosses: 4,
   cooldownMinutes: 60,
 }
+
+export const DEFAULT_BACKTEST_RISK_PARAMS: RiskParams = {
+  maxPositionNotionalUsd: 10_000,
+  maxLeverage: 1,
+  dailyLossLimitUsd: 1_000_000,
+  maxDrawdownPct: 99,
+  maxOpenOrders: 60,
+  cooldownLosses: 0,
+  cooldownMinutes: 0,
+}
