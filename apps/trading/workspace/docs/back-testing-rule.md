@@ -11,9 +11,10 @@ have to repeat myself. Plain English on purpose.
   we see the full picture, not a flattering slice.
 - **Match the timeframe to the strategy.** VWAP is an intraday tool → use 15m,
   not 4h or daily. Using the wrong timeframe breaks the strategy.
-- **Mind the data limit.** Hyperliquid only serves ~5,000 candles per timeframe:
-  15m ≈ 52 days, 1h ≈ 200 days, 4h ≈ 800 days. Pick the timeframe partly by how
-  much history you need.
+- **Backtest data comes from Binance, not Hyperliquid.** Hyperliquid only serves
+  ~5,000 candles per timeframe (15m ≈ 52 days), which is too short. Binance keeps
+  years of history and lists more coins, so all backtest candles come from
+  Binance. Hyperliquid is still used for live trading, order books, and slippage.
 
 ## Costs — the thing that makes or breaks it
 

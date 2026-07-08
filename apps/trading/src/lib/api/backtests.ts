@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import {
   DEFAULT_BACKTEST_COSTS,
+  MAX_BACKTEST_BARS,
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
   maxWindowDays,
@@ -222,7 +223,7 @@ const runBacktestSchema = z
     if (data.windowDays > maxWindowDays(data.interval)) {
       ctx.addIssue({
         code: "custom",
-        message: `That window is too long for ${data.interval} candles — Hyperliquid serves at most ~${MAX_RUN_BARS} bars per interval (${maxWindowDays(data.interval)} days at ${data.interval}). Shorten the window or use a coarser timeframe.`,
+        message: `That window is too long for ${data.interval} candles — a run covers at most ${maxWindowDays(data.interval)} days at ${data.interval}. Shorten the window or use a coarser timeframe.`,
         path: ["windowDays"],
       })
     }
@@ -718,8 +719,8 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
 
 /** Extra history before the window so indicator overlays have warmup. */
 const CHART_WARMUP_CANDLES = SIGNAL_WARMUP_CANDLES
-/** Display cap so 1m × 90d configs stay renderable. */
-const MAX_CHART_BARS = 5_000
+/** Display cap for config-browse candles; matches the backtest window ceiling. */
+const MAX_CHART_BARS = MAX_BACKTEST_BARS
 
 const chartCandlesSchema = z.object({
   market: z.string().min(1).max(20),

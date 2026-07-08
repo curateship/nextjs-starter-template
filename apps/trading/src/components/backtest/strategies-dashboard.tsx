@@ -64,7 +64,7 @@ import {
   type StrategyTemplate,
 } from "@/lib/api/backtests"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import type { CandleInterval } from "@/lib/hl/ws"
 import {
   STRATEGY_DESCRIPTIONS,
@@ -337,7 +337,7 @@ function NewRunButton({
   templates?: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
-  const markets = useMarketRows("mainnet")
+  const markets = useBinanceMarketRows()
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -1166,7 +1166,7 @@ function EditRunDialog({
   onClose: () => void
 }) {
   const router = useRouter()
-  const markets = useMarketRows("mainnet")
+  const markets = useBinanceMarketRows()
   const [loaded, setLoaded] = React.useState<{
     detail: BacktestDetail
     groupMarkets: string[]

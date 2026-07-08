@@ -44,7 +44,7 @@ import {
 } from "@/lib/api/backtests"
 import { useShellRuntime } from "@/components/shell-layout"
 import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
@@ -99,7 +99,7 @@ export function StrategyDefaultsDialog({
   const [extraMarkets, setExtraMarkets] = React.useState<string[]>(
     initial.extraMarkets ?? []
   )
-  const markets = useMarketRows("mainnet")
+  const markets = useBinanceMarketRows()
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   // Which config the form is bound to: main default, an existing template

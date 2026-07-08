@@ -58,8 +58,11 @@ import {
   type StrategyTemplate,
   type WalkForwardResult,
 } from "@/lib/api/backtests"
-import { useShellRuntime } from "@/components/shell-layout"
-import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
+import {
+  DEFAULT_BACKTEST_COSTS,
+  MAX_BACKTEST_BARS,
+  maxWindowDays,
+} from "@/lib/backtest/types"
 import type { MarketRow } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
@@ -198,8 +201,6 @@ export function NewRunDialog({
   /** Async handlers keep the dialog open with a spinner until they resolve. */
   onContinue: (draft: RunDraft) => void | Promise<void>
 }) {
-  const { config } = useShellRuntime()
-  const maxCandles = config.maxCandles
   /** Built-ins overlaid with the user's saved defaults for a strategy. */
   const seedFor = React.useCallback(
     (type: StrategyType): StrategyRunDefaults => {
@@ -398,11 +399,11 @@ export function NewRunDialog({
     let takerNum = Number(taker)
     let makerNum = Number(maker)
     const slipNum = Number(slippage)
-    const maxWindow = maxWindowDays(interval, maxCandles)
+    const maxWindow = maxWindowDays(interval, MAX_BACKTEST_BARS)
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
     if (!(windowNum >= 1 && windowNum <= maxWindow)) {
       return setError(
-        `Date range for ${interval} must be between 1 and ${maxWindow} days (max ${maxCandles} candles — change in Settings).`
+        `Date range for ${interval} must be between 1 and ${maxWindow} days.`
       )
     }
     // A blended fee % overrides the individual taker/maker bps.
@@ -465,7 +466,7 @@ export function NewRunDialog({
     const windowNum = Number(windowDays)
     const slipNum = Number(slippage)
     const trainFrac = Number(trainPct) / 100
-    const maxWindow = maxWindowDays(interval, maxCandles)
+    const maxWindow = maxWindowDays(interval, MAX_BACKTEST_BARS)
     let takerNum = Number(taker)
     let makerNum = Number(maker)
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
@@ -642,7 +643,7 @@ export function NewRunDialog({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="run-window">
-                  Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
+                  Date range (days back, 1–{maxWindowDays(interval, MAX_BACKTEST_BARS)})
                 </Label>
                 <Input
                   id="run-window"

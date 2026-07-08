@@ -29,3 +29,6 @@ dist-ssr
 
 # TanStack Start generated temp files
 .tanstack
+
+# Cached Binance backtest candles
+.candle-cache

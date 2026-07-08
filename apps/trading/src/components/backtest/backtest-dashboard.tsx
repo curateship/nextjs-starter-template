@@ -7,7 +7,6 @@ import {
   paramsToValues,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
-import { useShellRuntime } from "@/components/shell-layout"
 import {
   PriceChartView,
   type ChartCandle,
@@ -31,11 +30,12 @@ import {
 } from "@/lib/api/backtests"
 import {
   DEFAULT_BACKTEST_COSTS,
+  MAX_BACKTEST_BARS,
   maxWindowDays,
   type BacktestResult,
   type BacktestTrade,
 } from "@/lib/backtest/types"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import {
@@ -108,9 +108,8 @@ export function BacktestDashboard({
   onNewDraft: (draft: RunDraft) => void
   onViewAll: () => void
 }) {
-  const markets = useMarketRows("mainnet")
+  const markets = useBinanceMarketRows()
   const router = useRouter()
-  const maxCandles = useShellRuntime().config.maxCandles
 
   // Chart config — the source of truth for what the chart shows. The route
   // keys this component by run/draft, so mount-time seeding is enough.
@@ -188,7 +187,7 @@ export function BacktestDashboard({
     ]
   }, [focusedTrade])
 
-  const windowNum = clampWindow(windowDays, interval, maxCandles)
+  const windowNum = clampWindow(windowDays, interval, MAX_BACKTEST_BARS)
   const debouncedWindow = useDebouncedValue(windowNum, WINDOW_DEBOUNCE_MS)
 
   // Run mode only while the loaded run still matches the chart config. The
@@ -321,9 +320,9 @@ export function BacktestDashboard({
     const makerNum = Number(maker)
     const slipNum = Number(slippage)
     if (!(equityNum > 0)) return setError("Starting equity must be positive.")
-    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, maxCandles))) {
+    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, MAX_BACKTEST_BARS))) {
       return setError(
-        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, maxCandles)} days (max ${maxCandles} candles — change in Settings).`
+        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, MAX_BACKTEST_BARS)} days.`
       )
     }
     if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
@@ -476,7 +475,7 @@ export function BacktestDashboard({
                 readOnly={readOnly}
                 mid={mid}
                 windowDays={windowDays}
-                maxWindowDays={maxWindowDays(interval, maxCandles)}
+                maxWindowDays={maxWindowDays(interval, MAX_BACKTEST_BARS)}
                 equity={equity}
                 onChange={(key, value) => {
                   setParams((current) => ({ ...current, [key]: value }))
@@ -616,15 +615,15 @@ export function BacktestDashboard({
   )
 }
 
-/** Clamp the free-text window input to what the interval + setting allow. */
+/** Clamp the free-text window input to what the interval + bar ceiling allow. */
 function clampWindow(
   value: string,
   interval: CandleInterval,
-  maxCandles: number
+  maxBars: number
 ): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 1) return 30
-  return Math.min(maxWindowDays(interval, maxCandles), Math.round(parsed))
+  return Math.min(maxWindowDays(interval, maxBars), Math.round(parsed))
 }
 
 /** "Jun 6 – Jul 6 · 30d" for the header date range. */

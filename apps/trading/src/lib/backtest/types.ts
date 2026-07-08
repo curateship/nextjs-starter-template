@@ -125,14 +125,20 @@ const INTERVAL_MS: Record<BacktestInterval, number> = {
 }
 
 /**
- * Hyperliquid's candleSnapshot serves at most ~5000 candles per interval:
- * recent-history retention for fine intervals (1h ≈ 7mo, 4h ≈ 2.3yr), and
- * full history for daily (bounded instead by each coin's listing). Cap a run
- * near that ceiling so the window can't ask for bars the API won't return.
- * At the exact maximum, a momentum run's warmup is squeezed to near zero — a
- * negligible cold-start over thousands of bars.
+ * Live-chart / display ceiling. Hyperliquid's candleSnapshot serves at most
+ * ~5000 candles per interval, so the live trading chart and config-browse
+ * fetches cap here. Backtest run windows use MAX_BACKTEST_BARS instead, since
+ * backtest candles come from Binance (years of history), not Hyperliquid.
  */
 export const MAX_RUN_BARS = 5000
+
+/**
+ * Ceiling on candles in a single backtest run window. Backtest history comes
+ * from Binance, which keeps years per interval, so this is far higher than
+ * Hyperliquid's ~5000 live-chart limit — enough for 15m over ~200 days. Bounds
+ * render/engine cost per run, not data availability.
+ */
+export const MAX_BACKTEST_BARS = 20_000
 
 /**
  * Most additional markets a single config may replay across. Runs are
@@ -142,17 +148,16 @@ export const MAX_RUN_BARS = 5000
 export const MAX_EXTRA_MARKETS = 50
 
 /**
- * Largest lookback window, in whole days, worth requesting for an interval —
- * so daily/4h can reach multi-year history while fine intervals stay within
- * what the API retains. `maxBars` lets the user's configured candle ceiling
- * (Settings → Max backtest candles) tighten this for speed; it defaults to,
- * and is bounded by, the API's per-interval ceiling.
+ * Largest backtest lookback window, in whole days, for an interval — bounded by
+ * the backtest bar ceiling (Binance-backed), so 15m reaches ~200 days and
+ * coarser intervals reach years. `maxBars` can tighten it for speed; it
+ * defaults to, and is bounded by, MAX_BACKTEST_BARS.
  */
 export function maxWindowDays(
   interval: BacktestInterval,
-  maxBars: number = MAX_RUN_BARS
+  maxBars: number = MAX_BACKTEST_BARS
 ): number {
-  const bars = Math.min(MAX_RUN_BARS, Math.max(1, maxBars))
+  const bars = Math.min(MAX_BACKTEST_BARS, Math.max(1, maxBars))
   return Math.max(1, Math.floor((bars * INTERVAL_MS[interval]) / 86_400_000))
 }
 
