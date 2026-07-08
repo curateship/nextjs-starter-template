@@ -137,7 +137,41 @@ Goal: 10%+ avg monthly. Free-reign experiment campaign on top of v3 (phases X1�
 
 Run groups: **"QQE v4 trend-reentry — 25-market validation"**, **"QQE v4 reentry cap3 — 25-market validation"**.
 
-Trade-off to understand: re-entry ~doubles time-in-market, so single-market drawdowns get violent (SOL hit 102% at full size in its chop phase — it churned re-entries; losers now HYPE/BCH/MON). The portfolio DD rises from 4.8% → 14.7%. **v4 is a portfolio-only strategy**: 10.2%/mo avg at 14.7% basket DD, vs v3's 7.2%/mo at 4.8%. Pick per risk appetite; cap3 sits between. Chart note: re-entry trades don't get Buy/Sell labels (labels mark fresh crosses only, Pine-parity); they're visible in the trades table.
+Trade-off to understand: re-entry ~doubles time-in-market, so single-market drawdowns get violent (SOL hit 102% at full size in its chop phase — it churned re-entries; losers now HYPE/BCH/MON). The portfolio DD rises from 4.8% → 14.7%. **v4 is a portfolio-only strategy**: 10.2%/mo avg at 14.7% basket DD, vs v3's 7.2%/mo at 4.8%. Pick per risk appetite; cap3 sits between. Chart note: re-entry trades don't get Buy/Sell labels (labels mark fresh crosses only, Pine-parity), but the re-buy candles are **painted pink** on the backtest chart (a re-entry = a trade entry that isn't on a fresh-cross bar; `QQE_REENTRY` in `backtest-overlays.ts`, independent of the colorBars toggle); they're also in the trades table.
+
+## Re-implementation + QQE-4H template campaign (July 7, 2026, second pass)
+
+The v4 features were re-implemented after the code reset, this time committed as
+first-class strategy params:
+
+- **`trendReentry` / `maxReentries`** — while flat, if the smoothed RSI still
+  holds beyond 50±threshold (outside consolidation), re-enter on a continuation
+  candle (close beyond prior close). Checkbox + optional cap in the QQE exits UI.
+- **Swing-base stop** — reworked to true QFL semantics (same shape as
+  momentum's base stop): `swingScanBars` (scan window) / `swingConfirmBars`
+  (bars the low must hold), evaluated **live** each close for longs (swing low)
+  and mirrored highs for shorts. Replaces the old two-sided-pivot
+  snapshot-at-entry stop; `swingLookback` is chart-paint only again.
+
+Campaign target was ~10%/mo **on the "QQE - 4H" template's own 26-market
+basket** (BTC…APT, 4h/500d, taker 4.5 / maker 1.5 / slippage 0, 1× sizing,
+research risk). That basket is heavier on weak majors (LTC, LINK, DOT, FET,
+ORDI) than the top-25-volume list, and it moved the optimum:
+
+| Config (all with re-entry) | Avg moPnl | Profitable | Portfolio moPnl / maxDD |
+|---|---|---|---|
+| TP10 + base 12/4 (doc v4) | 6.94% | 22/26 | 6.94% / 25.1% |
+| TP10 + base 12/4, cap3 | 6.89% | 21/26 | 6.89% / 25.1% |
+| TP8 + base 12/4 | 8.34% | 22/26 | 8.34% / 22.7% |
+| TP10, no SL | 8.93% | 23/26 | 8.93% / 17.3% |
+| **TP8, no SL** | **10.18%** | **25/26** | **10.18% / 16.0%** |
+
+**Winner: thr8 sf5 TP8, trend re-entry, no stop — 10.18%/mo avg, 25/26
+profitable, portfolio +167% at 16.0% max DD.** On this basket the base stop
+*subtracts* (it realizes losses the reversal recovers on the slow majors) and
+the tighter TP8 banks the shallower swings those majors offer. Sole loser: FET
+(−9.4%/mo, 158% DD — same single-market tail risk as BCH in the first pass).
+Saved as run group **"QQE v4 reentry TP8 — QQE-4H template 26 markets"**.
 
 ## Caveats
 

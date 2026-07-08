@@ -12,7 +12,6 @@ import {
   PriceChartView,
   type ChartCandle,
   type ChartFocusPoint,
-  type ChartMarker,
 } from "@/components/trading/price-chart"
 import {
   ResizableHandle,
@@ -387,22 +386,14 @@ export function BacktestDashboard({
     }))
   }
 
-  // qqe renders TradingView-style: indicator signal labels only, never fill
-  // arrows. Every other strategy already draws every trade's fill arrows (so a
-  // focused trade's arrows are present for its pulsing rings). qqe has none, so
-  // there we add just the focused trade's buy/sell arrows for the rings.
+  // Every strategy draws an arrow at each real entry and exit, matching the
+  // trades table. qqe builds its arrows (with pink re-entries) inside its
+  // overlays from the run result; the others use buildRunMarkers. The focused
+  // trade's pulsing rings come from focusPoints, not these markers.
   const markers = React.useMemo(() => {
-    if (strategyType === "qqe") {
-      if (!focusedTrade) return overlays.markers
-      const long = focusedTrade.side === "long"
-      const focusMarkers: ChartMarker[] = [
-        { time: focusedTrade.entryTime, side: long ? "buy" : "sell" },
-        { time: focusedTrade.exitTime, side: long ? "sell" : "buy" },
-      ]
-      return [...overlays.markers, ...focusMarkers]
-    }
+    if (strategyType === "qqe") return overlays.markers
     return runMatchesConfig && result ? buildRunMarkers(result) : []
-  }, [strategyType, overlays, runMatchesConfig, result, focusedTrade])
+  }, [strategyType, overlays, runMatchesConfig, result])
 
   const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
   const selectedRow = markets.find((row) => row.coin === market)

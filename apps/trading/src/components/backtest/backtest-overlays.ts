@@ -24,6 +24,8 @@ const TP_COLOR = "#089981"
 const SL_COLOR = "#f23645"
 const QQE_NEUTRAL = "#f59e0b"
 const QQE_ZONE_DEFAULT = "#2962ff"
+/** Trend re-entry ("re-buy") bars — pink, legible on both chart themes. */
+const QQE_REENTRY = "#ec4899"
 
 export type StrategyChartOverlays = {
   /** Rendered through the shared indicator system (theme-aware). */
@@ -164,23 +166,63 @@ export function buildStrategyOverlays(
       params.minConsolidationLen
     )
 
+    // Fresh QQE crosses out of consolidation — used only to tell a re-entry
+    // (continuation) from a stop-and-reverse entry, so it can be painted pink.
+    const freshTimes = new Set<number>()
     for (let i = 0; i < candles.length; i += 1) {
       const pass = params.consolidationFilter ? !cons.inZone[i] : true
-      if (qqe.buy[i] && pass) {
-        markers.push({ time: candles[i].t, side: "buy" })
-      } else if (qqe.sell[i] && pass) {
-        markers.push({ time: candles[i].t, side: "sell" })
+      if ((qqe.buy[i] || qqe.sell[i]) && pass) freshTimes.add(candles[i].t)
+    }
+
+    // Markers mark ACTUAL trades, one arrow per entry and per exit, so they
+    // match the trades table exactly (a long enters with a buy and exits with a
+    // sell; shorts mirror). Re-entry entries — a trade entry not on a fresh
+    // cross — are pink. Warmup bars carry no trades, so they carry no arrows.
+    // Before a run exists (config preview), fall back to the raw signal crosses
+    // so the user can still see where signals would fire.
+    const reentryTimes = new Set<number>()
+    if (result) {
+      const markEntry = (time: number, side: "long" | "short") => {
+        const reentry = Boolean(params.trendReentry) && !freshTimes.has(time)
+        if (reentry) reentryTimes.add(time)
+        markers.push({
+          time,
+          side: side === "long" ? "buy" : "sell",
+          ...(reentry ? { color: QQE_REENTRY, text: "Re-buy" } : {}),
+        })
+      }
+      for (const trade of result.trades) {
+        markEntry(trade.entryTime, trade.side)
+        markers.push({
+          time: trade.exitTime,
+          side: trade.side === "long" ? "sell" : "buy",
+        })
+      }
+      if (result.openPosition) {
+        markEntry(result.openPosition.entryTime, result.openPosition.side)
+      }
+    } else {
+      for (let i = 0; i < candles.length; i += 1) {
+        const pass = params.consolidationFilter ? !cons.inZone[i] : true
+        if (qqe.buy[i] && pass) markers.push({ time: candles[i].t, side: "buy" })
+        else if (qqe.sell[i] && pass) markers.push({ time: candles[i].t, side: "sell" })
       }
     }
 
     if (params.colorBars) {
       for (let i = 0; i < candles.length; i += 1) {
+        // Re-buy bars are painted pink below, overriding the QQE state color.
+        if (reentryTimes.has(candles[i].t)) continue
         const state = qqe.barColor[i]
         if (!state) continue
         const color =
           state === "green" ? TP_COLOR : state === "red" ? SL_COLOR : QQE_NEUTRAL
         barColors.push({ time: candles[i].t, color })
       }
+    }
+    // Pink re-buy candles show regardless of colorBars, so re-entries are visible.
+    for (const time of reentryTimes) {
+      barColors.push({ time, color: QQE_REENTRY })
     }
     if (params.paintConsolidation) {
       const fill = hexWithAlpha(params.zoneColor ?? QQE_ZONE_DEFAULT, 0.2)

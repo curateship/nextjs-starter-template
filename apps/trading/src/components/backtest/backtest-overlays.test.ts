@@ -181,6 +181,108 @@ describe("buildStrategyOverlays", () => {
     expect(barColors).toHaveLength(0)
   })
 
+  it("paints trend re-entry (re-buy) bars pink", () => {
+    const params = {
+      strategyType: "qqe",
+      interval: "1h",
+      rsiPeriod: 5,
+      rsiSmoothing: 3,
+      qqeFactor: 4.238,
+      threshold: 10,
+      maType: "EMA",
+      rsiSource: "close",
+      colorBars: false,
+      consolidationFilter: false,
+      loopbackPeriod: 5,
+      minConsolidationLen: 3,
+      paintConsolidation: false,
+      swingLookback: 10,
+      swingStopLoss: false,
+      trendReentry: true,
+      orderSizeUsd: 100,
+    } as StrategyParams
+    // Flat price → no fresh QQE crosses, so every trade entry is a re-buy.
+    const candles = Array.from({ length: 40 }, (_, i) => candle(i * 1000, 100))
+    const trade = (n: number, entryIdx: number) => ({
+      n,
+      side: "long" as const,
+      entryTime: candles[entryIdx].t,
+      entryPx: 100,
+      exitTime: candles[entryIdx + 2].t,
+      exitPx: 108,
+      qty: 1,
+      pnl: 8,
+      returnPct: 8,
+      cumPnl: n * 8,
+    })
+    const result = emptyResult({ trades: [trade(1, 10), trade(2, 20)] })
+    const { barColors, markers } = buildStrategyOverlays(params, candles, result)
+    expect(barColors).toHaveLength(2)
+    expect(barColors.every((bar) => bar.color === "#ec4899")).toBe(true)
+    expect(new Set(barColors.map((bar) => bar.time))).toEqual(
+      new Set([candles[10].t, candles[20].t])
+    )
+    // Arrows come from the trades, not raw signals: an entry + an exit per
+    // trade. Flat price fires no QQE signals, so every marker is trade-driven.
+    expect(markers).toHaveLength(4)
+    expect(new Set(markers.map((m) => m.time))).toEqual(
+      new Set([candles[10].t, candles[12].t, candles[20].t, candles[22].t])
+    )
+    // Each re-buy entry gets a pink arrow marker (long entry → "buy" arrow).
+    const rebuyMarkers = markers.filter((m) => m.color === "#ec4899")
+    expect(rebuyMarkers).toHaveLength(2)
+    expect(rebuyMarkers.every((m) => m.side === "buy" && m.text === "Re-buy")).toBe(true)
+    expect(new Set(rebuyMarkers.map((m) => m.time))).toEqual(
+      new Set([candles[10].t, candles[20].t])
+    )
+    // The exit arrows are plain (a long exit is an uncolored sell).
+    const exitMarkers = markers.filter((m) => !m.color)
+    expect(exitMarkers).toHaveLength(2)
+    expect(exitMarkers.every((m) => m.side === "sell")).toBe(true)
+  })
+
+  it("does not paint re-buy bars when trendReentry is off", () => {
+    const params = {
+      strategyType: "qqe",
+      interval: "1h",
+      rsiPeriod: 5,
+      rsiSmoothing: 3,
+      qqeFactor: 4.238,
+      threshold: 10,
+      maType: "EMA",
+      rsiSource: "close",
+      colorBars: false,
+      consolidationFilter: false,
+      loopbackPeriod: 5,
+      minConsolidationLen: 3,
+      paintConsolidation: false,
+      swingLookback: 10,
+      swingStopLoss: false,
+      trendReentry: false,
+      orderSizeUsd: 100,
+    } as StrategyParams
+    const candles = Array.from({ length: 40 }, (_, i) => candle(i * 1000, 100))
+    const result = emptyResult({
+      trades: [
+        {
+          n: 1,
+          side: "long",
+          entryTime: candles[10].t,
+          entryPx: 100,
+          exitTime: candles[12].t,
+          exitPx: 108,
+          qty: 1,
+          pnl: 8,
+          returnPct: 8,
+          cumPnl: 8,
+        },
+      ],
+    })
+    const { barColors, markers } = buildStrategyOverlays(params, candles, result)
+    expect(barColors).toHaveLength(0)
+    expect(markers.filter((m) => m.color === "#ec4899")).toHaveLength(0)
+  })
+
   it("anchors the DCA ladder on the base fill, or last close for preview", () => {
     const params = {
       strategyType: "dca",
