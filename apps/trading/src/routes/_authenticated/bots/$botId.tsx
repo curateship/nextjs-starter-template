@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { BotDetail } from "@/components/bots/bot-detail"
+import { BotWorkspace } from "@/components/bots/bot-workspace"
 import { loadBotDetail } from "@/lib/api/bots"
 
 export const Route = createFileRoute("/_authenticated/bots/$botId")({
@@ -11,5 +11,5 @@ export const Route = createFileRoute("/_authenticated/bots/$botId")({
 function BotDetailRoute() {
   const initial = Route.useLoaderData()
   const { botId } = Route.useParams()
-  return <BotDetail botId={botId} initial={initial} />
+  return <BotWorkspace botId={botId} initial={initial} />
 }

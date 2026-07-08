@@ -27,7 +27,6 @@ import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_aut
 import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_authenticated/scanner/leaderboard'
 import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
 import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
-import { Route as AuthenticatedBotsNewRouteImport } from './routes/_authenticated/bots/new'
 import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -138,11 +137,6 @@ const AuthenticatedScannerBookRoute =
     path: '/scanner/book',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedBotsNewRoute = AuthenticatedBotsNewRouteImport.update({
-  id: '/bots/new',
-  path: '/bots/new',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
   id: '/bots/$botId',
   path: '/bots/$botId',
@@ -234,7 +228,6 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
-  '/bots/new': typeof AuthenticatedBotsNewRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
@@ -266,7 +259,6 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
-  '/bots/new': typeof AuthenticatedBotsNewRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
@@ -301,7 +293,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/bots/$botId': typeof AuthenticatedBotsBotIdRoute
-  '/_authenticated/bots/new': typeof AuthenticatedBotsNewRoute
   '/_authenticated/scanner/book': typeof AuthenticatedScannerBookRoute
   '/_authenticated/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/_authenticated/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
@@ -336,7 +327,6 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/bots/$botId'
-    | '/bots/new'
     | '/scanner/book'
     | '/scanner/crowded'
     | '/scanner/leaderboard'
@@ -368,7 +358,6 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/bots/$botId'
-    | '/bots/new'
     | '/scanner/book'
     | '/scanner/crowded'
     | '/scanner/leaderboard'
@@ -402,7 +391,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
     | '/_authenticated/bots/$botId'
-    | '/_authenticated/bots/new'
     | '/_authenticated/scanner/book'
     | '/_authenticated/scanner/crowded'
     | '/_authenticated/scanner/leaderboard'
@@ -553,13 +541,6 @@ declare module '@tanstack/react-router' {
       path: '/scanner/book'
       fullPath: '/scanner/book'
       preLoaderRoute: typeof AuthenticatedScannerBookRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/bots/new': {
-      id: '/_authenticated/bots/new'
-      path: '/bots/new'
-      fullPath: '/bots/new'
-      preLoaderRoute: typeof AuthenticatedBotsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/bots/$botId': {
@@ -716,7 +697,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedBotsBotIdRoute: typeof AuthenticatedBotsBotIdRoute
-  AuthenticatedBotsNewRoute: typeof AuthenticatedBotsNewRoute
   AuthenticatedScannerBookRoute: typeof AuthenticatedScannerBookRoute
   AuthenticatedScannerCrowdedRoute: typeof AuthenticatedScannerCrowdedRoute
   AuthenticatedScannerLeaderboardRoute: typeof AuthenticatedScannerLeaderboardRoute
@@ -745,7 +725,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedBotsBotIdRoute: AuthenticatedBotsBotIdRoute,
-  AuthenticatedBotsNewRoute: AuthenticatedBotsNewRoute,
   AuthenticatedScannerBookRoute: AuthenticatedScannerBookRoute,
   AuthenticatedScannerCrowdedRoute: AuthenticatedScannerCrowdedRoute,
   AuthenticatedScannerLeaderboardRoute: AuthenticatedScannerLeaderboardRoute,

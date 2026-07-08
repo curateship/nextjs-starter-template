@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { StrategyType } from "@/lib/strategies/params"
+import type { RiskParams, StrategyType } from "@/lib/strategies/params"
 
 /**
  * QQE fields split into cardable groups so callers can render the consolidation
@@ -391,5 +391,62 @@ export function RiskField({
         }}
       />
     </Field>
+  )
+}
+
+export function RiskFieldsGrid({
+  risk,
+  busy,
+  onChange,
+}: {
+  risk: RiskParams
+  busy: boolean
+  onChange: (risk: RiskParams) => void
+}) {
+  return (
+    <>
+      <RiskField
+        label="Max position notional (USD)"
+        value={risk.maxPositionNotionalUsd}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, maxPositionNotionalUsd: value })}
+      />
+      <RiskField
+        label="Max leverage"
+        value={risk.maxLeverage}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, maxLeverage: value })}
+      />
+      <RiskField
+        label="Daily loss limit (USD, auto-pause)"
+        value={risk.dailyLossLimitUsd}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, dailyLossLimitUsd: value })}
+      />
+      <RiskField
+        label="Max drawdown % (kill + flatten)"
+        value={risk.maxDrawdownPct}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, maxDrawdownPct: value })}
+      />
+      <RiskField
+        label="Max open orders"
+        value={risk.maxOpenOrders}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, maxOpenOrders: value })}
+      />
+      <RiskField
+        label="Cooldown after N losses"
+        value={risk.cooldownLosses}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, cooldownLosses: value })}
+      />
+      <RiskField
+        label="Cooldown minutes"
+        value={risk.cooldownMinutes}
+        disabled={busy}
+        onChange={(value) => onChange({ ...risk, cooldownMinutes: value })}
+      />
+    </>
   )
 }

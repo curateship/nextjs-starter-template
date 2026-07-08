@@ -1,9 +1,9 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
-import { RiskFieldsGrid } from "@/components/bots/bot-wizard"
 import {
   Field,
+  RiskFieldsGrid,
   StrategyParamFields,
 } from "@/components/bots/strategy-param-fields"
 import {
@@ -16,11 +16,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { getBotErrorMessage, updateBot, type BotDetailResponse } from "@/lib/api/bots"
-import {
-  STRATEGY_LABELS,
-  strategyParamsSchema,
-  type RiskParams,
-} from "@/lib/strategies/params"
+import { strategyParamsSchema, type RiskParams } from "@/lib/strategies/params"
 
 /**
  * Right-panel bot editor (Bitsgap-style): name, strategy parameters with
@@ -90,9 +86,6 @@ export function BotEditPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-3 py-2 text-xs font-medium">
-        Edit {STRATEGY_LABELS[bot.strategy_type]} bot
-      </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-4 p-3 text-xs">
           <Field label="Bot name">

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import type { Layout } from "react-resizable-panels"
 
 import {
   buildParams,
@@ -39,6 +38,7 @@ import {
 } from "@/lib/backtest/types"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
+import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import {
   DEFAULT_RISK_PARAMS,
   STRATEGY_LABELS,
@@ -654,29 +654,4 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
     return () => clearTimeout(timer)
   }, [value, delayMs])
   return debounced
-}
-
-/** Persist a resizable layout in localStorage (same as /trade, bot-detail). */
-function usePersistedLayout(key: string) {
-  const [defaultLayout] = React.useState<Layout | undefined>(() => {
-    try {
-      const raw = localStorage.getItem(key)
-      return raw ? (JSON.parse(raw) as Layout) : undefined
-    } catch {
-      return undefined
-    }
-  })
-
-  const onLayoutChanged = React.useCallback(
-    (layout: Layout) => {
-      try {
-        localStorage.setItem(key, JSON.stringify(layout))
-      } catch {
-        // storage full/blocked — layout just won't persist
-      }
-    },
-    [key]
-  )
-
-  return { defaultLayout, onLayoutChanged }
 }

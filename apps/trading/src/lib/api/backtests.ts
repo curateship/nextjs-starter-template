@@ -684,6 +684,36 @@ export function deleteStrategyTemplate(id: string) {
   return deleteStrategyTemplateFn({ data: { id } })
 }
 
+/** Templates + per-strategy defaults only — the New Bot dialog's light load. */
+const loadStrategyTemplatesFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{
+    strategyDefaults: StrategyDefaultsMap
+    templates: StrategyTemplate[]
+  }> => {
+    const { getUserStrategyDefaults, listUserStrategyTemplates } = await import(
+      "@/server/backtests"
+    )
+    const user = await requireUser()
+    const [strategyDefaults, templates] = await Promise.all([
+      getUserStrategyDefaults(user.id),
+      listUserStrategyTemplates(user.id),
+    ])
+    return {
+      strategyDefaults: strategyDefaults as StrategyDefaultsMap,
+      templates: templates.map((row) => ({
+        id: row.id,
+        strategyType: row.strategyType as StrategyType,
+        name: row.name,
+        config: row.params as StrategyRunDefaults,
+      })),
+    }
+  }
+)
+
+export function loadStrategyTemplates() {
+  return loadStrategyTemplatesFn()
+}
+
 export function loadBacktests(input: z.input<typeof loadBacktestsSchema> = {}) {
   return loadBacktestsFn({ data: input })
 }
