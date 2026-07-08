@@ -7,7 +7,7 @@ import { strategyParamsSchema, type StrategyType } from "@/lib/strategies/params
 import type { HistoryCandle } from "@/server/backtest/history"
 
 /** Strategies whose overlays are worth painting on the live chart. */
-export const CHART_STRATEGIES: StrategyType[] = ["qqe", "momentum", "dca", "grid"]
+export const CHART_STRATEGIES: StrategyType[] = ["qqe", "momentum", "vwap", "dca", "grid"]
 
 /** Which strategy to paint on the live chart, and how much of it to show. */
 export type ChartStrategyState = {

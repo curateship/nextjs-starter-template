@@ -67,6 +67,17 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     takeProfitPct: "",
     stopLossPct: "",
   },
+  vwap: {
+    interval: "15m",
+    mode: "reversion",
+    direction: "both",
+    bandK: "2",
+    exitAt: "vwap",
+    orderSizeUsd: "250",
+    compounding: "false",
+    takeProfitPct: "",
+    stopLossPct: "",
+  },
   copy: {
     sourceAddress: "",
     sizeMode: "ratio",
@@ -78,7 +89,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
 }
 
 /** Strategies whose signal interval must match the backtest timeframe. */
-export const INTERVAL_STRATEGIES: StrategyType[] = ["momentum", "qqe"]
+export const INTERVAL_STRATEGIES: StrategyType[] = ["momentum", "qqe", "vwap"]
 
 /**
  * The protective-order (SL/TP) form keys each strategy exposes in the bot
@@ -89,6 +100,7 @@ export const PROTECTIVE_KEYS: Record<StrategyType, string[]> = {
   dca: ["takeProfitPct", "stopLossPct"],
   momentum: ["stopMode", "trailingStopPct", "basePeriods", "pumpPeriods"],
   qqe: ["takeProfitPct", "stopLossPct", "swingStopLoss", "swingScanBars", "swingConfirmBars"],
+  vwap: ["takeProfitPct", "stopLossPct"],
   copy: [],
 }
 
@@ -192,6 +204,22 @@ export function buildParams(
         takeProfitPct: num("takeProfitPct"),
         stopLossPct: num("stopLossPct"),
       }
+    case "vwap": {
+      const mode = values.mode === "cross" ? "cross" : "reversion"
+      return {
+        strategyType: "vwap",
+        interval: values.interval,
+        mode,
+        direction: values.direction,
+        // Band controls only apply to reversion; cross omits them.
+        bandK: mode === "reversion" ? num("bandK") : undefined,
+        exitAt: mode === "reversion" ? values.exitAt : undefined,
+        orderSizeUsd: num("orderSizeUsd"),
+        compounding: values.compounding === "true",
+        takeProfitPct: num("takeProfitPct"),
+        stopLossPct: num("stopLossPct"),
+      }
+    }
     case "copy":
       return {
         strategyType: "copy",

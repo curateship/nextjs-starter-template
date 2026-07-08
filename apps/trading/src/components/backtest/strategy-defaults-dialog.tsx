@@ -390,7 +390,7 @@ export function StrategyDefaultsDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label>Starting equity (USD)</Label>
+              <Label>Starting amount (USD)</Label>
               <Input
                 className="h-8"
                 value={equity}

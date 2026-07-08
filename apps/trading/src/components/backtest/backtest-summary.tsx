@@ -115,7 +115,7 @@ export function BacktestSummary({
         <Row label="Market" value={config.market} />
         <Row label="Timeframe" value={config.interval} />
         <Row label="Window" value={`${config.windowDays}d`} />
-        <Row label="Starting equity" value={usd(config.startingEquity)} />
+        <Row label="Starting amount" value={usd(config.startingEquity)} />
         <Row
           label="Buy & Hold"
           value={stats ? pct(stats.buyHoldPct) : "—"}

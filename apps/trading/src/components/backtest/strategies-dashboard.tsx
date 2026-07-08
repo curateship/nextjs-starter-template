@@ -74,7 +74,7 @@ import {
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
-import { pct, signedUsd, toneClass, usd, windowDaysOf } from "./backtest-format"
+import { pct, signedUsd, toneClass, windowDaysOf } from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 import type { RunDraft } from "./run-draft"
@@ -82,13 +82,14 @@ import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "grid", "dca", "copy"]
+const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "vwap", "grid", "dca", "copy"]
 
 const STRATEGY_KIND: Record<StrategyType, string> = {
   grid: "Range",
   dca: "Averaging",
   momentum: "Trend",
   qqe: "Oscillator",
+  vwap: "Reversion",
   copy: "Mirror",
 }
 
@@ -99,10 +100,29 @@ const STATUS_TONE: Record<BacktestListItem["status"], string> = {
   error: "text-red-500",
 }
 
-/** Triage status coloring — archived reads as muted, review as normal. */
-const REVIEW_TONE: Record<BacktestListItem["reviewStatus"], string> = {
-  review: "text-foreground",
-  archived: "text-muted-foreground",
+/** Summary stat tile shown above the strategy-runs table. */
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone?: number | null
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-lg font-semibold tabular-nums",
+          tone != null ? toneClass(tone) : undefined
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  )
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -235,17 +255,19 @@ function ConfirmDeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (busy ? null : onOpenChange(next))}>
-      <DialogContent>
+      <DialogContent variant="admin" className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Delete backtests</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {error ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+          <div className="px-6 pt-4">
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
           </div>
         ) : null}
-        <DialogFooter>
+        <DialogFooter variant="plain" className="px-6 pt-6 pb-6">
           <Button
             type="button"
             variant="outline"
@@ -732,8 +754,29 @@ export function StrategyRunsDashboard({
       // The main market's row shares the group id; it drives the summary.
       const main = groupRuns.find((run) => run.id === groupId) ?? groupRuns[0]
       const windowDays = windowDaysOf(main)
-      // Drawdown is averaged across every completed market, not read off the
-      // main market alone — a basket's real risk is the spread of its markets.
+      // P&L and drawdown are aggregated across every completed market, not read
+      // off the main market alone — a basket's real return and risk are the
+      // blend of all its markets, so a few winners can't hide the losers.
+      const done = groupRuns.filter(
+        (run) => run.status === "done" && run.netPnl !== null
+      )
+      // Equal-capital portfolio: sum dollar P&L over summed starting capital.
+      const basketEquity = done.reduce(
+        (sum, run) => sum + run.startingEquity,
+        0
+      )
+      const netPnl =
+        done.length > 0
+          ? done.reduce((sum, run) => sum + (run.netPnl as number), 0)
+          : null
+      const netPnlPct =
+        netPnl !== null && basketEquity > 0
+          ? (netPnl / basketEquity) * 100
+          : null
+      const tradeCount =
+        done.length > 0
+          ? done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0)
+          : null
       const drawdowns = groupRuns
         .filter((run) => run.status === "done" && run.maxDrawdownPct !== null)
         .map((run) => run.maxDrawdownPct as number)
@@ -753,14 +796,12 @@ export function StrategyRunsDashboard({
         status: main.status,
         reviewStatus: main.reviewStatus,
         pinned: main.pinned,
-        netPnlPct: main.netPnlPct,
-        startingEquity: main.startingEquity,
-        netPnl: main.netPnl,
-        tradeCount: main.tradeCount,
+        netPnlPct,
+        startingEquity: done.length > 0 ? basketEquity : main.startingEquity,
+        netPnl,
+        tradeCount,
         monthlyPnlPct:
-          main.netPnlPct === null
-            ? null
-            : (main.netPnlPct / windowDays) * 30,
+          netPnlPct === null ? null : (netPnlPct / windowDays) * 30,
         avgDrawdownPct,
         worstDrawdownPct,
         lastRunAt: Math.max(
@@ -936,13 +977,8 @@ export function StrategyRunsDashboard({
               {sortHead("Markets", "markets", state)}
               {sortHead("Timeframe", "interval", state)}
               {sortHead("Window", "window", state)}
-              {sortHead("Status", "status", state)}
-              {sortHead("Starting", "starting", state)}
-              {sortHead("Net P&L %", "net", state)}
-              {sortHead("Total P&L", "total", state)}
               {sortHead("Monthly avg %", "monthly", state)}
               {sortHead("Avg DD", "avgDd", state)}
-              {sortHead("Trades", "trades", state)}
               {sortHead("Last run", "last", state)}
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -1016,41 +1052,6 @@ export function StrategyRunsDashboard({
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
               {group.windowDays}d
             </TableCell>
-            <TableCell column="meta" className="text-xs capitalize">
-              <span className={REVIEW_TONE[group.reviewStatus]}>
-                {group.reviewStatus}
-              </span>
-              {group.status !== "done" ? (
-                <span className={cn("ml-1", STATUS_TONE[group.status])}>
-                  · {group.status}
-                </span>
-              ) : null}
-            </TableCell>
-            <TableCell column="meta" className="font-mono text-xs tabular-nums">
-              {usd(group.startingEquity)}
-            </TableCell>
-            <TableCell
-              column="meta"
-              className={cn(
-                "font-mono tabular-nums",
-                group.netPnlPct !== null ? toneClass(group.netPnlPct) : undefined
-              )}
-            >
-              {group.status === "done" && group.netPnlPct !== null
-                ? pct(group.netPnlPct)
-                : "—"}
-            </TableCell>
-            <TableCell
-              column="meta"
-              className={cn(
-                "font-mono tabular-nums",
-                group.netPnl !== null ? toneClass(group.netPnl) : undefined
-              )}
-            >
-              {group.status === "done" && group.netPnl !== null
-                ? signedUsd(group.netPnl)
-                : "—"}
-            </TableCell>
             <TableCell
               column="meta"
               className={cn(
@@ -1076,9 +1077,6 @@ export function StrategyRunsDashboard({
               {group.status === "done" && group.avgDrawdownPct !== null
                 ? `-${group.avgDrawdownPct.toFixed(2)}%`
                 : "—"}
-            </TableCell>
-            <TableCell column="meta" className="font-mono text-xs tabular-nums">
-              {group.tradeCount ?? "—"}
             </TableCell>
             <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
               {dateTimeFormatter.format(group.lastRunAt)}
@@ -1326,8 +1324,35 @@ export function RunHistoryDashboard({
   const { rows: pageRows, totalPages } = paginate(sorted, state.page, state.pageSize)
   const visibleIds = pageRows.map((run) => run.id)
 
+  // This run's headline stats, blended across its markets — shown as cards.
+  const summary = React.useMemo(() => {
+    const done = marketRuns.filter((run) => run.status === "done")
+    const equity = done.reduce((s, run) => s + run.startingEquity, 0)
+    const pnl = done.reduce((s, run) => s + (run.netPnl ?? 0), 0)
+    return {
+      markets: marketRuns.length,
+      netPnl: done.length ? pnl : null,
+      netPnlPct: equity > 0 ? (pnl / equity) * 100 : null,
+      trades: done.reduce((s, run) => s + (run.tradeCount ?? 0), 0),
+    }
+  }, [marketRuns])
+
   return (
     <div className="w-full pb-8">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Markets" value={String(summary.markets)} />
+        <StatCard
+          label="Net P&L %"
+          value={summary.netPnlPct !== null ? pct(summary.netPnlPct) : "—"}
+          tone={summary.netPnlPct}
+        />
+        <StatCard
+          label="Total P&L"
+          value={summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
+          tone={summary.netPnl}
+        />
+        <StatCard label="Trades" value={summary.trades.toLocaleString()} />
+      </div>
       <DashboardTable
         title={
           <Breadcrumbs

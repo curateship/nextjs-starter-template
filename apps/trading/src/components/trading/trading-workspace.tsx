@@ -620,6 +620,7 @@ const STRATEGY_TOGGLES: Record<StrategyType, StrategyToggle[]> = {
     { key: "showSignals", label: "Trigger signals" },
     { key: "showIndicators", label: "Indicators (EMA / RSI / channel)" },
   ],
+  vwap: [{ key: "showIndicators", label: "VWAP & bands" }],
   dca: [{ key: "showIndicators", label: "Order ladder" }],
   grid: [{ key: "showIndicators", label: "Grid levels" }],
   copy: [],

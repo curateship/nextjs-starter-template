@@ -157,6 +157,44 @@ export const qqeParamsSchema = z.object({
   stopLossPct: z.number().positive().max(100).optional(),
 })
 
+export const vwapParamsSchema = z
+  .object({
+    strategyType: z.literal("vwap"),
+    interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
+    /**
+     * reversion: fade stretches away from the session VWAP back to fair value.
+     * cross: trend-follow the close crossing the VWAP line.
+     */
+    mode: z.enum(["reversion", "cross"]),
+    direction: z.enum(["long", "short", "both"]),
+    /** Reversion: band width in volume-weighted σ that arms an entry. */
+    bandK: z.number().positive().max(10).optional(),
+    /** Reversion: exit at the VWAP line or at the opposite band. */
+    exitAt: z.enum(["vwap", "band"]).optional(),
+    orderSizeUsd: z.number().positive(),
+    /** Bet the full current balance each trade (profits/losses compound) rather
+     *  than a fixed order size. */
+    compounding: z.boolean().optional(),
+    takeProfitPct: z.number().positive().max(100).optional(),
+    stopLossPct: z.number().positive().max(100).optional(),
+  })
+  .superRefine((params, ctx) => {
+    if (params.mode === "reversion") {
+      if (!params.bandK) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Reversion needs a band width (bandK).",
+        })
+      }
+      if (!params.exitAt) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Reversion needs an exit target (exitAt).",
+        })
+      }
+    }
+  })
+
 export const copyParamsSchema = z
   .object({
     strategyType: z.literal("copy"),
@@ -188,6 +226,7 @@ export const strategyParamsSchema = z.discriminatedUnion("strategyType", [
   dcaParamsSchema,
   momentumParamsSchema,
   qqeParamsSchema,
+  vwapParamsSchema,
   copyParamsSchema,
 ])
 
@@ -208,6 +247,7 @@ export type GridParams = z.infer<typeof gridParamsSchema>
 export type DcaParams = z.infer<typeof dcaParamsSchema>
 export type MomentumParams = z.infer<typeof momentumParamsSchema>
 export type QqeParams = z.infer<typeof qqeParamsSchema>
+export type VwapParams = z.infer<typeof vwapParamsSchema>
 export type CopyParams = z.infer<typeof copyParamsSchema>
 export type StrategyParams = z.infer<typeof strategyParamsSchema>
 export type RiskParams = z.infer<typeof riskParamsSchema>
@@ -218,6 +258,7 @@ export const STRATEGY_LABELS: Record<StrategyType, string> = {
   dca: "DCA / Martingale",
   momentum: "Momentum",
   qqe: "QQE + Consolidation",
+  vwap: "VWAP",
   copy: "Copy Trader",
 }
 
@@ -226,6 +267,7 @@ export const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   dca: "Averages in with martingale safety orders and exits the whole position at a take-profit from average entry.",
   momentum: "Enters on EMA cross, RSI, or breakout signals at candle close; exits on a trailing stop or a break of the QFL base.",
   qqe: "Stop-and-reverse on the smoothed RSI's first cross out of the 50±threshold channel, filtered by a zigzag consolidation detector; optional TP/SL.",
+  vwap: "Trades the session-anchored VWAP: fade stretches past its σ-bands back to fair value (reversion), or follow the close crossing the VWAP line (cross).",
   copy: "Mirrors every fill of a Hyperliquid address with scaled size at market, capped by slippage.",
 }
 

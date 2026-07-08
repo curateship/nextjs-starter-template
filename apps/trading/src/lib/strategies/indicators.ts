@@ -424,3 +424,51 @@ export function vwap(
   }
   return out
 }
+
+/**
+ * Session-anchored VWAP with volume-weighted standard-deviation bands: the
+ * same daily-reset VWAP plus `k`·σ envelopes, where σ is the volume-weighted
+ * std dev of typical price about the running VWAP. NaN before any volume.
+ */
+export function vwapBands(
+  candles: {
+    t: number
+    h: number | string
+    l: number | string
+    c: number | string
+    v: number | string
+  }[],
+  k: number
+): { mid: number[]; upper: number[]; lower: number[] } {
+  const mid = new Array<number>(candles.length).fill(Number.NaN)
+  const upper = new Array<number>(candles.length).fill(Number.NaN)
+  const lower = new Array<number>(candles.length).fill(Number.NaN)
+  let day: number | null = null
+  let cumPV = 0
+  let cumV = 0
+  let cumP2V = 0
+  for (let i = 0; i < candles.length; i += 1) {
+    const candle = candles[i]
+    const d = Math.floor(candle.t / 86_400_000)
+    if (day === null || d !== day) {
+      day = d
+      cumPV = 0
+      cumV = 0
+      cumP2V = 0
+    }
+    const tp = (Number(candle.h) + Number(candle.l) + Number(candle.c)) / 3
+    const vol = Number(candle.v)
+    cumPV += tp * vol
+    cumV += vol
+    cumP2V += tp * tp * vol
+    if (cumV > 0) {
+      const vw = cumPV / cumV
+      const variance = Math.max(0, cumP2V / cumV - vw * vw)
+      const sd = Math.sqrt(variance)
+      mid[i] = vw
+      upper[i] = vw + k * sd
+      lower[i] = vw - k * sd
+    }
+  }
+  return { mid, upper, lower }
+}

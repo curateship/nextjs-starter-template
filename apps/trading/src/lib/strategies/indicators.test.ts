@@ -21,6 +21,7 @@ import {
   stddev,
   tema,
   vwap,
+  vwapBands,
   vwma,
   wma,
 } from "./indicators"
@@ -137,6 +138,24 @@ describe("indicators", () => {
   it("accepts string OHLCV fields in VWAP (matching candle payloads)", () => {
     const series = vwap([{ t: 0, h: "10", l: "10", c: "10", v: "2" }])
     expect(series[0]).toBeCloseTo(10, 10)
+  })
+
+  it("brackets VWAP with volume-weighted σ bands that reset per UTC day", () => {
+    const day = 86_400_000
+    const candles = [
+      { t: 0, h: 10, l: 10, c: 10, v: 1 },
+      { t: 60_000, h: 20, l: 20, c: 20, v: 1 },
+      { t: day, h: 30, l: 30, c: 30, v: 1 }, // new UTC day → reset, σ = 0
+    ]
+    const { mid, upper, lower } = vwapBands(candles, 2)
+    // Two equal-weight points at 10 and 20: mean 15, σ = 5, ±2σ = 5 / 25.
+    expect(mid[1]).toBeCloseTo(15, 10)
+    expect(upper[1]).toBeCloseTo(25, 10)
+    expect(lower[1]).toBeCloseTo(5, 10)
+    // Day boundary resets the accumulator: a lone point has zero spread.
+    expect(mid[2]).toBeCloseTo(30, 10)
+    expect(upper[2]).toBeCloseTo(30, 10)
+    expect(lower[2]).toBeCloseTo(30, 10)
   })
 })
 

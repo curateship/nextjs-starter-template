@@ -187,6 +187,43 @@ export function buildBotOverlays(
         }
       }
     }
+  } else if (params.strategyType === "vwap") {
+    // No bot-chart lines for the VWAP itself; derive optional TP/SL off the
+    // entry, or preview off the mark while flat.
+    const long = szi !== 0 ? szi > 0 : true
+    const ref = entryPx || markPrice
+    if (ref > 0) {
+      if (params.takeProfitPct) {
+        pushLine(
+          "take-profit",
+          long
+            ? ref * (1 + params.takeProfitPct / 100)
+            : ref * (1 - params.takeProfitPct / 100),
+          GREEN,
+          "Take profit",
+          entryPx === 0
+        )
+        targets["take-profit"] = {
+          key: "takeProfitPct",
+          toValue: (px) => pctOff(px, ref, long),
+        }
+      }
+      if (params.stopLossPct) {
+        pushLine(
+          "stop-loss",
+          long
+            ? ref * (1 - params.stopLossPct / 100)
+            : ref * (1 + params.stopLossPct / 100),
+          RED,
+          "Stop loss",
+          entryPx === 0
+        )
+        targets["stop-loss"] = {
+          key: "stopLossPct",
+          toValue: (px) => pctOff(px, ref, !long),
+        }
+      }
+    }
   }
 
   return {
@@ -279,6 +316,31 @@ export function buildBotChartMenuItems(
         }
       }
       if (!params.stopLossPct && !params.swingStopLoss) {
+        const value = absPct(pctRef)
+        if (value) {
+          items.push({
+            key: "stopLossPct",
+            value,
+            label: `Set stop loss @ ${at} (${value}%)`,
+            tone: "down",
+          })
+        }
+      }
+      break
+    }
+    case "vwap": {
+      if (!params.takeProfitPct) {
+        const value = absPct(pctRef)
+        if (value) {
+          items.push({
+            key: "takeProfitPct",
+            value,
+            label: `Set take profit @ ${at} (${value}%)`,
+            tone: "up",
+          })
+        }
+      }
+      if (!params.stopLossPct) {
         const value = absPct(pctRef)
         if (value) {
           items.push({

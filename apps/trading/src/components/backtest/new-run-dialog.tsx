@@ -25,6 +25,7 @@ import {
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
@@ -50,16 +51,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
+  runWalkForward,
   updateRunStatus,
   type StrategyDefaultsMap,
   type StrategyRunDefaults,
   type StrategyTemplate,
+  type WalkForwardResult,
 } from "@/lib/api/backtests"
 import { useShellRuntime } from "@/components/shell-layout"
 import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
 import type { MarketRow } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
+  DEFAULT_RISK_PARAMS,
   STRATEGY_DESCRIPTIONS,
   STRATEGY_LABELS,
   strategyParamsSchema,
@@ -70,7 +74,7 @@ import { cn } from "@/lib/utils"
 import type { RunDraft } from "./run-draft"
 
 /** Backtestable strategies; copy needs event replay and stays live-only. */
-const STRATEGY_CHOICES: StrategyType[] = ["momentum", "qqe", "grid", "dca"]
+const STRATEGY_CHOICES: StrategyType[] = ["momentum", "qqe", "vwap", "grid", "dca"]
 
 /** Default grid range: ±10% around the market's mid. */
 function gridBounds(mid: number) {
@@ -78,6 +82,71 @@ function gridBounds(mid: number) {
     lowerPx: (mid * 0.9).toPrecision(5),
     upperPx: (mid * 1.1).toPrecision(5),
   }
+}
+
+/** "Train 35d → test 15d out-of-sample" from the window + split inputs. */
+function splitHint(windowDays: string, trainPct: string): string {
+  const w = Number(windowDays)
+  const tp = Number(trainPct) / 100
+  if (!(w > 0) || !(tp >= 0.3 && tp <= 0.9)) return ""
+  const train = Math.round(w * tp)
+  return `Train ${train}d → test ${w - train}d out-of-sample`
+}
+
+const WF_VERDICT: Record<
+  WalkForwardResult["verdict"],
+  { label: string; tone: string; note: string }
+> = {
+  holds: {
+    label: "Holds up",
+    tone: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    note: "Out-of-sample return is positive and within range of training — the edge held on unseen data.",
+  },
+  weak: {
+    label: "Weak",
+    tone: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    note: "Out-of-sample is positive but well below training — partial overfit. Size down and re-test.",
+  },
+  fails: {
+    label: "Fails",
+    tone: "bg-red-500/15 text-red-600 dark:text-red-400",
+    note: "Out-of-sample is negative — the config was curve-fit to the training window. Don't trade it.",
+  },
+}
+
+/** Train vs out-of-sample comparison for a completed walk-forward. */
+function WalkForwardSummary({ result }: { result: WalkForwardResult }) {
+  const badge = WF_VERDICT[result.verdict]
+  const tone = (n: number) => (n >= 0 ? "text-emerald-600" : "text-red-500")
+  const fmt = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+  const row = (label: string, p: WalkForwardResult["train"]) => {
+    const daily = p.days > 0 ? p.netPnlPct / p.days : 0
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] tabular-nums">
+        <span className="w-40 font-sans text-muted-foreground">{label}</span>
+        <span className={tone(p.netPnlPct)}>{fmt(p.netPnlPct)} tot</span>
+        <span className={tone(daily)}>{fmt(daily)}/day</span>
+        <span>DD {p.maxDrawdownPct.toFixed(1)}%</span>
+        <span>win {(p.winRate * 100).toFixed(0)}%</span>
+        <span>n={p.trades}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="grid gap-2 rounded-md border border-border/60 bg-background/60 p-3">
+      <div className="flex items-center gap-2">
+        <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", badge.tone)}>
+          {badge.label}
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {result.markets.length} markets · includes fees + slippage
+        </span>
+      </div>
+      {row(`Train (${result.train.days.toFixed(0)}d, in-sample)`, result.train)}
+      {row(`Test (${result.test.days.toFixed(0)}d, out-of-sample)`, result.test)}
+      <div className="text-[10px] text-muted-foreground">{badge.note}</div>
+    </div>
+  )
 }
 
 /**
@@ -198,6 +267,10 @@ export function NewRunDialog({
   )
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Walk-forward: % of the window used to fit; the rest is held out to test.
+  const [trainPct, setTrainPct] = React.useState("70")
+  const [wfBusy, setWfBusy] = React.useState(false)
+  const [wfResult, setWfResult] = React.useState<WalkForwardResult | null>(null)
   // Optimistic triage state for the edit-mode status control.
   const router = useRouter()
   const [runStatus, setRunStatus] = React.useState(statusTarget)
@@ -378,6 +451,64 @@ export function NewRunDialog({
     })()
   }
 
+  /** Validate the config on a train window, then test it on held-out data. */
+  function walkForward() {
+    setError(null)
+    setWfResult(null)
+    const parsed = strategyParamsSchema.safeParse(buildParams(strategy, params))
+    if (!parsed.success) {
+      setError(parsed.error.issues.map((i) => i.message).join(" · "))
+      return
+    }
+    if (strategy === "copy") return setError("Copy trading can't be backtested.")
+    const equityNum = Number(equity)
+    const windowNum = Number(windowDays)
+    const slipNum = Number(slippage)
+    const trainFrac = Number(trainPct) / 100
+    const maxWindow = maxWindowDays(interval, maxCandles)
+    let takerNum = Number(taker)
+    let makerNum = Number(maker)
+    if (!(equityNum > 0)) return setError("Starting equity must be positive.")
+    if (!(windowNum >= 4 && windowNum <= maxWindow)) {
+      return setError(`Window must be 4–${maxWindow} days for a walk-forward split.`)
+    }
+    if (!(trainFrac >= 0.3 && trainFrac <= 0.9)) {
+      return setError("Train split must be between 30% and 90%.")
+    }
+    if (feeOverride) {
+      const p = Number(feePct)
+      if (!(p >= 0 && p <= 0.5)) return setError("Fee % must be 0–0.5%.")
+      takerNum = pctToBps(p)
+      makerNum = pctToBps(p)
+    } else if (!(takerNum >= 0 && takerNum <= 50) || !(makerNum >= 0 && makerNum <= 50)) {
+      return setError("Fees must be between 0 and 50 bps.")
+    }
+    if (!(slipNum >= 0 && slipNum <= 100)) return setError("Slippage must be 0–100 bps.")
+    setWfBusy(true)
+    void (async () => {
+      try {
+        const res = await runWalkForward({
+          market,
+          extraMarkets: extraMarkets.length ? extraMarkets : undefined,
+          interval,
+          windowDays: Math.round(windowNum),
+          trainPct: trainFrac,
+          startingEquity: equityNum,
+          takerFeeBps: takerNum,
+          makerFeeBps: makerNum,
+          slippageBps: slipNum,
+          params: parsed.data,
+          riskParams: DEFAULT_RISK_PARAMS,
+        })
+        setWfResult(res)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Walk-forward failed")
+      } finally {
+        setWfBusy(false)
+      }
+    })()
+  }
+
   return (
     <Dialog
       open={open}
@@ -470,7 +601,7 @@ export function NewRunDialog({
             </div>
           ) : null}
 
-          <div className="grid gap-3 rounded-lg border p-4">
+          <div className="grid gap-5 rounded-lg border p-4">
             <Label>General settings</Label>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="grid gap-2">
@@ -522,7 +653,7 @@ export function NewRunDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="run-equity">Starting equity (USD)</Label>
+                <Label htmlFor="run-equity">Starting amount (USD)</Label>
                 <Input
                   id="run-equity"
                   className="h-8"
@@ -601,6 +732,20 @@ export function NewRunDialog({
                 />
               ) : null}
             </div>
+            {strategy === "vwap" ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="run-compounding"
+                  checked={params.compounding === "true"}
+                  onCheckedChange={(checked) =>
+                    changeParam("compounding", checked === true ? "true" : "false")
+                  }
+                />
+                <Label htmlFor="run-compounding" className="text-xs font-normal">
+                  Compound (reinvest the full balance each trade)
+                </Label>
+              </div>
+            ) : null}
             <AdditionalMarketsField
               market={market}
               extraMarkets={extraMarkets}
@@ -618,6 +763,48 @@ export function NewRunDialog({
             mid={mid}
             onChange={changeParam}
           />
+
+          {strategy !== "copy" ? (
+            <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+              <div>
+                <div className="text-sm font-medium">Walk-forward validation</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Runs this exact config on a training window, then tests it on
+                  the held-out remainder it never saw. If out-of-sample holds up,
+                  the edge is real; if it collapses, it was curve-fit.
+                </div>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wf-train" className="text-xs">
+                    Train split (%)
+                  </Label>
+                  <Input
+                    id="wf-train"
+                    className="h-8 w-24"
+                    value={trainPct}
+                    inputMode="numeric"
+                    onChange={(event) => setTrainPct(event.target.value.trim())}
+                  />
+                </div>
+                <span className="pb-2 text-[11px] text-muted-foreground">
+                  {splitHint(windowDays, trainPct)}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={wfBusy || busy}
+                  onClick={walkForward}
+                >
+                  {wfBusy ? "Running…" : "Run walk-forward"}
+                  {wfBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+                </Button>
+              </div>
+              {wfResult ? <WalkForwardSummary result={wfResult} /> : null}
+            </div>
+          ) : null}
 
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

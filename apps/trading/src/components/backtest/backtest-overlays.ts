@@ -6,7 +6,7 @@ import type {
   ChartZone,
 } from "@/components/trading/price-chart"
 import type { BacktestResult } from "@/lib/backtest/types"
-import { highest, lowest } from "@/lib/strategies/indicators"
+import { highest, lowest, vwapBands } from "@/lib/strategies/indicators"
 import {
   computeConsolidation,
   computeQqeSeries,
@@ -269,6 +269,25 @@ export function buildStrategyOverlays(
           points: mark(pivot),
         })
       }
+    }
+  } else if (params.strategyType === "vwap") {
+    // The VWAP line is drawn through the shared indicator (daily-reset), same
+    // math the strategy trades on. Reversion mode also paints its σ-bands.
+    indicators.push({ id: "vwap", type: "vwap", enabled: true, params: {} })
+    if (params.mode === "reversion" && candles.length > 0) {
+      const { upper, lower } = vwapBands(candles, params.bandK ?? 2)
+      const upperPts: ChartOverlayLine["points"] = []
+      const lowerPts: ChartOverlayLine["points"] = []
+      for (let i = 0; i < candles.length; i += 1) {
+        if (Number.isFinite(upper[i])) {
+          upperPts.push({ time: candles[i].t, value: upper[i] })
+          lowerPts.push({ time: candles[i].t, value: lower[i] })
+        }
+      }
+      overlayLines.push(
+        { id: "vwap-upper", label: `+${params.bandK ?? 2}σ`, color: CHANNEL_UPPER, points: upperPts },
+        { id: "vwap-lower", label: `−${params.bandK ?? 2}σ`, color: CHANNEL_LOWER, points: lowerPts }
+      )
     }
   } else if (params.strategyType === "dca") {
     // Ladder anchors on the cycle's base fill; before a run, preview from the
