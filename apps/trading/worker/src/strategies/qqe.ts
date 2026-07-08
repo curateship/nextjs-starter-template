@@ -1,8 +1,8 @@
 import type { QqeParams } from "@/lib/strategies/params"
 import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
+import { qflBase } from "@/lib/strategies/indicators"
 import {
   computeQqeSeries,
-  computeSwings,
   initialConsolidationState,
   stepConsolidation,
   type ConsolidationState,
@@ -17,11 +17,14 @@ export type QqeState = {
   /** Open time of the last candle fed to the machine. */
   lastBarT: number
   inZone: boolean
-  /** Previous swing high/low as of the last closed candle (null before first). */
+  /**
+   * Current swing-base levels (QFL-style confirmed swing low / mirrored swing
+   * high) as of the last closed candle; the live stop for longs / shorts.
+   */
   swingHigh: number | null
   swingLow: number | null
-  /** Absolute stop snapshotted at entry when swingStopLoss is on. */
-  stopPrice: number | null
+  /** Trend re-entries taken in the current threshold excursion. */
+  reentriesUsed: number
 }
 
 /** EMA/RSI converge well within this window; only consolidation needs anchoring. */
@@ -52,7 +55,7 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     inZone: false,
     swingHigh: null,
     swingLow: null,
-    stopPrice: null,
+    reentriesUsed: 0,
   }),
 
   onCandleClose: (ctx, params) => {
@@ -79,10 +82,25 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
 
     const next: QqeState = { ...state, cons: { ...state.cons } }
 
-    // Previous swing high/low as of this close (used to snapshot the stop at entry).
-    const swings = computeSwings(window, params.swingLookback)
-    next.swingHigh = Number.isNaN(swings.swingHigh[last]) ? null : swings.swingHigh[last]
-    next.swingLow = Number.isNaN(swings.swingLow[last]) ? null : swings.swingLow[last]
+    // Swing-base stop levels (QFL-style): the swing low that held for
+    // `confirm` bars within the trailing `scan` window, and the mirrored
+    // swing high for shorts. Re-read every close, so the stop tracks market
+    // structure rather than a level frozen at entry.
+    if (params.swingStopLoss) {
+      const scan = params.swingScanBars ?? 12
+      const confirm = params.swingConfirmBars ?? 4
+      const tail = window.slice(-(scan + confirm + 2))
+      const { raw: baseLow } = qflBase(tail, scan, confirm)
+      const { raw: negRoof } = qflBase(
+        tail.map((candle) => ({ l: -Number(candle.h) })),
+        scan,
+        confirm
+      )
+      const low = baseLow[tail.length - 1]
+      const roof = negRoof[tail.length - 1]
+      next.swingLow = Number.isNaN(low) ? null : low
+      next.swingHigh = Number.isNaN(roof) ? null : -roof
+    }
     if (params.consolidationFilter) {
       const start = candles.findIndex((candle) => candle.t > state.lastBarT)
       if (start >= 0) {
@@ -105,12 +123,39 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
 
     const close = Number(window[last].c)
     const szi = Number(ctx.position?.szi ?? 0)
+    const index = qqe.rsiMa[last]
+    // RSI back inside the channel ends the excursion and re-arms re-entries.
+    if (index <= 50 + params.threshold && index >= 50 - params.threshold) {
+      next.reentriesUsed = 0
+    }
     if (qqe.buy[last] && pass && szi <= 0) {
       next.pendingEntry = "long"
+      next.reentriesUsed = 0
       ctx.emit("signal", `QQE long: smoothed RSI crossed above ${50 + params.threshold} at ${close}.`)
     } else if (qqe.sell[last] && pass && szi >= 0) {
       next.pendingEntry = "short"
+      next.reentriesUsed = 0
       ctx.emit("signal", `QQE short: smoothed RSI crossed below ${50 - params.threshold} at ${close}.`)
+    } else if (
+      params.trendReentry &&
+      pass &&
+      szi === 0 &&
+      !state.pendingEntry &&
+      last > 0 &&
+      next.reentriesUsed < (params.maxReentries ?? Number.POSITIVE_INFINITY)
+    ) {
+      // Trend re-entry: flat after an exit but the smoothed RSI still holds
+      // beyond the threshold — rejoin the trend on a continuation candle.
+      const prevClose = Number(window[last - 1].c)
+      if (index > 50 + params.threshold && close > prevClose) {
+        next.pendingEntry = "long"
+        next.reentriesUsed += 1
+        ctx.emit("signal", `QQE re-entry long: smoothed RSI holding above ${50 + params.threshold} at ${close}.`)
+      } else if (index < 50 - params.threshold && close < prevClose) {
+        next.pendingEntry = "short"
+        next.reentriesUsed += 1
+        ctx.emit("signal", `QQE re-entry short: smoothed RSI holding below ${50 - params.threshold} at ${close}.`)
+      }
     }
     ctx.setState(next)
   },
@@ -124,23 +169,26 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     if (!(mid > 0) || !(entry > 0)) return
     const szi = Number(ctx.position.szi)
 
-    // When enabled, the swing stop replaces the % stop (an absolute price level
-    // snapshotted at entry). Take profit % is unaffected.
-    const swingStop = params.swingStopLoss ? state.stopPrice : null
-
+    // When enabled, the swing-base stop replaces the % stop: exit when price
+    // breaks the current confirmed swing low (long) / high (short). The level
+    // tracks structure bar by bar; no level yet means no stop. TP % unaffected.
     if (szi > 0) {
       if (params.takeProfitPct && mid >= entry * (1 + params.takeProfitPct / 100)) {
         requestExit(ctx, `Take profit hit at ${ctx.mid}.`)
-      } else if (swingStop !== null) {
-        if (mid <= swingStop) requestExit(ctx, `Swing stop hit at ${ctx.mid}.`)
+      } else if (params.swingStopLoss) {
+        if (state.swingLow !== null && mid <= state.swingLow) {
+          requestExit(ctx, `Price broke the swing base at ${ctx.mid}.`)
+        }
       } else if (params.stopLossPct && mid <= entry * (1 - params.stopLossPct / 100)) {
         requestExit(ctx, `Stop loss hit at ${ctx.mid}.`)
       }
     } else if (szi < 0) {
       if (params.takeProfitPct && mid <= entry * (1 - params.takeProfitPct / 100)) {
         requestExit(ctx, `Take profit hit at ${ctx.mid}.`)
-      } else if (swingStop !== null) {
-        if (mid >= swingStop) requestExit(ctx, `Swing stop hit at ${ctx.mid}.`)
+      } else if (params.swingStopLoss) {
+        if (state.swingHigh !== null && mid >= state.swingHigh) {
+          requestExit(ctx, `Price broke the swing roof at ${ctx.mid}.`)
+        }
       } else if (params.stopLossPct && mid >= entry * (1 + params.stopLossPct / 100)) {
         requestExit(ctx, `Stop loss hit at ${ctx.mid}.`)
       }
@@ -153,7 +201,6 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
         ...ctx.state,
         pendingEntry: null,
         exitRequested: false,
-        stopPrice: null,
       })
     }
   },
@@ -180,13 +227,7 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
 
     if (state.pendingEntry) {
       const side = state.pendingEntry === "long" ? "buy" : "sell"
-      // Snapshot the swing stop at entry: swing low for longs, high for shorts.
-      const stopPrice = params.swingStopLoss
-        ? side === "buy"
-          ? state.swingLow
-          : state.swingHigh
-        : null
-      ctx.setState({ ...state, pendingEntry: null, stopPrice })
+      ctx.setState({ ...state, pendingEntry: null })
       // Close any opposite position first, then open the new one.
       if (szi !== 0 && Math.sign(szi) !== (side === "buy" ? 1 : -1)) {
         orders.push({

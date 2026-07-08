@@ -258,11 +258,21 @@ export function StrategyParamFields({
           {check("paintSwings", "Show swing high/low on chart")}
           {text("swingLookback", "Swing lookback")}
           {check("swingStopLoss", "Use swing low/high as stop loss (overrides SL %)")}
+          {swingStop ? (
+            <>
+              {text("swingScanBars", "Base scan bars")}
+              {text("swingConfirmBars", "Base confirm bars (hold)")}
+            </>
+          ) : null}
         </>
       )
       const exits = (
         <>
           {text("takeProfitPct", "Take profit % (optional)")}
+          {check("trendReentry", "Re-enter trend after exit (continuation candle)")}
+          {values.trendReentry === "true"
+            ? text("maxReentries", "Max re-entries per trend (optional)")
+            : null}
           {swingStop ? (
             <Field label="Stop loss % (optional)">
               <Input value="Overridden by swing stop" disabled readOnly />

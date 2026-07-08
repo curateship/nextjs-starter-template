@@ -136,6 +136,22 @@ export const qqeParamsSchema = z.object({
   swingLookback: z.number().int().min(2).max(400),
   /** Exit at the swing low (long) / swing high (short) instead of stopLossPct. */
   swingStopLoss: z.boolean(),
+  /**
+   * Swing-base stop geometry (QFL-style): scan window for the swing low/high
+   * and the bars it must hold to confirm as a base. Longs exit when price
+   * breaks the base low, shorts when it breaks the mirrored high.
+   * Defaults 12 / 4 when swingStopLoss is on.
+   */
+  swingScanBars: z.number().int().min(4).max(400).optional(),
+  swingConfirmBars: z.number().int().min(1).max(100).optional(),
+  /**
+   * Re-enter the trend while flat: after an exit, if the smoothed RSI still
+   * holds beyond 50±threshold (and outside consolidation), enter again on a
+   * continuation candle (close beyond the prior close).
+   */
+  trendReentry: z.boolean().optional(),
+  /** Cap re-entries per threshold excursion (unset = unlimited). */
+  maxReentries: z.number().int().min(1).max(100).optional(),
   orderSizeUsd: z.number().positive(),
   takeProfitPct: z.number().positive().max(100).optional(),
   stopLossPct: z.number().positive().max(100).optional(),
