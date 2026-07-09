@@ -777,7 +777,7 @@ export function NewRunDialog({
                 />
               ) : null}
             </div>
-            {strategy === "vwap" ? (
+            {strategy !== "copy" ? (
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="run-compounding"
@@ -787,7 +787,9 @@ export function NewRunDialog({
                   }
                 />
                 <Label htmlFor="run-compounding" className="text-xs font-normal">
-                  Compound (reinvest the full balance each trade)
+                  {strategy === "grid" || strategy === "dca"
+                    ? "Compound (scale order sizes with the balance)"
+                    : "Compound (reinvest the full balance each trade)"}
                 </Label>
               </div>
             ) : null}

@@ -6,7 +6,9 @@ import {
   MAX_BACKTEST_BARS,
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
+  MAX_TOTAL_RUN_BARS,
   maxWindowDays,
+  windowBars,
   type BacktestCosts,
   type BacktestResult,
 } from "@/lib/backtest/types"
@@ -225,6 +227,14 @@ const runBacktestSchema = z
         code: "custom",
         message: `That window is too long for ${data.interval} candles — a run covers at most ${maxWindowDays(data.interval)} days at ${data.interval}. Shorten the window or use a coarser timeframe.`,
         path: ["windowDays"],
+      })
+    }
+    const totalBars = markets.length * windowBars(data.interval, data.windowDays)
+    if (totalBars > MAX_TOTAL_RUN_BARS) {
+      ctx.addIssue({
+        code: "custom",
+        message: `This run would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`,
+        path: ["extraMarkets"],
       })
     }
   })
@@ -468,6 +478,14 @@ const walkForwardSchema = z
         path: ["windowDays"],
       })
     }
+    const totalBars = markets.length * windowBars(data.interval, data.windowDays)
+    if (totalBars > MAX_TOTAL_RUN_BARS) {
+      ctx.addIssue({
+        code: "custom",
+        message: `This walk-forward would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`,
+        path: ["extraMarkets"],
+      })
+    }
   })
 
 /** Blended, diversified metrics for a train or test window. */
@@ -695,8 +713,15 @@ const loadBacktestFn = createServerFn({ method: "POST" })
     }
   })
 
+/** Run candles, optionally re-sampled at a chosen display interval. */
+const backtestCandlesSchema = z.object({
+  backtestId: z.string().min(1),
+  /** Display timeframe; defaults to the run's own interval. */
+  interval: z.enum(CANDLE_INTERVALS).optional(),
+})
+
 const loadBacktestCandlesFn = createServerFn({ method: "POST" })
-  .inputValidator(backtestIdSchema)
+  .inputValidator(backtestCandlesSchema)
   .handler(async ({ data }): Promise<BacktestCandlesResponse> => {
     const { getUserBacktest } = await import("@/server/backtests")
     const { fetchCandleHistory } = await import("@/server/backtest/history")
@@ -704,16 +729,21 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
     const row = await getUserBacktest(user.id, data.backtestId)
     if (!row) throw new Error("Backtest not found")
 
-    const interval = row.interval as BacktestInterval
-    const simStartMs = row.startTime.getTime()
-    const fetchStart = simStartMs - CHART_WARMUP_CANDLES * INTERVAL_MS[interval]
-
-    const candles = await fetchCandleHistory(
-      row.market,
-      interval,
-      fetchStart,
-      row.endTime.getTime()
+    // Always span the run's own window so every trade sits over real candles —
+    // even when the user inspects a long run at a finer display timeframe. A
+    // finer interval can overflow the render ceiling, so cap the bars but anchor
+    // to the run's end, keeping the most recent trades; the run's native
+    // interval fits the whole window and shows it all.
+    const interval = (data.interval ?? row.interval) as BacktestInterval
+    const stepMs = INTERVAL_MS[interval]
+    const endMs = row.endTime.getTime()
+    const simStartMs = Math.max(
+      row.startTime.getTime(),
+      endMs - MAX_CHART_BARS * stepMs
     )
+    const fetchStart = simStartMs - CHART_WARMUP_CANDLES * stepMs
+
+    const candles = await fetchCandleHistory(row.market, interval, fetchStart, endMs)
     return { candles, simStartMs }
   })
 
@@ -943,8 +973,8 @@ export function loadBacktest(backtestId: string) {
   return loadBacktestFn({ data: { backtestId } })
 }
 
-export function loadBacktestCandles(backtestId: string) {
-  return loadBacktestCandlesFn({ data: { backtestId } })
+export function loadBacktestCandles(backtestId: string, interval?: BacktestInterval) {
+  return loadBacktestCandlesFn({ data: { backtestId, interval } })
 }
 
 export function loadChartCandles(input: z.input<typeof chartCandlesSchema>) {

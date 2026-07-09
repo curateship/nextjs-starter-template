@@ -1229,6 +1229,7 @@ function EditRunDialog({
     makerFeeBps: detail.costs.makerFeeBps,
     slippageBps: detail.costs.slippageBps,
     params: paramsToValues(detail.params),
+    riskParams: detail.riskParams,
   }
 
   return (

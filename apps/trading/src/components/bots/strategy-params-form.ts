@@ -11,6 +11,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     side: "both",
     stopLossPx: "",
     takeProfitPx: "",
+    compounding: "false",
   },
   dca: {
     direction: "long",
@@ -22,6 +23,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     sizeMultiplier: "1.5",
     takeProfitPct: "1.5",
     stopLossPct: "",
+    compounding: "false",
   },
   momentum: {
     signal: "ema_cross",
@@ -38,6 +40,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     pumpPeriods: "8",
     orderSizeUsd: "250",
     direction: "both",
+    compounding: "false",
   },
   qqe: {
     interval: "15m",
@@ -64,6 +67,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     trendReentry: "false",
     maxReentries: "",
     orderSizeUsd: "250",
+    compounding: "false",
     takeProfitPct: "",
     stopLossPct: "",
   },
@@ -138,6 +142,7 @@ export function buildParams(
         side: values.side,
         stopLossPx: str("stopLossPx"),
         takeProfitPx: str("takeProfitPx"),
+        compounding: values.compounding === "true",
       }
     case "dca":
       return {
@@ -151,6 +156,7 @@ export function buildParams(
         sizeMultiplier: num("sizeMultiplier"),
         takeProfitPct: num("takeProfitPct"),
         stopLossPct: num("stopLossPct"),
+        compounding: values.compounding === "true",
       }
     case "momentum": {
       const stopMode = values.stopMode === "base" ? "base" : "trailing"
@@ -171,6 +177,7 @@ export function buildParams(
         pumpPeriods: stopMode === "base" ? num("pumpPeriods") : undefined,
         orderSizeUsd: num("orderSizeUsd"),
         direction: values.direction,
+        compounding: values.compounding === "true",
       }
     }
     case "qqe":
@@ -201,6 +208,7 @@ export function buildParams(
         trendReentry: values.trendReentry === "true",
         maxReentries: num("maxReentries"),
         orderSizeUsd: num("orderSizeUsd"),
+        compounding: values.compounding === "true",
         takeProfitPct: num("takeProfitPct"),
         stopLossPct: num("stopLossPct"),
       }

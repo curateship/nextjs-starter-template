@@ -3,6 +3,8 @@ import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
 
 export type GridState = {
   stopped: boolean
+  /** Compounding size multiplier, snapshotted while the grid is flat. */
+  scale: number
 }
 
 /**
@@ -23,7 +25,7 @@ export const gridStrategy: Strategy<GridParams, GridState> = {
     needsTrades: true,
   }),
 
-  init: () => ({ stopped: false }),
+  init: () => ({ stopped: false, scale: 1 }),
 
   onTick: (ctx, params) => {
     if (ctx.state.stopped) return
@@ -35,7 +37,7 @@ export const gridStrategy: Strategy<GridParams, GridState> = {
       const breached =
         params.side === "short_only" ? mid >= stop : mid <= stop
       if (breached) {
-        ctx.setState({ stopped: true })
+        ctx.setState({ ...ctx.state, stopped: true })
         ctx.emit(
           "stop_loss",
           `Grid stop hit at ${ctx.mid} (stop ${params.stopLossPx}); flattening and halting.`
@@ -49,7 +51,7 @@ export const gridStrategy: Strategy<GridParams, GridState> = {
       const reached =
         params.side === "short_only" ? mid <= target : mid >= target
       if (reached) {
-        ctx.setState({ stopped: true })
+        ctx.setState({ ...ctx.state, stopped: true })
         ctx.emit(
           "take_profit",
           `Grid take-profit hit at ${ctx.mid} (target ${params.takeProfitPx}); flattening and halting.`
@@ -72,12 +74,29 @@ export const gridStrategy: Strategy<GridParams, GridState> = {
     const orders: DesiredOrder[] = []
     let reduceBudget = Math.abs(positionSzi)
 
+    // Compounding scales every level's size with the account, so the grid
+    // deploys more as it grows and less as it shrinks; off = fixed per-level.
+    // Snapshot the balance only while flat (equity == realized cash) and hold it
+    // while inventory is open — otherwise unrealized-PnL wiggle would resize, and
+    // so cancel/replace, every resting level each tick.
+    let scale = params.compounding ? (ctx.state.scale ?? 1) : 1
+    if (params.compounding && positionSzi === 0) {
+      const start = Number(ctx.startingEquity)
+      const balance = Number(ctx.equity)
+      const next = start > 0 && balance > 0 ? balance / start : 1
+      if (next !== scale) {
+        scale = next
+        ctx.setState({ ...ctx.state, scale })
+      }
+    }
+    const sizePerLevelUsd = params.sizePerLevelUsd * scale
+
     for (let i = 0; i < params.levels; i += 1) {
       const px = lower + step * i
       // Skip the level hugging mid so we never cross our own spread.
       if (Math.abs(px - mid) < step / 2) continue
 
-      const sz = params.sizePerLevelUsd / px
+      const sz = sizePerLevelUsd / px
       if (px < mid) {
         if (params.side === "short_only") {
           // Buys only reduce an existing short.

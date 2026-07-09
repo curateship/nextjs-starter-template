@@ -104,16 +104,33 @@ async function fetchBinanceRange(
 
     let rows: unknown[] | undefined
     for (let attempt = 0; ; attempt += 1) {
-      const res = await fetch(url)
-      if (res.ok) {
-        rows = (await res.json()) as unknown[]
-        break
+      let status = 0
+      try {
+        const res = await fetch(url)
+        status = res.status
+        if (res.ok) {
+          rows = (await res.json()) as unknown[]
+          break
+        }
+      } catch (err) {
+        // A dropped socket (ECONNRESET) mid-request or mid-body-read, or any
+        // other transient network fault — long multi-page fetches hit these —
+        // is retried like a rate limit so one flaky page can't crash the run.
+        if (attempt >= RATE_LIMIT_RETRIES) {
+          throw new Error(
+            `Binance klines ${symbol} ${interval} network error: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        }
+        await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt)
+        continue
       }
       // 429 (rate limit) / 418 (IP ban warning) → back off and retry.
-      const retryable = res.status === 429 || res.status === 418
+      const retryable = status === 429 || status === 418
       if (!retryable || attempt >= RATE_LIMIT_RETRIES) {
         throw new Error(
-          `Binance klines ${symbol} ${interval} failed: ${res.status}`
+          `Binance klines ${symbol} ${interval} failed: ${status}`
         )
       }
       await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt)
