@@ -135,10 +135,12 @@ export const MAX_RUN_BARS = 5000
 /**
  * Ceiling on candles in a single backtest run window. Backtest history comes
  * from Binance, which keeps years per interval, so this is far higher than
- * Hyperliquid's ~5000 live-chart limit — enough for 15m over ~200 days. Bounds
- * render/engine cost per run, not data availability.
+ * Hyperliquid's ~5000 live-chart limit — ~5.7 years at 1h, ~1.4 years at 15m.
+ * Held just under the per-request fetch wall (MAX_BARS_PER_FETCH) once warmup
+ * is added, so a max-window run never truncates. Bounds render/engine cost per
+ * run, not data availability.
  */
-export const MAX_BACKTEST_BARS = 20_000
+export const MAX_BACKTEST_BARS = 50_000
 
 /**
  * Most additional markets a single config may replay across. Runs are
@@ -160,6 +162,24 @@ export function maxWindowDays(
   const bars = Math.min(MAX_BACKTEST_BARS, Math.max(1, maxBars))
   return Math.max(1, Math.floor((bars * INTERVAL_MS[interval]) / 86_400_000))
 }
+
+/** Candles a window of `windowDays` spans at an interval — inverse of maxWindowDays. */
+export function windowBars(
+  interval: BacktestInterval,
+  windowDays: number
+): number {
+  return Math.ceil((windowDays * 86_400_000) / INTERVAL_MS[interval])
+}
+
+/**
+ * Total candles one run request may download across its whole market basket.
+ * Per-market windows are already capped at MAX_BACKTEST_BARS; this bounds the
+ * combined fetch so a single request can't pull millions of bars and get the
+ * shared upstream (Binance) IP rate-limited — which would break backtests for
+ * everyone. Sized to allow the recommended 20-market basket at the full
+ * per-market window (20 × 50,000).
+ */
+export const MAX_TOTAL_RUN_BARS = 1_000_000
 
 /**
  * User-configurable candle ceiling bounds (Settings → Max chart candles).

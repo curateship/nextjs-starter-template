@@ -39,7 +39,6 @@ import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import {
-  DEFAULT_RISK_PARAMS,
   STRATEGY_LABELS,
   strategyParamsSchema,
 } from "@/lib/strategies/params"
@@ -79,7 +78,7 @@ const EMPTY_OVERLAYS: StrategyChartOverlays = {
 const WINDOW_DEBOUNCE_MS = 500
 
 type ChartRequest =
-  | { kind: "run"; id: string; key: string }
+  | { kind: "run"; id: string; interval: CandleInterval; key: string }
   | {
       kind: "cfg"
       market: string
@@ -206,16 +205,20 @@ export function BacktestDashboard({
   // for the pre-hydration defaults would hit the wrong market entirely.
   const chartReq = React.useMemo<ChartRequest | null>(() => {
     if (runId && !run) return null
-    return runMatchesConfig && run
-      ? { kind: "run", id: run.id, key: `run:${run.id}` }
-      : {
-          kind: "cfg",
-          market,
-          interval,
-          windowDays: debouncedWindow,
-          key: `cfg:${market}:${interval}:${debouncedWindow}`,
-        }
-  }, [runId, runMatchesConfig, run, market, interval, debouncedWindow])
+    // A loaded run always shows its own window — even at a finer display
+    // timeframe — so every trade sits over real candles instead of running off
+    // the edge of a now-anchored, bar-capped browse window.
+    if (run && run.status === "done") {
+      return { kind: "run", id: run.id, interval, key: `run:${run.id}:${interval}` }
+    }
+    return {
+      kind: "cfg",
+      market,
+      interval,
+      windowDays: debouncedWindow,
+      key: `cfg:${market}:${interval}:${debouncedWindow}`,
+    }
+  }, [runId, run, market, interval, debouncedWindow])
 
   // The chart always has data for the current request — on open, on every
   // market/timeframe/window change, and for a loaded run's own window.
@@ -226,7 +229,7 @@ export function BacktestDashboard({
       try {
         const data =
           chartReq.kind === "run"
-            ? await loadBacktestCandles(chartReq.id)
+            ? await loadBacktestCandles(chartReq.id, chartReq.interval)
             : await loadChartCandles({
                 market: chartReq.market,
                 interval: chartReq.interval,
@@ -347,7 +350,7 @@ export function BacktestDashboard({
         makerFeeBps: makerNum,
         slippageBps: slipNum,
         params: parsed.data,
-        riskParams: DEFAULT_RISK_PARAMS,
+        riskParams: draft.riskParams,
       })
       onRunIdChange(res.backtestId)
       // Refresh the route loader so Recent and the drill-down tables see the

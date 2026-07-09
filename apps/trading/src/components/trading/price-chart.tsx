@@ -173,6 +173,13 @@ type Measurement = {
 const DRAG_HIT_PX = 6
 /** After a drop, hold the line at its new price until the backend confirms. */
 const DROP_HOLD_MS = 8_000
+/**
+ * Above this many trade chips inside the visible window they overlap into an
+ * unreadable pile — and positioning that many DOM nodes every pan frame is what
+ * grinds a multi-year backtest to a crawl. Past the cap we draw none; zooming in
+ * brings them back once few enough are on screen to read.
+ */
+const MAX_VISIBLE_CHIPS = 300
 
 /**
  * Data-agnostic chart view shared by the live trading terminal and the
@@ -773,8 +780,13 @@ export function PriceChartView({
   // Pin each priced open/close/re-entry chip to its exact fill price on the
   // candle, re-projecting on pan/zoom/resize and dropping any that scroll off
   // screen so the DOM only ever holds the chips currently visible.
+  // Sorted by time so the chips inside any visible window are one contiguous
+  // slice we can binary-search to, instead of scanning every trade each frame.
   const pricedMarkers = React.useMemo(
-    () => markers.filter((m) => m.price != null && m.letter),
+    () =>
+      markers
+        .filter((m) => m.price != null && m.letter)
+        .sort((a, b) => a.time - b.time),
     [markers]
   )
   React.useEffect(() => {
@@ -786,9 +798,25 @@ export function PriceChartView({
     }
     const timeScale = chart.timeScale()
     const recompute = () => {
+      const range = timeScale.getVisibleRange()
+      if (!range) {
+        setMarkerPixels([])
+        return
+      }
+      // Only the trades whose time falls inside the visible window; the rest
+      // are off-screen and don't need positioning this frame.
+      const fromMs = (range.from as number) * 1000
+      const toMs = (range.to as number) * 1000
+      const start = lowerBoundByTime(pricedMarkers, fromMs)
+      const end = upperBoundByTime(pricedMarkers, toMs)
+      if (end - start > MAX_VISIBLE_CHIPS) {
+        setMarkerPixels([])
+        return
+      }
       const width = timeScale.width()
       const next: { x: number; y: number; letter: string; color: string }[] = []
-      for (const marker of pricedMarkers) {
+      for (let i = start; i < end; i += 1) {
+        const marker = pricedMarkers[i]
         const sec = Math.floor(marker.time / 1000)
         const x = timeScale.timeToCoordinate(sec as UTCTimestamp)
         // Off-screen (or price out of the visible scale) → don't render it.
@@ -1366,6 +1394,30 @@ export function PriceChart({
       registerApi={registerApi}
     />
   )
+}
+
+/** First index in a time-sorted marker list with `time >= targetMs`. */
+function lowerBoundByTime(arr: ChartMarker[], targetMs: number): number {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arr[mid].time < targetMs) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+/** First index in a time-sorted marker list with `time > targetMs`. */
+function upperBoundByTime(arr: ChartMarker[], targetMs: number): number {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arr[mid].time <= targetMs) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 function toCandleData(

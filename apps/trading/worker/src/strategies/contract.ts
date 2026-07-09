@@ -49,6 +49,8 @@ export type StrategyCtx<S> = {
   position: PositionState
   /** Equity in USD (paper cash + uPnL, or live account value). */
   equity: string
+  /** Equity at the start of the run — the baseline compounding scales against. */
+  startingEquity?: string
   state: S
   setState: (next: S) => void
   emit: (type: string, message: string, data?: unknown) => void

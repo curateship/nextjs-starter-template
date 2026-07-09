@@ -502,6 +502,12 @@ export class BotRunner {
         this.hub.getCandles(this.botNetwork, this.bot.market, interval, n),
       position: this.broker?.positionState() ?? null,
       equity: String(this.broker?.equity(Number(mid)) ?? 0),
+      // Paper bots compound against their configured starting equity; live bots
+      // have no tracked baseline, so compounding scaling is a no-op there.
+      startingEquity:
+        this.bot.mode === "paper"
+          ? String(Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY)
+          : "0",
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next

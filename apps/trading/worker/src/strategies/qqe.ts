@@ -239,11 +239,16 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
           reduceOnly: true,
         })
       }
+      // Compounding on: bet the full current balance each trade so profits and
+      // losses carry forward. Off: fixed order size each trade.
+      const balance = Number(ctx.equity)
+      const notional =
+        params.compounding && balance > 0 ? balance : params.orderSizeUsd
       orders.push({
         purpose: "qqe:entry",
         side,
         orderType: "market",
-        sz: String(params.orderSizeUsd / mid),
+        sz: String(notional / mid),
         tif: "Ioc",
         reduceOnly: false,
       })

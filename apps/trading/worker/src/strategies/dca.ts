@@ -7,6 +7,8 @@ export type DcaState = {
   /** Safety order indices already filled this cycle. */
   filledSafeties: number[]
   exitRequested: boolean
+  /** Compounding size multiplier, snapshotted when the cycle's base fills. */
+  cycleScale: number
 }
 
 /**
@@ -20,15 +22,27 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
 
   warmup: () => ({ candleIntervals: [], needsBook: true, needsTrades: true }),
 
-  init: () => ({ anchorPx: null, filledSafeties: [], exitRequested: false }),
+  init: () => ({
+    anchorPx: null,
+    filledSafeties: [],
+    exitRequested: false,
+    cycleScale: 1,
+  }),
 
-  onFill: (ctx, _params, fill) => {
+  onFill: (ctx, params, fill) => {
     const state = ctx.state
     if (fill.purpose === "dca:base") {
+      // The base just opened the position (entry ≈ mid, so equity ≈ realized
+      // cash) — snapshot the compounding scale to size this cycle's safeties.
+      const start = Number(ctx.startingEquity)
+      const balance = Number(ctx.equity)
+      const cycleScale =
+        params.compounding && start > 0 && balance > 0 ? balance / start : 1
       ctx.setState({
         anchorPx: Number(fill.px),
         filledSafeties: [],
         exitRequested: false,
+        cycleScale,
       })
       return
     }
@@ -45,7 +59,12 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
     }
     // Position closed (take-profit or stop) → new cycle.
     if (!ctx.position) {
-      ctx.setState({ anchorPx: null, filledSafeties: [], exitRequested: false })
+      ctx.setState({
+        anchorPx: null,
+        filledSafeties: [],
+        exitRequested: false,
+        cycleScale: 1,
+      })
       ctx.emit("cycle_done", `Cycle closed at ${fill.px}.`)
     }
   },
@@ -78,6 +97,19 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
     const entrySide = long ? "buy" : "sell"
     const exitSide = long ? "sell" : "buy"
 
+    // Compounding scales the whole ladder with the account so it deploys more as
+    // it grows and less as it shrinks; off = fixed sizes. The base is placed
+    // while flat (equity == realized cash) so it scales live; the safeties rest
+    // during an open position, so they use the scale snapshotted when the base
+    // filled — otherwise unrealized-PnL wiggle would resize them every tick.
+    const start = Number(ctx.startingEquity)
+    const balance = Number(ctx.equity)
+    const flatScale =
+      params.compounding && start > 0 && balance > 0 ? balance / start : 1
+    const baseOrderUsd = params.baseOrderUsd * flatScale
+    const cycleScale = params.compounding ? (state.cycleScale ?? 1) : 1
+    const safetyOrderUsd = params.safetyOrderUsd * cycleScale
+
     // Emergency exit: one reduce-only market order.
     if (state.exitRequested && ctx.position) {
       return [
@@ -100,7 +132,7 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
           side: entrySide,
           orderType: "limit",
           px: String(mid),
-          sz: String(params.baseOrderUsd / mid),
+          sz: String(baseOrderUsd / mid),
           tif: "Gtc",
           reduceOnly: false,
         },
@@ -120,7 +152,7 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
         ? anchor * (1 - deviation / 100)
         : anchor * (1 + deviation / 100)
       if (px <= 0) continue
-      const usd = params.safetyOrderUsd * params.sizeMultiplier ** (i - 1)
+      const usd = safetyOrderUsd * params.sizeMultiplier ** (i - 1)
       orders.push({
         purpose: `dca:safety:${i}`,
         side: entrySide,

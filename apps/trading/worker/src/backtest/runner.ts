@@ -441,6 +441,7 @@ class BacktestRunner {
       candles: (_interval, n) => this.windowCandles(n),
       position: this.broker.positionState(),
       equity: String(this.broker.equity(this.price)),
+      startingEquity: String(this.startingEquity),
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next

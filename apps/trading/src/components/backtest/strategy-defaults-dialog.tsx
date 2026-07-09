@@ -42,8 +42,11 @@ import {
   type StrategyRunDefaults,
   type StrategyTemplate,
 } from "@/lib/api/backtests"
-import { useShellRuntime } from "@/components/shell-layout"
-import { DEFAULT_BACKTEST_COSTS, maxWindowDays } from "@/lib/backtest/types"
+import {
+  DEFAULT_BACKTEST_COSTS,
+  MAX_BACKTEST_BARS,
+  maxWindowDays,
+} from "@/lib/backtest/types"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
@@ -108,7 +111,6 @@ export function StrategyDefaultsDialog({
   // Editable label for the current selection: the main default's display name,
   // an existing template's name, or the new template's name.
   const [configName, setConfigName] = React.useState(initial.name ?? "")
-  const maxCandles = useShellRuntime().config.maxCandles
 
   const mainDefaultLabel = initial.name?.trim() || "Main default"
 
@@ -180,9 +182,9 @@ export function StrategyDefaultsDialog({
     const takerNum = Number(taker)
     const makerNum = Number(maker)
     const slipNum = Number(slippage)
-    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, maxCandles))) {
+    if (!(windowNum >= 1 && windowNum <= maxWindowDays(interval, MAX_BACKTEST_BARS))) {
       setError(
-        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, maxCandles)} days.`
+        `Date range for ${interval} must be between 1 and ${maxWindowDays(interval, MAX_BACKTEST_BARS)} days.`
       )
       return null
     }
@@ -379,7 +381,7 @@ export function StrategyDefaultsDialog({
             </div>
             <div className="grid gap-2">
               <Label>
-                Date range (days back, 1–{maxWindowDays(interval, maxCandles)})
+                Date range (days back, 1–{maxWindowDays(interval, MAX_BACKTEST_BARS)})
               </Label>
               <Input
                 className="h-8"

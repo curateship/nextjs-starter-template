@@ -20,6 +20,9 @@ export const gridParamsSchema = z.object({
   stopLossPx: decimalString.optional(),
   /** Price that exits the entire position and halts the grid (favorable side). */
   takeProfitPx: decimalString.optional(),
+  /** Scale every order's size with the account (balance ÷ starting equity) so
+   *  profits and losses compound; off = fixed per-level size. */
+  compounding: z.boolean().optional(),
 })
 
 export const dcaParamsSchema = z.object({
@@ -36,6 +39,9 @@ export const dcaParamsSchema = z.object({
   sizeMultiplier: z.number().min(1).max(5),
   takeProfitPct: z.number().positive().max(100),
   stopLossPct: z.number().positive().max(100).optional(),
+  /** Scale every order's size with the account (balance ÷ starting equity) so
+   *  the whole ladder compounds; off = fixed base/safety sizes. */
+  compounding: z.boolean().optional(),
 })
 
 export const momentumParamsSchema = z
@@ -58,6 +64,9 @@ export const momentumParamsSchema = z
     pumpPeriods: z.number().int().min(2).max(200).optional(),
     orderSizeUsd: z.number().positive(),
     direction: z.enum(["long", "short", "both"]),
+    /** Bet the full current balance each trade (profits/losses compound) rather
+     *  than a fixed order size. */
+    compounding: z.boolean().optional(),
   })
   .superRefine((params, ctx) => {
     if (params.signal === "ema_cross") {
@@ -153,6 +162,9 @@ export const qqeParamsSchema = z.object({
   /** Cap re-entries per threshold excursion (unset = unlimited). */
   maxReentries: z.number().int().min(1).max(100).optional(),
   orderSizeUsd: z.number().positive(),
+  /** Bet the full current balance each trade (profits/losses compound) rather
+   *  than a fixed order size. */
+  compounding: z.boolean().optional(),
   takeProfitPct: z.number().positive().max(100).optional(),
   stopLossPct: z.number().positive().max(100).optional(),
 })
@@ -279,4 +291,14 @@ export const DEFAULT_RISK_PARAMS: RiskParams = {
   maxOpenOrders: 60,
   cooldownLosses: 4,
   cooldownMinutes: 60,
+}
+
+export const DEFAULT_BACKTEST_RISK_PARAMS: RiskParams = {
+  maxPositionNotionalUsd: 10_000,
+  maxLeverage: 1,
+  dailyLossLimitUsd: 1_000_000,
+  maxDrawdownPct: 99,
+  maxOpenOrders: 60,
+  cooldownLosses: 0,
+  cooldownMinutes: 0,
 }
