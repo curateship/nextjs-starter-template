@@ -203,6 +203,7 @@ export function PriceChartView({
   onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
+  onVisibleRangeChange,
   registerApi,
 }: {
   /** Candles to render, ascending by open time. */
@@ -234,6 +235,11 @@ export function PriceChartView({
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
   /**
+   * Fired when the visible time range changes (pan/zoom), with the edges in
+   * seconds. Lets a parent lazily load more history as the user scrolls back.
+   */
+  onVisibleRangeChange?: (fromSec: number, toSec: number) => void
+  /**
    * Receives the chart's imperative handle (e.g. `resetView`) once mounted, and
    * null on unmount — lets a parent wire "Reset View" into its own menu.
    */
@@ -264,6 +270,10 @@ export function PriceChartView({
     Map<string, { price: number; until: number }>
   >(new Map())
   const lastTimeRef = React.useRef<number>(0)
+  // Earliest loaded bar time + bar count, so a left-prepend (progressive history
+  // loading) can be detected and the view preserved across it.
+  const firstTimeRef = React.useRef<number>(0)
+  const prevLenRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
   // One short line series per QFL base mark — separate series so marks never
@@ -305,11 +315,13 @@ export function PriceChartView({
   const dragEndRef = React.useRef(onLineDragEnd)
   const contextMenuRef = React.useRef(onChartContextMenu)
   const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
+  const visibleRangeRef = React.useRef(onVisibleRangeChange)
   React.useEffect(() => {
     dragEndRef.current = onLineDragEnd
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
-  }, [onLineDragEnd, onChartContextMenu, onCrosshairOhlc])
+    visibleRangeRef.current = onVisibleRangeChange
+  }, [onLineDragEnd, onChartContextMenu, onCrosshairOhlc, onVisibleRangeChange])
 
   // After the price axis re-fits on a later frame (Reset View, click-to-focus
   // pan), re-pin the chip/focus overlays so none are left floating off their
@@ -681,7 +693,30 @@ export function PriceChartView({
       candles.length > 1 &&
       candles[0].t < lastTimeRef.current
 
-    if (isIncremental) {
+    // Progressive history: same series, older candles prepended on the left
+    // (bar colors recompute too, so this must win over `colorsChanged`). Reset
+    // the data — repainting every bar — but keep the user's current view.
+    const grewLeft =
+      dataKeyRef.current === dataKey &&
+      firstTimeRef.current > 0 &&
+      candles[0].t < firstTimeRef.current &&
+      last.t <= lastTimeRef.current
+
+    if (grewLeft) {
+      const timeScale = chartRef.current?.timeScale()
+      const before = timeScale?.getVisibleLogicalRange()
+      const added = candles.length - prevLenRef.current
+      candleSeries.setData(candles.map((candle) => toCandleData(candle, colorMap)))
+      volumeSeries.setData(candles.map(toVolumeData))
+      // Prepending N bars shifts every logical index by N; re-offset the view so
+      // the same candles stay under the cursor (no jump while history streams in).
+      if (before && added > 0) {
+        timeScale?.setVisibleLogicalRange({
+          from: before.from + added,
+          to: before.to + added,
+        })
+      }
+    } else if (isIncremental) {
       candleSeries.update(toCandleData(last, colorMap))
       volumeSeries.update(toVolumeData(last))
     } else {
@@ -698,7 +733,24 @@ export function PriceChartView({
     }
     dataKeyRef.current = dataKey
     lastTimeRef.current = last.t
+    firstTimeRef.current = candles[0].t
+    prevLenRef.current = candles.length
   }, [ready, candles, dataKey, visibleStartMs, barColors])
+
+  // Report the visible time range to the parent (for lazy history loading).
+  React.useEffect(() => {
+    const chart = chartRef.current
+    if (!ready || !chart) return
+    const timeScale = chart.timeScale()
+    const handler = () => {
+      const cb = visibleRangeRef.current
+      if (!cb) return
+      const range = timeScale.getVisibleRange()
+      if (range) cb(range.from as number, range.to as number)
+    }
+    timeScale.subscribeVisibleTimeRangeChange(handler)
+    return () => timeScale.unsubscribeVisibleTimeRangeChange(handler)
+  }, [ready])
 
   // Pan (without changing zoom) so a newly focused trade's pulsing pointer is
   // centered in view — the user's current zoom level is preserved.

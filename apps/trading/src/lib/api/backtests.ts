@@ -737,6 +737,13 @@ const backtestCandlesSchema = z.object({
   backtestId: z.string().min(1),
   /** Display timeframe; defaults to the run's own interval. */
   interval: z.enum(CANDLE_INTERVALS).optional(),
+  /**
+   * Visible window (ms) to load, for progressive loading. Absent = the whole
+   * run. The loader always adds the strategy's warmup runway behind `fromMs` so
+   * overlays paint accurately even when only a slice is shown.
+   */
+  fromMs: z.number().int().positive().optional(),
+  toMs: z.number().int().positive().optional(),
 })
 
 const loadBacktestCandlesFn = createServerFn({ method: "POST" })
@@ -748,22 +755,29 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
     const row = await getUserBacktest(user.id, data.backtestId)
     if (!row) throw new Error("Backtest not found")
 
-    // Always span the run's own window so every trade sits over real candles —
-    // even when the user inspects a long run at a finer display timeframe. A
-    // finer interval can overflow the render ceiling, so cap the bars but anchor
-    // to the run's end, keeping the most recent trades; the run's native
-    // interval fits the whole window and shows it all.
     const interval = (data.interval ?? row.interval) as BacktestInterval
     const stepMs = INTERVAL_MS[interval]
-    const endMs = row.endTime.getTime()
-    const simStartMs = Math.max(
-      row.startTime.getTime(),
-      endMs - MAX_CHART_BARS * stepMs
-    )
-    const fetchStart = simStartMs - CHART_WARMUP_CANDLES * stepMs
+    const runStartMs = row.startTime.getTime()
+    const runEndMs = row.endTime.getTime()
 
-    const candles = await fetchCandleHistory(row.market, interval, fetchStart, endMs)
-    return { candles, simStartMs }
+    // The window the client wants shown; both ends stay inside the run.
+    const toMs = Math.min(data.toMs ?? runEndMs, runEndMs)
+    const visibleStartMs = Math.min(
+      Math.max(data.fromMs ?? runStartMs, runStartMs),
+      runEndMs
+    )
+
+    // Fetch a warmup runway behind the visible start so signal overlays (QQE
+    // zones etc.) are correct for what's shown. Cap the total span so a fine
+    // display interval can't overflow the render ceiling.
+    const warmupMs =
+      warmupBarsFor((row.params as StrategyParams).strategyType) * stepMs
+    let fetchStart = visibleStartMs - warmupMs
+    const maxSpanMs = MAX_CHART_BARS * stepMs
+    if (toMs - fetchStart > maxSpanMs) fetchStart = toMs - maxSpanMs
+
+    const candles = await fetchCandleHistory(row.market, interval, fetchStart, toMs)
+    return { candles, simStartMs: visibleStartMs }
   })
 
 /** Extra history before the window so indicator overlays have warmup. */
@@ -996,8 +1010,14 @@ export function loadBacktest(backtestId: string) {
   return loadBacktestFn({ data: { backtestId } })
 }
 
-export function loadBacktestCandles(backtestId: string, interval?: BacktestInterval) {
-  return loadBacktestCandlesFn({ data: { backtestId, interval } })
+export function loadBacktestCandles(
+  backtestId: string,
+  interval?: BacktestInterval,
+  range?: { fromMs?: number; toMs?: number }
+) {
+  return loadBacktestCandlesFn({
+    data: { backtestId, interval, fromMs: range?.fromMs, toMs: range?.toMs },
+  })
 }
 
 export function loadChartCandles(input: z.input<typeof chartCandlesSchema>) {
