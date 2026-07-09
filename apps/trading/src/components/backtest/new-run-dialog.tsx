@@ -604,30 +604,32 @@ export function NewRunDialog({
             </div>
           ) : null}
 
-          <div className="grid gap-2">
-            <Label>Strategy</Label>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {STRATEGY_CHOICES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  disabled={lockStrategy && type !== strategy}
-                  onClick={() => selectStrategy(type)}
-                  className={cn(
-                    "rounded-md border p-3 text-left text-sm hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-40",
-                    strategy === type && "border-primary bg-muted"
-                  )}
-                >
-                  <div className="font-medium">{STRATEGY_LABELS[type]}</div>
-                  <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {STRATEGY_DESCRIPTIONS[type]}
-                  </div>
-                </button>
-              ))}
+          {/* On a re-run the strategy is fixed, so the picker is redundant. */}
+          {!lockStrategy ? (
+            <div className="grid gap-2">
+              <Label>Strategy</Label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {STRATEGY_CHOICES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => selectStrategy(type)}
+                    className={cn(
+                      "rounded-md border p-3 text-left text-sm hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-40",
+                      strategy === type && "border-primary bg-muted"
+                    )}
+                  >
+                    <div className="font-medium">{STRATEGY_LABELS[type]}</div>
+                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {STRATEGY_DESCRIPTIONS[type]}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
 
-          {strategyTemplates.length > 0 ? (
+          {!lockStrategy && strategyTemplates.length > 0 ? (
             <div className="grid gap-2">
               <Label>Template</Label>
               <Select value={templateId} onValueChange={selectTemplate}>

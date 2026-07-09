@@ -518,7 +518,7 @@ export const tradingStrategyDefaults = pgTable(
     primaryKey({ columns: [table.userId, table.strategyType] }),
     check(
       "strategy_defaults_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'copy')`
+      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
     ),
   ]
 )
@@ -550,7 +550,7 @@ export const tradingStrategyTemplates = pgTable(
     ),
     check(
       "strategy_templates_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'copy')`
+      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
     ),
   ]
 )
