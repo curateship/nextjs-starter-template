@@ -39,3 +39,4 @@ Use this app's local code, config, and workspace docs as source of truth for Tra
 ## Tools
 
 - Use Playwright to test (not chrome extension)
+- Use typham2@gmail.com pass:gundam11 to login to test
