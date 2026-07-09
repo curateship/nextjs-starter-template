@@ -55,13 +55,30 @@ export const momentumParamsSchema = z
     rsiBuyBelow: z.number().min(1).max(50).optional(),
     rsiSellAbove: z.number().min(50).max(99).optional(),
     breakoutLookback: z.number().int().min(5).max(400).optional(),
-    /** Exit mechanism: trailing percent stop, or a break of the QFL base. */
-    stopMode: z.enum(["trailing", "base"]).optional(),
+    /** Exit mechanism: trailing % stop, QFL base break, or ATR trailing stop. */
+    stopMode: z.enum(["trailing", "base", "atr"]).optional(),
     trailingStopPct: z.number().positive().max(50).optional(),
     /** QFL base: bars to scan for a new base low (stopMode = "base"). */
     basePeriods: z.number().int().min(4).max(400).optional(),
     /** QFL base: bars the low must hold to confirm a base. */
     pumpPeriods: z.number().int().min(2).max(200).optional(),
+    /** ATR lookback, shared by the ATR stop and vol-scaled sizing (default 14). */
+    atrPeriod: z.number().int().min(2).max(100).optional(),
+    /** ATR stop: trail at close ∓ atrStopMult × ATR, ratcheting with the trade. */
+    atrStopMult: z.number().positive().max(20).optional(),
+    /** Trend-strength gate: only enter while ADX(adxPeriod) ≥ adxMin. */
+    adxPeriod: z.number().int().min(5).max(100).optional(),
+    adxMin: z.number().min(1).max(60).optional(),
+    /** Entry filter: MACD histogram (12/26/9) must agree with the direction. */
+    macdFilter: z.boolean().optional(),
+    /** EMA-cross only: after an exit, re-enter on a continuation close while
+     *  the trend (fast above/below slow) still holds. */
+    reentry: z.boolean().optional(),
+    /** Cap on re-entries per trend leg (unlimited when unset). */
+    maxReentries: z.number().int().min(0).max(50).optional(),
+    /** Vol-scaled sizing: shrink entries so the position's ATR-implied daily
+     *  volatility stays near this % — never scales above 1×. */
+    volTargetPct: z.number().positive().max(100).optional(),
     orderSizeUsd: z.number().positive(),
     direction: z.enum(["long", "short", "both"]),
     /** Bet the full current balance each trade (profits/losses compound) rather
@@ -100,6 +117,18 @@ export const momentumParamsSchema = z
       ctx.addIssue({
         code: "custom",
         message: "Base stop needs basePeriods and pumpPeriods.",
+      })
+    }
+    if (params.stopMode === "atr" && !params.atrStopMult) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ATR stop needs atrStopMult.",
+      })
+    }
+    if (params.reentry && params.signal !== "ema_cross") {
+      ctx.addIssue({
+        code: "custom",
+        message: "Re-entry is only supported with the EMA cross signal.",
       })
     }
   })

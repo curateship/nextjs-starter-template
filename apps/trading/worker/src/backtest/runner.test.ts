@@ -246,6 +246,85 @@ describe("runBacktest", () => {
     expect(exit?.px).toBe(108)
   })
 
+  it("momentum ATR stop exits at the trailed level, not the bar's low", () => {
+    // Steady uptrend so EMA 2/4 crosses long, then a crash bar. The exit must
+    // fill at the chandelier level (prior close − 3×ATR), above the crash low.
+    const closes = [100, 99, 98, 97, 96, 95, 97, 99, 101, 103, 105, 107, 109]
+    const candles = mkCandles(closes)
+    // Crash bar: falls far through any reasonable stop level.
+    candles.push({
+      t: candles.length * STEP_MS,
+      T: (candles.length + 1) * STEP_MS - 1,
+      o: 109,
+      h: 109.5,
+      l: 80,
+      c: 82,
+      v: 1,
+      n: 1,
+    })
+    const cfg: RunBacktestConfig = {
+      strategy: strategies.momentum!,
+      params: {
+        strategyType: "momentum",
+        signal: "ema_cross",
+        interval: "1h",
+        emaFast: 2,
+        emaSlow: 4,
+        stopMode: "atr",
+        atrPeriod: 5,
+        atrStopMult: 3,
+        orderSizeUsd: 1000,
+        direction: "long",
+      } as StrategyParams,
+      riskParams: OPEN_RISK,
+      candles,
+      simStartMs: candles[3].t,
+      startingEquity: 10_000,
+      market: "BTC",
+      interval: "1h",
+      costs: DEFAULT_BACKTEST_COSTS,
+    }
+    const result = runBacktest(cfg)
+    const exit = result.fills.find((f) => f.purpose === "momo:exit")
+    expect(exit).toBeDefined()
+    // Filled at the stop level: strictly better than the crash low, and below
+    // the bar's open (i.e. genuinely intrabar, not at an extreme).
+    expect(exit!.px).toBeGreaterThan(80)
+    expect(exit!.px).toBeLessThan(109)
+  })
+
+  it("momentum ADX gate blocks entries when the bar is un-trending", () => {
+    const closes = [100, 99, 98, 97, 96, 95, 96, 98, 100, 103, 106, 109, 112]
+    const base = {
+      strategyType: "momentum",
+      signal: "ema_cross",
+      interval: "1h",
+      emaFast: 2,
+      emaSlow: 4,
+      orderSizeUsd: 1000,
+      direction: "both",
+    }
+    const run = (extra: object) =>
+      runBacktest({
+        strategy: strategies.momentum!,
+        params: { ...base, ...extra } as StrategyParams,
+        riskParams: OPEN_RISK,
+        candles: mkCandles(closes),
+        simStartMs: mkCandles(closes)[3].t,
+        startingEquity: 10_000,
+        market: "BTC",
+        interval: "1h",
+        costs: DEFAULT_BACKTEST_COSTS,
+      })
+    // An impossible ADX floor blocks every entry; without it entries happen.
+    expect(run({ adxMin: 60, adxPeriod: 5 }).fills.length).toBe(0)
+    expect(run({}).fills.length).toBeGreaterThan(0)
+    // The MACD filter can only reduce (never add) entries.
+    expect(run({ macdFilter: true }).fills.length).toBeLessThanOrEqual(
+      run({}).fills.length
+    )
+  })
+
   it("fills grid limit levels as price oscillates through the range", () => {
     const candles = mkCandles([100, 98, 100, 102, 100, 98, 100, 102, 100, 98])
     const cfg: RunBacktestConfig = {

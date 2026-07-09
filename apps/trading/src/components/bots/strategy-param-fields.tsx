@@ -223,15 +223,31 @@ export function StrategyParamFields({
           {select("stopMode", "Stop / exit", [
             ["trailing", "Trailing stop %"],
             ["base", "QFL base break"],
+            ["atr", "ATR trailing stop"],
           ])}
           {(values.stopMode ?? "trailing") === "base" ? (
             <>
               {text("basePeriods", "Base periods (scan for low)")}
               {text("pumpPeriods", "Pump periods (hold to confirm)")}
             </>
+          ) : (values.stopMode ?? "trailing") === "atr" ? (
+            <>
+              {text("atrPeriod", "ATR period")}
+              {text("atrStopMult", "ATR stop multiple")}
+            </>
           ) : (
             text("trailingStopPct", "Trailing stop % (optional)")
           )}
+          {values.signal === "ema_cross"
+            ? check("reentry", "Re-enter trend after a stop-out")
+            : null}
+          {values.reentry === "true" && values.signal === "ema_cross"
+            ? text("maxReentries", "Max re-entries per trend (optional)")
+            : null}
+          {text("adxMin", "Min ADX to enter (optional filter)")}
+          {values.adxMin ? text("adxPeriod", "ADX period") : null}
+          {check("macdFilter", "Require MACD histogram agreement")}
+          {text("volTargetPct", "Vol target %/day (scales size down, optional)")}
           {text("orderSizeUsd", "Order size (USD)")}
           {select("direction", "Direction", [
             ["both", "Long & short"],
