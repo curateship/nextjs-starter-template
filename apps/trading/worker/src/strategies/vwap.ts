@@ -128,6 +128,24 @@ export const vwapStrategy: Strategy<VwapParams, VwapState> = {
     }
   },
 
+  // Mirrors onTick's thresholds so backtest fills land at these levels.
+  exitTriggers: (ctx, params) => {
+    const state = ctx.state
+    if (!ctx.position || state.exitRequested) return []
+    if (!params.takeProfitPct && !params.stopLossPct) return []
+    const entry = Number(ctx.position.entryPx)
+    if (!(entry > 0)) return []
+    const sign = Number(ctx.position.szi) > 0 ? 1 : -1
+    const levels: number[] = []
+    if (params.takeProfitPct) {
+      levels.push(entry * (1 + (sign * params.takeProfitPct) / 100))
+    }
+    if (params.stopLossPct) {
+      levels.push(entry * (1 - (sign * params.stopLossPct) / 100))
+    }
+    return levels
+  },
+
   desiredOrders: (ctx: StrategyCtx<VwapState>, params: VwapParams) => {
     const state = ctx.state
     const mid = Number(ctx.mid)

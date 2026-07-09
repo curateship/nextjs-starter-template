@@ -86,6 +86,15 @@ export interface Strategy<P extends StrategyParams, S> {
   onFill?: (ctx: StrategyCtx<S>, params: P, fill: BrokerFill) => void
   onTick?: (ctx: StrategyCtx<S>, params: P) => void
   onSourceFill?: (ctx: StrategyCtx<S>, params: P, fill: SourceFill) => void
+  /**
+   * Price levels at which onTick would request an exit right now (TP / SL /
+   * trailing stop), given the current position and state. Pure — must not
+   * call setState. Only the backtest runner reads this: it pauses the
+   * simulated intrabar price path at each crossed level so threshold exits
+   * fill at their trigger price instead of the bar's extreme. Live trading
+   * ignores it (real ticks are continuous).
+   */
+  exitTriggers?: (ctx: StrategyCtx<S>, params: P) => number[]
   /** Pure derivation of the orders the bot wants resting right now. */
   desiredOrders: (ctx: StrategyCtx<S>, params: P) => DesiredOrder[]
 }

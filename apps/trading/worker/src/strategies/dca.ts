@@ -89,6 +89,17 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
     }
   },
 
+  // Mirrors onTick's stop so backtest fills land at the stop level.
+  exitTriggers: (ctx, params) => {
+    const state = ctx.state
+    if (!params.stopLossPct || !state.anchorPx || !ctx.position) return []
+    if (state.exitRequested) return []
+    const long = params.direction === "long"
+    return [
+      state.anchorPx * (1 + ((long ? -1 : 1) * params.stopLossPct) / 100),
+    ]
+  },
+
   desiredOrders: (ctx: StrategyCtx<DcaState>, params: DcaParams) => {
     const state = ctx.state
     const mid = Number(ctx.mid)

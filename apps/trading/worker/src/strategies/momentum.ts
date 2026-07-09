@@ -77,13 +77,9 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
     // shorts exit on the opposite signal. Recomputed here from closed candles
     // — cheap and needs no stored state.
     if (params.stopMode === "base") {
-      if (szi <= 0 || !params.basePeriods || !params.pumpPeriods) return
-      const candles = ctx
-        .candles(params.interval, params.basePeriods + params.pumpPeriods + 2)
-        .filter((candle) => candle.T <= ctx.now)
-      const { raw } = qflBase(candles, params.basePeriods, params.pumpPeriods)
-      const level = raw[raw.length - 1]
-      if (Number.isNaN(level)) return
+      if (szi <= 0) return
+      const level = qflStopLevel(ctx, params)
+      if (level === null) return
       if (mid <= level) {
         requestExit(ctx, `Price broke the QFL base at ${ctx.mid}.`)
       }
@@ -116,6 +112,22 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
     if (!ctx.position) {
       ctx.setState({ pendingEntry: null, exitRequested: false, trailPx: null })
     }
+  },
+
+  // Mirrors onTick's thresholds so backtest fills land at these levels.
+  exitTriggers: (ctx, params) => {
+    const state = ctx.state
+    if (!ctx.position || state.exitRequested) return []
+    const szi = Number(ctx.position.szi)
+
+    if (params.stopMode === "base") {
+      if (szi <= 0) return []
+      const level = qflStopLevel(ctx, params)
+      return level === null ? [] : [level]
+    }
+
+    if (!params.trailingStopPct || state.trailPx === null) return []
+    return [state.trailPx]
   },
 
   desiredOrders: (ctx: StrategyCtx<MomentumState>, params: MomentumParams) => {
@@ -174,6 +186,20 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
 function requestExit(ctx: StrategyCtx<MomentumState>, message: string) {
   ctx.setState({ ...ctx.state, exitRequested: true })
   ctx.emit("exit", message)
+}
+
+/** Current QFL base (swing-low support) from closed candles, or null. */
+function qflStopLevel(
+  ctx: StrategyCtx<MomentumState>,
+  params: MomentumParams
+): number | null {
+  if (!params.basePeriods || !params.pumpPeriods) return null
+  const candles = ctx
+    .candles(params.interval, params.basePeriods + params.pumpPeriods + 2)
+    .filter((candle) => candle.T <= ctx.now)
+  const { raw } = qflBase(candles, params.basePeriods, params.pumpPeriods)
+  const level = raw[raw.length - 1]
+  return Number.isNaN(level) ? null : level
 }
 
 function readSignal(

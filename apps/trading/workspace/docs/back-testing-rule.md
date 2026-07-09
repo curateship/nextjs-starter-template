@@ -24,6 +24,12 @@ have to repeat myself. Plain English on purpose.
 - **Add a stress buffer.** The measured cost is a calm-market number. Strategies
   usually trade during fast moves, where the real cost is 2–3× higher. Plan
   around the higher number.
+- **Sanity-check fill prices.** A take-profit exit must fill at the take-profit
+  level, never better. If the average winning trade is *bigger* than the
+  take-profit percent (on a 24/7 market with no gaps), the backtest is filling
+  exits at the bar's best price — a bug, not an edge. This exact bug faked a
+  "17%/month" QQE result in July 2026; the engine now pauses the intrabar price
+  path at each strategy's trigger levels so TP/SL fill at their own price.
 
 ## Don't fool yourself (overfitting)
 
