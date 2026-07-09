@@ -1,7 +1,7 @@
 import { price as fmtPrice } from "@/components/backtest/backtest-format"
 import { buildBotChartLines } from "@/components/bots/bot-chart-lines"
 import type { ChartPriceLine } from "@/components/trading/price-chart"
-import type { BotDetailResponse } from "@/lib/api/bots"
+import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { StrategyParams } from "@/lib/strategies/params"
 
 const GREEN = "#089981"
@@ -27,7 +27,7 @@ export type BotChartMenuItem = {
 }
 
 /** The position/anchor references SL/TP levels are derived from. */
-function referencesOf(state: BotDetailResponse["state"]) {
+function referencesOf(state: BotMarketState | null) {
   const position = state?.paper_position
   const szi = position ? Number(position.szi) : 0
   return {
@@ -55,7 +55,7 @@ function pctOff(px: number, ref: number, above: boolean): string {
  */
 export function buildBotOverlays(
   params: StrategyParams,
-  state: BotDetailResponse["state"],
+  state: BotMarketState | null,
   openOrders: BotDetailResponse["open_orders"],
   markPrice: number
 ): { lines: ChartPriceLine[]; targets: Record<string, BotDragTarget> } {
@@ -151,76 +151,69 @@ export function buildBotOverlays(
       }
     }
   } else if (params.strategyType === "qqe") {
-    // buildBotChartLines draws no qqe TP/SL lines — derive them from the entry,
-    // or preview off the mark while flat.
-    const long = szi !== 0 ? szi > 0 : true
-    const ref = entryPx || markPrice
-    if (ref > 0) {
+    // Draw TP/SL only once there's an actual position — no floating preview off
+    // the mark, which would otherwise clutter every flat market's chart.
+    const long = szi > 0
+    if (entryPx > 0) {
       if (params.takeProfitPct) {
         pushLine(
           "take-profit",
           long
-            ? ref * (1 + params.takeProfitPct / 100)
-            : ref * (1 - params.takeProfitPct / 100),
+            ? entryPx * (1 + params.takeProfitPct / 100)
+            : entryPx * (1 - params.takeProfitPct / 100),
           GREEN,
-          "Take profit",
-          entryPx === 0
+          "Take profit"
         )
         targets["take-profit"] = {
           key: "takeProfitPct",
-          toValue: (px) => pctOff(px, ref, long),
+          toValue: (px) => pctOff(px, entryPx, long),
         }
       }
       if (params.stopLossPct && !params.swingStopLoss) {
         pushLine(
           "stop-loss",
           long
-            ? ref * (1 - params.stopLossPct / 100)
-            : ref * (1 + params.stopLossPct / 100),
+            ? entryPx * (1 - params.stopLossPct / 100)
+            : entryPx * (1 + params.stopLossPct / 100),
           RED,
-          "Stop loss",
-          entryPx === 0
+          "Stop loss"
         )
         targets["stop-loss"] = {
           key: "stopLossPct",
-          toValue: (px) => pctOff(px, ref, !long),
+          toValue: (px) => pctOff(px, entryPx, !long),
         }
       }
     }
   } else if (params.strategyType === "vwap") {
-    // No bot-chart lines for the VWAP itself; derive optional TP/SL off the
-    // entry, or preview off the mark while flat.
-    const long = szi !== 0 ? szi > 0 : true
-    const ref = entryPx || markPrice
-    if (ref > 0) {
+    // Draw TP/SL only once there's an actual position (no flat-market preview).
+    const long = szi > 0
+    if (entryPx > 0) {
       if (params.takeProfitPct) {
         pushLine(
           "take-profit",
           long
-            ? ref * (1 + params.takeProfitPct / 100)
-            : ref * (1 - params.takeProfitPct / 100),
+            ? entryPx * (1 + params.takeProfitPct / 100)
+            : entryPx * (1 - params.takeProfitPct / 100),
           GREEN,
-          "Take profit",
-          entryPx === 0
+          "Take profit"
         )
         targets["take-profit"] = {
           key: "takeProfitPct",
-          toValue: (px) => pctOff(px, ref, long),
+          toValue: (px) => pctOff(px, entryPx, long),
         }
       }
       if (params.stopLossPct) {
         pushLine(
           "stop-loss",
           long
-            ? ref * (1 - params.stopLossPct / 100)
-            : ref * (1 + params.stopLossPct / 100),
+            ? entryPx * (1 - params.stopLossPct / 100)
+            : entryPx * (1 + params.stopLossPct / 100),
           RED,
-          "Stop loss",
-          entryPx === 0
+          "Stop loss"
         )
         targets["stop-loss"] = {
           key: "stopLossPct",
-          toValue: (px) => pctOff(px, ref, !long),
+          toValue: (px) => pctOff(px, entryPx, !long),
         }
       }
     }
@@ -242,7 +235,7 @@ export function buildBotOverlays(
  */
 export function buildBotChartMenuItems(
   params: StrategyParams,
-  state: BotDetailResponse["state"],
+  state: BotMarketState | null,
   markPrice: number,
   price: number
 ): BotChartMenuItem[] {

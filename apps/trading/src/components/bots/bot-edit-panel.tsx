@@ -1,11 +1,8 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
-import {
-  Field,
-  RiskFieldsGrid,
-  StrategyParamFields,
-} from "@/components/bots/strategy-param-fields"
+import { StrategyParamCards } from "@/components/backtest/run-config-fields"
+import { RiskFieldsGrid } from "@/components/bots/strategy-param-fields"
 import {
   buildParams,
   paramsToValues,
@@ -13,27 +10,22 @@ import {
 } from "@/components/bots/strategy-params-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { getBotErrorMessage, updateBot, type BotDetailResponse } from "@/lib/api/bots"
 import { strategyParamsSchema, type RiskParams } from "@/lib/strategies/params"
 
 /**
- * Right-panel bot editor (Bitsgap-style): name, strategy parameters with
- * live %-hints, risk limits, save. Saving while the bot runs restarts the
- * runner with the new parameters (position kept, orders re-derived).
+ * State + save logic for editing a bot's name, parameters, and risk limits.
+ * Shared by the workspace side-sheet ({@link BotEditPanel}) and the fleet
+ * dashboard's edit dialog so both stay in sync. Saving while the bot runs
+ * restarts the runner with the new parameters (position kept, orders re-derived).
  */
-export function BotEditPanel({
-  bot,
-  mid,
-  running,
-  onSaved,
-}: {
-  bot: BotDetailResponse["bot"]
-  mid: number
-  running: boolean
+export function useBotEditor(
+  bot: BotDetailResponse["bot"],
+  running: boolean,
   onSaved: (message: string, tone: "ok" | "error") => void
-}) {
+) {
   const [name, setName] = React.useState(bot.name)
   const [params, setParams] = React.useState<ParamValues>(() =>
     paramsToValues(bot.params)
@@ -84,49 +76,109 @@ export function BotEditPanel({
     }
   }
 
+  return {
+    name,
+    setName,
+    params,
+    setParams,
+    risk,
+    setRisk,
+    busy,
+    error,
+    save,
+  }
+}
+
+export type BotEditor = ReturnType<typeof useBotEditor>
+
+/**
+ * The editable name/parameters/risk fields, shared by the workspace sheet and
+ * the fleet dialog. Uses the same card styling as the backtest New Run dialog:
+ * a name field, the collapsible strategy-parameter cards, and a risk-limits
+ * card. Returns a fragment so the container (DialogBody / sheet) sets spacing.
+ */
+export function BotEditFields({
+  strategyType,
+  mid,
+  editor,
+}: {
+  strategyType: BotDetailResponse["bot"]["strategy_type"]
+  mid: number
+  editor: BotEditor
+}) {
+  const { name, setName, params, setParams, risk, setRisk, busy, error } =
+    editor
+  return (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor="bot-edit-name">Bot name</Label>
+        <Input
+          id="bot-edit-name"
+          value={name}
+          disabled={busy}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </div>
+
+      <StrategyParamCards
+        strategy={strategyType}
+        values={params}
+        disabled={busy}
+        mid={mid}
+        onChange={(key, value) =>
+          setParams((current) => ({ ...current, [key]: value }))
+        }
+      />
+
+      <div className="grid gap-4 rounded-lg border p-4">
+        <Label>Risk limits</Label>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <RiskFieldsGrid risk={risk} busy={busy} onChange={setRisk} />
+        </div>
+      </div>
+
+      {error ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Right-panel bot editor (workspace side-sheet): the shared fields plus a save
+ * button, scrolling within the sheet.
+ */
+export function BotEditPanel({
+  bot,
+  mid,
+  running,
+  onSaved,
+}: {
+  bot: BotDetailResponse["bot"]
+  mid: number
+  running: boolean
+  onSaved: (message: string, tone: "ok" | "error") => void
+}) {
+  const editor = useBotEditor(bot, running, onSaved)
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-3 text-xs">
-          <Field label="Bot name">
-            <Input
-              value={name}
-              disabled={busy}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </Field>
-
-          <div className="text-xs font-medium text-muted-foreground">
-            Parameters
-          </div>
-          <div className="grid gap-3">
-            <StrategyParamFields
-              strategy={bot.strategy_type}
-              values={params}
-              disabled={busy}
-              mid={mid}
-              onChange={(key, value) =>
-                setParams((current) => ({ ...current, [key]: value }))
-              }
-            />
-          </div>
-
-          <Separator />
-          <div className="text-xs font-medium text-muted-foreground">
-            Risk limits
-          </div>
-          <div className="grid gap-3">
-            <RiskFieldsGrid risk={risk} busy={busy} onChange={setRisk} />
-          </div>
-
-          {error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive">
-              {error}
-            </div>
-          ) : null}
-
-          <Button type="button" disabled={busy} onClick={() => void save()}>
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        <div className="flex flex-col gap-4 p-3">
+          <BotEditFields
+            strategyType={bot.strategy_type}
+            mid={mid}
+            editor={editor}
+          />
+          <Button
+            type="button"
+            disabled={editor.busy}
+            onClick={() => void editor.save()}
+          >
+            {editor.busy ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : null}
             Save
           </Button>
           {running ? (

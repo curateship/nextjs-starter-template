@@ -15,6 +15,9 @@ const gridParams: StrategyParams = {
 }
 
 const emptyState = {
+  market: "ETH",
+  status: "running",
+  status_reason: null,
   strategy_state: {},
   paper_position: null,
   paper_cash: null,
@@ -50,8 +53,8 @@ describe("buildBotChartLines — grid", () => {
       gridParams,
       { ...emptyState, paper_position: { szi: 0.5, entryPx: 1500 } },
       [
-        { id: "a", side: "buy", px: "1400", sz: "0.1", purpose: "grid:4:buy", status: "resting" },
-        { id: "b", side: "sell", px: "1600", sz: "0.1", purpose: "grid:6:sell", status: "resting" },
+        { id: "a", market: "ETH", side: "buy", px: "1400", sz: "0.1", purpose: "grid:4:buy", status: "resting" },
+        { id: "b", market: "ETH", side: "sell", px: "1600", sz: "0.1", purpose: "grid:6:sell", status: "resting" },
       ]
     )
     const byId = new Map(lines.map((line) => [line.id, line]))

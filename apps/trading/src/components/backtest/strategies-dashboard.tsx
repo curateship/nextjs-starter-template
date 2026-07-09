@@ -103,13 +103,6 @@ const STRATEGY_KIND: Record<StrategyType, string> = {
   copy: "Mirror",
 }
 
-const STATUS_TONE: Record<BacktestListItem["status"], string> = {
-  pending: "text-muted-foreground",
-  running: "text-amber-600",
-  done: "text-emerald-600",
-  error: "text-red-500",
-}
-
 /** Summary stat tile shown above the strategy-runs table. */
 function StatCard({
   label,
@@ -1176,6 +1169,7 @@ export function StrategyRunsDashboard({
               {sortHead("Markets", "markets", state)}
               {sortHead("Timeframe", "interval", state)}
               {sortHead("Window", "window", state)}
+              {sortHead("Trades", "trades", state)}
               {sortHead("Monthly avg %", "monthly", state)}
               {sortHead("DD", "dd", state)}
               {sortHead("Bucket", "bucket", state)}
@@ -1186,7 +1180,7 @@ export function StrategyRunsDashboard({
         }
         isEmpty={pageRows.length === 0}
         emptyText="No runs for this strategy yet — create one with New Run."
-        emptyColSpan={14}
+        emptyColSpan={15}
         footer={{
           type: "pagination",
           page: pagination?.page ?? state.page,
@@ -1261,6 +1255,11 @@ export function StrategyRunsDashboard({
             </TableCell>
             <TableCell column="meta" className="font-mono text-xs tabular-nums">
               {group.windowDays}d
+            </TableCell>
+            <TableCell column="meta" className="font-mono tabular-nums">
+              {group.tradeCount !== null
+                ? group.tradeCount.toLocaleString()
+                : "—"}
             </TableCell>
             <TableCell
               column="meta"
@@ -1502,7 +1501,7 @@ function EditRunDialog({
 // Level 3 — /backtest/$strategyType/$groupId: one result row per market.
 // ---------------------------------------------------------------------------
 
-type MarketSort = "market" | "net" | "dd" | "win" | "sharpe" | "trades"
+type MarketSort = "market" | "net" | "dd" | "win" | "trades" | "days"
 
 export function RunHistoryDashboard({
   runs,
@@ -1548,10 +1547,10 @@ export function RunHistoryDashboard({
         return (num(a.maxDrawdownPct) - num(b.maxDrawdownPct)) * direction
       if (state.sortColumn === "win")
         return (num(a.winRate) - num(b.winRate)) * direction
-      if (state.sortColumn === "sharpe")
-        return (num(a.sharpe) - num(b.sharpe)) * direction
       if (state.sortColumn === "trades")
         return (num(a.tradeCount) - num(b.tradeCount)) * direction
+      if (state.sortColumn === "days")
+        return (num(a.tradingDays) - num(b.tradingDays)) * direction
       return (num(a.netPnlPct) - num(b.netPnlPct)) * direction
     })
   }, [marketRuns, state.sortColumn, state.sortDirection])
@@ -1676,18 +1675,17 @@ export function RunHistoryDashboard({
                 />
               </TableHead>
               {sortHead("Market", "market", state)}
-              <TableHead column="meta">Status</TableHead>
               {sortHead("Net P&L", "net", state)}
               {sortHead("Max DD", "dd", state)}
               {sortHead("Win rate", "win", state)}
-              {sortHead("Sharpe", "sharpe", state)}
               {sortHead("Trades", "trades", state)}
+              {sortHead("Days", "days", state)}
             </TableRow>
           </TableHeader>
         }
         isEmpty={pageRows.length === 0}
         emptyText="No market results in this run."
-        emptyColSpan={8}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: state.page,
@@ -1717,13 +1715,6 @@ export function RunHistoryDashboard({
             <TableCell column="main">
               <span className="font-medium">{run.market}</span>
             </TableCell>
-            <TableCell column="meta" className={cn("text-xs", STATUS_TONE[run.status])}>
-              {run.status === "error" ? (
-                <span title={run.error ?? undefined}>error</span>
-              ) : (
-                run.status
-              )}
-            </TableCell>
             <TableCell
               column="meta"
               className={cn(
@@ -1744,10 +1735,10 @@ export function RunHistoryDashboard({
               {run.winRate !== null ? `${(run.winRate * 100).toFixed(1)}%` : "—"}
             </TableCell>
             <TableCell column="meta" className="font-mono tabular-nums">
-              {run.sharpe !== null ? run.sharpe.toFixed(2) : "—"}
+              {run.tradeCount ?? "—"}
             </TableCell>
             <TableCell column="meta" className="font-mono tabular-nums">
-              {run.tradeCount ?? "—"}
+              {run.tradingDays !== null ? `${run.tradingDays}d` : "—"}
             </TableCell>
           </TableRow>
         ))}

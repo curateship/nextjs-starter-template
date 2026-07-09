@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import {
+  tradingBotState,
   tradingBots,
   tradingWallets,
   type TradingBot,
@@ -14,11 +15,26 @@ import { marketHub } from "./market-hub"
 import type { HeartbeatMeta } from "./heartbeat"
 
 /**
- * Owns one BotRunner per bot. Web app writes desired_state + a command row;
- * the supervisor converges actual runner state to it.
+ * Owns one BotRunner per (bot, market) — a bot now trades several markets at
+ * once, each as an independent runner. Web app writes desired_state + a command
+ * row; the supervisor converges actual runner state to it, fanning each command
+ * out to all of a bot's market runners.
  */
 export class BotSupervisor {
   private runners = new Map<string, BotRunner>()
+
+  private key(botId: string, market: string): string {
+    return `${botId}::${market}`
+  }
+
+  private runnersFor(botId: string): BotRunner[] {
+    const prefix = `${botId}::`
+    const list: BotRunner[] = []
+    for (const [key, runner] of this.runners) {
+      if (key.startsWith(prefix)) list.push(runner)
+    }
+    return list
+  }
 
   async start() {
     const bots = await db
@@ -41,11 +57,14 @@ export class BotSupervisor {
   }
 
   meta(): HeartbeatMeta {
-    let running = 0
+    const runningBots = new Set<string>()
     for (const runner of this.runners.values()) {
-      if (runner.meta().running) running += 1
+      if (runner.meta().running) runningBots.add(runner.bot.id)
     }
-    return { runningBots: running, subscriptions: marketHub.subscriptionCount() }
+    return {
+      runningBots: runningBots.size,
+      subscriptions: marketHub.subscriptionCount(),
+    }
   }
 
   async handleCommand(command: TradingBotCommand): Promise<void> {
@@ -77,31 +96,29 @@ export class BotSupervisor {
       .limit(1)
     if (!bot) throw new Error("Bot not found")
 
-    const runner = this.runners.get(bot.id)
+    const existing = this.runnersFor(bot.id)
 
     switch (command.command) {
       case "start":
-        if (runner) {
-          await runner.resume()
-        } else {
-          await this.spawn(bot)
-        }
-        return
       case "resume":
-        if (!runner) {
-          await this.spawn(bot)
-        } else {
-          await runner.resume()
-        }
+        // Resume any live market runners and spawn any that aren't running yet.
+        for (const runner of existing) await runner.resume()
+        await this.spawn(bot)
         return
       case "pause":
-        await runner?.pause("Paused by user")
+        for (const runner of existing) await runner.pause("Paused by user")
         return
       case "stop":
-        if (runner) {
-          await runner.stop()
-          this.runners.delete(bot.id)
+        if (existing.length) {
+          for (const runner of existing) {
+            await runner.stop()
+            this.runners.delete(this.key(bot.id, runner.market))
+          }
         } else {
+          await db
+            .update(tradingBotState)
+            .set({ status: "stopped", statusReason: null, updatedAt: now() })
+            .where(eq(tradingBotState.botId, bot.id))
           await db
             .update(tradingBots)
             .set({ status: "stopped", statusReason: null, updatedAt: now() })
@@ -109,14 +126,20 @@ export class BotSupervisor {
         }
         return
       case "flatten":
-        if (!runner) throw new Error("Bot is not running")
-        await runner.flatten("Flatten requested by user")
+        if (!existing.length) throw new Error("Bot is not running")
+        // Close the position + cancel orders, then pause so the strategy
+        // doesn't immediately re-open — otherwise flattening a running bot
+        // looks like a no-op.
+        for (const runner of existing) {
+          await runner.flatten("Flatten requested by user")
+          await runner.pause("Paused after flatten")
+        }
         return
       case "update_params": {
-        // Restart the runner so new params take effect atomically.
-        if (runner) {
+        // Restart every market runner so new params take effect atomically.
+        for (const runner of existing) {
           await runner.stop("Restarting with updated parameters")
-          this.runners.delete(bot.id)
+          this.runners.delete(this.key(bot.id, runner.market))
         }
         const [fresh] = await db
           .select()
@@ -133,8 +156,8 @@ export class BotSupervisor {
     }
   }
 
+  /** Spawns a runner for each of the bot's markets that isn't already running. */
   private async spawn(bot: TradingBot) {
-    if (this.runners.has(bot.id)) return
     const [wallet] = await db
       .select()
       .from(tradingWallets)
@@ -142,13 +165,19 @@ export class BotSupervisor {
       .limit(1)
     if (!wallet) throw new Error(`Wallet for bot ${bot.name} not found`)
 
-    const runner = new BotRunner(bot)
-    this.runners.set(bot.id, runner)
-    try {
-      await runner.start(wallet)
-    } catch (error) {
-      this.runners.delete(bot.id)
-      throw error
+    for (const market of bot.markets) {
+      const key = this.key(bot.id, market)
+      if (this.runners.has(key)) continue
+      const runner = new BotRunner(bot, market)
+      this.runners.set(key, runner)
+      try {
+        await runner.start(wallet)
+      } catch (error) {
+        // One bad market shouldn't block the bot's other markets; the runner
+        // has already flagged its own error status.
+        this.runners.delete(key)
+        console.error(`failed to start bot ${bot.name} on ${market}`, error)
+      }
     }
   }
 }

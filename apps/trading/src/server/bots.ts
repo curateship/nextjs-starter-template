@@ -27,7 +27,8 @@ import { findUserWallet } from "@/server/wallets"
 export type CreateBotInput = {
   name: string
   walletId: string
-  market: string
+  markets: string[]
+  exchange: string
   mode: "paper" | "live"
   params: StrategyParams
   riskParams: RiskParams
@@ -87,11 +88,10 @@ export async function getBotDetail(
     .where(eq(tradingWallets.id, bot.walletId))
     .limit(1)
 
-  const [state] = await database
+  const states = await database
     .select()
     .from(tradingBotState)
     .where(eq(tradingBotState.botId, botId))
-    .limit(1)
 
   const trades = await database
     .select()
@@ -141,7 +141,7 @@ export async function getBotDetail(
   return {
     bot,
     wallet: wallet ?? null,
-    state: state ?? null,
+    states,
     trades,
     openOrders,
     events,
@@ -211,8 +211,14 @@ export async function createUserBot(
   const params = strategyParamsSchema.parse(input.params)
   const riskParams = riskParamsSchema.parse(input.riskParams)
 
-  // Validates the market exists on the wallet's network.
-  await getAssetInfo(wallet.network as TradingNetwork, input.market)
+  // Dedupe while preserving order; a bot needs at least one market.
+  const markets = [...new Set(input.markets.map((m) => m.trim()).filter(Boolean))]
+  if (markets.length === 0) throw new Error("Pick at least one market")
+
+  // Validates each market exists on the wallet's network.
+  for (const market of markets) {
+    await getAssetInfo(wallet.network as TradingNetwork, market)
+  }
 
   const createdAt = now()
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -227,7 +233,8 @@ export async function createUserBot(
           name: name.slice(0, 255),
           strategyType: params.strategyType,
           walletId: wallet.id,
-          market: input.market,
+          markets,
+          exchange: input.exchange || "hyperliquid",
           mode: input.mode,
           desiredState: "stopped",
           status: "stopped",
@@ -244,11 +251,15 @@ export async function createUserBot(
         .returning()
       if (!bot) throw new Error("Bot was not created")
 
-      await database.insert(tradingBotState).values({
-        botId: bot.id,
-        strategyState: {},
-        updatedAt: createdAt,
-      })
+      // One runtime-state row per market — each market trades independently.
+      await database.insert(tradingBotState).values(
+        markets.map((market) => ({
+          botId: bot.id,
+          market,
+          strategyState: {},
+          updatedAt: createdAt,
+        }))
+      )
       return bot
     } catch (error) {
       if (isUniqueViolation(error)) continue
@@ -264,7 +275,9 @@ export async function deleteUserBot(
   database: CustomShellDb = db
 ) {
   const bot = await getUserBot(userId, botId, database)
-  if (!bot) throw new Error("Bot not found")
+  // Deleting is idempotent: if the row is already gone (e.g. a double-click or a
+  // concurrent delete), treat it as success instead of surfacing "Bot not found".
+  if (!bot) return { botId }
   if (!["stopped", "killed", "error"].includes(bot.status)) {
     throw new Error("Stop the bot before deleting it.")
   }
@@ -284,16 +297,39 @@ export async function sendBotCommand(
   const desiredState =
     command === "start" || command === "resume"
       ? "running"
-      : command === "pause"
+      : command === "pause" || command === "flatten"
         ? "paused"
         : command === "stop"
           ? "stopped"
           : null
+
+  // Optimistically flip the visible status so the UI reacts the instant a
+  // lifecycle button is clicked; the worker (async, via notify) then converges
+  // to the real status a moment later. Flatten pauses, so it reads as "paused".
+  const optimisticStatus =
+    command === "start" || command === "resume"
+      ? "starting"
+      : command === "pause" || command === "flatten"
+        ? "paused"
+        : null
+
   if (desiredState) {
     await database
       .update(tradingBots)
-      .set({ desiredState, updatedAt: now() })
+      .set({
+        desiredState,
+        ...(optimisticStatus
+          ? { status: optimisticStatus, statusReason: null }
+          : {}),
+        updatedAt: now(),
+      })
       .where(eq(tradingBots.id, botId))
+  }
+  if (optimisticStatus) {
+    await database
+      .update(tradingBotState)
+      .set({ status: optimisticStatus, statusReason: null, updatedAt: now() })
+      .where(eq(tradingBotState.botId, botId))
   }
 
   await enqueueCommand(database, botId, command, userId)

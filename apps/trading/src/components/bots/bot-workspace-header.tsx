@@ -1,13 +1,12 @@
 import * as React from "react"
 import {
   ArrowLeftIcon,
-  EllipsisVerticalIcon,
   Loader2Icon,
   PanelLeftIcon,
   PanelRightIcon,
   PauseIcon,
   PlayIcon,
-  Settings2Icon,
+  SettingsIcon,
   SquareIcon,
 } from "lucide-react"
 
@@ -20,12 +19,6 @@ import {
 import { BotStatusBadge } from "@/components/bots/fleet-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { BotDetailResponse } from "@/lib/api/bots"
 import { STRATEGY_LABELS } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
@@ -41,9 +34,10 @@ export function BotWorkspaceHeader({
   stats,
   markPrice,
   dayChangePct,
+  selectedMarket,
   busy,
-  paramsOpen,
-  onToggleParams,
+  marketsOpen,
+  onToggleMarkets,
   controlsOpen,
   onToggleControls,
   onBack,
@@ -54,9 +48,10 @@ export function BotWorkspaceHeader({
   stats: BotDetailResponse["stats"]
   markPrice: number
   dayChangePct: number | null
+  selectedMarket: string
   busy: boolean
-  paramsOpen: boolean
-  onToggleParams: () => void
+  marketsOpen: boolean
+  onToggleMarkets: () => void
   controlsOpen: boolean
   onToggleControls: () => void
   onBack: () => void
@@ -79,8 +74,8 @@ export function BotWorkspaceHeader({
           <ArrowLeftIcon className="size-4" />
         </IconButton>
         <IconButton
-          label={paramsOpen ? "Hide parameters panel" : "Show parameters panel"}
-          onClick={onToggleParams}
+          label={marketsOpen ? "Hide markets panel" : "Show markets panel"}
+          onClick={onToggleMarkets}
         >
           <PanelLeftIcon className="size-4" />
         </IconButton>
@@ -102,8 +97,13 @@ export function BotWorkspaceHeader({
 
       <div className="h-6 w-px bg-border" />
 
-      <span className="text-sm font-bold">{bot.market}</span>
-      <div className="flex flex-col leading-tight">
+      <span className="text-sm font-bold">{selectedMarket}</span>
+      {bot.markets.length > 1 ? (
+        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+          {bot.markets.length} markets
+        </Badge>
+      ) : null}
+      <div className="flex items-baseline gap-2 leading-tight">
         <span
           className={cn(
             "font-mono text-base font-semibold",
@@ -154,6 +154,11 @@ export function BotWorkspaceHeader({
           )}
           Pause
         </Button>
+      ) : bot.status === "starting" ? (
+        <Button size="sm" className="h-8 gap-1.5 text-xs" disabled>
+          <Loader2Icon className="size-3.5 animate-spin" />
+          Starting…
+        </Button>
       ) : (
         <Button
           size="sm"
@@ -172,37 +177,23 @@ export function BotWorkspaceHeader({
         </Button>
       )}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0 text-muted-foreground"
-            aria-label="More bot actions"
-          >
-            <EllipsisVerticalIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            disabled={busy || bot.status === "stopped"}
-            onClick={() => onCommand("flatten")}
-            className="text-xs"
-          >
-            Flatten — close position, cancel orders
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={busy || bot.status === "stopped"}
-            onClick={() => onCommand("stop")}
-            className="text-xs"
-          >
-            <SquareIcon className="size-3.5" /> Stop bot
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {bot.status === "running" || bot.status === "paused" ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          disabled={busy}
+          onClick={() => onCommand("flatten")}
+          title="Close the position, cancel orders, and pause the bot"
+        >
+          <SquareIcon className="size-3.5" />
+          Flatten
+        </Button>
+      ) : null}
 
       <IconButton label="Bot settings" onClick={onOpenSettings}>
-        <Settings2Icon className="size-4" />
+        <SettingsIcon className="size-4" />
       </IconButton>
       <IconButton
         label={controlsOpen ? "Hide order controls" : "Show order controls"}

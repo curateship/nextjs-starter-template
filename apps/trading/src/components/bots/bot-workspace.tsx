@@ -10,8 +10,8 @@ import {
   type BotChartMenuItem,
 } from "@/components/bots/bot-chart-overlays"
 import { BotEditPanel } from "@/components/bots/bot-edit-panel"
+import { BotMarketsPanel } from "@/components/bots/bot-markets-panel"
 import { BotOrderControls } from "@/components/bots/bot-order-controls"
-import { BotParamsRail } from "@/components/bots/bot-params-rail"
 import {
   BotWorkspaceHeader,
   type BotCommand,
@@ -163,21 +163,39 @@ export function BotWorkspace({
     () => loadBotDetail(botId),
     initial
   )
-  const { bot, state, stats, trades, events } = data
-  const openOrders = data.open_orders
+  const { bot, states, stats, trades, events } = data
   const network = (
     bot.network === "mainnet" ? "mainnet" : "testnet"
   ) as TradingNetwork
 
+  const [selectedMarket, setSelectedMarket] = React.useState(
+    bot.markets[0] ?? ""
+  )
+  // Keep the selection valid if the bot's markets change under us.
+  React.useEffect(() => {
+    if (!bot.markets.includes(selectedMarket) && bot.markets[0]) {
+      setSelectedMarket(bot.markets[0])
+    }
+  }, [bot.markets, selectedMarket])
+
+  const state = states.find((row) => row.market === selectedMarket) ?? null
+  const openOrders = data.open_orders.filter(
+    (order) => order.market === selectedMarket
+  )
+  const marketTrades = React.useMemo(
+    () => trades.filter((trade) => trade.market === selectedMarket),
+    [trades, selectedMarket]
+  )
+
   const markets = useMarketRows(network)
-  const marketRow = markets.find((row) => row.coin === bot.market)
+  const marketRow = markets.find((row) => row.coin === selectedMarket)
   const markPrice = Number(marketRow?.markPx ?? 0)
   const dayChangePct =
     marketRow && Number(marketRow.prevDayPx) > 0
       ? (Number(marketRow.markPx) / Number(marketRow.prevDayPx) - 1) * 100
       : null
   const [interval, setInterval] = React.useState<CandleInterval>("15m")
-  const [paramsOpen, setParamsOpen] = React.useState(true)
+  const [marketsOpen, setMarketsOpen] = React.useState(true)
   const [controlsOpen, setControlsOpen] = React.useState(true)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -247,6 +265,9 @@ export function BotWorkspace({
     setBusy(true)
     try {
       await sendCommand(botId, command)
+      if (command === "flatten") {
+        notify("Flatten sent — closing the position and pausing the bot.", "ok")
+      }
       await refresh()
     } catch (error) {
       notify(getBotErrorMessage(error), "error")
@@ -331,11 +352,11 @@ export function BotWorkspace({
 
   const markers = React.useMemo<ChartMarker[]>(
     () =>
-      trades.slice(0, 200).map((trade) => ({
+      marketTrades.slice(0, 200).map((trade) => ({
         time: new Date(trade.fill_time).getTime(),
         side: trade.side === "buy" ? "buy" : "sell",
       })),
-    [trades]
+    [marketTrades]
   )
 
   const outerLayout = usePersistedLayout("bot-workspace-vertical")
@@ -352,9 +373,10 @@ export function BotWorkspace({
         stats={stats}
         markPrice={markPrice}
         dayChangePct={dayChangePct}
+        selectedMarket={selectedMarket}
         busy={busy}
-        paramsOpen={paramsOpen}
-        onToggleParams={() => setParamsOpen((open) => !open)}
+        marketsOpen={marketsOpen}
+        onToggleMarkets={() => setMarketsOpen((open) => !open)}
         controlsOpen={controlsOpen}
         onToggleControls={() => setControlsOpen((open) => !open)}
         onBack={() => void router.navigate({ to: "/bots" })}
@@ -393,18 +415,18 @@ export function BotWorkspace({
               defaultLayout={innerLayout.defaultLayout}
               onLayoutChanged={innerLayout.onLayoutChanged}
             >
-              {paramsOpen ? (
-                <ResizablePanel id="params" defaultSize="18%" minSize="13%">
-                  <BotParamsRail
-                    strategy={bot.strategy_type}
-                    values={seed}
-                    mid={markPrice}
-                    riskParams={bot.risk_params}
-                    onOpenSettings={() => setSettingsOpen(true)}
+              {marketsOpen ? (
+                <ResizablePanel id="markets" defaultSize="20%" minSize="14%">
+                  <BotMarketsPanel
+                    markets={bot.markets}
+                    states={states}
+                    marketRows={markets}
+                    selectedMarket={selectedMarket}
+                    onSelect={setSelectedMarket}
                   />
                 </ResizablePanel>
               ) : null}
-              {paramsOpen ? <ResizableHandle withHandle /> : null}
+              {marketsOpen ? <ResizableHandle withHandle /> : null}
               <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="flex items-center gap-3 border-b px-3 py-1.5">
@@ -434,7 +456,7 @@ export function BotWorkspace({
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={network}
-                      coin={bot.market}
+                      coin={selectedMarket}
                       interval={interval}
                       priceLines={chart.lines}
                       markers={markers}
@@ -450,7 +472,7 @@ export function BotWorkspace({
                 <ResizablePanel id="controls" defaultSize="20%" minSize="14%">
                   <BotOrderControls
                     strategy={bot.strategy_type}
-                    market={bot.market}
+                    market={selectedMarket}
                     mode={bot.mode}
                     draft={draft}
                     dirty={dirty}
@@ -472,7 +494,7 @@ export function BotWorkspace({
           <ResizableHandle withHandle />
           <ResizablePanel id="activity" defaultSize="32%" minSize="15%">
             <BotActivityTabs
-              trades={trades}
+              trades={marketTrades}
               openOrders={openOrders}
               events={events}
               stats={stats}
@@ -483,7 +505,7 @@ export function BotWorkspace({
 
       <BotChartMenu
         menu={chartMenu}
-        market={bot.market}
+        market={selectedMarket}
         items={chartMenuItems}
         onPick={pickMenuItem}
         onResetView={() => chartApiRef.current?.resetView()}
@@ -525,6 +547,7 @@ export function BotWorkspace({
           </div>
         </SheetContent>
       </Sheet>
+
     </div>
   )
 }

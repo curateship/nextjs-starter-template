@@ -67,6 +67,8 @@ export type BacktestListItem = {
   /** Fraction 0..1. */
   winRate: number | null
   sharpe: number | null
+  /** Days from the first order opened to the last order closed. */
+  tradingDays: number | null
 }
 
 /** Per-user New Run seeds for one strategy: params plus run config. */
@@ -91,6 +93,8 @@ export type StrategyRunDefaults = {
   slippageBps?: number
   /** Optional blended fee %; when set it drives both maker + taker (baked into the bps). */
   feePct?: number
+  /** Saved risk controls; New Run seeds its risk from this when present. */
+  riskParams?: RiskParams
 }
 
 /** Per-user New Run seeds, keyed by strategy type. */
@@ -907,6 +911,8 @@ const strategyConfigSchema = z.object({
   slippageBps: z.number().min(0).max(100).optional(),
   /** Blended fee % (0–0.5); a UI convenience that also sets taker+maker bps. */
   feePct: z.number().min(0).max(0.5).optional(),
+  /** Saved risk controls; New Run seeds its risk from this when present. */
+  riskParams: riskParamsSchema.optional(),
 })
 
 const strategyTypeSchema = z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"])
@@ -1058,9 +1064,13 @@ type ListRow = {
   maxDrawdownPct: string | null
   winRate: string | null
   sharpe: string | null
+  firstEntryMs: string | null
+  lastExitMs: string | null
 }
 
 function serializeListItem(row: ListRow): BacktestListItem {
+  const firstEntry = row.firstEntryMs === null ? null : Number(row.firstEntryMs)
+  const lastExit = row.lastExitMs === null ? null : Number(row.lastExitMs)
   return {
     id: row.id,
     groupId: row.groupId,
@@ -1085,6 +1095,11 @@ function serializeListItem(row: ListRow): BacktestListItem {
       row.maxDrawdownPct === null ? null : Number(row.maxDrawdownPct),
     winRate: row.winRate === null ? null : Number(row.winRate),
     sharpe: row.sharpe === null ? null : Number(row.sharpe),
+    // Active trading span: first order opened → last order closed.
+    tradingDays:
+      firstEntry !== null && lastExit !== null
+        ? Math.round((lastExit - firstEntry) / 86_400_000)
+        : null,
   }
 }
 

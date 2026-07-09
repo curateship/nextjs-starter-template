@@ -276,7 +276,10 @@ export const tradingBots = pgTable(
     walletId: varchar("wallet_id", { length: 36 })
       .notNull()
       .references(() => tradingWallets.id, { onDelete: "restrict" }),
-    market: varchar("market", { length: 20 }).notNull(),
+    markets: jsonb("markets").$type<string[]>().notNull(),
+    exchange: varchar("exchange", { length: 20 })
+      .notNull()
+      .default("hyperliquid"),
     mode: varchar("mode", { length: 10 }).notNull(),
     desiredState: varchar("desired_state", { length: 10 })
       .notNull()
@@ -309,21 +312,34 @@ export const tradingBots = pgTable(
   ]
 )
 
-export const tradingBotState = pgTable("bot_state", {
-  botId: varchar("bot_id", { length: 36 })
-    .primaryKey()
-    .references(() => tradingBots.id, { onDelete: "cascade" }),
-  strategyState: jsonb("strategy_state").notNull().default({}),
-  paperPosition: jsonb("paper_position"),
-  paperCash: numeric("paper_cash"),
-  dailyRealizedPnl: numeric("daily_realized_pnl").notNull().default("0"),
-  dailyPnlDate: date("daily_pnl_date"),
-  consecutiveLosses: integer("consecutive_losses").notNull().default(0),
-  cooldownUntil: timestamp("cooldown_until", { withTimezone: true }),
-  peakEquity: numeric("peak_equity"),
-  lastEvalAt: timestamp("last_eval_at", { withTimezone: true }),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const tradingBotState = pgTable(
+  "bot_state",
+  {
+    botId: varchar("bot_id", { length: 36 })
+      .notNull()
+      .references(() => tradingBots.id, { onDelete: "cascade" }),
+    market: varchar("market", { length: 20 }).notNull(),
+    strategyState: jsonb("strategy_state").notNull().default({}),
+    paperPosition: jsonb("paper_position"),
+    paperCash: numeric("paper_cash"),
+    dailyRealizedPnl: numeric("daily_realized_pnl").notNull().default("0"),
+    dailyPnlDate: date("daily_pnl_date"),
+    consecutiveLosses: integer("consecutive_losses").notNull().default(0),
+    cooldownUntil: timestamp("cooldown_until", { withTimezone: true }),
+    peakEquity: numeric("peak_equity"),
+    // Per-market runtime status; the bot-level bots.status is a roll-up.
+    status: varchar("status", { length: 10 }),
+    statusReason: text("status_reason"),
+    lastEvalAt: timestamp("last_eval_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "bot_state_pkey",
+      columns: [table.botId, table.market],
+    }),
+  ]
+)
 
 export const tradingBotOrders = pgTable(
   "bot_orders",

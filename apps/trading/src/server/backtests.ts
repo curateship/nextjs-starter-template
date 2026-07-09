@@ -248,6 +248,14 @@ export async function listUserBacktests(
       sharpe: sql<
         string | null
       >`(${tradingBacktests.result} #>> '{stats,all,sharpe}')`,
+      // First order opened / last order closed — drives the "Days" (active
+      // trading span) column, which varies per coin unlike the padded window.
+      firstEntryMs: sql<
+        string | null
+      >`(${tradingBacktests.result} #>> '{trades,0,entryTime}')`,
+      lastExitMs: sql<
+        string | null
+      >`(${tradingBacktests.result} -> 'trades' -> -1 ->> 'exitTime')`,
     })
     .from(tradingBacktests)
     .where(

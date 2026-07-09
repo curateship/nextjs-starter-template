@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import {
   riskParamsSchema,
@@ -46,6 +46,8 @@ type BotStatus = TradingBot["status"]
 
 export class BotRunner {
   readonly bot: TradingBot
+  /** The single market this runner trades; a bot spawns one runner per market. */
+  readonly market: string
   private readonly hub: MarketHub
   private params!: StrategyParams
   private risk!: RiskParams
@@ -70,8 +72,9 @@ export class BotRunner {
   private paused = false
   private stopped = true
 
-  constructor(bot: TradingBot, hub: MarketHub = marketHub) {
+  constructor(bot: TradingBot, market: string, hub: MarketHub = marketHub) {
     this.bot = bot
+    this.market = market
     this.hub = hub
   }
 
@@ -96,13 +99,13 @@ export class BotRunner {
       }
       this.strategy = strategy
 
-      this.asset = await getAssetInfo(this.botNetwork, this.bot.market)
+      this.asset = await getAssetInfo(this.botNetwork, this.market)
       await this.loadState()
 
       if (this.bot.mode === "paper") {
         const broker = new PaperBroker({
           network: this.botNetwork,
-          coin: this.bot.market,
+          coin: this.market,
           startingCash:
             Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY,
           hub: this.hub,
@@ -115,6 +118,7 @@ export class BotRunner {
       } else {
         const broker = new LiveBroker({
           bot: this.bot,
+          market: this.market,
           wallet,
           network: this.botNetwork,
           asset: this.asset,
@@ -123,11 +127,17 @@ export class BotRunner {
             void this.onFill(fill, purpose, cloid),
         })
         this.broker = broker
-        // Live restarts: local resting rows are stale until reconciled.
+        // Live restarts: local resting rows are stale until reconciled. Scope to
+        // this market so sibling markets' orders are left untouched.
         await db
           .update(tradingBotOrders)
           .set({ status: "cancelled", updatedAt: now() })
-          .where(eq(tradingBotOrders.botId, this.bot.id))
+          .where(
+            and(
+              eq(tradingBotOrders.botId, this.bot.id),
+              eq(tradingBotOrders.market, this.market)
+            )
+          )
           .catch(() => {})
         await broker.start()
       }
@@ -155,7 +165,7 @@ export class BotRunner {
       for (const interval of warmup.candleIntervals) {
         const unsubscribe = await this.hub.subscribeCandles(
           this.botNetwork,
-          this.bot.market,
+          this.market,
           interval,
           (candle) => {
             // Candle close: the event whose t differs from the running one.
@@ -274,7 +284,7 @@ export class BotRunner {
       botId: this.bot.id,
       walletId: this.bot.walletId,
       mode: this.bot.mode,
-      market: this.bot.market,
+      market: this.market,
       side: fill.side,
       px: fill.px,
       sz: fill.sz,
@@ -316,7 +326,7 @@ export class BotRunner {
   }
 
   private async checkRiskMonitors() {
-    const mid = Number(this.hub.mid(this.botNetwork, this.bot.market))
+    const mid = Number(this.hub.mid(this.botNetwork, this.market))
     const equity = this.broker?.equity(mid) ?? 0
     if (equity > this.runtime.peakEquity) {
       this.runtime.peakEquity = equity
@@ -384,7 +394,7 @@ export class BotRunner {
         this.params as never
       )
       const filtered = applyRiskFilter(desired, {
-        mid: Number(this.hub.mid(this.botNetwork, this.bot.market)),
+        mid: Number(this.hub.mid(this.botNetwork, this.market)),
         position: this.broker?.positionState() ?? null,
         risk: this.risk,
       })
@@ -433,7 +443,9 @@ export class BotRunner {
     }
     if (!(Number(rounded.sz) > 0)) return
 
-    const purposeHash = hashPurpose(desired.purpose)
+    // Fold the market into the hash so two markets sharing a purpose (e.g.
+    // "grid:7:buy") don't produce the same cloid across this bot's runners.
+    const purposeHash = hashPurpose(`${this.market}:${desired.purpose}`)
     const cloid = buildCloid(this.bot.cloidPrefix, purposeHash)
     const placement = await this.broker.place(cloid, rounded)
 
@@ -461,7 +473,7 @@ export class BotRunner {
       botId: this.bot.id,
       cloid,
       oid: null,
-      market: this.bot.market,
+      market: this.market,
       side: rounded.side,
       px: rounded.px ?? null,
       sz: rounded.sz,
@@ -494,12 +506,12 @@ export class BotRunner {
   }
 
   private ctx(): StrategyCtx<unknown> {
-    const mid = this.hub.mid(this.botNetwork, this.bot.market)
+    const mid = this.hub.mid(this.botNetwork, this.market)
     return {
-      market: this.bot.market,
+      market: this.market,
       mid,
       candles: (interval, n) =>
-        this.hub.getCandles(this.botNetwork, this.bot.market, interval, n),
+        this.hub.getCandles(this.botNetwork, this.market, interval, n),
       position: this.broker?.positionState() ?? null,
       equity: String(this.broker?.equity(Number(mid)) ?? 0),
       // Paper bots compound against their configured starting equity; live bots
@@ -522,7 +534,12 @@ export class BotRunner {
     const [row] = await db
       .select()
       .from(tradingBotState)
-      .where(eq(tradingBotState.botId, this.bot.id))
+      .where(
+        and(
+          eq(tradingBotState.botId, this.bot.id),
+          eq(tradingBotState.market, this.market)
+        )
+      )
       .limit(1)
 
     if (row) {
@@ -546,11 +563,15 @@ export class BotRunner {
       this.savedState = row
     } else {
       this.strategyState = this.strategy.init(this.params as never)
-      await db.insert(tradingBotState).values({
-        botId: this.bot.id,
-        strategyState: this.strategyState as Record<string, unknown>,
-        updatedAt: now(),
-      })
+      await db
+        .insert(tradingBotState)
+        .values({
+          botId: this.bot.id,
+          market: this.market,
+          strategyState: this.strategyState as Record<string, unknown>,
+          updatedAt: now(),
+        })
+        .onConflictDoNothing()
     }
   }
 
@@ -577,7 +598,12 @@ export class BotRunner {
     await db
       .update(tradingBotOrders)
       .set({ status: "cancelled", updatedAt: now() })
-      .where(eq(tradingBotOrders.botId, this.bot.id))
+      .where(
+        and(
+          eq(tradingBotOrders.botId, this.bot.id),
+          eq(tradingBotOrders.market, this.market)
+        )
+      )
       .catch(() => {})
   }
 
@@ -603,14 +629,39 @@ export class BotRunner {
         lastEvalAt: now(),
         updatedAt: now(),
       })
-      .where(eq(tradingBotState.botId, this.bot.id))
+      .where(
+        and(
+          eq(tradingBotState.botId, this.bot.id),
+          eq(tradingBotState.market, this.market)
+        )
+      )
       .catch((error: unknown) => console.error("persistState failed", error))
   }
 
   private async setStatus(status: BotStatus, reason: string | null = null) {
+    // Per-market status lives on the state row; the bot-level status is a
+    // roll-up across all of this bot's markets.
+    await db
+      .update(tradingBotState)
+      .set({ status, statusReason: reason, updatedAt: now() })
+      .where(
+        and(
+          eq(tradingBotState.botId, this.bot.id),
+          eq(tradingBotState.market, this.market)
+        )
+      )
+      .catch((error: unknown) => console.error("setStatus failed", error))
+
+    const rows = await db
+      .select({ status: tradingBotState.status })
+      .from(tradingBotState)
+      .where(eq(tradingBotState.botId, this.bot.id))
+      .catch(() => [] as { status: string | null }[])
+
+    const rolled = rollUpBotStatus(rows.map((row) => row.status))
     await db
       .update(tradingBots)
-      .set({ status, statusReason: reason, updatedAt: now() })
+      .set({ status: rolled, statusReason: reason, updatedAt: now() })
       .where(eq(tradingBots.id, this.bot.id))
       .catch((error: unknown) => console.error("setStatus failed", error))
   }
@@ -640,6 +691,26 @@ export class BotRunner {
     this.unsubscribers = []
     this.broker?.stop()
   }
+}
+
+/**
+ * Bot-level status from its per-market statuses. A bot is "running" if any
+ * market runs; otherwise the most active remaining state wins, down to
+ * "stopped" when every market is stopped.
+ */
+export function rollUpBotStatus(statuses: (string | null)[]): BotStatus {
+  const priority: BotStatus[] = [
+    "running",
+    "starting",
+    "paused",
+    "error",
+    "killed",
+    "stopped",
+  ]
+  for (const candidate of priority) {
+    if (statuses.some((status) => status === candidate)) return candidate
+  }
+  return "stopped"
 }
 
 function hashPurpose(purpose: string): string {

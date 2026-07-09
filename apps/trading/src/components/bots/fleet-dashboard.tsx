@@ -6,10 +6,12 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
+  SettingsIcon,
   SquareIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import { BotEditDialog } from "@/components/bots/bot-edit-dialog"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
@@ -33,9 +35,11 @@ import {
 import {
   deleteBot,
   getBotErrorMessage,
+  loadBotDetail,
   loadBots,
   sendCommand,
   sendGlobalCommand,
+  type BotDetailResponse,
   type BotListItem,
   type BotListResponse,
 } from "@/lib/api/bots"
@@ -54,6 +58,23 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   const [newBotOpen, setNewBotOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [editBot, setEditBot] = React.useState<
+    BotDetailResponse["bot"] | null
+  >(null)
+  const [editLoadingId, setEditLoadingId] = React.useState<string | null>(null)
+
+  async function openEdit(bot: BotListItem) {
+    setEditLoadingId(bot.id)
+    setError(null)
+    try {
+      const detail = await loadBotDetail(bot.id)
+      setEditBot(detail.bot)
+    } catch (error) {
+      setError(getBotErrorMessage(error))
+    } finally {
+      setEditLoadingId(null)
+    }
+  }
 
   async function runCommand(
     bot: BotListItem,
@@ -123,6 +144,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
           <>
             <DashboardToolbarButton
               type="button"
+              variant="outline"
               onClick={() => setPendingGlobal("pause_all")}
             >
               <PauseIcon className="size-4" />
@@ -130,6 +152,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
             </DashboardToolbarButton>
             <DashboardToolbarButton
               type="button"
+              variant="outline"
               onClick={() => setPendingGlobal("flatten_all")}
             >
               <SquareIcon className="size-4" />
@@ -178,7 +201,9 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
                 </div>
               </Link>
             </TableCell>
-            <TableCell column="meta">{bot.market}</TableCell>
+            <TableCell column="meta">
+              <MarketChips markets={bot.markets} />
+            </TableCell>
             <TableCell column="meta">
               <Badge variant={bot.mode === "live" ? "default" : "secondary"}>
                 {bot.mode}
@@ -249,6 +274,20 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
+                      title="Edit settings"
+                      disabled={editLoadingId === bot.id}
+                      onClick={() => void openEdit(bot)}
+                    >
+                      {editLoadingId === bot.id ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <SettingsIcon className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       title="Delete"
                       onClick={() => setPendingDelete(bot)}
                     >
@@ -314,6 +353,21 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
         </DialogContent>
       </Dialog>
 
+      {editBot ? (
+        <BotEditDialog
+          bot={editBot}
+          open={Boolean(editBot)}
+          onOpenChange={(open) => {
+            if (!open) setEditBot(null)
+          }}
+          onSaved={(message, tone) => {
+            setEditBot(null)
+            if (tone === "error") setError(message)
+            void refresh()
+          }}
+        />
+      ) : null}
+
       <Dialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => {
@@ -360,6 +414,30 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/** Compact market list for a bot: first couple of coins, then a "+N" overflow. */
+function MarketChips({ markets }: { markets: string[] }) {
+  if (markets.length === 0) return <span className="text-muted-foreground">—</span>
+  const shown = markets.slice(0, 2)
+  const extra = markets.length - shown.length
+  return (
+    <div className="flex items-center gap-1 whitespace-nowrap">
+      {shown.map((coin) => (
+        <Badge key={coin} variant="secondary" className="font-mono">
+          {coin}
+        </Badge>
+      ))}
+      {extra > 0 ? (
+        <span
+          className="text-xs text-muted-foreground"
+          title={markets.join(", ")}
+        >
+          +{extra}
+        </span>
+      ) : null}
     </div>
   )
 }

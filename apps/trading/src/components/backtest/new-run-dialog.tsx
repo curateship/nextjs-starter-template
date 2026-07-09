@@ -11,16 +11,15 @@ import { AdditionalMarketsField } from "@/components/backtest/additional-markets
 import { RunStatusMenuItems } from "@/components/backtest/run-status-menu"
 import {
   FeeLabel,
+  RiskControlsCard,
   StrategyParamCards,
   feeCostTip,
   feePctTip,
   orderSizeFromValues,
+  riskErrorMessage,
 } from "@/components/backtest/run-config-fields"
 import { pctToBps } from "@/components/backtest/template-config"
-import {
-  RiskFieldsGrid,
-  StrategyParamFields,
-} from "@/components/bots/strategy-param-fields"
+import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
 import {
   buildParams,
   INTERVAL_STRATEGIES,
@@ -70,10 +69,8 @@ import type { MarketRow } from "@/lib/hl/hooks"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   DEFAULT_BACKTEST_RISK_PARAMS,
-  DEFAULT_RISK_PARAMS,
   STRATEGY_DESCRIPTIONS,
   STRATEGY_LABELS,
-  riskParamsSchema,
   strategyParamsSchema,
   type RiskParams,
   type StrategyType,
@@ -156,30 +153,6 @@ function WalkForwardSummary({ result }: { result: WalkForwardResult }) {
       <div className="text-[10px] text-muted-foreground">{badge.note}</div>
     </div>
   )
-}
-
-function sameRiskParams(a: RiskParams, b: RiskParams) {
-  return (
-    a.maxPositionNotionalUsd === b.maxPositionNotionalUsd &&
-    a.maxLeverage === b.maxLeverage &&
-    a.dailyLossLimitUsd === b.dailyLossLimitUsd &&
-    a.maxDrawdownPct === b.maxDrawdownPct &&
-    a.maxOpenOrders === b.maxOpenOrders &&
-    a.cooldownLosses === b.cooldownLosses &&
-    a.cooldownMinutes === b.cooldownMinutes
-  )
-}
-
-function riskErrorMessage(risk: RiskParams) {
-  const parsed = riskParamsSchema.safeParse(risk)
-  if (parsed.success) return null
-  return parsed.error.issues
-    .map((issue) =>
-      issue.path.length
-        ? `${issue.path.join(".")}: ${issue.message}`
-        : issue.message
-    )
-    .join(" · ")
 }
 
 /**
@@ -295,12 +268,6 @@ export function NewRunDialog({
   const [risk, setRisk] = React.useState<RiskParams>(
     initial?.riskParams ?? DEFAULT_BACKTEST_RISK_PARAMS
   )
-  const riskMode =
-    sameRiskParams(risk, DEFAULT_BACKTEST_RISK_PARAMS)
-      ? "research"
-      : sameRiskParams(risk, DEFAULT_RISK_PARAMS)
-        ? "live"
-        : "custom"
   // Optional blended fee %; when non-empty it overrides taker + maker bps.
   const [feePct, setFeePct] = React.useState(
     initialSeed.feePct != null ? String(initialSeed.feePct) : ""
@@ -345,6 +312,8 @@ export function NewRunDialog({
   function applySeed(next: StrategyType, seed: StrategyRunDefaults) {
     const nextInterval = seed.interval ?? interval
     setTimeframe(nextInterval)
+    // Start from the template's saved risk when it has one, else research mode.
+    setRisk(seed.riskParams ?? DEFAULT_BACKTEST_RISK_PARAMS)
     if (seed.market) setMarket(seed.market)
     // Grid is single-market; other strategies replay the seeded basket.
     setExtraMarkets(next === "grid" ? [] : (seed.extraMarkets ?? []))
@@ -813,83 +782,12 @@ export function NewRunDialog({
             onChange={changeParam}
           />
 
-          <div className="grid gap-4 rounded-lg border p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <Label>Risk controls</Label>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  These rules can stop a backtest early. Use research mode when
-                  you want to measure raw strategy drawdown.
-                </div>
-              </div>
-              {riskMode === "custom" ? (
-                <div className="rounded-full border bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
-                  Custom
-                </div>
-              ) : null}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={busy || wfBusy}
-                onClick={() => setRisk(DEFAULT_BACKTEST_RISK_PARAMS)}
-                className={cn(
-                  "grid rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                  riskMode === "research"
-                    ? "border-primary bg-primary/10"
-                    : "hover:bg-muted/40"
-                )}
-              >
-                <span className="text-sm font-medium">Research mode</span>
-                <span className="mt-1 text-[11px] text-muted-foreground">
-                  Keeps safety stops out of the way so the backtest shows the
-                  strategy's real ups and downs.
-                </span>
-              </button>
-              <button
-                type="button"
-                disabled={busy || wfBusy}
-                onClick={() => setRisk(DEFAULT_RISK_PARAMS)}
-                className={cn(
-                  "grid rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                  riskMode === "live" ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                )}
-              >
-                <span className="text-sm font-medium">Live-style stops</span>
-                <span className="mt-1 text-[11px] text-muted-foreground">
-                  Uses the same protective stops a live bot would use, including
-                  drawdown and cooldown limits.
-                </span>
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {riskMode !== "research" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy || wfBusy}
-                  onClick={() => setRisk(DEFAULT_BACKTEST_RISK_PARAMS)}
-                >
-                  Reset to research mode
-                </Button>
-              ) : null}
-              {riskMode !== "live" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy || wfBusy}
-                  onClick={() => setRisk(DEFAULT_RISK_PARAMS)}
-                >
-                  Reset to live-style stops
-                </Button>
-              ) : null}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <RiskFieldsGrid risk={risk} busy={busy || wfBusy} onChange={setRisk} />
-            </div>
-          </div>
+          <RiskControlsCard
+            risk={risk}
+            onChange={setRisk}
+            busy={busy || wfBusy}
+            description="These rules can stop a backtest early. Use research mode when you want to measure raw strategy drawdown."
+          />
 
           {strategy !== "copy" ? (
             <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
