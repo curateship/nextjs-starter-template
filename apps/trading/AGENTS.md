@@ -35,3 +35,7 @@ Use this app's local code, config, and workspace docs as source of truth for Tra
 - When summarizing work, do not include full file paths.
 - Keep answers short and concise.
 - Update documents when applicable
+
+## Tools
+
+- Use Playwright to test (not chrome extension)
