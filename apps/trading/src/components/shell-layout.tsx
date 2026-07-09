@@ -63,23 +63,14 @@ export function ShellLayout({
   // the padded DashboardContent wrapper: the live trade terminal and the bot
   // workspace always, and the backtest chart workspace when opened with
   // ?run= / ?draft= (the strategies list at /backtest and the bot fleet list
-  // keep their padding). Read the resolved location, not the pending one —
-  // during navigation the outgoing page is still on screen, and flipping the
-  // padding early makes it jump for a split second.
+  // keep their padding). Judge both the target page and the settled one: the
+  // target frames a fresh load / refresh correctly (the resolved location lags
+  // there and would otherwise fall back to padded), while the settled one keeps
+  // an outgoing full-bleed screen from flipping its padding mid-navigation.
   const fullBleed = useRouterState({
-    select: (state) => {
-      const location = state.resolvedLocation ?? state.location
-      const search = location.search as {
-        run?: string
-        draft?: unknown
-      }
-      return (
-        location.pathname === "/trade" ||
-        /^\/bots\/.+/.test(location.pathname) ||
-        (location.pathname === "/backtest" &&
-          Boolean(search.run || search.draft))
-      )
-    },
+    select: (state) =>
+      isFullBleedLocation(state.location) ||
+      isFullBleedLocation(state.resolvedLocation ?? state.location),
   })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
@@ -226,6 +217,19 @@ export function ShellLayout({
         />
       </div>
     </ShellRuntimeContext.Provider>
+  )
+}
+
+/** Screens that drop the padded content frame and manage their own layout. */
+function isFullBleedLocation(location: {
+  pathname: string
+  search: unknown
+}): boolean {
+  const search = location.search as { run?: string; draft?: unknown }
+  return (
+    location.pathname === "/trade" ||
+    /^\/bots\/.+/.test(location.pathname) ||
+    (location.pathname === "/backtest" && Boolean(search.run || search.draft))
   )
 }
 

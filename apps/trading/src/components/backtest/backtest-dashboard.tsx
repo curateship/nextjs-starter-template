@@ -11,6 +11,7 @@ import {
   PriceChartView,
   type ChartCandle,
   type ChartFocusPoint,
+  type ChartFocusResult,
 } from "@/components/trading/price-chart"
 import {
   ResizableHandle,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/api/backtests"
 import {
   DEFAULT_BACKTEST_COSTS,
+  INTERVAL_MS,
   MAX_BACKTEST_BARS,
   maxWindowDays,
   type BacktestResult,
@@ -45,7 +47,12 @@ import {
 import type { HistoryCandle } from "@/server/backtest/history"
 import { cn } from "@/lib/utils"
 
-import { price as fmtPrice, windowDaysOf } from "./backtest-format"
+import {
+  pct,
+  price as fmtPrice,
+  signedUsd,
+  windowDaysOf,
+} from "./backtest-format"
 import { BacktestHeader } from "./backtest-header"
 import {
   buildRunMarkers,
@@ -214,6 +221,22 @@ export function BacktestDashboard({
       },
     ]
   }, [focusedTrade])
+
+  // Result box spanning the focused trade's entry → exit: return %, net P&L,
+  // and how long the trip lasted. Bars are counted at the run's own timeframe.
+  const focusResult = React.useMemo<ChartFocusResult | null>(() => {
+    if (!focusedTrade) return null
+    const spanMs = focusedTrade.exitTime - focusedTrade.entryTime
+    const barMs = INTERVAL_MS[(run?.interval as CandleInterval) ?? interval]
+    const days = spanMs / 86_400_000
+    return {
+      up: focusedTrade.pnl >= 0,
+      pctText: pct(focusedTrade.returnPct),
+      pnlText: signedUsd(focusedTrade.pnl),
+      bars: Math.max(1, Math.round(spanMs / barMs)),
+      daysText: formatFocusDays(days),
+    }
+  }, [focusedTrade, run, interval])
 
   const windowNum = clampWindow(windowDays, interval, MAX_BACKTEST_BARS)
   const debouncedWindow = useDebouncedValue(windowNum, WINDOW_DEBOUNCE_MS)
@@ -756,6 +779,7 @@ export function BacktestDashboard({
                     markers={markers}
                     visibleStartMs={chartState.simStartMs || undefined}
                     focusPoints={focusPoints}
+                    focusResult={focusResult}
                     onCrosshairOhlc={setOhlc}
                     onVisibleRangeChange={handleVisibleRange}
                     onLineDragEnd={readOnly ? undefined : handleLineDrag}
@@ -823,6 +847,12 @@ function clampWindow(
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 1) return 30
   return Math.min(maxWindowDays(interval, maxBars), Math.round(parsed))
+}
+
+/** Trade-duration label for the result box: finer precision for shorter trips. */
+function formatFocusDays(days: number): string {
+  const decimals = days < 1 ? 2 : days < 10 ? 1 : 0
+  return `${days.toFixed(decimals)}d`
 }
 
 /** "Jun 6 – Jul 6 · 30d" for the header date range. */

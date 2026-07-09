@@ -138,7 +138,7 @@ export const DEFAULT_BACKTEST_COSTS: BacktestCosts = {
 export const BACKTEST_INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
 export type BacktestInterval = (typeof BACKTEST_INTERVALS)[number]
 
-const INTERVAL_MS: Record<BacktestInterval, number> = {
+export const INTERVAL_MS: Record<BacktestInterval, number> = {
   "1m": 60_000,
   "5m": 300_000,
   "15m": 900_000,
