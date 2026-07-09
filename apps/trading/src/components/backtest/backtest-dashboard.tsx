@@ -77,8 +77,35 @@ const EMPTY_OVERLAYS: StrategyChartOverlays = {
 }
 const WINDOW_DEBOUNCE_MS = 500
 
+// Progressive candle loading for a loaded run: open on a small recent window,
+// extend to a month in the background, then back-fill older history on demand.
+const DAY_MS = 86_400_000
+const INITIAL_DAYS = 10
+const BACKGROUND_DAYS = 30
+const CHUNK_DAYS = 30
+/** Start loading older history when the view's left edge is within this of the loaded floor. */
+const EDGE_BUFFER_MS = 2 * DAY_MS
+
+/** Merge two candle sets, de-duped by open time and sorted ascending. */
+function mergeCandles(
+  a: HistoryCandle[],
+  b: HistoryCandle[]
+): HistoryCandle[] {
+  const byTime = new Map<number, HistoryCandle>()
+  for (const candle of a) byTime.set(candle.t, candle)
+  for (const candle of b) byTime.set(candle.t, candle)
+  return [...byTime.values()].sort((x, y) => x.t - y.t)
+}
+
 type ChartRequest =
-  | { kind: "run"; id: string; interval: CandleInterval; key: string }
+  | {
+      kind: "run"
+      id: string
+      interval: CandleInterval
+      key: string
+      runStartMs: number
+      runEndMs: number
+    }
   | {
       kind: "cfg"
       market: string
@@ -209,7 +236,14 @@ export function BacktestDashboard({
     // timeframe — so every trade sits over real candles instead of running off
     // the edge of a now-anchored, bar-capped browse window.
     if (run && run.status === "done") {
-      return { kind: "run", id: run.id, interval, key: `run:${run.id}:${interval}` }
+      return {
+        kind: "run",
+        id: run.id,
+        interval,
+        key: `run:${run.id}:${interval}`,
+        runStartMs: Date.parse(run.startTime),
+        runEndMs: Date.parse(run.endTime),
+      }
     }
     return {
       kind: "cfg",
@@ -220,8 +254,8 @@ export function BacktestDashboard({
     }
   }, [runId, run, market, interval, debouncedWindow])
 
-  // The chart always has data for the current request — on open, on every
-  // market/timeframe/window change, and for a loaded run's own window.
+  // Initial load: a config-browse window in one shot, or a loaded run's recent
+  // slice (the rest streams in via the background + on-demand effects below).
   React.useEffect(() => {
     if (!chartReq) return
     let cancelled = false
@@ -229,7 +263,13 @@ export function BacktestDashboard({
       try {
         const data =
           chartReq.kind === "run"
-            ? await loadBacktestCandles(chartReq.id, chartReq.interval)
+            ? await loadBacktestCandles(chartReq.id, chartReq.interval, {
+                fromMs: Math.max(
+                  chartReq.runStartMs,
+                  chartReq.runEndMs - INITIAL_DAYS * DAY_MS
+                ),
+                toMs: chartReq.runEndMs,
+              })
             : await loadChartCandles({
                 market: chartReq.market,
                 interval: chartReq.interval,
@@ -250,6 +290,102 @@ export function BacktestDashboard({
       cancelled = true
     }
   }, [chartReq])
+
+  // Background: once the initial slice is in, extend a loaded run back to a
+  // month of history so a little scrolling needs no fetch. Runs once per run.
+  React.useEffect(() => {
+    if (!chartReq || chartReq.kind !== "run") return
+    if (chartState.key !== chartReq.key) return
+    const floor = chartState.candles[0]?.t
+    if (floor === undefined) return
+    const target = Math.max(
+      chartReq.runStartMs,
+      chartReq.runEndMs - BACKGROUND_DAYS * DAY_MS
+    )
+    if (target >= floor) return // already covered (e.g. by the warmup runway)
+    let cancelled = false
+    void (async () => {
+      try {
+        const data = await loadBacktestCandles(chartReq.id, chartReq.interval, {
+          fromMs: target,
+          toMs: floor,
+        })
+        if (!cancelled) {
+          setChartState((s) =>
+            s.key === chartReq.key
+              ? { ...s, candles: mergeCandles(data.candles, s.candles) }
+              : s
+          )
+        }
+      } catch {
+        // ignore — on-demand loading still covers older history
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [chartReq, chartState.key])
+
+  // Load older history back to `targetFromMs` (the server adds warmup behind it)
+  // and merge it in. Shared by scroll-back loading and far-back trade focus.
+  const loadOlderTo = React.useCallback(
+    async (targetFromMs: number): Promise<void> => {
+      if (!chartReq || chartReq.kind !== "run") return
+      const floor = chartState.candles[0]?.t
+      if (floor === undefined || targetFromMs >= floor) return
+      try {
+        const data = await loadBacktestCandles(chartReq.id, chartReq.interval, {
+          fromMs: targetFromMs,
+          toMs: floor,
+        })
+        setChartState((s) =>
+          s.key === chartReq.key
+            ? { ...s, candles: mergeCandles(data.candles, s.candles) }
+            : s
+        )
+      } catch {
+        // ignore — a later scroll or click retries
+      }
+    },
+    [chartReq, chartState.candles]
+  )
+
+  // On-demand: load an older chunk when the user scrolls near the loaded floor.
+  const loadingOlderRef = React.useRef(false)
+  const handleVisibleRange = React.useCallback(
+    (fromSec: number) => {
+      if (!chartReq || chartReq.kind !== "run") return
+      const floor = chartState.candles[0]?.t
+      if (floor === undefined || floor <= chartReq.runStartMs) return
+      if (fromSec * 1000 > floor + EDGE_BUFFER_MS) return
+      if (loadingOlderRef.current) return
+      loadingOlderRef.current = true
+      const target = Math.max(chartReq.runStartMs, floor - CHUNK_DAYS * DAY_MS)
+      void loadOlderTo(target).finally(() => {
+        loadingOlderRef.current = false
+      })
+    },
+    [chartReq, chartState.candles, loadOlderTo]
+  )
+
+  // Clicking a trade from the list: if it's older than what's loaded, pull its
+  // history in first, then focus — otherwise the chart jumps to a time with only
+  // a couple of stray candles loaded.
+  const handleSelectTrade = React.useCallback(
+    (trade: BacktestTrade | null) => {
+      if (trade && chartReq?.kind === "run") {
+        const floor = chartState.candles[0]?.t
+        if (floor !== undefined && trade.entryTime < floor) {
+          void loadOlderTo(
+            Math.max(chartReq.runStartMs, trade.entryTime)
+          ).finally(() => setFocusedTrade(trade))
+          return
+        }
+      }
+      setFocusedTrade(trade)
+    },
+    [chartReq, chartState.candles, loadOlderTo]
+  )
 
   const candles =
     chartReq && chartState.key === chartReq.key
@@ -407,6 +543,10 @@ export function BacktestDashboard({
       runMatchesConfig ? result : null
     )
   }, [strategyType, run, params, candles, runMatchesConfig, result])
+
+  // Legend chips only for named lines (channels, bands). Unlabeled marks like
+  // the 100s of swing pivots would otherwise flood the toolbar with dashes.
+  const labeledOverlayLines = overlays.overlayLines.filter((line) => line.label)
 
   /** Dragging a grid bound / SL / TP line re-prices its parameter. */
   function handleLineDrag(lineId: string, price: number) {
@@ -578,10 +718,10 @@ export function BacktestDashboard({
                       </button>
                     ))}
                   </div>
-                  {overlays.overlayLines.length > 0 ? (
+                  {labeledOverlayLines.length > 0 ? (
                     <>
                       <div className="h-4 w-px bg-border" />
-                      {overlays.overlayLines.map((line) => (
+                      {labeledOverlayLines.map((line) => (
                         <span key={line.id} className="flex items-center gap-1.5">
                           <span
                             className="inline-block h-0.5 w-3.5 rounded"
@@ -617,6 +757,7 @@ export function BacktestDashboard({
                     visibleStartMs={chartState.simStartMs || undefined}
                     focusPoints={focusPoints}
                     onCrosshairOhlc={setOhlc}
+                    onVisibleRangeChange={handleVisibleRange}
                     onLineDragEnd={readOnly ? undefined : handleLineDrag}
                   />
                 </div>
@@ -653,7 +794,7 @@ export function BacktestDashboard({
             startingEquity={Number(equity) || 0}
             markPrice={markPrice}
             selectedTradeN={focusedTrade?.n ?? null}
-            onSelectTrade={setFocusedTrade}
+            onSelectTrade={handleSelectTrade}
             reentryTimes={reentryTimes}
           />
         </ResizablePanel>

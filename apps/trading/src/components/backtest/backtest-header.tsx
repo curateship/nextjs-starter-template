@@ -177,31 +177,49 @@ export function BacktestHeader({
       )}
 
       {groupRuns.length > 1 ? (
-        <div className="flex items-center gap-0.5 rounded-md border p-0.5">
-          {groupRuns.map((groupRun) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              key={groupRun.id}
               type="button"
-              onClick={() => onSelectRun(groupRun.id)}
-              title={
-                groupRun.status === "done" && groupRun.netPnlPct !== null
-                  ? `${groupRun.market} · ${pct(groupRun.netPnlPct)}`
-                  : `${groupRun.market} · ${groupRun.status}`
-              }
-              className={cn(
-                "rounded px-2 py-1 text-[11px] font-medium",
-                groupRun.id === currentRunId
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className="flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs font-medium hover:bg-muted"
             >
-              {groupRun.market}
+              {groupRuns.find((run) => run.id === currentRunId)?.market ?? market}
+              <ChevronDownIcon className="size-3 text-muted-foreground" />
             </button>
-          ))}
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="max-h-72 w-40 overflow-y-auto"
+          >
+            {groupRuns.map((groupRun) => (
+              <DropdownMenuItem
+                key={groupRun.id}
+                onSelect={() => onSelectRun(groupRun.id)}
+                className={cn(
+                  "flex items-center justify-between gap-4",
+                  groupRun.id === currentRunId && "bg-muted"
+                )}
+              >
+                <span className="text-xs font-medium">{groupRun.market}</span>
+                <span
+                  className={cn(
+                    "font-mono text-[11px]",
+                    groupRun.status === "done" && groupRun.netPnlPct !== null
+                      ? toneClass(groupRun.netPnlPct)
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {groupRun.status === "done" && groupRun.netPnlPct !== null
+                    ? pct(groupRun.netPnlPct)
+                    : groupRun.status}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
 
-      <div className="flex flex-col leading-tight">
+      <div className="flex items-baseline gap-2">
         <span
           className={cn(
             "font-mono text-base font-semibold",
