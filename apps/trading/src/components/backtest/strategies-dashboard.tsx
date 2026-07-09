@@ -32,12 +32,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useShellRuntime } from "@/components/shell-layout"
 import {
   TableCell,
@@ -49,13 +52,13 @@ import {
 } from "@/components/ui/table"
 import {
   buildParams,
-  PARAM_DEFAULTS,
   paramsToValues,
 } from "@/components/bots/strategy-params-form"
 import {
   deleteBacktests,
   loadBacktest,
   runBacktest,
+  saveStrategyDefaults,
   updateRunStatus,
   type BacktestDetail,
   type BacktestListItem,
@@ -86,7 +89,6 @@ import {
 import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 import type { RunDraft } from "./run-draft"
-import { StrategyDefaultsDialog } from "./strategy-defaults-dialog"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
@@ -496,14 +498,6 @@ export function StrategiesOverview({
     null
   )
 
-  const seedFor = (type: StrategyType): StrategyRunDefaults => {
-    const stored = strategyDefaults[type]
-    return {
-      ...stored,
-      params: { ...PARAM_DEFAULTS[type], ...(stored?.params ?? {}) },
-    }
-  }
-
   const rows = React.useMemo<StrategyRow[]>(() => {
     return STRATEGY_TYPES.map((type) => {
       const own = runs.filter((run) => run.strategyType === type)
@@ -512,8 +506,8 @@ export function StrategiesOverview({
       )
       return {
         type,
-        label: STRATEGY_LABELS[type],
-        kind: STRATEGY_KIND[type],
+        label: strategyDefaults[type]?.strategyName?.trim() || STRATEGY_LABELS[type],
+        kind: strategyDefaults[type]?.strategyKind?.trim() || STRATEGY_KIND[type],
         groups: new Set(own.map((run) => run.groupId)).size,
         executions: own.length,
         bestNetPct: done.length
@@ -522,7 +516,7 @@ export function StrategiesOverview({
         lastRunAt: own.length ? Date.parse(own[0].createdAt) : null,
       }
     })
-  }, [runs])
+  }, [runs, strategyDefaults])
 
   const sorted = React.useMemo(() => {
     const direction = state.sortDirection === "asc" ? 1 : -1
@@ -586,7 +580,7 @@ export function StrategiesOverview({
                   Strategy
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">Kind</TableHead>
+              <TableHead column="meta">Type</TableHead>
               {sortHead("Runs", "groups", state)}
               {sortHead("Executions", "executions", state)}
               {sortHead("Best Net %", "best", state)}
@@ -652,7 +646,7 @@ export function StrategiesOverview({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label={`Edit ${row.label} defaults`}
+                  aria-label={`Edit ${row.label}`}
                   onClick={() => setEditing(row.type)}
                 >
                   <SettingsIcon className="size-4 text-muted-foreground" />
@@ -674,12 +668,12 @@ export function StrategiesOverview({
       </DashboardTable>
 
       {editing ? (
-        <StrategyDefaultsDialog
+        <EditStrategyDialog
           key={editing}
           strategy={editing}
-          initial={seedFor(editing)}
-          templates={templates.filter((t) => t.strategyType === editing)}
-          open
+          current={strategyDefaults[editing]}
+          name={strategyDefaults[editing]?.strategyName?.trim() || STRATEGY_LABELS[editing]}
+          kind={strategyDefaults[editing]?.strategyKind?.trim() || STRATEGY_KIND[editing]}
           onOpenChange={(next) => {
             if (!next) setEditing(null)
           }}
@@ -704,6 +698,110 @@ export function StrategiesOverview({
         }}
       />
     </div>
+  )
+}
+
+/**
+ * Renames a strategy's display name and type. Stored per-user on the strategy's
+ * default config; run parameters live on the Templates dashboard instead.
+ */
+function EditStrategyDialog({
+  strategy,
+  current,
+  name: initialName,
+  kind: initialKind,
+  onOpenChange,
+  onSaved,
+}: {
+  strategy: StrategyType
+  current: StrategyRunDefaults | undefined
+  name: string
+  kind: string
+  onOpenChange: (open: boolean) => void
+  onSaved: () => void
+}) {
+  const [name, setName] = React.useState(initialName)
+  const [kind, setKind] = React.useState(initialKind)
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await saveStrategyDefaults({
+        strategyType: strategy,
+        defaults: {
+          ...current,
+          params: current?.params ?? {},
+          strategyName: name.trim() || undefined,
+          strategyKind: kind.trim() || undefined,
+        },
+      })
+      onOpenChange(false)
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => (busy ? null : onOpenChange(next))}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Edit strategy</DialogTitle>
+          <DialogDescription>
+            Rename this strategy and its type. To change run parameters, use the
+            Templates page.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Name</Label>
+            <Input
+              className="h-8"
+              value={name}
+              disabled={busy}
+              maxLength={80}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Type</Label>
+            <Input
+              className="h-8"
+              value={kind}
+              disabled={busy}
+              maxLength={40}
+              onChange={(event) => setKind(event.target.value)}
+            />
+          </div>
+          {error ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => void save()}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Save
+            </Button>
+          </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1125,9 +1223,9 @@ export function StrategyRunsDashboard({
                 aria-label={`Select ${group.name}`}
               />
             </TableCell>
-            <TableCell column="main" className="font-medium">
+            <TableCell column="main">
               <span
-                className="inline-flex items-center gap-1.5"
+                className="inline-flex items-center gap-1.5 font-medium"
                 title={group.name}
               >
                 {group.pinned ? (
@@ -1616,8 +1714,8 @@ export function RunHistoryDashboard({
                 aria-label={`Select ${run.market}`}
               />
             </TableCell>
-            <TableCell column="main" className="font-medium">
-              {run.market}
+            <TableCell column="main">
+              <span className="font-medium">{run.market}</span>
             </TableCell>
             <TableCell column="meta" className={cn("text-xs", STATUS_TONE[run.status])}>
               {run.status === "error" ? (

@@ -73,6 +73,12 @@ export type BacktestListItem = {
 export type StrategyRunDefaults = {
   /** Optional display label for the main default (templates name themselves). */
   name?: string
+  /** Optional per-user override of the strategy's display name (Edit strategy). */
+  strategyName?: string
+  /** Optional per-user override of the strategy's type/kind label (Edit strategy). */
+  strategyKind?: string
+  /** Templates only: pinned templates sort to the top of the Templates list. */
+  pinned?: boolean
   /** Default main market, and extra markets the run replays across. */
   market?: string
   extraMarkets?: string[]
@@ -881,6 +887,11 @@ export function updateRunStatus(input: z.input<typeof updateRunStatusSchema>) {
 const strategyConfigSchema = z.object({
   /** Optional display label for the main default. */
   name: z.string().max(80).optional(),
+  /** Per-user overrides of the strategy's display name + type (Edit strategy). */
+  strategyName: z.string().max(80).optional(),
+  strategyKind: z.string().max(40).optional(),
+  /** Templates only: pinned to the top of the Templates list. */
+  pinned: z.boolean().optional(),
   /** Default markets seeded into New Run. */
   market: z.string().min(1).max(20).optional(),
   extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),

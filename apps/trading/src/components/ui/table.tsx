@@ -130,12 +130,17 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+function TableRow({ className, onClick, ...props }: React.ComponentProps<"tr">) {
+  // A row that handles clicks is interactive: it gets a pointer cursor and
+  // marks itself as a hover group so its main-cell title can underline.
+  const interactive = onClick != null
   return (
     <tr
       data-slot="table-row"
+      onClick={onClick}
       className={cn(
         "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        interactive && "group/row cursor-pointer",
         className
       )}
       {...props}
@@ -201,7 +206,11 @@ function TableCell({ className, column, ...props }: TableCellProps) {
       data-column={column}
       className={cn(
         "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        column === "main" && "min-w-[320px]",
+        // In an interactive row the title underlines on hover. It sits on the
+        // `font-medium` title element itself (not the cell) so muted subtitles
+        // are left alone — an ancestor's underline can't be undone by children.
+        column === "main" &&
+          "min-w-[320px] underline-offset-2 group-hover/row:[&_.font-medium]:underline",
         column === "meta" && "whitespace-nowrap text-left",
         column === "mutedMeta" &&
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
