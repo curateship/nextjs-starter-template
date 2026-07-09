@@ -145,6 +145,23 @@ ENJ, MANA, SAND, GALA.
 |---|---:|---:|---:|---:|
 | Full 3y, alternate basket | **18.85%** | **9.90%** | **25/25** | 15,524 |
 
+Short forward-style holdout on the fixed 50-market list, using harsher 8 bps
+slippage, saved as **"QQE 1h 50m 60d forward holdout — TP3 cap10 8bps slip"**.
+This did not re-tune parameters or change the basket after seeing results.
+
+| Window | Monthly PnL | Portfolio max DD | Green markets | Trades |
+|---|---:|---:|---:|---:|
+| Last 60d, 50 markets, 8 bps | **22.27%** | **5.06%** | 46/50 | 1,786 |
+
+Full five-year rolling walk-forward score on the same 50-market list, 8 bps
+slippage, 60-day forward slices only. Parameters stayed locked; each slice was
+scored independently and only forward-slice PnL was counted. Markets that listed
+a few months after the start date were treated as idle until their first candle.
+
+| Window | Monthly PnL | Chained portfolio DD | Positive slices | Trades |
+|---|---:|---:|---:|---:|
+| 5y rolling WF, 31 slices | **18.90%** | **10.78%** | 29/31 | 53,262 |
+
 Important caveat: this is a basket strategy. Portfolio drawdown passes cleanly,
 and the saved out-of-sample half kept every market below 30% drawdown, but the
 training half had one ugly single-market period (AVAX -71.5%, 82.7% max DD)
@@ -153,7 +170,12 @@ only loser (-7.15% total, -1.07%/mo) and had the same 82.7% max DD. Do not run
 this as a one-coin bot. In the two-year run all markets were green, but AAVE
 still had a 40.6% single-market drawdown. The three-year alternate basket also
 held up, but had several rough standalone drawdowns: SUSHI 59.3%, DASH 56.3%,
-MKR 53.5%, VET 51.1%, ENJ 50.4%.
+MKR 53.5%, VET 51.1%, ENJ 50.4%. The 50-market, 60-day, 8 bps holdout had four
+losers: ETC -21.3%, AR -10.7%, BTCDOM -9.2%, XMR -1.3%. The five-year rolling
+walk-forward had two losing 60-day slices: 2025-02-17 to 2025-04-18 (-7.86%/mo,
+26.45% DD) and 2026-02-12 to 2026-04-13 (-1.82%/mo, 12.50% DD). All markets
+were net-profitable across the rolling run, but standalone drawdowns were still
+large in places.
 
 ## 4h 5-year retest on older 25-market basket (July 8, 2026)
 
