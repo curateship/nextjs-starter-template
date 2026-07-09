@@ -304,6 +304,7 @@ export function BotWorkspace({
       await updateBot({
         botId,
         name: bot.name,
+        markets: bot.markets,
         params: parsed.data,
         riskParams: bot.risk_params,
       })

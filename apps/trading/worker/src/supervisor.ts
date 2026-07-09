@@ -136,16 +136,29 @@ export class BotSupervisor {
         }
         return
       case "update_params": {
-        // Restart every market runner so new params take effect atomically.
-        for (const runner of existing) {
-          await runner.stop("Restarting with updated parameters")
-          this.runners.delete(this.key(bot.id, runner.market))
-        }
         const [fresh] = await db
           .select()
           .from(tradingBots)
           .where(eq(tradingBots.id, bot.id))
           .limit(1)
+        const keepMarkets = new Set(fresh?.markets ?? [])
+        // Restart every runner so new params take effect atomically. A runner
+        // whose market was removed from the bot closes its position first, then
+        // stops without respawning (it's not in the fresh market set).
+        for (const runner of existing) {
+          if (!keepMarkets.has(runner.market)) {
+            await runner
+              .flatten("Market removed from bot")
+              .catch((error: unknown) =>
+                console.error(
+                  `failed to flatten ${bot.name} ${runner.market} on removal`,
+                  error
+                )
+              )
+          }
+          await runner.stop("Restarting with updated parameters")
+          this.runners.delete(this.key(bot.id, runner.market))
+        }
         if (fresh && fresh.desiredState === "running") {
           await this.spawn(fresh)
         }

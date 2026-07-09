@@ -40,14 +40,15 @@ export function BotEditDialog({
         <DialogHeader>
           <DialogTitle>Edit {STRATEGY_LABELS[bot.strategy_type]} bot</DialogTitle>
           <DialogDescription>
-            Change the name, strategy parameters, and risk limits. Markets,
-            wallet, and mode are fixed at creation.
+            Change the name, markets, strategy parameters, and risk limits.
+            Strategy, wallet, and mode are fixed at creation.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-5 overflow-y-auto">
           <BotEditFields
             strategyType={bot.strategy_type}
             mid={0}
+            network={bot.network === "mainnet" ? "mainnet" : "testnet"}
             editor={editor}
           />
         </DialogBody>

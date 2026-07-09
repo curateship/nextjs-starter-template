@@ -103,6 +103,7 @@ const createBotSchema = z.object({
 const updateBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().min(1).max(255),
+  markets: z.array(z.string().min(1).max(20)).min(1),
   params: strategyParamsSchema,
   riskParams: riskParamsSchema,
 })
@@ -219,6 +220,7 @@ const updateBotFn = createServerFn({ method: "POST" })
     const user = await requireUser()
     await updateUserBot(user.id, data.botId, {
       name: data.name,
+      markets: data.markets,
       params: data.params,
       riskParams: data.riskParams,
     })

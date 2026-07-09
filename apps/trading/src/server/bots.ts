@@ -151,14 +151,17 @@ export async function getBotDetail(
 
 export type UpdateBotInput = {
   name: string
+  markets: string[]
   params: StrategyParams
   riskParams: RiskParams
 }
 
 /**
- * Edits a bot's name/params/risk. Strategy, market, wallet, and mode are
- * fixed at creation. A running bot is restarted by the worker via the
- * update_params command, keeping its position and re-deriving orders.
+ * Edits a bot's name, markets, params, and risk. Strategy, wallet, and mode are
+ * fixed at creation. Markets can change: added markets get a fresh state row and
+ * a runner on restart; removed markets have their state dropped and (by the
+ * worker) their position closed. A running bot is restarted by the worker via
+ * the update_params command, keeping surviving positions and re-deriving orders.
  */
 export async function updateUserBot(
   userId: string,
@@ -180,10 +183,26 @@ export async function updateUserBot(
     )
   }
 
+  const markets = [...new Set(input.markets.map((m) => m.trim()).filter(Boolean))]
+  if (markets.length === 0) throw new Error("Pick at least one market")
+
+  // Validate each market on the wallet's network (rejects typos / delisted).
+  const wallet = await findUserWallet(userId, bot.walletId, database)
+  if (!wallet) throw new Error("Wallet not found")
+  for (const market of markets) {
+    await getAssetInfo(wallet.network as TradingNetwork, market)
+  }
+
+  const current = new Set(bot.markets)
+  const next = new Set(markets)
+  const added = markets.filter((market) => !current.has(market))
+  const removed = bot.markets.filter((market) => !next.has(market))
+
   const [updated] = await database
     .update(tradingBots)
     .set({
       name: name.slice(0, 255),
+      markets,
       params,
       riskParams,
       updatedAt: now(),
@@ -191,6 +210,30 @@ export async function updateUserBot(
     .where(eq(tradingBots.id, botId))
     .returning()
   if (!updated) throw new Error("Bot was not updated")
+
+  if (added.length > 0) {
+    await database
+      .insert(tradingBotState)
+      .values(
+        added.map((market) => ({
+          botId,
+          market,
+          strategyState: {},
+          updatedAt: now(),
+        }))
+      )
+      .onConflictDoNothing()
+  }
+  if (removed.length > 0) {
+    await database
+      .delete(tradingBotState)
+      .where(
+        and(
+          eq(tradingBotState.botId, botId),
+          inArray(tradingBotState.market, removed)
+        )
+      )
+  }
 
   await enqueueCommand(database, botId, "update_params", userId)
   return updated

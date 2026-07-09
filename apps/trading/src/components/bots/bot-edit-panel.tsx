@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, XIcon } from "lucide-react"
 
 import { StrategyParamCards } from "@/components/backtest/run-config-fields"
 import { RiskFieldsGrid } from "@/components/bots/strategy-param-fields"
@@ -8,18 +8,29 @@ import {
   paramsToValues,
   type ParamValues,
 } from "@/components/bots/strategy-params-form"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { getBotErrorMessage, updateBot, type BotDetailResponse } from "@/lib/api/bots"
+import { useMarketRows } from "@/lib/hl/hooks"
+import type { TradingNetwork } from "@/lib/hl/network"
 import { strategyParamsSchema, type RiskParams } from "@/lib/strategies/params"
 
 /**
- * State + save logic for editing a bot's name, parameters, and risk limits.
- * Shared by the workspace side-sheet ({@link BotEditPanel}) and the fleet
- * dashboard's edit dialog so both stay in sync. Saving while the bot runs
- * restarts the runner with the new parameters (position kept, orders re-derived).
+ * State + save logic for editing a bot's name, markets, parameters, and risk
+ * limits. Shared by the workspace side-sheet ({@link BotEditPanel}) and the
+ * fleet dashboard's edit dialog so both stay in sync. Saving while the bot runs
+ * restarts the runner with the new settings; adding a market spins up a runner
+ * for it, removing one closes that market's position and stops trading it.
  */
 export function useBotEditor(
   bot: BotDetailResponse["bot"],
@@ -27,6 +38,7 @@ export function useBotEditor(
   onSaved: (message: string, tone: "ok" | "error") => void
 ) {
   const [name, setName] = React.useState(bot.name)
+  const [markets, setMarkets] = React.useState<string[]>(bot.markets)
   const [params, setParams] = React.useState<ParamValues>(() =>
     paramsToValues(bot.params)
   )
@@ -36,6 +48,14 @@ export function useBotEditor(
 
   async function save() {
     setError(null)
+    if (!name.trim()) {
+      setError("Bot name is required.")
+      return
+    }
+    if (markets.length === 0) {
+      setError("Pick at least one market.")
+      return
+    }
     const built = buildParams(bot.strategy_type, params)
     const parsed = strategyParamsSchema.safeParse(built)
     if (!parsed.success) {
@@ -50,23 +70,20 @@ export function useBotEditor(
       )
       return
     }
-    if (!name.trim()) {
-      setError("Bot name is required.")
-      return
-    }
 
     setBusy(true)
     try {
       await updateBot({
         botId: bot.id,
         name: name.trim(),
+        markets,
         params: parsed.data,
         riskParams: risk,
       })
       onSaved(
         running
-          ? "Parameters saved — bot restarting with new settings."
-          : "Parameters saved.",
+          ? "Saved — bot restarting with the new settings."
+          : "Saved.",
         "ok"
       )
     } catch (error) {
@@ -79,6 +96,8 @@ export function useBotEditor(
   return {
     name,
     setName,
+    markets,
+    setMarkets,
     params,
     setParams,
     risk,
@@ -92,22 +111,25 @@ export function useBotEditor(
 export type BotEditor = ReturnType<typeof useBotEditor>
 
 /**
- * The editable name/parameters/risk fields, shared by the workspace sheet and
- * the fleet dialog. Uses the same card styling as the backtest New Run dialog:
- * a name field, the collapsible strategy-parameter cards, and a risk-limits
- * card. Returns a fragment so the container (DialogBody / sheet) sets spacing.
+ * The editable name/markets/parameters/risk fields, shared by the workspace
+ * sheet and the fleet dialog. Uses the same card styling as the backtest New
+ * Run dialog. Returns a fragment so the container sets spacing.
  */
 export function BotEditFields({
   strategyType,
   mid,
+  network,
   editor,
 }: {
   strategyType: BotDetailResponse["bot"]["strategy_type"]
   mid: number
+  network: TradingNetwork
   editor: BotEditor
 }) {
-  const { name, setName, params, setParams, risk, setRisk, busy, error } =
+  const { name, setName, markets, setMarkets, params, setParams, risk, setRisk, busy, error } =
     editor
+  const marketRows = useMarketRows(network)
+  const available = marketRows.filter((row) => !markets.includes(row.coin))
   return (
     <>
       <div className="grid gap-2">
@@ -118,6 +140,57 @@ export function BotEditFields({
           disabled={busy}
           onChange={(event) => setName(event.target.value)}
         />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>
+          Markets{" "}
+          <span className="font-normal text-muted-foreground">
+            ({markets.length})
+          </span>
+        </Label>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {markets.map((coin) => (
+            <Badge key={coin} variant="secondary" className="gap-1 font-mono">
+              {coin}
+              <button
+                type="button"
+                aria-label={`Remove ${coin}`}
+                disabled={busy || markets.length <= 1}
+                onClick={() =>
+                  setMarkets((current) => current.filter((c) => c !== coin))
+                }
+              >
+                <XIcon className="size-3" />
+              </button>
+            </Badge>
+          ))}
+          {available.length > 0 ? (
+            <Select
+              value=""
+              disabled={busy}
+              onValueChange={(coin) =>
+                setMarkets((current) =>
+                  current.includes(coin) ? current : [...current, coin]
+                )
+              }
+            >
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Add market" />
+              </SelectTrigger>
+              <SelectContent>
+                {available.map((row) => (
+                  <SelectItem key={row.coin} value={row.coin}>
+                    {row.coin}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Removing a market closes its position and stops trading it.
+        </p>
       </div>
 
       <StrategyParamCards
@@ -162,6 +235,7 @@ export function BotEditPanel({
   onSaved: (message: string, tone: "ok" | "error") => void
 }) {
   const editor = useBotEditor(bot, running, onSaved)
+  const network: TradingNetwork = bot.network === "mainnet" ? "mainnet" : "testnet"
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
@@ -169,6 +243,7 @@ export function BotEditPanel({
           <BotEditFields
             strategyType={bot.strategy_type}
             mid={mid}
+            network={network}
             editor={editor}
           />
           <Button
@@ -183,8 +258,8 @@ export function BotEditPanel({
           </Button>
           {running ? (
             <p className="text-[11px] text-muted-foreground">
-              The bot is running — saving cancels its resting orders and
-              re-derives them from the new parameters. Position is kept.
+              The bot is running — saving restarts it with the new settings
+              (existing positions kept, orders re-derived).
             </p>
           ) : null}
         </div>
