@@ -60,6 +60,15 @@ export const gridStrategy: Strategy<GridParams, GridState> = {
     }
   },
 
+  // Mirrors onTick's halt thresholds so the backtest flatten fills there.
+  exitTriggers: (ctx, params) => {
+    if (ctx.state.stopped) return []
+    const levels: number[] = []
+    if (params.stopLossPx) levels.push(Number(params.stopLossPx))
+    if (params.takeProfitPx) levels.push(Number(params.takeProfitPx))
+    return levels
+  },
+
   desiredOrders: (ctx: StrategyCtx<GridState>, params: GridParams) => {
     if (ctx.state.stopped) return []
     const mid = Number(ctx.mid)

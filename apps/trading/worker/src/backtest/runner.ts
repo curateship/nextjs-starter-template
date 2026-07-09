@@ -46,7 +46,9 @@ const round = (value: number) => Math.round(value * 1e6) / 1e6
  * desiredOrders → risk filter → diff → place/cancel loop and the same risk
  * monitors (drawdown kill, daily-loss pause, cooldown) as the live BotRunner.
  * Fully deterministic: identical inputs yield an identical result. Each bar is
- * walked as an OHLC price path so intrabar stops and limit fills are honored.
+ * walked as an OHLC price path so intrabar stops and limit fills are honored,
+ * pausing at declared exit-trigger levels so TP/SL fills happen at their
+ * trigger price rather than the bar's extreme.
  */
 class BacktestRunner {
   private readonly strategy: Strategy<never, unknown>
@@ -180,9 +182,45 @@ class BacktestRunner {
     // Walk the adverse extreme first so intrabar stops trigger conservatively.
     const szi = Number(this.broker.positionState()?.szi ?? 0)
     const path = szi < 0 ? [candle.o, candle.h, candle.l] : [candle.o, candle.l, candle.h]
-    for (const price of path) this.step(price, candle.t, null)
-    this.step(candle.c, candle.T, ws)
+    // The open is a plain step: a gap across a trigger really fills at the open.
+    this.step(path[0], candle.t, null)
+    this.stepThrough(path[1], candle.t, null)
+    this.stepThrough(path[2], candle.t, null)
+    this.stepThrough(candle.c, candle.T, ws)
     this.equityCurve.push({ t: candle.T, eq: round(this.broker.equity(candle.c)) })
+  }
+
+  /**
+   * Advances the simulated price to `target`, pausing at every exit-trigger
+   * level (strategy.exitTriggers) the move crosses so threshold exits fill at
+   * their trigger price. Without the pauses the path only visits the bar's
+   * extremes, so a take-profit would be booked at the best price of the whole
+   * bar (and a stop-loss at the worst) — systematically distorting results.
+   */
+  private stepThrough(
+    target: number,
+    time: number,
+    closingCandle: CandleWsEvent | null
+  ) {
+    // Re-read the levels after every pause: a fill there can close the
+    // position or move an anchor, changing (or clearing) what remains.
+    for (let guard = 0; guard < 8 && !this.stopped; guard += 1) {
+      const from = this.price
+      const rising = target > from
+      const levels =
+        this.strategy.exitTriggers?.(this.ctx(), this.params as never) ?? []
+      let next: number | null = null
+      for (const level of levels) {
+        if (!Number.isFinite(level)) continue
+        if (rising ? level <= from || level >= target : level >= from || level <= target) {
+          continue
+        }
+        if (next === null || (rising ? level < next : level > next)) next = level
+      }
+      if (next === null) break
+      this.step(next, time, null)
+    }
+    this.step(target, time, closingCandle)
   }
 
   private step(price: number, time: number, closingCandle: CandleWsEvent | null) {

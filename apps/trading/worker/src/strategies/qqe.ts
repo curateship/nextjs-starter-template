@@ -205,6 +205,34 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     }
   },
 
+  // Mirrors onTick's thresholds so backtest fills land at these levels.
+  exitTriggers: (ctx, params) => {
+    const state = ctx.state
+    if (!ctx.position || state.exitRequested) return []
+    if (!params.takeProfitPct && !params.stopLossPct && !params.swingStopLoss) return []
+    const entry = Number(ctx.position.entryPx)
+    if (!(entry > 0)) return []
+    const szi = Number(ctx.position.szi)
+    const levels: number[] = []
+
+    if (szi > 0) {
+      if (params.takeProfitPct) levels.push(entry * (1 + params.takeProfitPct / 100))
+      if (params.swingStopLoss) {
+        if (state.swingLow !== null) levels.push(state.swingLow)
+      } else if (params.stopLossPct) {
+        levels.push(entry * (1 - params.stopLossPct / 100))
+      }
+    } else if (szi < 0) {
+      if (params.takeProfitPct) levels.push(entry * (1 - params.takeProfitPct / 100))
+      if (params.swingStopLoss) {
+        if (state.swingHigh !== null) levels.push(state.swingHigh)
+      } else if (params.stopLossPct) {
+        levels.push(entry * (1 + params.stopLossPct / 100))
+      }
+    }
+    return levels
+  },
+
   desiredOrders: (ctx: StrategyCtx<QqeState>, params: QqeParams) => {
     const state = ctx.state
     const mid = Number(ctx.mid)

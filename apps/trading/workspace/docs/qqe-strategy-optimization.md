@@ -1,5 +1,14 @@
 # QQE + Consolidation — Parameter Optimization Results
 
+> **⚠️ INVALIDATED — July 9, 2026.** Every number in this document came from a
+> backtest engine with a broken take-profit fill: TP exits were booked at the
+> bar's *best* price instead of the TP level, so with hundreds of compounding
+> trades the profits were massively inflated (a re-check of the "17%/month" 1h
+> run collapsed from ~+700% avg per market to roughly flat-to-negative). The
+> engine now fills TP/SL at their trigger levels. Do not trust or reuse any
+> result below without re-running it on the fixed engine. Tell-tale sign of the
+> bug: the average winning trade was *larger* than the take-profit percentage.
+
 July 7, 2026. Sweep of the QQE + Consolidation strategy across the top-10 volume Hyperliquid markets, run headlessly through the real backtest engine (`worker/src/backtest/runner.ts` — identical trade loop to the live bot runner).
 
 ## Setup
