@@ -35,6 +35,7 @@ Use this app's local code, config, and workspace docs as source of truth for Tra
 - When summarizing work, do not include full file paths.
 - Keep answers short and concise.
 - Update documents when applicable
+- Never start a new dev server if one is already running. The app's dev server is on port 3007. If 3007 is taken, that running server IS the one to use — do not spawn another on 3008+. Check with `lsof -iTCP -sTCP:LISTEN -nP | grep :3007` first. (`strictPort` is on, so `npm run dev` will error instead of hopping ports.)
 
 ## Tools
 
