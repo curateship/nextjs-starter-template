@@ -297,6 +297,100 @@ export function bollinger(
 }
 
 /**
+ * Wilder's Average True Range. NaN until `period` bars have been seen; the
+ * first value is a simple average of true ranges, then Wilder-smoothed.
+ */
+export function atr(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period: number
+): number[] {
+  const n = closes.length
+  const out = new Array<number>(n).fill(Number.NaN)
+  if (n === 0 || period < 1) return out
+  let seed = 0
+  for (let i = 0; i < n; i += 1) {
+    const tr =
+      i === 0
+        ? highs[0] - lows[0]
+        : Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+          )
+    if (i < period) {
+      seed += tr
+      if (i === period - 1) out[i] = seed / period
+    } else {
+      out[i] = (out[i - 1] * (period - 1) + tr) / period
+    }
+  }
+  return out
+}
+
+/**
+ * Wilder's ADX (trend strength, 0–100). Directional movement and true range
+ * are Wilder-smoothed into ±DI, their divergence (DX) is Wilder-smoothed
+ * again into ADX — so values need ~2×period bars to appear (NaN before).
+ */
+export function adx(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period: number
+): number[] {
+  const n = closes.length
+  const out = new Array<number>(n).fill(Number.NaN)
+  if (n < 2 || period < 1) return out
+
+  let smTr = 0
+  let smPlus = 0
+  let smMinus = 0
+  let adxValue = Number.NaN
+  let dxSeed = 0
+  let dxCount = 0
+
+  for (let i = 1; i < n; i += 1) {
+    const upMove = highs[i] - highs[i - 1]
+    const downMove = lows[i - 1] - lows[i]
+    const plusDm = upMove > downMove && upMove > 0 ? upMove : 0
+    const minusDm = downMove > upMove && downMove > 0 ? downMove : 0
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    )
+
+    if (i <= period) {
+      smTr += tr
+      smPlus += plusDm
+      smMinus += minusDm
+      if (i < period) continue
+    } else {
+      smTr = smTr - smTr / period + tr
+      smPlus = smPlus - smPlus / period + plusDm
+      smMinus = smMinus - smMinus / period + minusDm
+    }
+
+    const plusDi = smTr > 0 ? (100 * smPlus) / smTr : 0
+    const minusDi = smTr > 0 ? (100 * smMinus) / smTr : 0
+    const diSum = plusDi + minusDi
+    const dx = diSum > 0 ? (100 * Math.abs(plusDi - minusDi)) / diSum : 0
+
+    if (dxCount < period) {
+      dxSeed += dx
+      dxCount += 1
+      if (dxCount === period) adxValue = dxSeed / period
+    } else {
+      adxValue = (adxValue * (period - 1) + dx) / period
+    }
+    out[i] = adxValue
+  }
+  return out
+}
+
+/**
  * MACD line, signal line and histogram (reusing `ema`). Warmup entries
  * before the slow EMA has spun up are NaN so the chart renders a gap.
  */

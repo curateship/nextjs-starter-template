@@ -38,6 +38,14 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     trailingStopPct: "2",
     basePeriods: "36",
     pumpPeriods: "8",
+    atrPeriod: "14",
+    atrStopMult: "4",
+    adxPeriod: "20",
+    adxMin: "",
+    macdFilter: "false",
+    reentry: "false",
+    maxReentries: "",
+    volTargetPct: "",
     orderSizeUsd: "250",
     direction: "both",
     compounding: "false",
@@ -102,7 +110,14 @@ export const INTERVAL_STRATEGIES: StrategyType[] = ["momentum", "qqe", "vwap"]
 export const PROTECTIVE_KEYS: Record<StrategyType, string[]> = {
   grid: ["takeProfitPx", "stopLossPx"],
   dca: ["takeProfitPct", "stopLossPct"],
-  momentum: ["stopMode", "trailingStopPct", "basePeriods", "pumpPeriods"],
+  momentum: [
+    "stopMode",
+    "trailingStopPct",
+    "basePeriods",
+    "pumpPeriods",
+    "atrPeriod",
+    "atrStopMult",
+  ],
   qqe: ["takeProfitPct", "stopLossPct", "swingStopLoss", "swingScanBars", "swingConfirmBars"],
   vwap: ["takeProfitPct", "stopLossPct"],
   copy: [],
@@ -159,7 +174,13 @@ export function buildParams(
         compounding: values.compounding === "true",
       }
     case "momentum": {
-      const stopMode = values.stopMode === "base" ? "base" : "trailing"
+      const stopMode =
+        values.stopMode === "base"
+          ? "base"
+          : values.stopMode === "atr"
+            ? "atr"
+            : "trailing"
+      const reentry = values.signal === "ema_cross" && values.reentry === "true"
       return {
         strategyType: "momentum",
         signal: values.signal,
@@ -175,6 +196,15 @@ export function buildParams(
         trailingStopPct: stopMode === "trailing" ? num("trailingStopPct") : undefined,
         basePeriods: stopMode === "base" ? num("basePeriods") : undefined,
         pumpPeriods: stopMode === "base" ? num("pumpPeriods") : undefined,
+        atrPeriod:
+          stopMode === "atr" || num("volTargetPct") ? num("atrPeriod") : undefined,
+        atrStopMult: stopMode === "atr" ? num("atrStopMult") : undefined,
+        adxMin: num("adxMin"),
+        adxPeriod: num("adxMin") ? num("adxPeriod") : undefined,
+        macdFilter: values.macdFilter === "true" ? true : undefined,
+        reentry: reentry ? true : undefined,
+        maxReentries: reentry ? num("maxReentries") : undefined,
+        volTargetPct: num("volTargetPct"),
         orderSizeUsd: num("orderSizeUsd"),
         direction: values.direction,
         compounding: values.compounding === "true",
