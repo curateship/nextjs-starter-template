@@ -37,6 +37,13 @@ export function toneClass(value: number): string {
   return "text-muted-foreground"
 }
 
+/** Trims a title to at most `maxWords` words, adding an ellipsis when cut. */
+export function truncateWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/)
+  if (words.length <= maxWords) return text
+  return `${words.slice(0, maxWords).join(" ")}…`
+}
+
 /** A run's window length in whole days. */
 export function windowDaysOf(run: {
   startTime: string

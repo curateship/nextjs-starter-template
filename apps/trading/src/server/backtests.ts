@@ -51,8 +51,9 @@ export async function createUserBacktest(
       startTime: input.startTime,
       endTime: input.endTime,
       startingEquity: String(input.startingEquity),
-      status: "running",
-      startedAt: now(),
+      // Queued; the background queue claims it and stamps startedAt on run.
+      status: "pending",
+      startedAt: null,
       createdAt: now(),
     })
     .returning()
@@ -85,10 +86,11 @@ export async function resetUserBacktest(
       startTime: input.startTime,
       endTime: input.endTime,
       startingEquity: String(input.startingEquity),
-      status: "running",
+      // Requeued; the background queue claims it and stamps startedAt on run.
+      status: "pending",
       error: null,
       result: null,
-      startedAt: now(),
+      startedAt: null,
       completedAt: null,
     })
     .where(
@@ -124,6 +126,49 @@ export async function failUserBacktest(
     .update(tradingBacktests)
     .set({ status: "error", error: error.slice(0, 400), completedAt: now() })
     .where(eq(tradingBacktests.id, backtestId))
+}
+
+/**
+ * Atomically claims the oldest queued (`pending`) row for the background queue:
+ * picks one with `FOR UPDATE SKIP LOCKED` so parallel drainers never grab the
+ * same row, flips it to `running`, and returns the full row to execute. Returns
+ * null when the queue is empty.
+ */
+export async function claimNextPendingBacktest(
+  database: CustomShellDb = db
+): Promise<TradingBacktest | null> {
+  return database.transaction(async (tx) => {
+    const [candidate] = await tx
+      .select({ id: tradingBacktests.id })
+      .from(tradingBacktests)
+      .where(eq(tradingBacktests.status, "pending"))
+      .orderBy(asc(tradingBacktests.createdAt))
+      .limit(1)
+      .for("update", { skipLocked: true })
+    if (!candidate) return null
+    const [row] = await tx
+      .update(tradingBacktests)
+      .set({ status: "running", startedAt: now() })
+      .where(eq(tradingBacktests.id, candidate.id))
+      .returning()
+    return row ?? null
+  })
+}
+
+/**
+ * Restart recovery: any row left `running` was orphaned when the server stopped
+ * (nothing is computing it now), so put it back in the queue as `pending`.
+ * Returns how many were requeued.
+ */
+export async function resetOrphanedRunning(
+  database: CustomShellDb = db
+): Promise<number> {
+  const rows = await database
+    .update(tradingBacktests)
+    .set({ status: "pending", startedAt: null })
+    .where(eq(tradingBacktests.status, "running"))
+    .returning({ id: tradingBacktests.id })
+  return rows.length
 }
 
 /** Recent runs for the list page + header dropdown; omits the heavy result. */

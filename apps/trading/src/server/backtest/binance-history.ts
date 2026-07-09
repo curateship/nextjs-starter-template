@@ -112,6 +112,9 @@ async function fetchBinanceRange(
           rows = (await res.json()) as unknown[]
           break
         }
+        // Non-OK: drain the body so undici can release the keep-alive socket
+        // cleanly instead of leaving a half-open connection to be reset later.
+        await res.body?.cancel().catch(() => {})
       } catch (err) {
         // A dropped socket (ECONNRESET) mid-request or mid-body-read, or any
         // other transient network fault — long multi-page fetches hit these —
