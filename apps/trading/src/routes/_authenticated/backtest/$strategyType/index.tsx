@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { z } from "zod"
 
 import { StrategyRunsDashboard } from "@/components/backtest/strategies-dashboard"
-import { loadBacktests } from "@/lib/api/backtests"
+import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
 import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
 const strategyRunsSearchSchema = z.object({
@@ -15,17 +15,21 @@ export const Route = createFileRoute("/_authenticated/backtest/$strategyType/")(
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps }) => {
     if (!(params.strategyType in STRATEGY_LABELS)) throw notFound()
-    return loadBacktests({
+    const data = await loadBacktests({
       strategyType: params.strategyType as StrategyType,
       page: deps.page ?? 1,
       pageSize: deps.pageSize ?? 20,
     })
+    const groupIds = [...new Set(data.runs.map((run) => run.groupId))]
+    const groupMetrics = await loadGroupMetrics(groupIds)
+    return { ...data, groupMetrics }
   },
   component: StrategyRunsRoute,
 })
 
 function StrategyRunsRoute() {
-  const { runs, strategyDefaults, templates, pagination } = Route.useLoaderData()
+  const { runs, strategyDefaults, templates, pagination, groupMetrics } =
+    Route.useLoaderData()
   const { strategyType } = Route.useParams()
   const navigate = Route.useNavigate()
   return (
@@ -35,6 +39,7 @@ function StrategyRunsRoute() {
       strategyDefaults={strategyDefaults}
       templates={templates}
       pagination={pagination}
+      groupMetrics={groupMetrics}
       onPaginationChange={(patch) =>
         void navigate({
           search: (current) => ({ ...current, ...patch }),

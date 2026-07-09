@@ -94,6 +94,29 @@ export type BacktestResult = {
   stats: BacktestStats
 }
 
+/**
+ * Whole-basket risk for a run group, measured on the *combined* equity curve
+ * (every market's equity summed at each bar), not on per-market stats. This is
+ * the real experience of holding all the markets at once: their separate worst
+ * moments happen at different times and net out, so the combined number is far
+ * more honest than averaging each market's own drawdown.
+ */
+export type GroupPortfolioMetrics = {
+  /** Completed markets blended into the combined curve. */
+  markets: number
+  /** Combined basket peak-to-trough drawdown %, ≤ 0 (0 = only ever rose). */
+  combinedDrawdownPct: number
+  /** Bar time (ms) of the drawdown trough; null when there is no drawdown. */
+  drawdownAt: number | null
+  /**
+   * Worst the whole basket ever sat below its total starting capital %, ≤ 0
+   * (0 = the bucket was never underwater as a whole).
+   */
+  bucketLowPct: number
+  /** Bar time (ms) of the basket's lowest combined equity. */
+  bucketLowAt: number | null
+}
+
 /** Execution-cost assumptions for a run, in basis points. */
 export type BacktestCosts = {
   /** Fee on market / crossing fills. */
@@ -143,11 +166,34 @@ export const MAX_RUN_BARS = 5000
 export const MAX_BACKTEST_BARS = 50_000
 
 /**
- * Most additional markets a single config may replay across. Runs are
- * synchronous and sequential, so this bounds one request's server + upstream
+ * Most additional markets a single config may replay across. The background
+ * queue runs them one at a time, so this bounds a run group's total upstream
  * cost. Shared by the run/config validators and the market-picker UI.
  */
 export const MAX_EXTRA_MARKETS = 50
+
+/**
+ * Candles the runner pre-loads before simStart so signals are warmed up.
+ * 1500 (not 400): QQE's consolidation machine is path-dependent from its first
+ * bar, and TradingView anchors it at the chart's full loaded history — a deeper
+ * anchor converges zone edges (and thus filtered signals) to TV's. Must stay
+ * equal to the chart fetch warmup so painted zones and engine signals share an
+ * anchor.
+ */
+export const SIGNAL_WARMUP_CANDLES = 1500
+
+/**
+ * Warmup candles a strategy needs before simStart. Signal strategies replay
+ * indicators from history, so they anchor deep; order-book strategies (grid,
+ * dca) start flat and need none.
+ */
+export function warmupBarsFor(strategyType: string): number {
+  return strategyType === "momentum" ||
+    strategyType === "qqe" ||
+    strategyType === "vwap"
+    ? SIGNAL_WARMUP_CANDLES
+    : 0
+}
 
 /**
  * Largest backtest lookback window, in whole days, for an interval — bounded by

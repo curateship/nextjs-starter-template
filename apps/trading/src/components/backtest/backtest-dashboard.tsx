@@ -268,7 +268,8 @@ export function BacktestDashboard({
     setParams(paramsToValues(detail.params))
   }, [])
 
-  // Load the run behind ?run= (already finished — runs execute synchronously).
+  // Load the run behind ?run= (it may still be queued/running in the
+  // background — the poll effect below refreshes it until it finishes).
   React.useEffect(() => {
     if (!runId) return
     let cancelled = false
@@ -292,6 +293,33 @@ export function BacktestDashboard({
       cancelled = true
     }
   }, [runId, hydrate])
+
+  // While the selected run is still queued/running, poll for its result and
+  // refresh — without re-hydrating the config rail (that would clobber edits).
+  React.useEffect(() => {
+    if (!runId) return
+    if (run?.status !== "pending" && run?.status !== "running") return
+    let cancelled = false
+    const timer = setInterval(() => {
+      void (async () => {
+        try {
+          const res = await loadBacktest(runId)
+          if (cancelled || !res.backtest) return
+          setRunState({
+            id: runId,
+            detail: res.backtest,
+            groupRuns: res.groupRuns,
+          })
+        } catch {
+          // ignore transient errors; keep polling
+        }
+      })()
+    }, 3000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [runId, run?.status])
 
   function selectRun(id: string) {
     setError(null)
@@ -468,6 +496,12 @@ export function BacktestDashboard({
       {error || run?.status === "error" ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-1.5 text-xs text-destructive">
           {error ?? run?.error}
+        </div>
+      ) : run?.status === "pending" || run?.status === "running" ? (
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+          {run.status === "running"
+            ? "Running this market in the background — results will appear here when it finishes."
+            : "Queued — this market will run in the background. Results will appear here shortly."}
         </div>
       ) : null}
 

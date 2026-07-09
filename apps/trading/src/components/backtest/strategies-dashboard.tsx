@@ -63,6 +63,7 @@ import {
   type StrategyRunDefaults,
   type StrategyTemplate,
 } from "@/lib/api/backtests"
+import type { GroupPortfolioMetrics } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import type { CandleInterval } from "@/lib/hl/ws"
@@ -74,7 +75,14 @@ import {
 } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
-import { pct, signedUsd, toneClass, windowDaysOf } from "./backtest-format"
+import {
+  pct,
+  signedUsd,
+  toneClass,
+  truncateWords,
+  usd,
+  windowDaysOf,
+} from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 import type { RunDraft } from "./run-draft"
@@ -105,10 +113,13 @@ function StatCard({
   label,
   value,
   tone,
+  sub,
 }: {
   label: string
   value: string
   tone?: number | null
+  /** Optional muted context line under the value (e.g. a date). */
+  sub?: string
 }) {
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3">
@@ -121,6 +132,76 @@ function StatCard({
       >
         {value}
       </div>
+      {sub ? (
+        <div className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** Short calendar date (e.g. "Mar 23, 2025") for stat-card context lines. */
+const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+})
+
+/**
+ * While `active` (a run is queued/running), refreshes the route loaders right
+ * away and then on a snappy interval so the progress column and results update
+ * live. Stops as soon as nothing is in progress.
+ */
+function useProgressPolling(active: boolean, intervalMs = 2000): void {
+  const router = useRouter()
+  React.useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    void router.invalidate()
+    const id = setInterval(() => {
+      if (!cancelled) void router.invalidate()
+    }, intervalMs)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [active, router, intervalMs])
+}
+
+/** A slim bar + "finished/total" count for a run group's queue progress. */
+function ProgressCell({
+  finished,
+  total,
+  inProgress,
+}: {
+  finished: number
+  total: number
+  inProgress: boolean
+}) {
+  if (total === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>
+  }
+  const widthPct = Math.round((finished / total) * 100)
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            inProgress ? "bg-amber-500" : "bg-emerald-500"
+          )}
+          style={{ width: `${widthPct}%` }}
+        />
+      </div>
+      <span
+        className={cn(
+          "font-mono text-xs tabular-nums",
+          inProgress ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {finished}/{total}
+      </span>
     </div>
   )
 }
@@ -641,6 +722,11 @@ type GroupRow = {
   status: BacktestListItem["status"]
   reviewStatus: BacktestListItem["reviewStatus"]
   pinned: boolean
+  /** Markets finished (done or errored) and total markets in the group. */
+  finished: number
+  total: number
+  /** True while any market is still queued or running. */
+  inProgress: boolean
   /** Main (first) market's stats, representative of the run. */
   netPnlPct: number | null
   startingEquity: number
@@ -648,10 +734,10 @@ type GroupRow = {
   tradeCount: number | null
   /** Net % averaged to a 30-day month (pro-rata over the run window). */
   monthlyPnlPct: number | null
-  /** Mean per-market max drawdown % across the group's completed markets. */
-  avgDrawdownPct: number | null
-  /** Worst single-market max drawdown % in the group (shown as a tooltip). */
-  worstDrawdownPct: number | null
+  /** Combined-basket peak-to-trough drawdown %, ≤ 0 (null until computed). */
+  combinedDrawdownPct: number | null
+  /** Worst the whole basket sat below its starting capital %, ≤ 0. */
+  bucketLowPct: number | null
   lastRunAt: number
 }
 
@@ -665,7 +751,8 @@ type GroupSort =
   | "net"
   | "total"
   | "monthly"
-  | "avgDd"
+  | "dd"
+  | "bucket"
   | "trades"
   | "last"
 
@@ -700,8 +787,10 @@ function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
       return nullable(a.netPnl) - nullable(b.netPnl)
     case "monthly":
       return nullable(a.monthlyPnlPct) - nullable(b.monthlyPnlPct)
-    case "avgDd":
-      return nullable(a.avgDrawdownPct) - nullable(b.avgDrawdownPct)
+    case "dd":
+      return nullable(a.combinedDrawdownPct) - nullable(b.combinedDrawdownPct)
+    case "bucket":
+      return nullable(a.bucketLowPct) - nullable(b.bucketLowPct)
     case "trades":
       return nullable(a.tradeCount) - nullable(b.tradeCount)
     case "last":
@@ -716,6 +805,7 @@ export function StrategyRunsDashboard({
   templates,
   pagination,
   onPaginationChange,
+  groupMetrics,
 }: {
   runs: BacktestListItem[]
   strategyType: StrategyType
@@ -728,6 +818,7 @@ export function StrategyRunsDashboard({
     totalPages: number
   }
   onPaginationChange?: (patch: { page?: number; pageSize?: number }) => void
+  groupMetrics: Record<string, GroupPortfolioMetrics>
 }) {
   const navigate = useNavigate()
   const router = useRouter()
@@ -777,15 +868,13 @@ export function StrategyRunsDashboard({
         done.length > 0
           ? done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0)
           : null
-      const drawdowns = groupRuns
-        .filter((run) => run.status === "done" && run.maxDrawdownPct !== null)
-        .map((run) => run.maxDrawdownPct as number)
-      const avgDrawdownPct =
-        drawdowns.length > 0
-          ? drawdowns.reduce((sum, value) => sum + value, 0) / drawdowns.length
-          : null
-      const worstDrawdownPct =
-        drawdowns.length > 0 ? Math.max(...drawdowns) : null
+      // Whole-basket risk from the combined equity curve (server-computed),
+      // not an average of each market's own worst day.
+      const metrics = groupMetrics[groupId]
+      const finished = groupRuns.filter(
+        (run) => run.status === "done" || run.status === "error"
+      ).length
+      const inProgress = finished < groupRuns.length
       return {
         groupId,
         mainId: main.id,
@@ -796,20 +885,31 @@ export function StrategyRunsDashboard({
         status: main.status,
         reviewStatus: main.reviewStatus,
         pinned: main.pinned,
+        finished,
+        total: groupRuns.length,
+        inProgress,
         netPnlPct,
         startingEquity: done.length > 0 ? basketEquity : main.startingEquity,
         netPnl,
         tradeCount,
         monthlyPnlPct:
           netPnlPct === null ? null : (netPnlPct / windowDays) * 30,
-        avgDrawdownPct,
-        worstDrawdownPct,
+        combinedDrawdownPct: metrics?.combinedDrawdownPct ?? null,
+        bucketLowPct: metrics?.bucketLowPct ?? null,
         lastRunAt: Math.max(
           ...groupRuns.map((run) => Date.parse(run.createdAt))
         ),
       }
     })
-  }, [runs, strategyType])
+  }, [runs, strategyType, groupMetrics])
+
+  // While any run is still queued/running, refresh the list live so the
+  // progress column (and results) fill in as the queue works.
+  const anyInProgress = React.useMemo(
+    () => groups.some((group) => group.inProgress),
+    [groups]
+  )
+  useProgressPolling(anyInProgress)
 
   const filtered = React.useMemo(() => {
     const query = state.search.trim().toLowerCase()
@@ -974,11 +1074,13 @@ export function StrategyRunsDashboard({
                   Run
                 </TableSortButton>
               </TableHead>
+              <TableHead column="meta">Progress</TableHead>
               {sortHead("Markets", "markets", state)}
               {sortHead("Timeframe", "interval", state)}
               {sortHead("Window", "window", state)}
               {sortHead("Monthly avg %", "monthly", state)}
-              {sortHead("Avg DD", "avgDd", state)}
+              {sortHead("DD", "dd", state)}
+              {sortHead("Bucket", "bucket", state)}
               {sortHead("Last run", "last", state)}
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -1024,12 +1126,22 @@ export function StrategyRunsDashboard({
               />
             </TableCell>
             <TableCell column="main" className="font-medium">
-              <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex items-center gap-1.5"
+                title={group.name}
+              >
                 {group.pinned ? (
                   <PinIcon className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
                 ) : null}
-                {group.name}
+                {truncateWords(group.name, 10)}
               </span>
+            </TableCell>
+            <TableCell column="meta">
+              <ProgressCell
+                finished={group.finished}
+                total={group.total}
+                inProgress={group.inProgress}
+              />
             </TableCell>
             <TableCell column="meta" className="text-xs">
               <span
@@ -1068,14 +1180,26 @@ export function StrategyRunsDashboard({
             <TableCell
               column="meta"
               className="font-mono tabular-nums text-red-500"
-              title={
-                group.worstDrawdownPct !== null
-                  ? `Worst market: -${group.worstDrawdownPct.toFixed(2)}%`
-                  : undefined
-              }
+              title="Combined-basket peak-to-trough drawdown"
             >
-              {group.status === "done" && group.avgDrawdownPct !== null
-                ? `-${group.avgDrawdownPct.toFixed(2)}%`
+              {group.status === "done" && group.combinedDrawdownPct !== null
+                ? `${group.combinedDrawdownPct.toFixed(1)}%`
+                : "—"}
+            </TableCell>
+            <TableCell
+              column="meta"
+              className={cn(
+                "font-mono tabular-nums",
+                group.bucketLowPct !== null && group.bucketLowPct < 0
+                  ? "text-red-500"
+                  : "text-muted-foreground"
+              )}
+              title="Worst the whole basket ever sat below its starting capital"
+            >
+              {group.status === "done" && group.bucketLowPct !== null
+                ? group.bucketLowPct < 0
+                  ? `${group.bucketLowPct.toFixed(1)}%`
+                  : "0%"
                 : "—"}
             </TableCell>
             <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
@@ -1249,7 +1373,7 @@ function EditRunDialog({
         pinned: group.pinned,
       }}
       title="Edit Run"
-      description="Adjust the settings and re-run. Markets already in the run are replaced with fresh results; newly added markets are added to the run."
+      description="Adjust and re-run. Adding markets runs only those new markets; changing any setting or the date range re-runs the whole basket."
       submitLabel="Re-run"
       onContinue={async (draft) => {
         const parsed = strategyParamsSchema.safeParse(
@@ -1286,10 +1410,12 @@ export function RunHistoryDashboard({
   runs,
   strategyType,
   groupId,
+  groupMetrics,
 }: {
   runs: BacktestListItem[]
   strategyType: StrategyType
   groupId: string
+  groupMetrics: Record<string, GroupPortfolioMetrics>
 }) {
   const navigate = useNavigate()
   const state = useTableState<MarketSort>("net")
@@ -1303,6 +1429,16 @@ export function RunHistoryDashboard({
   const main =
     marketRuns.find((run) => run.id === groupId) ?? marketRuns[0] ?? null
   const runName = main?.name ?? "Run"
+
+  // Refresh while markets are still queued/running so rows fill in live.
+  const anyInProgress = React.useMemo(
+    () =>
+      marketRuns.some(
+        (run) => run.status === "pending" || run.status === "running"
+      ),
+    [marketRuns]
+  )
+  useProgressPolling(anyInProgress)
 
   const sorted = React.useMemo(() => {
     const direction = state.sortDirection === "asc" ? 1 : -1
@@ -1325,22 +1461,27 @@ export function RunHistoryDashboard({
   const { rows: pageRows, totalPages } = paginate(sorted, state.page, state.pageSize)
   const visibleIds = pageRows.map((run) => run.id)
 
+  const metrics = groupMetrics[groupId] ?? null
+
   // This run's headline stats, blended across its markets — shown as cards.
   const summary = React.useMemo(() => {
     const done = marketRuns.filter((run) => run.status === "done")
     const equity = done.reduce((s, run) => s + run.startingEquity, 0)
     const pnl = done.reduce((s, run) => s + (run.netPnl ?? 0), 0)
+    const startMs = main ? Date.parse(main.startTime) : NaN
     return {
       markets: marketRuns.length,
+      startEquity: done.length ? equity : null,
       netPnl: done.length ? pnl : null,
       netPnlPct: equity > 0 ? (pnl / equity) * 100 : null,
       trades: done.reduce((s, run) => s + (run.tradeCount ?? 0), 0),
+      startMs: Number.isNaN(startMs) ? null : startMs,
     }
-  }, [marketRuns])
+  }, [marketRuns, main])
 
   return (
     <div className="w-full pb-8">
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard label="Markets" value={String(summary.markets)} />
         <StatCard
           label="Net P&L %"
@@ -1351,8 +1492,49 @@ export function RunHistoryDashboard({
           label="Total P&L"
           value={summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
           tone={summary.netPnl}
+          sub={
+            summary.startEquity !== null
+              ? `from ${usd(summary.startEquity)}`
+              : undefined
+          }
         />
-        <StatCard label="Trades" value={summary.trades.toLocaleString()} />
+        <StatCard
+          label="Trades"
+          value={summary.trades.toLocaleString()}
+          sub={
+            summary.startMs !== null
+              ? `since ${shortDateFormatter.format(summary.startMs)}`
+              : undefined
+          }
+        />
+        <StatCard
+          label="Combined DD"
+          value={
+            metrics ? `${metrics.combinedDrawdownPct.toFixed(1)}%` : "—"
+          }
+          tone={metrics ? metrics.combinedDrawdownPct : null}
+          sub={
+            metrics && metrics.drawdownAt !== null
+              ? `on ${shortDateFormatter.format(metrics.drawdownAt)}`
+              : undefined
+          }
+        />
+        <StatCard
+          label="Bucket low"
+          value={
+            metrics
+              ? metrics.bucketLowPct < 0
+                ? `${metrics.bucketLowPct.toFixed(1)}%`
+                : "never"
+              : "—"
+          }
+          tone={metrics ? metrics.bucketLowPct : null}
+          sub={
+            metrics && metrics.bucketLowPct < 0 && metrics.bucketLowAt !== null
+              ? `on ${shortDateFormatter.format(metrics.bucketLowAt)}`
+              : undefined
+          }
+        />
       </div>
       <DashboardTable
         title={
@@ -1363,7 +1545,7 @@ export function RunHistoryDashboard({
                 label: STRATEGY_LABELS[strategyType],
                 to: `/backtest/${strategyType}`,
               },
-              { label: runName },
+              { label: truncateWords(runName, 10) },
             ]}
           />
         }

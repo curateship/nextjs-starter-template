@@ -1,7 +1,12 @@
 import { drizzle } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
 
+import { installNetworkErrorGuard } from "@/server/net-guard"
 import * as schema from "@/server/schema"
+
+// Loaded by every server path that touches the DB, so this is a reliable place
+// to arm the process-wide guard against benign transient socket resets.
+installNetworkErrorGuard()
 
 const LOCAL_DATABASE_URL = `postgresql://postgres:localdev@localhost:${process.env.CUSTOM_SHELL_POSTGRES_PORT || "54320"}/custom_shell`
 
