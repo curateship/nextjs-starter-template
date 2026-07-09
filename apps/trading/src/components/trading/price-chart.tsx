@@ -115,6 +115,21 @@ export type ChartFocusPoint = {
 }
 
 /**
+ * Result readout drawn as a filled box spanning a focused trade's entry → exit
+ * (like the measure tool, but sourced from a clicked trade instead of a drag).
+ */
+export type ChartFocusResult = {
+  /** Winning trade → green box, losing → red. */
+  up: boolean
+  /** Return on entry notional, e.g. "-2.66%". */
+  pctText: string
+  /** Net realized P&L, e.g. "-$1.96". */
+  pnlText: string
+  bars: number
+  daysText: string
+}
+
+/**
  * Structural candle accepted by the shared chart view — covers both the live
  * `CandleWsEvent` (string fields) and the backtest `HistoryCandle` (numeric).
  */
@@ -200,6 +215,7 @@ export function PriceChartView({
   barColors = [],
   visibleStartMs,
   focusPoints = EMPTY_FOCUS_POINTS,
+  focusResult = null,
   onCrosshairOhlc,
   onLineDragEnd,
   onChartContextMenu,
@@ -228,6 +244,8 @@ export function PriceChartView({
   visibleStartMs?: number
   /** Points pulsed on the chart to locate a focused trade among the arrows. */
   focusPoints?: ChartFocusPoint[]
+  /** Result box spanning the focused trade's entry → exit; null hides it. */
+  focusResult?: ChartFocusResult | null
   /** Crosshair candle readout; null when the cursor leaves the chart. */
   onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
@@ -1261,6 +1279,19 @@ export function PriceChartView({
     )
   }, [ready, markers])
 
+  // Bounding box of the focused trade's entry + exit pixels, so the result box
+  // spans from one to the other. Only when both are on screen (the focus effect
+  // pans them into view together).
+  const focusBox =
+    focusResult && focusPixels.length >= 2
+      ? {
+          left: Math.min(...focusPixels.map((p) => p.x)),
+          right: Math.max(...focusPixels.map((p) => p.x)),
+          top: Math.min(...focusPixels.map((p) => p.y)),
+          bottom: Math.max(...focusPixels.map((p) => p.y)),
+        }
+      : null
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
@@ -1350,6 +1381,41 @@ export function PriceChartView({
               </span>
             </div>
           ))}
+        </div>
+      ) : null}
+      {focusBox && focusResult ? (
+        <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
+          <div
+            className="absolute border"
+            style={{
+              left: focusBox.left,
+              top: focusBox.top,
+              width: focusBox.right - focusBox.left,
+              height: focusBox.bottom - focusBox.top,
+              backgroundColor: focusResult.up
+                ? MEASURE_UP_FILL
+                : MEASURE_DOWN_FILL,
+              borderColor: focusResult.up ? UP_COLOR : DOWN_COLOR,
+            }}
+          />
+          <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded px-2 py-1 text-center text-white shadow-md"
+            style={{
+              left: (focusBox.left + focusBox.right) / 2,
+              top: (focusBox.top + focusBox.bottom) / 2,
+              backgroundColor: focusResult.up ? UP_COLOR : DOWN_COLOR,
+            }}
+          >
+            <div className="text-sm font-semibold leading-tight">
+              {focusResult.pctText}
+            </div>
+            <div className="text-xs leading-tight opacity-90">
+              {focusResult.pnlText}
+            </div>
+            <div className="text-xs leading-tight opacity-90">
+              {focusResult.bars} bars · {focusResult.daysText}
+            </div>
+          </div>
         </div>
       ) : null}
       {resetMenu ? (
