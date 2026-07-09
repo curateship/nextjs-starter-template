@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { BotDetailResponse } from "@/lib/api/bots"
+import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { StrategyType } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
@@ -61,7 +61,7 @@ export function BotOrderControls({
   busy: boolean
   error: string | null
   mid: number
-  state: BotDetailResponse["state"]
+  state: BotMarketState | null
   stats: BotDetailResponse["stats"]
   openOrders: BotDetailResponse["open_orders"]
   onDraftChange: (key: string, value: string) => void
@@ -233,7 +233,7 @@ export function BotOrderControls({
 }
 
 /** DCA safety ladder anchor from the strategy's runtime state. */
-function anchorPxOf(state: BotDetailResponse["state"]): number {
+function anchorPxOf(state: BotMarketState | null): number {
   const strategyState = (state?.strategy_state ?? {}) as {
     anchorPx?: number | null
   }

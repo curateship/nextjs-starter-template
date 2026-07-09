@@ -4,10 +4,13 @@ import {
   buildBotChartMenuItems,
   buildBotOverlays,
 } from "./bot-chart-overlays"
-import type { BotDetailResponse } from "@/lib/api/bots"
+import type { BotMarketState } from "@/lib/api/bots"
 import type { StrategyParams } from "@/lib/strategies/params"
 
-const emptyState: NonNullable<BotDetailResponse["state"]> = {
+const emptyState: NonNullable<BotMarketState | null> = {
+  market: "ETH",
+  status: "running",
+  status_reason: null,
   strategy_state: {},
   paper_position: null,
   paper_cash: null,

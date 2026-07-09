@@ -27,6 +27,7 @@ type WsFill = UserFillsWsEvent["fills"][number]
  */
 export class LiveBroker implements BotBroker {
   private readonly bot: TradingBot
+  private readonly market: string
   private readonly wallet: TradingWallet
   private readonly network: TradingNetwork
   private readonly asset: AssetInfo
@@ -47,6 +48,7 @@ export class LiveBroker implements BotBroker {
 
   constructor(options: {
     bot: TradingBot
+    market: string
     wallet: TradingWallet
     network: TradingNetwork
     asset: AssetInfo
@@ -54,6 +56,7 @@ export class LiveBroker implements BotBroker {
     onFill: (fill: BrokerFill, purpose: string, cloid: string) => void
   }) {
     this.bot = options.bot
+    this.market = options.market
     this.wallet = options.wallet
     this.network = options.network
     this.asset = options.asset
@@ -94,7 +97,7 @@ export class LiveBroker implements BotBroker {
     let px = order.px
     if (!px) {
       // Market order: marketable IOC limit at mid ± 3%.
-      const mid = Number(this.hub.mid(this.network, this.bot.market))
+      const mid = Number(this.hub.mid(this.network, this.market))
       if (!(mid > 0)) {
         return { kind: "rejected", reason: "no mid price for market order" }
       }
@@ -106,7 +109,7 @@ export class LiveBroker implements BotBroker {
         { actor: "bot", botId: this.bot.id, userId: this.bot.userId },
         {
           assetId: this.asset.assetId,
-          coin: this.bot.market,
+          coin: this.market,
           isBuy: order.side === "buy",
           px,
           sz: order.sz,
@@ -137,7 +140,7 @@ export class LiveBroker implements BotBroker {
         { actor: "bot", botId: this.bot.id, userId: this.bot.userId },
         {
           assetId: this.asset.assetId,
-          coin: this.bot.market,
+          coin: this.market,
           cloid: cloid as `0x${string}`,
         }
       )
@@ -153,7 +156,7 @@ export class LiveBroker implements BotBroker {
     if (!this.position) return
     const szi = Number(this.position.szi)
     if (szi === 0) return
-    const mid = Number(this.hub.mid(this.network, this.bot.market))
+    const mid = Number(this.hub.mid(this.network, this.market))
     const slip = szi > 0 ? 0.97 : 1.03
     const px = (mid > 0 ? mid : Number(this.position.entryPx)) * slip
     await placeOrder(
@@ -161,7 +164,7 @@ export class LiveBroker implements BotBroker {
       { actor: "bot", botId: this.bot.id, userId: this.bot.userId },
       {
         assetId: this.asset.assetId,
-        coin: this.bot.market,
+        coin: this.market,
         isBuy: szi < 0,
         px: px.toPrecision(5),
         sz: String(Math.abs(szi)),
@@ -200,7 +203,7 @@ export class LiveBroker implements BotBroker {
             (order) =>
               order.cloid &&
               cloidPrefixOf(order.cloid) === this.bot.cloidPrefix &&
-              order.coin === this.bot.market
+              order.coin === this.market
           )
           .map((order) => order.cloid as string)
       )
@@ -229,7 +232,7 @@ export class LiveBroker implements BotBroker {
   }
 
   private async handleStreamFill(fill: WsFill, fromBackfill = false) {
-    if (fill.coin !== this.bot.market) return
+    if (fill.coin !== this.market) return
     if (!fill.cloid || cloidPrefixOf(fill.cloid) !== this.bot.cloidPrefix) {
       return
     }
@@ -289,7 +292,7 @@ export class LiveBroker implements BotBroker {
       })
       this.accountValue = Number(state.marginSummary.accountValue)
       const position = state.assetPositions.find(
-        ({ position }) => position.coin === this.bot.market
+        ({ position }) => position.coin === this.market
       )?.position
       this.position =
         position && Number(position.szi) !== 0

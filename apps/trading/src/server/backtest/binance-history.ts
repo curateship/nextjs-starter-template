@@ -27,6 +27,27 @@ const CACHE_DIR = join(process.cwd(), ".candle-cache", "binance")
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
+ * A large backtest fires hundreds of Binance kline requests. When they finish,
+ * the remote closes the now-idle keep-alive sockets and Node surfaces that late
+ * RST as an uncaught "read ECONNRESET" (TCP.onStreamRead) with no pending
+ * request to attach it to — even though the backtest already completed. Left
+ * unhandled it crashes the server / pops the Vite error overlay. Swallow ONLY
+ * that benign, request-less reset; re-raise everything else so real crashes
+ * still surface. Installed once, on first import of this module.
+ */
+const guardScope = globalThis as { __backtestEconnresetGuard?: boolean }
+if (!guardScope.__backtestEconnresetGuard) {
+  guardScope.__backtestEconnresetGuard = true
+  process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
+    if (err?.code === "ECONNRESET") {
+      console.warn(`[backtest] ignored idle-socket ECONNRESET: ${err.message}`)
+      return
+    }
+    throw err
+  })
+}
+
+/**
  * Hyperliquid coin names that need an explicit Binance symbol. The default is
  * `<COIN>USDT`; the `k`-prefix (1000x) coins map to Binance's `1000<COIN>`.
  * Anything not on Binance perps maps to null and is reported as skipped.

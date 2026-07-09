@@ -1,5 +1,5 @@
 import type { ChartPriceLine } from "@/components/trading/price-chart"
-import type { BotDetailResponse } from "@/lib/api/bots"
+import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { StrategyParams } from "@/lib/strategies/params"
 
 const GREEN = "#089981"
@@ -14,7 +14,7 @@ const LEVEL_RED = "rgba(242, 54, 69, 0.45)"
  */
 export function buildBotChartLines(
   params: StrategyParams,
-  state: BotDetailResponse["state"],
+  state: BotMarketState | null,
   openOrders: BotDetailResponse["open_orders"]
 ): ChartPriceLine[] {
   const lines: ChartPriceLine[] = []

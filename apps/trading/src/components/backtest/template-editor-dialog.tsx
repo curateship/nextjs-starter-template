@@ -4,10 +4,12 @@ import { Loader2Icon } from "lucide-react"
 import { AdditionalMarketsField } from "@/components/backtest/additional-markets-field"
 import {
   FeeLabel,
+  RiskControlsCard,
   StrategyParamCards,
   feeCostTip,
   feePctTip,
   orderSizeFromValues,
+  riskErrorMessage,
 } from "@/components/backtest/run-config-fields"
 import { pctToBps } from "@/components/backtest/template-config"
 import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
@@ -48,7 +50,12 @@ import {
 } from "@/lib/backtest/types"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
+import {
+  DEFAULT_BACKTEST_RISK_PARAMS,
+  STRATEGY_LABELS,
+  type RiskParams,
+  type StrategyType,
+} from "@/lib/strategies/params"
 
 /** Whether the editor is bound to a strategy's main default or a named template. */
 export type EditorTarget =
@@ -109,6 +116,9 @@ export function TemplateEditorDialog({
   const [name, setName] = React.useState(
     target.mode === "template" ? (target.template?.name ?? "") : ""
   )
+  const [risk, setRisk] = React.useState<RiskParams>(
+    seed.riskParams ?? DEFAULT_BACKTEST_RISK_PARAMS
+  )
   const markets = useBinanceMarketRows()
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -159,6 +169,11 @@ export function TemplateEditorDialog({
       setError("Slippage must be between 0 and 100 bps.")
       return null
     }
+    const riskError = riskErrorMessage(risk)
+    if (riskError) {
+      setError(riskError)
+      return null
+    }
     return {
       params: values,
       interval,
@@ -169,6 +184,7 @@ export function TemplateEditorDialog({
       slippageBps: slipNum,
       feePct: feeOverride ? Number(feePct) : undefined,
       market,
+      riskParams: risk,
       // Grid bounds are absolute prices, so a grid config stays single-market.
       extraMarkets:
         strategy === "grid" || extraMarkets.length === 0 ? undefined : extraMarkets,
@@ -408,6 +424,13 @@ export function TemplateEditorDialog({
               onChange={(key, value) =>
                 setValues((current) => ({ ...current, [key]: value }))
               }
+            />
+
+            <RiskControlsCard
+              risk={risk}
+              onChange={setRisk}
+              busy={busy}
+              description="Saved with the template — a New Run started from it begins with these risk settings."
             />
 
             {error ? (

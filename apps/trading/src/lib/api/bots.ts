@@ -14,7 +14,8 @@ export type BotListItem = {
   id: string
   name: string
   strategy_type: StrategyType
-  market: string
+  markets: string[]
+  exchange: string
   mode: "paper" | "live"
   desired_state: string
   status: string
@@ -32,24 +33,30 @@ export type BotListResponse = {
   workerOnline: boolean
 }
 
+export type BotMarketState = {
+  market: string
+  status: string | null
+  status_reason: string | null
+  strategy_state: JsonValue
+  paper_position: { szi: number; entryPx: number } | null
+  paper_cash: number | null
+  daily_realized_pnl: number
+  consecutive_losses: number
+  cooldown_until: string | null
+  peak_equity: number | null
+  last_eval_at: string | null
+}
+
 export type BotDetailResponse = {
   bot: BotListItem & {
     params: StrategyParams
     risk_params: RiskParams
     paper_starting_equity: number | null
   }
-  state: {
-    strategy_state: JsonValue
-    paper_position: { szi: number; entryPx: number } | null
-    paper_cash: number | null
-    daily_realized_pnl: number
-    consecutive_losses: number
-    cooldown_until: string | null
-    peak_equity: number | null
-    last_eval_at: string | null
-  } | null
+  states: BotMarketState[]
   trades: {
     id: string
+    market: string
     side: string
     px: string
     sz: string
@@ -60,6 +67,7 @@ export type BotDetailResponse = {
   }[]
   open_orders: {
     id: string
+    market: string
     side: string
     px: string | null
     sz: string
@@ -84,7 +92,8 @@ export type BotDetailResponse = {
 const createBotSchema = z.object({
   name: z.string().min(1).max(255),
   walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
+  markets: z.array(z.string().min(1).max(20)).min(1),
+  exchange: z.string().min(1).max(20).default("hyperliquid"),
   mode: z.enum(["paper", "live"]),
   params: strategyParamsSchema,
   riskParams: riskParamsSchema,
@@ -138,27 +147,25 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
       },
-      state: detail.state
-        ? {
-            strategy_state: detail.state.strategyState as JsonValue,
-            paper_position: detail.state.paperPosition as {
-              szi: number
-              entryPx: number
-            } | null,
-            paper_cash: detail.state.paperCash
-              ? Number(detail.state.paperCash)
-              : null,
-            daily_realized_pnl: Number(detail.state.dailyRealizedPnl),
-            consecutive_losses: detail.state.consecutiveLosses,
-            cooldown_until: detail.state.cooldownUntil?.toISOString() ?? null,
-            peak_equity: detail.state.peakEquity
-              ? Number(detail.state.peakEquity)
-              : null,
-            last_eval_at: detail.state.lastEvalAt?.toISOString() ?? null,
-          }
-        : null,
+      states: detail.states.map((state) => ({
+        market: state.market,
+        status: state.status,
+        status_reason: state.statusReason,
+        strategy_state: state.strategyState as JsonValue,
+        paper_position: state.paperPosition as {
+          szi: number
+          entryPx: number
+        } | null,
+        paper_cash: state.paperCash ? Number(state.paperCash) : null,
+        daily_realized_pnl: Number(state.dailyRealizedPnl),
+        consecutive_losses: state.consecutiveLosses,
+        cooldown_until: state.cooldownUntil?.toISOString() ?? null,
+        peak_equity: state.peakEquity ? Number(state.peakEquity) : null,
+        last_eval_at: state.lastEvalAt?.toISOString() ?? null,
+      })),
       trades: detail.trades.map((trade) => ({
         id: trade.id,
+        market: trade.market,
         side: trade.side,
         px: trade.px,
         sz: trade.sz,
@@ -169,6 +176,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
       })),
       open_orders: detail.openOrders.map((order) => ({
         id: order.id,
+        market: order.market,
         side: order.side,
         px: order.px,
         sz: order.sz,
@@ -321,7 +329,8 @@ type BotRow = {
   id: string
   name: string
   strategyType: string
-  market: string
+  markets: string[]
+  exchange: string
   mode: string
   desiredState: string
   status: string
@@ -335,7 +344,8 @@ function serializeBotRow(bot: BotRow, walletLabel: string, network: string) {
     id: bot.id,
     name: bot.name,
     strategy_type: bot.strategyType as StrategyType,
-    market: bot.market,
+    markets: bot.markets,
+    exchange: bot.exchange,
     mode: bot.mode as "paper" | "live",
     desired_state: bot.desiredState,
     status: bot.status,
