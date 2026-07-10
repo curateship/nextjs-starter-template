@@ -10,9 +10,11 @@ import {
   PauseIcon,
   PenLineIcon,
   PlayIcon,
+  RefreshCwIcon,
   ScissorsIcon,
   ShapesIcon,
   SparklesIcon,
+  SplitIcon,
   Trash2Icon,
   TypeIcon,
   VideoIcon,
@@ -99,6 +101,15 @@ import {
   type JumpCutSensitivity,
   type JumpCutSuggestion,
 } from "@/lib/api/jump-cuts"
+import {
+  getHookRewriteErrorMessage,
+  rewriteHookLines,
+} from "@/lib/api/hook-variants"
+import {
+  detectHook,
+  hookWordBudget,
+  type HookDetection,
+} from "@/lib/hook-variants"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -394,6 +405,7 @@ type ElementTileAction =
   | "ai-video"
   | "brief"
   | "jump-cut"
+  | "hook"
 
 const PROJECT_ONLY_TILE_ACTIONS = new Set<ElementTileAction>([
   "captions",
@@ -421,6 +433,7 @@ const ELEMENT_TILES: EditorTile[] = [
 const AI_TILES: EditorTile[] = [
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
+  { label: "Hook", icon: SplitIcon, action: "hook" },
   { label: "Jump Cut", icon: ScissorsIcon, action: "jump-cut" },
   { label: "Brief to Reel", icon: FileTextIcon, action: "brief" },
   { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
@@ -466,6 +479,7 @@ function EditorToolTilesPanel({
   const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
   const [aiVideoOpen, setAiVideoOpen] = React.useState(false)
   const [jumpCutOpen, setJumpCutOpen] = React.useState(false)
+  const [hookOpen, setHookOpen] = React.useState(false)
 
   const actions: Record<ElementTileAction, () => void> = {
     text: () => setTextOpen(true),
@@ -476,6 +490,7 @@ function EditorToolTilesPanel({
     "sound-effect": () => setSoundEffectOpen(true),
     "ai-video": () => setAiVideoOpen(true),
     "jump-cut": () => setJumpCutOpen(true),
+    hook: () => setHookOpen(true),
   }
 
   // Project-scoped generation tiles call project-only server fns, so hide them
@@ -527,6 +542,7 @@ function EditorToolTilesPanel({
       <TextDialog open={textOpen} onOpenChange={setTextOpen} />
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
       <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
+      <HookDialog open={hookOpen} onOpenChange={setHookOpen} />
       <BriefToReelDialog open={briefOpen} onOpenChange={setBriefOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
       <JumpCutDialog open={jumpCutOpen} onOpenChange={setJumpCutOpen} />
@@ -2426,6 +2442,487 @@ function VoiceDialog({
             )}
             {generating ? "Generating…" : "Generate"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// One rewritten hook line in the Hook dialog. `voice` caches the generated
+// voiceover for exactly `voicedText`, so editing the line after a preview
+// forces a fresh generation before it can be applied.
+type HookLine = {
+  id: string
+  text: string
+  voice: VoiceoverResult | null
+  voicedText: string
+}
+
+const HOOK_LINE_COUNT = 3
+
+// Rewrites just the video's opening hook line a few ways, previews each line
+// in the chosen ElevenLabs voice, and swaps the picked one into the timeline
+// (hook audio + karaoke captions) as a single undoable edit. Nothing is
+// created outside the editor — pick first, commit later.
+function HookDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { state, dispatch } = useEditor()
+  const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
+  const [voiceId, setVoiceId] = React.useState("")
+  const [modelId, setModelId] = React.useState<VoiceModelId>(VOICE_MODELS[0].id)
+  // Prefilled from saved defaults; null keeps the ElevenLabs account settings.
+  const [voiceStyle, setVoiceStyle] = React.useState<VoiceSettings | null>(null)
+  const [notes, setNotes] = React.useState("")
+  const [lines, setLines] = React.useState<HookLine[]>([])
+  const [writing, setWriting] = React.useState(false)
+  // The line with a rewrite/voice/apply call in flight (one at a time).
+  const [busy, setBusy] = React.useState<{
+    lineId: string
+    task: "rewrite" | "voice" | "apply"
+  } | null>(null)
+  const [voiceLoadError, setVoiceLoadError] = React.useState<string | null>(
+    null
+  )
+  const [error, setError] = React.useState<string | null>(null)
+  const { previewingId, stopPreview, togglePreview } = useAudioPreview()
+
+  // Detect the hook from the LIVE editor timeline (unsaved edits included).
+  // The dialog is modal, so the timeline can't change while it's open.
+  const detection = React.useMemo(() => {
+    if (!open) return null
+    try {
+      return {
+        hook: detectHook({ tracks: state.tracks, aspect: state.aspect }),
+        error: null as string | null,
+      }
+    } catch (detectError) {
+      return {
+        hook: null as HookDetection | null,
+        error:
+          detectError instanceof Error
+            ? detectError.message
+            : "No hook found in this timeline.",
+      }
+    }
+  }, [open, state.tracks, state.aspect])
+  const hook = detection?.hook ?? null
+
+  // Load voices + saved defaults on open (same prefill as the Voice dialog).
+  React.useEffect(() => {
+    if (!open) return
+    let active = true
+    setVoiceLoadError(null)
+    listElevenLabsVoices()
+      .then((result) => {
+        if (!active) return
+        setVoices(result.voices)
+        setVoiceId((prev) =>
+          prefillVoiceId(result.defaults, result.voices, prev)
+        )
+        if (result.defaults) {
+          setModelId(result.defaults.modelId)
+          setVoiceStyle(pickVoiceSettings(result.defaults))
+        }
+      })
+      .catch((loadError) => {
+        if (!active) return
+        setVoices([])
+        setVoiceId("")
+        setVoiceLoadError(getVoiceLoadErrorMessage(loadError))
+      })
+    return () => {
+      active = false
+    }
+  }, [open])
+
+  React.useEffect(() => stopPreview, [stopPreview])
+
+  function handleClose(next: boolean) {
+    if (!next) {
+      stopPreview()
+      setLines([])
+      setNotes("")
+      setError(null)
+      setVoiceLoadError(null)
+    }
+    onOpenChange(next)
+  }
+
+  // Later on-screen lines give the model the video's topic and payoff.
+  function contextLines(detected: HookDetection): string[] {
+    const hookIds = new Set(detected.textClips.map(({ clipId }) => clipId))
+    const found: { startMs: number; text: string }[] = []
+    for (const track of state.tracks) {
+      for (const clip of track.clips) {
+        if (clip.kind !== "text" || hookIds.has(clip.id)) continue
+        const text = (clip.text ?? "").replace(/\s+/g, " ").trim()
+        if (text) found.push({ startMs: clip.startMs, text: text.slice(0, 500) })
+      }
+    }
+    return found
+      .sort((a, b) => a.startMs - b.startMs)
+      .slice(0, 10)
+      .map((line) => line.text)
+  }
+
+  async function requestLines(count: number, avoid: string[]) {
+    if (!hook) return []
+    const result = await rewriteHookLines({
+      hookText: hook.hookText,
+      contextLines: contextLines(hook),
+      audioDurationMs: hook.audioClip.durationMs,
+      count,
+      notes: notes.trim() || undefined,
+      avoid,
+    })
+    return result.lines
+  }
+
+  // First write and "rewrite all": fresh set, steered away from what's shown.
+  async function handleWrite() {
+    setWriting(true)
+    setError(null)
+    stopPreview()
+    try {
+      const avoid = lines.map((line) => line.text.trim()).filter(Boolean)
+      const texts = await requestLines(HOOK_LINE_COUNT, avoid.slice(0, 4))
+      setLines(
+        texts.map((text) => ({
+          id: editorId(),
+          text,
+          voice: null,
+          voicedText: "",
+        }))
+      )
+    } catch (writeError) {
+      setError(getHookRewriteErrorMessage(writeError))
+    } finally {
+      setWriting(false)
+    }
+  }
+
+  async function handleRegenerateLine(line: HookLine) {
+    setBusy({ lineId: line.id, task: "rewrite" })
+    setError(null)
+    try {
+      const avoid = lines
+        .map((item) => item.text.trim())
+        .filter(Boolean)
+        .slice(0, 4)
+      const [text] = await requestLines(1, avoid)
+      setLines((current) =>
+        current.map((item) =>
+          item.id === line.id ? { ...item, text, voice: null } : item
+        )
+      )
+    } catch (writeError) {
+      setError(getHookRewriteErrorMessage(writeError))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Generates (or reuses) the voiceover for the line's current text.
+  async function ensureVoice(line: HookLine): Promise<VoiceoverResult> {
+    const text = line.text.trim()
+    if (line.voice && line.voicedText === text) return line.voice
+    const voice = await generateVoiceover({
+      voiceId,
+      text,
+      modelId,
+      voiceSettings: voiceStyle ?? undefined,
+    })
+    setLines((current) =>
+      current.map((item) =>
+        item.id === line.id ? { ...item, voice, voicedText: text } : item
+      )
+    )
+    return voice
+  }
+
+  async function handlePreview(line: HookLine) {
+    if (previewingId === line.id) {
+      stopPreview()
+      return
+    }
+    setError(null)
+    setBusy({ lineId: line.id, task: "voice" })
+    try {
+      const voice = await ensureVoice(line)
+      togglePreview(line.id, voice.media.url)
+    } catch (voiceError) {
+      setError(getVoiceGenerationErrorMessage(voiceError))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Swap the hook in the open timeline — a normal edit, cmd+Z undoes it.
+  async function handleUse(line: HookLine) {
+    setError(null)
+    stopPreview()
+    setBusy({ lineId: line.id, task: "apply" })
+    try {
+      const voice = await ensureVoice(line)
+      dispatch({
+        type: "APPLY_HOOK_VARIANT",
+        variant: {
+          text: line.text.trim(),
+          audio: {
+            mediaId: voice.media.id,
+            url: voice.media.url,
+            durationMs: voice.durationMs,
+          },
+          captions: voice.captions,
+        },
+      })
+      handleClose(false)
+    } catch (voiceError) {
+      setError(getVoiceGenerationErrorMessage(voiceError))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const notConfigured = voiceLoadError === ELEVENLABS_NOT_CONFIGURED_MESSAGE
+  const blocked = writing || busy !== null
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !blocked && handleClose(next)}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Hook Variants</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            {detection?.error ? (
+              <p className="text-sm text-muted-foreground">{detection.error}</p>
+            ) : hook ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Current hook</Label>
+                  <blockquote className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                    “{hook.hookText}”
+                  </blockquote>
+                  <p className="text-xs text-muted-foreground">
+                    New lines aim for ~
+                    {hookWordBudget(hook.audioClip.durationMs)} words so they
+                    fit the same opening. Only this line and its voice change —
+                    the rest of the video stays untouched.
+                  </p>
+                </div>
+                {notConfigured ? (
+                  <p className="text-sm text-muted-foreground">
+                    ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API
+                    key in Settings → AI Providers to voice and apply hooks.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="hook-voice">Voice</Label>
+                      <Select
+                        value={voiceId}
+                        onValueChange={(value) => {
+                          stopPreview()
+                          setVoiceId(value)
+                          // A different voice needs fresh previews.
+                          setLines((current) =>
+                            current.map((line) => ({ ...line, voice: null }))
+                          )
+                        }}
+                        disabled={!voices || voices.length === 0}
+                      >
+                        <SelectTrigger id="hook-voice" className="w-full">
+                          <SelectValue
+                            placeholder={!voices ? "Loading…" : "Select a voice"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(voices ?? []).map((voice) => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              {voice.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="hook-model">Model</Label>
+                      <Select
+                        value={modelId}
+                        onValueChange={(value) => {
+                          setModelId(value as VoiceModelId)
+                          setLines((current) =>
+                            current.map((line) => ({ ...line, voice: null }))
+                          )
+                        }}
+                      >
+                        <SelectTrigger id="hook-model" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VOICE_MODELS.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hook-notes">
+                    Notes for the writer (optional)
+                  </Label>
+                  <Textarea
+                    id="hook-notes"
+                    rows={2}
+                    value={notes}
+                    maxLength={500}
+                    placeholder="Angle, audience, words to use or avoid..."
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </div>
+                {lines.map((line) => {
+                  const lineBusy = busy?.lineId === line.id ? busy.task : null
+                  const previewing = previewingId === line.id
+                  return (
+                    <div
+                      key={line.id}
+                      className="space-y-1.5 rounded-md border p-2"
+                    >
+                      <Textarea
+                        rows={2}
+                        value={line.text}
+                        maxLength={300}
+                        aria-label="Hook line"
+                        onChange={(event) => {
+                          stopPreview()
+                          setLines((current) =>
+                            current.map((item) =>
+                              item.id === line.id
+                                ? { ...item, text: event.target.value }
+                                : item
+                            )
+                          )
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Rewrite this line"
+                              disabled={blocked}
+                              onClick={() => handleRegenerateLine(line)}
+                            >
+                              {lineBusy === "rewrite" ? (
+                                <Loader2Icon className="size-4 animate-spin" />
+                              ) : (
+                                <RefreshCwIcon className="size-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Rewrite this line</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={
+                                previewing ? "Stop preview" : "Preview voice"
+                              }
+                              disabled={
+                                notConfigured ||
+                                !voiceId ||
+                                !line.text.trim() ||
+                                (blocked && !previewing)
+                              }
+                              onClick={() => handlePreview(line)}
+                            >
+                              {lineBusy === "voice" ? (
+                                <Loader2Icon className="size-4 animate-spin" />
+                              ) : previewing ? (
+                                <PauseIcon className="size-4" />
+                              ) : (
+                                <PlayIcon className="size-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {previewing ? "Stop preview" : "Preview voice"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="ml-auto"
+                          disabled={
+                            notConfigured ||
+                            !voiceId ||
+                            !line.text.trim() ||
+                            blocked
+                          }
+                          onClick={() => handleUse(line)}
+                        >
+                          {lineBusy === "apply" ? (
+                            <Loader2Icon className="size-4 animate-spin" />
+                          ) : (
+                            <SplitIcon className="size-4" />
+                          )}
+                          Use this hook
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </>
+            ) : null}
+            {voiceLoadError && !notConfigured ? (
+              <p role="alert" className="text-sm text-destructive">
+                {voiceLoadError}
+              </p>
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={blocked}
+            onClick={() => handleClose(false)}
+          >
+            {detection?.error ? "Close" : "Cancel"}
+          </Button>
+          {hook ? (
+            <Button type="button" disabled={blocked} onClick={handleWrite}>
+              {writing ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <PenLineIcon className="size-4" />
+              )}
+              {writing
+                ? "Writing…"
+                : lines.length
+                  ? "Write new hooks"
+                  : "Write hooks"}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
