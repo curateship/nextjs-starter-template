@@ -42,6 +42,7 @@ export function ChartToolbar({
   legendLines = [],
   ohlc,
   leading,
+  afterIntervals,
   children,
 }: {
   intervals: readonly CandleInterval[]
@@ -54,6 +55,8 @@ export function ChartToolbar({
   ohlc?: ChartCandle | null
   /** Left-side extras (e.g. the market symbol). */
   leading?: React.ReactNode
+  /** Extras right after the timeframe buttons (e.g. the Indicators menu). */
+  afterIntervals?: React.ReactNode
   /** Right-side extras (menus, settings gear). */
   children?: React.ReactNode
 }) {
@@ -98,6 +101,7 @@ export function ChartToolbar({
           </button>
         ))}
       </div>
+      {afterIntervals}
       {legendItems.length > 0 || legendLines.length > 0 ? (
         <>
           <div className="h-4 w-px bg-border" />
