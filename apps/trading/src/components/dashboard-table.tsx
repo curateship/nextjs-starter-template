@@ -64,6 +64,25 @@ type DashboardTableFooter =
       label?: string
     }
 
+/**
+ * Standard pagination footer for server-paged tables driven by a filters
+ * patch: page changes patch { page }, size changes reset to page 1.
+ */
+export function pagedFooter(
+  data: { page: number; pageSize: number; total: number },
+  onChange: (patch: { page: number; pageSize?: number }) => void
+): DashboardTableFooter {
+  return {
+    type: "pagination",
+    page: data.page,
+    pageSize: data.pageSize,
+    total: data.total,
+    totalPages: Math.max(1, Math.ceil(data.total / data.pageSize)),
+    onPageChange: (page) => onChange({ page }),
+    onPageSizeChange: (pageSize) => onChange({ page: 1, pageSize }),
+  }
+}
+
 type DashboardTableBaseProps = {
   /** Toolbar title — a string or e.g. a breadcrumb trail. */
   title: React.ReactNode

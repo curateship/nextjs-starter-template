@@ -46,13 +46,6 @@ export async function getAssetInfo(
   return asset
 }
 
-export async function listAssets(
-  network: TradingNetwork
-): Promise<AssetInfo[]> {
-  const assets = await getAssetMap(network)
-  return [...assets.values()]
-}
-
 async function getAssetMap(
   network: TradingNetwork
 ): Promise<Map<string, AssetInfo>> {

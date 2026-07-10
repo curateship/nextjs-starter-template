@@ -10,6 +10,16 @@ const decimalString = z
   .string()
   .regex(/^\d+(\.\d+)?$/, "Must be a positive decimal")
 
+/** Sizing + threshold exits shared by the QQE and VWAP signal strategies. */
+const sizingFields = {
+  orderSizeUsd: z.number().positive(),
+  /** Bet the full current balance each trade (profits/losses compound) rather
+   *  than a fixed order size. */
+  compounding: z.boolean().optional(),
+  takeProfitPct: z.number().positive().max(100).optional(),
+  stopLossPct: z.number().positive().max(100).optional(),
+}
+
 export const gridParamsSchema = z.object({
   strategyType: z.literal("grid"),
   lowerPx: decimalString,
@@ -195,12 +205,7 @@ export const qqeParamsSchema = z.object({
   trendReentry: z.boolean().optional(),
   /** Cap re-entries per threshold excursion (unset = unlimited). */
   maxReentries: z.number().int().min(1).max(100).optional(),
-  orderSizeUsd: z.number().positive(),
-  /** Bet the full current balance each trade (profits/losses compound) rather
-   *  than a fixed order size. */
-  compounding: z.boolean().optional(),
-  takeProfitPct: z.number().positive().max(100).optional(),
-  stopLossPct: z.number().positive().max(100).optional(),
+  ...sizingFields,
 })
 
 export const vwapParamsSchema = z
@@ -217,12 +222,7 @@ export const vwapParamsSchema = z
     bandK: z.number().positive().max(10).optional(),
     /** Reversion: exit at the VWAP line or at the opposite band. */
     exitAt: z.enum(["vwap", "band"]).optional(),
-    orderSizeUsd: z.number().positive(),
-    /** Bet the full current balance each trade (profits/losses compound) rather
-     *  than a fixed order size. */
-    compounding: z.boolean().optional(),
-    takeProfitPct: z.number().positive().max(100).optional(),
-    stopLossPct: z.number().positive().max(100).optional(),
+    ...sizingFields,
   })
   .superRefine((params, ctx) => {
     if (params.mode === "reversion") {

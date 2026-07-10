@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card"
+import { Kpi, Row } from "@/components/kpi"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestResult } from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
@@ -9,7 +10,6 @@ import {
   price as fmtPrice,
   profitFactor,
   signedUsd,
-  toneClass,
   usd,
 } from "./backtest-format"
 
@@ -148,56 +148,4 @@ export function BacktestSummary({
   )
 }
 
-function Kpi({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: number
-}) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-base font-semibold",
-            tone !== undefined ? toneClass(tone) : undefined
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[9px] text-muted-foreground">{sub}</span>
-      </CardContent>
-    </Card>
-  )
-}
-
-function Row({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: number
-}) {
-  return (
-    <div className="flex justify-between text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span
-        className={cn(
-          "font-mono",
-          tone !== undefined ? toneClass(tone) : "text-foreground/80"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
 

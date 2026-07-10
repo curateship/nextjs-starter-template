@@ -146,18 +146,7 @@ export async function movePaperOrder(
   const wallet = await requirePaperWallet(userId, paperWalletId, database)
   if (!(Number(px) > 0)) throw new Error("Invalid price")
 
-  const [original] = await database
-    .update(tradingPaperOrders)
-    .set({ status: "cancelling", updatedAt: now() })
-    .where(
-      and(
-        eq(tradingPaperOrders.id, orderId),
-        eq(tradingPaperOrders.paperWalletId, wallet.id),
-        inArray(tradingPaperOrders.status, ["pending", "resting"])
-      )
-    )
-    .returning()
-  if (!original) throw new Error("Order not found or already done")
+  const original = await markOrderCancelling(database, wallet.id, orderId)
 
   const createdAt = now()
   await database.insert(tradingPaperOrders).values({
@@ -185,19 +174,29 @@ export async function cancelPaperOrder(
   database: CustomShellDb = db
 ) {
   const wallet = await requirePaperWallet(userId, paperWalletId, database)
+  await markOrderCancelling(database, wallet.id, orderId)
+  await database.execute(sql.raw(`notify ${PAPER_ORDER_CHANNEL}`))
+}
+
+/** Marks a live order cancelling (the worker consumes it); throws if done. */
+async function markOrderCancelling(
+  database: CustomShellDb,
+  walletId: string,
+  orderId: string
+) {
   const [order] = await database
     .update(tradingPaperOrders)
     .set({ status: "cancelling", updatedAt: now() })
     .where(
       and(
         eq(tradingPaperOrders.id, orderId),
-        eq(tradingPaperOrders.paperWalletId, wallet.id),
+        eq(tradingPaperOrders.paperWalletId, walletId),
         inArray(tradingPaperOrders.status, ["pending", "resting"])
       )
     )
     .returning()
   if (!order) throw new Error("Order not found or already done")
-  await database.execute(sql.raw(`notify ${PAPER_ORDER_CHANNEL}`))
+  return order
 }
 
 export async function getPaperAccount(

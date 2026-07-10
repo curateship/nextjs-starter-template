@@ -27,6 +27,23 @@ export type CreateBacktestInput = {
   startingEquity: number
 }
 
+/** The config columns shared by create and reset. */
+function backtestConfigValues(input: CreateBacktestInput) {
+  return {
+    name: input.name.slice(0, 255),
+    strategyType: input.params.strategyType,
+    market: input.market,
+    network: input.network,
+    interval: input.interval,
+    params: input.params,
+    riskParams: input.riskParams,
+    costs: input.costs,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    startingEquity: String(input.startingEquity),
+  }
+}
+
 /** Inserts a running backtest row; the caller computes and finishes it. */
 export async function createUserBacktest(
   userId: string,
@@ -40,17 +57,7 @@ export async function createUserBacktest(
       id,
       userId,
       groupId: input.groupId ?? id,
-      name: input.name.slice(0, 255),
-      strategyType: input.params.strategyType,
-      market: input.market,
-      network: input.network,
-      interval: input.interval,
-      params: input.params,
-      riskParams: input.riskParams,
-      costs: input.costs,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      startingEquity: String(input.startingEquity),
+      ...backtestConfigValues(input),
       // Queued; the background queue claims it and stamps startedAt on run.
       status: "pending",
       startedAt: null,
@@ -75,17 +82,7 @@ export async function resetUserBacktest(
   const [row] = await database
     .update(tradingBacktests)
     .set({
-      name: input.name.slice(0, 255),
-      strategyType: input.params.strategyType,
-      market: input.market,
-      network: input.network,
-      interval: input.interval,
-      params: input.params,
-      riskParams: input.riskParams,
-      costs: input.costs,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      startingEquity: String(input.startingEquity),
+      ...backtestConfigValues(input),
       // Requeued; the background queue claims it and stamps startedAt on run.
       status: "pending",
       error: null,

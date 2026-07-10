@@ -4,10 +4,10 @@ import {
   num,
   price as fmtPrice,
   signedUsd,
-  toneClass,
   usd,
 } from "@/components/backtest/backtest-format"
 import { Field } from "@/components/bots/strategy-param-fields"
+import { Kpi, Row } from "@/components/kpi"
 import {
   pctFromMid,
   type ParamValues,
@@ -416,55 +416,3 @@ function ProtectiveFields({
   }
 }
 
-function Kpi({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: number
-}) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-base font-semibold",
-            tone !== undefined ? toneClass(tone) : undefined
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[9px] text-muted-foreground">{sub}</span>
-      </CardContent>
-    </Card>
-  )
-}
-
-function Row({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: number
-}) {
-  return (
-    <div className="flex justify-between text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span
-        className={cn(
-          "font-mono",
-          tone !== undefined ? toneClass(tone) : "text-foreground/80"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}

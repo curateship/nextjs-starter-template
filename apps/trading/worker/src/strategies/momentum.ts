@@ -1,6 +1,6 @@
 import type { MomentumParams } from "@/lib/strategies/params"
-import { BARS_PER_DAY } from "./contract"
-import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
+import { BARS_PER_DAY, marketEntryExitOrders } from "./contract"
+import type { Strategy, StrategyCtx } from "./contract"
 import {
   adx,
   atr,
@@ -297,62 +297,16 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
     return [state.trailPx]
   },
 
-  desiredOrders: (ctx: StrategyCtx<MomentumState>, params: MomentumParams) => {
-    const state = ctx.state
-    const mid = Number(ctx.mid)
-    if (!(mid > 0)) return []
-    const orders: DesiredOrder[] = []
-    const szi = Number(ctx.position?.szi ?? 0)
-
-    if (state.exitRequested && szi !== 0) {
-      ctx.setState({ ...state, exitRequested: false })
-      orders.push({
-        purpose: "momo:exit",
-        side: szi > 0 ? "sell" : "buy",
-        orderType: "market",
-        sz: String(Math.abs(szi)),
-        tif: "Ioc",
-        reduceOnly: true,
-      })
-      return orders
-    }
-
-    if (state.pendingEntry) {
-      const side = state.pendingEntry === "long" ? "buy" : "sell"
-      ctx.setState({ ...state, pendingEntry: null })
-      // Close any opposite position first, then open the new one.
-      if (szi !== 0 && Math.sign(szi) !== (side === "buy" ? 1 : -1)) {
-        orders.push({
-          purpose: "momo:flip-close",
-          side: szi > 0 ? "sell" : "buy",
-          orderType: "market",
-          sz: String(Math.abs(szi)),
-          tif: "Ioc",
-          reduceOnly: true,
-        })
-      }
-      // Compounding on: bet the full current balance each trade so profits and
-      // losses carry forward. Off: fixed order size each trade. Vol targeting
-      // shrinks (never grows) the bet on high-volatility coins.
-      const balance = Number(ctx.equity)
-      const scale = params.volTargetPct
-        ? Math.min(1, state.sizeScale ?? 1)
-        : 1
-      const notional =
-        (params.compounding && balance > 0 ? balance : params.orderSizeUsd) *
-        scale
-      orders.push({
-        purpose: "momo:entry",
-        side,
-        orderType: "market",
-        sz: String(notional / mid),
-        tif: "Ioc",
-        reduceOnly: false,
-      })
-    }
-
-    return orders
-  },
+  desiredOrders: (ctx: StrategyCtx<MomentumState>, params: MomentumParams) =>
+    marketEntryExitOrders(ctx, {
+      prefix: "momo",
+      compounding: params.compounding,
+      orderSizeUsd: params.orderSizeUsd,
+      // Vol targeting shrinks (never grows) the bet on high-volatility coins.
+      sizeScale: params.volTargetPct
+        ? Math.min(1, ctx.state.sizeScale ?? 1)
+        : 1,
+    }),
 }
 
 function requestExit(ctx: StrategyCtx<MomentumState>, message: string) {

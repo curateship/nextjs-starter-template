@@ -2,10 +2,11 @@ import { sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { getScannerUniverse } from "@/server/scanner/info"
-import { scannerAlerts, scannerCrowdSignals } from "@/server/schema"
+import { scannerCrowdSignals } from "@/server/schema"
 import { now, uuid } from "@/server/util"
 import { crowdScore } from "./crowd-score"
 import { formatUsd } from "./format"
+import { insertAlerts } from "./insert-alerts"
 
 const TICK_MS = 60_000
 const WINDOW_MS = 30 * 60_000
@@ -223,23 +224,23 @@ export class CrowdDetector {
       if (score >= ALERT_MIN_SCORE) {
         const bucket = Math.floor(Date.now() / WINDOW_MS)
         const verb = cluster.direction === "long" ? "buying" : "shorting"
-        await this.insertAlert({
+        await insertAlerts([{
           type: "crowd_signal",
           coin: cluster.coin,
           title: `${cluster.wallets.length} whales ${verb} ${cluster.coin} (score ${score}, ${formatUsd(cluster.notional)})`,
           dedupeKey: `crowd:${cluster.coin}:${cluster.direction}:${bucket}`,
           data: { score, wallets: cluster.wallets.length },
-        })
+        }])
 
         const move = this.priceMove(cluster.coin)
         if (move !== null && Math.abs(move) < FLAT_PRICE_MOVE) {
-          await this.insertAlert({
+          await insertAlerts([{
             type: "smart_flow_divergence",
             coin: cluster.coin,
             title: `Whales ${verb} ${cluster.coin} while price is flat (${(move * 100).toFixed(2)}% in 30m)`,
             dedupeKey: `crowd-flat:${cluster.coin}:${cluster.direction}:${bucket}`,
             data: { score, priceMove: move },
-          })
+          }])
         }
       }
     }
@@ -259,39 +260,14 @@ export class CrowdDetector {
     `)
     const bucket = Math.floor(Date.now() / WINDOW_MS)
     for (const row of result.rows) {
-      await this.insertAlert({
+      await insertAlerts([{
         type: "crowd_exit",
         coin: row.coin,
         title: `${row.wallets} quality wallets exited ${row.coin} in 30 min`,
         dedupeKey: `crowd-exit:${row.coin}:${bucket}`,
         data: { wallets: Number(row.wallets) },
-      })
+      }])
     }
   }
 
-  private async insertAlert(draft: {
-    type: string
-    coin: string
-    title: string
-    dedupeKey: string
-    data?: unknown
-  }) {
-    await db
-      .insert(scannerAlerts)
-      .values({
-        id: uuid(),
-        type: draft.type,
-        coin: draft.coin,
-        address: null,
-        title: draft.title,
-        body: null,
-        data: draft.data ?? null,
-        dedupeKey: draft.dedupeKey,
-        createdAt: now(),
-      })
-      .onConflictDoNothing({
-        target: scannerAlerts.dedupeKey,
-        where: sql`dedupe_key is not null`,
-      })
-  }
 }

@@ -302,28 +302,11 @@ export function serializeWorkspace(
 }
 
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
-  const fallback = defaultWorkspaceSettings()
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const settings = value as Partial<WorkspaceSettings>
-    return {
-      icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
-      favicon:
-        typeof settings.favicon === "string"
-          ? settings.favicon
-          : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
-      topRightNavigation: Array.isArray(settings.topRightNavigation)
-        ? settings.topRightNavigation
-        : fallback.topRightNavigation,
-      sections: Array.isArray(settings.sections)
-        ? settings.sections
-        : fallback.sections,
-    }
+    return cleanWorkspaceSettings(value as Partial<WorkspaceSettings>)
   }
 
-  return fallback
+  return defaultWorkspaceSettings()
 }
 
 function cleanWorkspaceSettings(

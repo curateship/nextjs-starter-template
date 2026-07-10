@@ -1,15 +1,7 @@
 import * as React from "react"
-import {
-  AlertCircleIcon,
-  Loader2Icon,
-  MessageSquareIcon,
-  SaveIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { MessageSquareIcon } from "lucide-react"
 
 import {
-  DashboardToolbarButton,
   dashboardToolbarSegmentedButtonActiveClassName,
   dashboardToolbarSegmentedButtonClassName,
   dashboardToolbarSegmentedButtonInactiveClassName,
@@ -18,15 +10,28 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import { DashboardTable } from "@/components/dashboard-table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import {
+  ConfirmDeleteDialog,
+  DeleteSaveFooter,
+  ErrorAlert,
+  FeedbackTypeBadge,
+  MassDeleteToolbarButton,
+  RowActions,
+  RowMessageButton,
+  SelectAllBanner,
+  SelectVisibleHead,
+} from "@/components/feedback-shared"
+import {
+  feedbackDateFormatter,
+  feedbackTypeLabels,
+} from "@/lib/feedback-meta"
+import { useRowSelection } from "@/lib/use-row-selection"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -35,7 +40,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
@@ -54,7 +58,6 @@ import {
   listFeedbackCommentDashboard,
   updateFeedbackComment,
   type FeedbackCommentItem,
-  type FeedbackType,
 } from "@/lib/api/feedback"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useShellRuntime } from "@/components/shell-layout"
@@ -70,38 +73,6 @@ const feedbackPeriodLabels: Record<FeedbackPeriod, string> = {
   "3months": "3 Months",
   "30days": "30 Days",
 }
-
-const feedbackTypeLabels: Record<FeedbackType, string> = {
-  suggestion: "Suggestion",
-  bug_report: "Bug Report",
-  question: "Question",
-  praise: "Praise",
-}
-
-const feedbackTypeBadgeVariants: Record<
-  FeedbackType,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  suggestion: "default",
-  bug_report: "destructive",
-  question: "outline",
-  praise: "secondary",
-}
-
-const feedbackTypeClassNames: Record<FeedbackType, string> = {
-  suggestion: "",
-  bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
-}
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 export function FeedbackCommentsDashboard() {
   const { config } = useShellRuntime()
@@ -120,7 +91,6 @@ export function FeedbackCommentsDashboard() {
     React.useState<FeedbackCommentItem | null>(null)
   const [deletingComment, setDeletingComment] =
     React.useState<FeedbackCommentItem | null>(null)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
@@ -185,11 +155,8 @@ export function FeedbackCommentsDashboard() {
     () => filteredComments.map((comment) => comment.id),
     [filteredComments]
   )
-  const visibleSelected =
-    paginatedCommentIds.length > 0 &&
-    paginatedCommentIds.every((id) => selectedIds.has(id))
-  const visiblePartiallySelected =
-    !visibleSelected && paginatedCommentIds.some((id) => selectedIds.has(id))
+  const selection = useRowSelection(paginatedCommentIds)
+  const { selectedIds, setSelectedIds } = selection
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -217,35 +184,7 @@ export function FeedbackCommentsDashboard() {
 
   const handleDeleted = (comment: FeedbackCommentItem) => {
     setComments((current) => current.filter((item) => item.id !== comment.id))
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      next.delete(comment.id)
-      return next
-    })
-  }
-
-  const toggleCommentSelection = (commentId: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(commentId)) {
-        next.delete(commentId)
-      } else {
-        next.add(commentId)
-      }
-      return next
-    })
-  }
-
-  const toggleVisibleSelection = () => {
-    setSelectedIds((current) => {
-      if (visibleSelected) {
-        const next = new Set(current)
-        paginatedCommentIds.forEach((id) => next.delete(id))
-        return next
-      }
-
-      return new Set([...current, ...paginatedCommentIds])
-    })
+    selection.removeId(comment.id)
   }
 
   const handleMassDelete = async () => {
@@ -287,15 +226,7 @@ export function FeedbackCommentsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <ErrorAlert error={error} className="mt-4" />
 
       <DashboardTable
         title="Comments"
@@ -305,21 +236,11 @@ export function FeedbackCommentsDashboard() {
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
-            {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
-            ) : null}
+            <MassDeleteToolbarButton
+              count={selectedIds.size}
+              deleting={massDeleting}
+              onClick={() => setMassDeleteOpen(true)}
+            />
             <PeriodTabs
               activePeriod={periodFilter}
               onPeriodChange={setPeriodFilter}
@@ -354,19 +275,12 @@ export function FeedbackCommentsDashboard() {
         header={
             <TableHeader>
               <TableRow>
-                <TableHead column="select">
-                  <Checkbox
-                    checked={
-                      visibleSelected
-                        ? true
-                        : visiblePartiallySelected
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={toggleVisibleSelection}
-                    aria-label="Select visible comments"
-                  />
-                </TableHead>
+                <SelectVisibleHead
+                  allSelected={selection.visibleSelected}
+                  partiallySelected={selection.visiblePartiallySelected}
+                  onToggle={selection.toggleVisible}
+                  ariaLabel="Select visible comments"
+                />
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
                     Comment
@@ -415,19 +329,15 @@ export function FeedbackCommentsDashboard() {
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(comment.id)}
-                onCheckedChange={() => toggleCommentSelection(comment.id)}
+                onCheckedChange={() => selection.toggleRow(comment.id)}
                 aria-label={`Select comment ${comment.message}`}
               />
             </TableCell>
             <TableCell column="main">
-              <button
-                type="button"
-                className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
+              <RowMessageButton
+                message={comment.message}
                 onClick={() => setEditingComment(comment)}
-                title={comment.message}
-              >
-                {comment.message}
-              </button>
+              />
             </TableCell>
             <TableCell column="preview">
               <span className="line-clamp-1 max-w-44">
@@ -435,63 +345,34 @@ export function FeedbackCommentsDashboard() {
               </span>
             </TableCell>
             <TableCell column="meta">
-              <Badge
-                variant={feedbackTypeBadgeVariants[comment.feedback_type]}
-                className={feedbackTypeClassNames[comment.feedback_type]}
-              >
-                {feedbackTypeLabels[comment.feedback_type]}
-              </Badge>
+              <FeedbackTypeBadge type={comment.feedback_type} />
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {comment.author_name}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {dateFormatter.format(new Date(comment.created_at))}
+              {feedbackDateFormatter.format(new Date(comment.created_at))}
             </TableCell>
             <TableCell column="meta">
-              <div className="flex items-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingComment(comment)}
-                  title="Comment settings"
-                  aria-label="Comment settings"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  <span className="sr-only">Comment settings</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeletingComment(comment)}
-                  title="Delete comment"
-                  aria-label="Delete comment"
-                >
-                  <Trash2Icon className="h-4 w-4" />
-                  <span className="sr-only">Delete comment</span>
-                </Button>
-              </div>
+              <RowActions
+                editLabel="Comment settings"
+                deleteLabel="Delete comment"
+                onEdit={() => setEditingComment(comment)}
+                onDelete={() => setDeletingComment(comment)}
+              />
             </TableCell>
           </TableRow>
         ))}
       </DashboardTable>
 
-      {visibleSelected &&
+      {selection.visibleSelected &&
       filteredCommentIds.length > paginatedCommentIds.length ? (
-        <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {paginatedCommentIds.length} comment
-          {paginatedCommentIds.length === 1 ? "" : "s"} on this page are
-          selected.{" "}
-          <button
-            type="button"
-            className="font-medium text-foreground underline underline-offset-2"
-            onClick={() => setSelectedIds(new Set(filteredCommentIds))}
-          >
-            Select all {filteredCommentIds.length}
-          </button>
-        </div>
+        <SelectAllBanner
+          visibleCount={paginatedCommentIds.length}
+          totalCount={filteredCommentIds.length}
+          noun="comment"
+          onSelectAll={() => setSelectedIds(new Set(filteredCommentIds))}
+        />
       ) : null}
 
       <EditFeedbackCommentModal
@@ -503,136 +384,27 @@ export function FeedbackCommentsDashboard() {
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
-      <MassDeleteFeedbackCommentsModal
-        count={selectedIds.size}
-        deleting={massDeleting}
+      <ConfirmDeleteDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} Comment${selectedIds.size === 1 ? "" : "s"}`}
+        body={`Are you sure you want to delete ${selectedIds.size} comment${selectedIds.size === 1 ? "" : "s"}?`}
+        deleting={massDeleting}
+        confirmDisabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}
       />
-      <DeleteFeedbackCommentModal
-        comment={deletingComment}
-        deleting={quickDeleting}
+      <ConfirmDeleteDialog
         open={Boolean(deletingComment)}
         onOpenChange={(open) => {
           if (!open) setDeletingComment(null)
         }}
+        title="Delete Comment"
+        body="Are you sure you want to delete this comment?"
+        deleting={quickDeleting}
+        confirmDisabled={!deletingComment}
         onConfirm={handleQuickDelete}
       />
     </div>
-  )
-}
-
-function DeleteFeedbackCommentModal({
-  comment,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  comment: FeedbackCommentItem | null
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Comment</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this comment?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || !comment}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MassDeleteFeedbackCommentsModal({
-  count,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  count: number
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {count} Comment{count === 1 ? "" : "s"}
-          </DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete {count} comment
-            {count === 1 ? "" : "s"}?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || count === 0}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -730,41 +502,14 @@ function EditFeedbackCommentModal({
             />
           </div>
 
-          {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          ) : null}
+          <ErrorAlert error={error} />
         </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={busy}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </>
-        </DialogFooter>
+        <DeleteSaveFooter
+          saving={saving}
+          deleting={deleting}
+          onSave={handleSave}
+          onDelete={handleDelete}
+        />
       </DialogContent>
     </Dialog>
   )

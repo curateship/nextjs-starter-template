@@ -3,9 +3,9 @@ import { BookOpenIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
-import { TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { formatNotional } from "@/components/scanner/format"
-import { SortHead, type SortDir } from "@/components/scanner/sort-head"
+import { SortHeaderRow, type SortDir } from "@/components/scanner/sort-head"
 import { OrderBook } from "@/components/trading/order-book"
 import { formatPriceDisplay } from "@/components/trading/format"
 import {
@@ -109,21 +109,12 @@ export function BookDashboard({ initial }: { initial: BookMetricsResponse }) {
         }
         count={data.items.length}
         header={
-          <TableHeader>
-            <TableRow>
-              {COLUMNS.map((c) => (
-                <SortHead
-                  key={c.key}
-                  column={c.main ? "main" : "meta"}
-                  sortKey={c.key}
-                  label={c.label}
-                  activeKey={sort.sortBy}
-                  dir={sort.dir}
-                  onSort={setSort}
-                />
-              ))}
-            </TableRow>
-          </TableHeader>
+          <SortHeaderRow
+            columns={COLUMNS}
+            activeKey={sort.sortBy}
+            dir={sort.dir}
+            onSort={setSort}
+          />
         }
         isEmpty={data.items.length === 0}
         emptyText="No book metrics yet. The worker watches the top-volume coins and updates every few seconds."

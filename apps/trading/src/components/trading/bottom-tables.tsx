@@ -3,6 +3,15 @@ import type { WebData2WsEvent } from "@nktkas/hyperliquid"
 import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
+import {
+  ClosedPnlCell,
+  EmptyState,
+  MonoCell,
+  RowActionButton,
+  SideCell,
+  StickyTable,
+  TimeCell,
+} from "@/components/trading/table-bits"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,21 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  STICKY_SCROLL_OVERRIDES,
-  STICKY_TABLE_HEADER,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { cancelOrder, getOrderErrorMessage, placeOrder } from "@/lib/api/orders"
 import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
-import { cn } from "@/lib/utils"
 
 type PositionAction = {
   kind: "close" | "reverse"
@@ -92,101 +90,70 @@ export function PositionsTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Market</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Entry</TableHead>
-            <TableHead>Mark</TableHead>
-            <TableHead>Liq. price</TableHead>
-            <TableHead>uPnL (ROE)</TableHead>
-            <TableHead>Margin</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {positions.map(({ position }) => {
-            const szi = Number(position.szi)
-            const upnl = Number(position.unrealizedPnl)
-            const roe = Number(position.returnOnEquity) * 100
-            return (
-              <TableRow key={position.coin}>
-                <TableCell className="font-medium">
-                  {position.coin}
-                  <span className="ml-1 text-[10px] text-muted-foreground">
-                    {position.leverage.value}x {position.leverage.type}
-                  </span>
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    szi > 0 ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {position.szi}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(position.entryPx ?? "0")}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(mids[position.coin] ?? "0")}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {position.liquidationPx
-                    ? formatPriceDisplay(position.liquidationPx)
-                    : "—"}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    upnl >= 0 ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {upnl >= 0 ? "+" : ""}
-                  {upnl.toFixed(2)} ({roe.toFixed(1)}%)
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  ${Number(position.marginUsed).toFixed(2)}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2 text-[11px]"
-                      disabled={!walletId}
-                      onClick={() =>
-                        setPending({ kind: "close", coin: position.coin, szi })
-                      }
-                    >
-                      Close
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2 text-[11px]"
-                      disabled={!walletId}
-                      onClick={() =>
-                        setPending({
-                          kind: "reverse",
-                          coin: position.coin,
-                          szi,
-                        })
-                      }
-                    >
-                      Reverse
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <>
+      <StickyTable
+        headers={[
+          "Market",
+          "Size",
+          "Entry",
+          "Mark",
+          "Liq. price",
+          "uPnL (ROE)",
+          "Margin",
+          "Actions",
+        ]}
+      >
+        {positions.map(({ position }) => {
+          const szi = Number(position.szi)
+          const upnl = Number(position.unrealizedPnl)
+          const roe = Number(position.returnOnEquity) * 100
+          return (
+            <TableRow key={position.coin}>
+              <TableCell className="font-medium">
+                {position.coin}
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  {position.leverage.value}x {position.leverage.type}
+                </span>
+              </TableCell>
+              <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
+                {position.szi}
+              </MonoCell>
+              <MonoCell>{formatPriceDisplay(position.entryPx ?? "0")}</MonoCell>
+              <MonoCell>{formatPriceDisplay(mids[position.coin] ?? "0")}</MonoCell>
+              <MonoCell>
+                {position.liquidationPx
+                  ? formatPriceDisplay(position.liquidationPx)
+                  : "—"}
+              </MonoCell>
+              <MonoCell className={upnl >= 0 ? "text-emerald-600" : "text-red-500"}>
+                {upnl >= 0 ? "+" : ""}
+                {upnl.toFixed(2)} ({roe.toFixed(1)}%)
+              </MonoCell>
+              <MonoCell>${Number(position.marginUsed).toFixed(2)}</MonoCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  <RowActionButton
+                    disabled={!walletId}
+                    onClick={() =>
+                      setPending({ kind: "close", coin: position.coin, szi })
+                    }
+                  >
+                    Close
+                  </RowActionButton>
+                  <RowActionButton
+                    disabled={!walletId}
+                    onClick={() =>
+                      setPending({ kind: "reverse", coin: position.coin, szi })
+                    }
+                  >
+                    Reverse
+                  </RowActionButton>
+                </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </StickyTable>
 
       <Dialog
         open={Boolean(pending)}
@@ -235,7 +202,7 @@ export function PositionsTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </ScrollArea>
+    </>
   )
 }
 
@@ -269,69 +236,44 @@ export function OpenOrdersTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Time</TableHead>
-            <TableHead>Market</TableHead>
-            <TableHead>Side</TableHead>
-            <TableHead>Price</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Filled</TableHead>
-            <TableHead>Reduce</TableHead>
-            <TableHead>Actions</TableHead>
+    <StickyTable
+      headers={[
+        "Time",
+        "Market",
+        "Side",
+        "Price",
+        "Size",
+        "Filled",
+        "Reduce",
+        "Actions",
+      ]}
+    >
+      {orders.map((order) => {
+        const filled = Number(order.origSz) - Number(order.sz)
+        return (
+          <TableRow key={order.oid}>
+            <TimeCell time={order.timestamp} />
+            <TableCell className="font-medium">{order.coin}</TableCell>
+            <SideCell isBuy={order.side === "B"}>
+              {order.side === "B" ? "Buy" : "Sell"}
+            </SideCell>
+            <MonoCell>{formatPriceDisplay(order.limitPx)}</MonoCell>
+            <MonoCell>{order.origSz}</MonoCell>
+            <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
+            <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
+            <TableCell>
+              <RowActionButton
+                busy={cancelling === order.oid}
+                disabled={!walletId || cancelling === order.oid}
+                onClick={() => void cancel(order.coin, order.oid)}
+              >
+                Cancel
+              </RowActionButton>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((order) => {
-            const filled = Number(order.origSz) - Number(order.sz)
-            return (
-              <TableRow key={order.oid}>
-                <TableCell className="font-mono text-[11px] tabular-nums">
-                  {new Date(order.timestamp).toLocaleTimeString("en-US", {
-                    hour12: false,
-                  })}
-                </TableCell>
-                <TableCell className="font-medium">{order.coin}</TableCell>
-                <TableCell
-                  className={cn(
-                    order.side === "B" ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {order.side === "B" ? "Buy" : "Sell"}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(order.limitPx)}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {order.origSz}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {filled > 0 ? filled.toFixed(4) : "—"}
-                </TableCell>
-                <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-6 px-2 text-[11px]"
-                    disabled={!walletId || cancelling === order.oid}
-                    onClick={() => void cancel(order.coin, order.oid)}
-                  >
-                    {cancelling === order.oid ? (
-                      <Loader2Icon className="size-3 animate-spin" />
-                    ) : null}
-                    Cancel
-                  </Button>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </ScrollArea>
+        )
+      })}
+    </StickyTable>
   )
 }
 
@@ -393,71 +335,20 @@ export function FillsTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Time</TableHead>
-            <TableHead>Market</TableHead>
-            <TableHead>Direction</TableHead>
-            <TableHead>Price</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Fee</TableHead>
-            <TableHead>Closed PnL</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {fills.map((fill) => {
-            const closedPnl = Number(fill.closedPnl)
-            return (
-              <TableRow key={fill.tid}>
-                <TableCell className="font-mono text-[11px] tabular-nums">
-                  {new Date(fill.time).toLocaleString("en-US", {
-                    hour12: false,
-                  })}
-                </TableCell>
-                <TableCell className="font-medium">{fill.coin}</TableCell>
-                <TableCell
-                  className={cn(
-                    fill.side === "B" ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {fill.dir}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(fill.px)}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {fill.sz}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {Number(fill.fee).toFixed(4)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    closedPnl > 0
-                      ? "text-emerald-600"
-                      : closedPnl < 0
-                        ? "text-red-500"
-                        : undefined
-                  )}
-                >
-                  {closedPnl !== 0 ? closedPnl.toFixed(2) : "—"}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </ScrollArea>
-  )
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-      {text}
-    </div>
+    <StickyTable
+      headers={["Time", "Market", "Direction", "Price", "Size", "Fee", "Closed PnL"]}
+    >
+      {fills.map((fill) => (
+        <TableRow key={fill.tid}>
+          <TimeCell time={fill.time} full />
+          <TableCell className="font-medium">{fill.coin}</TableCell>
+          <SideCell isBuy={fill.side === "B"}>{fill.dir}</SideCell>
+          <MonoCell>{formatPriceDisplay(fill.px)}</MonoCell>
+          <MonoCell>{fill.sz}</MonoCell>
+          <MonoCell>{Number(fill.fee).toFixed(4)}</MonoCell>
+          <ClosedPnlCell value={Number(fill.closedPnl)} />
+        </TableRow>
+      ))}
+    </StickyTable>
   )
 }
