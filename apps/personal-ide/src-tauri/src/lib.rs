@@ -6,18 +6,23 @@ use std::{
     io::{Read, Write},
     path::{Component, Path, PathBuf},
     process::Command,
-    sync::Mutex,
+    sync::{mpsc, Arc, Mutex},
     thread,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{
+    ipc::{Channel, InvokeResponseBody, JavaScriptChannelId},
+    AppHandle, Manager, State, Webview,
+};
 use tauri_plugin_dialog::DialogExt;
 
 const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 const MAX_TASK_TEMPLATE_SIZE: usize = 64 * 1024;
-const TERMINAL_OUTPUT_EVENT_PREFIX: &str = "terminal-output:";
 const TERMINAL_OUTPUT_BUFFER_SIZE: usize = 16 * 1024;
+// Coalesce PTY output so fast-streaming agents cost at most ~60 IPC messages
+// per second instead of one per read().
+const TERMINAL_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
 const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
@@ -77,6 +82,10 @@ struct TerminalSession {
     master: Box<dyn MasterPty + Send>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send>>,
+    // Swapped out when the pane remounts and calls start_terminal again.
+    // None until a pane attaches; output produced before then is dropped,
+    // matching the old emit-with-no-listener behavior.
+    output: Arc<Mutex<Option<Channel<InvokeResponseBody>>>>,
 }
 
 #[derive(Serialize)]
@@ -167,14 +176,6 @@ struct GitStatus {
     merge_files: Vec<GitFile>,
     develop_commits: Vec<GitCommit>,
     develop_files: Vec<GitFile>,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct TerminalOutput {
-    workspace_id: String,
-    terminal_id: String,
-    data: Vec<u8>,
 }
 
 impl WorkspaceState {
@@ -1353,19 +1354,31 @@ fn start_terminal(
     terminal_id: String,
     cols: u16,
     rows: u16,
-    app: AppHandle,
+    on_output: Option<JavaScriptChannelId>,
+    webview: Webview,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     if terminal_id.trim().is_empty() {
         return Err("Terminal id is required".to_string());
     }
 
-    if state
+    // Callers that only ensure the terminal is running pass no channel;
+    // only panes do, and a pane's channel always becomes the output target.
+    let on_output: Option<Channel<InvokeResponseBody>> =
+        on_output.map(|id| id.channel_on(webview));
+
+    if let Some(session) = state
         .terminals
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?
-        .contains_key(&terminal_id)
+        .get(&terminal_id)
     {
+        if let Some(channel) = on_output {
+            *session
+                .output
+                .lock()
+                .map_err(|_| "Terminal output is unavailable".to_string())? = Some(channel);
+        }
         return Ok(());
     }
 
@@ -1398,25 +1411,44 @@ fn start_terminal(
         .spawn_command(command)
         .map_err(|error| error.to_string())?;
 
-    let output_workspace_id = workspace_id.clone();
-    let output_terminal_id = terminal_id.clone();
+    let output = Arc::new(Mutex::new(on_output));
+    let flush_output = output.clone();
+    let (chunk_sender, chunk_receiver) = mpsc::channel::<Vec<u8>>();
     thread::spawn(move || {
         let mut buffer = [0_u8; TERMINAL_OUTPUT_BUFFER_SIZE];
-        let output_event = terminal_output_event(&output_terminal_id);
         loop {
             match reader.read(&mut buffer) {
-                Ok(0) => break,
+                Ok(0) | Err(_) => break,
                 Ok(size) => {
-                    let _ = app.emit(
-                        &output_event,
-                        TerminalOutput {
-                            workspace_id: output_workspace_id.clone(),
-                            terminal_id: output_terminal_id.clone(),
-                            data: buffer[..size].to_vec(),
-                        },
-                    );
+                    if chunk_sender.send(buffer[..size].to_vec()).is_err() {
+                        break;
+                    }
                 }
-                Err(_) => break,
+            }
+        }
+    });
+    thread::spawn(move || {
+        let mut last_flush = Instant::now() - TERMINAL_OUTPUT_FLUSH_INTERVAL;
+        while let Ok(mut pending) = chunk_receiver.recv() {
+            // Idle terminals flush immediately (the deadline is already past);
+            // streaming ones keep collecting until the frame deadline or the
+            // buffer fills, so keystroke echo stays instant.
+            let deadline = last_flush + TERMINAL_OUTPUT_FLUSH_INTERVAL;
+            while pending.len() < TERMINAL_OUTPUT_BUFFER_SIZE {
+                let now = Instant::now();
+                if now >= deadline {
+                    break;
+                }
+                match chunk_receiver.recv_timeout(deadline - now) {
+                    Ok(chunk) => pending.extend_from_slice(&chunk),
+                    Err(_) => break,
+                }
+            }
+            last_flush = Instant::now();
+            if let Ok(channel) = flush_output.lock() {
+                if let Some(channel) = channel.as_ref() {
+                    let _ = channel.send(InvokeResponseBody::Raw(pending));
+                }
             }
         }
     });
@@ -1432,6 +1464,7 @@ fn start_terminal(
                 master: pair.master,
                 writer: Mutex::new(writer),
                 child: Mutex::new(child),
+                output,
             },
         );
 
@@ -3695,10 +3728,6 @@ fn kill_terminal_session(session: TerminalSession) -> Result<(), String> {
         .map_err(|_| "Terminal child is unavailable".to_string())?
         .kill();
     Ok(())
-}
-
-fn terminal_output_event(terminal_id: &str) -> String {
-    format!("{}{}", TERMINAL_OUTPUT_EVENT_PREFIX, terminal_id)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

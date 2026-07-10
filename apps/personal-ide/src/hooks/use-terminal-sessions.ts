@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { killNativeTerminal } from "@/app/native/terminal"
 import { readableError } from "@/app/path"
 import {
+  cleanTerminalOutput,
   detectTerminalAgent,
   loadPersistedTerminalSessions,
   looksLikeAgentOutput,
@@ -66,39 +67,46 @@ export function useTerminalSessions({
   }, [])
 
   const handleTerminalOutput = useCallback(
-    (workspaceId: string, terminalId: string, data: number[]) => {
+    (workspaceId: string, terminalId: string, data: Uint8Array) => {
       if (terminalId.endsWith("-server")) return
-      const terminalExists = terminalStateFor(
+      const item = terminalStateFor(
         workspaceId,
         terminalsByWorkspaceRef.current
-      ).terminals.some((terminal) => terminal.id === terminalId)
-      if (!terminalExists) return
+      ).terminals.find((terminal) => terminal.id === terminalId)
+      if (!item) return
 
       // A workspace becomes "running" only when we see a real agent marker
       // (⏺ / "esc to interrupt" / the Codex banner). But an agent's spinner and
       // token stream keep redrawing without re-emitting that marker every chunk,
       // so once a session is running we let ANY further output keep it alive.
       // This is what stops the badge from flapping running↔waiting mid-work.
-      const hasAgentMarker = looksLikeAgentOutput(data)
-      if (!hasAgentMarker && !runningWorkspacesRef.current.has(workspaceId)) return
+      // Once it's running AND the terminal's agent is known, the bytes have
+      // nothing left to tell us — skip the decode+regex scan entirely and just
+      // keep the session alive.
+      const alreadyRunning = runningWorkspacesRef.current.has(workspaceId)
+      if (!alreadyRunning || !item.agent) {
+        const clean = cleanTerminalOutput(data)
+        const hasAgentMarker = looksLikeAgentOutput(clean)
+        if (!hasAgentMarker && !alreadyRunning) return
 
-      if (hasAgentMarker) {
-        const agent = detectTerminalAgent(data)
-        if (agent) {
-          setTerminalsByWorkspace((current) => {
-            const state = terminalStateFor(workspaceId, current)
-            const item = state.terminals.find((terminal) => terminal.id === terminalId)
-            if (!item || item.agent === agent) return current
-            return {
-              ...current,
-              [workspaceId]: {
-                ...state,
-                terminals: state.terminals.map((terminal) =>
-                  terminal.id === terminalId ? { ...terminal, agent } : terminal
-                ),
-              },
-            }
-          })
+        if (hasAgentMarker && !item.agent) {
+          const agent = detectTerminalAgent(clean)
+          if (agent) {
+            setTerminalsByWorkspace((current) => {
+              const state = terminalStateFor(workspaceId, current)
+              const target = state.terminals.find((terminal) => terminal.id === terminalId)
+              if (!target || target.agent === agent) return current
+              return {
+                ...current,
+                [workspaceId]: {
+                  ...state,
+                  terminals: state.terminals.map((terminal) =>
+                    terminal.id === terminalId ? { ...terminal, agent } : terminal
+                  ),
+                },
+              }
+            })
+          }
         }
       }
 

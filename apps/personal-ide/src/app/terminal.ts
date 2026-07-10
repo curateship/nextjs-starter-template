@@ -3,7 +3,6 @@ import type { TerminalAgent, TerminalItem, WorkspaceTerminalState } from "@/app/
 
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g")
 const TERMINAL_OUTPUT_DECODER = new TextDecoder()
-const TERMINAL_OUTPUT_EVENT_PREFIX = "terminal-output:"
 
 export const TERMINAL_SCROLLBACK_LINES = 800
 
@@ -24,18 +23,19 @@ const AGENT_OUTPUT_PATTERN = new RegExp(
 const CLAUDE_OUTPUT_PATTERN = /⏺|esc to interrupt/
 const CODEX_OUTPUT_PATTERN = /(^|\n)\s*Codex\b/
 
-function cleanTerminalOutput(data: number[]) {
+// Decode + ANSI-strip once per chunk; callers share the cleaned string
+// between looksLikeAgentOutput and detectTerminalAgent.
+export function cleanTerminalOutput(data: Uint8Array) {
   return TERMINAL_OUTPUT_DECODER
-    .decode(new Uint8Array(data))
+    .decode(data)
     .replace(ANSI_ESCAPE_PATTERN, "")
 }
 
-export function looksLikeAgentOutput(data: number[]) {
-  return AGENT_OUTPUT_PATTERN.test(cleanTerminalOutput(data))
+export function looksLikeAgentOutput(clean: string) {
+  return AGENT_OUTPUT_PATTERN.test(clean)
 }
 
-export function detectTerminalAgent(data: number[]): TerminalAgent | undefined {
-  const clean = cleanTerminalOutput(data)
+export function detectTerminalAgent(clean: string): TerminalAgent | undefined {
   if (CLAUDE_OUTPUT_PATTERN.test(clean)) return "claude"
   if (CODEX_OUTPUT_PATTERN.test(clean)) return "codex"
   return undefined
@@ -116,10 +116,6 @@ export function loadPersistedTerminalSessions(): Record<string, WorkspaceTermina
     restored[workspaceId] = { terminals, activeTerminalId }
   }
   return restored
-}
-
-export function terminalOutputEvent(terminalId: string) {
-  return `${TERMINAL_OUTPUT_EVENT_PREFIX}${terminalId}`
 }
 
 export function terminalStateFor(

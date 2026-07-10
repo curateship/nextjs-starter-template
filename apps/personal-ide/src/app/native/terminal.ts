@@ -1,12 +1,22 @@
-import { invoke } from "@tauri-apps/api/core"
+import { Channel, invoke } from "@tauri-apps/api/core"
 
 export function startNativeTerminal(
   workspaceId: string,
   terminalId: string,
   cols: number,
-  rows: number
+  rows: number,
+  onOutput?: (data: Uint8Array) => void
 ) {
-  return invoke("start_terminal", { workspaceId, terminalId, cols, rows })
+  // Raw-byte channel: PTY output crosses IPC as binary instead of a JSON
+  // number array, so nothing gets JSON.parsed on the main thread. Callers
+  // without a handler only ensure the terminal is running; the pane's channel
+  // stays attached.
+  let output: Channel<ArrayBuffer> | null = null
+  if (onOutput) {
+    output = new Channel<ArrayBuffer>()
+    output.onmessage = (data) => onOutput(new Uint8Array(data))
+  }
+  return invoke("start_terminal", { workspaceId, terminalId, cols, rows, onOutput: output })
 }
 
 export function resizeNativeTerminal(terminalId: string, cols: number, rows: number) {

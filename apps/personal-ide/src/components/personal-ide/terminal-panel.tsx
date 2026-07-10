@@ -59,7 +59,7 @@ export function BottomPanel({
   onError: (value: string) => void
   onPasteImage: (event: ReactClipboardEvent | ClipboardEvent) => void
   onTerminalInput: (workspaceId: string, terminalId: string) => void
-  onTerminalOutput: (workspaceId: string, terminalId: string, data: number[]) => void
+  onTerminalOutput: (workspaceId: string, terminalId: string, data: Uint8Array) => void
   onTabChange: (value: string) => void
 }) {
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalStates)

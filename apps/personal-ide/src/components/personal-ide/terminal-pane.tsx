@@ -1,10 +1,10 @@
-import { listen } from "@tauri-apps/api/event"
 import { FitAddon } from "@xterm/addon-fit"
 import { WebglAddon } from "@xterm/addon-webgl"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 import { useEffect, useRef } from "react"
+import type { RefObject } from "react"
 
 import {
   resizeNativeTerminal,
@@ -12,11 +12,7 @@ import {
   writeNativeTerminal,
 } from "@/app/native/terminal"
 import { readableError } from "@/app/path"
-import {
-  TERMINAL_SCROLLBACK_LINES,
-  terminalOutputEvent,
-} from "@/app/terminal"
-import type { TerminalOutput } from "@/app/types"
+import { TERMINAL_SCROLLBACK_LINES } from "@/app/terminal"
 
 const LIGHT_TERMINAL_THEME: ITheme = {
   background: "#ffffff",
@@ -84,6 +80,26 @@ function syncScrollableState(container: HTMLElement, terminal: Terminal) {
   container.classList.toggle("terminal-has-scrollback", terminal.buffer.active.baseY > 0)
 }
 
+// Render on the GPU instead of the DOM. This is the difference between smooth
+// and janky when an agent streams output fast. Only the visible pane loads
+// this: Chrome caps live WebGL contexts (~16), so if every hidden pane held
+// one, the oldest would silently lose theirs and fall back to the slow DOM
+// renderer. If WebGL is unavailable or the context is later lost, dispose the
+// addon so xterm falls back to its DOM renderer on its own.
+function loadWebglAddon(terminal: Terminal, ref: RefObject<WebglAddon | null>) {
+  try {
+    const addon = new WebglAddon()
+    addon.onContextLoss(() => {
+      addon.dispose()
+      if (ref.current === addon) ref.current = null
+    })
+    terminal.loadAddon(addon)
+    ref.current = addon
+  } catch {
+    ref.current = null
+  }
+}
+
 export function TerminalPane({
   active,
   focusNonce,
@@ -104,7 +120,7 @@ export function TerminalPane({
   onError: (value: string) => void
   onPasteImage: (event: ClipboardEvent) => void
   onTerminalInput: (workspaceId: string, terminalId: string) => void
-  onTerminalOutput: (workspaceId: string, terminalId: string, data: number[]) => void
+  onTerminalOutput: (workspaceId: string, terminalId: string, data: Uint8Array) => void
   startupCommand?: string
   terminalId: string
   workspaceId: string
@@ -112,9 +128,15 @@ export function TerminalPane({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const webglRef = useRef<WebglAddon | null>(null)
   const frameRef = useRef<number | null>(null)
   const isDarkThemeRef = useRef(isDarkTheme)
+  const activeRef = useRef(active)
   const startupCommandSentRef = useRef(false)
+
+  useEffect(() => {
+    activeRef.current = active
+  }, [active])
 
   useEffect(() => {
     isDarkThemeRef.current = isDarkTheme
@@ -143,7 +165,6 @@ export function TerminalPane({
     const container = containerRef.current
     if (!container) return
     let cancelled = false
-    let unlisten: (() => void) | undefined
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -179,22 +200,7 @@ export function TerminalPane({
     fitRef.current = fit
     syncScrollableState(container, terminal)
 
-    // Render on the GPU instead of the DOM. This is the difference between
-    // smooth and janky when several agents stream output at once. If WebGL is
-    // unavailable, or its context is later lost (e.g. too many live contexts),
-    // dispose the addon so xterm falls back to its DOM renderer on its own.
-    let webglAddon: WebglAddon | undefined
-    try {
-      const addon = new WebglAddon()
-      addon.onContextLoss(() => {
-        addon.dispose()
-        if (webglAddon === addon) webglAddon = undefined
-      })
-      terminal.loadAddon(addon)
-      webglAddon = addon
-    } catch {
-      webglAddon = undefined
-    }
+    if (activeRef.current) loadWebglAddon(terminal, webglRef)
 
     const refreshTerminal = () => {
       if (cancelled || terminal.rows < 1) return
@@ -231,6 +237,17 @@ export function TerminalPane({
       })
     }
 
+    const handleOutput = (data: Uint8Array) => {
+      if (cancelled) return
+      onTerminalOutput(workspaceId, terminalId, data)
+      // Just write. xterm's render service already repaints the changed rows on
+      // the next frame; forcing a full-viewport refresh() on every chunk (as we
+      // did before) redrew every cell on the GPU for each burst of streamed
+      // output, which is what made the IDE crawl while agents were working.
+      // Scroll state is kept in sync by the onWriteParsed handler below.
+      terminal.write(data)
+    }
+
     const startAfterFit = () => {
       try {
         fit.fit()
@@ -239,7 +256,7 @@ export function TerminalPane({
         const cols = terminal.cols || 80
         const rows = terminal.rows || 24
         onSizeChange(cols, rows)
-        void startNativeTerminal(workspaceId, terminalId, cols, rows)
+        void startNativeTerminal(workspaceId, terminalId, cols, rows, handleOutput)
           .then(() => resizeNativeTerminal(terminalId, cols, rows))
           .then(() => {
             if (!startupCommand || startupCommandSentRef.current) return undefined
@@ -271,38 +288,13 @@ export function TerminalPane({
     const observer = new ResizeObserver(fitTerminal)
     observer.observe(container)
 
-    listen<TerminalOutput>(terminalOutputEvent(terminalId), (event) => {
-      if (
-        event.payload.workspaceId !== workspaceId ||
-        event.payload.terminalId !== terminalId
-      ) {
-        return
-      }
-      const data = new Uint8Array(event.payload.data)
-      onTerminalOutput(workspaceId, terminalId, event.payload.data)
-      // Just write. xterm's render service already repaints the changed rows on
-      // the next frame; forcing a full-viewport refresh() on every chunk (as we
-      // did before) redrew every cell on the GPU for each burst of streamed
-      // output, which is what made the IDE crawl while agents were working.
-      terminal.write(data, () => syncScrollableState(container, terminal))
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(startAfterFit)
     })
-      .then((dispose) => {
-        if (cancelled) {
-          dispose()
-          return
-        }
-
-        unlisten = dispose
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(startAfterFit)
-        })
-      })
-      .catch((error) => onError(readableError(error)))
 
     return () => {
       cancelled = true
       if (frameRef.current) window.cancelAnimationFrame(frameRef.current)
-      unlisten?.()
       observer.disconnect()
       dataDisposable.dispose()
       scrollDisposable.dispose()
@@ -312,7 +304,8 @@ export function TerminalPane({
       scrollbackGuard.dispose()
       alternateScreenSetGuard.dispose()
       alternateScreenResetGuard.dispose()
-      webglAddon?.dispose()
+      webglRef.current?.dispose()
+      webglRef.current = null
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
@@ -332,12 +325,20 @@ export function TerminalPane({
   }, [focusNonce])
 
   useEffect(() => {
-    if (!active) return
+    if (!active) {
+      // Release the GPU context while hidden; xterm falls back to its DOM
+      // renderer, which is fine for a pane that isn't being drawn.
+      webglRef.current?.dispose()
+      webglRef.current = null
+      return
+    }
 
     const frame = window.requestAnimationFrame(() => {
       const terminal = terminalRef.current
       const fit = fitRef.current
       if (!terminal || !fit) return
+
+      if (!webglRef.current) loadWebglAddon(terminal, webglRef)
 
       try {
         fit.fit()
