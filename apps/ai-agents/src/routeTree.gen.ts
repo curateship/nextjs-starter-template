@@ -26,6 +26,7 @@ import { Route as ApiV1VapiWebhookRouteImport } from './routes/api/v1/vapi/webho
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminCampaignsCampaignIdRouteImport } from './routes/_authenticated/admin/campaigns/$campaignId'
+import { Route as AuthenticatedAdminAutomationWorkflowIdRouteImport } from './routes/_authenticated/admin/automation/$workflowId'
 import { Route as AuthenticatedAdminAgentsAgentIdRouteImport } from './routes/_authenticated/admin/agents/$agentId'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
@@ -124,6 +125,12 @@ const AuthenticatedAdminCampaignsCampaignIdRoute =
     path: '/admin/campaigns/$campaignId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminAutomationWorkflowIdRoute =
+  AuthenticatedAdminAutomationWorkflowIdRouteImport.update({
+    id: '/admin/automation/$workflowId',
+    path: '/admin/automation/$workflowId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminAgentsAgentIdRoute =
   AuthenticatedAdminAgentsAgentIdRouteImport.update({
     id: '/admin/agents/$agentId',
@@ -145,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/agents/$agentId': typeof AuthenticatedAdminAgentsAgentIdRoute
+  '/admin/automation/$workflowId': typeof AuthenticatedAdminAutomationWorkflowIdRoute
   '/admin/campaigns/$campaignId': typeof AuthenticatedAdminCampaignsCampaignIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -165,6 +173,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/agents/$agentId': typeof AuthenticatedAdminAgentsAgentIdRoute
+  '/admin/automation/$workflowId': typeof AuthenticatedAdminAutomationWorkflowIdRoute
   '/admin/campaigns/$campaignId': typeof AuthenticatedAdminCampaignsCampaignIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -187,6 +196,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/agents/$agentId': typeof AuthenticatedAdminAgentsAgentIdRoute
+  '/_authenticated/admin/automation/$workflowId': typeof AuthenticatedAdminAutomationWorkflowIdRoute
   '/_authenticated/admin/campaigns/$campaignId': typeof AuthenticatedAdminCampaignsCampaignIdRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/admin/agents/$agentId'
+    | '/admin/automation/$workflowId'
     | '/admin/campaigns/$campaignId'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/admin/agents/$agentId'
+    | '/admin/automation/$workflowId'
     | '/admin/campaigns/$campaignId'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
@@ -250,6 +262,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/agents/$agentId'
+    | '/_authenticated/admin/automation/$workflowId'
     | '/_authenticated/admin/campaigns/$campaignId'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
@@ -390,6 +403,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCampaignsCampaignIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/automation/$workflowId': {
+      id: '/_authenticated/admin/automation/$workflowId'
+      path: '/admin/automation/$workflowId'
+      fullPath: '/admin/automation/$workflowId'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationWorkflowIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/agents/$agentId': {
       id: '/_authenticated/admin/agents/$agentId'
       path: '/admin/agents/$agentId'
@@ -444,6 +464,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminAgentsAgentIdRoute: typeof AuthenticatedAdminAgentsAgentIdRoute
+  AuthenticatedAdminAutomationWorkflowIdRoute: typeof AuthenticatedAdminAutomationWorkflowIdRoute
   AuthenticatedAdminCampaignsCampaignIdRoute: typeof AuthenticatedAdminCampaignsCampaignIdRoute
   AuthenticatedAdminAgentsIndexRoute: typeof AuthenticatedAdminAgentsIndexRoute
   AuthenticatedAdminAutomationIndexRoute: typeof AuthenticatedAdminAutomationIndexRoute
@@ -460,6 +481,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminAgentsAgentIdRoute: AuthenticatedAdminAgentsAgentIdRoute,
+  AuthenticatedAdminAutomationWorkflowIdRoute:
+    AuthenticatedAdminAutomationWorkflowIdRoute,
   AuthenticatedAdminCampaignsCampaignIdRoute:
     AuthenticatedAdminCampaignsCampaignIdRoute,
   AuthenticatedAdminAgentsIndexRoute: AuthenticatedAdminAgentsIndexRoute,

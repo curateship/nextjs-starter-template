@@ -1,6 +1,8 @@
 export type NodeCategory = "trigger" | "agent" | "action" | "logic"
 
-export type FieldKind = "text" | "textarea" | "select" | "range"
+// "agent" and "phone" render as selects over the workspace's agents and
+// phone numbers (options come from the editor's loader data, not the catalog).
+export type FieldKind = "text" | "textarea" | "select" | "range" | "agent" | "phone"
 
 export type FieldDef = {
   key: string
@@ -42,6 +44,9 @@ export type FlowEdge = {
   port: number
   to: string
 }
+
+// Node types that execute against the contact picked when a run starts.
+export const CONTACT_NODE_TYPES = new Set(["voicecall", "sms", "updatecontact"])
 
 const MODEL_OPTIONS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"]
 
@@ -103,13 +108,8 @@ export const catalog: CatalogGroup[] = [
         name: "Voice call agent",
         desc: "Call the contact with an agent",
         fields: [
-          {
-            key: "agent",
-            label: "Agent",
-            kind: "select",
-            options: ["Appointment Reminder", "Receptionist", "Sales"],
-            def: "Appointment Reminder",
-          },
+          { key: "agentId", label: "Agent", kind: "agent", def: "" },
+          { key: "phoneNumberId", label: "From number", kind: "phone", def: "" },
           {
             key: "instructions",
             label: "Instructions",
