@@ -1,5 +1,9 @@
 import * as React from "react"
 
+import {
+  applyHookVariant,
+  type HookVariantInput,
+} from "../../lib/hook-variants.ts"
 import type { SoundEffectId } from "../../lib/sound-effects.ts"
 import type { TextFontId } from "../../lib/text-fonts.ts"
 import { PlaybackClock } from "./playback-clock.ts"
@@ -118,6 +122,9 @@ export type EditorAction =
       audioClip: EditorClip
       captionClips: EditorClip[]
     }
+  // Swap the opening hook (voice clip + its karaoke captions) for a rewritten
+  // line's generated voice, leaving every other clip in place — one undo step.
+  | { type: "APPLY_HOOK_VARIANT"; variant: HookVariantInput }
   | {
       type: "APPLY_JUMP_CUTS"
       clipId: string
@@ -410,6 +417,33 @@ export function editorReducer(
       return {
         ...pushUndo(state, nextTracks),
         selectedClipId: action.audioClip.id,
+      }
+    }
+
+    case "APPLY_HOOK_VARIANT": {
+      // The pure swap logic (detection + replacement) is shared with its unit
+      // tests in lib/hook-variants. It throws when no hook is detectable —
+      // the dialog pre-checks, so that only happens if the timeline changed
+      // underneath it; treat it as a no-op rather than crashing the reducer.
+      let tracks: EditorTrack[]
+      try {
+        tracks = applyHookVariant(
+          { tracks: state.tracks, aspect: state.aspect },
+          action.variant,
+          editorId
+        ).tracks
+      } catch {
+        return state
+      }
+      const newAudioClip = tracks
+        .flatMap((track) => track.clips)
+        .find(
+          (clip) =>
+            clip.kind === "audio" && clip.mediaId === action.variant.audio.mediaId
+        )
+      return {
+        ...pushUndo(state, tracks),
+        selectedClipId: newAudioClip?.id ?? null,
       }
     }
 
