@@ -2,7 +2,9 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function PageBuilderPage() {
   const router = useRouter()
@@ -23,6 +25,10 @@ export default function PageBuilderPage() {
     }
   }, [currentSite, loading, sites, router])
 
-  // Return nothing - just redirect
-  return null
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <StickyHeader />
+      <BuilderSkeleton />
+    </div>
+  )
 }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { TemplateSettingsModal } from "@/components/admin/layout/templates/TemplateSettingsModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
@@ -234,25 +235,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader />
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 border-r bg-background overflow-hidden">
-            <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
-              <div className="mx-auto h-96 max-w-4xl rounded-lg bg-white shadow-sm animate-pulse" />
-            </div>
-          </div>
-          <div className="w-[250px] p-2.5">
-            <div className="space-y-1">
-              {[1, 2, 3].map((item) => (
-                <div key={item} className="p-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <BuilderSkeleton />
       </div>
     )
   }

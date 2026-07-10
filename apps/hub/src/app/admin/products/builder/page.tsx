@@ -2,9 +2,9 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { Package } from "lucide-react"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function ProductBuilderRootPage() {
   const router = useRouter()
@@ -17,15 +17,10 @@ export default function ProductBuilderRootPage() {
     }
   }, [currentSite, router])
 
-  // Show loading state while site context loads
   return (
-    <AdminLayout noPadding>
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Package className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p>Loading...</p>
-        </div>
-      </div>
-    </AdminLayout>
+    <div className="flex h-full flex-col overflow-hidden">
+      <StickyHeader />
+      <BuilderSkeleton />
+    </div>
   )
 }

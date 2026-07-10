@@ -32,6 +32,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { CardGridSkeleton } from "@/components/admin/layout/skeletons"
 import {
   getPaginatedMediaAction,
   deleteMediaAction,
@@ -414,16 +415,7 @@ export default function ImagesPage() {
             {viewMode === "gallery" ? (
               isLoading ? (
                 <div className="px-5 pb-5">
-                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-                    {[...Array(10)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="relative aspect-square animate-pulse overflow-hidden rounded-lg bg-muted"
-                      >
-                        <div className="absolute inset-0 bg-muted" />
-                      </div>
-                    ))}
-                  </div>
+                  <CardGridSkeleton />
                 </div>
               ) : sortedImages.length === 0 ? (
                 <div className="p-8 text-center">
