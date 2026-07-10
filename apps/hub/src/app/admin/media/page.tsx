@@ -34,8 +34,8 @@ import {
 } from "@/components/admin/layout/list"
 import {
   getPaginatedMediaAction,
-  deleteImageAction,
-  updateImageAction
+  deleteMediaAction,
+  updateMediaAction
 } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -137,7 +137,7 @@ export default function ImagesPage() {
 
     setIsDeleting(true)
     try {
-      const { error } = await deleteImageAction(image.id, currentSiteId)
+      const { error } = await deleteMediaAction(image.id, currentSiteId)
       if (error) {
         toast.error(`Failed to delete image: ${error}`)
         return false
@@ -163,7 +163,7 @@ export default function ImagesPage() {
     if (!editingImage || !currentSiteId) return
 
     try {
-      const { data, error } = await updateImageAction(
+      const { data, error } = await updateMediaAction(
         editingImage.id,
         {
           alt_text: editAltText.trim() || undefined
@@ -261,7 +261,7 @@ export default function ImagesPage() {
     try {
       for (const id of idsToDelete) {
         try {
-          const { success } = await deleteImageAction(id, currentSiteId)
+          const { success } = await deleteMediaAction(id, currentSiteId)
           if (success) {
             successCount++
           } else {

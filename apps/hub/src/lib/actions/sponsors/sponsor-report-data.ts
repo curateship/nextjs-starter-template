@@ -7,7 +7,7 @@ import { hashSponsorReportToken, isValidSponsorReportTokenFormat } from '@/lib/u
 
 export type SponsorReportRange = '7d' | '30d' | '90d'
 
-export const SPONSOR_REPORT_RANGES: SponsorReportRange[] = ['7d', '30d', '90d']
+const SPONSOR_REPORT_RANGES: SponsorReportRange[] = ['7d', '30d', '90d']
 export const DEFAULT_SPONSOR_REPORT_RANGE: SponsorReportRange = '30d'
 
 const RANGE_DAYS: Record<SponsorReportRange, number> = { '7d': 7, '30d': 30, '90d': 90 }
@@ -18,13 +18,13 @@ export function normalizeSponsorReportRange(value: string | undefined | null): S
     : DEFAULT_SPONSOR_REPORT_RANGE
 }
 
-export interface SponsorReportDay {
+interface SponsorReportDay {
   day: string
   impressions: number
   clicks: number
 }
 
-export interface SponsorReportPlacement {
+interface SponsorReportPlacement {
   source_path: string
   impressions: number
   clicks: number

@@ -13,8 +13,8 @@ import {
 
 export const POST_BLANK_TEMPLATE_NAME = 'Blank'
 export const POST_CORE_BLOCK_TYPE = 'core'
-export const POST_RELATED_BLOCK_TYPE = 'related-posts'
-export const POST_TABLE_OF_CONTENTS_BLOCK_TYPE = 'table-of-contents'
+const POST_RELATED_BLOCK_TYPE = 'related-posts'
+const POST_TABLE_OF_CONTENTS_BLOCK_TYPE = 'table-of-contents'
 
 const POST_VALUE_KEYS: Record<string, string[]> = {
   [POST_CORE_BLOCK_TYPE]: ['body', 'text', 'format'],

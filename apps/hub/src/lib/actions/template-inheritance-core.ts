@@ -5,7 +5,7 @@ export interface TemplateValueTransformArgs {
   value: unknown
 }
 
-export type TemplateValueTransformResult =
+type TemplateValueTransformResult =
   | { include: true; value: any }
   | { include: false }
 
@@ -21,7 +21,7 @@ export function isTemplateBlockEntry(value: unknown): value is Record<string, an
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && typeof (value as any).type === 'string')
 }
 
-export function cloneTemplateValue<T>(value: T): T {
+function cloneTemplateValue<T>(value: T): T {
   if (value === undefined) return value
   return JSON.parse(JSON.stringify(value))
 }
@@ -49,7 +49,7 @@ export function getTemplateNonBlockEntries(
   return entries
 }
 
-export function getTemplateBlockValueContent(
+function getTemplateBlockValueContent(
   type: string,
   content: Record<string, any> = {},
   config: Pick<TemplateInheritanceConfig, 'transformValue' | 'valueKeys'>

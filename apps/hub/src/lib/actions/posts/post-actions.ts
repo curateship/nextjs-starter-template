@@ -88,7 +88,7 @@ function revalidatePostFrontend(siteId: string, postId?: string) {
 /**
  * Get all posts for a site
  */
-export async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
+async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
   try {
     // Auth + site ownership (fast-fail helper; check runs on every call)
     const access = await requireOwnedSite(siteId)

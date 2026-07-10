@@ -14,7 +14,7 @@ import {
 } from "@/lib/utils/public-profile-path"
 import { UUID_REGEX } from "@/lib/utils/validation"
 
-export interface MemberDirectoryMember {
+interface MemberDirectoryMember {
   username: string
   name: string
   image: string | null

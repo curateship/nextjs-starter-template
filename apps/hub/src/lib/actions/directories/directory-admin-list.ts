@@ -1,5 +1,5 @@
 export type DirectoryAdminStatusFilter = 'all' | 'published' | 'draft'
-export type DirectoryAdminSortColumn = 'title' | 'category' | 'status' | 'modified' | null
+type DirectoryAdminSortColumn = 'title' | 'category' | 'status' | 'modified' | null
 export type DirectoryAdminSortDirection = 'asc' | 'desc'
 export type DirectoryAdminListSort = 'default' | 'title' | 'modified'
 

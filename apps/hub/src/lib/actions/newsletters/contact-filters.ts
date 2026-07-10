@@ -20,12 +20,12 @@ export type ContactDataFieldOperator =
   | 'isNotEmpty'
 export type ContactRelativeDays = 7 | 30 | 60 | 90
 
-export interface RelativeDateFilterValue {
+interface RelativeDateFilterValue {
   mode: 'relative'
   days: ContactRelativeDays
 }
 
-export interface RangeDateFilterValue {
+interface RangeDateFilterValue {
   mode: 'range'
   from: string | null
   to: string | null
@@ -206,11 +206,11 @@ export function getContactFilterTypeLabel(type: ContactFilterType): string {
   return CONTACT_FILTER_TYPE_OPTIONS.find((option) => option.value === type)?.label || type
 }
 
-export function formatRelativeDays(days: number): string {
+function formatRelativeDays(days: number): string {
   return `In the last ${days} days`
 }
 
-export function formatDateRangeLabel(from: string | null, to: string | null): string {
+function formatDateRangeLabel(from: string | null, to: string | null): string {
   const format = (value: string) => {
     const date = new Date(value)
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

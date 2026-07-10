@@ -1,6 +1,6 @@
 export const PUBLIC_PROFILE_TEMPLATE_SLUG = 'my-profile'
 export const PUBLIC_PROFILE_TEMPLATE_DISPLAY_PATH = '/profile/{user-name}'
-export const PUBLIC_PROFILE_TEMPLATE_ACCOUNT_PATH = `/account/${PUBLIC_PROFILE_TEMPLATE_SLUG}`
+const PUBLIC_PROFILE_TEMPLATE_ACCOUNT_PATH = `/account/${PUBLIC_PROFILE_TEMPLATE_SLUG}`
 
 function safelyDecodeRouteValue(value: string) {
   try {

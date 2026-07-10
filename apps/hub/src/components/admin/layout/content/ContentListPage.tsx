@@ -51,7 +51,7 @@ import type {
   ContentStatusFilter,
 } from "@/components/admin/layout/content/contentListTypes"
 
-export type { ContentListItem, ContentSortColumn, ContentStatusFilter }
+export type { ContentListItem, ContentSortColumn }
 
 export function ContentListPage<TItem extends ContentListItem>({
   breadcrumbs,

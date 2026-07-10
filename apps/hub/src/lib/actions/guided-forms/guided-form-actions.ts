@@ -10,9 +10,9 @@ import { verifyGuidedFormContactToken } from '@/lib/utils/guided-form-contact-to
 import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { SLUG_FORMAT_REGEX, UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
-export type GuidedFieldType = 'short_text' | 'long_text' | 'email' | 'phone' | 'single_choice' | 'multi_choice' | 'checkbox' | 'consent' | 'hidden'
+type GuidedFieldType = 'short_text' | 'long_text' | 'email' | 'phone' | 'single_choice' | 'multi_choice' | 'checkbox' | 'consent' | 'hidden'
 
-export interface GuidedFormField {
+interface GuidedFormField {
   id: string
   type: GuidedFieldType
   label: string

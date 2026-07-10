@@ -152,4 +152,4 @@ const ProductHotspotBlock = ({
 }
 
 export { ProductHotspotBlock }
-export type { Hotspot, ProductHotspotBlockProps } 
+export type { Hotspot }

@@ -483,7 +483,7 @@ export async function createDirectorySaveCollectionAction(input: {
   }
 }
 
-export interface MySavedListingItem {
+interface MySavedListingItem {
   id: string
   title: string
   slug: string

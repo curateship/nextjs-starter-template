@@ -638,5 +638,3 @@ export async function deleteMediaItemsAction(
   }
 }
 
-export const updateImageAction = updateMediaAction
-export const deleteImageAction = deleteMediaAction

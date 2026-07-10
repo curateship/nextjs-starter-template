@@ -192,4 +192,3 @@ class EmailService {
 export const emailService = new EmailService()
 
 // Export types
-export type { EmailConfig }

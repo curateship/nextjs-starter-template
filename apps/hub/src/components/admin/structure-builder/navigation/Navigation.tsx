@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ComponentProps, type CSSProperties, type ReactNode } from "react"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -52,7 +52,6 @@ import {
   Contrast,
   Globe,
   GripVertical,
-  ImageIcon,
   Plus,
   Trash2,
   type LucideIcon,
@@ -60,6 +59,8 @@ import {
   ArrowLeft
 } from "lucide-react"
 import { NAVIGATION_STYLES } from "@/components/admin/structure-builder/navigation"
+import { ActionRow, SortableActionRow } from "@/components/admin/structure-builder/ActionRow"
+import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
 
 interface NavigationLink {
   text: string
@@ -102,7 +103,6 @@ type OrderedActionItem =
       icon: LucideIcon
     }
 
-const ACTION_BUTTON_CLASS = "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
 type AccountMenuActionKey = "login" | "register"
 
@@ -227,53 +227,18 @@ function SortableLinkItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const itemId = link.id || createNavigationItemId("link")
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: itemId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    <SortableActionRow
+      sortableId={link.id || createNavigationItemId("link")}
+      ariaName={link.text || "navigation link"}
+      title={link.text || "Navigation link settings"}
+      buttonClassName="max-w-[220px] gap-2"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
     >
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          aria-label={`Reorder ${link.text || "navigation link"}`}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${link.text || "navigation link"}`}
-          title={link.text || "Navigation link settings"}
-        >
-          <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-          <span className="truncate">{link.text || "Link"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
-          aria-label={`Delete ${link.text || "navigation link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+      <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
+      <span className="truncate">{link.text || "Link"}</span>
+    </SortableActionRow>
   )
 }
 
@@ -289,34 +254,16 @@ function StaticLinkItem({
   onDelete: (index: number) => void
 }) {
   return (
-    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
-          <GripVertical className="h-4 w-4" />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${link.text || "navigation link"}`}
-          title={link.text || "Navigation link settings"}
-        >
-          <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-          <span className="truncate">{link.text || "Link"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
-          aria-label={`Delete ${link.text || "navigation link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <ActionRow
+      ariaName={link.text || "navigation link"}
+      title={link.text || "Navigation link settings"}
+      buttonClassName="max-w-[220px] gap-2"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
+    >
+      <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
+      <span className="truncate">{link.text || "Link"}</span>
+    </ActionRow>
   )
 }
 
@@ -452,53 +399,18 @@ function SortableButtonItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const itemId = button.id || createNavigationItemId("button")
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: itemId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    <SortableActionRow
+      sortableId={button.id || createNavigationItemId("button")}
+      ariaName={button.text || "action button"}
+      title={button.text || "Action button settings"}
+      buttonClassName="max-w-[220px] gap-2"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
     >
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          aria-label={`Reorder ${button.text || "action button"}`}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${button.text || "action button"}`}
-          title={button.text || "Action button settings"}
-        >
-          <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-          <span className="truncate">{button.text || "Button"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
-          aria-label={`Delete ${button.text || "action button"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+      <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
+      <span className="truncate">{button.text || "Button"}</span>
+    </SortableActionRow>
   )
 }
 
@@ -514,34 +426,16 @@ function StaticButtonItem({
   onDelete: (index: number) => void
 }) {
   return (
-    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
-          <GripVertical className="h-4 w-4" />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${button.text || "action button"}`}
-          title={button.text || "Action button settings"}
-        >
-          <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-          <span className="truncate">{button.text || "Button"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
-          aria-label={`Delete ${button.text || "action button"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <ActionRow
+      ariaName={button.text || "action button"}
+      title={button.text || "Action button settings"}
+      buttonClassName="max-w-[220px] gap-2"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
+    >
+      <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
+      <span className="truncate">{button.text || "Button"}</span>
+    </ActionRow>
   )
 }
 
@@ -1149,46 +1043,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               <div className="space-y-3">
                 <div className="flex items-start">
                   <div className="shrink-0 pr-4">
-                    {logo && logo !== "/images/logo.png" ? (
-                      <div
-                        className="relative h-12 w-32 cursor-pointer overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-90"
-                        onClick={() => setShowPicker(true)}
-                      >
-                        <img
-                          src={logo}
-                          alt="Logo"
-                          className="h-full w-full object-contain"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none"
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100">
-                          <div className="text-center text-white">
-                            <ImageIcon className="mx-auto mb-1 h-4 w-4" />
-                            <p className="text-xs font-medium">Click to change</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : siteFavicon ? (
-                      <div className="cursor-pointer" onClick={() => setShowPicker(true)}>
-                        <img
-                          src={siteFavicon}
-                          alt="Site favicon (used as logo)"
-                          className="h-10 w-auto cursor-pointer object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="flex h-12 w-32 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                        onClick={() => setShowPicker(true)}
-                      >
-                        <div className="text-center">
-                          <Globe className="mx-auto h-4 w-4 text-muted-foreground/50" />
-                          <p className="mt-1 text-xs text-muted-foreground">Click to select</p>
-                        </div>
-                      </div>
-                    )}
+                    <LogoPickerPreview logo={logo} siteFavicon={siteFavicon} onClick={() => setShowPicker(true)} placeholderIcon={Globe} />
                   </div>
 
                   <div className="flex-1">

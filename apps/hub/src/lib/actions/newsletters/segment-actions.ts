@@ -8,7 +8,6 @@ import { findActiveAutomations } from './automation-actions'
 import { buildRecentEmailOpenCondition } from '@/lib/actions/newsletters/event-stats'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
-  formatSegmentDynamicRule,
   normalizeSegmentDynamicRule,
   type SegmentDynamicCondition,
   type SegmentDynamicRule,
@@ -1057,5 +1056,3 @@ export async function searchContactsForSegment(
     return { data: null, error: 'Server error' }
   }
 }
-
-export { formatSegmentDynamicRule }

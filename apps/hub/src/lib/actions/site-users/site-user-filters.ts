@@ -3,12 +3,12 @@ export type SiteUserFilterType = 'status' | 'role' | 'lastEngaged' | 'dateAdded'
 export type SiteUserDateOperator = 'is' | 'isnt'
 export type SiteUserRelativeDays = 7 | 30 | 60 | 90
 
-export interface RelativeDateFilterValue {
+interface RelativeDateFilterValue {
   mode: 'relative'
   days: SiteUserRelativeDays
 }
 
-export interface RangeDateFilterValue {
+interface RangeDateFilterValue {
   mode: 'range'
   from: string | null
   to: string | null
