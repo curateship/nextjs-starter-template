@@ -41,7 +41,8 @@ export function AccountStrip({
   /** Controls rendered next to the wallet select (e.g. panel settings). */
   actions?: ReactNode
 }) {
-  const exchangeOptions = options.filter((option) => option.kind !== "paper")
+  const testnetOptions = options.filter((option) => option.kind === "sandbox")
+  const mainnetOptions = options.filter((option) => option.kind === "mainnet")
   const paperOptions = options.filter((option) => option.kind === "paper")
 
   return (
@@ -49,7 +50,8 @@ export function AccountStrip({
       {left}
       {options.length === 0 ? (
         <span className="text-xs text-muted-foreground">
-          Create a Paper Wallet or import a Sandbox wallet on the Wallets page.
+          Create a wallet on the Wallets page — paper for practice, or connect
+          your Hyperliquid wallet.
         </span>
       ) : null}
 
@@ -75,13 +77,22 @@ export function AccountStrip({
                 ))}
               </SelectGroup>
             ) : null}
-            {exchangeOptions.length > 0 ? (
+            {testnetOptions.length > 0 ? (
               <SelectGroup>
-                <SelectLabel>Sandbox (Hyperliquid testnet)</SelectLabel>
-                {exchangeOptions.map((option) => (
+                <SelectLabel>Hyperliquid testnet</SelectLabel>
+                {testnetOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
-                    {option.kind === "mainnet" ? " (mainnet)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ) : null}
+            {mainnetOptions.length > 0 ? (
+              <SelectGroup>
+                <SelectLabel>Hyperliquid mainnet (real funds)</SelectLabel>
+                {mainnetOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <span className="font-medium">{option.label}</span>
                   </SelectItem>
                 ))}
               </SelectGroup>

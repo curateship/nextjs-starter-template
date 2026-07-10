@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MainnetConfirmField } from "@/components/trading/connect-wallet-flow"
 import { createBot, getBotErrorMessage } from "@/lib/api/bots"
 import {
   loadStrategies,
@@ -67,6 +68,7 @@ export function NewBotDialog({
   const [exchange, setExchange] = React.useState("")
   const [selectedMarkets, setSelectedMarkets] = React.useState<string[]>([])
   const [paperEquity, setPaperEquity] = React.useState("10000")
+  const [mainnetConfirm, setMainnetConfirm] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -82,11 +84,14 @@ export function NewBotDialog({
         if (cancelled) return
         setContext(ctx)
         setStrategies(saved.strategies)
+        const selectable = ctx.wallets.filter(
+          (wallet) => wallet.status === "active"
+        )
         setWalletId(
           (current) =>
             current ||
-            (ctx.wallets.find((wallet) => wallet.is_active)?.id ??
-              ctx.wallets[0]?.id ??
+            (selectable.find((wallet) => wallet.is_active)?.id ??
+              selectable[0]?.id ??
               "")
         )
       } catch (err) {
@@ -143,7 +148,15 @@ export function NewBotDialog({
     }
   }
 
-  const wallets = context?.wallets ?? []
+  // Pending (unapproved) wallets are never valid bot targets.
+  const wallets = (context?.wallets ?? []).filter(
+    (wallet) => wallet.status === "active"
+  )
+  const selectedWallet = wallets.find((wallet) => wallet.id === walletId)
+  const isLiveMainnet =
+    mode === "live" && selectedWallet?.network === "mainnet"
+  const mainnetConfirmed =
+    !isLiveMainnet || mainnetConfirm.trim() === "MAINNET"
 
   return (
     <Dialog
@@ -310,11 +323,21 @@ export function NewBotDialog({
             </div>
           ) : null}
 
-          {mode === "live" ? (
+          {mode === "live" && !isLiveMainnet ? (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
               Live mode signs real orders with this wallet on its network.
               Paper-test the strategy first.
             </div>
+          ) : null}
+
+          {isLiveMainnet ? (
+            <MainnetConfirmField
+              id="bot-mainnet-confirm"
+              message="This bot will trade real money on mainnet. Type MAINNET to confirm."
+              value={mainnetConfirm}
+              disabled={busy}
+              onChange={setMainnetConfirm}
+            />
           ) : null}
 
           {error ? (
@@ -332,7 +355,11 @@ export function NewBotDialog({
           >
             Cancel
           </Button>
-          <Button type="button" disabled={busy} onClick={() => void submit()}>
+          <Button
+            type="button"
+            disabled={busy || !mainnetConfirmed}
+            onClick={() => void submit()}
+          >
             {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
             Create {mode} bot
           </Button>

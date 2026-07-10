@@ -9,6 +9,10 @@ export type WalletItem = {
   agent_address: string
   vault_address: string | null
   is_active: boolean
+  status: "pending" | "active"
+  created_via: "imported" | "generated"
+  agent_name: string | null
+  approval_valid_until: string | null
   created_at: string
   updated_at: string
 }
