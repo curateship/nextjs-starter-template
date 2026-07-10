@@ -135,7 +135,15 @@ export function TradingWorkspace({
   onWalletChange: (value: string) => void
 }) {
   const navigate = useNavigate()
-  const [interval, setInterval] = React.useState<CandleInterval>("4h")
+  // Remembers the last-used timeframe across visits instead of a fixed 4h.
+  const [interval, setInterval] = usePersistedState<CandleInterval>(
+    "trading-interval",
+    "4h",
+    (raw) => {
+      const value = JSON.parse(raw) as CandleInterval
+      return CANDLE_INTERVALS.includes(value) ? value : "4h"
+    }
+  )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
   // Imperative chart handle so the right-click menu can offer Reset View,
