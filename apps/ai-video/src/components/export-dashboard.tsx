@@ -17,6 +17,8 @@ import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
+import { DashboardNotices } from "@/components/dashboard-notices"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -320,21 +322,7 @@ export function ExportDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {notice}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div
-          role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <DashboardNotices notice={notice} error={error} />
 
       <DashboardTable
         title="Export"
@@ -417,52 +405,18 @@ export function ExportDashboard() {
         onOpenChange={(open) => !open && setSelectedExport(null)}
       />
 
-      <Dialog
-        open={!!deleteIds}
-        onOpenChange={(open) => !open && setDeleteIds(null)}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete{" "}
-              {(deleteIds?.length ?? 0) === 1
-                ? "Export"
-                : `${deleteIds?.length ?? 0} Exports`}
-              ?
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes{" "}
-              {(deleteIds?.length ?? 0) === 1
-                ? "this saved export"
-                : "these saved exports"}
-              . The source projects and timelines are kept. This action cannot
-              be undone.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteIds(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleting}
-              onClick={confirmDelete}
-            >
-              {deleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {deleting ? "Deleting" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        ids={deleteIds}
+        noun="Export"
+        description={(count) =>
+          count === 1
+            ? "This removes this saved export. The source projects and timelines are kept. This action cannot be undone."
+            : "This removes these saved exports. The source projects and timelines are kept. This action cannot be undone."
+        }
+        deleting={deleting}
+        onClose={() => setDeleteIds(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

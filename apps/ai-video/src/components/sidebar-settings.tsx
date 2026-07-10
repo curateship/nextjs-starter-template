@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ShellIconPicker } from "@/components/shell-icon-picker"
+import { useSortableRow } from "@/hooks/use-sortable-row"
 import {
   Dialog,
   DialogBody,
@@ -181,20 +182,7 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
 }
 
 function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: child.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(child.id)
 
   return (
     <div
@@ -258,25 +246,12 @@ function SortableSidebarItem({
   onSaveConfig,
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(item.id)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
 
   const children = item.children ?? []
 

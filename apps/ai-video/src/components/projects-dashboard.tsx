@@ -4,8 +4,6 @@ import {
   AlertCircleIcon,
   ClapperboardIcon,
   EditIcon,
-  GridIcon,
-  ListIcon,
   Loader2Icon,
   PlusIcon,
   Trash2Icon,
@@ -18,12 +16,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
-  dashboardToolbarButtonActiveClassName,
-  dashboardToolbarButtonGroupClassName,
-  dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
+  DashboardToolbarViewToggle,
 } from "@/components/dashboard-toolbar"
+import { DashboardNotices } from "@/components/dashboard-notices"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import {
   Dialog,
   DialogBody,
@@ -412,32 +410,7 @@ export function ProjectsDashboard() {
           <SelectItem value="template">Template-based</SelectItem>
         </SelectContent>
       </Select>
-      <div className={dashboardToolbarButtonGroupClassName}>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          className={cn(
-            dashboardToolbarButtonGroupItemClassName,
-            viewMode === "list" && dashboardToolbarButtonActiveClassName
-          )}
-          onClick={() => setViewMode("list")}
-          aria-label="List view"
-        >
-          <ListIcon className="size-4" />
-        </DashboardToolbarButton>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          className={cn(
-            dashboardToolbarButtonGroupItemClassName,
-            viewMode === "gallery" && dashboardToolbarButtonActiveClassName
-          )}
-          onClick={() => setViewMode("gallery")}
-          aria-label="Grid view"
-        >
-          <GridIcon className="size-4" />
-        </DashboardToolbarButton>
-      </div>
+      <DashboardToolbarViewToggle viewMode={viewMode} onChange={setViewMode} />
       <DashboardToolbarButton type="button" onClick={openCreateModal}>
         <PlusIcon className="size-4" />
         New Project
@@ -458,21 +431,7 @@ export function ProjectsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {notice}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div
-          role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <DashboardNotices notice={notice} error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable
@@ -679,51 +638,18 @@ export function ProjectsDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!deleteIds}
-        onOpenChange={(open) => !open && setDeleteIds(null)}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete{" "}
-              {(deleteIds?.length ?? 0) === 1
-                ? "Project"
-                : `${deleteIds?.length ?? 0} Projects`}
-              ?
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes{" "}
-              {(deleteIds?.length ?? 0) === 1
-                ? "the project and its timeline"
-                : "these projects and their timelines"}
-              . This action cannot be undone.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteIds(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleting}
-              onClick={confirmDelete}
-            >
-              {deleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {deleting ? "Deleting" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        ids={deleteIds}
+        noun="Project"
+        description={(count) =>
+          count === 1
+            ? "This removes the project and its timeline. This action cannot be undone."
+            : "This removes these projects and their timelines. This action cannot be undone."
+        }
+        deleting={deleting}
+        onClose={() => setDeleteIds(null)}
+        onConfirm={confirmDelete}
+      />
 
       <Dialog
         open={!!exportIds}

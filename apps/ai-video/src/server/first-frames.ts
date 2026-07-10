@@ -102,18 +102,16 @@ export async function listFirstFramesForCurrentUser(): Promise<FirstFrameListRes
   }
 }
 
-export async function createFirstFrameForCurrentUser(
-  data: FirstFramePayload
-): Promise<FirstFrameItem> {
-  requireAppOrigin()
-  const user = await requireUser()
-  const actor = await getOwnedActor(user.id, data.actorId)
+// Shared by create + regenerate: resolve the actor/reference inputs, generate
+// the image, and store it in the media library.
+async function generateFirstFrameAssets(userId: string, data: FirstFramePayload) {
+  const actor = await getOwnedActor(userId, data.actorId)
   const name = cleanFirstFrameName(data.name)
   const prompt = cleanFirstFramePrompt(data.prompt)
   const tags = normalizeActorTags(data.tags)
   const referenceMedia =
     data.referenceSource === "media"
-      ? await resolveReferenceMedia(user.id, data.referenceMediaId)
+      ? await resolveReferenceMedia(userId, data.referenceMediaId)
       : null
   const referenceImage =
     data.referenceSource === "media"
@@ -129,17 +127,39 @@ export async function createFirstFrameForCurrentUser(
   })
 
   const image = await generateActorImage(
-    user.id,
+    userId,
     generatedPrompt,
     data.model,
     referenceImage
   )
   const media = await saveGeneratedImageToLibrary(
-    user.id,
+    userId,
     image.bytes,
     image.mimeType,
     `${name}.${mediaExtensionForMimeType(image.mimeType)}`
   )
+  return { actor, name, prompt, tags, referenceMedia, media }
+}
+
+// Roll back the stored image when the DB write after generation fails.
+async function cleanupGeneratedMedia(
+  userId: string,
+  media: { id: string; storagePath: string }
+) {
+  await deleteFromR2(media.storagePath).catch(() => undefined)
+  await db
+    .delete(aiVideoMedia)
+    .where(and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, userId)))
+    .catch(() => undefined)
+}
+
+export async function createFirstFrameForCurrentUser(
+  data: FirstFramePayload
+): Promise<FirstFrameItem> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { actor, name, prompt, tags, referenceMedia, media } =
+    await generateFirstFrameAssets(user.id, data)
 
   const createdAt = now()
   const row = {
@@ -169,13 +189,7 @@ export async function createFirstFrameForCurrentUser(
     }
     return serializeFirstFrame(created, actor, media, referenceMedia)
   } catch (error) {
-    await deleteFromR2(media.storagePath).catch(() => undefined)
-    await db
-      .delete(aiVideoMedia)
-      .where(
-        and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id))
-      )
-      .catch(() => undefined)
+    await cleanupGeneratedMedia(user.id, media)
     throw error
   }
 }
@@ -241,39 +255,8 @@ export async function regenerateFirstFrameForCurrentUser(
     throw new Error("First frame not found")
   }
 
-  const actor = await getOwnedActor(user.id, data.actorId)
-  const name = cleanFirstFrameName(data.name)
-  const prompt = cleanFirstFramePrompt(data.prompt)
-  const tags = normalizeActorTags(data.tags)
-  const referenceMedia =
-    data.referenceSource === "media"
-      ? await resolveReferenceMedia(user.id, data.referenceMediaId)
-      : null
-  const referenceImage =
-    data.referenceSource === "media"
-      ? referenceMedia
-      : {
-          storagePath: actor.imageStoragePath,
-          mimeType: actor.imageMimeType,
-        }
-  const generatedPrompt = composeFirstFramePrompt({
-    actor,
-    prompt,
-    aspectRatio: data.aspectRatio,
-  })
-
-  const image = await generateActorImage(
-    user.id,
-    generatedPrompt,
-    data.model,
-    referenceImage
-  )
-  const media = await saveGeneratedImageToLibrary(
-    user.id,
-    image.bytes,
-    image.mimeType,
-    `${name}.${mediaExtensionForMimeType(image.mimeType)}`
-  )
+  const { actor, name, prompt, tags, referenceMedia, media } =
+    await generateFirstFrameAssets(user.id, data)
 
   try {
     const [row] = await db
@@ -303,13 +286,7 @@ export async function regenerateFirstFrameForCurrentUser(
     }
     return serializeFirstFrame(row, actor, media, referenceMedia)
   } catch (error) {
-    await deleteFromR2(media.storagePath).catch(() => undefined)
-    await db
-      .delete(aiVideoMedia)
-      .where(
-        and(eq(aiVideoMedia.id, media.id), eq(aiVideoMedia.userId, user.id))
-      )
-      .catch(() => undefined)
+    await cleanupGeneratedMedia(user.id, media)
     throw error
   }
 }

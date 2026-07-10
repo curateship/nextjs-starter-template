@@ -4,7 +4,6 @@ import {
   BRAND_KIT_WATERMARK_POSITIONS,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MEDIA_UPLOAD_MAX_MB_LIMIT,
-  type BrandKitConfig,
   type ShellConfig,
 } from "@/lib/ai-video"
 import {
@@ -153,16 +152,6 @@ export const shellConfigSchema = shellGlobalsSchema
     sections: z.array(shellSectionSchema),
   })
   .strict()
-
-export function requireCanonicalBrandKitConfig(value: unknown): BrandKitConfig {
-  const parsed = brandKitConfigSchema.safeParse(value)
-  if (!parsed.success) {
-    throw new Error(
-      "Saved Brand Kit settings are invalid. Reset them with the current settings form."
-    )
-  }
-  return parsed.data
-}
 
 export function requireCanonicalShellConfig(value: unknown): ShellConfig {
   const parsed = shellConfigSchema.safeParse(value)

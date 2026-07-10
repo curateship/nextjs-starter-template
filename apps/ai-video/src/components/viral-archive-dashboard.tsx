@@ -17,6 +17,9 @@ import {
 } from "lucide-react"
 
 import { CreatorChip } from "@/components/creator-chip"
+import { StructureTagList } from "@/components/structure-tag-list"
+import { DashboardNotices } from "@/components/dashboard-notices"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -56,7 +59,6 @@ import {
   listViralVideos,
   retryViralVideo,
   type ViralVideoItem,
-  type ViralVideoStructureTag,
 } from "@/lib/api/viral-videos"
 import type { CreatorItem } from "@/lib/api/creators"
 import { cn } from "@/lib/utils"
@@ -401,15 +403,7 @@ export function ViralArchiveDashboard({
 
   return (
     <div className="w-full pb-8">
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">{notice}</div>
-      ) : null}
-      {error ? (
-        <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <DashboardNotices notice={notice} error={error} />
 
       {viewMode === "gallery" || viewMode === "trend" ? (
         <DashboardTable
@@ -545,28 +539,18 @@ export function ViralArchiveDashboard({
         onOpenChange={(open) => !open && setViewTarget(null)}
       />
 
-      <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete {(deleteIds?.length ?? 0) === 1 ? "Video" : `${deleteIds?.length ?? 0} Videos`}?
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes {(deleteIds?.length ?? 0) === 1 ? "the video" : "these videos"}, the analysis, and the downloaded footage.
-              Templates and projects built from {(deleteIds?.length ?? 0) === 1 ? "it" : "them"} will lose that footage. This action cannot be undone.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
-              {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {deleting ? "Deleting" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        ids={deleteIds}
+        noun="Video"
+        description={(count) =>
+          count === 1
+            ? "This removes the video, the analysis, and the downloaded footage. Templates and projects built from it will lose that footage. This action cannot be undone."
+            : "This removes these videos, the analysis, and the downloaded footage. Templates and projects built from them will lose that footage. This action cannot be undone."
+        }
+        deleting={deleting}
+        onClose={() => setDeleteIds(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }
@@ -677,7 +661,7 @@ function ViralVideoGalleryCard({
             {displayTitle}
           </span>
         )}
-        <ViralVideoTagList tags={video.structure_tags} className="mt-1 mb-3" />
+        <StructureTagList tags={video.structure_tags} className="mt-1 mb-3" />
         {isReady && trendScore ? (
           <>
             <div className="flex items-start justify-between gap-3">
@@ -829,7 +813,7 @@ function ViralVideoTableRow({
                 {video.error}
               </div>
             ) : null}
-            <ViralVideoTagList
+            <StructureTagList
               tags={video.structure_tags}
               className="mt-1 max-w-80"
               maxVisibleTags={video.structure_tags.length}
@@ -903,42 +887,6 @@ function ViralVideoStatusBadge({ status }: { status: ViralVideoItem["status"] })
   }
   if (status === "error") return <Badge variant="destructive">Failed</Badge>
   return <Badge variant="secondary">Ready</Badge>
-}
-
-function ViralVideoTagList({
-  tags,
-  className,
-  maxVisibleTags = 4,
-}: {
-  tags: ViralVideoStructureTag[]
-  className?: string
-  maxVisibleTags?: number
-}) {
-  if (!tags.length) {
-    return <span className="text-xs text-muted-foreground">No tags</span>
-  }
-  const visibleTags = tags.slice(0, maxVisibleTags)
-  const hiddenTagCount = tags.length - visibleTags.length
-
-  return (
-    <div
-      className={cn(
-        "flex max-h-11 min-w-0 max-w-full flex-wrap gap-1 overflow-hidden",
-        className
-      )}
-    >
-      {visibleTags.map((tag) => (
-        <Badge key={tag} variant="outline" className="shrink-0 text-[10px]">
-          {tag}
-        </Badge>
-      ))}
-      {hiddenTagCount > 0 ? (
-        <Badge variant="outline" className="shrink-0 text-[10px]">
-          +{hiddenTagCount}
-        </Badge>
-      ) : null}
-    </div>
-  )
 }
 
 function AddVideoModal({

@@ -117,18 +117,6 @@ export class PlaybackClock {
   }
 }
 
-// Subscribe a component to the clock's current time (re-renders per tick
-// while playing — use only in small leaf components like the playhead).
-// The third argument is the SSR snapshot (the clock is freshly created on
-// the server, so its current values are correct).
-export function usePlaybackTime(clock: PlaybackClock) {
-  return React.useSyncExternalStore(
-    clock.subscribe,
-    () => clock.getTime(),
-    () => clock.getTime()
-  )
-}
-
 // Subscribe to play/pause state only (doesn't re-render per frame... it does
 // notify per tick, but the snapshot is stable while playing so React bails).
 export function usePlaybackPlaying(clock: PlaybackClock) {

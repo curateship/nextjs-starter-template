@@ -13,9 +13,7 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
-  useSortable,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import {
   BellIcon,
   GripVertical,
@@ -30,6 +28,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { useSortableRow } from "@/hooks/use-sortable-row"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ShellIconPicker } from "@/components/shell-icon-picker"
 import {
@@ -108,20 +107,7 @@ function SortableTopNavigationItem({
   onSaveConfig,
 }: SortableTopNavigationItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(item.id)
 
   return (
     <div
@@ -245,20 +231,7 @@ function SortableTopRightNavigationItem({
 }: SortableTopRightNavigationItemProps) {
   const meta = topRightNavigationMeta[item.id]
   const Icon = meta.icon
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(item.id)
 
   return (
     <div

@@ -2,9 +2,7 @@ import * as React from "react"
 import {
   AlertCircleIcon,
   CopyIcon,
-  GridIcon,
   ImageIcon,
-  ListIcon,
   Loader2Icon,
   PinIcon,
   PlusIcon,
@@ -19,16 +17,18 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   FirstFrameCreateDialog,
+  FirstFrameNameAspectFields,
+  FirstFramePromptFields,
   type FirstFrameCreateDialogInitialValues,
 } from "@/components/first-frame-create-dialog"
 import {
   DashboardToolbarButton,
-  dashboardToolbarButtonActiveClassName,
-  dashboardToolbarButtonGroupClassName,
-  dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
+  DashboardToolbarViewToggle,
 } from "@/components/dashboard-toolbar"
+import { DashboardNotices } from "@/components/dashboard-notices"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import {
   Dialog,
   DialogBody,
@@ -37,13 +37,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
@@ -54,7 +52,6 @@ import {
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
 import {
   ACTOR_MODELS,
   bulkDeleteFirstFrames,
@@ -532,32 +529,7 @@ export function FirstFrameDashboard() {
           ))}
         </SelectContent>
       </Select>
-      <div className={dashboardToolbarButtonGroupClassName}>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          className={cn(
-            dashboardToolbarButtonGroupItemClassName,
-            viewMode === "list" && dashboardToolbarButtonActiveClassName
-          )}
-          onClick={() => setViewMode("list")}
-          aria-label="List view"
-        >
-          <ListIcon className="size-4" />
-        </DashboardToolbarButton>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          className={cn(
-            dashboardToolbarButtonGroupItemClassName,
-            viewMode === "gallery" && dashboardToolbarButtonActiveClassName
-          )}
-          onClick={() => setViewMode("gallery")}
-          aria-label="Grid view"
-        >
-          <GridIcon className="size-4" />
-        </DashboardToolbarButton>
-      </div>
+      <DashboardToolbarViewToggle viewMode={viewMode} onChange={setViewMode} />
       <DashboardToolbarButton type="button" onClick={openCreateModal}>
         <PlusIcon className="size-4" />
         Create First Frame
@@ -567,21 +539,7 @@ export function FirstFrameDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {notice}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div
-          role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <DashboardNotices notice={notice} error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable
@@ -737,37 +695,14 @@ export function FirstFrameDashboard() {
                 </div>
               ) : null}
 
-              <div className="grid gap-2">
-                <Label htmlFor="first-frame-name">Name</Label>
-                <Input
-                  id="first-frame-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Opening shot in studio"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Aspect Ratio</Label>
-                <Select
-                  value={aspectRatio}
-                  onOpenChange={handleModalSelectOpenChange}
-                  onValueChange={(value) =>
-                    setAspectRatio(value as FirstFrameAspectRatio)
-                  }
-                >
-                  <SelectTrigger id="first-frame-aspect" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIRST_FRAME_ASPECT_RATIOS.map((ratio) => (
-                      <SelectItem key={ratio} value={ratio}>
-                        {ratio}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FirstFrameNameAspectFields
+                name={name}
+                onNameChange={setName}
+                aspectRatio={aspectRatio}
+                aspectRatios={FIRST_FRAME_ASPECT_RATIOS}
+                onAspectRatioChange={setAspectRatio}
+                onSelectOpenChange={handleModalSelectOpenChange}
+              />
 
               <div className="grid gap-2">
                 <Label>Reference Source</Label>
@@ -799,52 +734,15 @@ export function FirstFrameDashboard() {
                 </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="first-frame-prompt">Prompt</Label>
-                <Textarea
-                  id="first-frame-prompt"
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Describe the first frame composition, scene, pose, lighting, and mood."
-                  rows={5}
-                />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="first-frame-tags">Tags</Label>
-                  <Input
-                    id="first-frame-tags"
-                    value={tags}
-                    onChange={(event) => setTags(event.target.value)}
-                    placeholder="hook, studio, closeup"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>AI Model</Label>
-                  <Select
-                    value={model}
-                    onOpenChange={handleModalSelectOpenChange}
-                    onValueChange={(value) => setModel(value as ActorModelId)}
-                  >
-                    <SelectTrigger id="first-frame-model" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACTOR_MODELS.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {model === "dall-e-3" ? (
-                    <p className="text-xs text-muted-foreground">
-                      DALL-E 3 uses text context only; reference images are not sent to this model.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+              <FirstFramePromptFields
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                tags={tags}
+                onTagsChange={setTags}
+                model={model}
+                onModelChange={setModel}
+                onSelectOpenChange={handleModalSelectOpenChange}
+              />
             </div>
           </DialogBody>
           <DialogFooter variant="plain">
@@ -897,48 +795,16 @@ export function FirstFrameDashboard() {
         onDelete={() => previewFrame && setDeleteIds([previewFrame.id])}
       />
 
-      <Dialog
-        open={!!deleteIds}
-        onOpenChange={(open) => !open && setDeleteIds(null)}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete{" "}
-              {(deleteIds?.length ?? 0) === 1
-                ? "First Frame"
-                : `${deleteIds?.length ?? 0} First Frames`}
-              ?
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes only the dashboard record. The generated media image
-              remains in the media library.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteIds(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleting}
-              onClick={confirmDelete}
-            >
-              {deleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {deleting ? "Deleting" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        ids={deleteIds}
+        noun="First Frame"
+        description={() =>
+          "This removes only the dashboard record. The generated media image remains in the media library."
+        }
+        deleting={deleting}
+        onClose={() => setDeleteIds(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

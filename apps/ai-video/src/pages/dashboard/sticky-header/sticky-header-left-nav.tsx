@@ -180,8 +180,33 @@ export function StickyHeaderLeftNav({
 
   return (
     <div className="inline-flex h-8 items-center rounded-md gap-1">
-      {navLinks.map((link) =>
-        link.href ? (
+      {navLinks.map((link) => {
+        // Shared between the <a> and <button> variants below.
+        const linkClassName = cn(
+          "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
+          !isMobile && "px-3",
+          isMobile && "bg-muted",
+          link.active
+            ? "bg-muted text-foreground rounded-md"
+            : "hover:bg-muted rounded-md"
+        )
+        const linkContent = (
+          <>
+            {link.icon ? (
+              <span
+                className={cn(
+                  "flex h-3.5 w-3.5 items-center justify-center",
+                  !isMobile && "mr-1.5"
+                )}
+              >
+                {link.icon}
+              </span>
+            ) : null}
+            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
+          </>
+        )
+
+        return link.href ? (
           <a
             key={`${link.href}-${link.label}`}
             href={link.href}
@@ -196,26 +221,9 @@ export function StickyHeaderLeftNav({
               }
             }}
             title={isMobile ? link.label : undefined}
-            className={cn(
-              "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
-              !isMobile && "px-3",
-              isMobile && "bg-muted",
-              link.active
-                ? "bg-muted text-foreground rounded-md"
-                : "hover:bg-muted rounded-md"
-            )}
+            className={linkClassName}
           >
-            {link.icon ? (
-              <span
-                className={cn(
-                  "flex h-3.5 w-3.5 items-center justify-center",
-                  !isMobile && "mr-1.5"
-                )}
-              >
-                {link.icon}
-              </span>
-            ) : null}
-            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
+            {linkContent}
           </a>
         ) : (
           <button
@@ -224,29 +232,12 @@ export function StickyHeaderLeftNav({
             aria-label={isMobile ? link.label : undefined}
             onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
             title={isMobile ? link.label : undefined}
-            className={cn(
-              "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
-              !isMobile && "px-3",
-              isMobile && "bg-muted",
-              link.active
-                ? "bg-muted text-foreground rounded-md"
-                : "hover:bg-muted rounded-md"
-            )}
+            className={linkClassName}
           >
-            {link.icon ? (
-              <span
-                className={cn(
-                  "flex h-3.5 w-3.5 items-center justify-center",
-                  !isMobile && "mr-1.5"
-                )}
-              >
-                {link.icon}
-              </span>
-            ) : null}
-            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
+            {linkContent}
           </button>
         )
-      )}
+      })}
     </div>
   )
 }
