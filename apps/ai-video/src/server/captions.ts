@@ -8,6 +8,7 @@ import {
   requireCanonicalTimeline,
   type ProjectTimeline,
 } from "@/lib/timeline-schema"
+import type { TranscriptSource } from "@/lib/transcript-editing"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { extractAudioWav } from "@/server/video-download"
@@ -31,7 +32,10 @@ export type CaptionLine = {
   words?: ClipWord[]
 }
 
-export type ProjectCaptionsResult = { captions: CaptionLine[] }
+export type ProjectCaptionsResult = {
+  captions: CaptionLine[]
+  source: TranscriptSource
+}
 
 // Which model transcribes the audio. Gemini estimates timestamps; OpenAI's
 // Whisper returns forced-aligned word timings (tighter sync). Claude can't do
@@ -71,19 +75,19 @@ Rules:
 // Picks the clip whose audio should be captioned: the longest audio clip on
 // an unmuted track, else the longest unmuted video clip with media.
 function findCaptionSource(timeline: ProjectTimeline) {
-  let bestAudio: EditorClip | null = null
-  let bestVideo: EditorClip | null = null
+  let bestAudio: { clip: EditorClip; trackId: string } | null = null
+  let bestVideo: { clip: EditorClip; trackId: string } | null = null
   for (const track of timeline.tracks ?? []) {
     if (track.muted) continue
     for (const clip of track.clips ?? []) {
       if (!clip.mediaId || !clip.durationMs) continue
       if (clip.kind === "audio") {
-        if (!bestAudio || clip.durationMs > bestAudio.durationMs) {
-          bestAudio = clip
+        if (!bestAudio || clip.durationMs > bestAudio.clip.durationMs) {
+          bestAudio = { clip, trackId: track.id }
         }
       } else if (clip.kind === "video") {
-        if (!bestVideo || clip.durationMs > bestVideo.durationMs) {
-          bestVideo = clip
+        if (!bestVideo || clip.durationMs > bestVideo.clip.durationMs) {
+          bestVideo = { clip, trackId: track.id }
         }
       }
     }
@@ -116,8 +120,9 @@ export async function generateProjectCaptionsForCurrentUser(
   }
 
   const timeline = requireCanonicalTimeline(project.timeline)
-  const source = findCaptionSource(timeline)
-  if (!source?.mediaId) {
+  const selectedSource = findCaptionSource(timeline)
+  const source = selectedSource?.clip
+  if (!selectedSource || !source?.mediaId) {
     throw new Error("No audible clip to caption")
   }
 
@@ -155,7 +160,18 @@ export async function generateProjectCaptionsForCurrentUser(
           audioMime,
           sourceDurationMs
         )
-  return { captions: mapToTimeline(raw, source, sourceDurationMs) }
+  return {
+    captions: mapToTimeline(raw, source, sourceDurationMs),
+    source: {
+      clipId: source.id,
+      trackId: selectedSource.trackId,
+      kind: source.kind as "video" | "audio",
+      mediaId: source.mediaId,
+      startMs: source.startMs,
+      durationMs: source.durationMs,
+      trimStartMs: source.trimStartMs,
+    },
+  }
 }
 
 // OpenAI Whisper transcription with word-level timestamps (forced-aligned, so
@@ -309,14 +325,31 @@ function mapToTimeline(
       (line) =>
         line.text && line.endMs > windowStart && line.startMs < windowEnd
     )
-    .map((line) => ({
-      startMs: Math.max(line.startMs, windowStart) + offset,
-      endMs: Math.min(line.endMs, windowEnd) + offset,
-      text: line.text,
-      // Word offsets are relative to the line start, so they ride along
-      // unchanged when the line is shifted into timeline time.
-      words: line.words,
-    }))
+    .map((line) => {
+      const clippedStartMs = Math.max(line.startMs, windowStart)
+      const clippedEndMs = Math.min(line.endMs, windowEnd)
+      const words = line.words
+        ?.map((word) => ({
+          text: word.text,
+          startMs:
+            Math.max(line.startMs + word.startMs, clippedStartMs) -
+            clippedStartMs,
+          endMs:
+            Math.min(line.startMs + word.endMs, clippedEndMs) - clippedStartMs,
+        }))
+        .filter((word) => word.endMs > word.startMs)
+      return {
+        startMs: clippedStartMs + offset,
+        endMs: clippedEndMs + offset,
+        text: words
+          ? words
+              .map((word) => word.text)
+              .join(" ")
+              .replace(/\s+([,.!?;:])/g, "$1")
+          : line.text,
+        words,
+      }
+    })
     .filter((line) => line.endMs > line.startMs)
     .sort((a, b) => a.startMs - b.startMs)
 
@@ -326,5 +359,5 @@ function mapToTimeline(
       mapped[i].endMs = mapped[i + 1].startMs
     }
   }
-  return mapped.filter((line) => line.endMs > line.startMs)
+  return mapped.filter((line) => line.text && line.endMs > line.startMs)
 }

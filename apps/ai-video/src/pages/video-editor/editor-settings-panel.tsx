@@ -822,6 +822,7 @@ function JumpCutDialog({
         clipStartMs: suggestion.clipStartMs,
         clipEndMs: suggestion.clipEndMs,
       })),
+      rippleClipIds: [],
     })
     setApplied({
       count: items.length,
