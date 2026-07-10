@@ -15,8 +15,15 @@ const BINANCE_FAPI_KLINES = "https://fapi.binance.com/fapi/v1/klines"
 
 /** Binance caps a klines request at 1500 rows; stay under it. */
 const PAGE_LIMIT = 1000
-/** Safety cap on a single fetch so a bad window can't download forever. */
-const MAX_BARS_PER_FETCH = 60_000
+/**
+ * Runaway-loop backstop, far above any real request (~7.5 years of 1m bars).
+ * NOT a truncation point: the fetch must cover the whole requested range,
+ * because gap-filling starts at the cached tail — which can sit years before
+ * the window a run actually asked for. The old 60k cap silently clipped such
+ * fetches, truncating runs or erroring them with "no candle history" (see
+ * dca-strategy-validation.md, July 10 2026 note). Hitting this now throws.
+ */
+const MAX_BARS_PER_FETCH = 4_000_000
 const RATE_LIMIT_RETRIES = 6
 const RATE_LIMIT_BASE_MS = 1_000
 /** Small courtesy pause between pages to stay well under Binance's weight cap. */
@@ -180,7 +187,13 @@ async function fetchBinanceRange(
     }
 
     if (rows.length < PAGE_LIMIT) break
-    if (byTime.size >= MAX_BARS_PER_FETCH) break
+    if (byTime.size >= MAX_BARS_PER_FETCH) {
+      throw new Error(
+        `Binance klines ${symbol} ${interval}: fetch passed ${MAX_BARS_PER_FETCH} bars — refusing to silently truncate history.`
+      )
+    }
+    // A page that fails to advance the cursor would loop forever.
+    if (lastOpen + stepMs <= cursor) break
     cursor = lastOpen + stepMs
     await sleep(PAGE_PAUSE_MS)
   }

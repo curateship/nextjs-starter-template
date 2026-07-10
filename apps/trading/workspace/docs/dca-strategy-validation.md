@@ -4,6 +4,34 @@ July 9, 2026. After the take-profit fill bug was found and fixed (see
 `back-testing-rule.md`, "Sanity-check fill prices"), every strategy was
 re-judged on the fixed engine. The DCA ladder is the one that survived.
 
+> **July 10, 2026 — 1h-candle inflation re-confirmed on the product engine.**
+> A BTC-only 5.5-year run of the default 1% ladder at 1h (group `de95fe01`)
+> showed +147% (2.2%/mo). Cycle reconstruction from its fills: 30% of cycles
+> closed a dip-buy AND the TP inside the same 1h bar — 57% of all closed
+> profit rode on the engine's dip-first bar walk (open→low→high for longs).
+> Re-runs: 15m covered the full window → **+51.5% over 5.5y ≈ 0.78%/mo
+> honest** (group `e8e582e7`). The 5m run (`b6fd2932`) was silently
+> TRUNCATED to Jan–Aug 2021 by the candle fetcher's 60k-bars-per-fetch cap
+> (see bug note below). Matched-window check (Jan 17–Aug 14, 2021):
+> 1h +78.7% / 15m +47.6% / 5m +49.5% — 15m and 5m agree, 1h ~1.6× inflated.
+> Verdict: judge 1% ladders at 15m or finer; the 1h number was ~3× high.
+> Sobering detail: on 15m, +47.6 of the +51.5 points came from Jan–Aug 2021
+> (the hyper-volatile bull/crash) — the following ~5 years added ≈ nothing
+> on BTC.
+>
+> **Candle-cache bug found and FIXED the same day:** one fetch topped out
+> at 60,000 bars (`MAX_BARS_PER_FETCH`), and gap-filling always extends
+> forward from the cached tail. A 5m request whose window sat years past
+> the cached tail downloaded 60k bars, never reached the window, and the
+> run errored "No candle history" (or worse, was silently truncated —
+> that's what clipped the 5m re-check above to Aug 2021). Fix in
+> `binance-history.ts`: a fetch now pages until the requested range is
+> covered; the cap survives only as a 4M-bar runaway backstop that THROWS
+> instead of truncating. Verified by re-running the failed BTC 5m Feb–Jul
+> 2026 run (group `c5ad55f1`): downloaded the 3-year gap (~336k candles,
+> ~3 min) and completed — 43 trades, −6.5%. BTC 5m cache now spans
+> Jan 2021 → Jul 2026.
+
 ## The strategy
 
 Long-only buy-the-dip ladder: buy a small base order, add a bigger buy every
