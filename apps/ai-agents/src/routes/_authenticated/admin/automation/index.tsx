@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { AutomationCanvas } from "@/components/automation/automation-canvas"
+import { WorkflowsDashboard } from "@/components/automation/workflows-dashboard"
 
 export const Route = createFileRoute("/_authenticated/admin/automation/")({
-  component: AutomationCanvas,
+  component: WorkflowsDashboard,
 })

@@ -1,10 +1,17 @@
 import * as React from "react"
-import { MinusIcon, PlayIcon, PlusIcon, WorkflowIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import {
+  ArrowLeftIcon,
+  MinusIcon,
+  PlayIcon,
+  PlusIcon,
+  WorkflowIcon,
+} from "lucide-react"
 
 import {
   catalog,
   catColor,
-  createInitialNodes,
+  CONTACT_NODE_TYPES,
   createNode,
   glyphs,
   typeDef,
@@ -20,11 +27,21 @@ import {
   outputCountOf,
   portIn,
   portOut,
-  topoOrder,
 } from "@/components/automation/flow-utils"
+import { RunWorkflowDialog } from "@/components/automation/run-workflow-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import {
+  cancelWorkflowRun,
+  getWorkflowErrorMessage,
+  startWorkflowRun,
+  tickWorkflowRun,
+  updateWorkflow,
+  type WorkflowEditorData,
+  type WorkflowRunDetail,
+  type WorkflowRunStepItem,
+} from "@/lib/api/workflows"
 
 const EDGE_IDLE = "color-mix(in oklab, var(--muted-foreground) 55%, transparent)"
 const PORT_IDLE = "color-mix(in oklab, var(--muted-foreground) 55%, transparent)"
@@ -42,31 +59,92 @@ type DragState =
 
 type ConnectDraft = { from: string; port: number; x: number; y: number }
 
-type RunStatus = "running" | "done"
+type RunStatus = "running" | "done" | "failed" | "skipped"
 
 type LogEntry = { time: string; badge: string; color: string; msg: string }
+
+const TICK_INTERVAL_MS = 2000
+
+const STEP_TO_RUN_STATUS: Record<string, RunStatus> = {
+  running: "running",
+  waiting: "running",
+  completed: "done",
+  failed: "failed",
+  skipped: "skipped",
+}
+
+const RUN_STATUS_COLORS: Record<RunStatus, string> = {
+  running: "var(--primary)",
+  done: RUN_GREEN,
+  failed: "var(--destructive)",
+  skipped: "var(--muted-foreground)",
+}
+
+const RUN_STATUS_MARKS: Record<RunStatus, string> = {
+  running: "●",
+  done: "✓",
+  failed: "✕",
+  skipped: "–",
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function timestamp() {
-  return new Date().toLocaleTimeString("en-US", { hour12: false })
+function logTime(iso: string | null) {
+  if (!iso) return "--:--:--"
+  return new Date(iso).toLocaleTimeString("en-US", { hour12: false })
 }
 
-function runMessage(node: FlowNode) {
-  const def = typeDef(node.type)
-  if (def.cat === "agent") {
-    const target = node.config.model ?? node.config.agent ?? "model"
-    return `${node.name} · calling ${target}…`
+// One log line per executed step, with the interesting output facts inline.
+function stepLogEntry(step: WorkflowRunStepItem): LogEntry {
+  if (step.status === "running" || step.status === "waiting") {
+    return {
+      time: logTime(step.started_at),
+      badge: "▸",
+      color: "var(--primary)",
+      msg:
+        step.status === "waiting"
+          ? `${step.node_name} · call in progress…`
+          : `${step.node_name} · executing…`,
+    }
   }
-  if (def.cat === "trigger") {
-    return `${node.name} fired · payload received`
+  const time = logTime(step.finished_at ?? step.started_at)
+  if (step.status === "failed") {
+    return {
+      time,
+      badge: "✕",
+      color: "var(--destructive)",
+      msg: `${step.node_name} failed${step.error ? ` · ${step.error}` : ""}`,
+    }
   }
-  if (def.cat === "logic") {
-    return `${node.name} evaluated · ${node.config.cond || "paths joined"}`
+  if (step.status === "skipped") {
+    return {
+      time,
+      badge: "–",
+      color: "var(--muted-foreground)",
+      msg: `${step.node_name} skipped`,
+    }
   }
-  return `${node.name} · executing…`
+  const output = step.output ?? {}
+  let detail = ""
+  if (output.simulated) {
+    detail = " · simulated (no integration yet)"
+  } else if (step.node_type === "branch") {
+    detail = ` · ${String(output.cond ?? "")} → ${output.result ? "true" : "false"}`
+  } else if (step.node_type === "voicecall") {
+    detail = ` · call ${String(output.call_status ?? "done")}${
+      output.ended_reason ? ` (${String(output.ended_reason)})` : ""
+    }`
+  } else if (step.node_type === "http") {
+    detail = ` · HTTP ${String(output.status ?? "")}`
+  }
+  return {
+    time,
+    badge: "✓",
+    color: RUN_GREEN,
+    msg: `${step.node_name} finished${detail}`,
+  }
 }
 
 function CategoryGlyph({
@@ -90,21 +168,25 @@ function CategoryGlyph({
   )
 }
 
-export function AutomationCanvas() {
-  const [nodes, setNodes] = React.useState<FlowNode[]>(createInitialNodes)
-  const [edges, setEdges] = React.useState<FlowEdge[]>([])
+export function AutomationCanvas({ initial }: { initial: WorkflowEditorData }) {
+  const workflowId = initial.workflow.id
+  const [nodes, setNodes] = React.useState<FlowNode[]>(() => initial.workflow.nodes)
+  const [edges, setEdges] = React.useState<FlowEdge[]>(() => initial.workflow.edges)
+  const [name, setName] = React.useState(initial.workflow.name)
   const [pan, setPan] = React.useState({ x: 40, y: 30 })
   const [zoom, setZoom] = React.useState(0.95)
   const [sel, setSel] = React.useState<string | null>(null)
   const [selEdge, setSelEdge] = React.useState<string | null>(null)
   const [connect, setConnect] = React.useState<ConnectDraft | null>(null)
   const [isPanning, setIsPanning] = React.useState(false)
-  const [running, setRunning] = React.useState(false)
-  const [status, setStatus] = React.useState<Record<string, RunStatus>>({})
-  const [log, setLog] = React.useState<LogEntry[]>([])
+  const [run, setRun] = React.useState<WorkflowRunDetail | null>(
+    initial.latest_run
+  )
   const [logOpen, setLogOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
-  const [saved, setSaved] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [runDialogOpen, setRunDialogOpen] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
   const [inspW, setInspW] = React.useState(272)
   const [logH, setLogH] = React.useState(148)
   const [canvasSize, setCanvasSize] = React.useState({ width: 0, height: 0 })
@@ -112,11 +194,106 @@ export function AutomationCanvas() {
   const canvasRef = React.useRef<HTMLDivElement | null>(null)
   const logScrollRef = React.useRef<HTMLDivElement | null>(null)
   const dragRef = React.useRef<DragState | null>(null)
-  const timersRef = React.useRef<number[]>([])
   const addCountRef = React.useRef(0)
+  // Serialized snapshot of the last persisted state; drives dirty tracking
+  // across drags, config edits, and renames without touching every handler.
+  const [lastSaved, setLastSaved] = React.useState(() =>
+    JSON.stringify({
+      name: initial.workflow.name,
+      nodes: initial.workflow.nodes,
+      edges: initial.workflow.edges,
+    })
+  )
 
-  const stateRef = React.useRef({ nodes, edges, pan, zoom, sel, selEdge, connect, running })
-  stateRef.current = { nodes, edges, pan, zoom, sel, selEdge, connect, running }
+  const running = run?.run.status === "running"
+  const dirty = JSON.stringify({ name, nodes, edges }) !== lastSaved
+
+  // Node + log render state comes straight from the persisted run.
+  const status = React.useMemo(() => {
+    const map: Record<string, RunStatus> = {}
+    for (const step of run?.steps ?? []) {
+      const mapped = STEP_TO_RUN_STATUS[step.status]
+      if (mapped) map[step.node_id] = mapped
+    }
+    return map
+  }, [run])
+
+  const log = React.useMemo<LogEntry[]>(() => {
+    if (!run) return []
+    const entries: LogEntry[] = [
+      {
+        time: logTime(run.run.started_at),
+        badge: "▸",
+        color: "var(--muted-foreground)",
+        msg: "Workflow started · manual run",
+      },
+    ]
+    const steps = [...run.steps]
+      .filter((step) => step.status !== "pending")
+      .sort((a, b) =>
+        (a.started_at ?? a.finished_at ?? "") <
+        (b.started_at ?? b.finished_at ?? "")
+          ? -1
+          : 1
+      )
+    for (const step of steps) {
+      entries.push(stepLogEntry(step))
+    }
+    if (run.run.status !== "running") {
+      const ok = run.run.status === "completed"
+      entries.push({
+        time: logTime(run.run.finished_at ?? run.run.started_at),
+        badge: ok ? "✓" : "✕",
+        color: ok ? RUN_GREEN : "var(--destructive)",
+        msg: `Workflow ${run.run.status}`,
+      })
+    }
+    return entries
+  }, [run])
+
+  // Latest state for event handlers and async callbacks; synced after every
+  // render (handlers only fire after effects have run).
+  const stateRef = React.useRef({
+    nodes,
+    edges,
+    name,
+    pan,
+    zoom,
+    sel,
+    selEdge,
+    connect,
+    running,
+    lastSaved,
+  })
+  React.useEffect(() => {
+    stateRef.current = {
+      nodes,
+      edges,
+      name,
+      pan,
+      zoom,
+      sel,
+      selEdge,
+      connect,
+      running,
+      lastSaved,
+    }
+  })
+
+  // While the run is live this poll IS the engine — each tick advances steps
+  // server-side and returns fresh state (same model as the campaign dialer).
+  const activeRunId = running && run ? run.run.id : null
+  React.useEffect(() => {
+    if (!activeRunId) return
+    const timer = setInterval(() => {
+      tickWorkflowRun(activeRunId)
+        .then(setRun)
+        .catch((tickError) => {
+          setError(getWorkflowErrorMessage(tickError))
+        })
+    }, TICK_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [activeRunId])
 
   const worldFromClient = React.useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current
@@ -323,12 +500,6 @@ export function AutomationCanvas() {
   }, [fitView])
 
   React.useEffect(() => {
-    return () => {
-      timersRef.current.forEach((timer) => clearTimeout(timer))
-    }
-  }, [])
-
-  React.useEffect(() => {
     const el = logScrollRef.current
     if (el) {
       el.scrollTop = el.scrollHeight
@@ -387,81 +558,63 @@ export function AutomationCanvas() {
     )
   }, [])
 
-  const run = React.useCallback(() => {
-    if (stateRef.current.running) {
-      return
-    }
-    timersRef.current.forEach((timer) => clearTimeout(timer))
-    timersRef.current = []
-    const order = topoOrder(stateRef.current.nodes, stateRef.current.edges)
-    if (!order.length) {
-      return
-    }
-    setRunning(true)
-    setLogOpen(true)
-    setStatus({})
-    setLog([
-      {
-        time: timestamp(),
-        badge: "▸",
-        color: "var(--muted-foreground)",
-        msg: "Workflow started · manual run",
-      },
-    ])
-    let elapsed = 300
-    order.forEach((node, index) => {
-      const duration = 420 + ((index * 397) % 520)
-      timersRef.current.push(
-        window.setTimeout(() => {
-          setStatus((current) => ({ ...current, [node.id]: "running" }))
-          setLog((current) => [
-            ...current,
-            {
-              time: timestamp(),
-              badge: "▸",
-              color: "var(--primary)",
-              msg: runMessage(node),
-            },
-          ])
-        }, elapsed)
-      )
-      elapsed += duration
-      timersRef.current.push(
-        window.setTimeout(() => {
-          setStatus((current) => ({ ...current, [node.id]: "done" }))
-          setLog((current) => [
-            ...current,
-            {
-              time: timestamp(),
-              badge: "✓",
-              color: RUN_GREEN,
-              msg: `${node.name} finished in ${duration}ms`,
-            },
-          ])
-        }, elapsed)
-      )
-      elapsed += 140
+  const save = React.useCallback(async (): Promise<boolean> => {
+    const { nodes: currentNodes, edges: currentEdges, name: currentName } =
+      stateRef.current
+    const payload = JSON.stringify({
+      name: currentName,
+      nodes: currentNodes,
+      edges: currentEdges,
     })
-    timersRef.current.push(
-      window.setTimeout(() => {
-        setRunning(false)
-        setLog((current) => [
-          ...current,
-          {
-            time: timestamp(),
-            badge: "✓",
-            color: RUN_GREEN,
-            msg: `Workflow completed · ${order.length} steps`,
-          },
-        ])
-      }, elapsed + 150)
-    )
-  }, [])
+    if (payload === stateRef.current.lastSaved) return true
+    setSaving(true)
+    setError(null)
+    try {
+      await updateWorkflow({
+        workflowId,
+        name: currentName,
+        nodes: currentNodes,
+        edges: currentEdges,
+      })
+      setLastSaved(payload)
+      return true
+    } catch (saveError) {
+      setError(getWorkflowErrorMessage(saveError))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [workflowId])
 
-  const save = React.useCallback(() => {
-    setSaved(true)
-    timersRef.current.push(window.setTimeout(() => setSaved(false), 1400))
-  }, [])
+  // Throws so callers (Run button, run dialog) surface the error where the
+  // user acted.
+  const startRun = React.useCallback(
+    async (contactId?: string) => {
+      const detail = await startWorkflowRun(workflowId, contactId)
+      setRun(detail)
+      setLogOpen(true)
+    },
+    [workflowId]
+  )
+
+  const handleRun = React.useCallback(async () => {
+    if (stateRef.current.running) return
+    setError(null)
+    // Run what's on screen, not a stale save.
+    if (!(await save())) return
+    const needsContact = stateRef.current.nodes.some((node) =>
+      CONTACT_NODE_TYPES.has(node.type)
+    )
+    if (needsContact) {
+      setRunDialogOpen(true)
+      return
+    }
+    try {
+      await startRun()
+    } catch (runError) {
+      setError(getWorkflowErrorMessage(runError))
+    }
+  }, [save, startRun])
 
   const onCanvasMouseDown = (event: React.MouseEvent) => {
     if (event.button !== 0) {
@@ -581,17 +734,37 @@ export function AutomationCanvas() {
       <style>{`@keyframes af-dash{to{stroke-dashoffset:-30}}@keyframes af-pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
 
       <div className="flex h-12 shrink-0 items-center gap-3 border-b px-3.5">
+        <Button
+          asChild
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Back to workflows"
+        >
+          <Link to="/admin/automation">
+            <ArrowLeftIcon className="size-4" />
+          </Link>
+        </Button>
         <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <WorkflowIcon className="size-4" />
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
-          <div className="truncate text-[13px] leading-none font-semibold">
-            Appointment reminders
-          </div>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            aria-label="Workflow name"
+            className="w-full min-w-0 border-none bg-transparent p-0 text-[13px] leading-none font-semibold outline-none focus:text-primary"
+          />
           <div className="truncate text-[10.5px] leading-none text-muted-foreground">
-            Automation · Draft
+            Automation ·{" "}
+            {running ? "Running" : dirty ? "Unsaved changes" : "Saved"}
           </div>
         </div>
+        {error ? (
+          <div className="max-w-[320px] truncate text-[11px] text-destructive">
+            {error}
+          </div>
+        ) : null}
         <div className="flex-1" />
         <div className="flex items-center gap-0.5 rounded-lg border p-0.5">
           <Button
@@ -621,10 +794,25 @@ export function AutomationCanvas() {
         <Button variant="outline" size="sm" onClick={() => setLogOpen((open) => !open)}>
           Log
         </Button>
-        <Button variant="outline" size="sm" onClick={save}>
-          {saved ? "Saved ✓" : "Save"}
+        <Button variant="outline" size="sm" disabled={saving} onClick={save}>
+          {saving ? "Saving…" : dirty ? "Save" : "Saved ✓"}
         </Button>
-        <Button size="sm" disabled={running} onClick={run}>
+        {running && run ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              cancelWorkflowRun(run.run.id)
+                .then(setRun)
+                .catch((cancelError) =>
+                  setError(getWorkflowErrorMessage(cancelError))
+                )
+            }}
+          >
+            Cancel
+          </Button>
+        ) : null}
+        <Button size="sm" disabled={running || saving} onClick={handleRun}>
           <PlayIcon data-icon="inline-start" />
           {running ? "Running…" : "Run"}
         </Button>
@@ -808,15 +996,14 @@ export function AutomationCanvas() {
                         <div
                           className="text-[11px] font-bold"
                           style={{
-                            color:
-                              nodeStatus === "done" ? RUN_GREEN : "var(--primary)",
+                            color: RUN_STATUS_COLORS[nodeStatus],
                             animation:
                               nodeStatus === "running"
                                 ? "af-pulse 1s ease-in-out infinite"
                                 : undefined,
                           }}
                         >
-                          {nodeStatus === "done" ? "✓" : "●"}
+                          {RUN_STATUS_MARKS[nodeStatus]}
                         </div>
                       ) : null}
                     </div>
@@ -955,7 +1142,7 @@ export function AutomationCanvas() {
                 ))}
                 {!log.length ? (
                   <div className="pt-2 text-muted-foreground/60">
-                    No runs yet — press Run to simulate this workflow.
+                    No runs yet — press Run to execute this workflow.
                   </div>
                 ) : null}
               </div>
@@ -1034,6 +1221,27 @@ export function AutomationCanvas() {
                           ))}
                         </select>
                       ) : null}
+                      {field.kind === "agent" || field.kind === "phone" ? (
+                        <select
+                          value={String(value)}
+                          onChange={(event) => setValue(event.target.value)}
+                          className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                        >
+                          <option value="">Select…</option>
+                          {field.kind === "agent"
+                            ? initial.agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.name}
+                                </option>
+                              ))
+                            : initial.phone_numbers.map((phoneNumber) => (
+                                <option key={phoneNumber.id} value={phoneNumber.id}>
+                                  {phoneNumber.number}
+                                  {phoneNumber.name ? ` — ${phoneNumber.name}` : ""}
+                                </option>
+                              ))}
+                        </select>
+                      ) : null}
                       {field.kind === "range" ? (
                         <input
                           type="range"
@@ -1071,6 +1279,19 @@ export function AutomationCanvas() {
           )}
         </div>
       </div>
+
+      <RunWorkflowDialog
+        open={runDialogOpen}
+        onOpenChange={setRunDialogOpen}
+        providerWarning={
+          !initial.provider_configured &&
+          nodes.some((node) => node.type === "voicecall")
+        }
+        onStart={async (contactId) => {
+          await startRun(contactId)
+          setRunDialogOpen(false)
+        }}
+      />
     </div>
   )
 }

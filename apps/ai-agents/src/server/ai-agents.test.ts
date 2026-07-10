@@ -185,6 +185,14 @@ describe("ai-agents workspaces", () => {
     expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
+        label: "Automation",
+        href: "/admin/automation",
+        visible: true,
+      },
+    ])
+    expect(defaultSettings.sections[2]?.entries).toMatchObject([
+      {
+        type: "item",
         label: "Settings",
         href: "/admin/settings",
         visible: true,
@@ -203,7 +211,7 @@ describe("ai-agents workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[1]?.entries).toMatchObject([
+    expect(secondSettings.sections[2]?.entries).toMatchObject([
       {
         type: "item",
         label: "Settings",

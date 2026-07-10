@@ -472,6 +472,103 @@ export const aiAgentsCampaignRecipients = pgTable(
   ]
 )
 
+// --- Automation workflows ---
+// The canvas graph is stored verbatim (FlowNode[]/FlowEdge[] JSON); runs
+// snapshot it so later edits never corrupt run history.
+
+export const aiAgentsAutomationWorkflows = pgTable(
+  "automation_workflows",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => aiAgentsWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    nodes: jsonb("nodes").notNull().default(sql`'[]'::jsonb`),
+    edges: jsonb("edges").notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_automation_workflows_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+  ]
+)
+
+export const aiAgentsWorkflowRuns = pgTable(
+  "workflow_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => aiAgentsWorkspaces.id, { onDelete: "cascade" }),
+    workflowId: varchar("workflow_id", { length: 36 })
+      .notNull()
+      .references(() => aiAgentsAutomationWorkflows.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 }).references(
+      () => aiAgentsContacts.id,
+      { onDelete: "set null" }
+    ),
+    status: varchar("status", { length: 20 }).notNull().default("running"),
+    triggerType: varchar("trigger_type", { length: 20 }).notNull().default("manual"),
+    nodes: jsonb("nodes").notNull(),
+    edges: jsonb("edges").notNull(),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "workflow_runs_status_check",
+      sql`${table.status} in ('running', 'completed', 'failed', 'canceled')`
+    ),
+    check(
+      "workflow_runs_trigger_type_check",
+      sql`${table.triggerType} in ('manual')`
+    ),
+    index("ix_workflow_runs_workflow_started").on(table.workflowId, table.startedAt),
+    index("ix_workflow_runs_workspace").on(table.workspaceId),
+  ]
+)
+
+export const aiAgentsWorkflowRunSteps = pgTable(
+  "workflow_run_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => aiAgentsWorkspaces.id, { onDelete: "cascade" }),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => aiAgentsWorkflowRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    nodeType: varchar("node_type", { length: 50 }).notNull(),
+    nodeName: varchar("node_name", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    output: jsonb("output"),
+    callId: varchar("call_id", { length: 36 }).references(() => aiAgentsCalls.id, {
+      onDelete: "set null",
+    }),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("workflow_run_steps_unique_node").on(table.runId, table.nodeId),
+    check(
+      "workflow_run_steps_status_check",
+      sql`${table.status} in ('pending', 'running', 'waiting', 'completed', 'failed', 'skipped')`
+    ),
+    index("ix_workflow_run_steps_run_status").on(table.runId, table.status),
+  ]
+)
+
 export type AiAgentsUser = typeof aiAgentsUsers.$inferSelect
 export type AiAgentsWorkspace = typeof aiAgentsWorkspaces.$inferSelect
 export type AiAgentsMedia = typeof aiAgentsMedia.$inferSelect
@@ -489,3 +586,8 @@ export type AiAgentsCampaign = typeof aiAgentsCampaigns.$inferSelect
 export type AiAgentsCampaignRecipient =
   typeof aiAgentsCampaignRecipients.$inferSelect
 export type AiAgentsCall = typeof aiAgentsCalls.$inferSelect
+export type AiAgentsAutomationWorkflow =
+  typeof aiAgentsAutomationWorkflows.$inferSelect
+export type AiAgentsWorkflowRun = typeof aiAgentsWorkflowRuns.$inferSelect
+export type AiAgentsWorkflowRunStep =
+  typeof aiAgentsWorkflowRunSteps.$inferSelect
