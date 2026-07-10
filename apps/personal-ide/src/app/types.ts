@@ -119,12 +119,6 @@ export type WorkspaceTerminalState = {
 
 export type WorkspaceStatus = "running" | "waiting"
 
-export type TerminalOutput = {
-  workspaceId: string
-  terminalId: string
-  data: number[]
-}
-
 export type EditorSettings = {
   defaultTaskTemplate: string
 }
