@@ -107,6 +107,13 @@ Rules:
 - "scenes": the visual shot boundaries, contiguous from 0 to the end of the video. A new scene starts ONLY at a real visual cut or camera/shot change — locate the actual cut points and use their exact timestamps. NEVER divide the video into equal-length intervals; scene lengths should vary like real edits do. If the whole video is one continuous shot, return a single scene covering it.`
 }
 
+// Gemini intermittently answers 429/5xx when the model is overloaded; these
+// clear within seconds, so failed calls retry a couple of times before the
+// feature gives up. Retries happen inside the single reserved usage event, so
+// they never cost extra credits.
+const GEMINI_RETRYABLE_STATUSES = new Set([429, 500, 503])
+const GEMINI_RETRY_DELAYS_MS = [750, 1500]
+
 // One generateContent round-trip that must return JSON matching `schema`.
 // `label` prefixes every error ("Video analysis", "Caption generation", …) so
 // the lib/api safe-error sets keep their exact message strings.
@@ -118,27 +125,34 @@ export async function generateJson<T>(
 ): Promise<T> {
   const apiKey = await requireGeminiKey()
   const run = async () => {
-    const response = await fetch(
-      `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-      }
-    )
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(
+        `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
+        }
+      )
+      if (response.ok) return response
 
-    if (!response.ok) {
       // Surface the status + Google's error body in the server log.
       console.error(`Gemini ${label} failed`, await safeBody(response))
-      throw new Error(`${label} failed (HTTP ${response.status})`)
+      const delayMs = GEMINI_RETRY_DELAYS_MS[attempt]
+      if (
+        !GEMINI_RETRYABLE_STATUSES.has(response.status) ||
+        delayMs === undefined
+      ) {
+        throw new Error(`${label} failed (HTTP ${response.status})`)
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
-    return response
   }
   const response = usage
     ? await withApiUsage(usage.userId, usage.action, run)
@@ -286,8 +300,11 @@ export async function waitForFileActive(name: string, apiKey: string) {
 }
 
 // Best-effort body text for error logging (never throws).
+// Truncated: error bodies are only logged for diagnostics, and retried calls
+// log one per attempt — an unbounded body would bloat the server log.
 export async function safeBody(response: Response) {
-  return response.text().catch(() => "<unreadable body>")
+  const body = await response.text().catch(() => "<unreadable body>")
+  return body.length > 500 ? `${body.slice(0, 500)}…` : body
 }
 
 export async function deleteGeminiFile(name: string, apiKey: string) {
