@@ -1,4 +1,6 @@
 import * as React from "react"
+
+import { TradeTable, type TradeTableRow } from "@/components/trade-table"
 import {
   Area,
   AreaChart,
@@ -14,18 +16,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import {
-  STICKY_SCROLL_OVERRIDES,
-  STICKY_TABLE_HEADER,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-  type TableSortDirection,
-} from "@/components/ui/table"
+import { STICKY_SCROLL_OVERRIDES } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
@@ -38,7 +29,6 @@ import { cn } from "@/lib/utils"
 import {
   num,
   pct,
-  price as fmtPrice,
   profitFactor,
   signedUsd,
   toneClass,
@@ -54,7 +44,6 @@ export function StrategyTester({
   markPrice,
   selectedTradeN = null,
   onSelectTrade,
-  reentryTimes,
 }: {
   result: BacktestResult | null
   startingEquity: number
@@ -64,7 +53,6 @@ export function StrategyTester({
   /** Row click — null when the selected trade is clicked again. */
   onSelectTrade?: (trade: BacktestTrade | null) => void
   /** Entry times that are trend re-entries ("R"), so those rows get tagged. */
-  reentryTimes?: Set<number>
 }) {
   const stats = result?.stats
   const net = stats?.netPnl ?? 0
@@ -110,7 +98,6 @@ export function StrategyTester({
             markPrice={markPrice}
             selectedTradeN={selectedTradeN}
             onSelectTrade={onSelectTrade}
-            reentryTimes={reentryTimes}
           />
         </TabsContent>
         <TabsContent value="overview" className="m-0">
@@ -327,169 +314,72 @@ function PerfCell({ value, tone }: { value: string; tone?: number }) {
   )
 }
 
-type TradeSortKey =
-  | "n"
-  | "side"
-  | "entryTime"
-  | "entryPx"
-  | "exitTime"
-  | "exitPx"
-  | "amount"
-  | "pnl"
-  | "returnPct"
-  | "cumPnl"
-
-/** Entry notional in dollars (fill price × base size). */
-const tradeAmount = (trade: BacktestTrade) => trade.entryPx * trade.qty
-
-const TRADE_COLUMNS: {
-  key: TradeSortKey
-  label: string
-  right?: boolean
-  value: (trade: BacktestTrade) => number | string
-}[] = [
-  { key: "n", label: "#", value: (t) => t.n },
-  { key: "side", label: "Side", value: (t) => t.side },
-  { key: "entryTime", label: "Entry", value: (t) => t.entryTime },
-  { key: "entryPx", label: "Entry Px", right: true, value: (t) => t.entryPx },
-  { key: "exitTime", label: "Exit", value: (t) => t.exitTime },
-  { key: "exitPx", label: "Exit Px", right: true, value: (t) => t.exitPx },
-  { key: "amount", label: "Amount", right: true, value: tradeAmount },
-  { key: "pnl", label: "P&L", right: true, value: (t) => t.pnl },
-  { key: "returnPct", label: "Return", right: true, value: (t) => t.returnPct },
-  { key: "cumPnl", label: "Cum. P&L", right: true, value: (t) => t.cumPnl },
-]
-
+/** Adapts BacktestResult trades (+ open position) to the shared trade table. */
 function TradesTable({
   result,
   markPrice,
   selectedTradeN,
   onSelectTrade,
-  reentryTimes,
 }: {
   result: BacktestResult | null
   markPrice: number
   selectedTradeN: number | null
   onSelectTrade?: (trade: BacktestTrade | null) => void
-  reentryTimes?: Set<number>
 }) {
-  const [sort, setSort] = React.useState<{
-    key: TradeSortKey
-    dir: TableSortDirection
-  }>({ key: "n", dir: "asc" })
+  const trades = result?.trades ?? []
+  const rows = React.useMemo<TradeTableRow[]>(
+    () =>
+      trades.map((trade) => ({
+        id: String(trade.n),
+        n: trade.n,
+        side: trade.side,
+        entryTime: trade.entryTime,
+        exitTime: trade.exitTime,
+        amount: trade.entryPx * trade.qty,
+        pnl: trade.pnl,
+        returnPct: trade.returnPct,
+        cumPnl: trade.cumPnl,
+      })),
+    [trades]
+  )
+  const open = result?.openPosition ?? null
+  const openRow = React.useMemo<TradeTableRow | null>(() => {
+    if (!open) return null
+    const pnl = markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
+    return {
+      id: "open",
+      n: 0,
+      side: open.side,
+      entryTime: open.entryTime,
+      exitTime: null,
+      amount: open.entryPx * Math.abs(open.szi),
+      pnl,
+      returnPct: null,
+      cumPnl: null,
+    }
+  }, [open, markPrice])
 
-  const trades = result?.trades ?? EMPTY_TRADES
-  const sortedTrades = React.useMemo(() => {
-    const column = TRADE_COLUMNS.find((c) => c.key === sort.key) ?? TRADE_COLUMNS[0]
-    const rows = [...trades]
-    rows.sort((a, b) => {
-      const av = column.value(a)
-      const bv = column.value(b)
-      const cmp =
-        typeof av === "number" && typeof bv === "number"
-          ? av - bv
-          : String(av).localeCompare(String(bv))
-      return sort.dir === "asc" ? cmp : -cmp
-    })
-    return rows
-  }, [trades, sort])
-
-  if (!result || (result.trades.length === 0 && !result.openPosition)) {
-    return <Empty text="No trades — run a backtest or adjust the strategy." />
-  }
-  const open = result.openPosition
-  const openPnl = open && markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
-
-  const toggleSort = (key: TradeSortKey) =>
-    setSort((current) =>
-      current.key === key
-        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: "asc" }
+  if (!result || (trades.length === 0 && !open)) {
+    return (
+      <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
+        No trades — run a backtest or adjust the strategy.
+      </div>
     )
+  }
 
   return (
-    <Table>
-      <TableHeader className={STICKY_TABLE_HEADER}>
-        <TableRow>
-          {TRADE_COLUMNS.map((column) => (
-            <TableHead
-              key={column.key}
-              className={column.right ? "text-right" : undefined}
-            >
-              <TableSortButton
-                active={sort.key === column.key}
-                direction={sort.dir}
-                onClick={() => toggleSort(column.key)}
-                className={column.right ? "ml-auto flex-row-reverse" : undefined}
-              >
-                {column.label}
-              </TableSortButton>
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sortedTrades.map((trade) => (
-          <TableRow
-            key={trade.n}
-            onClick={() =>
-              onSelectTrade?.(trade.n === selectedTradeN ? null : trade)
-            }
-            className={cn(
-              "cursor-pointer font-mono text-[11px]",
-              trade.n === selectedTradeN && "bg-muted/60 hover:bg-muted/60"
-            )}
-          >
-            <TableCell className="text-muted-foreground">{trade.n}</TableCell>
-            <TableCell
-              className={cn(
-                "font-sans font-semibold",
-                trade.side === "long" ? "text-emerald-600" : "text-red-500"
-              )}
-            >
-              {trade.side === "long" ? "Long" : "Short"}
-              {reentryTimes?.has(trade.entryTime) ? (
-                <span
-                  className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-bold text-white"
-                  style={{ backgroundColor: "#ec4899" }}
-                  title="Trend re-entry (re-buy)"
-                >
-                  R
-                </span>
-              ) : null}
-            </TableCell>
-            <TableCell className="text-muted-foreground">{fmtDate(trade.entryTime)}</TableCell>
-            <TableCell className="text-right">{fmtPrice(trade.entryPx)}</TableCell>
-            <TableCell className="text-muted-foreground">{fmtDate(trade.exitTime)}</TableCell>
-            <TableCell className="text-right">{fmtPrice(trade.exitPx)}</TableCell>
-            <TableCell className="text-right text-muted-foreground">{usd(tradeAmount(trade))}</TableCell>
-            <TableCell className={cn("text-right", toneClass(trade.pnl))}>{signedUsd(trade.pnl)}</TableCell>
-            <TableCell className={cn("text-right", toneClass(trade.returnPct))}>{pct(trade.returnPct)}</TableCell>
-            <TableCell className={cn("text-right", toneClass(trade.cumPnl))}>{signedUsd(trade.cumPnl)}</TableCell>
-          </TableRow>
-        ))}
-        {open ? (
-          <TableRow className="font-mono text-[11px]">
-            <TableCell className="text-muted-foreground">·</TableCell>
-            <TableCell className="font-sans font-semibold text-amber-600">
-              Open {open.side === "long" ? "Long" : "Short"}
-            </TableCell>
-            <TableCell className="text-muted-foreground">{fmtDate(open.entryTime)}</TableCell>
-            <TableCell className="text-right">{fmtPrice(open.entryPx)}</TableCell>
-            <TableCell className="text-muted-foreground">—</TableCell>
-            <TableCell className="text-right">{markPrice > 0 ? fmtPrice(markPrice) : "—"}</TableCell>
-            <TableCell className="text-right text-muted-foreground">{usd(open.entryPx * Math.abs(open.szi))}</TableCell>
-            <TableCell className={cn("text-right", toneClass(openPnl))}>{signedUsd(openPnl)}</TableCell>
-            <TableCell className="text-right text-muted-foreground">—</TableCell>
-            <TableCell className="text-right text-muted-foreground">—</TableCell>
-          </TableRow>
-        ) : null}
-      </TableBody>
-    </Table>
+    <TradeTable
+      rows={rows}
+      openRow={openRow}
+      selectedId={selectedTradeN != null ? String(selectedTradeN) : null}
+      onSelect={(id) => {
+        const trade = id ? trades.find((t) => String(t.n) === id) ?? null : null
+        onSelectTrade?.(trade)
+      }}
+      emptyText="No trades — run a backtest or adjust the strategy."
+    />
   )
 }
-
-const EMPTY_TRADES: BacktestTrade[] = []
 
 function MetricCard({
   label,
@@ -528,16 +418,6 @@ function Empty({ text }: { text: string }) {
   )
 }
 
-function fmtDate(ms: number): string {
-  return new Date(ms).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-}
 
 /** Strides an array down to at most `max` points, keeping the last. */
 function downsample<T>(points: T[], max: number): T[] {

@@ -1,31 +1,27 @@
 import { describe, expect, it } from "vitest"
 
 import { DEFAULT_BACKTEST_COSTS } from "@/lib/backtest/types"
-import type { RiskParams, StrategyParams } from "@/lib/strategies/params"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import type { HistoryCandle } from "@/server/backtest/history"
 
-import { strategies } from "../strategies/registry"
 import type { Strategy, StrategyCtx } from "../strategies/contract"
 import { runBacktest, type RunBacktestConfig } from "./runner"
 
-const STEP_MS = 3_600_000
-
-/** Builds hourly candles from a close series, deriving open/high/low. */
-function mkCandles(closes: number[]): HistoryCandle[] {
-  return closes.map((c, i) => {
-    const o = i === 0 ? c : closes[i - 1]
-    return {
-      t: i * STEP_MS,
-      T: (i + 1) * STEP_MS - 1,
-      o,
-      h: Math.max(o, c) + 0.5,
-      l: Math.min(o, c) - 0.5,
-      c,
-      v: 1,
-      n: 1,
-    }
-  })
+/** Minimal valid config — the toy strategy ignores it; the runner only reads
+ * settings.takeProfitPct for its credibility check. */
+const TOY_CONFIG: StrategyConfig = {
+  v: 2,
+  interval: "1h",
+  indicator: { type: "ema_cross", params: { fast: 2, slow: 4 } },
+  settings: {
+    direction: "both",
+    orderSizeUsd: 1_000,
+    compounding: false,
+    flipOnOppositeSignal: false,
+  },
 }
+
+const STEP_MS = 3_600_000
 
 type ThresholdState = { boughtOnce: boolean; exitRequested: boolean }
 
@@ -45,13 +41,9 @@ function makeThresholdCfg(
     if (opts.stopLossPct) out.push(entry * (1 - opts.stopLossPct / 100))
     return out
   }
-  const strategy: Strategy<StrategyParams, ThresholdState> = {
+  const strategy: Strategy<StrategyConfig, ThresholdState> = {
     type: "momentum",
-    warmup: () => ({
-      candleIntervals: ["1h"],
-      needsBook: false,
-      needsTrades: false,
-    }),
+    warmup: () => ({ candleIntervals: ["1h"] }),
     init: () => ({ boughtOnce: false, exitRequested: false }),
     onTick: (ctx) => {
       if (!ctx.position || ctx.state.exitRequested) return
@@ -101,8 +93,7 @@ function makeThresholdCfg(
   }
   return {
     strategy: strategy as unknown as Strategy<never, unknown>,
-    params: { strategyType: "momentum" } as StrategyParams,
-    riskParams: OPEN_RISK,
+    params: TOY_CONFIG,
     candles,
     simStartMs: candles[0].t,
     startingEquity: 10_000,
@@ -113,106 +104,7 @@ function makeThresholdCfg(
 }
 
 // Wide-open limits so risk gating never interferes with the strategy assertions.
-const OPEN_RISK: RiskParams = {
-  maxPositionNotionalUsd: 1e9,
-  maxLeverage: 50,
-  dailyLossLimitUsd: 1e9,
-  maxDrawdownPct: 100,
-  maxOpenOrders: 200,
-  cooldownLosses: 0,
-  cooldownMinutes: 0,
-}
-
 describe("runBacktest", () => {
-  it("runs a momentum EMA cross and trades on the signal", () => {
-    const closes = [
-      100, 99, 98, 97, 96, 95, 96, 98, 100, 103, 106, 109, 112, 110, 107, 104,
-      101, 98, 95,
-    ]
-    const candles = mkCandles(closes)
-    const cfg: RunBacktestConfig = {
-      strategy: strategies.momentum!,
-      params: {
-        strategyType: "momentum",
-        signal: "ema_cross",
-        interval: "1h",
-        emaFast: 2,
-        emaSlow: 4,
-        orderSizeUsd: 1000,
-        direction: "both",
-      } as StrategyParams,
-      riskParams: OPEN_RISK,
-      candles,
-      simStartMs: candles[3].t,
-      startingEquity: 10_000,
-      market: "BTC",
-      interval: "1h",
-      costs: DEFAULT_BACKTEST_COSTS,
-    }
-
-    const result = runBacktest(cfg)
-    expect(result.fills.length).toBeGreaterThan(0)
-    expect(result.equityCurve.length).toBeGreaterThan(1)
-    // The up-then-down close series should open a long then flip.
-    expect(result.fills.some((f) => f.side === "buy")).toBe(true)
-  })
-
-  it("is deterministic — identical inputs produce an identical result", () => {
-    const candles = mkCandles([
-      100, 99, 98, 97, 96, 95, 96, 98, 100, 103, 106, 109, 112, 110, 107, 104,
-    ])
-    const cfg: RunBacktestConfig = {
-      strategy: strategies.momentum!,
-      params: {
-        strategyType: "momentum",
-        signal: "ema_cross",
-        interval: "1h",
-        emaFast: 2,
-        emaSlow: 4,
-        orderSizeUsd: 1000,
-        direction: "both",
-      } as StrategyParams,
-      riskParams: OPEN_RISK,
-      candles,
-      simStartMs: candles[3].t,
-      startingEquity: 10_000,
-      market: "BTC",
-      interval: "1h",
-      costs: DEFAULT_BACKTEST_COSTS,
-    }
-
-    expect(runBacktest(cfg)).toEqual(runBacktest(cfg))
-  })
-
-  it("records a grid halt when TP is crossed with no open position", () => {
-    // Price pumps straight through the TP before any level fills — the run
-    // must record the halt (not just go silently empty).
-    const candles = mkCandles([100, 103, 106, 109, 112, 115, 118, 121, 124])
-    const cfg: RunBacktestConfig = {
-      strategy: strategies.grid!,
-      params: {
-        strategyType: "grid",
-        lowerPx: "95",
-        upperPx: "125",
-        levels: 4,
-        sizePerLevelUsd: 100,
-        side: "both",
-        takeProfitPx: "104",
-      } as StrategyParams,
-      riskParams: OPEN_RISK,
-      candles,
-      simStartMs: candles[0].t,
-      startingEquity: 10_000,
-      market: "BTC",
-      interval: "1h",
-      costs: DEFAULT_BACKTEST_COSTS,
-    }
-
-    const result = runBacktest(cfg)
-    expect(result.stats.halt.kind).toBe("grid_stop")
-    expect(result.stats.halt.reason).toContain("halted")
-  })
-
   it("fills a take-profit at its trigger level, not the bar's high", () => {
     // Enters long at the first sim bar's close (100), TP at +3% = 103. The
     // next bar spikes to 112: the exit must fill at 103, not the extreme.
@@ -246,117 +138,6 @@ describe("runBacktest", () => {
     expect(exit?.px).toBe(108)
   })
 
-  it("momentum ATR stop exits at the trailed level, not the bar's low", () => {
-    // Steady uptrend so EMA 2/4 crosses long, then a crash bar. The exit must
-    // fill at the chandelier level (prior close − 3×ATR), above the crash low.
-    const closes = [100, 99, 98, 97, 96, 95, 97, 99, 101, 103, 105, 107, 109]
-    const candles = mkCandles(closes)
-    // Crash bar: falls far through any reasonable stop level.
-    candles.push({
-      t: candles.length * STEP_MS,
-      T: (candles.length + 1) * STEP_MS - 1,
-      o: 109,
-      h: 109.5,
-      l: 80,
-      c: 82,
-      v: 1,
-      n: 1,
-    })
-    const cfg: RunBacktestConfig = {
-      strategy: strategies.momentum!,
-      params: {
-        strategyType: "momentum",
-        signal: "ema_cross",
-        interval: "1h",
-        emaFast: 2,
-        emaSlow: 4,
-        stopMode: "atr",
-        atrPeriod: 5,
-        atrStopMult: 3,
-        orderSizeUsd: 1000,
-        direction: "long",
-      } as StrategyParams,
-      riskParams: OPEN_RISK,
-      candles,
-      simStartMs: candles[3].t,
-      startingEquity: 10_000,
-      market: "BTC",
-      interval: "1h",
-      costs: DEFAULT_BACKTEST_COSTS,
-    }
-    const result = runBacktest(cfg)
-    const exit = result.fills.find((f) => f.purpose === "momo:exit")
-    expect(exit).toBeDefined()
-    // Filled at the stop level: strictly better than the crash low, and below
-    // the bar's open (i.e. genuinely intrabar, not at an extreme).
-    expect(exit!.px).toBeGreaterThan(80)
-    expect(exit!.px).toBeLessThan(109)
-  })
-
-  it("momentum ADX gate blocks entries when the bar is un-trending", () => {
-    const closes = [100, 99, 98, 97, 96, 95, 96, 98, 100, 103, 106, 109, 112]
-    const base = {
-      strategyType: "momentum",
-      signal: "ema_cross",
-      interval: "1h",
-      emaFast: 2,
-      emaSlow: 4,
-      orderSizeUsd: 1000,
-      direction: "both",
-    }
-    const run = (extra: object) =>
-      runBacktest({
-        strategy: strategies.momentum!,
-        params: { ...base, ...extra } as StrategyParams,
-        riskParams: OPEN_RISK,
-        candles: mkCandles(closes),
-        simStartMs: mkCandles(closes)[3].t,
-        startingEquity: 10_000,
-        market: "BTC",
-        interval: "1h",
-        costs: DEFAULT_BACKTEST_COSTS,
-      })
-    // An impossible ADX floor blocks every entry; without it entries happen.
-    expect(run({ adxMin: 60, adxPeriod: 5 }).fills.length).toBe(0)
-    expect(run({}).fills.length).toBeGreaterThan(0)
-    // The MACD filter can only reduce (never add) entries.
-    expect(run({ macdFilter: true }).fills.length).toBeLessThanOrEqual(
-      run({}).fills.length
-    )
-  })
-
-  it("DCA trend filter pauses new cycles below the moving average", () => {
-    // Steadily falling closes: price is always below its trailing average, so
-    // a long ladder with the filter must never open a cycle; without it, it
-    // starts buying immediately.
-    const closes = Array.from({ length: 60 }, (_, i) => 100 - i * 0.5)
-    const base = {
-      strategyType: "dca",
-      direction: "long",
-      baseOrderUsd: 100,
-      safetyOrderUsd: 100,
-      maxSafetyOrders: 3,
-      priceStepPct: 1,
-      stepMultiplier: 1,
-      sizeMultiplier: 1.5,
-      takeProfitPct: 1,
-    }
-    const run = (extra: object) =>
-      runBacktest({
-        strategy: strategies.dca!,
-        params: { ...base, ...extra } as StrategyParams,
-        riskParams: OPEN_RISK,
-        candles: mkCandles(closes),
-        simStartMs: mkCandles(closes)[30].t,
-        startingEquity: 10_000,
-        market: "BTC",
-        interval: "1h",
-        costs: DEFAULT_BACKTEST_COSTS,
-      })
-    expect(run({ trendFilterDays: 1 }).fills.length).toBe(0)
-    expect(run({}).fills.length).toBeGreaterThan(0)
-  })
-
   it("flags a run whose equity is wiped out (no liquidation modeling)", () => {
     // Long the full account into a −97% crash: equity ends near zero, which a
     // real exchange would have liquidated long before.
@@ -380,28 +161,4 @@ describe("runBacktest", () => {
     expect(result.stats.warnings).toEqual([])
   })
 
-  it("fills grid limit levels as price oscillates through the range", () => {
-    const candles = mkCandles([100, 98, 100, 102, 100, 98, 100, 102, 100, 98])
-    const cfg: RunBacktestConfig = {
-      strategy: strategies.grid!,
-      params: {
-        strategyType: "grid",
-        lowerPx: "96",
-        upperPx: "104",
-        levels: 5,
-        sizePerLevelUsd: 100,
-        side: "both",
-      } as StrategyParams,
-      riskParams: OPEN_RISK,
-      candles,
-      simStartMs: candles[0].t,
-      startingEquity: 10_000,
-      market: "BTC",
-      interval: "1h",
-      costs: DEFAULT_BACKTEST_COSTS,
-    }
-
-    const result = runBacktest(cfg)
-    expect(result.fills.length).toBeGreaterThan(0)
-  })
 })

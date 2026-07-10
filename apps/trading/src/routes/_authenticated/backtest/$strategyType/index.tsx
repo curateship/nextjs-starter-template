@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { StrategyRunsDashboard } from "@/components/backtest/strategies-dashboard"
 import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
-import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
+import { STRATEGY_LABELS } from "@/lib/strategies/params"
 
 const strategyRunsSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -14,9 +14,13 @@ export const Route = createFileRoute("/_authenticated/backtest/$strategyType/")(
   validateSearch: (search) => strategyRunsSearchSchema.parse(search),
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps }) => {
-    if (!(params.strategyType in STRATEGY_LABELS)) throw notFound()
+    if (
+      params.strategyType !== "signal" &&
+      !(params.strategyType in STRATEGY_LABELS)
+    )
+      throw notFound()
     const data = await loadBacktests({
-      strategyType: params.strategyType as StrategyType,
+      strategyType: params.strategyType as "signal",
       page: deps.page ?? 1,
       pageSize: deps.pageSize ?? 20,
     })
@@ -28,16 +32,13 @@ export const Route = createFileRoute("/_authenticated/backtest/$strategyType/")(
 })
 
 function StrategyRunsRoute() {
-  const { runs, strategyDefaults, templates, pagination, groupMetrics } =
-    Route.useLoaderData()
+  const { runs, pagination, groupMetrics } = Route.useLoaderData()
   const { strategyType } = Route.useParams()
   const navigate = Route.useNavigate()
   return (
     <StrategyRunsDashboard
       runs={runs}
-      strategyType={strategyType as StrategyType}
-      strategyDefaults={strategyDefaults}
-      templates={templates}
+      strategyType={strategyType as "signal"}
       pagination={pagination}
       groupMetrics={groupMetrics}
       onPaginationChange={(patch) =>

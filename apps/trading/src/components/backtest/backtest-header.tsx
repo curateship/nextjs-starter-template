@@ -2,10 +2,8 @@ import * as React from "react"
 import {
   ArrowLeftIcon,
   ChevronDownIcon,
-  Loader2Icon,
   PanelLeftIcon,
   PanelRightIcon,
-  PlayIcon,
   PlusIcon,
 } from "lucide-react"
 
@@ -48,15 +46,11 @@ export function BacktestHeader({
   dayChangePct,
   runName,
   strategyLabel,
-  isDraft,
   dateRangeText,
   runs,
   onSelectRun,
   onViewAll,
   onNewRun,
-  onRun,
-  runAction,
-  running,
   inputsOpen,
   onToggleInputs,
   summaryOpen,
@@ -77,16 +71,12 @@ export function BacktestHeader({
   runName: string | null
   strategyLabel: string | null
   /** Configured but not executed yet. */
-  isDraft: boolean
   dateRangeText: string
   runs: BacktestListItem[]
   onSelectRun: (id: string) => void
   onViewAll: () => void
   onNewRun: () => void
-  onRun: () => void
   /** "run" = execute a draft across its markets; null once a run is loaded. */
-  runAction: "run" | null
-  running: boolean
   /** Left inputs rail visibility + toggle. */
   inputsOpen: boolean
   onToggleInputs: () => void
@@ -233,14 +223,6 @@ export function BacktestHeader({
               {strategyLabel}
             </Badge>
           ) : null}
-          {isDraft ? (
-            <Badge
-              variant="outline"
-              className="shrink-0 border-amber-500/50 text-amber-700 dark:text-amber-400"
-            >
-              Draft — not run yet
-            </Badge>
-          ) : null}
         </div>
       ) : (
         <span className="text-xs text-muted-foreground">
@@ -303,28 +285,11 @@ export function BacktestHeader({
         size="sm"
         variant="outline"
         className="h-8 gap-1.5 text-xs"
-        disabled={running}
         onClick={onNewRun}
       >
         <PlusIcon className="size-3.5" />
         New Run
       </Button>
-
-      {runAction ? (
-        <Button
-          size="sm"
-          className="h-8 gap-1.5 text-xs"
-          disabled={running}
-          onClick={onRun}
-        >
-          {running ? (
-            <Loader2Icon className="size-3.5 animate-spin" />
-          ) : (
-            <PlayIcon className="size-3.5" />
-          )}
-          Run Backtest
-        </Button>
-      ) : null}
 
       <IconButton
         label={summaryOpen ? "Hide summary panel" : "Show summary panel"}

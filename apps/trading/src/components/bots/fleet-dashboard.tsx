@@ -6,12 +6,10 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
-  SettingsIcon,
   SquareIcon,
   Trash2Icon,
 } from "lucide-react"
 
-import { BotEditDialog } from "@/components/bots/bot-edit-dialog"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
@@ -35,15 +33,13 @@ import {
 import {
   deleteBot,
   getBotErrorMessage,
-  loadBotDetail,
   loadBots,
   sendCommand,
   sendGlobalCommand,
-  type BotDetailResponse,
   type BotListItem,
   type BotListResponse,
 } from "@/lib/api/bots"
-import { STRATEGY_LABELS } from "@/lib/strategies/params"
+import { strategyLabel } from "@/lib/strategies/params"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { cn } from "@/lib/utils"
 
@@ -58,24 +54,6 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   const [newBotOpen, setNewBotOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
-  const [editBot, setEditBot] = React.useState<
-    BotDetailResponse["bot"] | null
-  >(null)
-  const [editLoadingId, setEditLoadingId] = React.useState<string | null>(null)
-
-  async function openEdit(bot: BotListItem) {
-    setEditLoadingId(bot.id)
-    setError(null)
-    try {
-      const detail = await loadBotDetail(bot.id)
-      setEditBot(detail.bot)
-    } catch (error) {
-      setError(getBotErrorMessage(error))
-    } finally {
-      setEditLoadingId(null)
-    }
-  }
-
   async function runCommand(
     bot: BotListItem,
     command: "start" | "stop" | "pause" | "resume" | "flatten"
@@ -197,7 +175,9 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
                   {bot.name}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {STRATEGY_LABELS[bot.strategy_type]} · {bot.wallet_label}
+                  {strategyLabel(bot.strategy_type)}
+                  {bot.strategy_type !== "signal" ? " (archived)" : ""} ·{" "}
+                  {bot.wallet_label}
                 </div>
               </Link>
             </TableCell>
@@ -274,20 +254,6 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      title="Edit settings"
-                      disabled={editLoadingId === bot.id}
-                      onClick={() => void openEdit(bot)}
-                    >
-                      {editLoadingId === bot.id ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <SettingsIcon className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
                       title="Delete"
                       onClick={() => setPendingDelete(bot)}
                     >
@@ -352,21 +318,6 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {editBot ? (
-        <BotEditDialog
-          bot={editBot}
-          open={Boolean(editBot)}
-          onOpenChange={(open) => {
-            if (!open) setEditBot(null)
-          }}
-          onSaved={(message, tone) => {
-            setEditBot(null)
-            if (tone === "error") setError(message)
-            void refresh()
-          }}
-        />
-      ) : null}
 
       <Dialog
         open={Boolean(pendingDelete)}

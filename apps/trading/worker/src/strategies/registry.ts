@@ -1,20 +1,21 @@
+import { strategyConfigSchema } from "@/lib/strategies/strategy-config"
+
+import { createSignalStrategy } from "../engine/signal-strategy"
 import type { Strategy } from "./contract"
-import { copyStrategy } from "./copy"
-import { dcaStrategy } from "./dca"
-import { gridStrategy } from "./grid"
-import { momentumStrategy } from "./momentum"
-import { qqeStrategy } from "./qqe"
-import { vwapStrategy } from "./vwap"
 
 /**
- * Strategy registry keyed by strategyType. Shared by the live bot runner and
- * the backtest engine so both dispatch to the exact same strategy logic.
+ * Resolves a bot/backtest row to its strategy implementation. Only the new
+ * model ("signal") runs: it builds the one engine from the row's
+ * StrategyConfig. The retired legacy types (grid, dca, momentum, qqe, vwap,
+ * copy) resolve to null — their bots are archived and their saved runs render
+ * results-only.
  */
-export const strategies: Partial<Record<string, Strategy<never, unknown>>> = {
-  grid: gridStrategy as unknown as Strategy<never, unknown>,
-  dca: dcaStrategy as unknown as Strategy<never, unknown>,
-  momentum: momentumStrategy as unknown as Strategy<never, unknown>,
-  qqe: qqeStrategy as unknown as Strategy<never, unknown>,
-  vwap: vwapStrategy as unknown as Strategy<never, unknown>,
-  copy: copyStrategy as unknown as Strategy<never, unknown>,
+export function resolveStrategy(
+  strategyType: string,
+  params: unknown
+): Strategy<never, unknown> | null {
+  if (strategyType !== "signal") return null
+  const parsed = strategyConfigSchema.safeParse(params)
+  if (!parsed.success) return null
+  return createSignalStrategy(parsed.data) as unknown as Strategy<never, unknown>
 }

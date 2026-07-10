@@ -15,6 +15,12 @@ export function signedUsd(value: number): string {
   return `${value >= 0 ? "+" : "-"}$${num(Math.abs(value))}`
 }
 
+/** Trade-duration label for the result box: finer precision for shorter trips. */
+export function formatFocusDays(days: number): string {
+  const decimals = days < 1 ? 2 : days < 10 ? 1 : 0
+  return `${days.toFixed(decimals)}d`
+}
+
 export function pct(value: number, digits = 2): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`
 }

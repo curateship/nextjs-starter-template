@@ -20,11 +20,13 @@ export function ChartOrderMenu({
   menu,
   market,
   onAction,
+  onResetView,
   onClose,
 }: {
   menu: ChartMenuState | null
   market: string
   onAction: (side: "buy" | "sell", px: string) => void
+  onResetView: () => void
   onClose: () => void
 }) {
   React.useEffect(() => {
@@ -75,6 +77,19 @@ export function ChartOrderMenu({
           onClick={() => onAction("sell", menu.px)}
         >
           Sell limit @ {formatPriceDisplay(menu.px)}
+        </Button>
+        <div className="my-1 border-t" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => {
+            onResetView()
+            onClose()
+          }}
+        >
+          Reset View
         </Button>
       </div>
     </>

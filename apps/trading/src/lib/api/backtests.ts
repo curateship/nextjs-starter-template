@@ -15,14 +15,14 @@ import {
   type BacktestResult,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
-import { runFailureMessage } from "@/lib/backtest/run-error"
 import {
-  riskParamsSchema,
-  strategyParamsSchema,
-  type RiskParams,
   type StrategyParams,
   type StrategyType,
 } from "@/lib/strategies/params"
+import {
+  strategyConfigSchema as signalConfigSchema,
+  type StrategyConfig,
+} from "@/lib/strategies/strategy-config"
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -45,7 +45,7 @@ export type BacktestListItem = {
   id: string
   groupId: string
   name: string
-  strategyType: StrategyType
+  strategyType: StrategyType | "signal"
   market: string
   network: string
   interval: string
@@ -71,49 +71,8 @@ export type BacktestListItem = {
   tradingDays: number | null
 }
 
-/** Per-user New Run seeds for one strategy: params plus run config. */
-export type StrategyRunDefaults = {
-  /** Optional display label for the main default (templates name themselves). */
-  name?: string
-  /** Optional per-user override of the strategy's display name (Edit strategy). */
-  strategyName?: string
-  /** Optional per-user override of the strategy's type/kind label (Edit strategy). */
-  strategyKind?: string
-  /** Templates only: pinned templates sort to the top of the Templates list. */
-  pinned?: boolean
-  /** Default main market, and extra markets the run replays across. */
-  market?: string
-  extraMarkets?: string[]
-  params: Record<string, string>
-  interval?: BacktestInterval
-  windowDays?: number
-  equity?: number
-  takerFeeBps?: number
-  makerFeeBps?: number
-  slippageBps?: number
-  /** Optional blended fee %; when set it drives both maker + taker (baked into the bps). */
-  feePct?: number
-  /** Saved risk controls; New Run seeds its risk from this when present. */
-  riskParams?: RiskParams
-}
-
-/** Per-user New Run seeds, keyed by strategy type. */
-export type StrategyDefaultsMap = Partial<
-  Record<StrategyType, StrategyRunDefaults>
->
-
-/** A named run-config template — full config, same shape as the main default. */
-export type StrategyTemplate = {
-  id: string
-  strategyType: StrategyType
-  name: string
-  config: StrategyRunDefaults
-}
-
 export type BacktestListResponse = {
   runs: BacktestListItem[]
-  strategyDefaults: StrategyDefaultsMap
-  templates: StrategyTemplate[]
   pagination?: {
     page: number
     pageSize: number
@@ -126,7 +85,7 @@ export type BacktestDetail = {
   id: string
   groupId: string
   name: string
-  strategyType: StrategyType
+  strategyType: StrategyType | "signal"
   market: string
   network: string
   interval: string
@@ -138,8 +97,8 @@ export type BacktestDetail = {
   createdAt: string
   startedAt: string | null
   completedAt: string | null
-  params: StrategyParams
-  riskParams: RiskParams
+  /** Legacy StrategyParams, or a StrategyConfig for new-model runs. */
+  params: StrategyParams | StrategyConfig
   costs: BacktestCosts
   result: BacktestResult | null
 }
@@ -161,6 +120,11 @@ export type BacktestDetailResponse = {
 export type BacktestCandlesResponse = {
   candles: HistoryCandle[]
   simStartMs: number
+}
+
+/** Default run-name prefix: the config's indicator. */
+function runLabelOf(params: StrategyConfig): string {
+  return params.indicator.type
 }
 
 const runBacktestSchema = z
@@ -185,24 +149,11 @@ const runBacktestSchema = z
     takerFeeBps: z.number().min(0).max(50).optional(),
     makerFeeBps: z.number().min(0).max(50).optional(),
     slippageBps: z.number().min(0).max(100).optional(),
-    params: strategyParamsSchema,
-    riskParams: riskParamsSchema,
+    /** The strategy's full config: indicator + universal settings. */
+    params: signalConfigSchema,
   })
   .superRefine((data, ctx) => {
-    if (data.params.strategyType === "copy") {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Copy trading can't be backtested yet — it needs historical event replay.",
-        path: ["params"],
-      })
-    }
-    if (
-      (data.params.strategyType === "momentum" ||
-        data.params.strategyType === "qqe" ||
-        data.params.strategyType === "vwap") &&
-      data.params.interval !== data.interval
-    ) {
+    if (data.params.interval !== data.interval) {
       ctx.addIssue({
         code: "custom",
         message:
@@ -211,14 +162,6 @@ const runBacktestSchema = z
       })
     }
     const markets = [data.market, ...(data.extraMarkets ?? [])]
-    if (data.params.strategyType === "grid" && markets.length > 1) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Grid bounds are absolute prices, so a grid config can't be replayed across markets.",
-        path: ["extraMarkets"],
-      })
-    }
     if (new Set(markets).size !== markets.length) {
       ctx.addIssue({
         code: "custom",
@@ -244,13 +187,6 @@ const runBacktestSchema = z
   })
 
 const backtestIdSchema = z.object({ backtestId: z.string().min(1) })
-
-/**
- * One walk-forward per user at a time: it fetches candles and runs the engine
- * inline in the request, so unbounded parallel calls would hog the server. (Plain
- * backtests don't use this — they enqueue instantly and drain in the background.)
- */
-const inFlightRuns = new Set<string>()
 
 const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
@@ -340,7 +276,6 @@ async function enqueueRun(
     const configChanged =
       !anchor ||
       stableStringify(data.params) !== stableStringify(anchor.params) ||
-      stableStringify(data.riskParams) !== stableStringify(anchor.riskParams) ||
       stableStringify(costs) !== stableStringify(anchor.costs) ||
       data.interval !== anchor.interval ||
       data.startingEquity !== Number(anchor.startingEquity)
@@ -357,7 +292,7 @@ async function enqueueRun(
       const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
       const name =
         data.name?.trim() ||
-        `${data.params.strategyType} · ${markets.join(", ")} · ${data.interval}`
+        `${runLabelOf(data.params)} · ${markets.join(", ")} · ${data.interval}`
       for (const market of markets) {
         const input = buildRunInput({
           name,
@@ -402,7 +337,7 @@ async function enqueueRun(
   const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
   const name =
     data.name?.trim() ||
-    `${data.params.strategyType} · ${markets.join(", ")} · ${data.interval}`
+    `${runLabelOf(data.params)} · ${markets.join(", ")} · ${data.interval}`
   let mainId: string | null = null
   for (const market of markets) {
     const input = buildRunInput({
@@ -438,7 +373,6 @@ function buildRunInput(args: {
     network: "mainnet",
     interval: data.interval,
     params: data.params,
-    riskParams: data.riskParams,
     costs,
     startTime,
     endTime,
@@ -446,216 +380,10 @@ function buildRunInput(args: {
   }
 }
 
-// --- Walk-forward validation -------------------------------------------------
-
-const DAY_MS = 86_400_000
-
-const walkForwardSchema = z
-  .object({
-    market: z.string().min(1).max(20),
-    extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
-    interval: z.enum(CANDLE_INTERVALS),
-    windowDays: z.number().int().min(4).max(MAX_RUN_BARS),
-    /** Fraction of the window used to fit; the rest is held out to test. */
-    trainPct: z.number().min(0.3).max(0.9),
-    startingEquity: z.number().positive().max(100_000_000),
-    takerFeeBps: z.number().min(0).max(50).optional(),
-    makerFeeBps: z.number().min(0).max(50).optional(),
-    slippageBps: z.number().min(0).max(100).optional(),
-    params: strategyParamsSchema,
-    riskParams: riskParamsSchema,
-  })
-  .superRefine((data, ctx) => {
-    if (data.params.strategyType === "copy") {
-      ctx.addIssue({ code: "custom", message: "Copy trading can't be backtested.", path: ["params"] })
-    }
-    if (
-      (data.params.strategyType === "momentum" ||
-        data.params.strategyType === "qqe" ||
-        data.params.strategyType === "vwap") &&
-      data.params.interval !== data.interval
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Backtest timeframe must match the strategy's signal interval.",
-        path: ["interval"],
-      })
-    }
-    const markets = [data.market, ...(data.extraMarkets ?? [])]
-    if (new Set(markets).size !== markets.length) {
-      ctx.addIssue({ code: "custom", message: "Duplicate markets selected.", path: ["extraMarkets"] })
-    }
-    if (data.windowDays > maxWindowDays(data.interval)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `That window is too long for ${data.interval} candles.`,
-        path: ["windowDays"],
-      })
-    }
-    const totalBars = markets.length * windowBars(data.interval, data.windowDays)
-    if (totalBars > MAX_TOTAL_RUN_BARS) {
-      ctx.addIssue({
-        code: "custom",
-        message: `This walk-forward would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`,
-        path: ["extraMarkets"],
-      })
-    }
-  })
-
-/** Blended, diversified metrics for a train or test window. */
-export type WalkForwardPhase = {
-  fromMs: number
-  toMs: number
-  days: number
-  /** Equal-capital blended return across the basket. */
-  netPnlPct: number
-  /** Drawdown of the summed portfolio equity curve. */
-  maxDrawdownPct: number
-  /** Fraction of markets that were net-positive. */
-  winRate: number
-  trades: number
-}
-
-export type WalkForwardResult = {
-  markets: string[]
-  train: WalkForwardPhase
-  test: WalkForwardPhase
-  /** OOS positive and within range of train / OOS positive but weak / OOS negative. */
-  verdict: "holds" | "weak" | "fails"
-}
-
-const walkForwardFn = createServerFn({ method: "POST" })
-  .inputValidator(walkForwardSchema)
-  .handler(async ({ data }): Promise<WalkForwardResult> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const user = await requireUser()
-    if (inFlightRuns.has(user.id)) {
-      throw new Error("A backtest is already running — wait for it to finish.")
-    }
-    inFlightRuns.add(user.id)
-    try {
-      return await evaluateWalkForward(data)
-    } catch (error) {
-      // Don't leak upstream/internal error text to the client (matches executeRun).
-      console.error("walk-forward run failed", error)
-      throw new Error(runFailureMessage(error))
-    } finally {
-      inFlightRuns.delete(user.id)
-    }
-  })
-
-/** Pure walk-forward evaluation (no auth/DB): fetch, run train + test, blend. */
-async function evaluateWalkForward(
-  data: z.infer<typeof walkForwardSchema>
-): Promise<WalkForwardResult> {
-  const { fetchCandleHistory } = await import("@/server/backtest/history")
-  const { strategies } = await import("../../../worker/src/strategies/registry")
-  const { runBacktest: runEngine } = await import("../../../worker/src/backtest/runner")
-
-  const strategy = strategies[data.params.strategyType]
-  if (!strategy) throw new Error(`Strategy "${data.params.strategyType}" can't be backtested.`)
-
-  const markets = [data.market, ...(data.extraMarkets ?? [])]
-  const interval = data.interval
-  const costs: BacktestCosts = {
-    takerFeeBps: data.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps,
-    makerFeeBps: data.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps,
-    slippageBps: data.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps,
-  }
-  const warmupBars = warmupBarsFor(data.params.strategyType)
-
-  const endMs = Date.now()
-  const totalStartMs = endMs - data.windowDays * DAY_MS
-  const trainEndMs = totalStartMs + Math.round(data.windowDays * data.trainPct) * DAY_MS
-  const fetchStart = totalStartMs - warmupBars * INTERVAL_MS[interval]
-
-  const trainRuns: BacktestResult[] = []
-  const testRuns: BacktestResult[] = []
-  const kept: string[] = []
-  for (const market of markets) {
-    const candles = await fetchCandleHistory(market, interval, fetchStart, endMs)
-    // Skip markets without a full window (newer listings), like the scripts do.
-    if (candles.length === 0 || candles[0].t > totalStartMs) continue
-    // Train: fit window only (candles sliced so the engine can't see the future).
-    const trainCandles = candles.filter((c) => c.t <= trainEndMs)
-    const base = { strategy, params: data.params, riskParams: data.riskParams, startingEquity: data.startingEquity, market, interval, costs } as const
-    trainRuns.push(runEngine({ ...base, candles: trainCandles, simStartMs: totalStartMs }))
-    // Test: fresh capital, trading only the held-out window (warmup from before).
-    testRuns.push(runEngine({ ...base, candles, simStartMs: trainEndMs }))
-    kept.push(market)
-  }
-  if (kept.length === 0) {
-    throw new Error("No candle history for those markets in that window.")
-  }
-
-  const trainDays = (trainEndMs - totalStartMs) / DAY_MS
-  const testDays = (endMs - trainEndMs) / DAY_MS
-  const train = aggregatePhase(trainRuns, data.startingEquity, totalStartMs, trainEndMs, trainDays)
-  const test = aggregatePhase(testRuns, data.startingEquity, trainEndMs, endMs, testDays)
-
-  const trDaily = train.netPnlPct / trainDays
-  const teDaily = test.netPnlPct / testDays
-  const verdict = teDaily <= 0 ? "fails" : teDaily >= trDaily * 0.4 ? "holds" : "weak"
-  return { markets: kept, train, test, verdict }
-}
-
-function aggregatePhase(
-  runs: BacktestResult[],
-  equityPerMarket: number,
-  fromMs: number,
-  toMs: number,
-  days: number
-): WalkForwardPhase {
-  let netPnl = 0
-  let winners = 0
-  let trades = 0
-  for (const run of runs) {
-    netPnl += run.stats.netPnl
-    if (run.stats.netPnlPct > 0) winners += 1
-    trades += run.stats.all.trades
-  }
-  const totalEquity = equityPerMarket * runs.length
-  return {
-    fromMs,
-    toMs,
-    days,
-    netPnlPct: totalEquity > 0 ? (netPnl / totalEquity) * 100 : 0,
-    maxDrawdownPct: portfolioDrawdown(runs, equityPerMarket),
-    winRate: runs.length > 0 ? winners / runs.length : 0,
-    trades,
-  }
-}
-
-/** Drawdown % of the summed per-market equity curves (diversified portfolio). */
-function portfolioDrawdown(runs: BacktestResult[], equityPerMarket: number): number {
-  const times = new Set<number>()
-  for (const r of runs) for (const p of r.equityCurve) times.add(p.t)
-  const axis = [...times].sort((a, b) => a - b)
-  if (axis.length === 0) return 0
-  const portfolio = new Array<number>(axis.length).fill(0)
-  for (const r of runs) {
-    let j = 0
-    let last = equityPerMarket
-    for (let k = 0; k < axis.length; k += 1) {
-      while (j < r.equityCurve.length && r.equityCurve[j].t <= axis[k]) {
-        last = r.equityCurve[j].eq
-        j += 1
-      }
-      portfolio[k] += last
-    }
-  }
-  let peak = -Infinity
-  let dd = 0
-  for (const v of portfolio) {
-    if (v > peak) peak = v
-    if (peak > 0) dd = Math.max(dd, ((peak - v) / peak) * 100)
-  }
-  return dd
-}
-
 const loadBacktestsSchema = z.object({
-  strategyType: z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"]).optional(),
+  strategyType: z.enum(["signal", "grid", "dca", "momentum", "qqe", "vwap", "copy"]).optional(),
+  /** Restrict to one run group — the group page needs nothing else. */
+  groupId: z.string().min(1).optional(),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(100).optional(),
 })
@@ -663,11 +391,7 @@ const loadBacktestsSchema = z.object({
 const loadBacktestsFn = createServerFn({ method: "GET" })
   .inputValidator(loadBacktestsSchema)
   .handler(async ({ data }): Promise<BacktestListResponse> => {
-    const {
-      listUserBacktests,
-      getUserStrategyDefaults,
-      listUserStrategyTemplates,
-    } = await import("@/server/backtests")
+    const { listUserBacktests } = await import("@/server/backtests")
     const { kickBacktestQueue } = await import("@/server/backtest/queue")
     const user = await requireUser()
     // Resume any queued/orphaned runs whenever the dashboard is opened — covers
@@ -675,24 +399,14 @@ const loadBacktestsFn = createServerFn({ method: "GET" })
     kickBacktestQueue()
     const page = data.page ?? 1
     const pageSize = data.pageSize ?? 20
-    const [list, strategyDefaults, templates] = await Promise.all([
-      listUserBacktests(user.id, {
-        strategyType: data.strategyType,
-        page,
-        pageSize: data.strategyType ? pageSize : 500,
-      }),
-      getUserStrategyDefaults(user.id),
-      listUserStrategyTemplates(user.id),
-    ])
+    const list = await listUserBacktests(user.id, {
+      strategyType: data.strategyType,
+      groupId: data.groupId,
+      page,
+      pageSize: data.strategyType ? pageSize : 500,
+    })
     return {
       runs: list.rows.map(serializeListItem),
-      strategyDefaults: strategyDefaults as StrategyDefaultsMap,
-      templates: templates.map((row) => ({
-        id: row.id,
-        strategyType: row.strategyType as StrategyType,
-        name: row.name,
-        config: row.params as StrategyRunDefaults,
-      })),
       pagination: data.strategyType
         ? {
             page,
@@ -827,7 +541,7 @@ const deleteBacktestsSchema = z
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
     strategyTypes: z
-      .array(z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"]))
+      .array(z.enum(["signal", "grid", "dca", "momentum", "qqe", "vwap", "copy"]))
       .max(4)
       .optional(),
   })
@@ -875,144 +589,12 @@ export function runBacktest(input: z.input<typeof runBacktestSchema>) {
   return runBacktestFn({ data: input })
 }
 
-export function runWalkForward(input: z.input<typeof walkForwardSchema>) {
-  return walkForwardFn({ data: input })
-}
-
 export function deleteBacktests(input: z.input<typeof deleteBacktestsSchema>) {
   return deleteBacktestsFn({ data: input })
 }
 
 export function updateRunStatus(input: z.input<typeof updateRunStatusSchema>) {
   return updateRunStatusFn({ data: input })
-}
-
-/** Full run config (ParamValues seeds + run settings); shared by defaults + templates. */
-const strategyConfigSchema = z.object({
-  /** Optional display label for the main default. */
-  name: z.string().max(80).optional(),
-  /** Per-user overrides of the strategy's display name + type (Edit strategy). */
-  strategyName: z.string().max(80).optional(),
-  strategyKind: z.string().max(40).optional(),
-  /** Templates only: pinned to the top of the Templates list. */
-  pinned: z.boolean().optional(),
-  /** Default markets seeded into New Run. */
-  market: z.string().min(1).max(20).optional(),
-  extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
-  /** ParamValues form seeds; validated for shape, not runnability. */
-  params: z
-    .record(z.string().max(40), z.string().max(100))
-    .refine((params) => Object.keys(params).length <= 60, "Too many parameters."),
-  interval: z.enum(CANDLE_INTERVALS).optional(),
-  windowDays: z.number().int().min(1).max(MAX_RUN_BARS).optional(),
-  equity: z.number().positive().max(100_000_000).optional(),
-  takerFeeBps: z.number().min(0).max(50).optional(),
-  makerFeeBps: z.number().min(0).max(50).optional(),
-  slippageBps: z.number().min(0).max(100).optional(),
-  /** Blended fee % (0–0.5); a UI convenience that also sets taker+maker bps. */
-  feePct: z.number().min(0).max(0.5).optional(),
-  /** Saved risk controls; New Run seeds its risk from this when present. */
-  riskParams: riskParamsSchema.optional(),
-})
-
-const strategyTypeSchema = z.enum(["grid", "dca", "momentum", "qqe", "vwap", "copy"])
-
-const saveStrategyDefaultsSchema = z.object({
-  strategyType: strategyTypeSchema,
-  defaults: strategyConfigSchema,
-})
-
-const saveStrategyDefaultsFn = createServerFn({ method: "POST" })
-  .inputValidator(saveStrategyDefaultsSchema)
-  .handler(async ({ data }): Promise<{ ok: true }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { saveUserStrategyDefaults } = await import("@/server/backtests")
-    requireAppOrigin()
-    const user = await requireUser()
-    await saveUserStrategyDefaults(user.id, data.strategyType, data.defaults)
-    return { ok: true }
-  })
-
-export function saveStrategyDefaults(
-  input: z.input<typeof saveStrategyDefaultsSchema>
-) {
-  return saveStrategyDefaultsFn({ data: input })
-}
-
-const saveStrategyTemplateSchema = z.object({
-  /** Present when updating an existing template; omitted to create a new one. */
-  id: z.string().min(1).max(36).optional(),
-  strategyType: strategyTypeSchema,
-  name: z.string().trim().min(1).max(80),
-  config: strategyConfigSchema,
-})
-
-const saveStrategyTemplateFn = createServerFn({ method: "POST" })
-  .inputValidator(saveStrategyTemplateSchema)
-  .handler(async ({ data }): Promise<{ id: string }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { saveUserStrategyTemplate } = await import("@/server/backtests")
-    requireAppOrigin()
-    const user = await requireUser()
-    return saveUserStrategyTemplate(user.id, {
-      id: data.id,
-      strategyType: data.strategyType,
-      name: data.name,
-      params: data.config,
-    })
-  })
-
-export function saveStrategyTemplate(
-  input: z.input<typeof saveStrategyTemplateSchema>
-) {
-  return saveStrategyTemplateFn({ data: input })
-}
-
-const deleteStrategyTemplateSchema = z.object({ id: z.string().min(1).max(36) })
-
-const deleteStrategyTemplateFn = createServerFn({ method: "POST" })
-  .inputValidator(deleteStrategyTemplateSchema)
-  .handler(async ({ data }): Promise<{ ok: true }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { deleteUserStrategyTemplate } = await import("@/server/backtests")
-    requireAppOrigin()
-    const user = await requireUser()
-    await deleteUserStrategyTemplate(user.id, data.id)
-    return { ok: true }
-  })
-
-export function deleteStrategyTemplate(id: string) {
-  return deleteStrategyTemplateFn({ data: { id } })
-}
-
-/** Templates + per-strategy defaults only — the New Bot dialog's light load. */
-const loadStrategyTemplatesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{
-    strategyDefaults: StrategyDefaultsMap
-    templates: StrategyTemplate[]
-  }> => {
-    const { getUserStrategyDefaults, listUserStrategyTemplates } = await import(
-      "@/server/backtests"
-    )
-    const user = await requireUser()
-    const [strategyDefaults, templates] = await Promise.all([
-      getUserStrategyDefaults(user.id),
-      listUserStrategyTemplates(user.id),
-    ])
-    return {
-      strategyDefaults: strategyDefaults as StrategyDefaultsMap,
-      templates: templates.map((row) => ({
-        id: row.id,
-        strategyType: row.strategyType as StrategyType,
-        name: row.name,
-        config: row.params as StrategyRunDefaults,
-      })),
-    }
-  }
-)
-
-export function loadStrategyTemplates() {
-  return loadStrategyTemplatesFn()
 }
 
 export function loadBacktests(input: z.input<typeof loadBacktestsSchema> = {}) {
@@ -1120,7 +702,6 @@ type DetailRow = {
   startedAt: Date | null
   completedAt: Date | null
   params: unknown
-  riskParams: unknown
   costs: unknown
   result: unknown
 }
@@ -1143,7 +724,6 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
     params: row.params as StrategyParams,
-    riskParams: row.riskParams as RiskParams,
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

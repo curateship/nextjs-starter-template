@@ -1,15 +1,21 @@
 import * as React from "react"
 import { ClientOnly, useRouter } from "@tanstack/react-router"
-import { XIcon } from "lucide-react"
+import { FlaskConicalIcon, Loader2Icon, SettingsIcon, XIcon } from "lucide-react"
 
-import { price as fmtPrice } from "@/components/backtest/backtest-format"
-import { BotActivityTabs } from "@/components/bots/bot-activity-tabs"
 import {
-  buildBotChartMenuItems,
-  buildBotOverlays,
+  formatFocusDays,
+  pct,
+  price as fmtPrice,
+  signedUsd,
+} from "@/components/backtest/backtest-format"
+import { BotActivityTabs } from "@/components/bots/bot-activity-tabs"
+import { buildBotRoundTrips } from "@/components/bots/bot-round-trips"
+import {
+  buildBotFillMarkers,
+  buildSignalBotMenuItems,
+  buildSignalBotOverlays,
   type BotChartMenuItem,
 } from "@/components/bots/bot-chart-overlays"
-import { BotEditPanel } from "@/components/bots/bot-edit-panel"
 import { BotMarketsPanel } from "@/components/bots/bot-markets-panel"
 import { BotOrderControls } from "@/components/bots/bot-order-controls"
 import {
@@ -17,16 +23,20 @@ import {
   type BotCommand,
 } from "@/components/bots/bot-workspace-header"
 import {
-  buildParams,
-  paramsToValues,
-  PROTECTIVE_KEYS,
-  type ParamValues,
-} from "@/components/bots/strategy-params-form"
+  DEFAULT_CHART_STRATEGY,
+  type ChartStrategyState,
+} from "@/components/chart/chart-strategy"
+import { IndicatorSettingsDialog } from "@/components/chart/chart-strategy-settings"
+import { ChartToolbar } from "@/components/chart/chart-toolbar"
+import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
 import {
   PriceChart,
+  type ChartCandle,
+  type ChartFocusPoint,
+  type ChartFocusResult,
   type ChartMarker,
   type PriceChartHandle,
-} from "@/components/trading/price-chart"
+} from "@/components/chart/price-chart"
 import { Button } from "@/components/ui/button"
 import {
   ResizableHandle,
@@ -46,13 +56,23 @@ import {
   updateBot,
   type BotDetailResponse,
 } from "@/lib/api/bots"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import { STRATEGY_LABELS, strategyParamsSchema } from "@/lib/strategies/params"
+import { strategyLabel } from "@/lib/strategies/params"
+import {
+  isStrategyConfig,
+  strategyConfigSchema,
+  type StrategyConfig,
+} from "@/lib/strategies/strategy-config"
+import { SettingsFields } from "@/components/strategies/settings-fields"
+import { INDICATORS } from "@/lib/indicators/registry"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
+import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
+
+type ParamValues = Record<string, string>
 
 /**
  * Right-click menu on the bot chart: adds whichever TP/SL isn't set yet at
@@ -147,6 +167,72 @@ function BotChartMenu({
 }
 
 /**
+ * Settings sheet for a new-model bot: edits the universal settings block of
+ * its snapshotted strategy config. The indicator and its params are fixed at
+ * creation — change those on the Strategies page and create a new bot.
+ */
+function SignalBotSettings({
+  botId,
+  bot,
+  config,
+  onSaved,
+}: {
+  botId: string
+  bot: BotDetailResponse["bot"]
+  config: StrategyConfig
+  onSaved: (message: string, tone: "ok" | "error") => void
+}) {
+  const [settings, setSettings] = React.useState(config.settings)
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const module = INDICATORS[config.indicator.type]
+
+  async function save() {
+    setError(null)
+    const parsed = strategyConfigSchema.safeParse({ ...config, settings })
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Invalid settings")
+      return
+    }
+    setBusy(true)
+    try {
+      await updateBot({
+        botId,
+        name: bot.name,
+        markets: bot.markets,
+        params: parsed.data,
+      })
+      onSaved(
+        bot.status === "running"
+          ? "Settings updated — bot restarting with the new values."
+          : "Settings updated.",
+        "ok"
+      )
+    } catch (err) {
+      setError(getBotErrorMessage(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 overflow-y-auto p-4">
+      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{module.label}</span> ·{" "}
+        {config.interval} — the indicator and its parameters are fixed at
+        creation. To change them, edit the strategy on the Strategies page and
+        create a new bot.
+      </div>
+      <SettingsFields value={settings} onChange={setSettings} />
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <Button size="sm" disabled={busy} onClick={() => void save()}>
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        Save settings
+      </Button>
+    </div>
+  )
+}
+
+/**
  * The bot workspace: backtest-style chart layout around a live bot. Left rail
  * shows the locked strategy parameters, the right rail edits SL/TP live, the
  * header runs the lifecycle.
@@ -218,13 +304,57 @@ export function BotWorkspace({
     []
   )
 
-  // Full param values, for the left rail's read-only display.
-  const seed = React.useMemo(() => paramsToValues(bot.params), [bot.params])
+  // New-model bots carry a StrategyConfig snapshot instead of legacy params.
+  const signalConfig = React.useMemo(
+    () => (isStrategyConfig(bot.params) ? bot.params : null),
+    [bot.params]
+  )
+
+  // The editable protective levels (TP/SL) as form strings. Archived legacy
+  // bots are read-only, so they expose nothing here.
+  const seed = React.useMemo<ParamValues>(() => {
+    const out: ParamValues = {}
+    if (!signalConfig) return out
+    out.takeProfitPct = signalConfig.settings.takeProfitPct
+      ? String(signalConfig.settings.takeProfitPct)
+      : ""
+    out.stopLossPct = signalConfig.settings.stopLossPct
+      ? String(signalConfig.settings.stopLossPct)
+      : ""
+    return out
+  }, [signalConfig])
+
+  // Display toggles for the strategy paint (shared with the trade terminal's
+  // dialog). Only the toggles persist — strategy/params are re-derived from
+  // the bot every render so they can never go stale. The consolidation-filter
+  // default seeds from the bot's real param so painted signals match trades.
+  const [chartDisplay, setChartDisplay] = usePersistedState<ChartStrategyState>(
+    "bot-chart-display",
+    { ...DEFAULT_CHART_STRATEGY, consolidationFilter: seed.consolidationFilter !== "false" },
+    (raw) => ({
+      ...DEFAULT_CHART_STRATEGY,
+      ...(JSON.parse(raw) as Partial<ChartStrategyState>),
+    })
+  )
+  const [chartDisplayOpen, setChartDisplayOpen] = React.useState(false)
+  const [quickTestOpen, setQuickTestOpen] = React.useState(false)
+  // Hovered candle for the toolbar's O/H/L/C readout (null while not hovering).
+  const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
+  const [selectedTradeId, setSelectedTradeId] = React.useState<string | null>(
+    null
+  )
+
+  // Paint the bot's own indicator — the same compute the engine trades on.
+  // Archived legacy bots paint nothing (their charts stay lines-and-fills).
+  const chartStrategy = React.useMemo<ChartStrategyState | null>(() => {
+    if (!signalConfig) return null
+    return { ...chartDisplay, indicator: signalConfig.indicator }
+  }, [chartDisplay, signalConfig])
   // The SL/TP draft holds ONLY the protective keys the right rail edits; every
   // other param is read fresh from the bot at save time (see applyValues). So a
   // params change from elsewhere — the Settings sheet, or a status change that
   // bumps updated_at — can never be clobbered by a stale draft.
-  const protectiveKeys = PROTECTIVE_KEYS[bot.strategy_type]
+  const protectiveKeys = signalConfig ? ["takeProfitPct", "stopLossPct"] : []
   const seedProtective = React.useMemo(() => {
     const values: ParamValues = {}
     for (const key of protectiveKeys) values[key] = seed[key] ?? ""
@@ -283,20 +413,22 @@ export function BotWorkspace({
    */
   async function applyValues(protective: ParamValues) {
     setSlTpError(null)
-    const merged = { ...paramsToValues(bot.params), ...protective }
-    const parsed = strategyParamsSchema.safeParse(
-      buildParams(bot.strategy_type, merged)
-    )
+    if (!signalConfig) return // archived legacy bots are read-only
+
+    const num = (raw?: string) => {
+      const value = Number(raw)
+      return raw && value > 0 ? value : undefined
+    }
+    const parsed = strategyConfigSchema.safeParse({
+      ...signalConfig,
+      settings: {
+        ...signalConfig.settings,
+        takeProfitPct: num(protective.takeProfitPct),
+        stopLossPct: num(protective.stopLossPct),
+      },
+    })
     if (!parsed.success) {
-      setSlTpError(
-        parsed.error.issues
-          .map((issue) =>
-            issue.path.length
-              ? `${issue.path.join(".")}: ${issue.message}`
-              : issue.message
-          )
-          .join(" · ")
-      )
+      setSlTpError(parsed.error.issues[0]?.message ?? "Invalid levels")
       return
     }
     setSlTpBusy(true)
@@ -306,7 +438,6 @@ export function BotWorkspace({
         name: bot.name,
         markets: bot.markets,
         params: parsed.data,
-        riskParams: bot.risk_params,
       })
       notify(
         bot.status === "running"
@@ -321,10 +452,14 @@ export function BotWorkspace({
     }
   }
 
-  // Chart lines + the drag-targets that map SL/TP lines back to params.
+  // Chart lines + the drag-targets that map SL/TP lines back to the bot's
+  // settings. Archived legacy bots draw no lines.
   const chart = React.useMemo(
-    () => buildBotOverlays(bot.params, state, openOrders, markPrice),
-    [bot.params, state, openOrders, markPrice]
+    () =>
+      signalConfig
+        ? buildSignalBotOverlays(signalConfig.settings, state)
+        : { lines: [], targets: {} },
+    [signalConfig, state]
   )
 
   /** Dropping a TP/SL line re-prices and saves immediately — no confirm. */
@@ -351,21 +486,74 @@ export function BotWorkspace({
     void applyValues(next)
   }
 
+  // Price-pinned O/C chips for recent fills, backtest-style. Chips (and the
+  // focus ring below) must sit on exact bar times, so fills snap to the candle
+  // bucket of the current chart interval.
+  const intervalMs = candleIntervalMs(interval)
   const markers = React.useMemo<ChartMarker[]>(
-    () =>
-      marketTrades.slice(0, 200).map((trade) => ({
-        time: new Date(trade.fill_time).getTime(),
-        side: trade.side === "buy" ? "buy" : "sell",
-      })),
-    [marketTrades]
+    () => buildBotFillMarkers(marketTrades.slice(0, 200), intervalMs),
+    [marketTrades, intervalMs]
   )
+
+  // Fills paired into entry → exit round trips, shaped like backtest trades —
+  // the Trades tab and the chart focus below both read from this.
+  const roundTrips = React.useMemo(
+    () => buildBotRoundTrips(marketTrades, markPrice),
+    [marketTrades, markPrice]
+  )
+  const focusedTrip = selectedTradeId
+    ? (roundTrips.find((trip) => trip.id === selectedTradeId) ?? null)
+    : null
+
+  // Clicking a trade row pulses rings at its entry (and exit, once closed).
+  const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
+    if (!focusedTrip) return []
+    const long = focusedTrip.side === "long"
+    const snap = (ms: number) => Math.floor(ms / intervalMs) * intervalMs
+    const points: ChartFocusPoint[] = [
+      {
+        time: snap(focusedTrip.entryTime),
+        side: long ? "buy" : "sell",
+        label: "Entry",
+        price: focusedTrip.entryPx,
+      },
+    ]
+    if (focusedTrip.exitTime != null && focusedTrip.exitPx != null) {
+      points.push({
+        time: snap(focusedTrip.exitTime),
+        side: long ? "sell" : "buy",
+        label: "Exit",
+        price: focusedTrip.exitPx,
+      })
+    }
+    return points
+  }, [focusedTrip, intervalMs])
+
+  // Result box spanning entry → exit (closed trips only), backtest-style.
+  const focusResult = React.useMemo<ChartFocusResult | null>(() => {
+    if (!focusedTrip || focusedTrip.exitTime == null) return null
+    const spanMs = focusedTrip.exitTime - focusedTrip.entryTime
+    return {
+      up: focusedTrip.pnl >= 0,
+      pctText: pct(focusedTrip.returnPct),
+      pnlText: signedUsd(focusedTrip.pnl),
+      bars: Math.max(1, Math.round(spanMs / intervalMs)),
+      daysText: formatFocusDays(spanMs / 86_400_000),
+    }
+  }, [focusedTrip, intervalMs])
 
   const outerLayout = usePersistedLayout("bot-workspace-vertical")
   const innerLayout = usePersistedLayout("bot-workspace-horizontal")
 
-  const chartMenuItems = chartMenu
-    ? buildBotChartMenuItems(bot.params, state, markPrice, chartMenu.price)
-    : []
+  const chartMenuItems =
+    chartMenu && signalConfig
+      ? buildSignalBotMenuItems(
+          signalConfig.settings,
+          state,
+          markPrice,
+          chartMenu.price
+        )
+      : []
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col">
@@ -430,30 +618,47 @@ export function BotWorkspace({
               {marketsOpen ? <ResizableHandle withHandle /> : null}
               <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="flex items-center gap-3 border-b px-3 py-1.5">
-                    <div className="flex gap-0.5">
-                      {CANDLE_INTERVALS.map((tf) => (
-                        <button
-                          key={tf}
-                          type="button"
-                          onClick={() => setInterval(tf)}
-                          className={cn(
-                            "rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground",
-                            interval === tf && "bg-muted text-foreground"
-                          )}
-                        >
-                          {tf}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex-1" />
-                    {bot.strategy_type !== "copy" ? (
-                      <span className="text-[10px] text-muted-foreground">
-                        Drag TP / SL to re-price · right-click to add — saves
-                        instantly
-                      </span>
-                    ) : null}
-                  </div>
+                  <ChartToolbar
+                    intervals={CANDLE_INTERVALS}
+                    interval={interval}
+                    onIntervalChange={setInterval}
+                    legend={{
+                      chips: markers.length > 0,
+                      signals: Boolean(chartStrategy?.showSignals),
+                    }}
+                    ohlc={ohlc}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      disabled={!signalConfig}
+                      title={
+                        signalConfig
+                          ? "Replay this bot's strategy over recent history"
+                          : "Archived legacy bots can't be quick-tested"
+                      }
+                      onClick={() => setQuickTestOpen(true)}
+                    >
+                      <FlaskConicalIcon className="size-3.5" />
+                      Test
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 text-muted-foreground"
+                      aria-label="Strategy display settings"
+                      title={
+                        chartStrategy
+                          ? "Strategy display settings"
+                          : "This strategy has no chart decorations — its levels are the live order lines"
+                      }
+                      disabled={!chartStrategy}
+                      onClick={() => setChartDisplayOpen(true)}
+                    >
+                      <SettingsIcon className="size-3.5" />
+                    </Button>
+                  </ChartToolbar>
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={network}
@@ -461,6 +666,10 @@ export function BotWorkspace({
                       interval={interval}
                       priceLines={chart.lines}
                       markers={markers}
+                      chartStrategy={chartStrategy}
+                      focusPoints={focusPoints}
+                      focusResult={focusResult}
+                      onCrosshairOhlc={setOhlc}
                       onLineDragEnd={handleLineDrag}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
@@ -495,10 +704,12 @@ export function BotWorkspace({
           <ResizableHandle withHandle />
           <ResizablePanel id="activity" defaultSize="32%" minSize="15%">
             <BotActivityTabs
-              trades={marketTrades}
+              trips={roundTrips}
               openOrders={openOrders}
               events={events}
               stats={stats}
+              selectedTradeId={selectedTradeId}
+              onSelectTrade={setSelectedTradeId}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -513,6 +724,31 @@ export function BotWorkspace({
         onClose={() => setChartMenu(null)}
       />
 
+      <QuickTestDialog
+        open={quickTestOpen}
+        onOpenChange={setQuickTestOpen}
+        network={network}
+        market={selectedMarket}
+        config={signalConfig}
+        onSaved={(backtestId) =>
+          void router.navigate({ to: "/backtest", search: { run: backtestId } })
+        }
+      />
+
+      {chartStrategy ? (
+        <IndicatorSettingsDialog
+          open={chartDisplayOpen}
+          onOpenChange={setChartDisplayOpen}
+          state={chartStrategy}
+          hideParams
+          onChange={(next) =>
+            // Persist only the display toggles — the indicator re-derives
+            // from the bot's config, so it must never hit localStorage.
+            setChartDisplay({ ...next, indicator: null })
+          }
+        />
+      ) : null}
+
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent
           side="right"
@@ -522,7 +758,7 @@ export function BotWorkspace({
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <SheetTitle className="text-sm">
-              Edit {STRATEGY_LABELS[bot.strategy_type]} bot
+              Edit {strategyLabel(bot.strategy_type)} bot
             </SheetTitle>
             <SheetClose asChild>
               <Button
@@ -536,15 +772,23 @@ export function BotWorkspace({
             </SheetClose>
           </div>
           <div className="min-h-0 flex-1">
-            <BotEditPanel
-              bot={bot}
-              mid={markPrice}
-              running={bot.status === "running"}
-              onSaved={(message, tone) => {
-                setSettingsOpen(false)
-                notify(message, tone)
-              }}
-            />
+            {signalConfig ? (
+              <SignalBotSettings
+                botId={botId}
+                bot={bot}
+                config={signalConfig}
+                onSaved={(message, tone) => {
+                  setSettingsOpen(false)
+                  notify(message, tone)
+                }}
+              />
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">
+                This bot uses a retired strategy and is archived — its history
+                stays readable, but nothing can be edited. Create a new bot
+                from a saved strategy instead.
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

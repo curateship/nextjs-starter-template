@@ -1,5 +1,6 @@
 import * as React from "react"
-import { ChevronDownIcon, SettingsIcon } from "lucide-react"
+import { useNavigate } from "@tanstack/react-router"
+import { ChevronDownIcon, FlaskConicalIcon, SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -28,22 +29,33 @@ import {
   PaperOpenOrdersTable,
   PaperPositionsTable,
 } from "@/components/trading/paper-bottom-tables"
-import { PriceChart, type ChartPriceLine } from "@/components/trading/price-chart"
+import {
+  PriceChart,
+  type ChartCandle,
+  type ChartPriceLine,
+  type PriceChartHandle,
+} from "@/components/chart/price-chart"
+import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
 import {
-  CHART_STRATEGIES,
   DEFAULT_CHART_STRATEGY,
   type ChartStrategyState,
-} from "@/components/trading/chart-strategy"
-import { Checkbox } from "@/components/ui/checkbox"
+} from "@/components/chart/chart-strategy"
+import { IndicatorSettingsDialog } from "@/components/chart/chart-strategy-settings"
+import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
+import { buildRunMarkers } from "@/components/backtest/backtest-overlays"
+import { outputToOverlays } from "@/components/chart/indicator-overlays"
+import type { QuickTestResponse } from "@/lib/api/quick-test"
+import { DEFAULT_STRATEGY_SETTINGS } from "@/lib/strategies/settings"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  INDICATORS,
+  INDICATOR_IDS,
+  type IndicatorId,
+  type IndicatorParamValue,
+} from "@/lib/indicators/registry"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -85,7 +97,6 @@ import {
 } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 import {
   DEFAULT_INDICATORS,
   INDICATOR_LABELS,
@@ -128,9 +139,16 @@ export function TradingWorkspace({
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
+  const navigate = useNavigate()
   const [interval, setInterval] = React.useState<CandleInterval>("15m")
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  // Imperative chart handle so the right-click menu can offer Reset View,
+  // matching the bot and backtest charts.
+  const chartApiRef = React.useRef<PriceChartHandle | null>(null)
+  const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
+    chartApiRef.current = api
+  }, [])
   const [notice, setNotice] = React.useState<{
     tone: "ok" | "error"
     text: string
@@ -350,6 +368,38 @@ export function TradingWorkspace({
     })
   )
   const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
+  const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
+  const [quickTestOpen, setQuickTestOpen] = React.useState(false)
+  const [quickTest, setQuickTest] = React.useState<QuickTestResponse | null>(
+    null
+  )
+
+  // Ad-hoc config for Quick Test: the picked indicator at the chart's
+  // timeframe; trade settings are chosen inside the dialog.
+  const quickConfig = React.useMemo<StrategyConfig | null>(() => {
+    if (!chartStrategy.indicator) return null
+    return {
+      v: 2,
+      interval,
+      indicator: chartStrategy.indicator,
+      settings: { ...DEFAULT_STRATEGY_SETTINGS },
+    }
+  }, [chartStrategy.indicator, interval])
+
+  // The last quick test's chips AND paint; stale the moment the context
+  // changes. While active, the chart shows the test's own computation —
+  // zones, arrows, and trade chips from one run, so they always correspond.
+  React.useEffect(() => {
+    setQuickTest(null)
+  }, [market, interval, chartStrategy.indicator])
+  const quickMarkers = React.useMemo(
+    () => (quickTest ? buildRunMarkers(quickTest.result) : []),
+    [quickTest]
+  )
+  const quickOverlays = React.useMemo(
+    () => (quickTest ? outputToOverlays(quickTest.output) : null),
+    [quickTest]
+  )
 
   const ticketDisabledReason = isPaper
     ? null
@@ -404,23 +454,20 @@ export function TradingWorkspace({
             <ResizableHandle withHandle />
             <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
               <div className="flex h-full min-h-0 flex-col">
-                <div className="flex items-center gap-1 border-b bg-muted/50 px-2 py-1">
-                  <span className="mr-2 text-sm font-semibold">{market}</span>
-                  {CANDLE_INTERVALS.map((candidate) => (
-                    <Button
-                      key={candidate}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "h-6 px-2 text-xs",
-                        interval === candidate && "bg-muted"
-                      )}
-                      onClick={() => setInterval(candidate)}
-                    >
-                      {candidate}
-                    </Button>
-                  ))}
+                <ChartToolbar
+                  intervals={CANDLE_INTERVALS}
+                  interval={interval}
+                  onIntervalChange={setInterval}
+                  legend={{
+                    signals: Boolean(
+                      chartStrategy.indicator && chartStrategy.showSignals
+                    ),
+                  }}
+                  ohlc={ohlc}
+                  leading={
+                    <span className="text-sm font-semibold">{market}</span>
+                  }
+                >
                   <IndicatorsMenu
                     indicators={indicators}
                     onChange={setIndicators}
@@ -430,17 +477,38 @@ export function TradingWorkspace({
                     onChange={setChartStrategy}
                     onOpenSettings={() => setStrategySettingsOpen(true)}
                   />
-                </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    disabled={!chartStrategy.indicator}
+                    title={
+                      chartStrategy.indicator
+                        ? "Replay this indicator over recent history"
+                        : "Pick an indicator first"
+                    }
+                    onClick={() => setQuickTestOpen(true)}
+                  >
+                    <FlaskConicalIcon className="size-3.5" />
+                    Test
+                  </Button>
+                </ChartToolbar>
                 <div className="min-h-0 flex-1">
                   <PriceChart
                     network={network}
                     coin={market}
                     interval={interval}
                     priceLines={priceLines}
+                    markers={quickMarkers}
                     indicators={indicators}
-                    chartStrategy={chartStrategy.strategy ? chartStrategy : null}
+                    chartStrategy={
+                      chartStrategy.indicator ? chartStrategy : null
+                    }
+                    overrideOverlays={quickOverlays}
+                    onCrosshairOhlc={setOhlc}
                     onLineDragEnd={handleLineDragEnd}
                     onChartContextMenu={handleChartContextMenu}
+                    registerApi={registerChartApi}
                   />
                 </div>
               </div>
@@ -532,20 +600,38 @@ export function TradingWorkspace({
             text: `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`,
           })
         }}
+        onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
 
-      <StrategySettingsDialog
+      <IndicatorSettingsDialog
         open={strategySettingsOpen}
         onOpenChange={setStrategySettingsOpen}
         state={chartStrategy}
         onChange={setChartStrategy}
       />
+
+      <QuickTestDialog
+        open={quickTestOpen}
+        onOpenChange={setQuickTestOpen}
+        network={network}
+        market={market}
+        config={quickConfig}
+        settingsEditable
+        onResult={setQuickTest}
+        onSaved={(backtestId) =>
+          void navigate({ to: "/backtest", search: { run: backtestId } })
+        }
+      />
     </div>
   )
 }
 
-/** Chart-toolbar strategy picker + settings-cog trigger. */
+/**
+ * Chart-toolbar indicator picker + settings-cog trigger. Picking an indicator
+ * paints and signals from the SAME compute the strategy engine trades on
+ * (legacy persisted strategy picks keep painting until retirement).
+ */
 function StrategyToolbar({
   state,
   onChange,
@@ -555,35 +641,48 @@ function StrategyToolbar({
   onChange: (next: ChartStrategyState) => void
   onOpenSettings: () => void
 }) {
+  const label = state.indicator
+    ? INDICATORS[state.indicator.type].label
+    : "Indicator"
   return (
     <div className="flex items-center gap-1">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
-            {state.strategy ? STRATEGY_LABELS[state.strategy] : "Strategy"}
+            {label}
             <ChevronDownIcon className="size-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="text-[11px]">
-            Apply strategy
+            Apply indicator
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuRadioGroup
-            value={state.strategy ?? "none"}
+            value={state.indicator?.type ?? "none"}
             onValueChange={(value) =>
               onChange({
                 ...state,
-                strategy: value === "none" ? null : (value as StrategyType),
+                indicator:
+                  value === "none"
+                    ? null
+                    : {
+                        type: value as IndicatorId,
+                        params: {
+                          ...(INDICATORS[value as IndicatorId]
+                            .defaultParams as Record<
+                            string,
+                            IndicatorParamValue
+                          >),
+                        },
+                      },
               })
             }
           >
-            <DropdownMenuRadioItem value="none">
-              No strategy
-            </DropdownMenuRadioItem>
-            {CHART_STRATEGIES.map((strategy) => (
-              <DropdownMenuRadioItem key={strategy} value={strategy}>
-                {STRATEGY_LABELS[strategy]}
+            <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+            {INDICATOR_IDS.map((id) => (
+              <DropdownMenuRadioItem key={id} value={id}>
+                {INDICATORS[id].label}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
@@ -593,113 +692,14 @@ function StrategyToolbar({
         variant="ghost"
         size="icon"
         className="size-6 text-muted-foreground"
-        aria-label="Strategy display settings"
-        title="Strategy display settings"
-        disabled={!state.strategy}
+        aria-label="Indicator settings"
+        title="Indicator settings"
+        disabled={!state.indicator}
         onClick={onOpenSettings}
       >
         <SettingsIcon className="size-3.5" />
       </Button>
     </div>
-  )
-}
-
-type StrategyToggle = { key: keyof ChartStrategyState; label: string }
-
-/** Which display toggles each strategy actually paints. */
-const STRATEGY_TOGGLES: Record<StrategyType, StrategyToggle[]> = {
-  qqe: [
-    { key: "showSignals", label: "Trigger signals" },
-    { key: "consolidationFilter", label: "Consolidation filter" },
-    { key: "showZones", label: "Consolidation zones" },
-    { key: "showSwings", label: "Swing high / low" },
-    { key: "showBarColors", label: "Bar colors" },
-    { key: "showIndicators", label: "Indicators" },
-  ],
-  momentum: [
-    { key: "showSignals", label: "Trigger signals" },
-    { key: "showIndicators", label: "Indicators (EMA / RSI / channel)" },
-  ],
-  vwap: [{ key: "showIndicators", label: "VWAP & bands" }],
-  dca: [{ key: "showIndicators", label: "Order ladder" }],
-  grid: [{ key: "showIndicators", label: "Grid levels" }],
-  copy: [],
-}
-
-/** Strategies that emit buy/sell signals (so the signal cap is relevant). */
-const SIGNAL_STRATEGIES: StrategyType[] = ["qqe", "momentum"]
-
-/** Modal to cap painted signals and choose which of a strategy's overlays show. */
-function StrategySettingsDialog({
-  open,
-  onOpenChange,
-  state,
-  onChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  state: ChartStrategyState
-  onChange: (next: ChartStrategyState) => void
-}) {
-  if (!state.strategy) return null
-  const toggles = STRATEGY_TOGGLES[state.strategy]
-  const hasSignals = SIGNAL_STRATEGIES.includes(state.strategy)
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>{STRATEGY_LABELS[state.strategy]} display</DialogTitle>
-          <DialogDescription>
-            Choose which of this strategy's overlays to paint on the chart
-            {hasSignals ? ", and cap how many recent signals show." : "."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 px-6 py-4">
-          {hasSignals ? (
-            <div className="grid gap-1.5">
-              <Label htmlFor="max-signals" className="text-xs">
-                Max recent signals
-              </Label>
-              <Input
-                id="max-signals"
-                type="number"
-                min={1}
-                max={500}
-                value={state.maxSignals}
-                className="h-8 w-28 text-xs"
-                onChange={(event) =>
-                  onChange({
-                    ...state,
-                    maxSignals: Math.max(0, Number(event.target.value) || 0),
-                  })
-                }
-              />
-              <span className="text-[11px] text-muted-foreground">
-                Keeps only the most recent signals so the strategy never paints
-                the whole chart.
-              </span>
-            </div>
-          ) : null}
-          <div className="grid gap-2">
-            {toggles.map((toggle) => (
-              <label
-                key={toggle.key}
-                className="flex cursor-pointer items-center gap-2 text-xs"
-              >
-                <Checkbox
-                  checked={Boolean(state[toggle.key])}
-                  onCheckedChange={(checked) =>
-                    onChange({ ...state, [toggle.key]: checked === true })
-                  }
-                />
-                {toggle.label}
-              </label>
-            ))}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 

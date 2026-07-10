@@ -2,14 +2,11 @@ import { ClientOnly, createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 
 import { BacktestDashboard } from "@/components/backtest/backtest-dashboard"
-import { runDraftSchema } from "@/components/backtest/run-draft"
 import { StrategiesOverview } from "@/components/backtest/strategies-dashboard"
 import { loadBacktests } from "@/lib/api/backtests"
 
 const backtestSearchSchema = z.object({
   run: z.string().optional(),
-  /** A configured-but-not-executed run being tuned on the chart. */
-  draft: runDraftSchema.optional(),
 })
 
 export const Route = createFileRoute("/_authenticated/backtest/")({
@@ -19,24 +16,17 @@ export const Route = createFileRoute("/_authenticated/backtest/")({
 })
 
 /**
- * The Backtest dashboard: without a run or draft it lists the strategies
- * (drill-down into runs and re-run history); with `?run=` it opens the chart
- * workspace for that run; with `?draft=` it opens the workspace in draft mode
- * so price levels can be tuned before the first execution.
+ * The Backtest dashboard: without a run it lists the strategies (drill-down
+ * into runs and re-run history); with `?run=` it opens the chart workspace
+ * for that run.
  */
 function BacktestRoute() {
-  const { runs, strategyDefaults, templates } = Route.useLoaderData()
-  const { run, draft } = Route.useSearch()
+  const { runs } = Route.useLoaderData()
+  const { run } = Route.useSearch()
   const navigate = Route.useNavigate()
 
-  if (!run && !draft) {
-    return (
-      <StrategiesOverview
-        runs={runs}
-        strategyDefaults={strategyDefaults}
-        templates={templates}
-      />
-    )
+  if (!run) {
+    return <StrategiesOverview runs={runs} />
   }
 
   return (
@@ -48,28 +38,16 @@ function BacktestRoute() {
       }
     >
       <BacktestDashboard
-        key={run ?? `draft:${draft ? JSON.stringify(draft) : ""}`}
+        key={run}
         initialRuns={runs}
-        strategyDefaults={strategyDefaults}
-        templates={templates}
-        runId={run ?? null}
-        draft={draft ?? null}
+        runId={run}
         onRunIdChange={(id) =>
           void navigate({
-            search: (current) => ({
-              ...current,
-              run: id ?? undefined,
-              draft: undefined,
-            }),
+            search: (current) => ({ ...current, run: id ?? undefined }),
             replace: true,
           })
         }
-        onNewDraft={(nextDraft) =>
-          void navigate({ search: { run: undefined, draft: nextDraft } })
-        }
-        onViewAll={() =>
-          void navigate({ search: { run: undefined, draft: undefined } })
-        }
+        onViewAll={() => void navigate({ search: { run: undefined } })}
       />
     </ClientOnly>
   )

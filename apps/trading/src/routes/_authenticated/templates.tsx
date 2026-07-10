@@ -1,16 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { TemplatesDashboard } from "@/components/backtest/templates-dashboard"
-import { loadStrategyTemplates } from "@/lib/api/backtests"
+import { StrategyManager } from "@/components/strategies/strategy-manager"
+import { loadStrategies } from "@/lib/api/strategies"
 
+/**
+ * The strategies library (new model) — this route replaced the old run
+ * templates page: a strategy is one indicator + one settings block, and bots
+ * pick from this list.
+ */
 export const Route = createFileRoute("/_authenticated/templates")({
-  loader: () => loadStrategyTemplates(),
-  component: TemplatesRoute,
+  loader: () => loadStrategies(),
+  component: StrategiesRoute,
 })
 
-function TemplatesRoute() {
-  const { strategyDefaults, templates } = Route.useLoaderData()
-  return (
-    <TemplatesDashboard strategyDefaults={strategyDefaults} templates={templates} />
-  )
+function StrategiesRoute() {
+  const { strategies } = Route.useLoaderData()
+  return <StrategyManager initial={strategies} />
 }

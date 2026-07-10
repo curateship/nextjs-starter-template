@@ -1,303 +1,48 @@
-import { z } from "zod"
+/**
+ * Retired strategy families. Their engines, editors, and validation schemas
+ * are gone — these types remain only so archived bots and old backtest rows
+ * stay readable. New bots and runs use StrategyConfig (strategy-config.ts).
+ */
+export type StrategyType = "grid" | "dca" | "momentum" | "qqe" | "vwap" | "copy"
+
+/** JSON value — legacy blobs cross the server-function boundary, so they
+ * must be concretely serializable (unknown is rejected there). */
+type LegacyValue =
+  | string
+  | number
+  | boolean
+  | null
+  | LegacyValue[]
+  | { [key: string]: LegacyValue }
 
 /**
- * Strategy parameter schemas — isomorphic (zod only, no node imports).
- * The bot wizard renders forms from these and the worker validates
- * bots.params against them before starting a runner.
+ * Opaque legacy params blob on an archived row. Read for display only —
+ * never parsed, never executed.
  */
-
-const decimalString = z
-  .string()
-  .regex(/^\d+(\.\d+)?$/, "Must be a positive decimal")
-
-/** Sizing + threshold exits shared by the QQE and VWAP signal strategies. */
-const sizingFields = {
-  orderSizeUsd: z.number().positive(),
-  /** Bet the full current balance each trade (profits/losses compound) rather
-   *  than a fixed order size. */
-  compounding: z.boolean().optional(),
-  takeProfitPct: z.number().positive().max(100).optional(),
-  stopLossPct: z.number().positive().max(100).optional(),
+export type StrategyParams = {
+  strategyType: StrategyType
+  [key: string]: LegacyValue | undefined
 }
 
-export const gridParamsSchema = z.object({
-  strategyType: z.literal("grid"),
-  lowerPx: decimalString,
-  upperPx: decimalString,
-  levels: z.number().int().min(2).max(100),
-  sizePerLevelUsd: z.number().positive(),
-  side: z.enum(["both", "long_only", "short_only"]),
-  stopLossPx: decimalString.optional(),
-  /** Price that exits the entire position and halts the grid (favorable side). */
-  takeProfitPx: decimalString.optional(),
-  /** Scale every order's size with the account (balance ÷ starting equity) so
-   *  profits and losses compound; off = fixed per-level size. */
-  compounding: z.boolean().optional(),
-})
+/** Legacy per-bot risk block, kept on archived rows. Display only. */
+export type RiskParams = {
+  maxPositionNotionalUsd?: number
+  maxLeverage?: number
+  dailyLossLimitUsd?: number
+  maxDrawdownPct?: number
+  maxOpenOrders?: number
+  cooldownLosses?: number
+  cooldownMinutes?: number
+}
 
-export const dcaParamsSchema = z.object({
-  strategyType: z.literal("dca"),
-  direction: z.enum(["long", "short"]),
-  baseOrderUsd: z.number().positive(),
-  safetyOrderUsd: z.number().positive(),
-  maxSafetyOrders: z.number().int().min(0).max(15),
-  /** Deviation % from entry to the first safety order. */
-  priceStepPct: z.number().positive().max(50),
-  /** Multiplies the spacing of each further safety order. */
-  stepMultiplier: z.number().min(1).max(5),
-  /** Multiplies the size of each further safety order. */
-  sizeMultiplier: z.number().min(1).max(5),
-  takeProfitPct: z.number().positive().max(100),
-  stopLossPct: z.number().positive().max(100).optional(),
-  /** Trend filter: only start a NEW cycle while price is above (long) /
-   *  below (short) its moving average over this many days. Open ladders keep
-   *  managing themselves; downtrends stop spawning fresh cycles. Effective
-   *  window is capped by available candle history (~1400 bars). */
-  trendFilterDays: z.number().int().min(1).max(60).optional(),
-  /** Scale every order's size with the account (balance ÷ starting equity) so
-   *  the whole ladder compounds; off = fixed base/safety sizes. */
-  compounding: z.boolean().optional(),
-})
+/** Bot rows carry the new-model "signal" type alongside the archived types. */
+export type BotStrategyType = StrategyType | "signal"
 
-export const momentumParamsSchema = z
-  .object({
-    strategyType: z.literal("momentum"),
-    signal: z.enum(["ema_cross", "rsi", "breakout"]),
-    interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
-    emaFast: z.number().int().min(2).max(200).optional(),
-    emaSlow: z.number().int().min(3).max(400).optional(),
-    rsiPeriod: z.number().int().min(2).max(100).optional(),
-    rsiBuyBelow: z.number().min(1).max(50).optional(),
-    rsiSellAbove: z.number().min(50).max(99).optional(),
-    breakoutLookback: z.number().int().min(5).max(400).optional(),
-    /** Exit mechanism: trailing % stop, QFL base break, or ATR trailing stop. */
-    stopMode: z.enum(["trailing", "base", "atr"]).optional(),
-    trailingStopPct: z.number().positive().max(50).optional(),
-    /** QFL base: bars to scan for a new base low (stopMode = "base"). */
-    basePeriods: z.number().int().min(4).max(400).optional(),
-    /** QFL base: bars the low must hold to confirm a base. */
-    pumpPeriods: z.number().int().min(2).max(200).optional(),
-    /** ATR lookback, shared by the ATR stop and vol-scaled sizing (default 14). */
-    atrPeriod: z.number().int().min(2).max(100).optional(),
-    /** ATR stop: trail at close ∓ atrStopMult × ATR, ratcheting with the trade. */
-    atrStopMult: z.number().positive().max(20).optional(),
-    /** Trend-strength gate: only enter while ADX(adxPeriod) ≥ adxMin. */
-    adxPeriod: z.number().int().min(5).max(100).optional(),
-    adxMin: z.number().min(1).max(60).optional(),
-    /** Entry filter: MACD histogram (12/26/9) must agree with the direction. */
-    macdFilter: z.boolean().optional(),
-    /** EMA-cross only: after an exit, re-enter on a continuation close while
-     *  the trend (fast above/below slow) still holds. */
-    reentry: z.boolean().optional(),
-    /** Cap on re-entries per trend leg (unlimited when unset). */
-    maxReentries: z.number().int().min(0).max(50).optional(),
-    /** Vol-scaled sizing: shrink entries so the position's ATR-implied daily
-     *  volatility stays near this % — never scales above 1×. */
-    volTargetPct: z.number().positive().max(100).optional(),
-    orderSizeUsd: z.number().positive(),
-    direction: z.enum(["long", "short", "both"]),
-    /** Bet the full current balance each trade (profits/losses compound) rather
-     *  than a fixed order size. */
-    compounding: z.boolean().optional(),
-  })
-  .superRefine((params, ctx) => {
-    if (params.signal === "ema_cross") {
-      if (!params.emaFast || !params.emaSlow) {
-        ctx.addIssue({
-          code: "custom",
-          message: "EMA cross needs emaFast and emaSlow periods.",
-        })
-      } else if (params.emaFast >= params.emaSlow) {
-        ctx.addIssue({
-          code: "custom",
-          message: "emaFast must be shorter than emaSlow.",
-        })
-      }
-    }
-    if (params.signal === "rsi") {
-      if (!params.rsiPeriod || !params.rsiBuyBelow || !params.rsiSellAbove) {
-        ctx.addIssue({
-          code: "custom",
-          message: "RSI needs rsiPeriod, rsiBuyBelow, and rsiSellAbove.",
-        })
-      }
-    }
-    if (params.signal === "breakout" && !params.breakoutLookback) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Breakout needs breakoutLookback.",
-      })
-    }
-    if (params.stopMode === "base" && (!params.basePeriods || !params.pumpPeriods)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Base stop needs basePeriods and pumpPeriods.",
-      })
-    }
-    if (params.stopMode === "atr" && !params.atrStopMult) {
-      ctx.addIssue({
-        code: "custom",
-        message: "ATR stop needs atrStopMult.",
-      })
-    }
-    if (params.reentry && params.signal !== "ema_cross") {
-      ctx.addIssue({
-        code: "custom",
-        message: "Re-entry is only supported with the EMA cross signal.",
-      })
-    }
-  })
-
-export const qqeParamsSchema = z.object({
-  strategyType: z.literal("qqe"),
-  interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
-  rsiPeriod: z.number().int().min(2).max(100),
-  rsiSmoothing: z.number().int().min(1).max(50),
-  qqeFactor: z.number().positive().max(20),
-  threshold: z.number().min(0).max(50),
-  maType: z.enum([
-    "ALMA",
-    "EMA",
-    "DEMA",
-    "TEMA",
-    "WMA",
-    "VWMA",
-    "SMA",
-    "SMMA",
-    "HMA",
-    "LSMA",
-    "PEMA",
-  ]),
-  lsmaOffset: z.number().int().min(0).max(100).optional(),
-  almaOffset: z.number().min(0).max(1).optional(),
-  almaSigma: z.number().positive().max(50).optional(),
-  rsiSource: z.enum(["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"]),
-  /** Paint candles green/red/orange by QQE state on the backtest chart. */
-  colorBars: z.boolean(),
-  /** Suppress signals while the market sits in a consolidation zone. */
-  consolidationFilter: z.boolean(),
-  loopbackPeriod: z.number().int().min(2).max(400),
-  minConsolidationLen: z.number().int().min(2).max(100),
-  paintConsolidation: z.boolean(),
-  zoneColor: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, "Must be a #rrggbb hex color")
-    .optional(),
-  /** Paint the previous swing high/low (trailing-pivot structure). */
-  paintSwings: z.boolean(),
-  /** Trailing window (bars) a bar must top/bottom to count as a swing pivot. */
-  swingLookback: z.number().int().min(2).max(400),
-  /** Exit at the swing low (long) / swing high (short) instead of stopLossPct. */
-  swingStopLoss: z.boolean(),
-  /**
-   * Swing-base stop geometry (QFL-style): scan window for the swing low/high
-   * and the bars it must hold to confirm as a base. Longs exit when price
-   * breaks the base low, shorts when it breaks the mirrored high.
-   * Defaults 12 / 4 when swingStopLoss is on.
-   */
-  swingScanBars: z.number().int().min(4).max(400).optional(),
-  swingConfirmBars: z.number().int().min(1).max(100).optional(),
-  /**
-   * Re-enter the trend while flat: after an exit, if the smoothed RSI still
-   * holds beyond 50±threshold (and outside consolidation), enter again on a
-   * continuation candle (close beyond the prior close).
-   */
-  trendReentry: z.boolean().optional(),
-  /** Cap re-entries per threshold excursion (unset = unlimited). */
-  maxReentries: z.number().int().min(1).max(100).optional(),
-  ...sizingFields,
-})
-
-export const vwapParamsSchema = z
-  .object({
-    strategyType: z.literal("vwap"),
-    interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
-    /**
-     * reversion: fade stretches away from the session VWAP back to fair value.
-     * cross: trend-follow the close crossing the VWAP line.
-     */
-    mode: z.enum(["reversion", "cross"]),
-    direction: z.enum(["long", "short", "both"]),
-    /** Reversion: band width in volume-weighted σ that arms an entry. */
-    bandK: z.number().positive().max(10).optional(),
-    /** Reversion: exit at the VWAP line or at the opposite band. */
-    exitAt: z.enum(["vwap", "band"]).optional(),
-    ...sizingFields,
-  })
-  .superRefine((params, ctx) => {
-    if (params.mode === "reversion") {
-      if (!params.bandK) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Reversion needs a band width (bandK).",
-        })
-      }
-      if (!params.exitAt) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Reversion needs an exit target (exitAt).",
-        })
-      }
-    }
-  })
-
-export const copyParamsSchema = z
-  .object({
-    strategyType: z.literal("copy"),
-    sourceAddress: z
-      .string()
-      .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a 0x address"),
-    sizeMode: z.enum(["ratio", "fixed_usd"]),
-    /** Mirror at this fraction of the source's fill size (1 = same size). */
-    ratio: z.number().positive().max(100).optional(),
-    /** Mirror every source fill with this fixed USD notional. */
-    fixedUsd: z.number().positive().optional(),
-    marketsFilter: z.array(z.string().min(1)).max(50).optional(),
-    maxSlippageBps: z.number().int().min(1).max(500),
-  })
-  .superRefine((params, ctx) => {
-    if (params.sizeMode === "ratio" && !params.ratio) {
-      ctx.addIssue({ code: "custom", message: "Ratio mode needs ratio." })
-    }
-    if (params.sizeMode === "fixed_usd" && !params.fixedUsd) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Fixed mode needs fixedUsd.",
-      })
-    }
-  })
-
-export const strategyParamsSchema = z.discriminatedUnion("strategyType", [
-  gridParamsSchema,
-  dcaParamsSchema,
-  momentumParamsSchema,
-  qqeParamsSchema,
-  vwapParamsSchema,
-  copyParamsSchema,
-])
-
-export const riskParamsSchema = z.object({
-  maxPositionNotionalUsd: z.number().positive(),
-  maxLeverage: z.number().min(1).max(50),
-  /** Realized daily loss beyond this auto-pauses the bot. */
-  dailyLossLimitUsd: z.number().positive(),
-  /** Drawdown % from peak equity that kills (and flattens) the bot. */
-  maxDrawdownPct: z.number().positive().max(100),
-  maxOpenOrders: z.number().int().min(1).max(200),
-  /** Consecutive losing trades before pausing for cooldownMinutes. */
-  cooldownLosses: z.number().int().min(0).max(50),
-  cooldownMinutes: z.number().int().min(0).max(24 * 60),
-})
-
-export type GridParams = z.infer<typeof gridParamsSchema>
-export type DcaParams = z.infer<typeof dcaParamsSchema>
-export type MomentumParams = z.infer<typeof momentumParamsSchema>
-export type QqeParams = z.infer<typeof qqeParamsSchema>
-export type VwapParams = z.infer<typeof vwapParamsSchema>
-export type CopyParams = z.infer<typeof copyParamsSchema>
-export type StrategyParams = z.infer<typeof strategyParamsSchema>
-export type RiskParams = z.infer<typeof riskParamsSchema>
-export type StrategyType = StrategyParams["strategyType"]
+/** Label for any bot strategy type, incl. new-model and retired ones. */
+export function strategyLabel(type: string): string {
+  if (type === "signal") return "Strategy"
+  return (STRATEGY_LABELS as Record<string, string>)[type] ?? type
+}
 
 export const STRATEGY_LABELS: Record<StrategyType, string> = {
   grid: "Grid",
@@ -315,24 +60,4 @@ export const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
   qqe: "Stop-and-reverse on the smoothed RSI's first cross out of the 50±threshold channel, filtered by a zigzag consolidation detector; optional TP/SL.",
   vwap: "Trades the session-anchored VWAP: fade stretches past its σ-bands back to fair value (reversion), or follow the close crossing the VWAP line (cross).",
   copy: "Mirrors every fill of a Hyperliquid address with scaled size at market, capped by slippage.",
-}
-
-export const DEFAULT_RISK_PARAMS: RiskParams = {
-  maxPositionNotionalUsd: 5_000,
-  maxLeverage: 5,
-  dailyLossLimitUsd: 250,
-  maxDrawdownPct: 20,
-  maxOpenOrders: 60,
-  cooldownLosses: 4,
-  cooldownMinutes: 60,
-}
-
-export const DEFAULT_BACKTEST_RISK_PARAMS: RiskParams = {
-  maxPositionNotionalUsd: 10_000,
-  maxLeverage: 1,
-  dailyLossLimitUsd: 1_000_000,
-  maxDrawdownPct: 99,
-  maxOpenOrders: 60,
-  cooldownLosses: 0,
-  cooldownMinutes: 0,
 }
