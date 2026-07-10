@@ -193,26 +193,15 @@ export const MAX_EXTRA_MARKETS = 50
 export const SIGNAL_WARMUP_CANDLES = 1500
 
 /**
- * Warmup candles a strategy needs before simStart. Signal strategies replay
- * indicators from history, so they anchor deep; DCA needs history too since
- * its optional trend filter reads a moving average. Grid starts flat and
- * needs none.
+ * Warmup candles a strategy needs before simStart: the picked indicator
+ * declares its own warmup. QQE stays deep (its consolidation anchor is
+ * path-dependent) via its module's floor.
  */
-export function warmupBarsFor(strategyType: string, params?: unknown): number {
-  // New model: the picked indicator declares its own warmup. QQE stays deep
-  // (its consolidation anchor is path-dependent) via its module's floor.
-  if (strategyType === "signal") {
-    const parsed = strategyConfigSchema.safeParse(params)
-    if (!parsed.success) return SIGNAL_WARMUP_CANDLES
-    const module = INDICATORS[parsed.data.indicator.type]
-    return module.warmupBars(parsed.data.indicator.params as never) + 5
-  }
-  return strategyType === "momentum" ||
-    strategyType === "qqe" ||
-    strategyType === "vwap" ||
-    strategyType === "dca"
-    ? SIGNAL_WARMUP_CANDLES
-    : 0
+export function warmupBarsFor(params: unknown): number {
+  const parsed = strategyConfigSchema.safeParse(params)
+  if (!parsed.success) return SIGNAL_WARMUP_CANDLES
+  const module = INDICATORS[parsed.data.indicator.type]
+  return module.warmupBars(parsed.data.indicator.params as never) + 5
 }
 
 /**

@@ -3,11 +3,6 @@ import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
 import {
-  type BotStrategyType,
-  type RiskParams,
-  type StrategyParams,
-} from "@/lib/strategies/params"
-import {
   strategyConfigSchema,
   type StrategyConfig,
 } from "@/lib/strategies/strategy-config"
@@ -15,7 +10,6 @@ import {
 export type BotListItem = {
   id: string
   name: string
-  strategy_type: BotStrategyType
   markets: string[]
   exchange: string
   mode: "paper" | "live"
@@ -51,9 +45,7 @@ export type BotMarketState = {
 
 export type BotDetailResponse = {
   bot: BotListItem & {
-    /** Legacy StrategyParams, or a StrategyConfig for new-model bots. */
-    params: StrategyParams | StrategyConfig
-    risk_params: RiskParams
+    params: StrategyConfig
     paper_starting_equity: number | null
   }
   states: BotMarketState[]
@@ -143,8 +135,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
     return {
       bot: {
         ...serializeBotRow(detail.bot, detail.wallet?.label ?? "", detail.wallet?.network ?? ""),
-        params: detail.bot.params as StrategyParams,
-        risk_params: detail.bot.riskParams as RiskParams,
+        params: detail.bot.params as StrategyConfig,
         paper_starting_equity: detail.bot.paperStartingEquity
           ? Number(detail.bot.paperStartingEquity)
           : null,
@@ -347,7 +338,6 @@ function serializeBotRow(bot: BotRow, walletLabel: string, network: string) {
   return {
     id: bot.id,
     name: bot.name,
-    strategy_type: bot.strategyType as BotStrategyType,
     markets: bot.markets,
     exchange: bot.exchange,
     mode: bot.mode as "paper" | "live",

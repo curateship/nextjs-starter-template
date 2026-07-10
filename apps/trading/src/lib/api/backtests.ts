@@ -15,10 +15,7 @@ import {
   type BacktestResult,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
-import {
-  type StrategyParams,
-  type StrategyType,
-} from "@/lib/strategies/params"
+import { indicatorIdSchema, type IndicatorId } from "@/lib/indicators/registry"
 import {
   strategyConfigSchema as signalConfigSchema,
   type StrategyConfig,
@@ -45,7 +42,8 @@ export type BacktestListItem = {
   id: string
   groupId: string
   name: string
-  strategyType: StrategyType | "signal"
+  /** The run's indicator (registry id) — the strategy identity. */
+  indicatorType: IndicatorId
   market: string
   network: string
   interval: string
@@ -85,7 +83,6 @@ export type BacktestDetail = {
   id: string
   groupId: string
   name: string
-  strategyType: StrategyType | "signal"
   market: string
   network: string
   interval: string
@@ -97,8 +94,7 @@ export type BacktestDetail = {
   createdAt: string
   startedAt: string | null
   completedAt: string | null
-  /** Legacy StrategyParams, or a StrategyConfig for new-model runs. */
-  params: StrategyParams | StrategyConfig
+  params: StrategyConfig
   costs: BacktestCosts
   result: BacktestResult | null
 }
@@ -381,7 +377,7 @@ function buildRunInput(args: {
 }
 
 const loadBacktestsSchema = z.object({
-  strategyType: z.enum(["signal", "grid", "dca", "momentum", "qqe", "vwap", "copy"]).optional(),
+  indicatorType: indicatorIdSchema.optional(),
   /** Restrict to one run group — the group page needs nothing else. */
   groupId: z.string().min(1).optional(),
   page: z.number().int().min(1).optional(),
@@ -400,14 +396,14 @@ const loadBacktestsFn = createServerFn({ method: "GET" })
     const page = data.page ?? 1
     const pageSize = data.pageSize ?? 20
     const list = await listUserBacktests(user.id, {
-      strategyType: data.strategyType,
+      indicatorType: data.indicatorType,
       groupId: data.groupId,
       page,
-      pageSize: data.strategyType ? pageSize : 500,
+      pageSize: data.indicatorType ? pageSize : 500,
     })
     return {
       runs: list.rows.map(serializeListItem),
-      pagination: data.strategyType
+      pagination: data.indicatorType
         ? {
             page,
             pageSize,
@@ -494,8 +490,7 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
     // Fetch a warmup runway behind the visible start so signal overlays (QQE
     // zones etc.) are correct for what's shown. Cap the total span so a fine
     // display interval can't overflow the render ceiling.
-    const warmupMs =
-      warmupBarsFor((row.params as StrategyParams).strategyType) * stepMs
+    const warmupMs = warmupBarsFor(row.params) * stepMs
     let fetchStart = visibleStartMs - warmupMs
     const maxSpanMs = MAX_CHART_BARS * stepMs
     if (toMs - fetchStart > maxSpanMs) fetchStart = toMs - maxSpanMs
@@ -540,13 +535,10 @@ const deleteBacktestsSchema = z
   .object({
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
-    strategyTypes: z
-      .array(z.enum(["signal", "grid", "dca", "momentum", "qqe", "vwap", "copy"]))
-      .max(4)
-      .optional(),
+    indicatorTypes: z.array(indicatorIdSchema).max(8).optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.ids?.length && !data.groupIds?.length && !data.strategyTypes?.length) {
+    if (!data.ids?.length && !data.groupIds?.length && !data.indicatorTypes?.length) {
       ctx.addIssue({ code: "custom", message: "Nothing selected to delete." })
     }
   })
@@ -627,7 +619,7 @@ type ListRow = {
   id: string
   groupId: string
   name: string
-  strategyType: string
+  indicatorType: string | null
   market: string
   network: string
   interval: string
@@ -657,7 +649,7 @@ function serializeListItem(row: ListRow): BacktestListItem {
     id: row.id,
     groupId: row.groupId,
     name: row.name,
-    strategyType: row.strategyType as StrategyType,
+    indicatorType: row.indicatorType as IndicatorId,
     market: row.market,
     network: row.network,
     interval: row.interval,
@@ -689,7 +681,6 @@ type DetailRow = {
   id: string
   groupId: string
   name: string
-  strategyType: string
   market: string
   network: string
   interval: string
@@ -711,7 +702,6 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     id: row.id,
     groupId: row.groupId,
     name: row.name,
-    strategyType: row.strategyType as StrategyType,
     market: row.market,
     network: row.network,
     interval: row.interval,
@@ -723,7 +713,7 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     createdAt: row.createdAt.toISOString(),
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
-    params: row.params as StrategyParams,
+    params: row.params as StrategyConfig,
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

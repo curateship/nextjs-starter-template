@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
-import type { BotStrategyType } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
 /** TP/SL/exit orders among the bot's resting orders. */
@@ -23,11 +22,9 @@ const PROTECTIVE_PURPOSE = /:(tp|stop|exit)(\b|$|:)/
  * Right rail of the bot workspace: live KPIs, the current position, and the
  * editable stop-loss / take-profit controls. Applying uses the existing
  * update path — the bot restarts its logic with the new protection while the
- * position and all other parameters stay untouched. Archived legacy bots are
- * read-only, so they show their state without the editor.
+ * position and all other parameters stay untouched.
  */
 export function BotOrderControls({
-  strategy,
   market,
   mode,
   draft,
@@ -41,7 +38,6 @@ export function BotOrderControls({
   onDraftChange,
   onApply,
 }: {
-  strategy: BotStrategyType
   market: string
   mode: "paper" | "live"
   draft: Record<string, string>
@@ -55,7 +51,6 @@ export function BotOrderControls({
   onDraftChange: (key: string, value: string) => void
   onApply: () => void
 }) {
-  const editable = strategy === "signal"
   const position = state?.paper_position
   const hasPosition = Boolean(position && Number(position.szi) !== 0)
   const long = hasPosition ? Number(position!.szi) > 0 : true
@@ -176,10 +171,9 @@ export function BotOrderControls({
 
           <div className="flex flex-col gap-2 px-3 pb-3">
             <span className="text-[11px] font-semibold text-foreground/80">
-              {editable ? "Protective Orders — editable" : "Protective Orders"}
+              Protective Orders — editable
             </span>
-            {editable ? (
-              <>
+            <>
                 {pctInput(
                   "takeProfitPct",
                   "Take profit % (empty = none)",
@@ -212,12 +206,7 @@ export function BotOrderControls({
                   TP/SL lines on the chart, or right-click the chart to add
                   one — both save instantly.
                 </p>
-              </>
-            ) : (
-              <div className="rounded-lg border border-dashed p-4 text-center text-[11px] text-muted-foreground">
-                This bot is archived — its protection can no longer be edited.
-              </div>
-            )}
+            </>
           </div>
 
           {protective.length > 0 ? (

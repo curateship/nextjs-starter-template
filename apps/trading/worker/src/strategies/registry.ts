@@ -4,17 +4,10 @@ import { createSignalStrategy } from "../engine/signal-strategy"
 import type { Strategy } from "./contract"
 
 /**
- * Resolves a bot/backtest row to its strategy implementation. Only the new
- * model ("signal") runs: it builds the one engine from the row's
- * StrategyConfig. The retired legacy types (grid, dca, momentum, qqe, vwap,
- * copy) resolve to null — their bots are archived and their saved runs render
- * results-only.
+ * Resolves a bot/backtest row to its strategy implementation: the one engine,
+ * built from the row's StrategyConfig. Invalid configs resolve to null.
  */
-export function resolveStrategy(
-  strategyType: string,
-  params: unknown
-): Strategy<never, unknown> | null {
-  if (strategyType !== "signal") return null
+export function resolveStrategy(params: unknown): Strategy<never, unknown> | null {
   const parsed = strategyConfigSchema.safeParse(params)
   if (!parsed.success) return null
   return createSignalStrategy(parsed.data) as unknown as Strategy<never, unknown>

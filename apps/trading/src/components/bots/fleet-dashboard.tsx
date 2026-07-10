@@ -39,7 +39,6 @@ import {
   type BotListItem,
   type BotListResponse,
 } from "@/lib/api/bots"
-import { strategyLabel } from "@/lib/strategies/params"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { cn } from "@/lib/utils"
 
@@ -175,9 +174,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
                   {bot.name}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {strategyLabel(bot.strategy_type)}
-                  {bot.strategy_type !== "signal" ? " (archived)" : ""} ·{" "}
-                  {bot.wallet_label}
+                  Strategy · {bot.wallet_label}
                 </div>
               </Link>
             </TableCell>

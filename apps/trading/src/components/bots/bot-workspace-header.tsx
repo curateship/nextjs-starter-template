@@ -19,7 +19,6 @@ import { BotStatusBadge } from "@/components/bots/fleet-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { BotDetailResponse } from "@/lib/api/bots"
-import { strategyLabel } from "@/lib/strategies/params"
 import { cn } from "@/lib/utils"
 
 export type BotCommand = "start" | "stop" | "pause" | "resume" | "flatten"
@@ -63,10 +62,6 @@ export function BotWorkspaceHeader({
     `running ${formatRunningFor(bot.created_at)}`,
     `signal ${signalInterval}`,
     `${stats.trade_count} fills`,
-    // New-model bots have no risk layer, so no leverage cap to show.
-    ...(bot.risk_params.maxLeverage
-      ? [`lev ${bot.risk_params.maxLeverage}×`]
-      : []),
   ].join(" · ")
 
   return (
@@ -86,17 +81,8 @@ export function BotWorkspaceHeader({
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-sm font-semibold">{bot.name}</span>
         <Badge variant="secondary" className="shrink-0 font-medium">
-          {strategyLabel(bot.strategy_type)}
+          Strategy
         </Badge>
-        {bot.strategy_type !== "signal" ? (
-          <Badge
-            variant="outline"
-            className="shrink-0 text-amber-600"
-            title="This strategy was retired; the bot is read-only history."
-          >
-            Archived
-          </Badge>
-        ) : null}
         <Badge
           variant={bot.mode === "live" ? "default" : "secondary"}
           className="shrink-0"

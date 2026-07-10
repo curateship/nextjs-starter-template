@@ -42,7 +42,7 @@ function makeThresholdCfg(
     return out
   }
   const strategy: Strategy<StrategyConfig, ThresholdState> = {
-    type: "momentum",
+    type: "signal",
     warmup: () => ({ candleIntervals: ["1h"] }),
     init: () => ({ boughtOnce: false, exitRequested: false }),
     onTick: (ctx) => {

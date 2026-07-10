@@ -58,12 +58,10 @@ import type { GroupPortfolioMetrics } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import {
-  STRATEGY_DESCRIPTIONS,
-  STRATEGY_LABELS,
-  strategyLabel,
-  type StrategyType,
-} from "@/lib/strategies/params"
-import { isStrategyConfig } from "@/lib/strategies/strategy-config"
+  INDICATOR_IDS,
+  INDICATORS,
+  type IndicatorId,
+} from "@/lib/indicators/registry"
 import { cn } from "@/lib/utils"
 
 import {
@@ -78,33 +76,6 @@ import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-/** "signal" (the new model) first; retired legacy types keep their history. */
-type DashStrategyType = StrategyType | "signal"
-const STRATEGY_TYPES: DashStrategyType[] = [
-  "signal", "momentum", "qqe", "vwap", "grid", "dca", "copy",
-]
-
-const STRATEGY_KIND: Record<DashStrategyType, string> = {
-  signal: "Indicator",
-  grid: "Range",
-  dca: "Averaging",
-  momentum: "Trend",
-  qqe: "Oscillator",
-  vwap: "Reversion",
-  copy: "Mirror",
-}
-
-const DASH_LABELS: Record<DashStrategyType, string> = {
-  ...STRATEGY_LABELS,
-  signal: "Strategies (new model)",
-}
-
-const DASH_DESCRIPTIONS: Record<DashStrategyType, string> = {
-  ...STRATEGY_DESCRIPTIONS,
-  signal:
-    "Indicator-driven strategies from the Strategies page — one indicator plus the universal settings block.",
-}
 
 /** Summary stat tile shown above the strategy-runs table. */
 function StatCard({
@@ -406,7 +377,7 @@ function DeleteSelectedButton({
 }
 
 /** Toolbar "New Run" button + the creation modal; opens the run's workspace. */
-function NewRunButton() {
+function NewRunButton({ indicatorType }: { indicatorType?: IndicatorId }) {
   const navigate = useNavigate()
   const markets = useBinanceMarketRows()
   const [open, setOpen] = React.useState(false)
@@ -422,6 +393,7 @@ function NewRunButton() {
         onOpenChange={setOpen}
         markets={markets}
         defaultMarket="BTC"
+        indicatorType={indicatorType}
         onLaunched={(backtestId) =>
           void navigate({ to: "/backtest", search: { run: backtestId } })
         }
@@ -449,13 +421,12 @@ function sortHead<Column extends string>(
 }
 
 // ---------------------------------------------------------------------------
-// Level 1 — /strategies: one row per strategy.
+// Level 1 — /strategies: one row per indicator that has runs.
 // ---------------------------------------------------------------------------
 
 type StrategyRow = {
-  type: DashStrategyType
+  type: IndicatorId
   label: string
-  kind: string
   groups: number
   executions: number
   bestNetPct: number | null
@@ -476,20 +447,18 @@ export function StrategiesOverview({
     null
   )
 
-  // One row per strategy family. Retired (legacy) families only appear while
-  // they still have saved runs to look back at.
+  // One row per indicator that has runs.
   const rows = React.useMemo<StrategyRow[]>(() => {
-    return STRATEGY_TYPES.flatMap((type) => {
-      const own = runs.filter((run) => run.strategyType === type)
-      if (type !== "signal" && own.length === 0) return []
+    return INDICATOR_IDS.flatMap((type) => {
+      const own = runs.filter((run) => run.indicatorType === type)
+      if (own.length === 0) return []
       const done = own.filter(
         (run) => run.status === "done" && run.netPnlPct !== null
       )
       return [
         {
           type,
-          label: DASH_LABELS[type],
-          kind: STRATEGY_KIND[type],
+          label: INDICATORS[type].label,
           groups: new Set(own.map((run) => run.groupId)).size,
           executions: own.length,
           bestNetPct: done.length
@@ -533,7 +502,7 @@ export function StrategiesOverview({
                 description={`This permanently deletes every run and its re-run history for ${selection.selected.size} ${selection.selected.size === 1 ? "strategy" : "strategies"}. The strategies themselves stay available for new runs.`}
                 onDelete={async () => {
                   await deleteBacktests({
-                    strategyTypes: [...selection.selected] as StrategyType[],
+                    indicatorTypes: [...selection.selected] as IndicatorId[],
                   })
                 }}
                 onDone={selection.clear}
@@ -563,7 +532,6 @@ export function StrategiesOverview({
                   Strategy
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">Type</TableHead>
               {sortHead("Runs", "groups", state)}
               {sortHead("Executions", "executions", state)}
               {sortHead("Best Net %", "best", state)}
@@ -573,8 +541,8 @@ export function StrategiesOverview({
           </TableHeader>
         }
         isEmpty={sorted.length === 0}
-        emptyText="No strategies."
-        emptyColSpan={8}
+        emptyText="No runs yet — create one with New Run."
+        emptyColSpan={7}
         footer={{ type: "summary", count: sorted.length, label: "strategies" }}
       >
         {sorted.map((row) => (
@@ -598,11 +566,8 @@ export function StrategiesOverview({
             <TableCell column="main">
               <div className="font-medium">{row.label}</div>
               <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                {DASH_DESCRIPTIONS[row.type]}
+                {INDICATORS[row.type].description}
               </div>
-            </TableCell>
-            <TableCell column="meta">
-              <Badge variant="secondary">{row.kind}</Badge>
             </TableCell>
             <TableCell column="meta" className="font-mono tabular-nums">
               {row.groups}
@@ -652,7 +617,7 @@ export function StrategiesOverview({
         }
         onDelete={async () => {
           if (pendingDelete) {
-            await deleteBacktests({ strategyTypes: [pendingDelete.type] })
+            await deleteBacktests({ indicatorTypes: [pendingDelete.type] })
           }
         }}
       />
@@ -760,7 +725,7 @@ export function StrategyRunsDashboard({
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: DashStrategyType
+  strategyType: IndicatorId
   pagination?: {
     page: number
     pageSize: number
@@ -786,7 +751,7 @@ export function StrategyRunsDashboard({
   const groups = React.useMemo<GroupRow[]>(() => {
     const byGroup = new Map<string, BacktestListItem[]>()
     for (const run of runs) {
-      if (run.strategyType !== strategyType) continue
+      if (run.indicatorType !== strategyType) continue
       const list = byGroup.get(run.groupId)
       if (list) list.push(run)
       else byGroup.set(run.groupId, [run])
@@ -921,7 +886,7 @@ export function StrategyRunsDashboard({
           <Breadcrumbs
             crumbs={[
               { label: "Backtest", to: "/backtest" },
-              { label: DASH_LABELS[strategyType as DashStrategyType] ?? strategyType },
+              { label: INDICATORS[strategyType]?.label ?? strategyType },
             ]}
           />
         }
@@ -996,7 +961,7 @@ export function StrategyRunsDashboard({
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <NewRunButton />
+            <NewRunButton indicatorType={strategyType} />
           </>
         }
         header={
@@ -1293,29 +1258,6 @@ function EditRunDialog({
 
   const { detail, groupMarkets } = loaded
 
-  // Legacy run groups (retired strategies) are read-only — no re-runs.
-  if (!isStrategyConfig(detail.params)) {
-    return (
-      <Dialog
-        open
-        onOpenChange={(next) => {
-          if (!next) onClose()
-        }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Legacy run</DialogTitle>
-            <DialogDescription>
-              This run used a retired strategy ({strategyLabel(detail.strategyType)}).
-              Its results stay viewable, but it can't be re-run — create a new
-              strategy on the Strategies page and run that instead.
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
   const extraMarkets = groupMarkets.filter((coin) => coin !== detail.market)
   return (
     <NewRunDialog
@@ -1357,7 +1299,7 @@ export function RunHistoryDashboard({
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: DashStrategyType
+  strategyType: IndicatorId
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
 }) {
@@ -1486,7 +1428,7 @@ export function RunHistoryDashboard({
             crumbs={[
               { label: "Backtest", to: "/backtest" },
               {
-                label: DASH_LABELS[strategyType as DashStrategyType] ?? strategyType,
+                label: INDICATORS[strategyType]?.label ?? strategyType,
                 to: `/backtest/${strategyType}`,
               },
               { label: truncateWords(runName, 10) },
