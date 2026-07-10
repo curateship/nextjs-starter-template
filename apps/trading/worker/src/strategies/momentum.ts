@@ -1,4 +1,5 @@
 import type { MomentumParams } from "@/lib/strategies/params"
+import { BARS_PER_DAY } from "./contract"
 import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
 import {
   adx,
@@ -24,15 +25,6 @@ export type MomentumState = {
   reentriesUsed?: number
   /** Vol-target size multiplier snapshotted at the last close (≤ 1). */
   sizeScale?: number | null
-}
-
-const BARS_PER_DAY: Record<string, number> = {
-  "1m": 1440,
-  "5m": 288,
-  "15m": 96,
-  "1h": 24,
-  "4h": 6,
-  "1d": 1,
 }
 
 const WARMUP_CANDLES = 400
@@ -243,6 +235,8 @@ export const momentumStrategy: Strategy<MomentumParams, MomentumState> = {
 
   onFill: (ctx, params) => {
     if (!ctx.position) {
+      // Spread keeps reentriesUsed across the cycle reset on purpose: the
+      // re-entry cap counts per trend leg, not per trade.
       ctx.setState({
         ...ctx.state,
         pendingEntry: null,

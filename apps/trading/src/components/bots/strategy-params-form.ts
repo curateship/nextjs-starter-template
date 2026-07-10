@@ -23,6 +23,7 @@ export const PARAM_DEFAULTS: Record<StrategyType, ParamValues> = {
     sizeMultiplier: "1.5",
     takeProfitPct: "1.5",
     stopLossPct: "",
+    trendFilterDays: "",
     compounding: "false",
   },
   momentum: {
@@ -171,6 +172,7 @@ export function buildParams(
         sizeMultiplier: num("sizeMultiplier"),
         takeProfitPct: num("takeProfitPct"),
         stopLossPct: num("stopLossPct"),
+        trendFilterDays: num("trendFilterDays"),
         compounding: values.compounding === "true",
       }
     case "momentum": {

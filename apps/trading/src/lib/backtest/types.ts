@@ -84,6 +84,13 @@ export type BacktestStats = {
   startingEquity: number
   endingEquity: number
   halt: BacktestHalt
+  /**
+   * Automatic credibility tripwires, computed by the engine on every run —
+   * red flags that historically meant "this result is lying" (fill-model
+   * bugs, unmodeled liquidation). Empty/absent = none fired. Old stored
+   * results predate the field.
+   */
+  warnings?: string[]
 }
 
 export type BacktestResult = {
@@ -184,13 +191,15 @@ export const SIGNAL_WARMUP_CANDLES = 1500
 
 /**
  * Warmup candles a strategy needs before simStart. Signal strategies replay
- * indicators from history, so they anchor deep; order-book strategies (grid,
- * dca) start flat and need none.
+ * indicators from history, so they anchor deep; DCA needs history too since
+ * its optional trend filter reads a moving average. Grid starts flat and
+ * needs none.
  */
 export function warmupBarsFor(strategyType: string): number {
   return strategyType === "momentum" ||
     strategyType === "qqe" ||
-    strategyType === "vwap"
+    strategyType === "vwap" ||
+    strategyType === "dca"
     ? SIGNAL_WARMUP_CANDLES
     : 0
 }

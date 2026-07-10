@@ -130,6 +130,14 @@ export function BacktestSummary({
             Halted ({stats.halt.kind.replace(/_/g, " ")}): {stats.halt.reason}
           </div>
         ) : null}
+        {stats?.warnings?.map((warning) => (
+          <div
+            key={warning}
+            className="mt-1 rounded-md border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-[10px] font-medium text-red-700 dark:text-red-400"
+          >
+            ⚠ {warning}
+          </div>
+        ))}
         <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
           Candle-granularity simulation — market fills at bar price, limits fill
           on high/low cross. Same risk gating as live.

@@ -77,9 +77,88 @@ the window end.
   MACD filter, no stop. The old 10.6% number was 1.8× sizing on a friendlier
   window. Saved as groups `3bfd4269` (walk-forward) and `fa572da8` (bear).
 
+## Vol-basket tight ladder — the July 9 evening campaign (current best)
+
+Search discipline: 12 ladder variants tuned ONLY on Jun 2024–Dec 2025, on a
+basket picked by a rule (top-14 coins by realized volatility over the 60 days
+*before* each window — no hindsight). Finalists judged on three untouched
+windows. A 1-hour-candle artifact was caught and corrected: ladders whose full
+cycle fits inside one bar harvest the bar's extremes artificially, so all
+final numbers are from **15-minute replays** (the honest resolution — 1h
+numbers for tight ladders were inflated ~30% in bulls and ~4× in the bear).
+
+Winner: **0.5% step / ×1.75 / TP 0.5% / 8 safeties, 1× (base $49.04), long,
+vol-rule basket** — saved as three pinned groups (`4b958565` OOS-A, `f3f41308`
+OOS-B, `4194b87d` bear):
+
+| Window (all 15m, 1×, 4bps) | Return | Combined DD | Green |
+|---|---|---|---|
+| Tuning window (for reference) | 3.0%/mo | −14.1% | 9/14 |
+| OOS-A 2023-01→2024-06 | **7.6%/mo** | −11.3% | 14/14 |
+| OOS-B 2025-12→2026-07 | **13.2%/mo** | −3.5% | 12/14 |
+| 2022 bear | **+2.5%/mo** | −11.1% | 6/14 |
+
+Pre-registered acceptance bar (set before the final run): worst window ≥ 0 ✓,
+DD ≤ 15% ✓, three-window average ≥ 8%/mo — **scored 7.75, narrowly failed**.
+Duration-weighted across all 4.7 years: **~5.5%/mo at 1×**. A 7d/14d trend
+filter was built and tested; it improved the tuning window but degraded both
+honest windows and the bear → **rejected** (feature exists, off by default —
+`trendFilterDays`, validated-against July 9 2026).
+
+Unpriced residual risks (why paper trading is the gate): funding costs on the
+always-long inventory, limit fills assumed on touch (still optimistic at 15m
+for 0.5% cycles), and universe survivorship (delisted coins absent).
+
+## What "10%/month" costs
+
+The honest blended edge at 1× is ~5.5%/mo (2.5 in a deep bear, 8–13 in
+normal/bull regimes). Reaching a steady 10%/mo therefore requires ~1.8×
+ladder sizing — DD scales to roughly −20/−25% and a dead coin costs ~1.8× its
+slot. That is a leverage decision on top of a real edge, not a better
+strategy, and it must survive paper trading first.
+
 ## Next steps (per back-testing-rule.md, never skip)
 
 1. Measure real slippage/queue behavior at our order size on Hyperliquid.
 2. Paper-trade the DCA ladder live (fake money, real prices) — the only test
    of real fill quality for a 1%-cycle strategy.
 3. Only then consider live sizing.
+
+
+## The wider hunt (July 9, late evening) — literature-sourced families
+
+Per the "search the web" directive, families with published evidence were
+tested with the same tune-once/judge-on-three-windows discipline (weekly
+rebalance, real rotation costs, 1×):
+
+- **Cross-sectional momentum rotation** (long strongest / short weakest by
+  trailing return; the best-documented crypto anomaly): best tuned variant
+  2.75%/mo in-sample; judged windows 0–4.5%/mo with −10 to −29% DD,
+  inconsistent. Long-only variants: −50/−70% DDs. The anomaly has decayed
+  post-2022. Rejected.
+- **Short-term reversal** (literature: prior-day losers outperform): −3 to
+  −4.6%/mo after costs. Rejected.
+- **Funding carry** (literature): real but ~1–1.5%/mo, near-zero DD — a
+  stabilizer, not an engine. Not simulated (needs funding history); on the
+  shelf.
+- **Wick-catching / liquidation-cascade liquidity provision**: NOT testable
+  honestly with an OHLC-candle fill model — resting-limit fills at wick
+  extremes are exactly the optimism our fill discipline forbids. Only paper
+  trading can evaluate it.
+
+## The honest ceiling (statement of record)
+
+After QQE, VWAP, time-series momentum (rebuilt kit), grid-family ladders,
+cross-sectional momentum, and reversal — all judged at 1× with honest fills
+on multi-regime windows — the best honest edge found is ~5.5%/mo blended
+(the vol-basket ladder; family rejected by Tyler for bag risk, and its
+selection rule carries design-leakage caveats). Everything else sits at
+0–4%/mo or fails. **A steady 10%/mo at 1× was not found and, per the
+back-testing rules' own ceiling clause, may not exist with these tools.**
+Reaching 10 requires disclosed leverage (~1.8× on the ladder edge) or
+accepting regime dependence (the current regime pays ~13%/mo honestly; full
+cycles average far less). Note: every additional family tested against the
+same three windows erodes their out-of-sample status (multiple testing) —
+continuing to mine them would manufacture a false winner eventually, which
+is the statistical form of faking results. The next honest test for any
+candidate is FORWARD: paper trading.

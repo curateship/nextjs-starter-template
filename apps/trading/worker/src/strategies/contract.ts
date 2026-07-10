@@ -7,6 +7,16 @@ import type {
 
 export type CandleInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d"
 
+/** Candles per UTC day for each interval (shared by day-based params). */
+export const BARS_PER_DAY: Record<CandleInterval, number> = {
+  "1m": 1440,
+  "5m": 288,
+  "15m": 96,
+  "1h": 24,
+  "4h": 6,
+  "1d": 1,
+}
+
 export type DesiredOrder = {
   /** Stable identity for diffing, e.g. "grid:7:buy". Max 40 chars. */
   purpose: string

@@ -39,6 +39,11 @@ export const dcaParamsSchema = z.object({
   sizeMultiplier: z.number().min(1).max(5),
   takeProfitPct: z.number().positive().max(100),
   stopLossPct: z.number().positive().max(100).optional(),
+  /** Trend filter: only start a NEW cycle while price is above (long) /
+   *  below (short) its moving average over this many days. Open ladders keep
+   *  managing themselves; downtrends stop spawning fresh cycles. Effective
+   *  window is capped by available candle history (~1400 bars). */
+  trendFilterDays: z.number().int().min(1).max(60).optional(),
   /** Scale every order's size with the account (balance ÷ starting equity) so
    *  the whole ladder compounds; off = fixed base/safety sizes. */
   compounding: z.boolean().optional(),

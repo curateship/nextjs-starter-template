@@ -1,5 +1,34 @@
 import type { DcaParams } from "@/lib/strategies/params"
+import { BARS_PER_DAY } from "./contract"
 import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
+
+/**
+ * True when price sits on the entry side of its moving average over
+ * `trendFilterDays`. Candle events carry their interval, so days convert to
+ * bars for whatever stream is available (1h live, the run interval in
+ * backtests). No stream or not enough history → false (no blind cycles).
+ */
+function trendAllowsEntry(
+  ctx: StrategyCtx<DcaState>,
+  params: DcaParams,
+  long: boolean,
+  mid: number
+): boolean {
+  const days = params.trendFilterDays
+  if (!days) return true
+  // One fetch covers the widest window; the interval comes off the stream.
+  const closed = ctx.candles("1h", 1402).filter((c) => c.T <= ctx.now)
+  const interval = closed[closed.length - 1]?.i
+  const perDay = interval ? BARS_PER_DAY[interval as keyof typeof BARS_PER_DAY] : undefined
+  if (!perDay) return false
+  const bars = Math.min(days * perDay, 1400)
+  if (closed.length < bars) return false
+  const tail = closed.slice(-bars)
+  let sum = 0
+  for (const c of tail) sum += Number(c.c)
+  const avg = sum / tail.length
+  return long ? mid > avg : mid < avg
+}
 
 export type DcaState = {
   /** Price of the cycle's base fill; deviations anchor here. */
@@ -20,7 +49,12 @@ export type DcaState = {
 export const dcaStrategy: Strategy<DcaParams, DcaState> = {
   type: "dca",
 
-  warmup: () => ({ candleIntervals: [], needsBook: true, needsTrades: true }),
+  warmup: (params) => ({
+    // The trend filter reads a candle stream; plain ladders need none.
+    candleIntervals: params.trendFilterDays ? ["1h"] : [],
+    needsBook: true,
+    needsTrades: true,
+  }),
 
   init: () => ({
     anchorPx: null,
@@ -135,8 +169,10 @@ export const dcaStrategy: Strategy<DcaParams, DcaState> = {
       ]
     }
 
-    // Flat: rest the base order at mid to open the next cycle.
+    // Flat: rest the base order at mid to open the next cycle — unless the
+    // trend filter says this is a falling market (then capital sits out).
     if (!ctx.position || Number(ctx.position.szi) === 0) {
+      if (!trendAllowsEntry(ctx, params, long, mid)) return []
       return [
         {
           purpose: "dca:base",
