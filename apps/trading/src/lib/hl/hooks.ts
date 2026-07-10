@@ -8,6 +8,7 @@ import type {
 
 import type { TradingNetwork } from "@/lib/hl/network"
 import {
+  CANDLE_INTERVALS,
   getBrowserInfoClient,
   subscribeAllMids,
   subscribeCandle,
@@ -51,6 +52,52 @@ export function useAllMids(network: TradingNetwork) {
   return state?.key === network ? state.data : EMPTY_MIDS
 }
 
+/**
+ * Last-known candles per network:coin:interval, so a timeframe/market switch
+ * paints instantly from memory while the fresh snapshot loads behind it.
+ * Prefetching fills it for the other intervals of the coin on screen, making
+ * the first switch instant too. FIFO-capped so it can't hoard memory.
+ */
+const CANDLE_CACHE_MAX_KEYS = 36
+const candleCache = new Map<string, Candle[]>()
+const candlePrefetching = new Set<string>()
+
+function cacheCandles(key: string, candles: Candle[]) {
+  candleCache.delete(key)
+  candleCache.set(key, candles)
+  while (candleCache.size > CANDLE_CACHE_MAX_KEYS) {
+    const oldest = candleCache.keys().next().value
+    if (oldest === undefined) break
+    candleCache.delete(oldest)
+  }
+}
+
+/** Warm the cache for the coin's other timeframes; best-effort. */
+function prefetchCandleIntervals(
+  network: TradingNetwork,
+  coin: string,
+  activeInterval: CandleInterval,
+  maxCandles: number
+) {
+  for (const interval of CANDLE_INTERVALS) {
+    if (interval === activeInterval) continue
+    const key = `${network}:${coin}:${interval}`
+    if (candleCache.has(key) || candlePrefetching.has(key)) continue
+    candlePrefetching.add(key)
+    void getBrowserInfoClient(network)
+      .candleSnapshot({
+        coin,
+        interval,
+        startTime: Date.now() - candleIntervalMs(interval) * maxCandles,
+      })
+      .then((snapshot) => cacheCandles(key, snapshot))
+      .catch(() => {
+        // Prefetch is best-effort; the on-demand fetch still covers it.
+      })
+      .finally(() => candlePrefetching.delete(key))
+  }
+}
+
 export function useCandles(
   network: TradingNetwork,
   coin: string,
@@ -67,6 +114,18 @@ export function useCandles(
   React.useEffect(() => {
     let cancelled = false
 
+    // Instant paint from the last data seen for this key; the snapshot below
+    // replaces it wholesale when it lands.
+    const cached = candleCache.get(key)
+    if (cached && cached.length > 0) {
+      setState({ key, data: { candles: cached, seeded: true } })
+    }
+
+    // Candles the ws streams while the snapshot is in flight, merged over it
+    // when it lands. Deliberately excludes cached bars: a stale cached bar
+    // must never override its fresh snapshot version.
+    let streamed: Candle[] = []
+
     const intervalMs = candleIntervalMs(interval)
     void getBrowserInfoClient(network)
       .candleSnapshot({
@@ -76,25 +135,23 @@ export function useCandles(
       })
       .then((snapshot) => {
         if (cancelled) return
-        setState((prev) => {
-          const streamed =
-            prev?.key === key && prev.data.candles.length > 0
-              ? prev.data.candles
-              : []
-          return { key, data: { candles: mergeSnapshot(snapshot, streamed), seeded: true } }
-        })
+        const merged = mergeSnapshot(snapshot, streamed)
+        cacheCandles(key, merged)
+        setState({ key, data: { candles: merged, seeded: true } })
+        prefetchCandleIntervals(network, coin, interval, maxCandles)
       })
       .catch(() => {
         if (!cancelled) {
           setState((prev) =>
             prev?.key === key
               ? { key, data: { ...prev.data, seeded: true } }
-              : { key, data: { candles: [], seeded: true } }
+              : { key, data: { candles: streamed, seeded: true } }
           )
         }
       })
 
     const unsubscribe = subscribeCandle(network, coin, interval, (candle) => {
+      streamed = mergeCandle(streamed, candle, maxCandles)
       setState((prev) => {
         if (prev?.key === key) {
           return {
@@ -116,8 +173,21 @@ export function useCandles(
   }, [network, coin, interval, key, maxCandles])
 
   const current = state?.key === key ? state.data : null
+
+  // Keep the cache tracking the live stream, so switching back to this
+  // timeframe later seeds with bars as fresh as when the user left it.
+  React.useEffect(() => {
+    if (current?.seeded && current.candles.length > 0) {
+      cacheCandles(key, current.candles)
+    }
+  }, [current, key])
+
   return {
-    candles: current?.candles ?? EMPTY_CANDLES,
+    // Hold candles back until the snapshot seeds: the ws delivers a lone live
+    // candle almost instantly on a timeframe switch, and painting it would
+    // zoom the chart to one giant bar for the second the snapshot takes.
+    // Streamed candles still accumulate and merge in once it lands.
+    candles: current?.seeded ? current.candles : EMPTY_CANDLES,
     loading: !(current?.seeded ?? false),
   }
 }

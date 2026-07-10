@@ -54,7 +54,6 @@ export function AccountStrip({
       ) : null}
 
       <div className="ml-auto flex items-center gap-2">
-        {actions}
         <Select
           value={selectedValue ?? ""}
           onValueChange={onWalletChange}
@@ -89,6 +88,7 @@ export function AccountStrip({
             ) : null}
           </SelectContent>
         </Select>
+        {actions}
       </div>
     </div>
   )

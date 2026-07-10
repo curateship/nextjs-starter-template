@@ -57,6 +57,20 @@ export function ChartOrderMenu({
           top: Math.min(menu.y, window.innerHeight - 120),
         }}
       >
+        {/* First row sits right under the cursor — keep Reset View there. */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => {
+            onResetView()
+            onClose()
+          }}
+        >
+          Reset View
+        </Button>
+        <div className="my-1 border-t" />
         <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
           {market} @ {formatPriceDisplay(menu.px)}
         </div>
@@ -77,19 +91,6 @@ export function ChartOrderMenu({
           onClick={() => onAction("sell", menu.px)}
         >
           Sell limit @ {formatPriceDisplay(menu.px)}
-        </Button>
-        <div className="my-1 border-t" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => {
-            onResetView()
-            onClose()
-          }}
-        >
-          Reset View
         </Button>
       </div>
     </>

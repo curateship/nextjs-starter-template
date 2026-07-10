@@ -31,7 +31,6 @@ import {
 } from "@/components/trading/paper-bottom-tables"
 import {
   PriceChart,
-  type ChartCandle,
   type ChartPriceLine,
   type PriceChartHandle,
 } from "@/components/chart/price-chart"
@@ -52,7 +51,6 @@ import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import {
   INDICATORS,
   INDICATOR_IDS,
-  type IndicatorId,
   type IndicatorParamValue,
 } from "@/lib/indicators/registry"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -61,12 +59,9 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -140,7 +135,7 @@ export function TradingWorkspace({
   onWalletChange: (value: string) => void
 }) {
   const navigate = useNavigate()
-  const [interval, setInterval] = React.useState<CandleInterval>("15m")
+  const [interval, setInterval] = React.useState<CandleInterval>("4h")
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
   // Imperative chart handle so the right-click menu can offer Reset View,
@@ -368,7 +363,6 @@ export function TradingWorkspace({
     })
   )
   const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
-  const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
   const [quickTestOpen, setQuickTestOpen] = React.useState(false)
   const [quickTest, setQuickTest] = React.useState<QuickTestResponse | null>(
     null
@@ -463,15 +457,16 @@ export function TradingWorkspace({
                       chartStrategy.indicator && chartStrategy.showSignals
                     ),
                   }}
-                  ohlc={ohlc}
                   leading={
                     <span className="text-sm font-semibold">{market}</span>
                   }
+                  afterIntervals={
+                    <IndicatorsMenu
+                      indicators={indicators}
+                      onChange={setIndicators}
+                    />
+                  }
                 >
-                  <IndicatorsMenu
-                    indicators={indicators}
-                    onChange={setIndicators}
-                  />
                   <StrategyToolbar
                     state={chartStrategy}
                     onChange={setChartStrategy}
@@ -484,8 +479,8 @@ export function TradingWorkspace({
                     disabled={!chartStrategy.indicator}
                     title={
                       chartStrategy.indicator
-                        ? "Replay this indicator over recent history"
-                        : "Pick an indicator first"
+                        ? "Replay this strategy over recent history"
+                        : "Pick a strategy first"
                     }
                     onClick={() => setQuickTestOpen(true)}
                   >
@@ -505,7 +500,6 @@ export function TradingWorkspace({
                       chartStrategy.indicator ? chartStrategy : null
                     }
                     overrideOverlays={quickOverlays}
-                    onCrosshairOhlc={setOhlc}
                     onLineDragEnd={handleLineDragEnd}
                     onChartContextMenu={handleChartContextMenu}
                     registerApi={registerChartApi}
@@ -628,9 +622,12 @@ export function TradingWorkspace({
 }
 
 /**
- * Chart-toolbar indicator picker + settings-cog trigger. Picking an indicator
- * paints and signals from the SAME compute the strategy engine trades on
- * (legacy persisted strategy picks keep painting until retirement).
+ * Chart-toolbar strategy picker, styled like the Indicators menu: a checkbox
+ * list (one strategy at a time — checking one replaces the other) with a cog
+ * beside the checked strategy to open its settings dialog. The picked
+ * strategy paints signals from the SAME compute the strategy engine trades
+ * on. (Strategies are built from indicators, but the show/hide overlay list
+ * is the separate "Indicators" menu by the timeframes.)
  */
 function StrategyToolbar({
   state,
@@ -643,63 +640,82 @@ function StrategyToolbar({
 }) {
   const label = state.indicator
     ? INDICATORS[state.indicator.type].label
-    : "Indicator"
+    : "Strategy"
   return (
-    <div className="flex items-center gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
-            {label}
-            <ChevronDownIcon className="size-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="text-[11px]">
-            Apply indicator
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup
-            value={state.indicator?.type ?? "none"}
-            onValueChange={(value) =>
-              onChange({
-                ...state,
-                indicator:
-                  value === "none"
-                    ? null
-                    : {
-                        type: value as IndicatorId,
-                        params: {
-                          ...(INDICATORS[value as IndicatorId]
-                            .defaultParams as Record<
-                            string,
-                            IndicatorParamValue
-                          >),
-                        },
-                      },
-              })
-            }
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
+          {label}
+          <ChevronDownIcon className="size-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-60 gap-1 p-2">
+        <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50">
+          <Checkbox
+            id="strat-none"
+            checked={!state.indicator}
+            onCheckedChange={(checked) => {
+              if (checked === true) onChange({ ...state, indicator: null })
+            }}
+          />
+          <Label
+            htmlFor="strat-none"
+            className="flex-1 cursor-pointer text-xs font-medium"
           >
-            <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
-            {INDICATOR_IDS.map((id) => (
-              <DropdownMenuRadioItem key={id} value={id}>
+            None
+          </Label>
+        </div>
+        {INDICATOR_IDS.map((id) => {
+          const selected = state.indicator?.type === id
+          return (
+            <div
+              key={id}
+              className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
+            >
+              <Checkbox
+                id={`strat-${id}`}
+                checked={selected}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...state,
+                    indicator:
+                      checked === true
+                        ? {
+                            type: id,
+                            params: {
+                              ...(INDICATORS[id].defaultParams as Record<
+                                string,
+                                IndicatorParamValue
+                              >),
+                            },
+                          }
+                        : null,
+                  })
+                }
+              />
+              <Label
+                htmlFor={`strat-${id}`}
+                className="flex-1 cursor-pointer text-xs font-medium"
+              >
                 {INDICATORS[id].label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-6 text-muted-foreground"
-        aria-label="Indicator settings"
-        title="Indicator settings"
-        disabled={!state.indicator}
-        onClick={onOpenSettings}
-      >
-        <SettingsIcon className="size-3.5" />
-      </Button>
-    </div>
+              </Label>
+              {selected ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-5 text-muted-foreground"
+                  aria-label={`${INDICATORS[id].label} settings`}
+                  title="Strategy settings"
+                  onClick={onOpenSettings}
+                >
+                  <SettingsIcon className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -985,6 +1001,11 @@ function usePersistedIndicators() {
   )
 }
 
+/**
+ * TradingView-style overlay list: purely show/hide (plus a color swatch) for
+ * the painted chart lines. Lives next to the timeframe buttons; strategy
+ * signals are picked separately on the right.
+ */
 function IndicatorsMenu({
   indicators,
   onChange,
@@ -1001,11 +1022,6 @@ function IndicatorsMenu({
     onChange((prev) =>
       prev.map((ind) => (ind.id === id ? { ...ind, ...patch } : ind))
     )
-  const setParam = (ind: IndicatorConfig, key: string, raw: string) => {
-    const value = Number(raw)
-    if (!Number.isFinite(value) || value <= 0) return
-    update(ind.id, { params: { ...ind.params, [key]: value } })
-  }
 
   return (
     <Popover>
@@ -1014,61 +1030,40 @@ function IndicatorsMenu({
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-auto h-6 px-2 text-xs"
+          className="h-6 px-2 text-xs"
         >
           Indicators{activeCount ? ` (${activeCount})` : ""}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 gap-1 p-2">
+      <PopoverContent align="start" className="w-60 gap-1 p-2">
         {indicators.map((ind) => (
-          <div key={ind.id} className="rounded px-1 py-1 hover:bg-muted/50">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id={`ind-${ind.id}`}
-                checked={ind.enabled}
-                onCheckedChange={(checked) =>
-                  update(ind.id, { enabled: checked === true })
-                }
-              />
-              <Label
-                htmlFor={`ind-${ind.id}`}
-                className="flex-1 cursor-pointer text-xs font-medium"
-              >
-                {INDICATOR_LABELS[ind.type]}
-                {ind.type === "ema" ? ` ${ind.params.period}` : ""}
-              </Label>
-              <input
-                type="color"
-                aria-label={`${INDICATOR_LABELS[ind.type]} color`}
-                className="h-5 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
-                value={ind.color ?? indicatorColor(primaryColorSlot(ind), isDark)}
-                onChange={(event) =>
-                  update(ind.id, { color: event.target.value })
-                }
-              />
-            </div>
-            {ind.enabled && INDICATOR_PARAM_FIELDS[ind.type].length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-2 pl-6">
-                {INDICATOR_PARAM_FIELDS[ind.type].map((field) => (
-                  <label
-                    key={field.key}
-                    className="flex items-center gap-1 text-[11px] text-muted-foreground"
-                  >
-                    {field.label}
-                    <Input
-                      type="number"
-                      min={field.step ?? 1}
-                      step={field.step ?? 1}
-                      value={ind.params[field.key] ?? ""}
-                      onChange={(event) =>
-                        setParam(ind, field.key, event.target.value)
-                      }
-                      className="h-6 w-14 px-1 text-xs"
-                    />
-                  </label>
-                ))}
-              </div>
-            ) : null}
+          <div
+            key={ind.id}
+            className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
+          >
+            <Checkbox
+              id={`ind-${ind.id}`}
+              checked={ind.enabled}
+              onCheckedChange={(checked) =>
+                update(ind.id, { enabled: checked === true })
+              }
+            />
+            <Label
+              htmlFor={`ind-${ind.id}`}
+              className="flex-1 cursor-pointer text-xs font-medium"
+            >
+              {INDICATOR_LABELS[ind.type]}
+              {ind.type === "ema" ? ` ${ind.params.period}` : ""}
+            </Label>
+            <input
+              type="color"
+              aria-label={`${INDICATOR_LABELS[ind.type]} color`}
+              className="h-5 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
+              value={ind.color ?? indicatorColor(primaryColorSlot(ind), isDark)}
+              onChange={(event) =>
+                update(ind.id, { color: event.target.value })
+              }
+            />
           </div>
         ))}
       </PopoverContent>
