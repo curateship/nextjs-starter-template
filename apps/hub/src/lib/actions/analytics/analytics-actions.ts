@@ -43,7 +43,7 @@ interface DateRange {
 
 export type DashboardRange = 'today' | 'yesterday' | '7d' | '30d' | '365d'
 
-export interface DashboardChartPoint {
+interface DashboardChartPoint {
   label: string
   pageViews: number
   visitors: number

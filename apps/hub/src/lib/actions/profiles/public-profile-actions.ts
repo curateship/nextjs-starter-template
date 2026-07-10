@@ -13,7 +13,7 @@ export interface PublicProfileSocialLink {
   url: string
 }
 
-export interface PublicProfileListingItem {
+interface PublicProfileListingItem {
   id: string
   title: string
   slug: string
@@ -24,7 +24,7 @@ export interface PublicProfileListingItem {
   saved_at: string
 }
 
-export interface PublicProfileCollection {
+interface PublicProfileCollection {
   id: string | null
   name: string
   default_key: string | null
@@ -54,7 +54,7 @@ export interface PublicProfileData {
   collections: PublicProfileCollection[]
 }
 
-export const PUBLIC_PROFILE_NOT_FOUND_ERROR = "PUBLIC_PROFILE_NOT_FOUND"
+const PUBLIC_PROFILE_NOT_FOUND_ERROR = "PUBLIC_PROFILE_NOT_FOUND"
 
 const PUBLIC_PROFILE_ITEMS_PER_FOLDER = 50
 const DEFAULT_COLLECTIONS = [

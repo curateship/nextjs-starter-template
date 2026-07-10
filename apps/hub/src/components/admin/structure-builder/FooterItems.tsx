@@ -1,22 +1,18 @@
 "use client"
 
 import type { ComponentType } from "react"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import {
   Facebook,
   Github,
   Globe,
-  GripVertical,
   Instagram,
   Linkedin,
   Music2,
-  Trash2,
   Twitter,
   Youtube,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { ActionRow, SortableActionRow } from "@/components/admin/structure-builder/ActionRow"
 
 export interface FooterLink {
   text: string
@@ -29,8 +25,6 @@ export interface SocialLink {
   url: string
   id?: string
 }
-
-const ACTION_BUTTON_CLASS = "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
 function MediumIcon({ className }: { className?: string }) {
   return (
@@ -127,52 +121,17 @@ export function SortableFooterLinkItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id! })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    <SortableActionRow
+      sortableId={link.id!}
+      ariaName={link.text || "footer link"}
+      title={link.text || "Footer link settings"}
+      buttonClassName="max-w-[220px]"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
     >
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          aria-label={`Reorder ${link.text || "footer link"}`}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${link.text || "footer link"}`}
-          title={link.text || "Footer link settings"}
-        >
-          <span className="truncate">{link.text || "Link"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
-          aria-label={`Delete ${link.text || "footer link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+      <span className="truncate">{link.text || "Link"}</span>
+    </SortableActionRow>
   )
 }
 
@@ -188,33 +147,15 @@ export function StaticFooterLinkItem({
   onDelete: (index: number) => void
 }) {
   return (
-    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
-          <GripVertical className="h-4 w-4" />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[220px] justify-start px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${link.text || "footer link"}`}
-          title={link.text || "Footer link settings"}
-        >
-          <span className="truncate">{link.text || "Link"}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
-          aria-label={`Delete ${link.text || "footer link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <ActionRow
+      ariaName={link.text || "footer link"}
+      title={link.text || "Footer link settings"}
+      buttonClassName="max-w-[220px]"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
+    >
+      <span className="truncate">{link.text || "Link"}</span>
+    </ActionRow>
   )
 }
 
@@ -229,52 +170,17 @@ export function SortableSocialLinkItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: socialLink.id! })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    <SortableActionRow
+      sortableId={socialLink.id!}
+      ariaName={socialLink.platform || "social link"}
+      title={socialLink.platform || "Social link settings"}
+      buttonClassName="max-w-[240px]"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
     >
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          aria-label={`Reorder ${socialLink.platform || "social link"}`}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[240px] justify-start px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${socialLink.platform || "social link"}`}
-          title={socialLink.platform || "Social link settings"}
-        >
-          <SocialPlatformLabel platform={socialLink.platform} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
-          aria-label={`Delete ${socialLink.platform || "social link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+      <SocialPlatformLabel platform={socialLink.platform} />
+    </SortableActionRow>
   )
 }
 
@@ -290,32 +196,14 @@ export function StaticSocialLinkItem({
   onDelete: (index: number) => void
 }) {
   return (
-    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
-      <div className="flex max-w-full flex-wrap items-center gap-1">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
-          <GripVertical className="h-4 w-4" />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onEdit(index)}
-          className="h-9 max-w-[240px] justify-start px-3 text-sm font-medium"
-          aria-label={`Edit settings for ${socialLink.platform || "social link"}`}
-          title={socialLink.platform || "Social link settings"}
-        >
-          <SocialPlatformLabel platform={socialLink.platform} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(index)}
-          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
-          aria-label={`Delete ${socialLink.platform || "social link"}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <ActionRow
+      ariaName={socialLink.platform || "social link"}
+      title={socialLink.platform || "Social link settings"}
+      buttonClassName="max-w-[240px]"
+      onEdit={() => onEdit(index)}
+      onDelete={() => onDelete(index)}
+    >
+      <SocialPlatformLabel platform={socialLink.platform} />
+    </ActionRow>
   )
 }

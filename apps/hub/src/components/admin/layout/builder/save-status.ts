@@ -11,7 +11,7 @@ export interface SaveStatus {
 export type VisibleSaveStatusState = Exclude<SaveStatusState, "idle">
 export type VisibleSaveStatus = SaveStatus & { state: VisibleSaveStatusState }
 
-export const SAVE_STATUS_LABELS: Record<SaveStatusState, string> = {
+const SAVE_STATUS_LABELS: Record<SaveStatusState, string> = {
   idle: "",
   dirty: "Unsaved changes",
   saving: "Saving...",
@@ -19,7 +19,7 @@ export const SAVE_STATUS_LABELS: Record<SaveStatusState, string> = {
   error: "Save failed",
 }
 
-export const SAVED_STATUS_CLEAR_MS = 3000
+const SAVED_STATUS_CLEAR_MS = 3000
 export const IDLE_SAVE_STATUS: SaveStatus = { state: "idle", updatedAt: null }
 
 export function createSaveStatus(

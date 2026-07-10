@@ -3,7 +3,7 @@ import {
   PUBLIC_PROFILE_TEMPLATE_SLUG,
 } from '@/lib/utils/public-profile-path'
 
-export function normalizeAccountPageSlug(slug?: string | null) {
+function normalizeAccountPageSlug(slug?: string | null) {
   return (slug || '').trim().replace(/^\/+/, '')
 }
 

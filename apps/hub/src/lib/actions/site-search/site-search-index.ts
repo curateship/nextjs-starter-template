@@ -190,7 +190,7 @@ function buildSearchDocument(sourceType: SiteSearchSourceType, row: SearchableRo
   }
 }
 
-export async function syncSiteSearchDocument(sourceType: SiteSearchSourceType, row: SearchableRow) {
+async function syncSiteSearchDocument(sourceType: SiteSearchSourceType, row: SearchableRow) {
   const document = buildSearchDocument(sourceType, row)
   const siteId = row.siteId
   const sourceId = String(row.id || '')
@@ -233,7 +233,7 @@ export async function syncSiteSearchDocument(sourceType: SiteSearchSourceType, r
   `)
 }
 
-export async function deleteSiteSearchDocument(siteId: string, sourceType: SiteSearchSourceType, sourceId: string) {
+async function deleteSiteSearchDocument(siteId: string, sourceType: SiteSearchSourceType, sourceId: string) {
   await db.execute(sql`
     delete from site_search_documents
     where site_id = ${siteId}
@@ -262,7 +262,7 @@ export async function safeDeleteSiteSearchDocument(siteId: string, sourceType: S
   }
 }
 
-export async function syncProfileSearchDocumentsForUser(userId: string) {
+async function syncProfileSearchDocumentsForUser(userId: string) {
   await db.execute(sql`
     delete from site_search_documents
     where source_type = 'profile'
@@ -288,7 +288,7 @@ export async function safeSyncProfileSearchDocumentsForUser(userId: string) {
   }
 }
 
-export async function syncProfileSearchDocumentForMembership(siteId: string, userId: string) {
+async function syncProfileSearchDocumentForMembership(siteId: string, userId: string) {
   await deleteSiteSearchDocument(siteId, 'profile', userId)
 
   const [row] = await db

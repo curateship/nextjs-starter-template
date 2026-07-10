@@ -7,9 +7,9 @@ import { TextDecoder } from 'node:util'
 import { Agent } from 'undici'
 import { uploadPrivateToR2 } from '@/lib/utils/r2'
 
-export const MAX_REFERENCE_FILE_BYTES = 10 * 1024 * 1024
-export const MAX_LINK_BYTES = 1024 * 1024
-export const MAX_EXTRACTED_REFERENCE_CHARS = 40_000
+const MAX_REFERENCE_FILE_BYTES = 10 * 1024 * 1024
+const MAX_LINK_BYTES = 1024 * 1024
+const MAX_EXTRACTED_REFERENCE_CHARS = 40_000
 
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -25,7 +25,7 @@ const BINARY_REFERENCE_MIME_TYPES = new Set([
   DOCX_MIME_TYPE,
 ])
 
-export const ALLOWED_REFERENCE_MIME_TYPES = new Set([
+const ALLOWED_REFERENCE_MIME_TYPES = new Set([
   ...TEXT_REFERENCE_MIME_TYPES,
   ...BINARY_REFERENCE_MIME_TYPES,
 ])

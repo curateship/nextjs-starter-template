@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
 import { convertContentBlocksToArray, type ContentBlock as UtilProductBlock } from '@/lib/utils/block-utils'
 
-export interface ProductBlock extends UtilProductBlock {}
+interface ProductBlock extends UtilProductBlock {}
 
 export interface ProductWithBlocks {
   id: string

@@ -34,14 +34,6 @@ export interface Page {
   updated_at: string
 }
 
-export interface UpdatePageData {
-  title?: string
-  slug?: string
-  meta_description?: string
-  is_homepage?: boolean
-  is_published?: boolean
-}
-
 /**
  * Get all pages for a site
  */

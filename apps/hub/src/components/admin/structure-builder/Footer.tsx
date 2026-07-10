@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
 import {
   DndContext,
   closestCenter,
@@ -26,7 +27,6 @@ import {
 } from "@dnd-kit/sortable"
 import {
   ArrowLeft,
-  ImageIcon,
   Plus,
 } from "lucide-react"
 import {
@@ -308,46 +308,7 @@ export function Footer({
               <div className="space-y-3">
                 <div className="flex items-start">
                   <div className="shrink-0 pr-4">
-                    {logo && logo !== "/images/logo.png" ? (
-                      <div
-                        className="relative h-12 w-32 cursor-pointer overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-90"
-                        onClick={() => setShowPicker(true)}
-                      >
-                        <img
-                          src={logo}
-                          alt="Logo"
-                          className="h-full w-full object-contain"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none"
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100">
-                          <div className="text-center text-white">
-                            <ImageIcon className="mx-auto mb-1 h-4 w-4" />
-                            <p className="text-xs font-medium">Click to change</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : siteFavicon ? (
-                      <div className="cursor-pointer" onClick={() => setShowPicker(true)}>
-                        <img
-                          src={siteFavicon}
-                          alt="Site favicon (used as logo)"
-                          className="h-10 w-auto cursor-pointer object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="flex h-12 w-32 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                        onClick={() => setShowPicker(true)}
-                      >
-                        <div className="text-center">
-                          <ImageIcon className="mx-auto h-4 w-4 text-muted-foreground/50" />
-                          <p className="mt-1 text-xs text-muted-foreground">Click to select</p>
-                        </div>
-                      </div>
-                    )}
+                    <LogoPickerPreview logo={logo} siteFavicon={siteFavicon} onClick={() => setShowPicker(true)} />
                   </div>
 
                   <div className="flex-1">

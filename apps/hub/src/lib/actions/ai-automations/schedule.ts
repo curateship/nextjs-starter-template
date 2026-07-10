@@ -11,7 +11,7 @@ export interface AiAutomationRecurrence {
 const DEFAULT_TIMEZONE = 'UTC'
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/
 
-export function isAiAutomationFrequency(value: unknown): value is AiAutomationFrequency {
+function isAiAutomationFrequency(value: unknown): value is AiAutomationFrequency {
   return value === 'daily' || value === 'weekly' || value === 'monthly'
 }
 

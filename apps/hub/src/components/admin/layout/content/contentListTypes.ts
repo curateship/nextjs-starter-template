@@ -8,7 +8,7 @@ export type ContentSortColumn = "title" | "category" | "status" | "modified"
 export type ContentStatusFilter = "all" | "published" | "draft"
 export type ContentStatusCounts = Record<ContentStatusFilter, number>
 
-export interface ContentCursorListParams {
+interface ContentCursorListParams {
   cursor: string | null
   limit: number
   search: string
@@ -18,7 +18,7 @@ export interface ContentCursorListParams {
   status: ContentStatusFilter
 }
 
-export interface ContentCursorListData<TItem extends ContentListItem> {
+interface ContentCursorListData<TItem extends ContentListItem> {
   rows: TItem[]
   categories: Record<string, CategoryInfo[]>
   totalCount: number

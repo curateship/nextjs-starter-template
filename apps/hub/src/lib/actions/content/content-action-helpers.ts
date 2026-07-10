@@ -172,21 +172,3 @@ export async function getNextContentDisplayOrder(table: ContentTable, siteId: st
   return orderData ? orderData.displayOrder + 1 : 1
 }
 
-/**
- * Keys of content_blocks that are settings rather than blocks: primitive
- * values (e.g. show_featured_image) and objects without the block shape
- * (no id/type/content). Used when replacing a row's blocks wholesale.
- */
-export function preserveNonBlockSettings(currentContentBlocks: Record<string, any> | null | undefined): Record<string, any> {
-  const preservedSettings: Record<string, any> = {}
-
-  Object.entries(currentContentBlocks || {}).forEach(([key, value]) => {
-    if (typeof value !== 'object' || value === null) {
-      preservedSettings[key] = value
-    } else if (!('id' in value && 'type' in value && 'content' in value)) {
-      preservedSettings[key] = value
-    }
-  })
-
-  return preservedSettings
-}

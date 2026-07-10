@@ -364,7 +364,7 @@ type SessionCacheVersionUser = {
   id?: string | null
 }
 
-export async function getSessionCookieCacheVersion(
+async function getSessionCookieCacheVersion(
   session: SessionCacheVersionInput,
   user: SessionCacheVersionUser
 ) {
@@ -502,4 +502,3 @@ export const auth = betterAuth({
   plugins: [admin()],
 })
 
-export type Session = typeof auth.$Infer.Session

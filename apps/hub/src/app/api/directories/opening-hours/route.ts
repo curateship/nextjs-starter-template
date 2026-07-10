@@ -5,6 +5,7 @@ import { sites } from "@/lib/db/schema"
 import { getAuthenticatedUser } from "@/lib/db/helpers"
 import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
+import { isUuid } from "@/lib/utils/validation"
 import {
   DIRECTORY_OPENING_HOURS_FIELD_MASK,
   normalizeDirectoryOpeningHoursPlaceId,
@@ -18,10 +19,6 @@ function openingHoursResponse(body: Record<string, unknown>, status = 200) {
       "Cache-Control": "no-store",
     },
   })
-}
-
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 }
 
 async function getSiteIdForRequest(request: NextRequest) {

@@ -13,7 +13,7 @@ import {
   type SiteSearchSourceType,
 } from '@/lib/site-search/types'
 
-export interface SiteSearchResultItem {
+interface SiteSearchResultItem {
   type: SiteSearchSourceType
   title: string
   summary: string | null
