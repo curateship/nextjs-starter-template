@@ -18,6 +18,7 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import { DashboardTable } from "@/components/dashboard-table"
+import { FeedbackDeleteModal } from "@/components/feedback-delete-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -497,16 +498,20 @@ export function FeedbackCommentsDashboard() {
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
-      <MassDeleteFeedbackCommentsModal
-        count={selectedIds.size}
+      <FeedbackDeleteModal
+        title={`Delete ${selectedIds.size} Comment${selectedIds.size === 1 ? "" : "s"}`}
+        body={`Are you sure you want to delete ${selectedIds.size} comment${selectedIds.size === 1 ? "" : "s"}?`}
         deleting={massDeleting}
+        confirmDisabled={selectedIds.size === 0}
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         onConfirm={handleMassDelete}
       />
-      <DeleteFeedbackCommentModal
-        comment={deletingComment}
+      <FeedbackDeleteModal
+        title="Delete Comment"
+        body="Are you sure you want to delete this comment?"
         deleting={quickDeleting}
+        confirmDisabled={!deletingComment}
         open={Boolean(deletingComment)}
         onOpenChange={(open) => {
           if (!open) setDeletingComment(null)
@@ -514,119 +519,6 @@ export function FeedbackCommentsDashboard() {
         onConfirm={handleQuickDelete}
       />
     </div>
-  )
-}
-
-function DeleteFeedbackCommentModal({
-  comment,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  comment: FeedbackCommentItem | null
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Comment</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this comment?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || !comment}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MassDeleteFeedbackCommentsModal({
-  count,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  count: number
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {count} Comment{count === 1 ? "" : "s"}
-          </DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete {count} comment
-            {count === 1 ? "" : "s"}?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || count === 0}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

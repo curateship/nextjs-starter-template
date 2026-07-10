@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
@@ -18,6 +17,8 @@ import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
+import { DashboardNotices } from "@/components/dashboard-notices"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import {
   Dialog,
   DialogBody,
@@ -214,7 +215,6 @@ export function CreatorsDashboard() {
     noticeSuffix: "and their reels",
   })
 
-  const deleteCount = deleteIds?.length ?? 0
   // Reel total for the confirm dialog — deleting creators removes reels too.
   const deleteReelCount = (deleteIds ?? []).reduce((sum, id) => {
     const creator = creators.find((c) => c.id === id)
@@ -261,15 +261,7 @@ export function CreatorsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">{notice}</div>
-      ) : null}
-      {error ? (
-        <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <DashboardNotices notice={notice} error={error} />
 
       <DashboardTable
         title="Creators"
@@ -393,30 +385,16 @@ export function CreatorsDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete {deleteCount === 1 ? "Creator" : `${deleteCount} Creators`}?
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes {deleteCount === 1 ? "the creator" : "these creators"} and their{" "}
-              {deleteReelCount} archived {deleteReelCount === 1 ? "reel" : "reels"} — including the
-              downloaded footage and analyses. Templates and projects built from those reels will lose
-              that footage. This action cannot be undone.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
-              {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {deleting ? "Deleting" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        ids={deleteIds}
+        noun="Creator"
+        description={(count) =>
+          `This removes ${count === 1 ? "the creator" : "these creators"} and their ${deleteReelCount} archived ${deleteReelCount === 1 ? "reel" : "reels"} — including the downloaded footage and analyses. Templates and projects built from those reels will lose that footage. This action cannot be undone.`
+        }
+        deleting={deleting}
+        onClose={() => setDeleteIds(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

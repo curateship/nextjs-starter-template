@@ -238,37 +238,14 @@ export function FirstFrameCreateDialog({
                 </div>
               ) : null}
 
-              <div className="grid gap-2">
-                <Label htmlFor="first-frame-name">Name</Label>
-                <Input
-                  id="first-frame-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Opening shot in studio"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Aspect Ratio</Label>
-                <Select
-                  value={aspectRatio}
-                  onOpenChange={handleModalSelectOpenChange}
-                  onValueChange={(value) =>
-                    setAspectRatio(value as FirstFrameAspectRatio)
-                  }
-                >
-                  <SelectTrigger id="first-frame-aspect" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allowedAspectRatios.map((ratio) => (
-                      <SelectItem key={ratio} value={ratio}>
-                        {ratio}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FirstFrameNameAspectFields
+                name={name}
+                onNameChange={setName}
+                aspectRatio={aspectRatio}
+                aspectRatios={allowedAspectRatios}
+                onAspectRatioChange={setAspectRatio}
+                onSelectOpenChange={handleModalSelectOpenChange}
+              />
 
               <div className="grid gap-2">
                 <Label>Reference Source</Label>
@@ -356,52 +333,15 @@ export function FirstFrameCreateDialog({
                 </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="first-frame-prompt">Prompt</Label>
-                <Textarea
-                  id="first-frame-prompt"
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Describe the first frame composition, scene, pose, lighting, and mood."
-                  rows={5}
-                />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="first-frame-tags">Tags</Label>
-                  <Input
-                    id="first-frame-tags"
-                    value={tags}
-                    onChange={(event) => setTags(event.target.value)}
-                    placeholder="hook, studio, closeup"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>AI Model</Label>
-                  <Select
-                    value={model}
-                    onOpenChange={handleModalSelectOpenChange}
-                    onValueChange={(value) => setModel(value as ActorModelId)}
-                  >
-                    <SelectTrigger id="first-frame-model" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACTOR_MODELS.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {model === "dall-e-3" ? (
-                    <p className="text-xs text-muted-foreground">
-                      DALL-E 3 uses text context only; reference images are not sent to this model.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+              <FirstFramePromptFields
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                tags={tags}
+                onTagsChange={setTags}
+                model={model}
+                onModelChange={setModel}
+                onSelectOpenChange={handleModalSelectOpenChange}
+              />
             </div>
           </DialogBody>
           <DialogFooter variant="plain">
@@ -501,4 +441,128 @@ export function FirstFrameCreateDialog({
 function normalizeTags(value: string | string[] | undefined) {
   if (!value) return ""
   return Array.isArray(value) ? value.join(", ") : value
+}
+
+// Name + aspect-ratio fields shared with the dashboard's edit modal.
+export function FirstFrameNameAspectFields({
+  name,
+  onNameChange,
+  aspectRatio,
+  aspectRatios,
+  onAspectRatioChange,
+  onSelectOpenChange,
+}: {
+  name: string
+  onNameChange: (value: string) => void
+  aspectRatio: FirstFrameAspectRatio
+  aspectRatios: readonly FirstFrameAspectRatio[]
+  onAspectRatioChange: (value: FirstFrameAspectRatio) => void
+  onSelectOpenChange: (open: boolean) => void
+}) {
+  return (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor="first-frame-name">Name</Label>
+        <Input
+          id="first-frame-name"
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          placeholder="Opening shot in studio"
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Aspect Ratio</Label>
+        <Select
+          value={aspectRatio}
+          onOpenChange={onSelectOpenChange}
+          onValueChange={(value) =>
+            onAspectRatioChange(value as FirstFrameAspectRatio)
+          }
+        >
+          <SelectTrigger id="first-frame-aspect" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {aspectRatios.map((ratio) => (
+              <SelectItem key={ratio} value={ratio}>
+                {ratio}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </>
+  )
+}
+
+// Prompt + tags + AI-model fields shared with the dashboard's edit modal.
+export function FirstFramePromptFields({
+  prompt,
+  onPromptChange,
+  tags,
+  onTagsChange,
+  model,
+  onModelChange,
+  onSelectOpenChange,
+}: {
+  prompt: string
+  onPromptChange: (value: string) => void
+  tags: string
+  onTagsChange: (value: string) => void
+  model: ActorModelId
+  onModelChange: (value: ActorModelId) => void
+  onSelectOpenChange: (open: boolean) => void
+}) {
+  return (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor="first-frame-prompt">Prompt</Label>
+        <Textarea
+          id="first-frame-prompt"
+          value={prompt}
+          onChange={(event) => onPromptChange(event.target.value)}
+          placeholder="Describe the first frame composition, scene, pose, lighting, and mood."
+          rows={5}
+        />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label htmlFor="first-frame-tags">Tags</Label>
+          <Input
+            id="first-frame-tags"
+            value={tags}
+            onChange={(event) => onTagsChange(event.target.value)}
+            placeholder="hook, studio, closeup"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>AI Model</Label>
+          <Select
+            value={model}
+            onOpenChange={onSelectOpenChange}
+            onValueChange={(value) => onModelChange(value as ActorModelId)}
+          >
+            <SelectTrigger id="first-frame-model" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ACTOR_MODELS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {model === "dall-e-3" ? (
+            <p className="text-xs text-muted-foreground">
+              DALL-E 3 uses text context only; reference images are not sent to
+              this model.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </>
+  )
 }

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SearchIcon, XIcon } from "lucide-react"
+import { GridIcon, ListIcon, SearchIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -135,8 +135,47 @@ function DashboardToolbarButton({
   )
 }
 
+// The list/gallery switch shared by the grid-capable dashboards.
+function DashboardToolbarViewToggle({
+  viewMode,
+  onChange,
+}: {
+  viewMode: "list" | "gallery"
+  onChange: (mode: "list" | "gallery") => void
+}) {
+  return (
+    <div className={dashboardToolbarButtonGroupClassName}>
+      <DashboardToolbarButton
+        type="button"
+        variant="ghost"
+        className={cn(
+          dashboardToolbarButtonGroupItemClassName,
+          viewMode === "list" && dashboardToolbarButtonActiveClassName
+        )}
+        onClick={() => onChange("list")}
+        aria-label="List view"
+      >
+        <ListIcon className="size-4" />
+      </DashboardToolbarButton>
+      <DashboardToolbarButton
+        type="button"
+        variant="ghost"
+        className={cn(
+          dashboardToolbarButtonGroupItemClassName,
+          viewMode === "gallery" && dashboardToolbarButtonActiveClassName
+        )}
+        onClick={() => onChange("gallery")}
+        aria-label="Grid view"
+      >
+        <GridIcon className="size-4" />
+      </DashboardToolbarButton>
+    </div>
+  )
+}
+
 export {
   DashboardToolbarButton,
+  DashboardToolbarViewToggle,
   DashboardToolbar,
   DashboardToolbarControls,
   dashboardToolbarButtonActiveClassName,
