@@ -232,6 +232,21 @@ export const tradingWallets = pgTable(
     encryptedPrivateKey: text("encrypted_private_key").notNull(),
     keyVersion: integer("key_version").notNull().default(1),
     isActive: boolean("is_active").notNull().default(true),
+    // Connect-wallet onboarding: rows start `pending` (is_active=false) until
+    // the master wallet's approveAgent signature is confirmed on Hyperliquid.
+    status: varchar("status", { length: 10 }).notNull().default("active"),
+    createdVia: varchar("created_via", { length: 10 })
+      .notNull()
+      .default("imported"),
+    agentName: varchar("agent_name", { length: 64 }),
+    approvalValidUntil: timestamp("approval_valid_until", {
+      withTimezone: true,
+    }),
+    /** In-flight approval fields ({ nonce, signatureChainId }); nulled on completion. */
+    pendingAction: jsonb("pending_action").$type<{
+      nonce: number
+      signatureChainId: string
+    } | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -239,6 +254,14 @@ export const tradingWallets = pgTable(
     check(
       "wallets_network_check",
       sql`${table.network} in ('testnet', 'mainnet')`
+    ),
+    check(
+      "wallets_status_check",
+      sql`${table.status} in ('pending', 'active')`
+    ),
+    check(
+      "wallets_created_via_check",
+      sql`${table.createdVia} in ('imported', 'generated')`
     ),
     unique("wallets_unique_user_agent_network").on(
       table.userId,

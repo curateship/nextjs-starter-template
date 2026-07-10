@@ -350,11 +350,13 @@ export function TradingWorkspace({
       label: wallet.label,
       kind: "paper" as const,
     })),
-    ...wallets.map((wallet) => ({
-      value: wallet.id,
-      label: wallet.label,
-      kind: wallet.network === "mainnet" ? ("mainnet" as const) : ("sandbox" as const),
-    })),
+    ...wallets
+      .filter((wallet) => wallet.status === "active")
+      .map((wallet) => ({
+        value: wallet.id,
+        label: wallet.label,
+        kind: wallet.network === "mainnet" ? ("mainnet" as const) : ("sandbox" as const),
+      })),
   ]
 
   const outerLayout = usePersistedLayout("trading-layout-vertical")

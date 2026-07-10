@@ -77,6 +77,8 @@ export async function createUserWallet(
       encryptedPrivateKey: encryptPrivateKey(privateKey),
       keyVersion: CURRENT_KEY_VERSION,
       isActive: true,
+      status: "active",
+      createdVia: "imported",
       createdAt,
       updatedAt: createdAt,
     })
@@ -113,6 +115,14 @@ export async function updateUserWallet(
     changes.label = label.slice(0, 255)
   }
   if (input.isActive !== undefined) {
+    if (input.isActive) {
+      const existing = await findUserWallet(userId, walletId, database)
+      if (existing?.status === "pending") {
+        throw new Error(
+          "This wallet is still awaiting approval on Hyperliquid. Finish the Connect Wallet flow first."
+        )
+      }
+    }
     changes.isActive = input.isActive
   }
 
@@ -185,6 +195,10 @@ export function serializeWallet(row: TradingWallet) {
     agent_address: row.agentAddress,
     vault_address: row.vaultAddress,
     is_active: row.isActive,
+    status: row.status as "pending" | "active",
+    created_via: row.createdVia as "imported" | "generated",
+    agent_name: row.agentName,
+    approval_valid_until: row.approvalValidUntil?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

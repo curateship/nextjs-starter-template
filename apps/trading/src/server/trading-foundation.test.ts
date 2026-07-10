@@ -46,6 +46,7 @@ beforeEach(async () => {
   for (const file of [
     "../../drizzle/0000_custom_shell_baseline.sql",
     "../../drizzle/0004_trading.sql",
+    "../../drizzle/0021_wallet_onboarding.sql",
   ]) {
     const migration = await readFile(new URL(file, import.meta.url), "utf8")
     await client.exec(migration)
