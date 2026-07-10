@@ -13,6 +13,7 @@ import {
   warmupBarsFor,
   type BacktestCosts,
   type BacktestResult,
+  type GroupCombinedCurve,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { indicatorIdSchema, type IndicatorId } from "@/lib/indicators/registry"
@@ -430,6 +431,18 @@ const loadGroupMetricsFn = createServerFn({ method: "GET" })
     }
   )
 
+const groupCurveSchema = z.object({ groupId: z.string().min(1) })
+
+const loadGroupCurveFn = createServerFn({ method: "GET" })
+  .inputValidator(groupCurveSchema)
+  .handler(async ({ data }): Promise<GroupCombinedCurve | null> => {
+    const { loadGroupCombinedCurve } = await import(
+      "@/server/backtest/portfolio-metrics"
+    )
+    const user = await requireUser()
+    return loadGroupCombinedCurve(user.id, data.groupId)
+  })
+
 const loadBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(backtestIdSchema)
   .handler(async ({ data }): Promise<BacktestDetailResponse> => {
@@ -595,6 +608,10 @@ export function loadBacktests(input: z.input<typeof loadBacktestsSchema> = {}) {
 
 export function loadGroupMetrics(groupIds: string[]) {
   return loadGroupMetricsFn({ data: { groupIds } })
+}
+
+export function loadGroupCurve(groupId: string) {
+  return loadGroupCurveFn({ data: { groupId } })
 }
 
 export function loadBacktest(backtestId: string) {

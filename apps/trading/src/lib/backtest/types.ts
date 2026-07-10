@@ -127,6 +127,18 @@ export type GroupPortfolioMetrics = {
   bucketLowAt: number | null
 }
 
+/**
+ * The run group's combined equity curve, for the results-page P&L chart. Every
+ * completed market's equity is summed at each bar (the same blend used for the
+ * risk metrics), then downsampled to a UI-friendly point count.
+ */
+export type GroupCombinedCurve = {
+  /** Total starting capital across the blended markets. */
+  startEquity: number
+  /** Downsampled combined equity over the run window. */
+  points: BacktestEquityPoint[]
+}
+
 /** Execution-cost assumptions for a run, in basis points. */
 export type BacktestCosts = {
   /** Fee on market / crossing fills. */

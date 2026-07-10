@@ -82,7 +82,17 @@ export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
         {strategies.map((item) => (
           <TableRow key={item.id}>
             <TableCell column="main">
-              <div className="font-medium">{item.name}</div>
+              <button
+                type="button"
+                className="text-left font-medium hover:underline"
+                title={`Edit ${item.name}`}
+                onClick={() => {
+                  setTarget(item)
+                  setEditorOpen(true)
+                }}
+              >
+                {item.name}
+              </button>
               <div className="text-xs text-muted-foreground">
                 {INDICATORS[item.config.indicator.type]?.description}
               </div>
