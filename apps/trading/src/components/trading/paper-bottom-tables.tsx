@@ -1,26 +1,22 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  STICKY_SCROLL_OVERRIDES,
-  STICKY_TABLE_HEADER,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+  ClosedPnlCell,
+  EmptyState,
+  MonoCell,
+  RowActionButton,
+  SideCell,
+  StickyTable,
+  TimeCell,
+} from "@/components/trading/table-bits"
+import { TableCell, TableRow } from "@/components/ui/table"
 import {
   cancelPaperOrder,
   getPaperErrorMessage,
   placePaperOrder,
   type PaperAccountResponse,
 } from "@/lib/api/paper"
-import { cn } from "@/lib/utils"
 
 export function PaperPositionsTable({
   account,
@@ -58,70 +54,38 @@ export function PaperPositionsTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Market</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Entry</TableHead>
-            <TableHead>Mark</TableHead>
-            <TableHead>uPnL</TableHead>
-            <TableHead>Actions</TableHead>
+    <StickyTable headers={["Market", "Size", "Entry", "Mark", "uPnL", "Actions"]}>
+      {positions.map((position) => {
+        const szi = Number(position.szi)
+        return (
+          <TableRow key={position.coin}>
+            <TableCell className="font-medium">{position.coin}</TableCell>
+            <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
+              {position.szi}
+            </MonoCell>
+            <MonoCell>{formatPriceDisplay(position.entry_px)}</MonoCell>
+            <MonoCell>{formatPriceDisplay(position.mark_px)}</MonoCell>
+            <MonoCell
+              className={
+                position.unrealized_pnl >= 0 ? "text-emerald-600" : "text-red-500"
+              }
+            >
+              {position.unrealized_pnl >= 0 ? "+" : ""}
+              {position.unrealized_pnl.toFixed(2)}
+            </MonoCell>
+            <TableCell>
+              <RowActionButton
+                busy={closing === position.coin}
+                disabled={closing === position.coin}
+                onClick={() => void closePosition(position.coin, szi)}
+              >
+                Close
+              </RowActionButton>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {positions.map((position) => {
-            const szi = Number(position.szi)
-            return (
-              <TableRow key={position.coin}>
-                <TableCell className="font-medium">{position.coin}</TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    szi > 0 ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {position.szi}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(position.entry_px)}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(position.mark_px)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    position.unrealized_pnl >= 0
-                      ? "text-emerald-600"
-                      : "text-red-500"
-                  )}
-                >
-                  {position.unrealized_pnl >= 0 ? "+" : ""}
-                  {position.unrealized_pnl.toFixed(2)}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-6 px-2 text-[11px]"
-                    disabled={closing === position.coin}
-                    onClick={() => void closePosition(position.coin, szi)}
-                  >
-                    {closing === position.coin ? (
-                      <Loader2Icon className="size-3 animate-spin" />
-                    ) : null}
-                    Close
-                  </Button>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </ScrollArea>
+        )
+      })}
+    </StickyTable>
   )
 }
 
@@ -153,62 +117,31 @@ export function PaperOpenOrdersTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Time</TableHead>
-            <TableHead>Market</TableHead>
-            <TableHead>Side</TableHead>
-            <TableHead>Price</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((order) => (
-            <TableRow key={order.id}>
-              <TableCell className="font-mono text-[11px] tabular-nums">
-                {new Date(order.created_at).toLocaleTimeString("en-US", {
-                  hour12: false,
-                })}
-              </TableCell>
-              <TableCell className="font-medium">{order.coin}</TableCell>
-              <TableCell
-                className={cn(
-                  order.side === "buy" ? "text-emerald-600" : "text-red-500"
-                )}
-              >
-                {order.side}
-              </TableCell>
-              <TableCell className="font-mono tabular-nums">
-                {order.px ? formatPriceDisplay(order.px) : "market"}
-              </TableCell>
-              <TableCell className="font-mono tabular-nums">{order.sz}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {order.status}
-              </TableCell>
-              <TableCell>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-[11px]"
-                  disabled={cancelling === order.id || order.status === "cancelling"}
-                  onClick={() => void cancel(order.id)}
-                >
-                  {cancelling === order.id ? (
-                    <Loader2Icon className="size-3 animate-spin" />
-                  ) : null}
-                  Cancel
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </ScrollArea>
+    <StickyTable
+      headers={["Time", "Market", "Side", "Price", "Size", "Status", "Actions"]}
+    >
+      {orders.map((order) => (
+        <TableRow key={order.id}>
+          <TimeCell time={order.created_at} />
+          <TableCell className="font-medium">{order.coin}</TableCell>
+          <SideCell isBuy={order.side === "buy"}>{order.side}</SideCell>
+          <MonoCell>{order.px ? formatPriceDisplay(order.px) : "market"}</MonoCell>
+          <MonoCell>{order.sz}</MonoCell>
+          <TableCell className="text-xs text-muted-foreground">
+            {order.status}
+          </TableCell>
+          <TableCell>
+            <RowActionButton
+              busy={cancelling === order.id}
+              disabled={cancelling === order.id || order.status === "cancelling"}
+              onClick={() => void cancel(order.id)}
+            >
+              Cancel
+            </RowActionButton>
+          </TableCell>
+        </TableRow>
+      ))}
+    </StickyTable>
   )
 }
 
@@ -223,69 +156,20 @@ export function PaperFillsTable({
   }
 
   return (
-    <ScrollArea className={cn("h-full", STICKY_SCROLL_OVERRIDES)}>
-      <Table>
-        <TableHeader className={STICKY_TABLE_HEADER}>
-          <TableRow>
-            <TableHead>Time</TableHead>
-            <TableHead>Market</TableHead>
-            <TableHead>Side</TableHead>
-            <TableHead>Price</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Fee</TableHead>
-            <TableHead>Closed PnL</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {fills.map((fill) => {
-            const closedPnl = Number(fill.closed_pnl)
-            return (
-              <TableRow key={fill.id}>
-                <TableCell className="font-mono text-[11px] tabular-nums">
-                  {new Date(fill.fill_time).toLocaleString("en-US", {
-                    hour12: false,
-                  })}
-                </TableCell>
-                <TableCell className="font-medium">{fill.coin}</TableCell>
-                <TableCell
-                  className={cn(
-                    fill.side === "buy" ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {fill.side}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatPriceDisplay(fill.px)}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">{fill.sz}</TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {Number(fill.fee).toFixed(4)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "font-mono tabular-nums",
-                    closedPnl > 0
-                      ? "text-emerald-600"
-                      : closedPnl < 0
-                        ? "text-red-500"
-                        : undefined
-                  )}
-                >
-                  {closedPnl !== 0 ? closedPnl.toFixed(2) : "—"}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </ScrollArea>
-  )
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-      {text}
-    </div>
+    <StickyTable
+      headers={["Time", "Market", "Side", "Price", "Size", "Fee", "Closed PnL"]}
+    >
+      {fills.map((fill) => (
+        <TableRow key={fill.id}>
+          <TimeCell time={fill.fill_time} full />
+          <TableCell className="font-medium">{fill.coin}</TableCell>
+          <SideCell isBuy={fill.side === "buy"}>{fill.side}</SideCell>
+          <MonoCell>{formatPriceDisplay(fill.px)}</MonoCell>
+          <MonoCell>{fill.sz}</MonoCell>
+          <MonoCell>{Number(fill.fee).toFixed(4)}</MonoCell>
+          <ClosedPnlCell value={Number(fill.closed_pnl)} />
+        </TableRow>
+      ))}
+    </StickyTable>
   )
 }

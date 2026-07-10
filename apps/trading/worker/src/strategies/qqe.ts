@@ -1,5 +1,6 @@
 import type { QqeParams } from "@/lib/strategies/params"
-import type { DesiredOrder, Strategy, StrategyCtx } from "./contract"
+import { marketEntryExitOrders } from "./contract"
+import type { Strategy, StrategyCtx } from "./contract"
 import { qflBase } from "@/lib/strategies/indicators"
 import {
   computeQqeSeries,
@@ -233,57 +234,12 @@ export const qqeStrategy: Strategy<QqeParams, QqeState> = {
     return levels
   },
 
-  desiredOrders: (ctx: StrategyCtx<QqeState>, params: QqeParams) => {
-    const state = ctx.state
-    const mid = Number(ctx.mid)
-    if (!(mid > 0)) return []
-    const orders: DesiredOrder[] = []
-    const szi = Number(ctx.position?.szi ?? 0)
-
-    if (state.exitRequested && szi !== 0) {
-      ctx.setState({ ...state, exitRequested: false })
-      orders.push({
-        purpose: "qqe:exit",
-        side: szi > 0 ? "sell" : "buy",
-        orderType: "market",
-        sz: String(Math.abs(szi)),
-        tif: "Ioc",
-        reduceOnly: true,
-      })
-      return orders
-    }
-
-    if (state.pendingEntry) {
-      const side = state.pendingEntry === "long" ? "buy" : "sell"
-      ctx.setState({ ...state, pendingEntry: null })
-      // Close any opposite position first, then open the new one.
-      if (szi !== 0 && Math.sign(szi) !== (side === "buy" ? 1 : -1)) {
-        orders.push({
-          purpose: "qqe:flip-close",
-          side: szi > 0 ? "sell" : "buy",
-          orderType: "market",
-          sz: String(Math.abs(szi)),
-          tif: "Ioc",
-          reduceOnly: true,
-        })
-      }
-      // Compounding on: bet the full current balance each trade so profits and
-      // losses carry forward. Off: fixed order size each trade.
-      const balance = Number(ctx.equity)
-      const notional =
-        params.compounding && balance > 0 ? balance : params.orderSizeUsd
-      orders.push({
-        purpose: "qqe:entry",
-        side,
-        orderType: "market",
-        sz: String(notional / mid),
-        tif: "Ioc",
-        reduceOnly: false,
-      })
-    }
-
-    return orders
-  },
+  desiredOrders: (ctx: StrategyCtx<QqeState>, params: QqeParams) =>
+    marketEntryExitOrders(ctx, {
+      prefix: "qqe",
+      compounding: params.compounding,
+      orderSizeUsd: params.orderSizeUsd,
+    }),
 }
 
 function requestExit(ctx: StrategyCtx<QqeState>, message: string) {

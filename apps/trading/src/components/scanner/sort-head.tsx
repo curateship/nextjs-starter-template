@@ -1,6 +1,42 @@
-import { TableHead, TableSortButton } from "@/components/ui/table"
+import {
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
 
 export type SortDir = "asc" | "desc"
+
+/** The standard scanner header: one sortable column per COLUMNS entry. */
+export function SortHeaderRow<K extends string>({
+  columns,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  columns: readonly { key: K; label: string; main?: boolean }[]
+  activeKey: K
+  dir: SortDir
+  onSort: (next: { sortBy: K; dir: SortDir }) => void
+}) {
+  return (
+    <TableHeader>
+      <TableRow>
+        {columns.map((c) => (
+          <SortHead
+            key={c.key}
+            column={c.main ? "main" : "meta"}
+            sortKey={c.key}
+            label={c.label}
+            activeKey={activeKey}
+            dir={dir}
+            onSort={onSort}
+          />
+        ))}
+      </TableRow>
+    </TableHeader>
+  )
+}
 
 /**
  * A sortable column header. Clicking an inactive column sorts it descending;

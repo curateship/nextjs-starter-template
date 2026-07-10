@@ -49,46 +49,27 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import {
+  feedbackDateFormatter,
+  feedbackTypeBadgeVariants,
+  feedbackTypeClassNames,
+  feedbackTypeLabels,
+} from "@/lib/feedback-meta"
 import { cn } from "@/lib/utils"
 
-const feedbackTypes: Array<{ type: FeedbackType; label: string }> = [
-  { type: "suggestion", label: "Suggestion" },
-  { type: "bug_report", label: "Bug Report" },
-  { type: "question", label: "Question" },
-  { type: "praise", label: "Praise" },
-]
+const feedbackTypes = Object.entries(feedbackTypeLabels).map(
+  ([type, label]) => ({ type: type as FeedbackType, label })
+)
 
-const feedbackTypeLabels: Record<FeedbackType, string> = {
-  suggestion: "Suggestion",
-  bug_report: "Bug Report",
-  question: "Question",
-  praise: "Praise",
-}
-
-const feedbackTypeBadgeVariants: Record<
-  FeedbackType,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  suggestion: "default",
-  bug_report: "destructive",
-  question: "outline",
-  praise: "secondary",
-}
-
-const feedbackTypeClassNames: Record<FeedbackType, string> = {
+// The modal's badges keep their bg on hover inside the hoverable cards.
+const feedbackTypeHoverClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+  question: "hover:bg-yellow-100",
+  praise: "hover:bg-green-100",
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
+const dateFormatter = feedbackDateFormatter
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
@@ -439,6 +420,7 @@ export function FeedbackModal({
                     size="sm"
                     className={cn(
                       feedbackTypeClassNames[item.type],
+                      feedbackTypeHoverClassNames[item.type],
                       feedbackType === item.type
                         ? "ring-2 ring-ring ring-offset-2"
                         : "opacity-70 hover:opacity-100"
@@ -558,7 +540,8 @@ export function FeedbackModal({
                                 variant={feedbackTypeBadgeVariants[item.type]}
                                 className={cn(
                                   "shrink-0",
-                                  feedbackTypeClassNames[item.type]
+                                  feedbackTypeClassNames[item.type],
+                                  feedbackTypeHoverClassNames[item.type]
                                 )}
                               >
                                 {feedbackTypeLabels[item.type]}

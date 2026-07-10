@@ -13,6 +13,8 @@ import type {
   BacktestGroupRun,
   BacktestListItem,
 } from "@/lib/api/backtests"
+import { IconButton } from "@/components/icon-button"
+import { MarkPriceInline } from "@/components/kpi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +33,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-import { pct, price as fmtPrice, toneClass } from "./backtest-format"
+import { pct, toneClass } from "./backtest-format"
 
 export type MarketOption = { coin: string; markPx: string; prevDayPx: string }
 
@@ -219,24 +221,7 @@ export function BacktestHeader({
         </DropdownMenu>
       ) : null}
 
-      <div className="flex items-baseline gap-2">
-        <span
-          className={cn(
-            "font-mono text-base font-semibold",
-            dayChangePct !== null ? toneClass(dayChangePct) : undefined
-          )}
-        >
-          {markPrice > 0 ? `$${fmtPrice(markPrice)}` : "—"}
-        </span>
-        <span
-          className={cn(
-            "font-mono text-[11px]",
-            dayChangePct !== null ? toneClass(dayChangePct) : "text-muted-foreground"
-          )}
-        >
-          {dayChangePct !== null ? `${pct(dayChangePct)} 24h` : "—"}
-        </span>
-      </div>
+      <MarkPriceInline markPrice={markPrice} dayChangePct={dayChangePct} />
 
       <div className="h-6 w-px bg-border" />
 
@@ -351,29 +336,6 @@ export function BacktestHeader({
   )
 }
 
-/** Ghost icon button used for the header's back/panel toggles. */
-function IconButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-8 shrink-0 text-muted-foreground"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  )
-}
 
 function changePct(row: MarketOption): number | null {
   const mark = Number(row.markPx)

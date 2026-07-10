@@ -186,6 +186,7 @@ export function StrategyParamFields({
           {text("sizeMultiplier", "Size multiplier")}
           {text("takeProfitPct", "Take profit %")}
           {text("stopLossPct", "Stop loss % (optional)")}
+          {text("trendFilterDays", "Trend filter days (pause cycles below MA, optional)")}
         </>
       )
     case "momentum":

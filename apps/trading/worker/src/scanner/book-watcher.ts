@@ -3,8 +3,8 @@ import type { SubscriptionClient } from "@nktkas/hyperliquid"
 
 import { db } from "@/server/db"
 import { getScannerUniverse } from "@/server/scanner/info"
-import { scannerAlerts, scannerBookMetrics } from "@/server/schema"
-import { now, uuid } from "@/server/util"
+import { scannerBookMetrics } from "@/server/schema"
+import { now } from "@/server/util"
 import {
   bookMetrics,
   DEFAULT_BOOK_OPTIONS,
@@ -12,6 +12,7 @@ import {
   type BookWall,
 } from "./book-metrics"
 import { formatUsd } from "./format"
+import { insertAlerts } from "./insert-alerts"
 
 const DEFAULT_WATCH_COUNT = 20
 const UPSERT_INTERVAL_MS = 5_000
@@ -143,14 +144,14 @@ export class BookWatcher {
       for (const wall of nearWalls) {
         const existed = prevNear.some((p) => p.side === wall.side)
         if (!existed) {
-          await this.insertAlert({
+          await insertAlerts([{
             type: "wall_appeared",
             coin,
             title: `${coin}: ${formatUsd(wall.usd)} ${wall.side} wall appeared within 0.5% of price`,
             // One wall alert per coin+side per bucket — walls flicker.
             dedupeKey: `wall:${coin}:${wall.side}:${bucket}`,
             data: wall,
-          })
+          }])
         }
       }
       for (const wall of prevNear) {
@@ -159,13 +160,13 @@ export class BookWatcher {
         const crossed =
           wall.side === "bid" ? metrics.mid < wall.px : metrics.mid > wall.px
         if (!still && !crossed) {
-          await this.insertAlert({
+          await insertAlerts([{
             type: "wall_pulled",
             coin,
             title: `${coin}: ${formatUsd(wall.usd)} ${wall.side} wall pulled`,
             dedupeKey: `wall-pulled:${coin}:${wall.side}:${bucket}`,
             data: wall,
-          })
+          }])
         }
       }
     }
@@ -174,21 +175,21 @@ export class BookWatcher {
     const bandTotal = metrics.bands[1].bidUsd + metrics.bands[1].askUsd
     if (metrics.imbalance !== null && bandTotal >= IMBALANCE_MIN_BAND_USD) {
       if (metrics.imbalance >= IMBALANCE_ALERT) {
-        await this.insertAlert({
+        await insertAlerts([{
           type: "book_imbalance",
           coin,
           title: `${coin}: ${metrics.imbalance.toFixed(1)}x more bids than asks near price`,
           dedupeKey: `imbalance:${coin}:bid:${bucket}`,
           data: { imbalance: metrics.imbalance },
-        })
+        }])
       } else if (metrics.imbalance <= 1 / IMBALANCE_ALERT) {
-        await this.insertAlert({
+        await insertAlerts([{
           type: "book_imbalance",
           coin,
           title: `${coin}: ${(1 / metrics.imbalance).toFixed(1)}x more asks than bids near price`,
           dedupeKey: `imbalance:${coin}:ask:${bucket}`,
           data: { imbalance: metrics.imbalance },
-        })
+        }])
       }
     }
 
@@ -204,40 +205,15 @@ export class BookWatcher {
       ]
       if (median > 0 && total < median * THIN_RATIO) {
         const side = onePct.bidUsd < onePct.askUsd ? "below" : "above"
-        await this.insertAlert({
+        await insertAlerts([{
           type: "thin_book",
           coin,
           title: `${coin}: book got thin (${formatUsd(total)} within 1%, ${side} side weakest)`,
           dedupeKey: `thin:${coin}:${bucket}`,
           data: { totalUsd: total, medianUsd: median },
-        })
+        }])
       }
     }
   }
 
-  private async insertAlert(draft: {
-    type: string
-    coin: string
-    title: string
-    dedupeKey: string
-    data?: unknown
-  }) {
-    await db
-      .insert(scannerAlerts)
-      .values({
-        id: uuid(),
-        type: draft.type,
-        coin: draft.coin,
-        address: null,
-        title: draft.title,
-        body: null,
-        data: draft.data ?? null,
-        dedupeKey: draft.dedupeKey,
-        createdAt: now(),
-      })
-      .onConflictDoNothing({
-        target: scannerAlerts.dedupeKey,
-        where: sql`dedupe_key is not null`,
-      })
-  }
 }

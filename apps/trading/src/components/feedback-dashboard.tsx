@@ -1,17 +1,11 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
-  Loader2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
-  SaveIcon,
-  SettingsIcon,
   ThumbsUpIcon,
-  Trash2Icon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -19,6 +13,22 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import {
+  ConfirmDeleteDialog,
+  DeleteSaveFooter,
+  ErrorAlert,
+  FeedbackTypeBadge,
+  MassDeleteToolbarButton,
+  RowActions,
+  RowMessageButton,
+  SelectAllBanner,
+  SelectVisibleHead,
+} from "@/components/feedback-shared"
+import {
+  feedbackDateFormatter,
+  feedbackTypeLabels,
+} from "@/lib/feedback-meta"
+import { useRowSelection } from "@/lib/use-row-selection"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -32,7 +42,6 @@ import {
   DialogBody,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -57,41 +66,9 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useShellRuntime } from "@/components/shell-layout"
 
-const feedbackTypeLabels: Record<FeedbackType, string> = {
-  suggestion: "Suggestion",
-  bug_report: "Bug Report",
-  question: "Question",
-  praise: "Praise",
-}
-
-const feedbackTypeBadgeVariants: Record<
-  FeedbackType,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  suggestion: "default",
-  bug_report: "destructive",
-  question: "outline",
-  praise: "secondary",
-}
-
-const feedbackTypeClassNames: Record<FeedbackType, string> = {
-  suggestion: "",
-  bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
-}
-
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 type FeedbackDashboardProps = {
   refreshToken: number
@@ -116,7 +93,6 @@ export function FeedbackDashboard({
     React.useState<FeedbackItem | null>(null)
   const [deletingFeedback, setDeletingFeedback] =
     React.useState<FeedbackItem | null>(null)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
@@ -180,11 +156,8 @@ export function FeedbackDashboard({
     () => filteredFeedback.map((item) => item.id),
     [filteredFeedback]
   )
-  const visibleSelected =
-    paginatedFeedbackIds.length > 0 &&
-    paginatedFeedbackIds.every((id) => selectedIds.has(id))
-  const visiblePartiallySelected =
-    !visibleSelected && paginatedFeedbackIds.some((id) => selectedIds.has(id))
+  const selection = useRowSelection(paginatedFeedbackIds)
+  const { selectedIds, setSelectedIds } = selection
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -212,35 +185,7 @@ export function FeedbackDashboard({
 
   const handleDeleted = (feedbackId: string) => {
     setFeedback((current) => current.filter((item) => item.id !== feedbackId))
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      next.delete(feedbackId)
-      return next
-    })
-  }
-
-  const toggleFeedbackSelection = (feedbackId: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(feedbackId)) {
-        next.delete(feedbackId)
-      } else {
-        next.add(feedbackId)
-      }
-      return next
-    })
-  }
-
-  const toggleVisibleSelection = () => {
-    setSelectedIds((current) => {
-      if (visibleSelected) {
-        const next = new Set(current)
-        paginatedFeedbackIds.forEach((id) => next.delete(id))
-        return next
-      }
-
-      return new Set([...current, ...paginatedFeedbackIds])
-    })
+    selection.removeId(feedbackId)
   }
 
   const handleMassDelete = async () => {
@@ -280,15 +225,7 @@ export function FeedbackDashboard({
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <ErrorAlert error={error} className="mt-4" />
 
       <DashboardTable
         title="Feedback"
@@ -298,21 +235,11 @@ export function FeedbackDashboard({
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
-            {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
-            ) : null}
+            <MassDeleteToolbarButton
+              count={selectedIds.size}
+              deleting={massDeleting}
+              onClick={() => setMassDeleteOpen(true)}
+            />
             <DashboardToolbarSearch
               name="feedback-search"
               aria-label="Search feedback"
@@ -350,19 +277,12 @@ export function FeedbackDashboard({
         header={
             <TableHeader>
               <TableRow>
-                <TableHead column="select">
-                  <Checkbox
-                    checked={
-                      visibleSelected
-                        ? true
-                        : visiblePartiallySelected
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={toggleVisibleSelection}
-                    aria-label="Select visible feedback"
-                  />
-                </TableHead>
+                <SelectVisibleHead
+                  allSelected={selection.visibleSelected}
+                  partiallySelected={selection.visiblePartiallySelected}
+                  onToggle={selection.toggleVisible}
+                  ariaLabel="Select visible feedback"
+                />
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
                     Feedback
@@ -418,33 +338,24 @@ export function FeedbackDashboard({
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(item.id)}
-                onCheckedChange={() => toggleFeedbackSelection(item.id)}
+                onCheckedChange={() => selection.toggleRow(item.id)}
                 aria-label={`Select feedback ${item.message}`}
               />
             </TableCell>
             <TableCell column="main">
-              <button
-                type="button"
-                className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
+              <RowMessageButton
+                message={item.message}
                 onClick={() => setEditingFeedback(item)}
-                title={item.message}
-              >
-                {item.message}
-              </button>
+              />
             </TableCell>
             <TableCell column="meta">
-              <Badge
-                variant={feedbackTypeBadgeVariants[item.type]}
-                className={feedbackTypeClassNames[item.type]}
-              >
-                {feedbackTypeLabels[item.type]}
-              </Badge>
+              <FeedbackTypeBadge type={item.type} />
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:table-cell">
               {item.author_name}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {dateFormatter.format(new Date(item.created_at))}
+              {feedbackDateFormatter.format(new Date(item.created_at))}
             </TableCell>
             <TableCell column="meta">
               <Badge variant="secondary">
@@ -459,48 +370,24 @@ export function FeedbackDashboard({
               </Badge>
             </TableCell>
             <TableCell column="meta">
-              <div className="flex items-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingFeedback(item)}
-                  title="Feedback settings"
-                  aria-label="Feedback settings"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  <span className="sr-only">Feedback settings</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeletingFeedback(item)}
-                  title="Delete feedback"
-                  aria-label="Delete feedback"
-                >
-                  <Trash2Icon className="h-4 w-4" />
-                  <span className="sr-only">Delete feedback</span>
-                </Button>
-              </div>
+              <RowActions
+                editLabel="Feedback settings"
+                deleteLabel="Delete feedback"
+                onEdit={() => setEditingFeedback(item)}
+                onDelete={() => setDeletingFeedback(item)}
+              />
             </TableCell>
           </TableRow>
         ))}
       </DashboardTable>
-      {visibleSelected &&
+      {selection.visibleSelected &&
       filteredFeedbackIds.length > paginatedFeedbackIds.length ? (
-        <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {paginatedFeedbackIds.length} feedback item
-          {paginatedFeedbackIds.length === 1 ? "" : "s"} on this page are
-          selected.{" "}
-          <button
-            type="button"
-            className="font-medium text-foreground underline underline-offset-2"
-            onClick={() => setSelectedIds(new Set(filteredFeedbackIds))}
-          >
-            Select all {filteredFeedbackIds.length}
-          </button>
-        </div>
+        <SelectAllBanner
+          visibleCount={paginatedFeedbackIds.length}
+          totalCount={filteredFeedbackIds.length}
+          noun="feedback item"
+          onSelectAll={() => setSelectedIds(new Set(filteredFeedbackIds))}
+        />
       ) : null}
       <EditFeedbackModal
         feedback={editingFeedback}
@@ -511,136 +398,27 @@ export function FeedbackDashboard({
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
-      <MassDeleteFeedbackModal
-        count={selectedIds.size}
-        deleting={massDeleting}
+      <ConfirmDeleteDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} Feedback Item${selectedIds.size === 1 ? "" : "s"}`}
+        body={`Are you sure you want to delete ${selectedIds.size} feedback item${selectedIds.size === 1 ? "" : "s"}?`}
+        deleting={massDeleting}
+        confirmDisabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}
       />
-      <DeleteFeedbackModal
-        feedback={deletingFeedback}
-        deleting={quickDeleting}
+      <ConfirmDeleteDialog
         open={Boolean(deletingFeedback)}
         onOpenChange={(open) => {
           if (!open) setDeletingFeedback(null)
         }}
+        title="Delete Feedback Item"
+        body="Are you sure you want to delete this feedback item?"
+        deleting={quickDeleting}
+        confirmDisabled={!deletingFeedback}
         onConfirm={handleQuickDelete}
       />
     </div>
-  )
-}
-
-function DeleteFeedbackModal({
-  feedback,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  feedback: FeedbackItem | null
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Feedback Item</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this feedback item?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || !feedback}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MassDeleteFeedbackModal({
-  count,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  count: number
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {count} Feedback Item{count === 1 ? "" : "s"}
-          </DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete {count} feedback item
-            {count === 1 ? "" : "s"}?
-          </p>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || count === 0}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -756,41 +534,14 @@ function EditFeedbackModal({
             </Select>
           </div>
 
-          {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          ) : null}
+          <ErrorAlert error={error} />
         </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={busy}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </>
-        </DialogFooter>
+        <DeleteSaveFooter
+          saving={saving}
+          deleting={deleting}
+          onSave={handleSave}
+          onDelete={handleDelete}
+        />
       </DialogContent>
     </Dialog>
   )

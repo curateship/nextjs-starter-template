@@ -1,6 +1,6 @@
 import { ArrowRightLeftIcon } from "lucide-react"
 
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable, pagedFooter } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSelectTrigger,
@@ -12,9 +12,9 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
-import { TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { formatNotional } from "@/components/scanner/format"
-import { SortHead } from "@/components/scanner/sort-head"
+import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
 import { WalletChip } from "@/components/scanner/wallet-chip"
 import {
@@ -108,34 +108,17 @@ export function PositionsDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              {COLUMNS.map((c) => (
-                <SortHead
-                  key={c.key}
-                  column={c.main ? "main" : "meta"}
-                  sortKey={c.key}
-                  label={c.label}
-                  activeKey={filters.sortBy}
-                  dir={filters.dir}
-                  onSort={onFiltersChange}
-                />
-              ))}
-            </TableRow>
-          </TableHeader>
+          <SortHeaderRow
+            columns={COLUMNS}
+            activeKey={filters.sortBy}
+            dir={filters.dir}
+            onSort={onFiltersChange}
+          />
         }
         isEmpty={data.items.length === 0}
         emptyText="No position changes recorded yet. The tracker polls wallets after whale-feed activity, so events accumulate as whales trade."
         emptyColSpan={6}
-        footer={{
-          type: "pagination",
-          page: data.page,
-          pageSize: data.pageSize,
-          total: data.total,
-          totalPages: Math.max(1, Math.ceil(data.total / data.pageSize)),
-          onPageChange: (page) => onFiltersChange({ page }),
-          onPageSizeChange: (pageSize) => onFiltersChange({ page: 1, pageSize }),
-        }}
+        footer={pagedFooter(data, onFiltersChange)}
       >
         {data.items.map((item) => (
           <PositionEventRow key={item.id} item={item} />

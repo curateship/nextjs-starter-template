@@ -168,6 +168,7 @@ class BacktestRunner {
       lastClose,
       halt: this.halt,
     })
+    stats.warnings = this.credibilityWarnings()
 
     return {
       equityCurve: this.equityCurve,
@@ -176,6 +177,51 @@ class BacktestRunner {
       openPosition,
       stats,
     }
+  }
+
+  /**
+   * Automatic tripwires that fire regardless of who is looking. Each one is a
+   * pattern that historically meant "this result is lying" — the July 2026
+   * TP-fill bug was visible for weeks in exactly these numbers and nobody
+   * checked. Now every run checks itself.
+   */
+  private credibilityWarnings(): string[] {
+    const warnings: string[] = []
+
+    // A win can't beat the take-profit on a 24/7 market: the TP fires first.
+    // If the average winner exceeds it, the fill model or data is broken.
+    const tp = (this.params as { takeProfitPct?: number }).takeProfitPct
+    if (tp) {
+      const wins = this.trades.filter((t) => t.pnl > 0)
+      if (wins.length >= 10) {
+        const avgWin =
+          wins.reduce((sum, t) => sum + t.returnPct, 0) / wins.length
+        if (avgWin > tp) {
+          warnings.push(
+            `Average winning trade (${avgWin.toFixed(2)}%) exceeds the ${tp}% take-profit — fills are better than reality allows. Do not trust this result.`
+          )
+        }
+      }
+    }
+
+    // The sim has no liquidation: equity at or below zero means a real
+    // account was wiped and everything after that point is fiction.
+    if (this.equityCurve.some((p) => p.eq <= 0)) {
+      warnings.push(
+        "Equity went to zero or below — a real account would have been liquidated; results past that point are fiction."
+      )
+    } else if (
+      this.trades.some((t) => t.returnPct <= -100) ||
+      this.equityCurve.some(
+        (p) => p.eq < this.startingEquity * 0.05
+      )
+    ) {
+      warnings.push(
+        "The account came within 5% of total wipeout (or a single trade lost ≥100% of its notional). Liquidation is not modeled — treat this result as unreliable."
+      )
+    }
+
+    return warnings
   }
 
   private processBar(candle: HistoryCandle, ws: CandleWsEvent) {

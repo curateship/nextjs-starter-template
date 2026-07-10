@@ -951,26 +951,7 @@ export type CustomShellNotification =
 export type TradingWallet = typeof tradingWallets.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect
-export type TradingBotOrder = typeof tradingBotOrders.$inferSelect
-export type TradingBotTrade = typeof tradingBotTrades.$inferSelect
-export type TradingBotEvent = typeof tradingBotEvents.$inferSelect
 export type TradingBotCommand = typeof tradingBotCommands.$inferSelect
 export type TradingBacktest = typeof tradingBacktests.$inferSelect
-export type TradingAuditLogEntry = typeof tradingAuditLog.$inferSelect
-export type TradingAccountSnapshot =
-  typeof tradingAccountSnapshots.$inferSelect
-export type TradingWorkerHeartbeat =
-  typeof tradingWorkerHeartbeats.$inferSelect
-export type ScannerTrade = typeof scannerTrades.$inferSelect
-export type ScannerWallet = typeof scannerWallets.$inferSelect
-export type ScannerWalletStats = typeof scannerWalletStats.$inferSelect
-export type ScannerPosition = typeof scannerPositions.$inferSelect
-export type ScannerPositionEvent = typeof scannerPositionEvents.$inferSelect
-export type ScannerAlert = typeof scannerAlerts.$inferSelect
-export type ScannerCrowdSignal = typeof scannerCrowdSignals.$inferSelect
-export type ScannerBookMetrics = typeof scannerBookMetrics.$inferSelect
-export type ScannerControl = typeof scannerControl.$inferSelect
 export type TradingPaperWallet = typeof tradingPaperWallets.$inferSelect
-export type TradingPaperPosition = typeof tradingPaperPositions.$inferSelect
 export type TradingPaperOrder = typeof tradingPaperOrders.$inferSelect
-export type TradingPaperFill = typeof tradingPaperFills.$inferSelect

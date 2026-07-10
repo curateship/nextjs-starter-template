@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card"
+import { Kpi, Row } from "@/components/kpi"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestResult } from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
@@ -9,7 +10,6 @@ import {
   price as fmtPrice,
   profitFactor,
   signedUsd,
-  toneClass,
   usd,
 } from "./backtest-format"
 
@@ -130,6 +130,14 @@ export function BacktestSummary({
             Halted ({stats.halt.kind.replace(/_/g, " ")}): {stats.halt.reason}
           </div>
         ) : null}
+        {stats?.warnings?.map((warning) => (
+          <div
+            key={warning}
+            className="mt-1 rounded-md border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-[10px] font-medium text-red-700 dark:text-red-400"
+          >
+            ⚠ {warning}
+          </div>
+        ))}
         <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
           Candle-granularity simulation — market fills at bar price, limits fill
           on high/low cross. Same risk gating as live.
@@ -140,56 +148,4 @@ export function BacktestSummary({
   )
 }
 
-function Kpi({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: number
-}) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-base font-semibold",
-            tone !== undefined ? toneClass(tone) : undefined
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[9px] text-muted-foreground">{sub}</span>
-      </CardContent>
-    </Card>
-  )
-}
-
-function Row({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: number
-}) {
-  return (
-    <div className="flex justify-between text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span
-        className={cn(
-          "font-mono",
-          tone !== undefined ? toneClass(tone) : "text-foreground/80"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
 

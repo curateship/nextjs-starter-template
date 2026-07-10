@@ -1,13 +1,13 @@
 import { useNavigate } from "@tanstack/react-router"
 import { WavesIcon } from "lucide-react"
 
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable, pagedFooter } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
-import { TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { formatNotional, shortAddress } from "@/components/scanner/format"
 import { SignedUsd } from "@/components/scanner/signed-usd"
-import { SortHead } from "@/components/scanner/sort-head"
+import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
 import {
   loadWhaleWallets,
@@ -65,34 +65,17 @@ export function WhalesDashboard({
           </DashboardToolbarButton>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              {COLUMNS.map((c) => (
-                <SortHead
-                  key={c.key}
-                  column={c.main ? "main" : "meta"}
-                  sortKey={c.key}
-                  label={c.label}
-                  activeKey={filters.sortBy}
-                  dir={filters.dir}
-                  onSort={onFiltersChange}
-                />
-              ))}
-            </TableRow>
-          </TableHeader>
+          <SortHeaderRow
+            columns={COLUMNS}
+            activeKey={filters.sortBy}
+            dir={filters.dir}
+            onSort={onFiltersChange}
+          />
         }
         isEmpty={data.items.length === 0}
         emptyText="No whale wallets yet. The worker refreshes discovered wallets one at a time within the REST budget — the biggest wallets fill in over the next minutes."
         emptyColSpan={6}
-        footer={{
-          type: "pagination",
-          page: data.page,
-          pageSize: data.pageSize,
-          total: data.total,
-          totalPages: Math.max(1, Math.ceil(data.total / data.pageSize)),
-          onPageChange: (page) => onFiltersChange({ page }),
-          onPageSizeChange: (pageSize) => onFiltersChange({ page: 1, pageSize }),
-        }}
+        footer={pagedFooter(data, onFiltersChange)}
       >
         {data.items.map((item) => (
           <WhaleRow

@@ -325,6 +325,61 @@ describe("runBacktest", () => {
     )
   })
 
+  it("DCA trend filter pauses new cycles below the moving average", () => {
+    // Steadily falling closes: price is always below its trailing average, so
+    // a long ladder with the filter must never open a cycle; without it, it
+    // starts buying immediately.
+    const closes = Array.from({ length: 60 }, (_, i) => 100 - i * 0.5)
+    const base = {
+      strategyType: "dca",
+      direction: "long",
+      baseOrderUsd: 100,
+      safetyOrderUsd: 100,
+      maxSafetyOrders: 3,
+      priceStepPct: 1,
+      stepMultiplier: 1,
+      sizeMultiplier: 1.5,
+      takeProfitPct: 1,
+    }
+    const run = (extra: object) =>
+      runBacktest({
+        strategy: strategies.dca!,
+        params: { ...base, ...extra } as StrategyParams,
+        riskParams: OPEN_RISK,
+        candles: mkCandles(closes),
+        simStartMs: mkCandles(closes)[30].t,
+        startingEquity: 10_000,
+        market: "BTC",
+        interval: "1h",
+        costs: DEFAULT_BACKTEST_COSTS,
+      })
+    expect(run({ trendFilterDays: 1 }).fills.length).toBe(0)
+    expect(run({}).fills.length).toBeGreaterThan(0)
+  })
+
+  it("flags a run whose equity is wiped out (no liquidation modeling)", () => {
+    // Long the full account into a −97% crash: equity ends near zero, which a
+    // real exchange would have liquidated long before.
+    const candles: HistoryCandle[] = [
+      { t: 0, T: STEP_MS - 1, o: 100, h: 100, l: 100, c: 100, v: 1, n: 1 },
+      { t: STEP_MS, T: 2 * STEP_MS - 1, o: 100, h: 100, l: 3, c: 3, v: 1, n: 1 },
+    ]
+    const cfg = makeThresholdCfg(candles, {})
+    cfg.startingEquity = 100 // buys 1 unit at 100 → crash wipes the account
+    const result = runBacktest(cfg)
+    expect(result.stats.warnings?.length).toBeGreaterThan(0)
+    expect(result.stats.warnings?.[0]).toContain("wipeout")
+  })
+
+  it("emits no credibility warnings on a clean profitable run", () => {
+    const candles: HistoryCandle[] = [
+      { t: 0, T: STEP_MS - 1, o: 100, h: 100, l: 100, c: 100, v: 1, n: 1 },
+      { t: STEP_MS, T: 2 * STEP_MS - 1, o: 100, h: 104, l: 99, c: 102, v: 1, n: 1 },
+    ]
+    const result = runBacktest(makeThresholdCfg(candles, { takeProfitPct: 3 }))
+    expect(result.stats.warnings).toEqual([])
+  })
+
   it("fills grid limit levels as price oscillates through the range", () => {
     const candles = mkCandles([100, 98, 100, 102, 100, 98, 100, 102, 100, 98])
     const cfg: RunBacktestConfig = {

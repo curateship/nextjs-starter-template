@@ -1,5 +1,6 @@
 import type { VwapParams } from "@/lib/strategies/params"
-import type { CandleInterval, DesiredOrder, Strategy, StrategyCtx } from "./contract"
+import { marketEntryExitOrders } from "./contract"
+import type { CandleInterval, Strategy, StrategyCtx } from "./contract"
 import { crossedAbove, crossedBelow, vwap, vwapBands } from "@/lib/strategies/indicators"
 
 export type VwapState = {
@@ -146,58 +147,12 @@ export const vwapStrategy: Strategy<VwapParams, VwapState> = {
     return levels
   },
 
-  desiredOrders: (ctx: StrategyCtx<VwapState>, params: VwapParams) => {
-    const state = ctx.state
-    const mid = Number(ctx.mid)
-    if (!(mid > 0)) return []
-    const orders: DesiredOrder[] = []
-    const szi = Number(ctx.position?.szi ?? 0)
-
-    if (state.exitRequested && szi !== 0) {
-      ctx.setState({ ...state, exitRequested: false })
-      orders.push({
-        purpose: "vwap:exit",
-        side: szi > 0 ? "sell" : "buy",
-        orderType: "market",
-        sz: String(Math.abs(szi)),
-        tif: "Ioc",
-        reduceOnly: true,
-      })
-      return orders
-    }
-
-    if (state.pendingEntry) {
-      const side = state.pendingEntry === "long" ? "buy" : "sell"
-      ctx.setState({ ...state, pendingEntry: null })
-      // Close any opposite position first, then open the new one.
-      if (szi !== 0 && Math.sign(szi) !== (side === "buy" ? 1 : -1)) {
-        orders.push({
-          purpose: "vwap:flip-close",
-          side: szi > 0 ? "sell" : "buy",
-          orderType: "market",
-          sz: String(Math.abs(szi)),
-          tif: "Ioc",
-          reduceOnly: true,
-        })
-      }
-      // Compounding on: bet the full current balance each trade so profits and
-      // losses carry forward (start $2,000, win to $2,100 → next trade risks
-      // $2,100; lose to $1,900 → risks $1,900). Off: fixed order size each trade.
-      const balance = Number(ctx.equity)
-      const notional =
-        params.compounding && balance > 0 ? balance : params.orderSizeUsd
-      orders.push({
-        purpose: "vwap:entry",
-        side,
-        orderType: "market",
-        sz: String(notional / mid),
-        tif: "Ioc",
-        reduceOnly: false,
-      })
-    }
-
-    return orders
-  },
+  desiredOrders: (ctx: StrategyCtx<VwapState>, params: VwapParams) =>
+    marketEntryExitOrders(ctx, {
+      prefix: "vwap",
+      compounding: params.compounding,
+      orderSizeUsd: params.orderSizeUsd,
+    }),
 }
 
 function requestExit(ctx: StrategyCtx<VwapState>, message: string) {

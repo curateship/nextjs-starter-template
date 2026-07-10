@@ -1,4 +1,3 @@
-import * as React from "react"
 import {
   ArrowLeftIcon,
   Loader2Icon,
@@ -11,11 +10,11 @@ import {
 } from "lucide-react"
 
 import {
-  pct,
-  price as fmtPrice,
   signedUsd,
   toneClass,
 } from "@/components/backtest/backtest-format"
+import { IconButton } from "@/components/icon-button"
+import { MarkPriceInline } from "@/components/kpi"
 import { BotStatusBadge } from "@/components/bots/fleet-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -103,24 +102,11 @@ export function BotWorkspaceHeader({
           {bot.markets.length} markets
         </Badge>
       ) : null}
-      <div className="flex items-baseline gap-2 leading-tight">
-        <span
-          className={cn(
-            "font-mono text-base font-semibold",
-            dayChangePct !== null ? toneClass(dayChangePct) : undefined
-          )}
-        >
-          {markPrice > 0 ? `$${fmtPrice(markPrice)}` : "—"}
-        </span>
-        <span
-          className={cn(
-            "font-mono text-[11px]",
-            dayChangePct !== null ? toneClass(dayChangePct) : "text-muted-foreground"
-          )}
-        >
-          {dayChangePct !== null ? `${pct(dayChangePct)} 24h` : "—"}
-        </span>
-      </div>
+      <MarkPriceInline
+        markPrice={markPrice}
+        dayChangePct={dayChangePct}
+        className="leading-tight"
+      />
 
       <div className="h-6 w-px bg-border" />
 
@@ -217,26 +203,3 @@ function formatRunningFor(createdAt: string): string {
   return rem > 0 ? `${days}d ${rem}h` : `${days}d`
 }
 
-/** Ghost icon button used for the header's back/panel toggles. */
-function IconButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-8 shrink-0 text-muted-foreground"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  )
-}

@@ -4,7 +4,6 @@ import type { SubscriptionClient } from "@nktkas/hyperliquid"
 import { db } from "@/server/db"
 import { getScannerUniverse } from "@/server/scanner/info"
 import {
-  scannerAlerts,
   scannerTrades,
   scannerWalletDaily,
   scannerWallets,
@@ -14,9 +13,9 @@ import {
   DEFAULT_TRADE_ALERT_OPTIONS,
   evaluateTradeAlerts,
   takerOf,
-  type AlertDraft,
   type ScannerTradeEvent,
 } from "./alert-engine"
+import { insertAlerts } from "./insert-alerts"
 
 const FLUSH_INTERVAL_MS = 2_000
 const IGNORED_REFRESH_MS = 60_000
@@ -176,7 +175,7 @@ export class TradeCollector {
         ...DEFAULT_TRADE_ALERT_OPTIONS,
         ignoredAddresses: this.ignoredAddresses,
       })
-      if (drafts.length > 0) await this.insertAlerts(drafts)
+      await insertAlerts(drafts)
 
       if (this.onActivity) {
         const takers = new Set<string>()
@@ -276,25 +275,4 @@ export class TradeCollector {
       })
   }
 
-  private async insertAlerts(drafts: AlertDraft[]) {
-    await db
-      .insert(scannerAlerts)
-      .values(
-        drafts.map((draft) => ({
-          id: uuid(),
-          type: draft.type,
-          coin: draft.coin ?? null,
-          address: draft.address ?? null,
-          title: draft.title,
-          body: draft.body ?? null,
-          data: draft.data ?? null,
-          dedupeKey: draft.dedupeKey,
-          createdAt: now(),
-        }))
-      )
-      .onConflictDoNothing({
-        target: scannerAlerts.dedupeKey,
-        where: sql`dedupe_key is not null`,
-      })
-  }
 }

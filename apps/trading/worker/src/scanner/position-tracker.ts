@@ -3,7 +3,6 @@ import type { InfoClient } from "@nktkas/hyperliquid"
 
 import { db } from "@/server/db"
 import {
-  scannerAlerts,
   scannerPositionEvents,
   scannerPositions,
   scannerWallets,
@@ -11,6 +10,7 @@ import {
 import { now, uuid } from "@/server/util"
 import type { AlertDraft } from "./alert-engine"
 import { formatUsd } from "./format"
+import { insertAlerts } from "./insert-alerts"
 import {
   DEFAULT_DIFF_OPTIONS,
   diffPositions,
@@ -236,27 +236,7 @@ export class PositionTracker {
     this.eventsRecorded += changes.length
 
     const drafts = await this.alertDrafts(address, changes, dormantReturn)
-    if (drafts.length > 0) {
-      await db
-        .insert(scannerAlerts)
-        .values(
-          drafts.map((draft) => ({
-            id: uuid(),
-            type: draft.type,
-            coin: draft.coin ?? null,
-            address: draft.address ?? null,
-            title: draft.title,
-            body: draft.body ?? null,
-            data: draft.data ?? null,
-            dedupeKey: draft.dedupeKey,
-            createdAt: timestamp,
-          }))
-        )
-        .onConflictDoNothing({
-          target: scannerAlerts.dedupeKey,
-          where: sql`dedupe_key is not null`,
-        })
-    }
+    await insertAlerts(drafts, timestamp)
   }
 
   private async alertDrafts(
