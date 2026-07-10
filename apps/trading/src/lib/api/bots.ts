@@ -3,17 +3,19 @@ import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
 import {
-  riskParamsSchema,
-  strategyParamsSchema,
+  type BotStrategyType,
   type RiskParams,
   type StrategyParams,
-  type StrategyType,
 } from "@/lib/strategies/params"
+import {
+  strategyConfigSchema,
+  type StrategyConfig,
+} from "@/lib/strategies/strategy-config"
 
 export type BotListItem = {
   id: string
   name: string
-  strategy_type: StrategyType
+  strategy_type: BotStrategyType
   markets: string[]
   exchange: string
   mode: "paper" | "live"
@@ -49,7 +51,8 @@ export type BotMarketState = {
 
 export type BotDetailResponse = {
   bot: BotListItem & {
-    params: StrategyParams
+    /** Legacy StrategyParams, or a StrategyConfig for new-model bots. */
+    params: StrategyParams | StrategyConfig
     risk_params: RiskParams
     paper_starting_equity: number | null
   }
@@ -95,8 +98,9 @@ const createBotSchema = z.object({
   markets: z.array(z.string().min(1).max(20)).min(1),
   exchange: z.string().min(1).max(20).default("hyperliquid"),
   mode: z.enum(["paper", "live"]),
-  params: strategyParamsSchema,
-  riskParams: riskParamsSchema,
+  params: strategyConfigSchema,
+  /** Saved strategy the config came from. */
+  strategyId: z.string().uuid().optional(),
   paperStartingEquity: z.number().positive().max(100_000_000).optional(),
 })
 
@@ -104,8 +108,7 @@ const updateBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().min(1).max(255),
   markets: z.array(z.string().min(1).max(20)).min(1),
-  params: strategyParamsSchema,
-  riskParams: riskParamsSchema,
+  params: strategyConfigSchema,
 })
 
 const botCommandSchema = z.object({
@@ -222,7 +225,6 @@ const updateBotFn = createServerFn({ method: "POST" })
       name: data.name,
       markets: data.markets,
       params: data.params,
-      riskParams: data.riskParams,
     })
     return { ok: true }
   })
@@ -345,7 +347,7 @@ function serializeBotRow(bot: BotRow, walletLabel: string, network: string) {
   return {
     id: bot.id,
     name: bot.name,
-    strategy_type: bot.strategyType as StrategyType,
+    strategy_type: bot.strategyType as BotStrategyType,
     markets: bot.markets,
     exchange: bot.exchange,
     mode: bot.mode as "paper" | "live",

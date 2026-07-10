@@ -264,6 +264,29 @@ export const tradingWalletNonces = pgTable(
   ]
 )
 
+/**
+ * Saved, named strategies (the new model): one indicator + the universal
+ * settings block, as a `StrategyConfig` jsonb. Bots snapshot the config at
+ * creation; this row is the editable source new bots copy from.
+ */
+export const tradingStrategies = pgTable(
+  "strategies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    config: jsonb("config").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("strategies_user_id_name_unique").on(table.userId, table.name),
+    index("ix_strategies_user_id").on(table.userId),
+  ]
+)
+
 export const tradingBots = pgTable(
   "bots",
   {
@@ -287,7 +310,12 @@ export const tradingBots = pgTable(
     status: varchar("status", { length: 10 }).notNull().default("stopped"),
     statusReason: text("status_reason"),
     params: jsonb("params").notNull(),
-    riskParams: jsonb("risk_params").notNull(),
+    riskParams: jsonb("risk_params").notNull().default({}),
+    /** Saved strategy this bot's config was snapshotted from (display only). */
+    strategyId: varchar("strategy_id", { length: 36 }).references(
+      () => tradingStrategies.id,
+      { onDelete: "set null" }
+    ),
     cloidPrefix: varchar("cloid_prefix", { length: 10 }).notNull().unique(),
     paperStartingEquity: numeric("paper_starting_equity"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -296,7 +324,7 @@ export const tradingBots = pgTable(
   (table) => [
     check(
       "bots_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'copy')`
+      sql`${table.strategyType} in ('signal', 'grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
     ),
     check("bots_mode_check", sql`${table.mode} in ('paper', 'live')`),
     check(
@@ -500,6 +528,8 @@ export const tradingBacktests = pgTable(
     error: text("error"),
     /** BacktestResult from src/lib/backtest/types, or null until done. */
     result: jsonb("result"),
+    /** result.stats + first/last trade times — small; list pages read ONLY this. */
+    resultStats: jsonb("result_stats"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -519,57 +549,6 @@ export const tradingBacktests = pgTable(
   ]
 )
 
-export const tradingStrategyDefaults = pgTable(
-  "strategy_defaults",
-  {
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    strategyType: varchar("strategy_type", { length: 20 }).notNull(),
-    /** Form seed values (ParamValues), not validated runnable params. */
-    params: jsonb("params").notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.strategyType] }),
-    check(
-      "strategy_defaults_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
-    ),
-  ]
-)
-
-/**
- * Named run-config templates: many per (user, strategy), on top of the single
- * main default in {@link tradingStrategyDefaults}. `params` holds the same full
- * run config (form seeds + interval/window/equity/costs) and is picked when
- * starting a New Run.
- */
-export const tradingStrategyTemplates = pgTable(
-  "strategy_templates",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    strategyType: varchar("strategy_type", { length: 20 }).notNull(),
-    name: varchar("name", { length: 80 }).notNull(),
-    params: jsonb("params").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    unique("strategy_templates_user_strategy_name").on(
-      table.userId,
-      table.strategyType,
-      table.name
-    ),
-    check(
-      "strategy_templates_strategy_type_check",
-      sql`${table.strategyType} in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
-    ),
-  ]
-)
 
 export const tradingAuditLog = pgTable(
   "audit_log",
@@ -949,6 +928,7 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
+export type TradingStrategy = typeof tradingStrategies.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect
 export type TradingBotCommand = typeof tradingBotCommands.$inferSelect

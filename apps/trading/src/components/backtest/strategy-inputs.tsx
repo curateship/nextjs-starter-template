@@ -1,54 +1,27 @@
 import { PlusIcon } from "lucide-react"
 
-import { StrategyParamFields } from "@/components/bots/strategy-param-fields"
-import type { ParamValues } from "@/components/bots/strategy-params-form"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { STRATEGY_LABELS, type StrategyType } from "@/lib/strategies/params"
 
 /**
- * The tweak surface for the loaded run: its strategy params plus window and
- * equity. Edits here feed Re-run Backtest. Without a run it's a New Run CTA.
+ * Read-only config rail for a loaded run. Saved runs are immutable, so this
+ * just lists what the run was executed with: window, equity, costs, and the
+ * strategy's indicator + settings. Without a run it's a New Run CTA.
  */
 export function StrategyInputs({
-  strategy,
-  values,
-  disabled,
-  readOnly = false,
-  mid,
-  windowDays,
-  maxWindowDays,
-  equity,
-  costs,
-  onChange,
-  onWindowChange,
-  onEquityChange,
-  onCostsChange,
-  onReset,
+  title,
+  archived = false,
+  rows,
   onNewRun,
 }: {
-  strategy: StrategyType | null
-  values: ParamValues
-  disabled: boolean
-  /** Loaded run — inputs are a read-only snapshot, no Reset. */
-  readOnly?: boolean
-  mid: number
-  windowDays: string
-  /** Largest lookback the current interval can fetch (interval-aware). */
-  maxWindowDays: number
-  equity: string
-  /** Fee/slippage assumptions in bps (form strings). */
-  costs: { taker: string; maker: string; slippage: string }
-  onChange: (key: string, value: string) => void
-  onWindowChange: (value: string) => void
-  onEquityChange: (value: string) => void
-  onCostsChange: (key: "taker" | "maker" | "slippage", value: string) => void
-  onReset?: () => void
+  /** Strategy/indicator name for the header — null shows the New Run CTA. */
+  title: string | null
+  /** Legacy run whose strategy was retired — results stay viewable. */
+  archived?: boolean
+  rows: { label: string; value: string }[]
   onNewRun: () => void
 }) {
-  if (!strategy) {
+  if (!title) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
         <p className="text-xs text-muted-foreground">
@@ -66,81 +39,29 @@ export function StrategyInputs({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b px-3 py-2.5">
         <span className="text-[11px] font-semibold text-foreground/80">
-          Inputs · {STRATEGY_LABELS[strategy]}
+          Inputs · {title}
         </span>
-        {readOnly ? (
-          <span className="text-[10px] text-muted-foreground">Read-only</span>
-        ) : onReset ? (
-          <button
-            type="button"
-            onClick={onReset}
-            className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          >
-            Reset
-          </button>
-        ) : null}
+        <span className="text-[10px] text-muted-foreground">Read-only</span>
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid content-start gap-3 p-3">
-        <div className="grid gap-2">
-          <Label className="text-xs">
-            Date range (days back, 1–{maxWindowDays})
-          </Label>
-          <Input
-            value={windowDays}
-            inputMode="numeric"
-            disabled={disabled}
-            onChange={(event) => onWindowChange(event.target.value.trim())}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label className="text-xs">Starting equity (USD)</Label>
-          <Input
-            value={equity}
-            inputMode="decimal"
-            disabled={disabled}
-            onChange={(event) => onEquityChange(event.target.value.trim())}
-          />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="grid gap-2">
-            <Label className="text-xs">Taker bps</Label>
-            <Input
-              value={costs.taker}
-              inputMode="decimal"
-              disabled={disabled}
-              onChange={(event) => onCostsChange("taker", event.target.value.trim())}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-xs">Maker bps</Label>
-            <Input
-              value={costs.maker}
-              inputMode="decimal"
-              disabled={disabled}
-              onChange={(event) => onCostsChange("maker", event.target.value.trim())}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-xs">Slip bps</Label>
-            <Input
-              value={costs.slippage}
-              inputMode="decimal"
-              disabled={disabled}
-              onChange={(event) =>
-                onCostsChange("slippage", event.target.value.trim())
-              }
-            />
-          </div>
-        </div>
-        <div className="my-1 h-px bg-border" />
-        <StrategyParamFields
-          strategy={strategy}
-          values={values}
-          disabled={disabled}
-          mid={mid}
-          onChange={onChange}
-        />
+        <div className="grid content-start gap-1.5 p-3">
+          {archived ? (
+            <p className="mb-1.5 rounded-md border border-dashed px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+              This run used a retired strategy. Its results stay viewable, but
+              the strategy can no longer be re-run.
+            </p>
+          ) : null}
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-baseline justify-between gap-3 text-xs"
+            >
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="text-right font-mono text-[11px] tabular-nums">
+                {row.value}
+              </span>
+            </div>
+          ))}
         </div>
       </ScrollArea>
     </div>

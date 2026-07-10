@@ -1,13 +1,11 @@
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
 import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
-import type { RiskParams, StrategyParams } from "@/lib/strategies/params"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import { db, type CustomShellDb } from "@/server/db"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
   tradingBacktests,
-  tradingStrategyDefaults,
-  tradingStrategyTemplates,
   type TradingBacktest,
 } from "@/server/schema"
 import { now, uuid } from "@/server/util"
@@ -19,8 +17,8 @@ export type CreateBacktestInput = {
   market: string
   network: TradingNetwork
   interval: string
-  params: StrategyParams
-  riskParams: RiskParams
+  /** The strategy's full config: indicator + universal settings. */
+  params: StrategyConfig
   costs: BacktestCosts
   startTime: Date
   endTime: Date
@@ -31,12 +29,12 @@ export type CreateBacktestInput = {
 function backtestConfigValues(input: CreateBacktestInput) {
   return {
     name: input.name.slice(0, 255),
-    strategyType: input.params.strategyType,
+    strategyType: "signal",
     market: input.market,
     network: input.network,
     interval: input.interval,
     params: input.params,
-    riskParams: input.riskParams,
+    riskParams: {},
     costs: input.costs,
     startTime: input.startTime,
     endTime: input.endTime,
@@ -87,6 +85,7 @@ export async function resetUserBacktest(
       status: "pending",
       error: null,
       result: null,
+      resultStats: null,
       startedAt: null,
       completedAt: null,
     })
@@ -101,7 +100,7 @@ export async function resetUserBacktest(
   return row
 }
 
-/** Marks a backtest done and stores its result. */
+/** Marks a backtest done and stores its result (+ compact list stats). */
 export async function finishUserBacktest(
   backtestId: string,
   result: BacktestResult,
@@ -109,7 +108,16 @@ export async function finishUserBacktest(
 ) {
   await database
     .update(tradingBacktests)
-    .set({ status: "done", result, completedAt: now() })
+    .set({
+      status: "done",
+      result,
+      resultStats: {
+        ...result.stats,
+        firstEntryMs: result.trades[0]?.entryTime ?? null,
+        lastExitMs: result.trades[result.trades.length - 1]?.exitTime ?? null,
+      },
+      completedAt: now(),
+    })
     .where(eq(tradingBacktests.id, backtestId))
 }
 
@@ -173,6 +181,8 @@ export async function listUserBacktests(
   userId: string,
   options: {
     strategyType?: string
+    /** Restrict to one run group (the group page needs nothing else). */
+    groupId?: string
     page?: number
     pageSize?: number
   } = {},
@@ -181,12 +191,12 @@ export async function listUserBacktests(
   const page = Math.max(1, options.page ?? 1)
   const maxPageSize = options.strategyType ? 100 : 500
   const pageSize = Math.min(Math.max(1, options.pageSize ?? 500), maxPageSize)
-  const where = options.strategyType
-    ? and(
-        eq(tradingBacktests.userId, userId),
-        eq(tradingBacktests.strategyType, options.strategyType)
-      )
-    : eq(tradingBacktests.userId, userId)
+  const filters = [eq(tradingBacktests.userId, userId)]
+  if (options.strategyType)
+    filters.push(eq(tradingBacktests.strategyType, options.strategyType))
+  if (options.groupId)
+    filters.push(eq(tradingBacktests.groupId, options.groupId))
+  const where = and(...filters)
 
   const [{ totalGroups = 0 } = { totalGroups: 0 }] = await database
     .select({
@@ -229,30 +239,30 @@ export async function listUserBacktests(
       completedAt: tradingBacktests.completedAt,
       netPnl: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,netPnl}')`,
+      >`(${tradingBacktests.resultStats} ->> 'netPnl')`,
       netPnlPct: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,netPnlPct}')`,
+      >`(${tradingBacktests.resultStats} ->> 'netPnlPct')`,
       tradeCount: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,all,trades}')`,
+      >`(${tradingBacktests.resultStats} #>> '{all,trades}')`,
       maxDrawdownPct: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,maxDrawdownPct}')`,
+      >`(${tradingBacktests.resultStats} ->> 'maxDrawdownPct')`,
       winRate: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,all,winRate}')`,
+      >`(${tradingBacktests.resultStats} #>> '{all,winRate}')`,
       sharpe: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{stats,all,sharpe}')`,
+      >`(${tradingBacktests.resultStats} #>> '{all,sharpe}')`,
       // First order opened / last order closed — drives the "Days" (active
       // trading span) column, which varies per coin unlike the padded window.
       firstEntryMs: sql<
         string | null
-      >`(${tradingBacktests.result} #>> '{trades,0,entryTime}')`,
+      >`(${tradingBacktests.resultStats} ->> 'firstEntryMs')`,
       lastExitMs: sql<
         string | null
-      >`(${tradingBacktests.result} -> 'trades' -> -1 ->> 'exitTime')`,
+      >`(${tradingBacktests.resultStats} ->> 'lastExitMs')`,
     })
     .from(tradingBacktests)
     .where(
@@ -330,148 +340,6 @@ export async function setUserBacktestStatus(
     )
     .returning({ id: tradingBacktests.id })
   return updated.length
-}
-
-/**
- * Per-user New Run seeds, keyed by strategy type. The stored object is the
- * full run config `{params, interval?, windowDays?, equity?, ...costs}` —
- * the save path validates the shape, so rows are read as-is.
- */
-export async function getUserStrategyDefaults(
-  userId: string,
-  database: CustomShellDb = db
-): Promise<Record<string, Record<string, unknown>>> {
-  const rows = await database
-    .select({
-      strategyType: tradingStrategyDefaults.strategyType,
-      params: tradingStrategyDefaults.params,
-    })
-    .from(tradingStrategyDefaults)
-    .where(eq(tradingStrategyDefaults.userId, userId))
-
-  const defaults: Record<string, Record<string, unknown>> = {}
-  for (const row of rows) {
-    defaults[row.strategyType] = row.params as Record<string, unknown>
-  }
-  return defaults
-}
-
-export async function saveUserStrategyDefaults(
-  userId: string,
-  strategyType: string,
-  defaults: Record<string, unknown>,
-  database: CustomShellDb = db
-) {
-  await database
-    .insert(tradingStrategyDefaults)
-    .values({ userId, strategyType, params: defaults, updatedAt: now() })
-    .onConflictDoUpdate({
-      target: [
-        tradingStrategyDefaults.userId,
-        tradingStrategyDefaults.strategyType,
-      ],
-      set: { params: defaults, updatedAt: now() },
-    })
-}
-
-/**
- * Named run-config templates for a user — many per strategy, alongside the
- * single main default. `params` is the same full run config as the default.
- */
-export async function listUserStrategyTemplates(
-  userId: string,
-  database: CustomShellDb = db
-): Promise<
-  { id: string; strategyType: string; name: string; params: Record<string, unknown> }[]
-> {
-  const rows = await database
-    .select({
-      id: tradingStrategyTemplates.id,
-      strategyType: tradingStrategyTemplates.strategyType,
-      name: tradingStrategyTemplates.name,
-      params: tradingStrategyTemplates.params,
-    })
-    .from(tradingStrategyTemplates)
-    .where(eq(tradingStrategyTemplates.userId, userId))
-    .orderBy(asc(tradingStrategyTemplates.name))
-
-  return rows.map((row) => ({
-    id: row.id,
-    strategyType: row.strategyType,
-    name: row.name,
-    params: row.params as Record<string, unknown>,
-  }))
-}
-
-/**
- * Saves a template. With `id`, updates that user's existing row (and errors if
- * it's gone); otherwise inserts, overwriting any of the user's templates with
- * the same (strategy, name). Returns the row id.
- */
-export async function saveUserStrategyTemplate(
-  userId: string,
-  input: {
-    id?: string
-    strategyType: string
-    name: string
-    params: Record<string, unknown>
-  },
-  database: CustomShellDb = db
-): Promise<{ id: string }> {
-  if (input.id) {
-    const updated = await database
-      .update(tradingStrategyTemplates)
-      .set({ name: input.name, params: input.params, updatedAt: now() })
-      .where(
-        and(
-          eq(tradingStrategyTemplates.id, input.id),
-          eq(tradingStrategyTemplates.userId, userId)
-        )
-      )
-      .returning({ id: tradingStrategyTemplates.id })
-    if (!updated[0]) {
-      throw new Error("Template not found — it may have been deleted.")
-    }
-    return { id: updated[0].id }
-  }
-
-  const id = uuid()
-  const [row] = await database
-    .insert(tradingStrategyTemplates)
-    .values({
-      id,
-      userId,
-      strategyType: input.strategyType,
-      name: input.name,
-      params: input.params,
-      createdAt: now(),
-      updatedAt: now(),
-    })
-    .onConflictDoUpdate({
-      target: [
-        tradingStrategyTemplates.userId,
-        tradingStrategyTemplates.strategyType,
-        tradingStrategyTemplates.name,
-      ],
-      set: { params: input.params, updatedAt: now() },
-    })
-    .returning({ id: tradingStrategyTemplates.id })
-  return { id: row.id }
-}
-
-export async function deleteUserStrategyTemplate(
-  userId: string,
-  id: string,
-  database: CustomShellDb = db
-): Promise<void> {
-  await database
-    .delete(tradingStrategyTemplates)
-    .where(
-      and(
-        eq(tradingStrategyTemplates.id, id),
-        eq(tradingStrategyTemplates.userId, userId)
-      )
-    )
 }
 
 /** Sibling runs of a group — one per market — for the workspace switcher. */

@@ -20,8 +20,13 @@ create index if not exists ix_strategy_templates_user_strategy
 
 -- Fix: qqe was added to the app's strategies but never to this constraint, so
 -- saving a QQE default would violate it. Widen to include qqe.
-alter table strategy_defaults
-  drop constraint if exists strategy_defaults_strategy_type_check;
-alter table strategy_defaults
-  add constraint strategy_defaults_strategy_type_check
-  check (strategy_type in ('grid', 'dca', 'momentum', 'qqe', 'copy'));
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'strategy_defaults_strategy_type_check'
+  ) then
+    alter table strategy_defaults
+      add constraint strategy_defaults_strategy_type_check
+      check (strategy_type in ('grid', 'dca', 'momentum', 'qqe', 'copy'));
+  end if;
+end $$;

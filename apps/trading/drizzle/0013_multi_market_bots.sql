@@ -58,7 +58,13 @@ end $$;
 -- qqe and vwap were added to the app's strategies but never to this check
 -- constraint (same gap 0010/0012 fixed for strategy_defaults/templates), so
 -- creating a QQE or VWAP bot violated it. Widen to every strategy.
-alter table bots drop constraint if exists bots_strategy_type_check;
-alter table bots
-  add constraint bots_strategy_type_check
-  check (strategy_type in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy'));
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'bots_strategy_type_check'
+  ) then
+    alter table bots
+      add constraint bots_strategy_type_check
+      check (strategy_type in ('grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy'));
+  end if;
+end $$;

@@ -1,11 +1,6 @@
 import { and, eq } from "drizzle-orm"
 
-import {
-  riskParamsSchema,
-  strategyParamsSchema,
-  type RiskParams,
-  type StrategyParams,
-} from "@/lib/strategies/params"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import { db } from "@/server/db"
 import { buildCloid } from "@/server/hyperliquid/exchange"
 import { getAssetInfo, type AssetInfo } from "@/server/hyperliquid/info"
@@ -28,8 +23,7 @@ import { PaperBroker } from "./brokers/paper"
 import type { BotBroker } from "./brokers/types"
 import { marketHub, type MarketHub } from "./market-hub"
 import { diffOrders, type ExistingOrder } from "./order-differ"
-import { applyRiskFilter } from "./risk-filter"
-import { strategies } from "./strategies/registry"
+import { resolveStrategy } from "./strategies/registry"
 import type {
   BrokerFill,
   DesiredOrder,
@@ -49,8 +43,7 @@ export class BotRunner {
   /** The single market this runner trades; a bot spawns one runner per market. */
   readonly market: string
   private readonly hub: MarketHub
-  private params!: StrategyParams
-  private risk!: RiskParams
+  private params!: StrategyConfig
   private strategy!: Strategy<never, unknown>
   private asset!: AssetInfo
   private broker: BotBroker | null = null
@@ -88,13 +81,15 @@ export class BotRunner {
     this.botNetwork = wallet.network as TradingNetwork
     await this.setStatus("starting")
     try {
-      this.params = strategyParamsSchema.parse(this.bot.params)
-      this.risk = riskParamsSchema.parse(this.bot.riskParams)
+      const strategyType = this.bot.strategyType
+      // The engine validates the StrategyConfig itself; the runner treats
+      // params as opaque (hooks receive them typed `never`).
+      this.params = this.bot.params as StrategyConfig
 
-      const strategy = strategies[this.params.strategyType]
+      const strategy = resolveStrategy(strategyType, this.bot.params)
       if (!strategy) {
         throw new Error(
-          `Strategy "${this.params.strategyType}" is not implemented yet.`
+          `Strategy "${strategyType}" can't run (archived or invalid config).`
         )
       }
       this.strategy = strategy
@@ -143,25 +138,6 @@ export class BotRunner {
       }
 
       const warmup = this.strategy.warmup(this.params as never)
-      if (warmup.sourceAddress) {
-        const source = warmup.sourceAddress as `0x${string}`
-        this.unsubscribers.push(
-          this.hub.subscribeUserFills(this.botNetwork, source, (event) => {
-            if (event.isSnapshot || this.stopped || this.paused) return
-            for (const fill of event.fills) {
-              this.strategy.onSourceFill?.(this.ctx(), this.params as never, {
-                coin: fill.coin,
-                side: fill.side === "B" ? "buy" : "sell",
-                px: fill.px,
-                sz: fill.sz,
-                time: fill.time,
-                tid: fill.tid,
-              })
-            }
-            this.scheduleEvaluate()
-          })
-        )
-      }
       for (const interval of warmup.candleIntervals) {
         const unsubscribe = await this.hub.subscribeCandles(
           this.botNetwork,
@@ -273,6 +249,16 @@ export class BotRunner {
         break
       }
     }
+
+    // Route the fill into the strategy's state machine BEFORE any await:
+    // evaluate() re-runs every ~250ms and re-places whatever the state does
+    // not know is filled, so updating state after the DB writes (seconds on a
+    // remote DB) let a crossed DCA safety order re-buy once per tick. The
+    // strategy also keys on fill.purpose (see BrokerFill.purpose), which only
+    // the backtest runner attached until now.
+    fill.purpose = purpose
+    this.strategy.onFill?.(this.ctx(), this.params as never, fill)
+
     await db
       .update(tradingBotOrders)
       .set({ status: "filled", remainingSz: "0", updatedAt: now() })
@@ -319,51 +305,17 @@ export class BotRunner {
       { purpose }
     )
 
-    this.strategy.onFill?.(this.ctx(), this.params as never, fill)
-    await this.checkRiskMonitors()
-    await this.persistState()
-    this.scheduleEvaluate()
-  }
-
-  private async checkRiskMonitors() {
+    // Peak-equity bookkeeping stays (it's displayed); the automated risk
+    // stops (drawdown-kill, daily-loss pause, cooldowns) are retired — the
+    // manual Pause/Flatten/kill commands are the operator's controls now.
     const mid = Number(this.hub.mid(this.botNetwork, this.market))
     const equity = this.broker?.equity(mid) ?? 0
     if (equity > this.runtime.peakEquity) {
       this.runtime.peakEquity = equity
     }
 
-    const drawdownPct =
-      this.runtime.peakEquity > 0
-        ? ((this.runtime.peakEquity - equity) / this.runtime.peakEquity) * 100
-        : 0
-    if (drawdownPct > this.risk.maxDrawdownPct) {
-      await this.kill(
-        `Drawdown ${drawdownPct.toFixed(1)}% exceeded limit ${this.risk.maxDrawdownPct}% (peak $${this.runtime.peakEquity.toFixed(2)}, now $${equity.toFixed(2)}).`
-      )
-      return
-    }
-
-    if (this.runtime.dailyRealizedPnl < -this.risk.dailyLossLimitUsd) {
-      await this.pause(
-        `Daily loss $${(-this.runtime.dailyRealizedPnl).toFixed(2)} exceeded limit $${this.risk.dailyLossLimitUsd}; auto-paused until resume.`
-      )
-      return
-    }
-
-    if (
-      this.risk.cooldownLosses > 0 &&
-      this.runtime.consecutiveLosses >= this.risk.cooldownLosses &&
-      !this.runtime.cooldownUntil
-    ) {
-      this.runtime.cooldownUntil =
-        Date.now() + this.risk.cooldownMinutes * 60_000
-      await this.event(
-        "warn",
-        "cooldown",
-        `${this.runtime.consecutiveLosses} consecutive losses; cooling down for ${this.risk.cooldownMinutes}m.`
-      )
-      await this.cancelAllOrders("cooldown")
-    }
+    await this.persistState()
+    this.scheduleEvaluate()
   }
 
   private scheduleEvaluate() {
@@ -380,12 +332,6 @@ export class BotRunner {
 
   private async evaluate() {
     if (this.evaluating || this.stopped || this.paused || !this.broker) return
-    if (this.runtime.cooldownUntil) {
-      if (Date.now() < this.runtime.cooldownUntil) return
-      this.runtime.cooldownUntil = null
-      this.runtime.consecutiveLosses = 0
-      await this.event("info", "cooldown_over", "Cooldown finished; resuming.")
-    }
     this.evaluating = true
     this.lastEvaluateAt = Date.now()
     try {
@@ -393,12 +339,7 @@ export class BotRunner {
         this.ctx(),
         this.params as never
       )
-      const filtered = applyRiskFilter(desired, {
-        mid: Number(this.hub.mid(this.botNetwork, this.market)),
-        position: this.broker?.positionState() ?? null,
-        risk: this.risk,
-      })
-      const actions = diffOrders(filtered, [...this.openOrders.values()])
+      const actions = diffOrders(desired, [...this.openOrders.values()])
 
       for (const action of actions) {
         if (action.kind === "cancel" || action.kind === "replace") {
@@ -407,16 +348,6 @@ export class BotRunner {
         if (action.kind === "place" || action.kind === "replace") {
           await this.placeOrder(action.desired)
         }
-      }
-
-      // Grid stop-loss/take-profit and similar strategy-level halts.
-      if (
-        this.params.strategyType === "grid" &&
-        (this.strategyState as { stopped?: boolean }).stopped &&
-        this.broker.positionState()
-      ) {
-        await this.flatten("Grid halt (stop-loss or take-profit)")
-        await this.pause("Grid stop-loss/take-profit hit")
       }
 
       await this.persistState()

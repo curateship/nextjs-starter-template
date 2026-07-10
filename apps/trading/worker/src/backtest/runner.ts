@@ -8,11 +8,10 @@ import type {
   BacktestResult,
   BacktestTrade,
 } from "@/lib/backtest/types"
-import type { RiskParams, StrategyParams } from "@/lib/strategies/params"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import type { CandleInterval, HistoryCandle } from "@/server/backtest/history"
 
 import { diffOrders, type ExistingOrder } from "../order-differ"
-import { applyRiskFilter } from "../risk-filter"
 import type {
   BrokerFill,
   DesiredOrder,
@@ -23,8 +22,7 @@ import { BacktestBroker } from "./broker"
 
 export type RunBacktestConfig = {
   strategy: Strategy<never, unknown>
-  params: StrategyParams
-  riskParams: RiskParams
+  params: StrategyConfig
   /** Ascending candles including warmup history before simStartMs. */
   candles: HistoryCandle[]
   /** Trading begins on the first candle whose open time is ≥ this. */
@@ -43,8 +41,7 @@ const round = (value: number) => Math.round(value * 1e6) / 1e6
 
 /**
  * Replays historical candles through a real strategy with the same
- * desiredOrders → risk filter → diff → place/cancel loop and the same risk
- * monitors (drawdown kill, daily-loss pause, cooldown) as the live BotRunner.
+ * desiredOrders → diff → place/cancel loop as the live BotRunner.
  * Fully deterministic: identical inputs yield an identical result. Each bar is
  * walked as an OHLC price path so intrabar stops and limit fills are honored,
  * pausing at declared exit-trigger levels so TP/SL fills happen at their
@@ -52,8 +49,7 @@ const round = (value: number) => Math.round(value * 1e6) / 1e6
  */
 class BacktestRunner {
   private readonly strategy: Strategy<never, unknown>
-  private readonly params: StrategyParams
-  private readonly risk: RiskParams
+  private readonly params: StrategyConfig
   private readonly candlesNum: HistoryCandle[]
   private readonly candlesWs: CandleWsEvent[]
   private readonly simStartMs: number
@@ -87,7 +83,6 @@ class BacktestRunner {
   private dailyRealizedPnl = 0
   private dailyPnlDate: string
   private consecutiveLosses = 0
-  private cooldownUntil: number | null = null
   private peakEquity: number
   private halt: BacktestHalt = { kind: null, reason: null }
   private stopped = false
@@ -101,7 +96,6 @@ class BacktestRunner {
   constructor(cfg: RunBacktestConfig) {
     this.strategy = cfg.strategy
     this.params = cfg.params
-    this.risk = cfg.riskParams
     this.candlesNum = cfg.candles
     this.simStartMs = cfg.simStartMs
     this.startingEquity = cfg.startingEquity
@@ -190,7 +184,7 @@ class BacktestRunner {
 
     // A win can't beat the take-profit on a 24/7 market: the TP fires first.
     // If the average winner exceeds it, the fill model or data is broken.
-    const tp = (this.params as { takeProfitPct?: number }).takeProfitPct
+    const tp = this.params.settings.takeProfitPct
     if (tp) {
       const wins = this.trades.filter((t) => t.pnl > 0)
       if (wins.length >= 10) {
@@ -294,19 +288,9 @@ class BacktestRunner {
 
   private evaluate() {
     if (this.stopped) return
-    if (this.cooldownUntil !== null) {
-      if (this.now < this.cooldownUntil) return
-      this.cooldownUntil = null
-      this.consecutiveLosses = 0
-    }
 
     const desired = this.strategy.desiredOrders(this.ctx(), this.params as never)
-    const filtered = applyRiskFilter(desired, {
-      mid: this.price,
-      position: this.broker.positionState(),
-      risk: this.risk,
-    })
-    const actions = diffOrders(filtered, [...this.openOrders.values()])
+    const actions = diffOrders(desired, [...this.openOrders.values()])
     for (const action of actions) {
       if (action.kind === "cancel" || action.kind === "replace") {
         this.cancelOrder(action.existing)
@@ -314,22 +298,6 @@ class BacktestRunner {
       if (action.kind === "place" || action.kind === "replace") {
         this.placeOrder(action.desired)
       }
-    }
-
-    // Grid stop-loss/take-profit halts the whole strategy — position or not.
-    // Recording the halt while flat matters: a TP/SL inside the historical
-    // price range can trip within hours of the window start, and without the
-    // halt the run just looks silently empty.
-    if (
-      this.params.strategyType === "grid" &&
-      (this.strategyState as { stopped?: boolean }).stopped
-    ) {
-      const when = new Date(this.now).toISOString().slice(0, 16).replace("T", " ")
-      this.setHalt(
-        "grid_stop",
-        `Grid stop-loss/take-profit crossed at ${when} UTC; trading halted for the rest of the window.`
-      )
-      if (this.broker.positionState()) this.broker.flatten("grid_stop")
     }
   }
 
@@ -404,7 +372,9 @@ class BacktestRunner {
     else if (Number(fill.closedPnl) > 0) this.consecutiveLosses = 0
 
     this.strategy.onFill?.(this.ctx(), this.params as never, fill)
-    this.checkRiskMonitors()
+    // Peak equity stays for the stats; the automated risk stops are retired.
+    const equity = this.broker.equity(this.price)
+    if (equity > this.peakEquity) this.peakEquity = equity
   }
 
   /** Builds flat→flat round trips from fill deltas for the trades table. */
@@ -471,51 +441,6 @@ class BacktestRunner {
       cumPnl: round(this.cumPnl),
     })
     this.openLeg = null
-  }
-
-  private checkRiskMonitors() {
-    const equity = this.broker.equity(this.price)
-    if (equity > this.peakEquity) this.peakEquity = equity
-
-    const drawdownPct =
-      this.peakEquity > 0
-        ? ((this.peakEquity - equity) / this.peakEquity) * 100
-        : 0
-    if (drawdownPct > this.risk.maxDrawdownPct) {
-      this.setHalt(
-        "drawdown_kill",
-        `Drawdown ${drawdownPct.toFixed(1)}% exceeded limit ${this.risk.maxDrawdownPct}%; flattened and stopped.`
-      )
-      this.broker.flatten("drawdown_kill")
-      return
-    }
-
-    if (this.dailyRealizedPnl < -this.risk.dailyLossLimitUsd) {
-      this.setHalt(
-        "daily_loss_pause",
-        `Daily loss $${(-this.dailyRealizedPnl).toFixed(2)} exceeded limit $${this.risk.dailyLossLimitUsd}; stopped trading.`
-      )
-      return
-    }
-
-    if (
-      this.risk.cooldownLosses > 0 &&
-      this.consecutiveLosses >= this.risk.cooldownLosses &&
-      this.cooldownUntil === null
-    ) {
-      this.cooldownUntil = this.now + this.risk.cooldownMinutes * 60_000
-      this.broker.cancelAll()
-      this.openOrders.clear()
-    }
-  }
-
-  /** Records a halt and stops issuing orders; the first halt wins. */
-  private setHalt(kind: NonNullable<BacktestHalt["kind"]>, reason: string) {
-    if (this.halt.kind) return
-    this.halt = { kind, reason }
-    this.stopped = true
-    this.broker.cancelAll()
-    this.openOrders.clear()
   }
 
   private ctx(): StrategyCtx<unknown> {

@@ -32,15 +32,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useShellRuntime } from "@/components/shell-layout"
 import {
   TableCell,
@@ -51,31 +48,22 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
-  buildParams,
-  paramsToValues,
-} from "@/components/bots/strategy-params-form"
-import {
   deleteBacktests,
   loadBacktest,
-  runBacktest,
-  saveStrategyDefaults,
   updateRunStatus,
   type BacktestDetail,
   type BacktestListItem,
-  type StrategyDefaultsMap,
-  type StrategyRunDefaults,
-  type StrategyTemplate,
 } from "@/lib/api/backtests"
 import type { GroupPortfolioMetrics } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
-import type { CandleInterval } from "@/lib/hl/ws"
 import {
   STRATEGY_DESCRIPTIONS,
   STRATEGY_LABELS,
-  strategyParamsSchema,
+  strategyLabel,
   type StrategyType,
 } from "@/lib/strategies/params"
+import { isStrategyConfig } from "@/lib/strategies/strategy-config"
 import { cn } from "@/lib/utils"
 
 import {
@@ -88,19 +76,34 @@ import {
 } from "./backtest-format"
 import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
-import type { RunDraft } from "./run-draft"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-const STRATEGY_TYPES: StrategyType[] = ["momentum", "qqe", "vwap", "grid", "dca", "copy"]
+/** "signal" (the new model) first; retired legacy types keep their history. */
+type DashStrategyType = StrategyType | "signal"
+const STRATEGY_TYPES: DashStrategyType[] = [
+  "signal", "momentum", "qqe", "vwap", "grid", "dca", "copy",
+]
 
-const STRATEGY_KIND: Record<StrategyType, string> = {
+const STRATEGY_KIND: Record<DashStrategyType, string> = {
+  signal: "Indicator",
   grid: "Range",
   dca: "Averaging",
   momentum: "Trend",
   qqe: "Oscillator",
   vwap: "Reversion",
   copy: "Mirror",
+}
+
+const DASH_LABELS: Record<DashStrategyType, string> = {
+  ...STRATEGY_LABELS,
+  signal: "Strategies (new model)",
+}
+
+const DASH_DESCRIPTIONS: Record<DashStrategyType, string> = {
+  ...STRATEGY_DESCRIPTIONS,
+  signal:
+    "Indicator-driven strategies from the Strategies page — one indicator plus the universal settings block.",
 }
 
 /** Summary stat tile shown above the strategy-runs table. */
@@ -403,15 +406,7 @@ function DeleteSelectedButton({
 }
 
 /** Toolbar "New Run" button + the creation modal; opens the run's workspace. */
-function NewRunButton({
-  defaultStrategy,
-  userDefaults,
-  templates,
-}: {
-  defaultStrategy?: StrategyType
-  userDefaults?: StrategyDefaultsMap
-  templates?: StrategyTemplate[]
-}) {
+function NewRunButton() {
   const navigate = useNavigate()
   const markets = useBinanceMarketRows()
   const [open, setOpen] = React.useState(false)
@@ -427,12 +422,8 @@ function NewRunButton({
         onOpenChange={setOpen}
         markets={markets}
         defaultMarket="BTC"
-        defaultInterval="15m"
-        defaultStrategy={defaultStrategy}
-        userDefaults={userDefaults}
-        templates={templates}
-        onContinue={(draft) =>
-          void navigate({ to: "/backtest", search: { draft } })
+        onLaunched={(backtestId) =>
+          void navigate({ to: "/backtest", search: { run: backtestId } })
         }
       />
     </>
@@ -462,7 +453,7 @@ function sortHead<Column extends string>(
 // ---------------------------------------------------------------------------
 
 type StrategyRow = {
-  type: StrategyType
+  type: DashStrategyType
   label: string
   kind: string
   groups: number
@@ -475,41 +466,40 @@ type StrategySort = "strategy" | "groups" | "executions" | "best" | "last"
 
 export function StrategiesOverview({
   runs,
-  strategyDefaults,
-  templates,
 }: {
   runs: BacktestListItem[]
-  strategyDefaults: StrategyDefaultsMap
-  templates: StrategyTemplate[]
 }) {
   const navigate = useNavigate()
-  const router = useRouter()
   const state = useTableState<StrategySort>("last")
   const selection = useSelection()
-  const [editing, setEditing] = React.useState<StrategyType | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<StrategyRow | null>(
     null
   )
 
+  // One row per strategy family. Retired (legacy) families only appear while
+  // they still have saved runs to look back at.
   const rows = React.useMemo<StrategyRow[]>(() => {
-    return STRATEGY_TYPES.map((type) => {
+    return STRATEGY_TYPES.flatMap((type) => {
       const own = runs.filter((run) => run.strategyType === type)
+      if (type !== "signal" && own.length === 0) return []
       const done = own.filter(
         (run) => run.status === "done" && run.netPnlPct !== null
       )
-      return {
-        type,
-        label: strategyDefaults[type]?.strategyName?.trim() || STRATEGY_LABELS[type],
-        kind: strategyDefaults[type]?.strategyKind?.trim() || STRATEGY_KIND[type],
-        groups: new Set(own.map((run) => run.groupId)).size,
-        executions: own.length,
-        bestNetPct: done.length
-          ? Math.max(...done.map((run) => run.netPnlPct as number))
-          : null,
-        lastRunAt: own.length ? Date.parse(own[0].createdAt) : null,
-      }
+      return [
+        {
+          type,
+          label: DASH_LABELS[type],
+          kind: STRATEGY_KIND[type],
+          groups: new Set(own.map((run) => run.groupId)).size,
+          executions: own.length,
+          bestNetPct: done.length
+            ? Math.max(...done.map((run) => run.netPnlPct as number))
+            : null,
+          lastRunAt: own.length ? Date.parse(own[0].createdAt) : null,
+        },
+      ]
     })
-  }, [runs, strategyDefaults])
+  }, [runs])
 
   const sorted = React.useMemo(() => {
     const direction = state.sortDirection === "asc" ? 1 : -1
@@ -549,7 +539,7 @@ export function StrategiesOverview({
                 onDone={selection.clear}
               />
             ) : null}
-            <NewRunButton userDefaults={strategyDefaults} templates={templates} />
+            <NewRunButton />
           </>
         }
         header={
@@ -608,7 +598,7 @@ export function StrategiesOverview({
             <TableCell column="main">
               <div className="font-medium">{row.label}</div>
               <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                {STRATEGY_DESCRIPTIONS[row.type]}
+                {DASH_DESCRIPTIONS[row.type]}
               </div>
             </TableCell>
             <TableCell column="meta">
@@ -639,16 +629,6 @@ export function StrategiesOverview({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label={`Edit ${row.label}`}
-                  onClick={() => setEditing(row.type)}
-                >
-                  <SettingsIcon className="size-4 text-muted-foreground" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
                   aria-label={`Delete ${row.label} runs`}
                   onClick={() => setPendingDelete(row)}
                 >
@@ -659,20 +639,6 @@ export function StrategiesOverview({
           </TableRow>
         ))}
       </DashboardTable>
-
-      {editing ? (
-        <EditStrategyDialog
-          key={editing}
-          strategy={editing}
-          current={strategyDefaults[editing]}
-          name={strategyDefaults[editing]?.strategyName?.trim() || STRATEGY_LABELS[editing]}
-          kind={strategyDefaults[editing]?.strategyKind?.trim() || STRATEGY_KIND[editing]}
-          onOpenChange={(next) => {
-            if (!next) setEditing(null)
-          }}
-          onSaved={() => void router.invalidate()}
-        />
-      ) : null}
 
       <ConfirmDeleteDialog
         open={pendingDelete !== null}
@@ -694,109 +660,6 @@ export function StrategiesOverview({
   )
 }
 
-/**
- * Renames a strategy's display name and type. Stored per-user on the strategy's
- * default config; run parameters live on the Templates dashboard instead.
- */
-function EditStrategyDialog({
-  strategy,
-  current,
-  name: initialName,
-  kind: initialKind,
-  onOpenChange,
-  onSaved,
-}: {
-  strategy: StrategyType
-  current: StrategyRunDefaults | undefined
-  name: string
-  kind: string
-  onOpenChange: (open: boolean) => void
-  onSaved: () => void
-}) {
-  const [name, setName] = React.useState(initialName)
-  const [kind, setKind] = React.useState(initialKind)
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-
-  async function save() {
-    setBusy(true)
-    setError(null)
-    try {
-      await saveStrategyDefaults({
-        strategyType: strategy,
-        defaults: {
-          ...current,
-          params: current?.params ?? {},
-          strategyName: name.trim() || undefined,
-          strategyKind: kind.trim() || undefined,
-        },
-      })
-      onOpenChange(false)
-      onSaved()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(next) => (busy ? null : onOpenChange(next))}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Edit strategy</DialogTitle>
-          <DialogDescription>
-            Rename this strategy and its type. To change run parameters, use the
-            Templates page.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody className="grid gap-4">
-          <div className="grid gap-2">
-            <Label>Name</Label>
-            <Input
-              className="h-8"
-              value={name}
-              disabled={busy}
-              maxLength={80}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Type</Label>
-            <Input
-              className="h-8"
-              value={kind}
-              disabled={busy}
-              maxLength={40}
-              onChange={(event) => setKind(event.target.value)}
-            />
-          </div>
-          {error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" disabled={busy} onClick={() => void save()}>
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Save
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Level 2 — /strategies/$strategyType: one row per named run (group).
@@ -892,16 +755,12 @@ function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
 export function StrategyRunsDashboard({
   runs,
   strategyType,
-  strategyDefaults,
-  templates,
   pagination,
   onPaginationChange,
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: StrategyType
-  strategyDefaults: StrategyDefaultsMap
-  templates: StrategyTemplate[]
+  strategyType: DashStrategyType
   pagination?: {
     page: number
     pageSize: number
@@ -1062,7 +921,7 @@ export function StrategyRunsDashboard({
           <Breadcrumbs
             crumbs={[
               { label: "Backtest", to: "/backtest" },
-              { label: STRATEGY_LABELS[strategyType] },
+              { label: DASH_LABELS[strategyType as DashStrategyType] ?? strategyType },
             ]}
           />
         }
@@ -1137,11 +996,7 @@ export function StrategyRunsDashboard({
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <NewRunButton
-              defaultStrategy={strategyType}
-              userDefaults={strategyDefaults}
-              templates={templates}
-            />
+            <NewRunButton />
           </>
         }
         header={
@@ -1437,22 +1292,31 @@ function EditRunDialog({
   }
 
   const { detail, groupMarkets } = loaded
-  const extraMarkets = groupMarkets.filter((coin) => coin !== detail.market)
-  const initial: RunDraft = {
-    name: detail.name,
-    strategy: detail.strategyType as RunDraft["strategy"],
-    market: detail.market,
-    extraMarkets: extraMarkets.length ? extraMarkets : undefined,
-    interval: detail.interval as CandleInterval,
-    windowDays: windowDaysOf(detail),
-    equity: detail.startingEquity,
-    takerFeeBps: detail.costs.takerFeeBps,
-    makerFeeBps: detail.costs.makerFeeBps,
-    slippageBps: detail.costs.slippageBps,
-    params: paramsToValues(detail.params),
-    riskParams: detail.riskParams,
+
+  // Legacy run groups (retired strategies) are read-only — no re-runs.
+  if (!isStrategyConfig(detail.params)) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) onClose()
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Legacy run</DialogTitle>
+            <DialogDescription>
+              This run used a retired strategy ({strategyLabel(detail.strategyType)}).
+              Its results stay viewable, but it can't be re-run — create a new
+              strategy on the Strategies page and run that instead.
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
+  const extraMarkets = groupMarkets.filter((coin) => coin !== detail.market)
   return (
     <NewRunDialog
       open
@@ -1461,36 +1325,19 @@ function EditRunDialog({
       }}
       markets={markets}
       defaultMarket={detail.market}
-      defaultInterval={initial.interval}
-      initial={initial}
-      lockStrategy
-      statusTarget={{
+      editTarget={{
         groupId: group.groupId,
-        reviewStatus: group.reviewStatus,
-        pinned: group.pinned,
+        name: detail.name,
+        market: detail.market,
+        extraMarkets,
+        windowDays: windowDaysOf(detail),
+        equity: detail.startingEquity,
+        takerFeeBps: detail.costs.takerFeeBps,
+        makerFeeBps: detail.costs.makerFeeBps,
+        slippageBps: detail.costs.slippageBps,
+        config: detail.params,
       }}
-      title="Edit Run"
-      description="Adjust and re-run. Adding markets runs only those new markets; changing any setting or the date range re-runs the whole basket."
-      submitLabel="Re-run"
-      onContinue={async (draft) => {
-        const parsed = strategyParamsSchema.safeParse(
-          buildParams(draft.strategy, draft.params)
-        )
-        if (!parsed.success) throw new Error("Invalid strategy parameters.")
-        await runBacktest({
-          name: draft.name,
-          groupId: group.groupId,
-          market: draft.market,
-          extraMarkets: draft.extraMarkets,
-          interval: draft.interval,
-          windowDays: draft.windowDays,
-          startingEquity: draft.equity,
-          takerFeeBps: draft.takerFeeBps,
-          makerFeeBps: draft.makerFeeBps,
-          slippageBps: draft.slippageBps,
-          params: parsed.data,
-          riskParams: detail.riskParams,
-        })
+      onLaunched={async () => {
         await router.invalidate()
       }}
     />
@@ -1510,7 +1357,7 @@ export function RunHistoryDashboard({
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: StrategyType
+  strategyType: DashStrategyType
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
 }) {
@@ -1639,7 +1486,7 @@ export function RunHistoryDashboard({
             crumbs={[
               { label: "Backtest", to: "/backtest" },
               {
-                label: STRATEGY_LABELS[strategyType],
+                label: DASH_LABELS[strategyType as DashStrategyType] ?? strategyType,
                 to: `/backtest/${strategyType}`,
               },
               { label: truncateWords(runName, 10) },

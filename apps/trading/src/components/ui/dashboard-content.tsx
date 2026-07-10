@@ -17,14 +17,3 @@ export function DashboardContent({
   )
 }
 
-export function DashboardRow({
-  className,
-  ...props
-}: React.ComponentProps<"section">) {
-  return (
-    <section
-      className={cn("flex flex-col gap-4 sm:gap-6 xl:flex-row", className)}
-      {...props}
-    />
-  )
-}

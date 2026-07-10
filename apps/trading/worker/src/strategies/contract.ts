@@ -1,21 +1,7 @@
 import type { CandleWsEvent } from "@nktkas/hyperliquid"
 
-import type {
-  StrategyParams,
-  StrategyType,
-} from "@/lib/strategies/params"
-
 export type CandleInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d"
 
-/** Candles per UTC day for each interval (shared by day-based params). */
-export const BARS_PER_DAY: Record<CandleInterval, number> = {
-  "1m": 1440,
-  "5m": 288,
-  "15m": 96,
-  "1h": 24,
-  "4h": 6,
-  "1d": 1,
-}
 
 export type DesiredOrder = {
   /** Stable identity for diffing, e.g. "grid:7:buy". Max 40 chars. */
@@ -69,19 +55,6 @@ export type StrategyCtx<S> = {
 
 export type WarmupSpec = {
   candleIntervals: CandleInterval[]
-  needsBook: boolean
-  needsTrades: boolean
-  /** Copy strategy: public address whose fills should be streamed. */
-  sourceAddress?: string
-}
-
-export type SourceFill = {
-  coin: string
-  side: "buy" | "sell"
-  px: string
-  sz: string
-  time: number
-  tid: number
 }
 
 /**
@@ -155,8 +128,9 @@ export function marketEntryExitOrders<
   return orders
 }
 
-export interface Strategy<P extends StrategyParams, S> {
-  type: StrategyType
+export interface Strategy<P, S> {
+  /** "signal" for the new engine; legacy types name their retired strategy. */
+  type: string
   warmup: (params: P) => WarmupSpec
   init: (params: P) => S
   onCandleClose?: (
@@ -166,7 +140,6 @@ export interface Strategy<P extends StrategyParams, S> {
   ) => void
   onFill?: (ctx: StrategyCtx<S>, params: P, fill: BrokerFill) => void
   onTick?: (ctx: StrategyCtx<S>, params: P) => void
-  onSourceFill?: (ctx: StrategyCtx<S>, params: P, fill: SourceFill) => void
   /**
    * Price levels at which onTick would request an exit right now (TP / SL /
    * trailing stop), given the current position and state. Pure — must not

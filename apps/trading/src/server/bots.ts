@@ -3,11 +3,9 @@ import { randomBytes } from "node:crypto"
 import { and, count, desc, eq, inArray, sql, sum } from "drizzle-orm"
 
 import {
-  riskParamsSchema,
-  strategyParamsSchema,
-  type RiskParams,
-  type StrategyParams,
-} from "@/lib/strategies/params"
+  strategyConfigSchema,
+  type StrategyConfig,
+} from "@/lib/strategies/strategy-config"
 import { db, type CustomShellDb } from "@/server/db"
 import { getAssetInfo } from "@/server/hyperliquid/info"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
@@ -30,8 +28,9 @@ export type CreateBotInput = {
   markets: string[]
   exchange: string
   mode: "paper" | "live"
-  params: StrategyParams
-  riskParams: RiskParams
+  params: StrategyConfig
+  /** Saved strategy the config was snapshotted from. */
+  strategyId?: string
   paperStartingEquity?: number
 }
 
@@ -152,8 +151,7 @@ export async function getBotDetail(
 export type UpdateBotInput = {
   name: string
   markets: string[]
-  params: StrategyParams
-  riskParams: RiskParams
+  params: StrategyConfig
 }
 
 /**
@@ -175,13 +173,13 @@ export async function updateUserBot(
   const name = input.name.trim()
   if (!name) throw new Error("Bot name is required")
 
-  const params = strategyParamsSchema.parse(input.params)
-  const riskParams = riskParamsSchema.parse(input.riskParams)
-  if (params.strategyType !== bot.strategyType) {
+  // Archived legacy bots are read-only history — fail fast, no dual path.
+  if (bot.strategyType !== "signal") {
     throw new Error(
-      "Strategy type cannot be changed — create a new bot instead."
+      "This bot uses a retired strategy and is archived — it can't be edited."
     )
   }
+  const params = strategyConfigSchema.parse(input.params)
 
   const markets = [...new Set(input.markets.map((m) => m.trim()).filter(Boolean))]
   if (markets.length === 0) throw new Error("Pick at least one market")
@@ -204,7 +202,6 @@ export async function updateUserBot(
       name: name.slice(0, 255),
       markets,
       params,
-      riskParams,
       updatedAt: now(),
     })
     .where(eq(tradingBots.id, botId))
@@ -251,9 +248,16 @@ export async function createUserBot(
   if (!wallet) throw new Error("Wallet not found")
   if (!wallet.isActive) throw new Error("Wallet is disabled")
 
-  const params = strategyParamsSchema.parse(input.params)
-  const riskParams = riskParamsSchema.parse(input.riskParams)
+  const params = strategyConfigSchema.parse(input.params)
 
+  // strategy_id is display-only provenance, but it must still point at one of
+  // the creator's own strategies — never someone else's row.
+  let strategyId: string | null = null
+  if (input.strategyId) {
+    const { getUserStrategy } = await import("@/server/strategies")
+    const owned = await getUserStrategy(userId, input.strategyId, database)
+    strategyId = owned ? owned.id : null
+  }
   // Dedupe while preserving order; a bot needs at least one market.
   const markets = [...new Set(input.markets.map((m) => m.trim()).filter(Boolean))]
   if (markets.length === 0) throw new Error("Pick at least one market")
@@ -274,7 +278,8 @@ export async function createUserBot(
           id: uuid(),
           userId,
           name: name.slice(0, 255),
-          strategyType: params.strategyType,
+          strategyType: "signal",
+          strategyId,
           walletId: wallet.id,
           markets,
           exchange: input.exchange || "hyperliquid",
@@ -282,7 +287,7 @@ export async function createUserBot(
           desiredState: "stopped",
           status: "stopped",
           params,
-          riskParams,
+          riskParams: {},
           cloidPrefix,
           paperStartingEquity:
             input.mode === "paper"
@@ -336,6 +341,17 @@ export async function sendBotCommand(
 ) {
   const bot = await getUserBot(userId, botId, database)
   if (!bot) throw new Error("Bot not found")
+
+  // Archived legacy bots stay readable (and can still be stopped/flattened)
+  // but can never trade again — their strategies were retired.
+  if (
+    bot.strategyType !== "signal" &&
+    (command === "start" || command === "resume")
+  ) {
+    throw new Error(
+      "This bot uses a retired strategy and is archived. Create a new bot from a saved strategy instead."
+    )
+  }
 
   const desiredState =
     command === "start" || command === "resume"

@@ -4,6 +4,9 @@
  * dashboard reads it back — so these shapes must be plain JSON.
  */
 
+import { INDICATORS } from "@/lib/indicators/registry"
+import { strategyConfigSchema } from "@/lib/strategies/strategy-config"
+
 export type BacktestEquityPoint = {
   /** Bar close time, ms since epoch. */
   t: number
@@ -195,7 +198,15 @@ export const SIGNAL_WARMUP_CANDLES = 1500
  * its optional trend filter reads a moving average. Grid starts flat and
  * needs none.
  */
-export function warmupBarsFor(strategyType: string): number {
+export function warmupBarsFor(strategyType: string, params?: unknown): number {
+  // New model: the picked indicator declares its own warmup. QQE stays deep
+  // (its consolidation anchor is path-dependent) via its module's floor.
+  if (strategyType === "signal") {
+    const parsed = strategyConfigSchema.safeParse(params)
+    if (!parsed.success) return SIGNAL_WARMUP_CANDLES
+    const module = INDICATORS[parsed.data.indicator.type]
+    return module.warmupBars(parsed.data.indicator.params as never) + 5
+  }
   return strategyType === "momentum" ||
     strategyType === "qqe" ||
     strategyType === "vwap" ||
