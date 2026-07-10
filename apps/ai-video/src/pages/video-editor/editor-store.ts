@@ -129,6 +129,7 @@ export type EditorAction =
       type: "APPLY_JUMP_CUTS"
       clipId: string
       removals: { clipStartMs: number; clipEndMs: number }[]
+      rippleClipIds: string[]
     }
   | { type: "ADD_TRACK" }
   | { type: "DELETE_CLIP"; clipId: string }
@@ -487,11 +488,27 @@ export function editorReducer(
       }
       addKeptSegment(found.clip.durationMs)
       if (!clips.length) return state
+      const removedDurationMs =
+        found.clip.durationMs -
+        clips.reduce((total, clip) => total + clip.durationMs, 0)
+      const rippleClipIds = new Set(action.rippleClipIds)
 
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
         ...track,
         clips: sortClips([
-          ...track.clips.filter((clip) => clip.id !== found.clip.id),
+          ...track.clips
+            .filter((clip) => clip.id !== found.clip.id)
+            .map((clip) =>
+              rippleClipIds.has(clip.id)
+                ? {
+                    ...clip,
+                    startMs: Math.max(
+                      found.clip.startMs,
+                      clip.startMs - removedDurationMs
+                    ),
+                  }
+                : clip
+            ),
           ...clips,
         ]),
       }))

@@ -39,9 +39,8 @@ const generateCaptionsFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ProjectCaptionsResult> => {
-    const { generateProjectCaptionsForCurrentUser } = await import(
-      "@/server/captions"
-    )
+    const { generateProjectCaptionsForCurrentUser } =
+      await import("@/server/captions")
     return generateProjectCaptionsForCurrentUser(data.projectId, data.provider)
   })
 

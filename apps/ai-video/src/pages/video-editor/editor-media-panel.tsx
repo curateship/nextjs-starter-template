@@ -6,6 +6,7 @@ import {
   Loader2Icon,
   MusicIcon,
   PlusIcon,
+  ScissorsIcon,
   SearchIcon,
   UploadIcon,
   VideoIcon,
@@ -36,12 +37,22 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  generateProjectCaptions,
+  getCaptionErrorMessage,
+} from "@/lib/api/captions"
+import {
   getMediaErrorMessage,
   listMedia,
   uploadMedia,
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
+import {
+  getTranscriptWordPlacement,
+  mapTranscriptWordSpanToClipRemoval,
+  type TranscriptSource,
+  type TranscriptWord,
+} from "@/lib/transcript-editing"
 import {
   AiPanel,
   ElementsPanel,
@@ -51,6 +62,7 @@ import {
   DEFAULT_IMAGE_DURATION_MS,
   editorId,
   loadMediaDurationMs,
+  MIN_CLIP_MS,
   pxToMs,
 } from "@/pages/video-editor/timeline-utils"
 
@@ -336,10 +348,24 @@ export function EditorMediaPanel({
         {/* Row 1: Media/Elements/Ai switcher. */}
         {!embedded ? (
           <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
-            <TabsList className="shrink-0">
-              <TabsTrigger value="media">Media</TabsTrigger>
-              <TabsTrigger value="elements">Elements</TabsTrigger>
-              <TabsTrigger value="ai">Ai</TabsTrigger>
+            <TabsList className="w-full shrink-0">
+              <TabsTrigger className="min-w-0 px-1 text-xs" value="media">
+                Media
+              </TabsTrigger>
+              <TabsTrigger className="min-w-0 px-1 text-xs" value="elements">
+                Elements
+              </TabsTrigger>
+              <TabsTrigger className="min-w-0 px-1 text-xs" value="ai">
+                Ai
+              </TabsTrigger>
+              {kind === "project" ? (
+                <TabsTrigger
+                  className="min-w-0 px-1 text-xs"
+                  value="transcript"
+                >
+                  Transcript
+                </TabsTrigger>
+              ) : null}
             </TabsList>
           </div>
         ) : null}
@@ -490,6 +516,17 @@ export function EditorMediaPanel({
             <AiPanel />
           </TabsContent>
         ) : null}
+
+        {/* Keep mounted so transcription and selection survive tab switches. */}
+        {!embedded && kind === "project" ? (
+          <TabsContent
+            forceMount
+            value="transcript"
+            className="min-h-0 overflow-y-auto p-3 pt-1 data-[state=inactive]:hidden"
+          >
+            <TranscriptPanel />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <input
@@ -501,6 +538,217 @@ export function EditorMediaPanel({
       />
     </section>
   )
+}
+
+type TranscriptData = {
+  source: TranscriptSource
+  words: TranscriptWord[]
+}
+
+function TranscriptPanel() {
+  const { state, dispatch, clock, documentId, flushSave } = useEditor()
+  const [transcript, setTranscript] = React.useState<TranscriptData | null>(
+    null
+  )
+  const [selection, setSelection] = React.useState<{
+    anchor: number
+    focus: number
+  } | null>(null)
+  const [transcribing, setTranscribing] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const range = selection
+    ? {
+        start: Math.min(selection.anchor, selection.focus),
+        end: Math.max(selection.anchor, selection.focus),
+      }
+    : null
+
+  async function handleTranscribe() {
+    setTranscribing(true)
+    setError(null)
+    try {
+      await flushSave()
+      const result = await generateProjectCaptions(documentId, "openai")
+      const words = result.captions.flatMap((line) =>
+        (line.words ?? []).map((word) => ({
+          text: word.text,
+          startMs: line.startMs + word.startMs,
+          endMs: Math.min(line.endMs, line.startMs + word.endMs),
+        }))
+      )
+      if (!words.length) {
+        setError("No word-timed speech found.")
+        return
+      }
+      setTranscript({ source: result.source, words })
+      setSelection(null)
+    } catch (caught) {
+      setError(getCaptionErrorMessage(caught))
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  function selectWord(index: number, extend: boolean) {
+    if (!transcript) return
+    const placement = getTranscriptWordPlacement(
+      transcript.words[index],
+      transcript.source,
+      state.tracks
+    )
+    if (!placement) return
+    clock.seek(placement.timelineStartMs)
+    setSelection((current) =>
+      extend && current
+        ? { ...current, focus: index }
+        : { anchor: index, focus: index }
+    )
+    setError(null)
+  }
+
+  function cutSelection() {
+    if (!transcript || !range) return
+    const action = mapTranscriptWordSpanToClipRemoval(
+      transcript.words,
+      range.start,
+      range.end,
+      transcript.source,
+      state.tracks
+    )
+    if (!action) {
+      setError("Select an uncut word range within one clip segment.")
+      return
+    }
+    const removal = action.removals[0]
+    if (removal.clipEndMs - removal.clipStartMs < MIN_CLIP_MS) {
+      setError("That word range is too short to cut.")
+      return
+    }
+    dispatch({ type: "APPLY_JUMP_CUTS", ...action })
+    setSelection(null)
+    setError(null)
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent) {
+    if (range && (event.key === "Delete" || event.key === "Backspace")) {
+      event.preventDefault()
+      cutSelection()
+    }
+  }
+
+  const sentences = transcript ? groupTranscriptWords(transcript.words) : []
+
+  return (
+    <section
+      aria-label="Transcript editor"
+      className="space-y-3"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Transcript</h2>
+          <p className="text-xs text-muted-foreground">
+            Click a word, then Shift-click to select a range.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          disabled={transcribing}
+          onClick={() => void handleTranscribe()}
+        >
+          {transcribing ? <Loader2Icon className="animate-spin" /> : null}
+          {transcript ? "Re-transcribe" : "Transcribe"}
+        </Button>
+      </div>
+
+      {error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+
+      {transcript ? (
+        <>
+          <div className="space-y-3 rounded-md border bg-background p-3">
+            {sentences.map((sentence, sentenceIndex) => (
+              <p key={sentenceIndex} className="flex flex-wrap gap-x-1 gap-y-1">
+                {sentence.map((index) => {
+                  const word = transcript.words[index]
+                  const removed = !getTranscriptWordPlacement(
+                    word,
+                    transcript.source,
+                    state.tracks
+                  )
+                  const selected =
+                    !removed &&
+                    range !== null &&
+                    index >= range.start &&
+                    index <= range.end
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      disabled={removed}
+                      aria-pressed={selected}
+                      className={transcriptWordClassName(removed, selected)}
+                      onClick={(event) => selectWord(index, event.shiftKey)}
+                    >
+                      {word.text}
+                    </button>
+                  )
+                })}
+              </p>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!range}
+            onClick={cutSelection}
+          >
+            <ScissorsIcon />
+            Cut selected words
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Delete is one undoable edit. Re-transcribe after replacing or
+            trimming the source clip.
+          </p>
+        </>
+      ) : (
+        <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+          Transcribe the project&apos;s main audio to edit the video from its
+          words.
+        </div>
+      )}
+    </section>
+  )
+}
+
+function transcriptWordClassName(removed: boolean, selected: boolean) {
+  if (removed) {
+    return "cursor-default text-sm text-muted-foreground/60 line-through"
+  }
+  if (selected) {
+    return "rounded-sm bg-primary/15 px-0.5 text-sm text-primary"
+  }
+  return "rounded-sm px-0.5 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+}
+
+function groupTranscriptWords(words: TranscriptWord[]) {
+  const sentences: number[][] = []
+  let sentence: number[] = []
+  words.forEach((word, index) => {
+    sentence.push(index)
+    if (/[.!?]["')\]]*$/.test(word.text)) {
+      sentences.push(sentence)
+      sentence = []
+    }
+  })
+  if (sentence.length) sentences.push(sentence)
+  return sentences
 }
 
 // Single grid tile: draggable/clickable to add, with a plus overlay on hover
