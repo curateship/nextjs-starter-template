@@ -38,14 +38,17 @@ import {
 
 const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
 
-function defaultConfig(): StrategyConfig {
+function defaultConfig(indicator: IndicatorId = "qqe"): StrategyConfig {
   return {
     v: 2,
     interval: "15m",
     indicator: {
-      type: "qqe",
+      type: indicator,
       params: {
-        ...(INDICATORS.qqe.defaultParams as Record<string, IndicatorParamValue>),
+        ...(INDICATORS[indicator].defaultParams as Record<
+          string,
+          IndicatorParamValue
+        >),
       },
     },
     settings: { ...DEFAULT_STRATEGY_SETTINGS },
@@ -60,14 +63,17 @@ function defaultConfig(): StrategyConfig {
 export function StrategyEditorDialog({
   open,
   target,
+  initialIndicator,
   onOpenChange,
   onSaved,
 }: {
   open: boolean
   /** null = create new. */
   target: StrategyListItem | null
+  /** Seeds a new strategy's indicator (e.g. from a scoped New Run dialog). */
+  initialIndicator?: IndicatorId
   onOpenChange: (open: boolean) => void
-  onSaved: () => void
+  onSaved: (saved: StrategyListItem) => void
 }) {
   const [name, setName] = React.useState("")
   const [config, setConfig] = React.useState<StrategyConfig>(defaultConfig)
@@ -77,9 +83,9 @@ export function StrategyEditorDialog({
   React.useEffect(() => {
     if (!open) return
     setName(target?.name ?? "")
-    setConfig(target ? target.config : defaultConfig())
+    setConfig(target ? target.config : defaultConfig(initialIndicator))
     setError(null)
-  }, [open, target])
+  }, [open, target, initialIndicator])
 
   const module = INDICATORS[config.indicator.type]
 
@@ -168,13 +174,13 @@ export function StrategyEditorDialog({
     }
     setBusy(true)
     try {
-      await saveStrategy({
+      const { strategy } = await saveStrategy({
         strategyId: target?.id,
         name: name.trim(),
         config: parsed.data,
       })
       onOpenChange(false)
-      onSaved()
+      onSaved(strategy)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed")
     } finally {

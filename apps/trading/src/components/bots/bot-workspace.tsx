@@ -59,7 +59,6 @@ import {
 import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import { strategyLabel } from "@/lib/strategies/params"
 import {
   isStrategyConfig,
   strategyConfigSchema,
@@ -681,7 +680,6 @@ export function BotWorkspace({
               {controlsOpen ? (
                 <ResizablePanel id="controls" defaultSize="20%" minSize="14%">
                   <BotOrderControls
-                    strategy={bot.strategy_type}
                     market={selectedMarket}
                     mode={bot.mode}
                     draft={draft}
@@ -758,7 +756,7 @@ export function BotWorkspace({
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <SheetTitle className="text-sm">
-              Edit {strategyLabel(bot.strategy_type)} bot
+              Edit bot
             </SheetTitle>
             <SheetClose asChild>
               <Button

@@ -92,11 +92,11 @@ async function evaluateQuickTest(
 
     const interval = data.config.interval
     const step = INTERVAL_MS[interval]
-    const strategy = resolveStrategy("signal", data.config)
+    const strategy = resolveStrategy(data.config)
     if (!strategy) throw new Error("Invalid strategy configuration.")
 
     // Bound the window so warmup + test fit one exchange snapshot.
-    const warmupBars = warmupBarsFor("signal", data.config)
+    const warmupBars = warmupBarsFor(data.config)
     const barsPerDay = 86_400_000 / step
     const maxDays = Math.min(
       maxWindowDays(interval),

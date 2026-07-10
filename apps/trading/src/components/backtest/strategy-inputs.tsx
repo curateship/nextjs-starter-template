@@ -10,14 +10,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
  */
 export function StrategyInputs({
   title,
-  archived = false,
   rows,
   onNewRun,
 }: {
   /** Strategy/indicator name for the header — null shows the New Run CTA. */
   title: string | null
-  /** Legacy run whose strategy was retired — results stay viewable. */
-  archived?: boolean
   rows: { label: string; value: string }[]
   onNewRun: () => void
 }) {
@@ -45,12 +42,6 @@ export function StrategyInputs({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid content-start gap-1.5 p-3">
-          {archived ? (
-            <p className="mb-1.5 rounded-md border border-dashed px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
-              This run used a retired strategy. Its results stay viewable, but
-              the strategy can no longer be re-run.
-            </p>
-          ) : null}
           {rows.map((row) => (
             <div
               key={row.label}

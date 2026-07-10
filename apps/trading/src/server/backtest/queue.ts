@@ -35,7 +35,7 @@ async function runOneBacktestRow(row: TradingBacktest): Promise<void> {
   const params = row.params as StrategyConfig
   const interval = row.interval as BacktestInterval
   try {
-    const warmupBars = warmupBarsFor(row.strategyType, row.params)
+    const warmupBars = warmupBarsFor(row.params)
     const simStartMs = row.startTime.getTime()
     const endMs = row.endTime.getTime()
     const fetchStart = simStartMs - warmupBars * INTERVAL_MS[interval]
@@ -49,7 +49,7 @@ async function runOneBacktestRow(row: TradingBacktest): Promise<void> {
     if (candles.length === 0) {
       throw new Error(`No candle history for ${row.market} in that window.`)
     }
-    const strategy = resolveStrategy(row.strategyType, row.params)
+    const strategy = resolveStrategy(row.params)
     if (!strategy) {
       throw new Error(`Strategy "${row.strategyType}" can't be backtested.`)
     }

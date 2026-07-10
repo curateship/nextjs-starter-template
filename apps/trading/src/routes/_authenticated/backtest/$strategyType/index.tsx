@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { StrategyRunsDashboard } from "@/components/backtest/strategies-dashboard"
 import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
-import { STRATEGY_LABELS } from "@/lib/strategies/params"
+import { indicatorIdSchema, type IndicatorId } from "@/lib/indicators/registry"
 
 const strategyRunsSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -14,13 +14,11 @@ export const Route = createFileRoute("/_authenticated/backtest/$strategyType/")(
   validateSearch: (search) => strategyRunsSearchSchema.parse(search),
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps }) => {
-    if (
-      params.strategyType !== "signal" &&
-      !(params.strategyType in STRATEGY_LABELS)
-    )
-      throw notFound()
+    // The $strategyType param is an indicator id (e.g. "qqe", "ema_cross").
+    const indicator = indicatorIdSchema.safeParse(params.strategyType)
+    if (!indicator.success) throw notFound()
     const data = await loadBacktests({
-      strategyType: params.strategyType as "signal",
+      indicatorType: indicator.data,
       page: deps.page ?? 1,
       pageSize: deps.pageSize ?? 20,
     })
@@ -38,7 +36,7 @@ function StrategyRunsRoute() {
   return (
     <StrategyRunsDashboard
       runs={runs}
-      strategyType={strategyType as "signal"}
+      strategyType={strategyType as IndicatorId}
       pagination={pagination}
       groupMetrics={groupMetrics}
       onPaginationChange={(patch) =>

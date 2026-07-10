@@ -47,7 +47,7 @@ const CONFIG: StrategyConfig = {
 }
 
 function makeCfg(): RunBacktestConfig {
-  const strategy = resolveStrategy("signal", CONFIG)
+  const strategy = resolveStrategy(CONFIG)
   if (!strategy) throw new Error("signal strategy failed to resolve")
   return {
     strategy,

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, XIcon } from "lucide-react"
+import { Loader2Icon, PlusIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,8 +31,9 @@ import {
   MAX_EXTRA_MARKETS,
   maxWindowDays,
 } from "@/lib/backtest/types"
-import { INDICATORS } from "@/lib/indicators/registry"
+import { INDICATORS, type IndicatorId } from "@/lib/indicators/registry"
 import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import { StrategyEditorDialog } from "@/components/strategies/strategy-editor"
 import {
   settingsSummary,
   StrategyPicker,
@@ -64,6 +65,7 @@ export function NewRunDialog({
   onOpenChange,
   markets,
   defaultMarket,
+  indicatorType,
   editTarget,
   onLaunched,
 }: {
@@ -71,6 +73,8 @@ export function NewRunDialog({
   onOpenChange: (open: boolean) => void
   markets: MarketRowLike[]
   defaultMarket: string
+  /** Scopes the dialog to one indicator's templates (a strategy page's New Run). */
+  indicatorType?: IndicatorId
   /** Re-run mode: locked strategy config, prefilled run settings. */
   editTarget?: RunEditTarget
   /** Receives the main run's id once the run group is queued. */
@@ -96,6 +100,7 @@ export function NewRunDialog({
   )
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [editorOpen, setEditorOpen] = React.useState(false)
 
   React.useEffect(() => {
     if (!open) return
@@ -124,9 +129,30 @@ export function NewRunDialog({
     }
   }, [open, editTarget, defaultMarket])
 
+  // A strategy page's New Run only offers that indicator's templates.
+  const visibleStrategies = React.useMemo(() => {
+    if (!strategies) return null
+    if (!indicatorType) return strategies
+    return strategies.filter(
+      (row) => row.config.indicator.type === indicatorType
+    )
+  }, [strategies, indicatorType])
+
+  // Scoped dialog: preselect the first matching template so the run is one
+  // click away (and never leave a foreign indicator's template selected).
+  React.useEffect(() => {
+    if (!open || editTarget || !indicatorType || !visibleStrategies) return
+    if (
+      visibleStrategies.length > 0 &&
+      !visibleStrategies.some((row) => row.id === strategyId)
+    ) {
+      setStrategyId(visibleStrategies[0].id)
+    }
+  }, [open, editTarget, indicatorType, visibleStrategies, strategyId])
+
   const strategy = editTarget
     ? null
-    : (strategies?.find((row) => row.id === strategyId) ?? null)
+    : (visibleStrategies?.find((row) => row.id === strategyId) ?? null)
   const config = editTarget?.config ?? strategy?.config ?? null
 
   const availableMarkets = markets.filter(
@@ -205,9 +231,33 @@ export function NewRunDialog({
               · {editTarget.config.interval} · {settingsSummary(editTarget.config)}{" "}
               — the strategy is fixed for this run group.
             </div>
+          ) : indicatorType &&
+            visibleStrategies !== null &&
+            visibleStrategies.length === 0 ? (
+            <div className="grid gap-2">
+              <Label>Strategy</Label>
+              <div className="grid justify-items-center gap-3 rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                <span>
+                  No saved template for{" "}
+                  {INDICATORS[indicatorType]?.label ?? indicatorType} yet — a
+                  template is this indicator plus its parameters and trade
+                  settings.
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setEditorOpen(true)}
+                >
+                  <PlusIcon className="size-3.5" />
+                  Create template
+                </Button>
+              </div>
+            </div>
           ) : (
             <StrategyPicker
-              strategies={strategies}
+              strategies={visibleStrategies}
               selectedId={strategyId}
               onSelect={(id) => {
                 setStrategyId(id)
@@ -368,6 +418,18 @@ export function NewRunDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      {/* Stacked template editor for the scoped empty state; saving selects
+          the new template so the run can launch immediately. */}
+      <StrategyEditorDialog
+        open={editorOpen}
+        target={null}
+        initialIndicator={indicatorType}
+        onOpenChange={setEditorOpen}
+        onSaved={(saved) => {
+          setStrategies((current) => [saved, ...(current ?? [])])
+          setStrategyId(saved.id)
+        }}
+      />
     </Dialog>
   )
 }

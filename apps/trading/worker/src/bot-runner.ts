@@ -81,16 +81,13 @@ export class BotRunner {
     this.botNetwork = wallet.network as TradingNetwork
     await this.setStatus("starting")
     try {
-      const strategyType = this.bot.strategyType
       // The engine validates the StrategyConfig itself; the runner treats
       // params as opaque (hooks receive them typed `never`).
       this.params = this.bot.params as StrategyConfig
 
-      const strategy = resolveStrategy(strategyType, this.bot.params)
+      const strategy = resolveStrategy(this.bot.params)
       if (!strategy) {
-        throw new Error(
-          `Strategy "${strategyType}" can't run (archived or invalid config).`
-        )
+        throw new Error("Invalid strategy configuration.")
       }
       this.strategy = strategy
 

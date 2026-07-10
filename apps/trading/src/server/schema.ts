@@ -324,7 +324,7 @@ export const tradingBots = pgTable(
   (table) => [
     check(
       "bots_strategy_type_check",
-      sql`${table.strategyType} in ('signal', 'grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy')`
+      sql`${table.strategyType} in ('signal')`
     ),
     check("bots_mode_check", sql`${table.mode} in ('paper', 'live')`),
     check(

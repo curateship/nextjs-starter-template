@@ -31,8 +31,6 @@ import {
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
-import { strategyLabel } from "@/lib/strategies/params"
-import { isStrategyConfig } from "@/lib/strategies/strategy-config"
 import { indicatorOverlays } from "@/components/chart/indicator-overlays"
 import { INDICATORS } from "@/lib/indicators/registry"
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -446,13 +444,10 @@ export function BacktestDashboard({
     onRunIdChange(id)
   }
 
-  const strategyType = run?.strategyType ?? null
-  const signalRun =
-    run && isStrategyConfig(run.params) ? run.params : null
+  const signalRun = run?.params ?? null
 
   // Overlays paint straight from the run's indicator config — the same
-  // compute the engine traded. Legacy runs are results-only: trade chips on
-  // plain candles, no strategy paint (their painters were retired).
+  // compute the engine traded.
   const overlays = React.useMemo(() => {
     if (candles.length === 0 || !signalRun) return EMPTY_OVERLAYS
     return indicatorOverlays(signalRun.indicator, candles)
@@ -498,12 +493,6 @@ export function BacktestDashboard({
         { label: "Stop loss", value: st.stopLossPct ? `${st.stopLossPct}%` : "off" },
         { label: "Flip on opposite", value: st.flipOnOppositeSignal ? "on" : "off" }
       )
-    } else {
-      // Archived legacy run: show its raw params generically.
-      for (const [key, value] of Object.entries(run.params)) {
-        if (key === "strategyType" || typeof value === "object") continue
-        rows.push({ label: key, value: String(value) })
-      }
     }
     return rows
   }, [run, signalRun])
@@ -540,9 +529,7 @@ export function BacktestDashboard({
         strategyLabel={
           signalRun
             ? (INDICATORS[signalRun.indicator.type]?.label ?? "Strategy")
-            : strategyType
-              ? strategyLabel(strategyType)
-              : null
+            : null
         }
         dateRangeText={describeWindow(windowNum)}
         runs={initialRuns}
@@ -557,7 +544,10 @@ export function BacktestDashboard({
           if (run) {
             void router.navigate({
               to: "/backtest/$strategyType/$groupId",
-              params: { strategyType: run.strategyType, groupId: run.groupId },
+              params: {
+                strategyType: run.params.indicator.type,
+                groupId: run.groupId,
+              },
             })
           } else {
             onViewAll()
@@ -592,14 +582,11 @@ export function BacktestDashboard({
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
               <StrategyInputs
                 title={
-                  run
-                    ? signalRun
-                      ? (INDICATORS[signalRun.indicator.type]?.label ??
-                        "Strategy")
-                      : strategyLabel(run.strategyType)
+                  signalRun
+                    ? (INDICATORS[signalRun.indicator.type]?.label ??
+                      "Strategy")
                     : null
                 }
-                archived={Boolean(run && !signalRun)}
                 rows={inputRows}
                 onNewRun={() => setDialogOpen(true)}
               />
@@ -616,7 +603,7 @@ export function BacktestDashboard({
                   onIntervalChange={setTimeframe}
                   legend={{
                     chips: Boolean(result),
-                    signals: !result && Boolean(strategyType),
+                    signals: !result && Boolean(signalRun),
                   }}
                   legendLines={labeledOverlayLines}
                   ohlc={readout}

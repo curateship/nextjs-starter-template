@@ -176,11 +176,17 @@ export async function resetOrphanedRunning(
   return rows.length
 }
 
+/** The run's indicator id, from the config JSON (the strategy identity). */
+const indicatorTypeSql = sql<
+  string | null
+>`(${tradingBacktests.params} #>> '{indicator,type}')`
+
 /** Recent runs for the list page + header dropdown; omits the heavy result. */
 export async function listUserBacktests(
   userId: string,
   options: {
-    strategyType?: string
+    /** Restrict to runs of one indicator (registry id, e.g. "qqe"). */
+    indicatorType?: string
     /** Restrict to one run group (the group page needs nothing else). */
     groupId?: string
     page?: number
@@ -189,11 +195,11 @@ export async function listUserBacktests(
   database: CustomShellDb = db
 ) {
   const page = Math.max(1, options.page ?? 1)
-  const maxPageSize = options.strategyType ? 100 : 500
+  const maxPageSize = options.indicatorType ? 100 : 500
   const pageSize = Math.min(Math.max(1, options.pageSize ?? 500), maxPageSize)
   const filters = [eq(tradingBacktests.userId, userId)]
-  if (options.strategyType)
-    filters.push(eq(tradingBacktests.strategyType, options.strategyType))
+  if (options.indicatorType)
+    filters.push(sql`${indicatorTypeSql} = ${options.indicatorType}`)
   if (options.groupId)
     filters.push(eq(tradingBacktests.groupId, options.groupId))
   const where = and(...filters)
@@ -224,7 +230,7 @@ export async function listUserBacktests(
       id: tradingBacktests.id,
       groupId: tradingBacktests.groupId,
       name: tradingBacktests.name,
-      strategyType: tradingBacktests.strategyType,
+      indicatorType: indicatorTypeSql,
       market: tradingBacktests.market,
       network: tradingBacktests.network,
       interval: tradingBacktests.interval,
@@ -284,8 +290,8 @@ export type DeleteBacktestsFilter = {
   ids?: string[]
   /** Whole run groups (a run and its re-run history). */
   groupIds?: string[]
-  /** Everything belonging to these strategies. */
-  strategyTypes?: string[]
+  /** Everything belonging to these indicators (registry ids). */
+  indicatorTypes?: string[]
 }
 
 /**
@@ -302,8 +308,8 @@ export async function deleteUserBacktests(
   if (filter.groupIds?.length) {
     facets.push(inArray(tradingBacktests.groupId, filter.groupIds))
   }
-  if (filter.strategyTypes?.length) {
-    facets.push(inArray(tradingBacktests.strategyType, filter.strategyTypes))
+  if (filter.indicatorTypes?.length) {
+    facets.push(inArray(indicatorTypeSql, filter.indicatorTypes))
   }
   if (facets.length === 0) return 0
 
