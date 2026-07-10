@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm"
 
 import type {
   BacktestEquityPoint,
+  GroupCombinedCurve,
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { db, type CustomShellDb } from "@/server/db"
@@ -12,14 +13,19 @@ import { tradingBacktests } from "@/server/schema"
  */
 type MarketCurve = { start: number; curve: BacktestEquityPoint[] }
 
+/** One point on the summed basket curve: bar time and total basket equity. */
+type CombinedPoint = { t: number; total: number }
+
 /**
- * Blends every market's equity curve into one combined basket curve and reads
- * its risk. Equal-weight, no rebalancing: each market compounds from its own
- * starting capital and we sum them at each bar. A market's capital sits idle
- * (flat at its start) before its history begins, so markets with shorter
- * histories don't distort the early basket.
+ * Blends every market's equity curve into one combined basket curve. Equal-
+ * weight, no rebalancing: each market compounds from its own starting capital
+ * and we sum them at each bar. A market's capital sits idle (flat at its start)
+ * before its history begins, so markets with shorter histories don't distort
+ * the early basket. Returns the total starting capital plus the summed curve.
  */
-function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
+function blendCurves(
+  markets: MarketCurve[]
+): { totalStart: number; series: CombinedPoint[] } | null {
   const ms = markets
     .filter((m) => Array.isArray(m.curve) && m.curve.length > 0)
     .map((m) => ({
@@ -39,11 +45,7 @@ function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
   // and its starting capital before its first bar.
   const idx = ms.map(() => 0)
   const cur = ms.map((m) => m.start)
-  let peak = -Infinity
-  let maxDrawdown = 0
-  let drawdownAt: number | null = null
-  let minTotal = Infinity
-  let minTotalAt: number | null = null
+  const series: CombinedPoint[] = []
   for (const t of times) {
     for (let i = 0; i < ms.length; i++) {
       const pts = ms[i].pts
@@ -54,6 +56,23 @@ function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
     }
     let total = 0
     for (const v of cur) total += v
+    series.push({ t, total })
+  }
+  return { totalStart, series }
+}
+
+/** Reads the combined basket's risk (drawdown + underwater low) from its curve. */
+function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
+  const blended = blendCurves(markets)
+  if (!blended) return null
+  const { totalStart, series } = blended
+
+  let peak = -Infinity
+  let maxDrawdown = 0
+  let drawdownAt: number | null = null
+  let minTotal = Infinity
+  let minTotalAt: number | null = null
+  for (const { t, total } of series) {
     if (total > peak) peak = total
     if (peak > 0) {
       const dd = (total - peak) / peak
@@ -69,12 +88,30 @@ function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
   }
 
   return {
-    markets: ms.length,
+    markets: markets.filter(
+      (m) => Array.isArray(m.curve) && m.curve.length > 0
+    ).length,
     combinedDrawdownPct: maxDrawdown * 100,
     drawdownAt,
     bucketLowPct: Math.min(0, (minTotal / totalStart - 1) * 100),
     bucketLowAt: minTotalAt,
   }
+}
+
+/** UI point ceiling for the results-page P&L chart. */
+const MAX_CURVE_POINTS = 300
+
+/** Even-stride downsample that always keeps the first and last points. */
+function downsample(series: CombinedPoint[]): BacktestEquityPoint[] {
+  if (series.length <= MAX_CURVE_POINTS)
+    return series.map((p) => ({ t: p.t, eq: p.total }))
+  const step = (series.length - 1) / (MAX_CURVE_POINTS - 1)
+  const out: BacktestEquityPoint[] = []
+  for (let i = 0; i < MAX_CURVE_POINTS; i++) {
+    const p = series[Math.round(i * step)]
+    out.push({ t: p.t, eq: p.total })
+  }
+  return out
 }
 
 /**
@@ -167,4 +204,42 @@ export async function loadGroupPortfolioMetrics(
   }
 
   return result
+}
+
+/**
+ * The combined equity curve for a single run group — the same blend as the risk
+ * metrics, downsampled for the results-page P&L chart. Returns null when the
+ * group has no completed markets with equity curves.
+ */
+export async function loadGroupCombinedCurve(
+  userId: string,
+  groupId: string,
+  database: CustomShellDb = db
+): Promise<GroupCombinedCurve | null> {
+  const rows = await database
+    .select({
+      startingEquity: tradingBacktests.startingEquity,
+      curve: sql<
+        BacktestEquityPoint[] | null
+      >`${tradingBacktests.result} -> 'equityCurve'`,
+    })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.groupId, groupId),
+        eq(tradingBacktests.status, "done")
+      )
+    )
+  const markets: MarketCurve[] = []
+  for (const row of rows) {
+    if (!row.curve) continue
+    markets.push({ start: Number(row.startingEquity), curve: row.curve })
+  }
+  const blended = blendCurves(markets)
+  if (!blended) return null
+  return {
+    startEquity: blended.totalStart,
+    points: downsample(blended.series),
+  }
 }

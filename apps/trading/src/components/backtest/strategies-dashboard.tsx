@@ -1,6 +1,14 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts"
+import {
   ChevronDownIcon,
   HistoryIcon,
   LayersIcon,
@@ -17,6 +25,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -54,7 +68,10 @@ import {
   type BacktestDetail,
   type BacktestListItem,
 } from "@/lib/api/backtests"
-import type { GroupPortfolioMetrics } from "@/lib/backtest/types"
+import type {
+  GroupCombinedCurve,
+  GroupPortfolioMetrics,
+} from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import {
@@ -76,39 +93,6 @@ import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-/** Summary stat tile shown above the strategy-runs table. */
-function StatCard({
-  label,
-  value,
-  tone,
-  sub,
-}: {
-  label: string
-  value: string
-  tone?: number | null
-  /** Optional muted context line under the value (e.g. a date). */
-  sub?: string
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-1 font-mono text-lg font-semibold tabular-nums",
-          tone != null ? toneClass(tone) : undefined
-        )}
-      >
-        {value}
-      </div>
-      {sub ? (
-        <div className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
-          {sub}
-        </div>
-      ) : null}
-    </div>
-  )
-}
 
 /** Short calendar date (e.g. "Mar 23, 2025") for stat-card context lines. */
 const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -1290,18 +1274,24 @@ function EditRunDialog({
 // Level 3 — /backtest/$strategyType/$groupId: one result row per market.
 // ---------------------------------------------------------------------------
 
-type MarketSort = "market" | "net" | "dd" | "win" | "trades" | "days"
+type MarketSort = "market" | "net" | "dd" | "win" | "sharpe" | "trades"
+
+/** Trading polarity pair, consistent with the price + equity charts. */
+const CHART_UP = "#089981"
+const CHART_DOWN = "#f23645"
 
 export function RunHistoryDashboard({
   runs,
   strategyType,
   groupId,
   groupMetrics,
+  groupCurve,
 }: {
   runs: BacktestListItem[]
   strategyType: IndicatorId
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
+  groupCurve: GroupCombinedCurve | null
 }) {
   const navigate = useNavigate()
   const state = useTableState<MarketSort>("net")
@@ -1326,212 +1316,403 @@ export function RunHistoryDashboard({
   )
   useProgressPolling(anyInProgress)
 
-  const sorted = React.useMemo(() => {
+  // Client-side filter (by market symbol) + sort, then paginate with the
+  // shared table footer — the same table UI as every other dashboard.
+  const filtered = React.useMemo(() => {
+    const query = state.search.trim().toLowerCase()
     const direction = state.sortDirection === "asc" ? 1 : -1
     const num = (value: number | null) => value ?? -Infinity
-    return [...marketRuns].sort((a, b) => {
+    const matches = query
+      ? marketRuns.filter((run) => run.market.toLowerCase().includes(query))
+      : marketRuns
+    return [...matches].sort((a, b) => {
       if (state.sortColumn === "market")
         return a.market.localeCompare(b.market) * direction
       if (state.sortColumn === "dd")
         return (num(a.maxDrawdownPct) - num(b.maxDrawdownPct)) * direction
       if (state.sortColumn === "win")
         return (num(a.winRate) - num(b.winRate)) * direction
+      if (state.sortColumn === "sharpe")
+        return (num(a.sharpe) - num(b.sharpe)) * direction
       if (state.sortColumn === "trades")
         return (num(a.tradeCount) - num(b.tradeCount)) * direction
-      if (state.sortColumn === "days")
-        return (num(a.tradingDays) - num(b.tradingDays)) * direction
       return (num(a.netPnlPct) - num(b.netPnlPct)) * direction
     })
-  }, [marketRuns, state.sortColumn, state.sortDirection])
+  }, [marketRuns, state.search, state.sortColumn, state.sortDirection])
 
-  const { rows: pageRows, totalPages } = paginate(sorted, state.page, state.pageSize)
+  const { rows: pageRows, totalPages } = paginate(
+    filtered,
+    state.page,
+    state.pageSize
+  )
   const visibleIds = pageRows.map((run) => run.id)
-
   const metrics = groupMetrics[groupId] ?? null
 
-  // This run's headline stats, blended across its markets — shown as cards.
+  // This run's headline stats, blended across its completed markets.
   const summary = React.useMemo(() => {
     const done = marketRuns.filter((run) => run.status === "done")
-    const equity = done.reduce((s, run) => s + run.startingEquity, 0)
-    const pnl = done.reduce((s, run) => s + (run.netPnl ?? 0), 0)
-    const startMs = main ? Date.parse(main.startTime) : NaN
+    const equity = done.reduce((sum, run) => sum + run.startingEquity, 0)
+    const pnl = done.reduce((sum, run) => sum + (run.netPnl ?? 0), 0)
     return {
       markets: marketRuns.length,
       startEquity: done.length ? equity : null,
       netPnl: done.length ? pnl : null,
       netPnlPct: equity > 0 ? (pnl / equity) * 100 : null,
-      trades: done.reduce((s, run) => s + (run.tradeCount ?? 0), 0),
-      startMs: Number.isNaN(startMs) ? null : startMs,
+      trades: done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0),
     }
-  }, [marketRuns, main])
+  }, [marketRuns])
+
+  const summaryRows: {
+    label: string
+    value: string
+    sub?: string
+    tone?: number | null
+  }[] = [
+    { label: "Markets", value: String(summary.markets) },
+    { label: "Trades", value: summary.trades.toLocaleString() },
+    {
+      label: "Combined DD",
+      value: metrics ? `${metrics.combinedDrawdownPct.toFixed(1)}%` : "—",
+      tone: metrics ? metrics.combinedDrawdownPct : null,
+      sub:
+        metrics && metrics.drawdownAt !== null
+          ? shortDateFormatter.format(metrics.drawdownAt)
+          : undefined,
+    },
+    {
+      label: "Bucket low",
+      value: metrics
+        ? metrics.bucketLowPct < 0
+          ? `${metrics.bucketLowPct.toFixed(1)}%`
+          : "never"
+        : "—",
+      tone: metrics ? metrics.bucketLowPct : null,
+      sub:
+        metrics && metrics.bucketLowPct < 0 && metrics.bucketLowAt !== null
+          ? shortDateFormatter.format(metrics.bucketLowAt)
+          : undefined,
+    },
+  ]
+
+  // Combined equity curve for the P&L chart (points already downsampled server-
+  // side). Green when it ended above where it started, red otherwise.
+  const chartData = groupCurve?.points ?? []
+  const positiveCurve =
+    chartData.length > 1
+      ? chartData[chartData.length - 1].eq >= chartData[0].eq
+      : true
+  const rangeLabel =
+    chartData.length > 1
+      ? `${shortDateFormatter.format(chartData[0].t)} – ${shortDateFormatter.format(chartData[chartData.length - 1].t)}`
+      : null
 
   return (
     <div className="w-full pb-8">
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatCard label="Markets" value={String(summary.markets)} />
-        <StatCard
-          label="Net P&L %"
-          value={summary.netPnlPct !== null ? pct(summary.netPnlPct) : "—"}
-          tone={summary.netPnlPct}
-        />
-        <StatCard
-          label="Total P&L"
-          value={summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
-          tone={summary.netPnl}
-          sub={
-            summary.startEquity !== null
-              ? `from ${usd(summary.startEquity)}`
-              : undefined
-          }
-        />
-        <StatCard
-          label="Trades"
-          value={summary.trades.toLocaleString()}
-          sub={
-            summary.startMs !== null
-              ? `since ${shortDateFormatter.format(summary.startMs)}`
-              : undefined
-          }
-        />
-        <StatCard
-          label="Combined DD"
-          value={
-            metrics ? `${metrics.combinedDrawdownPct.toFixed(1)}%` : "—"
-          }
-          tone={metrics ? metrics.combinedDrawdownPct : null}
-          sub={
-            metrics && metrics.drawdownAt !== null
-              ? `on ${shortDateFormatter.format(metrics.drawdownAt)}`
-              : undefined
-          }
-        />
-        <StatCard
-          label="Bucket low"
-          value={
-            metrics
-              ? metrics.bucketLowPct < 0
-                ? `${metrics.bucketLowPct.toFixed(1)}%`
-                : "never"
-              : "—"
-          }
-          tone={metrics ? metrics.bucketLowPct : null}
-          sub={
-            metrics && metrics.bucketLowPct < 0 && metrics.bucketLowAt !== null
-              ? `on ${shortDateFormatter.format(metrics.bucketLowAt)}`
-              : undefined
-          }
-        />
-      </div>
-      <DashboardTable
-        title={
-          <Breadcrumbs
-            crumbs={[
-              { label: "Backtest", to: "/backtest" },
-              {
-                label: INDICATORS[strategyType]?.label ?? strategyType,
-                to: `/backtest/${strategyType}`,
-              },
-              { label: truncateWords(runName, 10) },
-            ]}
-          />
-        }
-        icon={<HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={marketRuns.length}
-        selectedCount={selection.selected.size}
-        onClearSelection={selection.clear}
-        controls={
-          selection.selected.size ? (
-            <DeleteSelectedButton
-              count={selection.selected.size}
-              description={`This permanently deletes ${selection.selected.size} market ${selection.selected.size === 1 ? "result" : "results"} from this run.`}
-              onDelete={async () => {
-                await deleteBacktests({ ids: [...selection.selected] })
-              }}
-              onDone={selection.clear}
+      <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* LEFT — per-market results table (standard dashboard table). */}
+        <DashboardTable
+          title={
+            <Breadcrumbs
+              crumbs={[
+                { label: "Backtest", to: "/backtest" },
+                {
+                  label: INDICATORS[strategyType]?.label ?? strategyType,
+                  to: `/backtest/${strategyType}`,
+                },
+                { label: truncateWords(runName, 10) },
+              ]}
             />
-          ) : undefined
-        }
-        header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.headerState(visibleIds)}
-                  onCheckedChange={(checked) =>
-                    selection.toggleVisible(visibleIds, checked === true)
-                  }
-                  aria-label="Select visible markets"
-                />
-              </TableHead>
-              {sortHead("Market", "market", state)}
-              {sortHead("Net P&L", "net", state)}
-              {sortHead("Max DD", "dd", state)}
-              {sortHead("Win rate", "win", state)}
-              {sortHead("Trades", "trades", state)}
-              {sortHead("Days", "days", state)}
-            </TableRow>
-          </TableHeader>
-        }
-        isEmpty={pageRows.length === 0}
-        emptyText="No market results in this run."
-        emptyColSpan={7}
-        footer={{
-          type: "pagination",
-          page: state.page,
-          pageSize: state.pageSize,
-          total: sorted.length,
-          totalPages,
-          pageSizeOptions,
-          onPageChange: state.setPage,
-          onPageSizeChange: state.setPageSize,
-        }}
-      >
-        {pageRows.map((run) => (
-          <TableRow
-            key={run.id}
-            className="cursor-pointer"
-            onClick={() =>
-              void navigate({ to: "/backtest", search: { run: run.id } })
-            }
-          >
-            <TableCell column="select" onClick={(event) => event.stopPropagation()}>
-              <Checkbox
-                checked={selection.selected.has(run.id)}
-                onCheckedChange={() => selection.toggle(run.id)}
-                aria-label={`Select ${run.market}`}
+          }
+          icon={<HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          count={marketRuns.length}
+          selectedCount={selection.selected.size}
+          onClearSelection={selection.clear}
+          controls={
+            <>
+              <DashboardToolbarSearch
+                name="market-search"
+                aria-label="Filter markets"
+                placeholder="Filter markets..."
+                className="sm:mr-auto"
+                value={state.search}
+                onChange={(event) => state.setSearch(event.target.value)}
               />
-            </TableCell>
-            <TableCell column="main">
-              <span className="font-medium">{run.market}</span>
-            </TableCell>
-            <TableCell
-              column="meta"
-              className={cn(
-                "font-mono tabular-nums",
-                run.netPnl !== null ? toneClass(run.netPnl) : undefined
-              )}
+              {selection.selected.size ? (
+                <DeleteSelectedButton
+                  count={selection.selected.size}
+                  description={`This permanently deletes ${selection.selected.size} market ${selection.selected.size === 1 ? "result" : "results"} from this run.`}
+                  onDelete={async () => {
+                    await deleteBacktests({ ids: [...selection.selected] })
+                  }}
+                  onDone={selection.clear}
+                />
+              ) : null}
+            </>
+          }
+          header={
+            <TableHeader>
+              <TableRow>
+                <TableHead column="select">
+                  <Checkbox
+                    checked={selection.headerState(visibleIds)}
+                    onCheckedChange={(checked) =>
+                      selection.toggleVisible(visibleIds, checked === true)
+                    }
+                    aria-label="Select visible markets"
+                  />
+                </TableHead>
+                {sortHead("Market", "market", state)}
+                {sortHead("Net P&L", "net", state)}
+                {sortHead("Max DD", "dd", state)}
+                {sortHead("Win rate", "win", state)}
+                {sortHead("Sharpe", "sharpe", state)}
+                {sortHead("Trades", "trades", state)}
+              </TableRow>
+            </TableHeader>
+          }
+          isEmpty={pageRows.length === 0}
+          emptyText="No market results in this run."
+          emptyColSpan={7}
+          footer={{
+            type: "pagination",
+            page: state.page,
+            pageSize: state.pageSize,
+            total: filtered.length,
+            totalPages,
+            pageSizeOptions,
+            onPageChange: state.setPage,
+            onPageSizeChange: state.setPageSize,
+          }}
+        >
+          {pageRows.map((run) => (
+            <TableRow
+              key={run.id}
+              className="cursor-pointer"
+              onClick={() =>
+                void navigate({ to: "/backtest", search: { run: run.id } })
+              }
             >
-              {run.status === "done" && run.netPnl !== null
-                ? `${signedUsd(run.netPnl)}${run.netPnlPct !== null ? ` (${pct(run.netPnlPct)})` : ""}`
-                : "—"}
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums text-red-500">
-              {run.maxDrawdownPct !== null
-                ? `-${run.maxDrawdownPct.toFixed(2)}%`
-                : "—"}
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {run.winRate !== null ? `${(run.winRate * 100).toFixed(1)}%` : "—"}
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {run.tradeCount ?? "—"}
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {run.tradingDays !== null ? `${run.tradingDays}d` : "—"}
-            </TableCell>
-          </TableRow>
-        ))}
-      </DashboardTable>
+              <TableCell column="select" onClick={(event) => event.stopPropagation()}>
+                <Checkbox
+                  checked={selection.selected.has(run.id)}
+                  onCheckedChange={() => selection.toggle(run.id)}
+                  aria-label={`Select ${run.market}`}
+                />
+              </TableCell>
+              <TableCell column="main">
+                <span className="font-medium">{run.market}</span>
+              </TableCell>
+              <TableCell
+                column="meta"
+                className={cn(
+                  "font-mono tabular-nums",
+                  run.netPnl !== null ? toneClass(run.netPnl) : undefined
+                )}
+              >
+                {run.status === "done" && run.netPnl !== null
+                  ? `${signedUsd(run.netPnl)}${run.netPnlPct !== null ? ` (${pct(run.netPnlPct)})` : ""}`
+                  : "—"}
+              </TableCell>
+              <TableCell column="meta" className="font-mono tabular-nums text-red-500">
+                {run.maxDrawdownPct !== null
+                  ? `-${run.maxDrawdownPct.toFixed(2)}%`
+                  : "—"}
+              </TableCell>
+              <TableCell column="meta" className="font-mono tabular-nums">
+                {run.winRate !== null ? `${(run.winRate * 100).toFixed(1)}%` : "—"}
+              </TableCell>
+              <TableCell
+                column="meta"
+                className={cn(
+                  "font-mono tabular-nums",
+                  run.sharpe !== null ? toneClass(run.sharpe) : "text-muted-foreground"
+                )}
+              >
+                {run.sharpe !== null ? run.sharpe.toFixed(2) : "—"}
+              </TableCell>
+              <TableCell column="meta" className="font-mono tabular-nums">
+                {run.tradeCount ?? "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </DashboardTable>
+
+        {/* RIGHT — combined summary + P&L curve. */}
+        <div className="flex flex-col gap-4 sm:gap-6">
+          <Card className="gap-4 py-5">
+            <CardHeader className="px-5">
+              <CardTitle className="text-sm font-semibold">Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 px-5">
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Total P&L</span>
+                  <span
+                    className={cn(
+                      "font-mono text-3xl leading-none font-semibold tabular-nums",
+                      summary.netPnl != null ? toneClass(summary.netPnl) : "text-foreground"
+                    )}
+                  >
+                    {summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
+                  </span>
+                  {summary.startEquity !== null ? (
+                    <span className="text-[11px] text-muted-foreground">
+                      from {usd(summary.startEquity)}
+                    </span>
+                  ) : null}
+                </div>
+                {summary.netPnlPct !== null ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums",
+                      summary.netPnlPct >= 0
+                        ? "bg-emerald-500/10 text-emerald-600"
+                        : "bg-red-500/10 text-red-500"
+                    )}
+                  >
+                    {summary.netPnlPct >= 0 ? "▲" : "▼"} {pct(summary.netPnlPct)}
+                  </span>
+                ) : null}
+              </div>
+              <div className="h-px bg-border" />
+              <div className="flex flex-col">
+                {summaryRows.map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-baseline justify-between gap-3 py-1.5"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {row.label}
+                    </span>
+                    <div className="flex items-baseline gap-2">
+                      {row.sub ? (
+                        <span className="text-[11px] text-muted-foreground/70">
+                          {row.sub}
+                        </span>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "font-mono text-sm tabular-nums",
+                          row.tone != null ? toneClass(row.tone) : "text-foreground"
+                        )}
+                      >
+                        {row.value}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="gap-2 py-5">
+            <CardHeader className="px-5">
+              <div className="flex items-baseline justify-between gap-2">
+                <CardTitle className="text-sm font-semibold">P&L curve</CardTitle>
+                {rangeLabel ? (
+                  <span className="text-[11px] text-muted-foreground">
+                    {rangeLabel}
+                  </span>
+                ) : null}
+              </div>
+            </CardHeader>
+            <CardContent className="px-5">
+              {chartData.length < 2 ? (
+                <div className="flex h-[184px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
+                  Not enough data to plot the P&L curve
+                </div>
+              ) : (
+                <ChartContainer
+                  config={{ eq: { label: "Equity" } }}
+                  className="h-[184px] w-full"
+                >
+                  <AreaChart
+                    data={chartData}
+                    margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="group-pnl-fill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor={positiveCurve ? CHART_UP : CHART_DOWN}
+                          stopOpacity={0.2}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor={positiveCurve ? CHART_UP : CHART_DOWN}
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} strokeOpacity={0.3} />
+                    <XAxis
+                      dataKey="t"
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={40}
+                      tickFormatter={(value: number) =>
+                        new Date(value).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      }
+                    />
+                    <YAxis
+                      width={54}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={["auto", "auto"]}
+                      tickFormatter={(value: number) =>
+                        `$${Math.round(value).toLocaleString()}`
+                      }
+                    />
+                    {groupCurve ? (
+                      <ReferenceLine
+                        y={groupCurve.startEquity}
+                        strokeDasharray="5 4"
+                        stroke="currentColor"
+                        strokeOpacity={0.4}
+                      />
+                    ) : null}
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(_, payload) =>
+                            payload?.[0]
+                              ? new Date(
+                                  payload[0].payload.t as number
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : ""
+                          }
+                        />
+                      }
+                    />
+                    <Area
+                      dataKey="eq"
+                      type="monotone"
+                      stroke={positiveCurve ? CHART_UP : CHART_DOWN}
+                      strokeWidth={2}
+                      fill="url(#group-pnl-fill)"
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
