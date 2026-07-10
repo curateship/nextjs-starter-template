@@ -37,6 +37,7 @@ import {
   OSCILLATORS,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
+import { nyseSessionsInRange } from "@/lib/trading/nyse-sessions"
 
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
@@ -304,7 +305,7 @@ export function PriceChartView({
   )
   // One 2-point baseline series per zone: the baseline fill only spans the
   // series' data range, so each paints exactly one rectangle.
-  const zoneSeriesRef = React.useRef<ISeriesApi<"Baseline">[]>([])
+  const zoneSeriesRef = React.useRef<ISeriesApi<SeriesType>[]>([])
   const lastBarColorsRef = React.useRef<ChartBarColor[]>([])
   const [ready, setReady] = React.useState(false)
   const [focusPixels, setFocusPixels] = React.useState<
@@ -1108,6 +1109,26 @@ export function PriceChartView({
         { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.top },
       ])
       zoneSeriesRef.current.push(series)
+      // The baseline series can only stroke its top edge, so a bordered box
+      // gets its bottom edge from a separate 2-point line at `bottom`.
+      if (zone.borderColor) {
+        const bottomEdge = chart.addSeries(
+          ctors.LineSeries,
+          {
+            color: zone.borderColor,
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          0
+        )
+        bottomEdge.setData([
+          { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.bottom },
+          { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.bottom },
+        ])
+        zoneSeriesRef.current.push(bottomEdge)
+      }
     }
   }, [ready, zones])
 
@@ -1457,6 +1478,17 @@ export function PriceChartView({
   )
 }
 
+/** NYC Session shading: menu swatches are hex; the zone fill needs translucent rgba. */
+const NYC_SESSION_FILL_ALPHA = 0.2
+const NYC_SESSION_BORDER_ALPHA = 0.55
+const EMPTY_ZONES: ChartZone[] = []
+function hexToRgba(hex: string, alpha: number): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex)
+  if (!match) return `rgba(41, 98, 255, ${alpha})`
+  const value = parseInt(match[1], 16)
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
+}
+
 /**
  * Live trading chart: the shared view fed by the websocket candle stream.
  */
@@ -1591,6 +1623,91 @@ export function PriceChart({
     [candles, chartStrategy, overrideOverlays]
   )
 
+  // NYC Session shading: each NYSE session paints as a translucent box from
+  // its open to its close, bounded by that session's own high and low (like
+  // the measure tool's result box). Zone identity is kept stable via the ref
+  // below so the series only rebuild when a box actually changes (new bar,
+  // backfill, or a fresh session extreme) — not on every tick.
+  const nycInd = indicators.find((ind) => ind.type === "nycSession")
+  const nycEnabled = Boolean(nycInd?.enabled)
+  const nycHex = nycInd?.color ?? "#2962ff"
+  const nycZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
+  const sessionZones = React.useMemo<ChartZone[]>(() => {
+    if (!nycEnabled || candles.length === 0) return EMPTY_ZONES
+    const firstMs = candles[0].t
+    const lastMs = candles[candles.length - 1].t
+    // Snap zone edges to candle boundaries: off-grid times would insert extra
+    // slots into the index-based time axis. Coarse intervals can collapse
+    // neighboring sessions together, so overlapping spans merge.
+    const step = candleIntervalMs(interval)
+    const spans: { fromMs: number; toMs: number }[] = []
+    for (const session of nyseSessionsInRange(firstMs, lastMs)) {
+      const fromMs = Math.max(Math.floor(session.openMs / step) * step, firstMs)
+      const toMs = Math.min(Math.ceil(session.closeMs / step) * step, lastMs)
+      const prev = spans[spans.length - 1]
+      if (prev && fromMs <= prev.toMs) prev.toMs = Math.max(prev.toMs, toMs)
+      else spans.push({ fromMs, toMs })
+    }
+    // One pass for per-session extremes: candles and spans are both sorted.
+    // A candle opening exactly at the close boundary is post-session, except
+    // at the live edge where it's the session's forming bar.
+    const fill = hexToRgba(nycHex, NYC_SESSION_FILL_ALPHA)
+    const border = hexToRgba(nycHex, NYC_SESSION_BORDER_ALPHA)
+    const next: ChartZone[] = []
+    let index = 0
+    for (const span of spans) {
+      if (!(span.toMs > span.fromMs)) continue
+      while (index < candles.length && candles[index].t < span.fromMs) index += 1
+      let high = -Infinity
+      let low = Infinity
+      while (
+        index < candles.length &&
+        (candles[index].t < span.toMs ||
+          (candles[index].t === span.toMs && span.toMs === lastMs))
+      ) {
+        const candleHigh = Number(candles[index].h)
+        const candleLow = Number(candles[index].l)
+        if (candleHigh > high) high = candleHigh
+        if (candleLow < low) low = candleLow
+        index += 1
+      }
+      if (!(high > low)) continue
+      next.push({
+        id: `nyc-session-${span.fromMs}`,
+        fromMs: span.fromMs,
+        toMs: span.toMs,
+        top: high,
+        bottom: low,
+        fillColor: fill,
+        borderColor: border,
+      })
+    }
+    const prev = nycZonesRef.current
+    const unchanged =
+      next.length === prev.length &&
+      next.every((zone, i) => {
+        const old = prev[i]
+        return (
+          zone.fromMs === old.fromMs &&
+          zone.toMs === old.toMs &&
+          zone.top === old.top &&
+          zone.bottom === old.bottom &&
+          zone.fillColor === old.fillColor &&
+          zone.borderColor === old.borderColor
+        )
+      })
+    if (unchanged) return prev
+    nycZonesRef.current = next
+    return next
+  }, [nycEnabled, nycHex, interval, candles])
+  const zones = React.useMemo(
+    () =>
+      sessionZones.length === 0
+        ? strategy.zones
+        : [...strategy.zones, ...sessionZones],
+    [strategy.zones, sessionZones]
+  )
+
   // Readout parity with the backtest chart: while the cursor isn't on the
   // chart, the toolbar readout tracks the latest live candle.
   const hoveringRef = React.useRef(false)
@@ -1613,7 +1730,7 @@ export function PriceChart({
       markers={[...markers, ...strategy.markers]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={strategy.overlayLines}
-      zones={strategy.zones}
+      zones={zones}
       barColors={strategy.barColors}
       focusPoints={focusPoints}
       focusResult={focusResult}

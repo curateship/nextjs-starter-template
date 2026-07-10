@@ -10,6 +10,7 @@ export type IndicatorType =
   | "rsi"
   | "macd"
   | "base"
+  | "nycSession"
 
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
@@ -45,6 +46,7 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     enabled: false,
     params: { basePeriods: 36, pumpPeriods: 8 },
   },
+  { id: "nyc-session", type: "nycSession", enabled: false, params: {} },
 ]
 
 /** Editable numeric params per indicator type, in display order. */
@@ -68,6 +70,7 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "basePeriods", label: "Base periods" },
     { key: "pumpPeriods", label: "Pump periods" },
   ],
+  nycSession: [],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -77,6 +80,7 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   rsi: "RSI",
   macd: "MACD",
   base: "Base",
+  nycSession: "NYC Session",
 }
 
 /** Oscillators render in their own sub-pane; everything else overlays pane 0. */
@@ -98,6 +102,8 @@ const PALETTE: Record<string, ThemeHex> = {
   "macd-line": { light: "#2563eb", dark: "#60a5fa" },
   "macd-signal": { light: "#ea580c", dark: "#fb923c" },
   base: { light: "#0d9488", dark: "#2dd4bf" },
+  // Session shading swatch; the chart applies its own translucency.
+  nycSession: { light: "#2962ff", dark: "#2962ff" },
   guide: { light: "rgba(100, 116, 139, 0.45)", dark: "rgba(148, 163, 184, 0.4)" },
 }
 
