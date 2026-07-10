@@ -1,40 +1,32 @@
 # UI-UX Design Guide
 
-Rules that keep every Trading screen visually consistent. Read this before building or changing any page layout.
+Read before building or changing any page. One rule above all: **reuse the existing UI — never invent a parallel version.**
 
-## Spacing: one gap everywhere (THE rule)
+## Spacing
 
-The app has exactly one layout gap, and every page must use it.
+- The site gap is defined once, in `DashboardContent` (`src/components/ui/dashboard-content.tsx`): `p-3 space-y-4 sm:p-4 sm:space-y-6 md:p-6` → **24px on desktop**.
+- Every layout gap (between columns, cards, sections) must match it: `gap-4 sm:gap-6` / `space-y-4 sm:space-y-6`.
+- Never invent other layout gaps (`gap-3`, `gap-8`, ad-hoc margins) and never add a padding wrapper around a page — `DashboardContent` already provides the gutter.
+- Small gaps inside a card (`gap-1`/`gap-2` between label and value) are fine.
+- Wrong vs right: ![wrong](assets/pasted-image-1783710798036774000.png) ![site gap to match](assets/pasted-image-1783710819371950000.png)
 
-**Where the gap is defined:** the shared page wrapper `DashboardContent` (`src/components/ui/dashboard-content.tsx`):
+## Tables
 
-```
-p-3 space-y-4 sm:p-4 sm:space-y-6 md:p-6
-```
+- Use `DashboardTable` (`src/components/dashboard-table.tsx`) for every dashboard table — never hand-roll one.
+- **Every column header must be sortable**, using `TableSortButton` from `src/components/ui/table.tsx`.
 
-That means the gutter around a page's content is **24px on desktop** (Tailwind spacing `6`), shrinking on smaller screens. This gutter — the space between the sidebar and the first card — is the site gap. Everything else must match it.
+## Action icons
 
-**The rule:** every layout-level gap inside a page must equal the site gap:
+- Use the same lucide icons already in use everywhere: `PencilIcon` = edit, `Trash2Icon` = delete, `PlusIcon` = add, `Loader2Icon` = loading. Don't pick new icons for these actions.
 
-- gap between side-by-side columns → `gap-4 sm:gap-6`
-- gap between stacked cards/sections → `gap-4 sm:gap-6` or `space-y-4 sm:space-y-6`
+## Modals
 
-**Never:**
+- Always `DialogContent variant="admin"`; copy the anatomy from `sidebar-settings.tsx` (header / scrollable body / footer). Never invent a modal layout.
 
-- invent a different layout gap (`gap-3`, `gap-5`, `gap-8`, ad-hoc `mb-*`/`mt-*` between cards)
-- add your own padding wrapper around a page — `DashboardContent` already provides the gutter; extra wrappers create a double gap
-- mix gap sizes on the same page so cards sit closer/farther from each other than they sit from the sidebar
+## Scrolling
 
-Small gaps *inside* a card (e.g. `gap-1`/`gap-2` between a label and a value) are fine — this rule is about the gaps between cards, columns, and sections.
+- Any scrollable UI must use `ScrollArea` (+ `ScrollBar` for horizontal) from `src/components/ui/scroll-area.tsx` — never raw `overflow-auto`/`overflow-scroll` divs.
 
-### Reference screenshots
+## Components
 
-- **Wrong** — card gaps wider than the site gutter, page looks inconsistent:
-  ![wrong gap](assets/pasted-image-1783710798036774000.png)
-- **Right** — this is the site gap every layout gap must match (sidebar-to-card gutter):
-  ![site gap](assets/pasted-image-1783710819371950000.png)
-
-## Other standing design rules
-
-- Use the existing shadcn components in `src/components/ui/` — don't hand-roll parallel versions.
-- Reuse the shared chart/table/card patterns already on other dashboards instead of building page-specific variants.
+- Use the shadcn components in `src/components/ui/` and the shared chart/toolbar/card patterns from existing dashboards.
