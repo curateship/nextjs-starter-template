@@ -23,6 +23,7 @@ import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
 import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
+import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedScannerWhaleTradesRouteImport } from './routes/_authenticated/scanner/whale-trades'
 import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_authenticated/scanner/positions'
@@ -30,6 +31,7 @@ import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_a
 import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
 import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
 import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
+import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -114,6 +116,12 @@ const AuthenticatedBacktestIndexRoute =
     path: '/backtest/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAutomationsIndexRoute =
+  AuthenticatedAutomationsIndexRouteImport.update({
+    id: '/automations/',
+    path: '/automations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
@@ -154,6 +162,12 @@ const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
   path: '/bots/$botId',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAutomationsAutomationIdRoute =
+  AuthenticatedAutomationsAutomationIdRouteImport.update({
+    id: '/automations/$automationId',
+    path: '/automations/$automationId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -241,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -248,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/backtest/': typeof AuthenticatedBacktestIndexRoute
   '/bots/': typeof AuthenticatedBotsIndexRoute
   '/scanner/': typeof AuthenticatedScannerIndexRoute
@@ -274,6 +290,7 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -281,6 +298,7 @@ export interface FileRoutesByTo {
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/backtest': typeof AuthenticatedBacktestIndexRoute
   '/bots': typeof AuthenticatedBotsIndexRoute
   '/scanner': typeof AuthenticatedScannerIndexRoute
@@ -310,6 +328,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/_authenticated/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/_authenticated/scanner/book': typeof AuthenticatedScannerBookRoute
   '/_authenticated/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -317,6 +336,7 @@ export interface FileRoutesById {
   '/_authenticated/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/_authenticated/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/backtest/': typeof AuthenticatedBacktestIndexRoute
   '/_authenticated/bots/': typeof AuthenticatedBotsIndexRoute
   '/_authenticated/scanner/': typeof AuthenticatedScannerIndexRoute
@@ -346,6 +366,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/automations/$automationId'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -353,6 +374,7 @@ export interface FileRouteTypes {
     | '/scanner/positions'
     | '/scanner/whale-trades'
     | '/admin/'
+    | '/automations/'
     | '/backtest/'
     | '/bots/'
     | '/scanner/'
@@ -379,6 +401,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/automations/$automationId'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -386,6 +409,7 @@ export interface FileRouteTypes {
     | '/scanner/positions'
     | '/scanner/whale-trades'
     | '/admin'
+    | '/automations'
     | '/backtest'
     | '/bots'
     | '/scanner'
@@ -414,6 +438,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/automations/$automationId'
     | '/_authenticated/bots/$botId'
     | '/_authenticated/scanner/book'
     | '/_authenticated/scanner/crowded'
@@ -421,6 +446,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scanner/positions'
     | '/_authenticated/scanner/whale-trades'
     | '/_authenticated/admin/'
+    | '/_authenticated/automations/'
     | '/_authenticated/backtest/'
     | '/_authenticated/bots/'
     | '/_authenticated/scanner/'
@@ -539,6 +565,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBacktestIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/automations/': {
+      id: '/_authenticated/automations/'
+      path: '/automations'
+      fullPath: '/automations/'
+      preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/admin'
@@ -586,6 +619,13 @@ declare module '@tanstack/react-router' {
       path: '/bots/$botId'
       fullPath: '/bots/$botId'
       preLoaderRoute: typeof AuthenticatedBotsBotIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/automations/$automationId': {
+      id: '/_authenticated/automations/$automationId'
+      path: '/automations/$automationId'
+      fullPath: '/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings': {
@@ -736,6 +776,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
   AuthenticatedBotsBotIdRoute: typeof AuthenticatedBotsBotIdRoute
   AuthenticatedScannerBookRoute: typeof AuthenticatedScannerBookRoute
   AuthenticatedScannerCrowdedRoute: typeof AuthenticatedScannerCrowdedRoute
@@ -743,6 +784,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedScannerPositionsRoute: typeof AuthenticatedScannerPositionsRoute
   AuthenticatedScannerWhaleTradesRoute: typeof AuthenticatedScannerWhaleTradesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
   AuthenticatedBacktestIndexRoute: typeof AuthenticatedBacktestIndexRoute
   AuthenticatedBotsIndexRoute: typeof AuthenticatedBotsIndexRoute
   AuthenticatedScannerIndexRoute: typeof AuthenticatedScannerIndexRoute
@@ -766,6 +808,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAutomationsAutomationIdRoute:
+    AuthenticatedAutomationsAutomationIdRoute,
   AuthenticatedBotsBotIdRoute: AuthenticatedBotsBotIdRoute,
   AuthenticatedScannerBookRoute: AuthenticatedScannerBookRoute,
   AuthenticatedScannerCrowdedRoute: AuthenticatedScannerCrowdedRoute,
@@ -773,6 +817,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedScannerPositionsRoute: AuthenticatedScannerPositionsRoute,
   AuthenticatedScannerWhaleTradesRoute: AuthenticatedScannerWhaleTradesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
   AuthenticatedBacktestIndexRoute: AuthenticatedBacktestIndexRoute,
   AuthenticatedBotsIndexRoute: AuthenticatedBotsIndexRoute,
   AuthenticatedScannerIndexRoute: AuthenticatedScannerIndexRoute,

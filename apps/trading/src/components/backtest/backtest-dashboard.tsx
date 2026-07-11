@@ -31,7 +31,7 @@ import {
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
-import { indicatorOverlays } from "@/components/chart/indicator-overlays"
+import { configOverlays } from "@/components/chart/indicator-overlays"
 import {
   strategyInputRows,
   strategyTypeLabel,
@@ -450,14 +450,13 @@ export function BacktestDashboard({
 
   const runConfig = run?.params ?? null
 
-  // Overlays paint straight from the run's indicator config — the same
-  // compute the engine traded. DCA has no indicator, so it paints nothing
-  // (the fills still draw as chips).
+  // Paint through the strategy-kind config so signal and Automation charts
+  // use the exact same indicator computation as their engines.
   const overlays = React.useMemo(() => {
-    if (candles.length === 0 || !runConfig || runConfig.kind !== "signal") {
+    if (candles.length === 0 || !runConfig) {
       return EMPTY_OVERLAYS
     }
-    return indicatorOverlays(runConfig.indicator, candles)
+    return configOverlays(runConfig, candles)
   }, [runConfig, candles])
 
   // Legend chips only for named lines (channels, bands). Unlabeled marks like
@@ -587,7 +586,10 @@ export function BacktestDashboard({
                   onIntervalChange={setTimeframe}
                   legend={{
                     chips: Boolean(result),
-                    signals: !result && runConfig?.kind === "signal",
+                    signals:
+                      !result &&
+                      (runConfig?.kind === "signal" ||
+                        runConfig?.kind === "automation"),
                   }}
                   legendLines={labeledOverlayLines}
                   ohlc={readout}

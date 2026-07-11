@@ -1,6 +1,8 @@
 import type { StrategyChartOverlays } from "@/components/backtest/backtest-overlays"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
+import { computeStrategyOutput } from "@/lib/strategies/config-output"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 
 type OhlcCandle = {
   t: number
@@ -45,6 +47,23 @@ export function indicatorOverlays(
 
   const out = module.compute(numeric, parsed.data as never)
   return outputToOverlays(out)
+}
+
+/** Any strategy kind → chart overlays; non-indicator kinds return empty paint. */
+export function configOverlays(
+  config: StrategyConfig,
+  candles: OhlcCandle[]
+): StrategyChartOverlays {
+  if (candles.length === 0) return EMPTY
+  const numeric: IndicatorCandle[] = candles.map((candle) => ({
+    t: candle.t,
+    o: Number(candle.o),
+    h: Number(candle.h),
+    l: Number(candle.l),
+    c: Number(candle.c),
+    v: Number(candle.v),
+  }))
+  return outputToOverlays(computeStrategyOutput(numeric, config))
 }
 
 /** IndicatorOutput → chart overlays (concrete colors, signal arrows). */

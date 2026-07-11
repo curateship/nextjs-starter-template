@@ -17,6 +17,13 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type {
+  AutomationGraph,
+  AutomationProtection,
+  AutomationStrategyConfig,
+} from "@/lib/automations/automation"
+import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+
 export const customShellUsers = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -310,6 +317,53 @@ export const tradingStrategies = pgTable(
   ]
 )
 
+export type TradingAutomationDraft = AutomationGraph & {
+  protection: AutomationProtection
+}
+
+/**
+ * Editable Automation canvases. `compiledConfig` is null whenever the current
+ * draft is incomplete or invalid, so only a fresh server-compiled config can
+ * seed a bot or backtest.
+ */
+export const tradingAutomations = pgTable(
+  "trading_automations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    interval: varchar("interval", { length: 5 })
+      .$type<StrategyInterval>()
+      .notNull()
+      .default("15m"),
+    graph: jsonb("graph")
+      .$type<TradingAutomationDraft>()
+      .notNull()
+      .default(
+        sql`'{"nodes":[],"edges":[],"viewport":{"x":0,"y":0,"zoom":1},"protection":{}}'::jsonb`
+      ),
+    compiledConfig: jsonb("compiled_config").$type<AutomationStrategyConfig>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("trading_automations_user_id_name_unique").on(
+      table.userId,
+      table.name
+    ),
+    check(
+      "trading_automations_interval_check",
+      sql`${table.interval} in ('1m', '5m', '15m', '1h', '4h', '1d')`
+    ),
+    index("ix_trading_automations_user_updated").on(
+      table.userId,
+      table.updatedAt
+    ),
+  ]
+)
+
 /**
  * Per-user settings for the trade chart's overlay indicators. One row per
  * customized indicator (rows are created lazily on first save); indicators
@@ -376,6 +430,11 @@ export const tradingBots = pgTable(
       () => tradingStrategies.id,
       { onDelete: "set null" }
     ),
+    /** Automation this bot snapshotted; params remain runnable if it is deleted. */
+    automationId: varchar("automation_id", { length: 36 }).references(
+      () => tradingAutomations.id,
+      { onDelete: "set null" }
+    ),
     cloidPrefix: varchar("cloid_prefix", { length: 10 }).notNull().unique(),
     paperStartingEquity: numeric("paper_starting_equity"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -384,7 +443,7 @@ export const tradingBots = pgTable(
   (table) => [
     check(
       "bots_strategy_type_check",
-      sql`${table.strategyType} in ('signal')`
+      sql`${table.strategyType} in ('signal', 'automation')`
     ),
     check("bots_mode_check", sql`${table.mode} in ('paper', 'live')`),
     check(
@@ -397,6 +456,7 @@ export const tradingBots = pgTable(
     ),
     index("ix_bots_user_id").on(table.userId),
     index("ix_bots_wallet_id").on(table.walletId),
+    index("ix_bots_automation_id").on(table.automationId),
   ]
 )
 
@@ -573,6 +633,11 @@ export const tradingBacktests = pgTable(
     interval: varchar("interval", { length: 5 }).notNull(),
     params: jsonb("params").notNull(),
     riskParams: jsonb("risk_params").notNull(),
+    /** Automation source for this immutable params snapshot, if one exists. */
+    automationId: varchar("automation_id", { length: 36 }).references(
+      () => tradingAutomations.id,
+      { onDelete: "set null" }
+    ),
     /** BacktestCosts: fee/slippage assumptions in bps. */
     costs: jsonb("costs").notNull(),
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
@@ -606,6 +671,7 @@ export const tradingBacktests = pgTable(
     index("ix_backtests_user_id_created_at").on(table.userId, table.createdAt),
     index("ix_backtests_status_created_at").on(table.status, table.createdAt),
     index("ix_backtests_user_id_group_id").on(table.userId, table.groupId),
+    index("ix_backtests_automation_id").on(table.automationId),
   ]
 )
 
@@ -989,6 +1055,7 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
 export type TradingStrategy = typeof tradingStrategies.$inferSelect
+export type TradingAutomation = typeof tradingAutomations.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect
 export type TradingBotCommand = typeof tradingBotCommands.$inferSelect

@@ -56,11 +56,14 @@ export function BotWorkspaceHeader({
   onCommand: (command: BotCommand) => void
   onOpenSettings: () => void
 }) {
-  const signalInterval =
+  const sourceInterval =
     "interval" in bot.params ? String(bot.params.interval) : "tick"
+  const sourceType =
+    bot.params.kind === "automation" ? "Automation" : "Strategy"
+  const sourceName = bot.source_name ?? sourceType
   const quickInfo = [
     `running ${formatRunningFor(bot.created_at)}`,
-    `signal ${signalInterval}`,
+    `${sourceName} · ${sourceInterval}`,
     `${stats.trade_count} fills`,
   ].join(" · ")
 
@@ -81,7 +84,7 @@ export function BotWorkspaceHeader({
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-sm font-semibold">{bot.name}</span>
         <Badge variant="secondary" className="shrink-0 font-medium">
-          Strategy
+          {sourceType}
         </Badge>
         <Badge
           variant={bot.mode === "live" ? "default" : "secondary"}
@@ -200,4 +203,3 @@ function formatRunningFor(createdAt: string): string {
   const rem = hours % 24
   return rem > 0 ? `${days}d ${rem}h` : `${days}d`
 }
-

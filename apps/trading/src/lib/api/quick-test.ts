@@ -9,7 +9,7 @@ import {
   type BacktestResult,
 } from "@/lib/backtest/types"
 import type { IndicatorOutput } from "@/lib/indicators/contract"
-import { INDICATORS } from "@/lib/indicators/registry"
+import { computeStrategyOutput } from "@/lib/strategies/config-output"
 import { strategyConfigSchema } from "@/lib/strategies/strategy-config"
 
 const quickTestSchema = z.object({
@@ -128,19 +128,7 @@ async function evaluateQuickTest(
       n: candle.n,
     }))
 
-    // DCA has no indicator, so it paints nothing — trade chips still draw
-    // from the result's fills.
-    let output: IndicatorOutput = {
-      paint: { indicators: [], lines: [], zones: [], barColors: [] },
-      signals: [],
-    }
-    if (data.config.kind === "signal") {
-      const module = INDICATORS[data.config.indicator.type]
-      const indicatorParams = module.paramsSchema.parse(
-        data.config.indicator.params
-      )
-      output = module.compute(candles, indicatorParams as never)
-    }
+    const output: IndicatorOutput = computeStrategyOutput(candles, data.config)
 
     const result = runEngine({
       strategy,

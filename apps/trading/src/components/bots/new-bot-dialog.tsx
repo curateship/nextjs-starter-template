@@ -3,12 +3,7 @@ import { Loader2Icon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -27,13 +22,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MainnetConfirmField } from "@/components/trading/connect-wallet-flow"
-import { createBot, getBotErrorMessage } from "@/lib/api/bots"
 import {
-  loadStrategies,
-  type StrategyListItem,
-} from "@/lib/api/strategies"
-import { loadTradingContext, type TradingContextResponse } from "@/lib/api/trading"
+  getAutomation,
+  getAutomationErrorMessage,
+  listAutomations,
+  type AutomationDetail,
+  type AutomationListItem,
+} from "@/lib/api/automations"
+import { createBot, getBotErrorMessage } from "@/lib/api/bots"
+import { loadStrategies, type StrategyListItem } from "@/lib/api/strategies"
+import {
+  loadTradingContext,
+  type TradingContextResponse,
+} from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { strategySummary } from "@/lib/strategies/strategy-config"
 import { StrategyPicker } from "@/components/strategies/strategy-picker"
@@ -43,32 +46,55 @@ const EXCHANGES: { id: string; label: string }[] = [
   { id: "hyperliquid", label: "Hyperliquid" },
 ]
 
-/**
- * Guided bot creation, new model: name → wallet + mode → pick a SAVED
- * strategy (indicator + universal settings, managed on the Strategies page) →
- * exchange → markets. The bot snapshots the strategy's config at creation and
- * runs it on every chosen market at once.
- */
-export function NewBotDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
+/** Guided bot creation from a saved Strategy or a valid Automation snapshot. */
+type NewBotDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: (botId: string) => void
-}) {
+  /** Opens on this saved Automation when launched from its canvas. */
+  initialAutomationId?: string
+}
+
+export function NewBotDialog(props: NewBotDialogProps) {
+  // A fresh form on each open also reapplies a canvas launch's source cleanly.
+  return (
+    <NewBotDialogForm
+      key={`${props.open ? "open" : "closed"}:${props.initialAutomationId ?? ""}`}
+      {...props}
+    />
+  )
+}
+
+function NewBotDialogForm({
+  open,
+  onOpenChange,
+  onCreated,
+  initialAutomationId,
+}: NewBotDialogProps) {
   const [context, setContext] = React.useState<TradingContextResponse | null>(
     null
   )
   const [strategies, setStrategies] = React.useState<StrategyListItem[] | null>(
     null
   )
+  const [automations, setAutomations] = React.useState<
+    AutomationListItem[] | null
+  >(null)
+  const [source, setSource] = React.useState<"strategy" | "automation">(
+    initialAutomationId ? "automation" : "strategy"
+  )
 
   const [name, setName] = React.useState("")
   const [walletId, setWalletId] = React.useState("")
   const [mode, setMode] = React.useState<"paper" | "live">("paper")
   const [strategyId, setStrategyId] = React.useState<string | null>(null)
+  const [automationId, setAutomationId] = React.useState<string | null>(
+    initialAutomationId ?? null
+  )
+  const [automationRequest, setAutomationRequest] = React.useState<{
+    id: string
+    detail: AutomationDetail | null
+  } | null>(null)
   const [exchange, setExchange] = React.useState("")
   const [selectedMarkets, setSelectedMarkets] = React.useState<string[]>([])
   const [paperEquity, setPaperEquity] = React.useState("10000")
@@ -81,13 +107,15 @@ export function NewBotDialog({
     let cancelled = false
     void (async () => {
       try {
-        const [ctx, saved] = await Promise.all([
+        const [ctx, saved, savedAutomations] = await Promise.all([
           loadTradingContext(),
           loadStrategies(),
+          listAutomations(),
         ])
         if (cancelled) return
         setContext(ctx)
         setStrategies(saved.strategies)
+        setAutomations(savedAutomations.automations)
         const selectable = ctx.wallets.filter(
           (wallet) => wallet.status === "active"
         )
@@ -117,12 +145,50 @@ export function NewBotDialog({
     [strategies]
   )
   const hiddenCount = (strategies?.length ?? 0) - (botStrategies?.length ?? 0)
+  const validAutomations = React.useMemo(
+    () => automations?.filter((row) => row.isValid) ?? null,
+    [automations]
+  )
+  const selectedAutomationId =
+    source === "automation"
+      ? (automationId ?? validAutomations?.[0]?.id ?? null)
+      : null
 
-  const strategy =
-    botStrategies?.find((row) => row.id === strategyId) ?? null
+  React.useEffect(() => {
+    if (!open || !selectedAutomationId) return
+    let cancelled = false
+    void getAutomation(selectedAutomationId)
+      .then((detail) => {
+        if (!cancelled) {
+          setAutomationRequest({ id: selectedAutomationId, detail })
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAutomationRequest({ id: selectedAutomationId, detail: null })
+          setError(getAutomationErrorMessage(err))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedAutomationId])
 
-  const strategyChosen = strategy !== null
-  const showMarkets = strategyChosen && exchange !== ""
+  const automation =
+    automationRequest?.id === selectedAutomationId
+      ? automationRequest.detail
+      : null
+  const automationLoading =
+    selectedAutomationId !== null &&
+    automationRequest?.id !== selectedAutomationId
+
+  const strategy = botStrategies?.find((row) => row.id === strategyId) ?? null
+  const config =
+    source === "automation"
+      ? (automation?.compiledConfig ?? null)
+      : (strategy?.config ?? null)
+  const sourceChosen = config != null
+  const showMarkets = sourceChosen && exchange !== ""
 
   const availableMarkets = marketRows.filter(
     (row) => !selectedMarkets.includes(row.coin)
@@ -132,9 +198,19 @@ export function NewBotDialog({
     setError(null)
     if (!name.trim()) return setError("Give the bot a name.")
     if (!walletId) return setError("Select a wallet.")
-    if (!strategy) return setError("Pick a strategy.")
+    if (source === "strategy" && !strategy) return setError("Pick a Strategy.")
+    if (
+      source === "automation" &&
+      (!selectedAutomationId || !automation?.compiledConfig)
+    ) {
+      return setError("Pick a valid Automation.")
+    }
     if (!exchange) return setError("Select an exchange.")
-    if (selectedMarkets.length === 0) return setError("Pick at least one market.")
+    if (selectedMarkets.length === 0)
+      return setError("Pick at least one market.")
+    if (source === "automation" && selectedMarkets.length !== 1) {
+      return setError("Automation bots can trade exactly one market.")
+    }
     const equity = Number(paperEquity)
     if (mode === "paper" && !(equity > 0)) {
       return setError("Paper equity must be a positive number.")
@@ -148,8 +224,12 @@ export function NewBotDialog({
         markets: selectedMarkets,
         exchange,
         mode,
-        params: strategy.config,
-        strategyId: strategy.id,
+        params: source === "strategy" ? strategy?.config : undefined,
+        strategyId: source === "strategy" ? strategy?.id : undefined,
+        automationId:
+          source === "automation"
+            ? (selectedAutomationId ?? undefined)
+            : undefined,
         paperStartingEquity: mode === "paper" ? equity : undefined,
       })
       onOpenChange(false)
@@ -165,10 +245,8 @@ export function NewBotDialog({
     (wallet) => wallet.status === "active"
   )
   const selectedWallet = wallets.find((wallet) => wallet.id === walletId)
-  const isLiveMainnet =
-    mode === "live" && selectedWallet?.network === "mainnet"
-  const mainnetConfirmed =
-    !isLiveMainnet || mainnetConfirm.trim() === "MAINNET"
+  const isLiveMainnet = mode === "live" && selectedWallet?.network === "mainnet"
+  const mainnetConfirmed = !isLiveMainnet || mainnetConfirm.trim() === "MAINNET"
 
   return (
     <Dialog
@@ -179,9 +257,8 @@ export function NewBotDialog({
         <DialogHeader>
           <DialogTitle>New Bot</DialogTitle>
           <DialogDescription>
-            Name the bot, pick one of your saved strategies, then choose the
-            markets it trades — it runs the strategy on every market at once.
-            The bot copies the strategy's settings at creation.
+            Pick a saved Strategy or Automation, then choose where it trades.
+            The bot keeps its own copy of that setup.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -190,193 +267,286 @@ export function NewBotDialog({
               <CardTitle>General settings</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="bot-name">Name</Label>
-            <Input
-              id="bot-name"
-              value={name}
-              placeholder="QQE 15m basket"
-              autoFocus
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bot-name">Name</Label>
+                <Input
+                  id="bot-name"
+                  value={name}
+                  placeholder="QQE 15m basket"
+                  autoFocus
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Wallet</Label>
-              <Select value={walletId} onValueChange={setWalletId}>
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue
-                    placeholder={wallets.length === 0 ? "No wallets" : "Select"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {wallets.map((wallet) => (
-                    <SelectItem key={wallet.id} value={wallet.id}>
-                      {wallet.label} ({wallet.network})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Mode</Label>
-              <Select
-                value={mode}
-                onValueChange={(value) => setMode(value as "paper" | "live")}
-              >
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="paper">Paper (simulated fills)</SelectItem>
-                  <SelectItem value="live">Live (signs real orders)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Wallet</Label>
+                  <Select value={walletId} onValueChange={setWalletId}>
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue
+                        placeholder={
+                          wallets.length === 0 ? "No wallets" : "Select"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wallets.map((wallet) => (
+                        <SelectItem key={wallet.id} value={wallet.id}>
+                          {wallet.label} ({wallet.network})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Mode</Label>
+                  <Select
+                    value={mode}
+                    onValueChange={(value) =>
+                      setMode(value as "paper" | "live")
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paper">
+                        Paper (simulated fills)
+                      </SelectItem>
+                      <SelectItem value="live">
+                        Live (signs real orders)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          {mode === "live" && !isLiveMainnet ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-              Live mode signs real orders with this wallet on its network.
-              Paper-test the strategy first.
-            </div>
-          ) : null}
+              {mode === "live" && !isLiveMainnet ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+                  Live mode signs real orders with this wallet on its network.
+                  Paper-test the setup first.
+                </div>
+              ) : null}
 
-          {isLiveMainnet ? (
-            <MainnetConfirmField
-              id="bot-mainnet-confirm"
-              message="This bot will trade real money on mainnet. Type MAINNET to confirm."
-              value={mainnetConfirm}
-              disabled={busy}
-              onChange={setMainnetConfirm}
-            />
-          ) : null}
+              {isLiveMainnet ? (
+                <MainnetConfirmField
+                  id="bot-mainnet-confirm"
+                  message="This bot will trade real money on mainnet. Type MAINNET to confirm."
+                  value={mainnetConfirm}
+                  disabled={busy}
+                  onChange={setMainnetConfirm}
+                />
+              ) : null}
             </CardContent>
           </Card>
 
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Strategy</CardTitle>
+              <CardTitle>Source</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <StrategyPicker
-                hideLabel
-                strategies={botStrategies}
-                selectedId={strategyId}
-                onSelect={(id) => {
-                  setStrategyId(id)
+              <Tabs
+                value={source}
+                onValueChange={(value) => {
+                  const next = value as "strategy" | "automation"
+                  setSource(next)
+                  if (next === "automation") {
+                    setSelectedMarkets((current) => current.slice(0, 1))
+                  }
                   setError(null)
                 }}
-              />
-              {hiddenCount > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {hiddenCount} DCA {hiddenCount === 1 ? "strategy is" : "strategies are"}{" "}
-                  hidden — the DCA ladder is backtest-only and can't run as a
-                  bot yet.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="strategy">Strategy</TabsTrigger>
+                  <TabsTrigger value="automation">Automation</TabsTrigger>
+                </TabsList>
+              </Tabs>
 
-          {strategyChosen ? (
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Markets</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label>Exchange</Label>
-              <Select value={exchange} onValueChange={setExchange}>
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue placeholder="Select exchange" />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXCHANGES.map((ex) => (
-                    <SelectItem key={ex.id} value={ex.id}>
-                      {ex.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-          {showMarkets ? (
-            <div className="grid gap-2">
-              <Label>
-                Markets{" "}
-                {selectedMarkets.length > 0 ? (
-                  <span className="font-normal text-muted-foreground">
-                    ({selectedMarkets.length} selected)
-                  </span>
-                ) : null}
-              </Label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {selectedMarkets.map((coin) => (
-                  <Badge
-                    key={coin}
-                    variant="secondary"
-                    className="gap-1 font-mono"
-                  >
-                    {coin}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${coin}`}
-                      onClick={() =>
-                        setSelectedMarkets((current) =>
-                          current.filter((c) => c !== coin)
-                        )
-                      }
-                    >
-                      <XIcon className="size-3" />
-                    </button>
-                  </Badge>
-                ))}
-                {availableMarkets.length > 0 ? (
+              {source === "strategy" ? (
+                <>
+                  <StrategyPicker
+                    hideLabel
+                    strategies={botStrategies}
+                    selectedId={strategyId}
+                    onSelect={(id) => {
+                      setStrategyId(id)
+                      setError(null)
+                    }}
+                  />
+                  {hiddenCount > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {hiddenCount} DCA{" "}
+                      {hiddenCount === 1 ? "strategy is" : "strategies are"}{" "}
+                      hidden — DCA is handled by the simple Strategies system.
+                    </p>
+                  ) : null}
+                </>
+              ) : validAutomations === null ? (
+                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  Loading Automations…
+                </div>
+              ) : validAutomations.length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  No valid Automations yet. Finish and save one on the
+                  Automations page first.
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  <Label htmlFor="bot-automation">Automation</Label>
                   <Select
-                    value=""
-                    onValueChange={(coin) =>
-                      setSelectedMarkets((current) =>
-                        current.includes(coin) ? current : [...current, coin]
-                      )
-                    }
+                    value={selectedAutomationId ?? ""}
+                    onValueChange={(id) => {
+                      setAutomationId(id)
+                      setError(null)
+                    }}
                   >
-                    <SelectTrigger className="h-8 w-36">
-                      <SelectValue placeholder="Add market" />
+                    <SelectTrigger id="bot-automation" className="h-8 w-full">
+                      <SelectValue placeholder="Select Automation" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableMarkets.map((row) => (
-                        <SelectItem key={row.coin} value={row.coin}>
-                          {row.coin}
+                      {validAutomations.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} · {item.interval} · {item.summary}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {automationLoading ? (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2Icon className="size-3 animate-spin" />
+                      Loading saved Automation…
+                    </p>
+                  ) : automation?.compiledConfig ? (
+                    <p className="text-xs text-muted-foreground">
+                      {automation.compiledConfig.rules.length} action{" "}
+                      {automation.compiledConfig.rules.length === 1
+                        ? "rule"
+                        : "rules"}{" "}
+                      · {automation.interval}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {sourceChosen ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>
+                  {source === "automation" ? "Market" : "Markets"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label>Exchange</Label>
+                  <Select value={exchange} onValueChange={setExchange}>
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue placeholder="Select exchange" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EXCHANGES.map((ex) => (
+                        <SelectItem key={ex.id} value={ex.id}>
+                          {ex.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {showMarkets ? (
+                  <div className="grid gap-2">
+                    <Label>
+                      {source === "automation" ? "Market" : "Markets"}{" "}
+                      {selectedMarkets.length > 0 ? (
+                        <span className="font-normal text-muted-foreground">
+                          ({selectedMarkets.length} selected)
+                        </span>
+                      ) : null}
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {selectedMarkets.map((coin) => (
+                        <Badge
+                          key={coin}
+                          variant="secondary"
+                          className="gap-1 font-mono"
+                        >
+                          {coin}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${coin}`}
+                            onClick={() =>
+                              setSelectedMarkets((current) =>
+                                current.filter((item) => item !== coin)
+                              )
+                            }
+                          >
+                            <XIcon className="size-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {availableMarkets.length > 0 &&
+                      (source === "strategy" ||
+                        selectedMarkets.length === 0) ? (
+                        <Select
+                          value=""
+                          onValueChange={(coin) =>
+                            setSelectedMarkets((current) =>
+                              source === "automation"
+                                ? [coin]
+                                : current.includes(coin)
+                                  ? current
+                                  : [...current, coin]
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-36">
+                            <SelectValue
+                              placeholder={
+                                source === "automation"
+                                  ? "Select market"
+                                  : "Add market"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableMarkets.map((row) => (
+                              <SelectItem key={row.coin} value={row.coin}>
+                                {row.coin}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                    </div>
+                  </div>
                 ) : null}
-              </div>
-            </div>
-          ) : null}
 
-          {showMarkets && mode === "paper" ? (
-            <div className="grid gap-2">
-              <Label htmlFor="bot-equity">Paper equity per market (USD)</Label>
-              <Input
-                id="bot-equity"
-                inputMode="decimal"
-                value={paperEquity}
-                className="w-40"
-                onChange={(event) => setPaperEquity(event.target.value.trim())}
-              />
-            </div>
-          ) : null}
+                {showMarkets && mode === "paper" ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="bot-equity">
+                      Paper equity
+                      {source === "strategy" ? " per market" : ""} (USD)
+                    </Label>
+                    <Input
+                      id="bot-equity"
+                      inputMode="decimal"
+                      value={paperEquity}
+                      className="w-40"
+                      onChange={(event) =>
+                        setPaperEquity(event.target.value.trim())
+                      }
+                    />
+                  </div>
+                ) : null}
 
-          {strategy && selectedMarkets.length > 0 ? (
-            <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
-              {selectedMarkets.length} market
-              {selectedMarkets.length === 1 ? "" : "s"} · signal{" "}
-              {strategy.config.interval} · {strategySummary(strategy.config)}
-            </div>
-          ) : null}
+                {config && selectedMarkets.length > 0 ? (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                    {selectedMarkets.length} market
+                    {selectedMarkets.length === 1 ? "" : "s"} · {config.kind} ·{" "}
+                    {config.interval} · {strategySummary(config)}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

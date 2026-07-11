@@ -6,23 +6,26 @@ import { cn } from "../../lib/utils"
 function ScrollArea({
   className,
   children,
+  scrollBarClassName,
   scrollHideDelay = 0,
   ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+}: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
+  scrollBarClassName?: string
+}) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
       scrollHideDelay={scrollHideDelay}
-      className={cn("relative", className)}
+      className={cn("relative overflow-hidden", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:outline-1 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="size-full rounded-[inherit] [scrollbar-width:none] transition-[color,box-shadow] outline-none [&::-webkit-scrollbar]:hidden focus-visible:outline-1 focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
+      <ScrollBar className={scrollBarClassName} />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )

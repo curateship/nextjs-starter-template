@@ -48,6 +48,8 @@ export type BotDetailResponse = {
   bot: BotListItem & {
     params: StrategyConfig
     paper_starting_equity: number | null
+    source_name: string | null
+    automation_id: string | null
   }
   states: BotMarketState[]
   trades: {
@@ -85,17 +87,49 @@ export type BotDetailResponse = {
   }
 }
 
-const createBotSchema = z.object({
-  name: z.string().min(1).max(255),
-  walletId: z.string().min(1),
-  markets: z.array(z.string().min(1).max(20)).min(1),
-  exchange: z.string().min(1).max(20).default("hyperliquid"),
-  mode: z.enum(["paper", "live"]),
-  params: strategyConfigSchema,
-  /** Saved strategy the config came from. */
-  strategyId: z.string().uuid().optional(),
-  paperStartingEquity: z.number().positive().max(100_000_000).optional(),
-})
+const createBotSchema = z
+  .object({
+    name: z.string().min(1).max(255),
+    walletId: z.string().min(1),
+    markets: z.array(z.string().min(1).max(20)).min(1),
+    exchange: z.string().min(1).max(20).default("hyperliquid"),
+    mode: z.enum(["paper", "live"]),
+    /** Signal config. Automation configs are loaded by id on the server. */
+    params: strategyConfigSchema.optional(),
+    strategyId: z.string().uuid().optional(),
+    automationId: z.string().uuid().optional(),
+    paperStartingEquity: z.number().positive().max(100_000_000).optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.automationId && input.strategyId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["automationId"],
+        message: "Pick either a Strategy or an Automation, not both.",
+      })
+    }
+    if (input.automationId && input.markets.length !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["markets"],
+        message: "Automation bots can trade exactly one market.",
+      })
+    }
+    if (!input.automationId && !input.params) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["params"],
+        message: "Strategy configuration is required.",
+      })
+    }
+    if (!input.automationId && input.params?.kind === "automation") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["automationId"],
+        message: "Choose a saved Automation before creating this bot.",
+      })
+    }
+  })
 
 const updateBotSchema = z.object({
   botId: z.string().min(1),
@@ -106,7 +140,14 @@ const updateBotSchema = z.object({
 
 const botCommandSchema = z.object({
   botId: z.string().min(1),
-  command: z.enum(["start", "stop", "pause", "resume", "flatten", "update_params"]),
+  command: z.enum([
+    "start",
+    "stop",
+    "pause",
+    "resume",
+    "flatten",
+    "update_params",
+  ]),
 })
 
 const botIdSchema = z.object({ botId: z.string().min(1) })
@@ -135,7 +176,11 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
 
     return {
       bot: {
-        ...serializeBotRow(detail.bot, detail.wallet?.label ?? "", detail.wallet?.network ?? ""),
+        ...serializeBotRow(
+          detail.bot,
+          detail.wallet?.label ?? "",
+          detail.wallet?.network ?? ""
+        ),
         // Normalized so `params.kind` is always set (pre-kind configs lack
         // it in the DB); archived legacy params pass through untouched.
         params:
@@ -144,6 +189,8 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         paper_starting_equity: detail.bot.paperStartingEquity
           ? Number(detail.bot.paperStartingEquity)
           : null,
+        source_name: detail.sourceName,
+        automation_id: detail.bot.automationId,
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
       },

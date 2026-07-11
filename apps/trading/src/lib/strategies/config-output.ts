@@ -1,0 +1,45 @@
+import { evaluateAutomation } from "@/lib/automations/evaluate"
+import type {
+  IndicatorCandle,
+  IndicatorOutput,
+} from "@/lib/indicators/contract"
+import { INDICATORS } from "@/lib/indicators/registry"
+
+import type { StrategyConfig } from "./strategy-config"
+
+const EMPTY_OUTPUT: IndicatorOutput = {
+  paint: { indicators: [], lines: [], zones: [], barColors: [] },
+  signals: [],
+}
+
+/** Chart paint and entry signals for any strategy kind over the same candles. */
+export function computeStrategyOutput(
+  candles: IndicatorCandle[],
+  config: StrategyConfig
+): IndicatorOutput {
+  if (config.kind === "signal") {
+    const module = INDICATORS[config.indicator.type]
+    const params = module.paramsSchema.parse(config.indicator.params)
+    return module.compute(candles, params as never)
+  }
+  if (config.kind === "automation") {
+    const evaluated = evaluateAutomation(candles, config)
+    return {
+      paint: evaluated.paint,
+      signals: evaluated.actions.flatMap((action) =>
+        action.action === "close"
+          ? []
+          : [
+              {
+                time: action.time,
+                side:
+                  action.action === "buy"
+                    ? ("buy" as const)
+                    : ("sell" as const),
+              },
+            ]
+      ),
+    }
+  }
+  return EMPTY_OUTPUT
+}

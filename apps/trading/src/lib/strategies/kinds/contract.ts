@@ -16,6 +16,8 @@ import type { IndicatorParamValue } from "@/lib/indicators/registry"
 export type StrategyKindModule<C> = {
   /** The config discriminator ("signal", "dca", ...). */
   kind: string
+  /** False for kinds edited in their own product area instead of Strategies. */
+  availableInStrategyEditor?: boolean
   /** Zod branch for this kind's full config (one arm of the config union). */
   configSchema: z.ZodType<C>
   /**

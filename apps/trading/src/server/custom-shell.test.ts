@@ -173,6 +173,12 @@ describe("custom shell workspaces", () => {
         children: [{ label: "Indicators", href: "/indicators" }],
       },
       { type: "item", label: "Bots", href: "/bots", visible: true },
+      {
+        type: "item",
+        label: "Automations",
+        href: "/automations",
+        visible: true,
+      },
       { type: "item", label: "Backtest", href: "/backtest", visible: true },
       { type: "item", label: "Portfolio", href: "/portfolio", visible: true },
       { type: "item", label: "PnL", href: "/pnl", visible: true },

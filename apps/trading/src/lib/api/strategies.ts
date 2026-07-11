@@ -15,6 +15,11 @@ export type StrategyListItem = {
   updated_at: string
 }
 
+export type SavedStrategyConfig = Exclude<
+  StrategyConfig,
+  { kind: "automation" }
+>
+
 async function requireUser() {
   const { findCurrentUser } = await import("@/server/security")
   const user = await findCurrentUser()
@@ -45,7 +50,10 @@ function serialize(row: {
 const upsertSchema = z.object({
   strategyId: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
-  config: strategyConfigSchema,
+  config: strategyConfigSchema.refine(
+    (config) => config.kind !== "automation",
+    "Automations must be saved from the Automations canvas."
+  ),
 })
 
 const idSchema = z.object({ strategyId: z.string().uuid() })

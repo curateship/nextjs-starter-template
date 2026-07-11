@@ -20,6 +20,13 @@ export const INITIAL_TRADE_STATE: TradeState = {
 
 type Position = { szi: number; entryPx: number } | null
 
+type ProtectionSettings = Pick<
+  StrategySettings,
+  "takeProfitPct" | "stopLossPct"
+>
+
+type ExitState = { exitRequested: boolean }
+
 /**
  * Signal → intent. Applies the direction filter and flip-on-opposite rule:
  *  - flat + allowed direction → pending entry
@@ -59,9 +66,9 @@ export function applySignal(
  * their trigger; the live tick path checks the same numbers via `tickExit`.
  */
 export function exitLevels(
-  settings: StrategySettings,
+  settings: ProtectionSettings,
   position: Position,
-  state: TradeState
+  state: ExitState
 ): number[] {
   if (!position || position.szi === 0 || state.exitRequested) return []
   const entry = position.entryPx
@@ -79,9 +86,9 @@ export function exitLevels(
 
 /** Which exit (if any) the current price triggers. Same math as exitLevels. */
 export function tickExit(
-  settings: StrategySettings,
+  settings: ProtectionSettings,
   position: Position,
-  state: TradeState,
+  state: ExitState,
   mid: number
 ): "tp" | "sl" | null {
   if (!position || position.szi === 0 || state.exitRequested) return null
