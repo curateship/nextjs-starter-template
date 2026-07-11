@@ -37,7 +37,7 @@ import {
   OSCILLATORS,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
-import { nyseSessionsInRange } from "@/lib/trading/nyse-sessions"
+import { sessionsInRange } from "@/lib/trading/sessions"
 
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
@@ -1002,7 +1002,7 @@ export function PriceChartView({
         addLine("bollinger-lower", "bollinger-band", undefined, 0, { width: 1 })
       } else if (ind.type === "rsi") {
         const series = addLine("rsi", "rsi", ind.color, paneOf(ind.id))
-        for (const level of [70, 30]) {
+        for (const level of [ind.params.overbought ?? 70, ind.params.oversold ?? 30]) {
           series.createPriceLine({
             price: level,
             color: guide,
@@ -1478,9 +1478,9 @@ export function PriceChartView({
   )
 }
 
-/** NYC Session shading: menu swatches are hex; the zone fill needs translucent rgba. */
-const NYC_SESSION_FILL_ALPHA = 0.2
-const NYC_SESSION_BORDER_ALPHA = 0.55
+/** Session shading: menu swatches are hex; the zone fill needs translucent rgba. */
+const SESSION_FILL_ALPHA = 0.2
+const SESSION_BORDER_ALPHA = 0.55
 const EMPTY_ZONES: ChartZone[] = []
 function hexToRgba(hex: string, alpha: number): string {
   const match = /^#([0-9a-f]{6})$/i.exec(hex)
@@ -1623,17 +1623,19 @@ export function PriceChart({
     [candles, chartStrategy, overrideOverlays]
   )
 
-  // NYC Session shading: each NYSE session paints as a translucent box from
-  // its open to its close, bounded by that session's own high and low (like
-  // the measure tool's result box). Zone identity is kept stable via the ref
-  // below so the series only rebuild when a box actually changes (new bar,
-  // backfill, or a fresh session extreme) — not on every tick.
-  const nycInd = indicators.find((ind) => ind.type === "nycSession")
-  const nycEnabled = Boolean(nycInd?.enabled)
-  const nycHex = nycInd?.color ?? "#2962ff"
-  const nycZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
+  // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
+  // UTC block) paints as a translucent box from its open to its close,
+  // bounded by that session's own high and low (like the measure tool's
+  // result box). Zone identity is kept stable via the ref below so the series
+  // only rebuild when a box actually changes (new bar, backfill, or a fresh
+  // session extreme) — not on every tick.
+  const sessionInd = indicators.find((ind) => ind.type === "session")
+  const sessionEnabled = Boolean(sessionInd?.enabled)
+  const sessionHex = sessionInd?.color ?? "#2962ff"
+  const sessionKey = sessionInd?.session ?? "nyse"
+  const sessionZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
   const sessionZones = React.useMemo<ChartZone[]>(() => {
-    if (!nycEnabled || candles.length === 0) return EMPTY_ZONES
+    if (!sessionEnabled || candles.length === 0) return EMPTY_ZONES
     const firstMs = candles[0].t
     const lastMs = candles[candles.length - 1].t
     // Snap zone edges to candle boundaries: off-grid times would insert extra
@@ -1641,7 +1643,7 @@ export function PriceChart({
     // neighboring sessions together, so overlapping spans merge.
     const step = candleIntervalMs(interval)
     const spans: { fromMs: number; toMs: number }[] = []
-    for (const session of nyseSessionsInRange(firstMs, lastMs)) {
+    for (const session of sessionsInRange(sessionKey, firstMs, lastMs)) {
       const fromMs = Math.max(Math.floor(session.openMs / step) * step, firstMs)
       const toMs = Math.min(Math.ceil(session.closeMs / step) * step, lastMs)
       const prev = spans[spans.length - 1]
@@ -1651,8 +1653,8 @@ export function PriceChart({
     // One pass for per-session extremes: candles and spans are both sorted.
     // A candle opening exactly at the close boundary is post-session, except
     // at the live edge where it's the session's forming bar.
-    const fill = hexToRgba(nycHex, NYC_SESSION_FILL_ALPHA)
-    const border = hexToRgba(nycHex, NYC_SESSION_BORDER_ALPHA)
+    const fill = hexToRgba(sessionHex, SESSION_FILL_ALPHA)
+    const border = hexToRgba(sessionHex, SESSION_BORDER_ALPHA)
     const next: ChartZone[] = []
     let index = 0
     for (const span of spans) {
@@ -1673,7 +1675,7 @@ export function PriceChart({
       }
       if (!(high > low)) continue
       next.push({
-        id: `nyc-session-${span.fromMs}`,
+        id: `session-${span.fromMs}`,
         fromMs: span.fromMs,
         toMs: span.toMs,
         top: high,
@@ -1682,7 +1684,7 @@ export function PriceChart({
         borderColor: border,
       })
     }
-    const prev = nycZonesRef.current
+    const prev = sessionZonesRef.current
     const unchanged =
       next.length === prev.length &&
       next.every((zone, i) => {
@@ -1697,9 +1699,9 @@ export function PriceChart({
         )
       })
     if (unchanged) return prev
-    nycZonesRef.current = next
+    sessionZonesRef.current = next
     return next
-  }, [nycEnabled, nycHex, interval, candles])
+  }, [sessionEnabled, sessionHex, sessionKey, interval, candles])
   const zones = React.useMemo(
     () =>
       sessionZones.length === 0

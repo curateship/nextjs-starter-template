@@ -354,6 +354,15 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/trade",
           icon: "layoutDashboard",
           visible: true,
+          // Child links join the sticky header's chip group (see
+          // workspace/docs/app-guide.md) — Indicators belongs with Trade.
+          children: [
+            {
+              id: "item-trade-indicators",
+              label: "Indicators",
+              href: "/indicators",
+            },
+          ],
         },
         {
           type: "item",

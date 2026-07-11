@@ -3,6 +3,8 @@
  * the price chart renders. Kept UI-framework-free so both can import it.
  */
 
+import { sessionLabel, type SessionKey } from "@/lib/trading/sessions"
+
 export type IndicatorType =
   | "ema"
   | "vwap"
@@ -10,43 +12,69 @@ export type IndicatorType =
   | "rsi"
   | "macd"
   | "base"
-  | "nycSession"
+  | "session"
 
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
   id: string
   type: IndicatorType
   enabled: boolean
+  /**
+   * Pinned indicators are the working set the trade chart shows and toggles.
+   * Optional because strategy-derived chart overlays never carry it; stored
+   * user settings always do.
+   */
+  pinned?: boolean
+  /** Optional user rename; empty/undefined falls back to the default label. */
+  name?: string
   /** Numeric params keyed by name (period, k, fast, slow, signal). */
   params: Record<string, number>
   /** Optional override for the indicator's primary line color. */
   color?: string
+  /** Which session the Sessions indicator draws (type "session" only). */
+  session?: SessionKey
 }
 
 export const DEFAULT_INDICATORS: IndicatorConfig[] = [
-  { id: "ema-20", type: "ema", enabled: false, params: { period: 20 } },
-  { id: "ema-50", type: "ema", enabled: false, params: { period: 50 } },
-  { id: "vwap", type: "vwap", enabled: false, params: {} },
+  { id: "ema-20", type: "ema", enabled: false, pinned: false, params: { period: 20 } },
+  { id: "ema-50", type: "ema", enabled: false, pinned: false, params: { period: 50 } },
+  { id: "vwap", type: "vwap", enabled: false, pinned: false, params: {} },
   {
     id: "bollinger",
     type: "bollinger",
     enabled: false,
+    pinned: false,
     params: { period: 20, k: 2 },
   },
-  { id: "rsi", type: "rsi", enabled: false, params: { period: 14 } },
+  {
+    id: "rsi",
+    type: "rsi",
+    enabled: false,
+    pinned: false,
+    params: { period: 14, overbought: 70, oversold: 30 },
+  },
   {
     id: "macd",
     type: "macd",
     enabled: false,
+    pinned: false,
     params: { fast: 12, slow: 26, signal: 9 },
   },
   {
     id: "base",
     type: "base",
     enabled: false,
+    pinned: false,
     params: { basePeriods: 36, pumpPeriods: 8 },
   },
-  { id: "nyc-session", type: "nycSession", enabled: false, params: {} },
+  {
+    id: "session",
+    type: "session",
+    enabled: false,
+    pinned: false,
+    params: {},
+    session: "nyse",
+  },
 ]
 
 /** Editable numeric params per indicator type, in display order. */
@@ -60,7 +88,11 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "period", label: "Period" },
     { key: "k", label: "StdDev", step: 0.5 },
   ],
-  rsi: [{ key: "period", label: "Period" }],
+  rsi: [
+    { key: "period", label: "Period" },
+    { key: "overbought", label: "Overbought" },
+    { key: "oversold", label: "Oversold" },
+  ],
   macd: [
     { key: "fast", label: "Fast" },
     { key: "slow", label: "Slow" },
@@ -70,7 +102,7 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "basePeriods", label: "Base periods" },
     { key: "pumpPeriods", label: "Pump periods" },
   ],
-  nycSession: [],
+  session: [],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -80,7 +112,23 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   rsi: "RSI",
   macd: "MACD",
   base: "Base",
-  nycSession: "NYC Session",
+  session: "Sessions",
+}
+
+/** The label shown for an indicator: user rename, or the default label. */
+export function indicatorDisplayName(config: IndicatorConfig): string {
+  const custom = config.name?.trim()
+  if (custom) return custom
+  const label = INDICATOR_LABELS[config.type]
+  return config.type === "ema" ? `${label} ${config.params.period}` : label
+}
+
+/** Short human summary of an indicator's settings (e.g. "Period 14 · Overbought 70"). */
+export function indicatorSettingsSummary(config: IndicatorConfig): string {
+  if (config.type === "session") return sessionLabel(config.session ?? "nyse")
+  return INDICATOR_PARAM_FIELDS[config.type]
+    .map((field) => `${field.label} ${config.params[field.key]}`)
+    .join(" · ")
 }
 
 /** Oscillators render in their own sub-pane; everything else overlays pane 0. */
@@ -103,7 +151,7 @@ const PALETTE: Record<string, ThemeHex> = {
   "macd-signal": { light: "#ea580c", dark: "#fb923c" },
   base: { light: "#0d9488", dark: "#2dd4bf" },
   // Session shading swatch; the chart applies its own translucency.
-  nycSession: { light: "#2962ff", dark: "#2962ff" },
+  session: { light: "#2962ff", dark: "#2962ff" },
   guide: { light: "rgba(100, 116, 139, 0.45)", dark: "rgba(148, 163, 184, 0.4)" },
 }
 

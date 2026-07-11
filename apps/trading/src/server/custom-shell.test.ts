@@ -164,7 +164,14 @@ describe("custom shell workspaces", () => {
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
-      { type: "item", label: "Trade", href: "/trade", visible: true },
+      {
+        type: "item",
+        label: "Trade",
+        href: "/trade",
+        visible: true,
+        // Child links form the sticky header's chip group with Trade.
+        children: [{ label: "Indicators", href: "/indicators" }],
+      },
       { type: "item", label: "Bots", href: "/bots", visible: true },
       { type: "item", label: "Backtest", href: "/backtest", visible: true },
       { type: "item", label: "Portfolio", href: "/portfolio", visible: true },
