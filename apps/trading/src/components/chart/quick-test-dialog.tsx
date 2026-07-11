@@ -11,6 +11,12 @@ import {
 import { SettingsFields } from "@/components/strategies/settings-fields"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -25,7 +31,7 @@ import { runBacktest } from "@/lib/api/backtests"
 import { runQuickTest, type QuickTestResponse } from "@/lib/api/quick-test"
 import { INDICATORS } from "@/lib/indicators/registry"
 import type { StrategySettings } from "@/lib/strategies/settings"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
 
 /**
  * Quick Test: replay the applied strategy over recent history — through the
@@ -47,8 +53,8 @@ export function QuickTestDialog({
   /** The chart's exchange network — the test replays this same data. */
   network: "mainnet" | "testnet"
   market: string
-  /** The strategy to test; null disables the dialog. */
-  config: StrategyConfig | null
+  /** The signal strategy to test; null disables the dialog. */
+  config: SignalStrategyConfig | null
   /** Trade page: tweak the settings block before running (bots are fixed). */
   settingsEditable?: boolean
   /** Fired with the finished test (and again on close) so charts can paint it. */
@@ -83,7 +89,9 @@ export function QuickTestDialog({
 
   if (!config) return null
   const module = INDICATORS[config.indicator.type]
-  const testConfig: StrategyConfig = settings ? { ...config, settings } : config
+  const testConfig: SignalStrategyConfig = settings
+    ? { ...config, settings }
+    : config
 
   async function run() {
     setError(null)
@@ -155,33 +163,44 @@ export function QuickTestDialog({
             fees and slippage included.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="qt-window" className="text-xs">
-                Window (days)
-              </Label>
-              <Input
-                id="qt-window"
-                inputMode="numeric"
-                value={windowDays}
-                className="h-8 w-28 text-xs"
-                onChange={(event) => setWindowDays(event.target.value.trim())}
-              />
-            </div>
-          </div>
-
-          {settingsEditable && settings ? (
-            <div>
-              <div className="mb-2 text-[11px] font-medium text-muted-foreground">
-                Trade settings for this test
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Test settings</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="qt-window" className="text-xs">
+                    Window (days)
+                  </Label>
+                  <Input
+                    id="qt-window"
+                    inputMode="numeric"
+                    value={windowDays}
+                    className="h-8 w-28 text-xs"
+                    onChange={(event) => setWindowDays(event.target.value.trim())}
+                  />
+                </div>
               </div>
-              <SettingsFields value={settings} onChange={setSettings} />
-            </div>
-          ) : null}
+
+              {settingsEditable && settings ? (
+                <div>
+                  <div className="mb-2 text-[11px] font-medium text-muted-foreground">
+                    Trade settings for this test
+                  </div>
+                  <SettingsFields value={settings} onChange={setSettings} />
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
           {stats ? (
-            <div className="grid gap-3">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Results</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
               <div className="grid grid-cols-4 gap-2">
                 <QuickStat
                   label="Net P&L"
@@ -257,7 +276,8 @@ export function QuickTestDialog({
                   No completed trades in this window.
                 </p>
               )}
-            </div>
+              </CardContent>
+            </Card>
           ) : null}
 
           {error ? <p className="text-xs text-destructive">{error}</p> : null}

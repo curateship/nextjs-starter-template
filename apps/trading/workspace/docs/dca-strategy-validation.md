@@ -4,6 +4,23 @@ July 9, 2026. After the take-profit fill bug was found and fixed (see
 `back-testing-rule.md`, "Sanity-check fill prices"), every strategy was
 re-judged on the fixed engine. The DCA ladder is the one that survived.
 
+> **Update July 10, 2026 — the engine was rebuilt as a product feature.**
+> The original DCA code died with the legacy strategy system; it now lives
+> again as a second strategy engine (`kind: "dca"` beside `"signal"`), in
+> `worker/src/engine/dca-strategy.ts`. It is configurable in the Strategy
+> editor (defaults = the vol-basket winner below) and runs through the same
+> backtest queue and honest fill model; unit tests pin the ladder mechanics
+> (fills at exact rung prices, TP at average×(1+tp), cycle restart). It is
+> **backtest-only** — bots can't run it yet, and paper trading remains the
+> gate before any live sizing.
+>
+> Rebuild sanity run (group `d347f968`, named "DCA vol-basket 200d 15m" but
+> actually a **14-majors** basket, Dec 2025–Jul 2026): −2.4%/mo, −26.7%
+> combined DD — the engine faithfully reproduces the documented failure mode
+> (XRP/LINK cycled green; ETH/SOL/AVAX ate −38% bags). Majors are not the
+> vol-rule basket; this run verifies the engine, it does not re-judge the
+> strategy.
+
 > **July 10, 2026 — 1h-candle inflation re-confirmed on the product engine.**
 > A BTC-only 5.5-year run of the default 1% ladder at 1h (group `de95fe01`)
 > showed +147% (2.2%/mo). Cycle reconstruction from its fills: 30% of cycles

@@ -12,6 +12,12 @@ import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -300,7 +306,12 @@ function WorkspaceFormDialog({
             Choose the name and icon shown in the workspace switcher.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="grid gap-4 sm:grid-cols-2">
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>General settings</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label htmlFor="workspace-name">Name</Label>
             <Input
@@ -334,6 +345,8 @@ function WorkspaceFormDialog({
               </SelectContent>
             </Select>
           </div>
+            </CardContent>
+          </Card>
         </DialogBody>
         <DialogFooter variant="plain">
           <>

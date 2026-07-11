@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  normalizeStrategyConfig,
   strategyConfigSchema,
   type StrategyConfig,
 } from "@/lib/strategies/strategy-config"
@@ -33,7 +34,9 @@ function serialize(row: {
   return {
     id: row.id,
     name: row.name,
-    config: row.config as StrategyConfig,
+    // Normalized so `config.kind` is always set (pre-kind rows lack it).
+    config:
+      normalizeStrategyConfig(row.config) ?? (row.config as StrategyConfig),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

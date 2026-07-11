@@ -521,7 +521,7 @@ function EditFeedbackModal({
               onValueChange={(value) => setFeedbackType(value as FeedbackType)}
               disabled={busy}
             >
-              <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
+              <SelectTrigger id="feedback-type" className="h-8 w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

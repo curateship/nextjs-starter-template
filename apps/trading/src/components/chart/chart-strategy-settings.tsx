@@ -1,7 +1,14 @@
 import type { ChartStrategyState } from "@/components/chart/chart-strategy"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -86,7 +93,7 @@ export function IndicatorSettingsDialog({
             value={String(value ?? "")}
             onValueChange={(next) => setParam(field.key, next)}
           >
-            <SelectTrigger className="w-40 text-xs">
+            <SelectTrigger className="h-8 w-40 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -124,16 +131,24 @@ export function IndicatorSettingsDialog({
           <DialogTitle>{module.label}</DialogTitle>
           <DialogDescription>{module.description}</DialogDescription>
         </DialogHeader>
-        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-6 py-4">
+        <DialogBody>
           {hideParams ? null : (
-            <div className="grid grid-cols-2 gap-3">
-              {module.paramFields.map(renderField)}
-            </div>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Parameters</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {module.paramFields.map(renderField)}
+                </div>
+              </CardContent>
+            </Card>
           )}
-          <div className={hideParams ? undefined : "border-t pt-3"}>
-            <div className="mb-2 text-[11px] font-medium text-muted-foreground">
-              Display
-            </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Display</CardTitle>
+            </CardHeader>
+            <CardContent>
             <div className="grid gap-2">
               <label className="flex cursor-pointer items-center gap-2 text-xs">
                 <Checkbox
@@ -187,8 +202,9 @@ export function IndicatorSettingsDialog({
                 />
               </div>
             </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

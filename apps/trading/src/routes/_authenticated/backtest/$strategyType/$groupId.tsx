@@ -6,14 +6,17 @@ import {
   loadGroupCurve,
   loadGroupMetrics,
 } from "@/lib/api/backtests"
-import { indicatorIdSchema, type IndicatorId } from "@/lib/indicators/registry"
+import {
+  strategyTypeIdSchema,
+  type StrategyTypeId,
+} from "@/lib/strategies/strategy-config"
 
 export const Route = createFileRoute(
   "/_authenticated/backtest/$strategyType/$groupId"
 )({
   loader: async ({ params }) => {
-    // The $strategyType param is an indicator id (e.g. "qqe", "ema_cross").
-    if (!indicatorIdSchema.safeParse(params.strategyType).success)
+    // The $strategyType param is an indicator id (e.g. "qqe") or "dca".
+    if (!strategyTypeIdSchema.safeParse(params.strategyType).success)
       throw notFound()
     // One group's rows, its blended metrics, and its combined P&L curve,
     // fetched in parallel — this page must never pay for the full run catalog.
@@ -33,7 +36,7 @@ function RunHistoryRoute() {
   return (
     <RunHistoryDashboard
       runs={runs}
-      strategyType={strategyType as IndicatorId}
+      strategyType={strategyType as StrategyTypeId}
       groupId={groupId}
       groupMetrics={groupMetrics}
       groupCurve={groupCurve}

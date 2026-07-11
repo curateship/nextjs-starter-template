@@ -4,6 +4,13 @@ import { Loader2Icon, PlusIcon, XIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -31,13 +38,16 @@ import {
   MAX_EXTRA_MARKETS,
   maxWindowDays,
 } from "@/lib/backtest/types"
-import { INDICATORS, type IndicatorId } from "@/lib/indicators/registry"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
-import { StrategyEditorDialog } from "@/components/strategies/strategy-editor"
 import {
-  settingsSummary,
-  StrategyPicker,
-} from "@/components/strategies/strategy-picker"
+  strategyKindOf,
+  strategyTypeLabel,
+  strategyTypeOf,
+  type StrategyConfig,
+  type StrategyTypeId,
+} from "@/lib/strategies/strategy-config"
+import { StrategyConfigFields } from "@/components/strategies/strategy-config-fields"
+import { StrategyEditorDialog } from "@/components/strategies/strategy-editor"
+import { StrategyPicker } from "@/components/strategies/strategy-picker"
 
 type MarketRowLike = { coin: string }
 
@@ -65,7 +75,7 @@ export function NewRunDialog({
   onOpenChange,
   markets,
   defaultMarket,
-  indicatorType,
+  strategyType,
   editTarget,
   onLaunched,
 }: {
@@ -73,8 +83,8 @@ export function NewRunDialog({
   onOpenChange: (open: boolean) => void
   markets: MarketRowLike[]
   defaultMarket: string
-  /** Scopes the dialog to one indicator's templates (a strategy page's New Run). */
-  indicatorType?: IndicatorId
+  /** Scopes the dialog to one strategy type's templates (a strategy page's New Run). */
+  strategyType?: StrategyTypeId
   /** Re-run mode: locked strategy config, prefilled run settings. */
   editTarget?: RunEditTarget
   /** Receives the main run's id once the run group is queued. */
@@ -84,6 +94,10 @@ export function NewRunDialog({
     null
   )
   const [strategyId, setStrategyId] = React.useState<string | null>(null)
+  /** Re-run mode: an editable copy of the group's saved config. */
+  const [draftConfig, setDraftConfig] = React.useState<StrategyConfig | null>(
+    null
+  )
   const [name, setName] = React.useState("")
   const [market, setMarket] = React.useState(defaultMarket)
   const [extraMarkets, setExtraMarkets] = React.useState<string[]>([])
@@ -102,20 +116,29 @@ export function NewRunDialog({
   const [error, setError] = React.useState<string | null>(null)
   const [editorOpen, setEditorOpen] = React.useState(false)
 
+  // Seed ONLY when the dialog opens (or targets another group). The parent
+  // re-renders on every market-price tick, re-creating the editTarget object
+  // — keying the effect on it would silently wipe in-progress edits back to
+  // the saved config (same pattern as quick-test-dialog's configRef).
+  const editTargetRef = React.useRef(editTarget)
+  editTargetRef.current = editTarget
+  const editGroupId = editTarget?.groupId
   React.useEffect(() => {
     if (!open) return
+    const target = editTargetRef.current
     setError(null)
-    setName(editTarget?.name ?? "")
-    setMarket(editTarget?.market ?? defaultMarket)
-    setExtraMarkets(editTarget?.extraMarkets ?? [])
-    setWindowDays(String(editTarget?.windowDays ?? 30))
-    setEquity(String(editTarget?.equity ?? 10_000))
-    setTaker(String(editTarget?.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps))
-    setMaker(String(editTarget?.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps))
+    setDraftConfig(target?.config ?? null)
+    setName(target?.name ?? "")
+    setMarket(target?.market ?? defaultMarket)
+    setExtraMarkets(target?.extraMarkets ?? [])
+    setWindowDays(String(target?.windowDays ?? 30))
+    setEquity(String(target?.equity ?? 10_000))
+    setTaker(String(target?.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps))
+    setMaker(String(target?.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps))
     setSlippage(
-      String(editTarget?.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps)
+      String(target?.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps)
     )
-    if (editTarget) return
+    if (target) return
     let cancelled = false
     void loadStrategies()
       .then(({ strategies: rows }) => {
@@ -127,33 +150,33 @@ export function NewRunDialog({
     return () => {
       cancelled = true
     }
-  }, [open, editTarget, defaultMarket])
+  }, [open, editGroupId, defaultMarket])
 
-  // A strategy page's New Run only offers that indicator's templates.
+  // A strategy page's New Run only offers that strategy type's templates.
   const visibleStrategies = React.useMemo(() => {
     if (!strategies) return null
-    if (!indicatorType) return strategies
+    if (!strategyType) return strategies
     return strategies.filter(
-      (row) => row.config.indicator.type === indicatorType
+      (row) => strategyTypeOf(row.config) === strategyType
     )
-  }, [strategies, indicatorType])
+  }, [strategies, strategyType])
 
   // Scoped dialog: preselect the first matching template so the run is one
-  // click away (and never leave a foreign indicator's template selected).
+  // click away (and never leave a foreign type's template selected).
   React.useEffect(() => {
-    if (!open || editTarget || !indicatorType || !visibleStrategies) return
+    if (!open || editTarget || !strategyType || !visibleStrategies) return
     if (
       visibleStrategies.length > 0 &&
       !visibleStrategies.some((row) => row.id === strategyId)
     ) {
       setStrategyId(visibleStrategies[0].id)
     }
-  }, [open, editTarget, indicatorType, visibleStrategies, strategyId])
+  }, [open, editTarget, strategyType, visibleStrategies, strategyId])
 
   const strategy = editTarget
     ? null
     : (visibleStrategies?.find((row) => row.id === strategyId) ?? null)
-  const config = editTarget?.config ?? strategy?.config ?? null
+  const config = editTarget ? draftConfig : (strategy?.config ?? null)
 
   const availableMarkets = markets.filter(
     (row) => row.coin !== market && !extraMarkets.includes(row.coin)
@@ -162,12 +185,21 @@ export function NewRunDialog({
   async function submit() {
     setError(null)
     if (!config) return setError("Pick a strategy.")
+    // Re-run edits are free-form — validate through the kind's own schema
+    // for a precise message before anything is queued.
+    const parsedConfig = strategyKindOf(config).configSchema.safeParse(config)
+    if (!parsedConfig.success) {
+      return setError(
+        parsedConfig.error.issues[0]?.message ?? "Invalid strategy configuration"
+      )
+    }
+    const nextConfig = parsedConfig.data as StrategyConfig
     const days = Number(windowDays)
     if (!(days >= 1)) return setError("Window must be at least 1 day.")
-    const maxDays = maxWindowDays(config.interval)
+    const maxDays = maxWindowDays(nextConfig.interval)
     if (days > maxDays) {
       return setError(
-        `That window is too long for ${config.interval} candles — at most ${maxDays} days.`
+        `That window is too long for ${nextConfig.interval} candles — at most ${maxDays} days.`
       )
     }
     const startingEquity = Number(equity)
@@ -180,13 +212,13 @@ export function NewRunDialog({
         groupId: editTarget?.groupId,
         market,
         extraMarkets,
-        interval: config.interval,
+        interval: nextConfig.interval,
         windowDays: days,
         startingEquity,
         takerFeeBps: Number(taker),
         makerFeeBps: Number(maker),
         slippageBps: Number(slippage),
-        params: config,
+        params: nextConfig,
       })
       onOpenChange(false)
       await onLaunched(backtestId)
@@ -207,71 +239,71 @@ export function NewRunDialog({
           <DialogTitle>{editTarget ? "Re-run Backtest" : "New Backtest Run"}</DialogTitle>
           <DialogDescription>
             {editTarget
-              ? "Adjust the markets, window, or costs and re-run this group with the same strategy."
+              ? "Adjust anything — strategy, markets, window, or costs — and re-run this group. Changing the strategy or window replaces every market's results; only adding markets keeps existing ones."
               : "Pick a saved strategy and the markets to replay it on — one result per market. The strategy's indicator and settings come from the Strategies page."}
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="grid gap-5 overflow-y-auto">
-          <div className="grid gap-2">
-            <Label htmlFor="run-name">Name (optional)</Label>
-            <Input
-              id="run-name"
-              value={name}
-              placeholder="Named after the strategy when empty"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-
-          {editTarget ? (
-            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {INDICATORS[editTarget.config.indicator.type]?.label ??
-                  editTarget.config.indicator.type}
-              </span>{" "}
-              · {editTarget.config.interval} · {settingsSummary(editTarget.config)}{" "}
-              — the strategy is fixed for this run group.
-            </div>
-          ) : indicatorType &&
-            visibleStrategies !== null &&
-            visibleStrategies.length === 0 ? (
-            <div className="grid gap-2">
-              <Label>Strategy</Label>
-              <div className="grid justify-items-center gap-3 rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-                <span>
-                  No saved template for{" "}
-                  {INDICATORS[indicatorType]?.label ?? indicatorType} yet — a
-                  template is this indicator plus its parameters and trade
-                  settings.
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setEditorOpen(true)}
-                >
-                  <PlusIcon className="size-3.5" />
-                  Create template
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <StrategyPicker
-              strategies={visibleStrategies}
-              selectedId={strategyId}
-              onSelect={(id) => {
-                setStrategyId(id)
-                setError(null)
-              }}
-            />
-          )}
+        <DialogBody>
+          {/* Every section is its own card with the title contained inside. */}
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Strategy</CardTitle>
+              {editTarget ? (
+                <CardDescription className="text-xs">
+                  Starts from this run's saved config — edit freely.
+                </CardDescription>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {editTarget && draftConfig ? (
+                <StrategyConfigFields
+                  value={draftConfig}
+                  onChange={setDraftConfig}
+                />
+              ) : strategyType &&
+                visibleStrategies !== null &&
+                visibleStrategies.length === 0 ? (
+                <div className="grid justify-items-center gap-3 rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  <span>
+                    No saved template for {strategyTypeLabel(strategyType)} yet —
+                    a template is this strategy plus its parameters and settings.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setEditorOpen(true)}
+                  >
+                    <PlusIcon className="size-3.5" />
+                    Create template
+                  </Button>
+                </div>
+              ) : (
+                <StrategyPicker
+                  hideLabel
+                  strategies={visibleStrategies}
+                  selectedId={strategyId}
+                  onSelect={(id) => {
+                    setStrategyId(id)
+                    setError(null)
+                  }}
+                />
+              )}
+            </CardContent>
+          </Card>
 
           {config ? (
             <>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Markets</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
               <div className="grid gap-2">
                 <Label>Main market</Label>
                 <Select value={market} onValueChange={setMarket}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="h-8 w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -318,7 +350,7 @@ export function NewRunDialog({
                         )
                       }
                     >
-                      <SelectTrigger className="w-36">
+                      <SelectTrigger className="h-8 w-36">
                         <SelectValue placeholder="Add market" />
                       </SelectTrigger>
                       <SelectContent>
@@ -331,6 +363,23 @@ export function NewRunDialog({
                     </Select>
                   ) : null}
                 </div>
+              </div>
+                </CardContent>
+              </Card>
+
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>General settings</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="run-name">Name (optional)</Label>
+                <Input
+                  id="run-name"
+                  value={name}
+                  placeholder="Named after the strategy when empty"
+                  onChange={(event) => setName(event.target.value)}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -390,6 +439,8 @@ export function NewRunDialog({
                   </div>
                 </div>
               </div>
+                </CardContent>
+              </Card>
             </>
           ) : null}
 
@@ -423,7 +474,7 @@ export function NewRunDialog({
       <StrategyEditorDialog
         open={editorOpen}
         target={null}
-        initialIndicator={indicatorType}
+        initialType={strategyType}
         onOpenChange={setEditorOpen}
         onSaved={(saved) => {
           setStrategies((current) => [saved, ...(current ?? [])])

@@ -75,10 +75,11 @@ import type {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import {
-  INDICATOR_IDS,
-  INDICATORS,
-  type IndicatorId,
-} from "@/lib/indicators/registry"
+  STRATEGY_TYPE_IDS,
+  strategyTypeDescription,
+  strategyTypeLabel,
+  type StrategyTypeId,
+} from "@/lib/strategies/strategy-config"
 import { cn } from "@/lib/utils"
 
 import {
@@ -361,7 +362,7 @@ function DeleteSelectedButton({
 }
 
 /** Toolbar "New Run" button + the creation modal; opens the run's workspace. */
-function NewRunButton({ indicatorType }: { indicatorType?: IndicatorId }) {
+function NewRunButton({ strategyType }: { strategyType?: StrategyTypeId }) {
   const navigate = useNavigate()
   const markets = useBinanceMarketRows()
   const [open, setOpen] = React.useState(false)
@@ -377,7 +378,7 @@ function NewRunButton({ indicatorType }: { indicatorType?: IndicatorId }) {
         onOpenChange={setOpen}
         markets={markets}
         defaultMarket="BTC"
-        indicatorType={indicatorType}
+        strategyType={strategyType}
         onLaunched={(backtestId) =>
           void navigate({ to: "/backtest", search: { run: backtestId } })
         }
@@ -409,7 +410,7 @@ function sortHead<Column extends string>(
 // ---------------------------------------------------------------------------
 
 type StrategyRow = {
-  type: IndicatorId
+  type: StrategyTypeId
   label: string
   groups: number
   executions: number
@@ -431,9 +432,9 @@ export function StrategiesOverview({
     null
   )
 
-  // One row per indicator that has runs.
+  // One row per strategy type (indicator or DCA) that has runs.
   const rows = React.useMemo<StrategyRow[]>(() => {
-    return INDICATOR_IDS.flatMap((type) => {
+    return STRATEGY_TYPE_IDS.flatMap((type) => {
       const own = runs.filter((run) => run.indicatorType === type)
       if (own.length === 0) return []
       const done = own.filter(
@@ -442,7 +443,7 @@ export function StrategiesOverview({
       return [
         {
           type,
-          label: INDICATORS[type].label,
+          label: strategyTypeLabel(type),
           groups: new Set(own.map((run) => run.groupId)).size,
           executions: own.length,
           bestNetPct: done.length
@@ -486,7 +487,7 @@ export function StrategiesOverview({
                 description={`This permanently deletes every run and its re-run history for ${selection.selected.size} ${selection.selected.size === 1 ? "strategy" : "strategies"}. The strategies themselves stay available for new runs.`}
                 onDelete={async () => {
                   await deleteBacktests({
-                    indicatorTypes: [...selection.selected] as IndicatorId[],
+                    indicatorTypes: [...selection.selected] as StrategyTypeId[],
                   })
                 }}
                 onDone={selection.clear}
@@ -550,7 +551,7 @@ export function StrategiesOverview({
             <TableCell column="main">
               <div className="font-medium">{row.label}</div>
               <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                {INDICATORS[row.type].description}
+                {strategyTypeDescription(row.type)}
               </div>
             </TableCell>
             <TableCell column="meta" className="font-mono tabular-nums">
@@ -709,7 +710,7 @@ export function StrategyRunsDashboard({
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: IndicatorId
+  strategyType: StrategyTypeId
   pagination?: {
     page: number
     pageSize: number
@@ -870,7 +871,7 @@ export function StrategyRunsDashboard({
           <Breadcrumbs
             crumbs={[
               { label: "Backtest", to: "/backtest" },
-              { label: INDICATORS[strategyType]?.label ?? strategyType },
+              { label: strategyTypeLabel(strategyType) },
             ]}
           />
         }
@@ -945,7 +946,7 @@ export function StrategyRunsDashboard({
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <NewRunButton indicatorType={strategyType} />
+            <NewRunButton strategyType={strategyType} />
           </>
         }
         header={
@@ -1288,7 +1289,7 @@ export function RunHistoryDashboard({
   groupCurve,
 }: {
   runs: BacktestListItem[]
-  strategyType: IndicatorId
+  strategyType: StrategyTypeId
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
   groupCurve: GroupCombinedCurve | null
@@ -1416,7 +1417,7 @@ export function RunHistoryDashboard({
               crumbs={[
                 { label: "Backtest", to: "/backtest" },
                 {
-                  label: INDICATORS[strategyType]?.label ?? strategyType,
+                  label: strategyTypeLabel(strategyType),
                   to: `/backtest/${strategyType}`,
                 },
                 { label: truncateWords(runName, 10) },
@@ -1499,7 +1500,8 @@ export function RunHistoryDashboard({
                   aria-label={`Select ${run.market}`}
                 />
               </TableCell>
-              <TableCell column="main">
+              {/* Coin symbols are short — skip main's 320px floor. */}
+              <TableCell column="main" className="min-w-0">
                 <span className="font-medium">{run.market}</span>
               </TableCell>
               <TableCell

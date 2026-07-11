@@ -180,6 +180,9 @@ export async function updateUserBot(
     )
   }
   const params = strategyConfigSchema.parse(input.params)
+  if (params.kind !== "signal") {
+    throw new Error("DCA strategies can't run as bots yet — backtest them for now.")
+  }
 
   const markets = [...new Set(input.markets.map((m) => m.trim()).filter(Boolean))]
   if (markets.length === 0) throw new Error("Pick at least one market")
@@ -246,9 +249,21 @@ export async function createUserBot(
 
   const wallet = await findUserWallet(userId, input.walletId, database)
   if (!wallet) throw new Error("Wallet not found")
-  if (!wallet.isActive) throw new Error("Wallet is disabled")
+  if (wallet.status !== "active") {
+    throw new Error(
+      "This wallet is still awaiting approval on Hyperliquid — finish the Connect Wallet flow first."
+    )
+  }
+  // Paper bots never sign real orders, so the wallet's enable toggle only
+  // gates live trading.
+  if (input.mode === "live" && !wallet.isActive) {
+    throw new Error("Wallet is disabled")
+  }
 
   const params = strategyConfigSchema.parse(input.params)
+  if (params.kind !== "signal") {
+    throw new Error("DCA strategies can't run as bots yet — backtest them for now.")
+  }
 
   // strategy_id is display-only provenance, but it must still point at one of
   // the creator's own strategies — never someone else's row.

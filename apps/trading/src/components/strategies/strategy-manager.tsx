@@ -17,7 +17,12 @@ import {
   loadStrategies,
   type StrategyListItem,
 } from "@/lib/api/strategies"
-import { INDICATORS } from "@/lib/indicators/registry"
+import {
+  strategySummary,
+  strategyTypeDescription,
+  strategyTypeLabel,
+  strategyTypeOf,
+} from "@/lib/strategies/strategy-config"
 
 /**
  * The strategies library — the new model's home page. A strategy is one
@@ -33,19 +38,6 @@ export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
     const { strategies: rows } = await loadStrategies()
     setStrategies(rows)
   }, [])
-
-  const settingsSummary = (item: StrategyListItem) => {
-    const s = item.config.settings
-    const parts = [
-      s.direction === "both" ? "long+short" : `${s.direction} only`,
-      `$${s.orderSizeUsd}`,
-    ]
-    if (s.takeProfitPct) parts.push(`TP ${s.takeProfitPct}%`)
-    if (s.stopLossPct) parts.push(`SL ${s.stopLossPct}%`)
-    if (s.flipOnOppositeSignal) parts.push("flip")
-    if (s.compounding) parts.push("compound")
-    return parts.join(" · ")
-  }
 
   return (
     <>
@@ -68,7 +60,7 @@ export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
           <TableHeader>
             <TableRow>
               <TableHead column="main">Strategy</TableHead>
-              <TableHead column="meta">Indicator</TableHead>
+              <TableHead column="meta">Type</TableHead>
               <TableHead column="meta">Timeframe</TableHead>
               <TableHead column="meta">Settings</TableHead>
               <TableHead column="meta">Actions</TableHead>
@@ -94,17 +86,16 @@ export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
                 {item.name}
               </button>
               <div className="text-xs text-muted-foreground">
-                {INDICATORS[item.config.indicator.type]?.description}
+                {strategyTypeDescription(strategyTypeOf(item.config))}
               </div>
             </TableCell>
             <TableCell column="meta">
               <Badge variant="secondary">
-                {INDICATORS[item.config.indicator.type]?.label ??
-                  item.config.indicator.type}
+                {strategyTypeLabel(strategyTypeOf(item.config))}
               </Badge>
             </TableCell>
             <TableCell column="meta">{item.config.interval}</TableCell>
-            <TableCell column="mutedMeta">{settingsSummary(item)}</TableCell>
+            <TableCell column="mutedMeta">{strategySummary(item.config)}</TableCell>
             <TableCell column="meta">
               <div className="flex gap-1">
                 <Button

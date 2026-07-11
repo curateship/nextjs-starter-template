@@ -37,7 +37,7 @@ export function SettingsFields({
             onChange({ ...value, direction: direction as StrategySettings["direction"] })
           }
         >
-          <SelectTrigger className="text-xs">
+          <SelectTrigger className="h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

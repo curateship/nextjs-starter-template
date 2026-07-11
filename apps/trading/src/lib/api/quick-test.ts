@@ -128,9 +128,19 @@ async function evaluateQuickTest(
       n: candle.n,
     }))
 
-    const module = INDICATORS[data.config.indicator.type]
-    const indicatorParams = module.paramsSchema.parse(data.config.indicator.params)
-    const output = module.compute(candles, indicatorParams as never)
+    // DCA has no indicator, so it paints nothing — trade chips still draw
+    // from the result's fills.
+    let output: IndicatorOutput = {
+      paint: { indicators: [], lines: [], zones: [], barColors: [] },
+      signals: [],
+    }
+    if (data.config.kind === "signal") {
+      const module = INDICATORS[data.config.indicator.type]
+      const indicatorParams = module.paramsSchema.parse(
+        data.config.indicator.params
+      )
+      output = module.compute(candles, indicatorParams as never)
+    }
 
     const result = runEngine({
       strategy,

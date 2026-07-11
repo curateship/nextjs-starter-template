@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
 import {
+  normalizeStrategyConfig,
   strategyConfigSchema,
   type StrategyConfig,
 } from "@/lib/strategies/strategy-config"
@@ -135,7 +136,11 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
     return {
       bot: {
         ...serializeBotRow(detail.bot, detail.wallet?.label ?? "", detail.wallet?.network ?? ""),
-        params: detail.bot.params as StrategyConfig,
+        // Normalized so `params.kind` is always set (pre-kind configs lack
+        // it in the DB); archived legacy params pass through untouched.
+        params:
+          normalizeStrategyConfig(detail.bot.params) ??
+          (detail.bot.params as StrategyConfig),
         paper_starting_equity: detail.bot.paperStartingEquity
           ? Number(detail.bot.paperStartingEquity)
           : null,

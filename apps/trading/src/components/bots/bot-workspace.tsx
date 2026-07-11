@@ -62,7 +62,7 @@ import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   isStrategyConfig,
   strategyConfigSchema,
-  type StrategyConfig,
+  type SignalStrategyConfig,
 } from "@/lib/strategies/strategy-config"
 import { SettingsFields } from "@/components/strategies/settings-fields"
 import { INDICATORS } from "@/lib/indicators/registry"
@@ -178,7 +178,7 @@ function SignalBotSettings({
 }: {
   botId: string
   bot: BotDetailResponse["bot"]
-  config: StrategyConfig
+  config: SignalStrategyConfig
   onSaved: (message: string, tone: "ok" | "error") => void
 }) {
   const [settings, setSettings] = React.useState(config.settings)
@@ -304,8 +304,12 @@ export function BotWorkspace({
   )
 
   // New-model bots carry a StrategyConfig snapshot instead of legacy params.
+  // Bots only run signal strategies, so anything else reads as archived.
   const signalConfig = React.useMemo(
-    () => (isStrategyConfig(bot.params) ? bot.params : null),
+    () =>
+      isStrategyConfig(bot.params) && bot.params.kind === "signal"
+        ? bot.params
+        : null,
     [bot.params]
   )
 
