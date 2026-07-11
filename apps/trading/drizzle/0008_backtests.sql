@@ -57,37 +57,11 @@ create table if not exists strategy_defaults (
     check (strategy_type in ('grid', 'dca', 'momentum', 'copy'))
 );
 
--- Append the Backtest item into the existing Trading nav section (new
--- workspaces get it from createDefaultWorkspaceSections). Rebuilds the
--- sections array element-wise; idempotent via the not-exists guard.
-update workspaces
-set settings = jsonb_set(
-  settings,
-  '{sections}',
-  (
-    select jsonb_agg(
-      case
-        when section->>'id' = 'section-trading'
-        then jsonb_set(
-          section,
-          '{entries}',
-          (section->'entries') || '[{"type": "item", "id": "item-backtest", "label": "Backtest", "href": "/backtest", "icon": "flask-conical", "visible": true}]'::jsonb
-        )
-        else section
-      end
-      order by ord
-    )
-    from jsonb_array_elements(settings->'sections') with ordinality as t(section, ord)
-  )
-)
-where jsonb_typeof(settings->'sections') = 'array'
-  and (settings->'sections') @> '[{"id": "section-trading"}]'::jsonb
-  and not exists (
-    select 1
-    from jsonb_array_elements(settings->'sections') as s,
-         jsonb_array_elements(s->'entries') as e
-    where e->>'id' = 'item-backtest'
-  );
+-- The one-time backfill that appended the Backtest nav item here was
+-- removed: setup-database.mjs replays every migration on each start, so the
+-- "add if missing" guard kept resurrecting the item after users deleted it
+-- from their sidebar. New workspaces get it from
+-- createDefaultWorkspaceSections; existing ones own their nav.
 
 -- The strategies drill-down lives at /backtest now (it briefly had its own
 -- nav item); remove item-strategies from workspaces that picked it up.

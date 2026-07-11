@@ -135,25 +135,8 @@ create table if not exists scanner_book_metrics (
   updated_at timestamp with time zone not null
 );
 
--- Add the canonical Research nav section to workspaces that predate the
--- scanner (new workspaces get it from createDefaultWorkspaceSections).
--- Idempotent via the @> guard; setup-database.mjs re-runs every migration.
-update workspaces
-set settings = jsonb_set(
-  settings,
-  '{sections}',
-  (settings->'sections') || '[{
-    "id": "section-research",
-    "title": "Research",
-    "entries": [
-      {"type": "item", "id": "item-scanner-whales", "label": "Whales", "href": "/scanner/whales", "icon": "waves", "visible": true},
-      {"type": "item", "id": "item-scanner-whale-trades", "label": "Whale Trades", "href": "/scanner/whale-trades", "icon": "radar", "visible": true},
-      {"type": "item", "id": "item-scanner-leaderboard", "label": "Leaderboard", "href": "/scanner/leaderboard", "icon": "trophy", "visible": true},
-      {"type": "item", "id": "item-scanner-positions", "label": "Positions", "href": "/scanner/positions", "icon": "arrow-right-left", "visible": true},
-      {"type": "item", "id": "item-scanner-crowded", "label": "Crowded", "href": "/scanner/crowded", "icon": "users", "visible": true},
-      {"type": "item", "id": "item-scanner-book", "label": "Order Book", "href": "/scanner/book", "icon": "bookOpen", "visible": true}
-    ]
-  }]'::jsonb
-)
-where jsonb_typeof(settings->'sections') = 'array'
-  and not (settings->'sections') @> '[{"id": "section-research"}]'::jsonb;
+-- The one-time backfill that appended the Research nav section here was
+-- removed: setup-database.mjs replays every migration on each start, so the
+-- "add if missing" guard kept resurrecting the section after users deleted
+-- it from their sidebar. New workspaces get the section from
+-- createDefaultWorkspaceSections; existing ones own their nav.
