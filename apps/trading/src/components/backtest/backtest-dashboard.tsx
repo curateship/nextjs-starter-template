@@ -32,7 +32,11 @@ import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { indicatorOverlays } from "@/components/chart/indicator-overlays"
-import { INDICATORS } from "@/lib/indicators/registry"
+import {
+  strategyInputRows,
+  strategyTypeLabel,
+  strategyTypeOf,
+} from "@/lib/strategies/strategy-config"
 import type { HistoryCandle } from "@/server/backtest/history"
 
 import {
@@ -444,14 +448,17 @@ export function BacktestDashboard({
     onRunIdChange(id)
   }
 
-  const signalRun = run?.params ?? null
+  const runConfig = run?.params ?? null
 
   // Overlays paint straight from the run's indicator config — the same
-  // compute the engine traded.
+  // compute the engine traded. DCA has no indicator, so it paints nothing
+  // (the fills still draw as chips).
   const overlays = React.useMemo(() => {
-    if (candles.length === 0 || !signalRun) return EMPTY_OVERLAYS
-    return indicatorOverlays(signalRun.indicator, candles)
-  }, [signalRun, candles])
+    if (candles.length === 0 || !runConfig || runConfig.kind !== "signal") {
+      return EMPTY_OVERLAYS
+    }
+    return indicatorOverlays(runConfig.indicator, candles)
+  }, [runConfig, candles])
 
   // Legend chips only for named lines (channels, bands). Unlabeled marks like
   // the 100s of swing pivots would otherwise flood the toolbar with dashes.
@@ -475,27 +482,9 @@ export function BacktestDashboard({
       { label: "Maker fee", value: `${run.costs.makerFeeBps} bps` },
       { label: "Slippage", value: `${run.costs.slippageBps} bps` },
     ]
-    if (signalRun) {
-      const module = INDICATORS[signalRun.indicator.type]
-      rows.push({ label: "Indicator", value: module?.label ?? signalRun.indicator.type })
-      for (const field of module?.paramFields ?? []) {
-        const value = signalRun.indicator.params[field.key]
-        if (value !== undefined) rows.push({ label: field.label, value: String(value) })
-      }
-      const st = signalRun.settings
-      rows.push(
-        { label: "Direction", value: st.direction },
-        {
-          label: "Order size",
-          value: st.compounding ? "compounding" : `$${st.orderSizeUsd}`,
-        },
-        { label: "Take profit", value: st.takeProfitPct ? `${st.takeProfitPct}%` : "off" },
-        { label: "Stop loss", value: st.stopLossPct ? `${st.stopLossPct}%` : "off" },
-        { label: "Flip on opposite", value: st.flipOnOppositeSignal ? "on" : "off" }
-      )
-    }
+    if (runConfig) rows.push(...strategyInputRows(runConfig))
     return rows
-  }, [run, signalRun])
+  }, [run, runConfig])
 
   const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
   const selectedRow = markets.find((row) => row.coin === market)
@@ -527,9 +516,7 @@ export function BacktestDashboard({
         dayChangePct={dayChangePct}
         runName={run?.name ?? null}
         strategyLabel={
-          signalRun
-            ? (INDICATORS[signalRun.indicator.type]?.label ?? "Strategy")
-            : null
+          runConfig ? strategyTypeLabel(strategyTypeOf(runConfig)) : null
         }
         dateRangeText={describeWindow(windowNum)}
         runs={initialRuns}
@@ -545,7 +532,7 @@ export function BacktestDashboard({
             void router.navigate({
               to: "/backtest/$strategyType/$groupId",
               params: {
-                strategyType: run.params.indicator.type,
+                strategyType: strategyTypeOf(run.params),
                 groupId: run.groupId,
               },
             })
@@ -582,10 +569,7 @@ export function BacktestDashboard({
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
               <StrategyInputs
                 title={
-                  signalRun
-                    ? (INDICATORS[signalRun.indicator.type]?.label ??
-                      "Strategy")
-                    : null
+                  runConfig ? strategyTypeLabel(strategyTypeOf(runConfig)) : null
                 }
                 rows={inputRows}
                 onNewRun={() => setDialogOpen(true)}
@@ -603,7 +587,7 @@ export function BacktestDashboard({
                   onIntervalChange={setTimeframe}
                   legend={{
                     chips: Boolean(result),
-                    signals: !result && Boolean(signalRun),
+                    signals: !result && runConfig?.kind === "signal",
                   }}
                   legendLines={labeledOverlayLines}
                   ohlc={readout}

@@ -215,7 +215,7 @@ export function MediaPicker({
 
               {showVideos ? (
                 <Select value={filterType} onValueChange={handleFilterChange}>
-                  <SelectTrigger className="w-full sm:w-36">
+                  <SelectTrigger className="h-8 w-full sm:w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

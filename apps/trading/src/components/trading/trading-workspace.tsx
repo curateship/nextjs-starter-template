@@ -47,7 +47,7 @@ import { buildRunMarkers } from "@/components/backtest/backtest-overlays"
 import { outputToOverlays } from "@/components/chart/indicator-overlays"
 import type { QuickTestResponse } from "@/lib/api/quick-test"
 import { DEFAULT_STRATEGY_SETTINGS } from "@/lib/strategies/settings"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
 import {
   INDICATORS,
   INDICATOR_IDS,
@@ -380,10 +380,11 @@ export function TradingWorkspace({
 
   // Ad-hoc config for Quick Test: the picked indicator at the chart's
   // timeframe; trade settings are chosen inside the dialog.
-  const quickConfig = React.useMemo<StrategyConfig | null>(() => {
+  const quickConfig = React.useMemo<SignalStrategyConfig | null>(() => {
     if (!chartStrategy.indicator) return null
     return {
       v: 2,
+      kind: "signal",
       interval,
       indicator: chartStrategy.indicator,
       settings: { ...DEFAULT_STRATEGY_SETTINGS },

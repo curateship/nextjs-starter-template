@@ -4,8 +4,10 @@
  * dashboard reads it back — so these shapes must be plain JSON.
  */
 
-import { INDICATORS } from "@/lib/indicators/registry"
-import { strategyConfigSchema } from "@/lib/strategies/strategy-config"
+import {
+  strategyConfigSchema,
+  strategyKindOf,
+} from "@/lib/strategies/strategy-config"
 
 export type BacktestEquityPoint = {
   /** Bar close time, ms since epoch. */
@@ -212,8 +214,7 @@ export const SIGNAL_WARMUP_CANDLES = 1500
 export function warmupBarsFor(params: unknown): number {
   const parsed = strategyConfigSchema.safeParse(params)
   if (!parsed.success) return SIGNAL_WARMUP_CANDLES
-  const module = INDICATORS[parsed.data.indicator.type]
-  return module.warmupBars(parsed.data.indicator.params as never) + 5
+  return strategyKindOf(parsed.data).warmupBars(parsed.data as never)
 }
 
 /**

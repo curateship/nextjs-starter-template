@@ -11,6 +11,7 @@ import { runBacktest, type RunBacktestConfig } from "./runner"
  * settings.takeProfitPct for its credibility check. */
 const TOY_CONFIG: StrategyConfig = {
   v: 2,
+  kind: "signal",
   interval: "1h",
   indicator: { type: "ema_cross", params: { fast: 2, slow: 4 } },
   settings: {

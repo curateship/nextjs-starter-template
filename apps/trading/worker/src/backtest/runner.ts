@@ -8,7 +8,10 @@ import type {
   BacktestResult,
   BacktestTrade,
 } from "@/lib/backtest/types"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import {
+  strategyTakeProfitPct,
+  type StrategyConfig,
+} from "@/lib/strategies/strategy-config"
 import type { CandleInterval, HistoryCandle } from "@/server/backtest/history"
 
 import { diffOrders, type ExistingOrder } from "../order-differ"
@@ -184,7 +187,9 @@ class BacktestRunner {
 
     // A win can't beat the take-profit on a 24/7 market: the TP fires first.
     // If the average winner exceeds it, the fill model or data is broken.
-    const tp = this.params.settings.takeProfitPct
+    // Each strategy kind declares its own TP bound (DCA's sits above the
+    // average entry, so the same logic holds).
+    const tp = strategyTakeProfitPct(this.params)
     if (tp) {
       const wins = this.trades.filter((t) => t.pnl > 0)
       if (wins.length >= 10) {

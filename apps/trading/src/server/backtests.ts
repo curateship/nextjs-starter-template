@@ -17,7 +17,7 @@ export type CreateBacktestInput = {
   market: string
   network: TradingNetwork
   interval: string
-  /** The strategy's full config: indicator + universal settings. */
+  /** The strategy's full config (signal or DCA). */
   params: StrategyConfig
   costs: BacktestCosts
   startTime: Date
@@ -29,7 +29,7 @@ export type CreateBacktestInput = {
 function backtestConfigValues(input: CreateBacktestInput) {
   return {
     name: input.name.slice(0, 255),
-    strategyType: "signal",
+    strategyType: input.params.kind,
     market: input.market,
     network: input.network,
     interval: input.interval,
@@ -176,10 +176,11 @@ export async function resetOrphanedRunning(
   return rows.length
 }
 
-/** The run's indicator id, from the config JSON (the strategy identity). */
+/** The run's strategy identity from the config JSON: its indicator id, or the
+ * config kind ("dca") for strategies that have no indicator. */
 const indicatorTypeSql = sql<
   string | null
->`(${tradingBacktests.params} #>> '{indicator,type}')`
+>`coalesce(${tradingBacktests.params} #>> '{indicator,type}', ${tradingBacktests.params} ->> 'kind')`
 
 /** Recent runs for the list page + header dropdown; omits the heavy result. */
 export async function listUserBacktests(

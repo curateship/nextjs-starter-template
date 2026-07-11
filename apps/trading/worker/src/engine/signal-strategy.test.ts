@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
 import type { StrategyCtx } from "../strategies/contract"
 import { createSignalStrategy } from "./signal-strategy"
 import type { TradeState } from "./trade-manager"
@@ -11,8 +11,11 @@ import type { TradeState } from "./trade-manager"
  * exitTriggers exactly as the trade manager dictates.
  */
 
-const config = (overrides?: Partial<StrategyConfig["settings"]>): StrategyConfig => ({
+const config = (
+  overrides?: Partial<SignalStrategyConfig["settings"]>
+): SignalStrategyConfig => ({
   v: 2,
+  kind: "signal",
   interval: "15m",
   indicator: { type: "ema_cross", params: { fast: 3, slow: 5 } },
   settings: {

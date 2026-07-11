@@ -1,4 +1,4 @@
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
 
@@ -24,7 +24,7 @@ const MAX_WINDOW = 1400
  * intrabar pause from the same trade-manager math the live tick checks.
  */
 export function createSignalStrategy(
-  config: StrategyConfig
+  config: SignalStrategyConfig
 ): Strategy<never, TradeState> {
   const module = INDICATORS[config.indicator.type]
   const params = module.paramsSchema.parse(config.indicator.params) as never

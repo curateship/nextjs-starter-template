@@ -4,6 +4,12 @@ import { Loader2Icon, XIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -29,10 +35,8 @@ import {
 } from "@/lib/api/strategies"
 import { loadTradingContext, type TradingContextResponse } from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
-import {
-  settingsSummary,
-  StrategyPicker,
-} from "@/components/strategies/strategy-picker"
+import { strategySummary } from "@/lib/strategies/strategy-config"
+import { StrategyPicker } from "@/components/strategies/strategy-picker"
 
 /** Exchanges the bot can trade on. Only Hyperliquid exists today. */
 const EXCHANGES: { id: string; label: string }[] = [
@@ -106,8 +110,16 @@ export function NewBotDialog({
   const network = context?.network ?? "testnet"
   const marketRows = useMarketRows(network)
 
+  // Bots only run signal strategies — DCA is backtest-only for now. Hidden
+  // templates are counted so the picker can say why they're missing.
+  const botStrategies = React.useMemo(
+    () => strategies?.filter((row) => row.config.kind === "signal") ?? null,
+    [strategies]
+  )
+  const hiddenCount = (strategies?.length ?? 0) - (botStrategies?.length ?? 0)
+
   const strategy =
-    strategies?.find((row) => row.id === strategyId) ?? null
+    botStrategies?.find((row) => row.id === strategyId) ?? null
 
   const strategyChosen = strategy !== null
   const showMarkets = strategyChosen && exchange !== ""
@@ -172,7 +184,12 @@ export function NewBotDialog({
             The bot copies the strategy's settings at creation.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="grid gap-5 overflow-y-auto">
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>General settings</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="bot-name">Name</Label>
             <Input
@@ -188,7 +205,7 @@ export function NewBotDialog({
             <div className="grid gap-2">
               <Label>Wallet</Label>
               <Select value={walletId} onValueChange={setWalletId}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-8 w-full">
                   <SelectValue
                     placeholder={wallets.length === 0 ? "No wallets" : "Select"}
                   />
@@ -208,7 +225,7 @@ export function NewBotDialog({
                 value={mode}
                 onValueChange={(value) => setMode(value as "paper" | "live")}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-8 w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -219,20 +236,59 @@ export function NewBotDialog({
             </div>
           </div>
 
-          <StrategyPicker
-            strategies={strategies}
-            selectedId={strategyId}
-            onSelect={(id) => {
-              setStrategyId(id)
-              setError(null)
-            }}
-          />
+          {mode === "live" && !isLiveMainnet ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+              Live mode signs real orders with this wallet on its network.
+              Paper-test the strategy first.
+            </div>
+          ) : null}
+
+          {isLiveMainnet ? (
+            <MainnetConfirmField
+              id="bot-mainnet-confirm"
+              message="This bot will trade real money on mainnet. Type MAINNET to confirm."
+              value={mainnetConfirm}
+              disabled={busy}
+              onChange={setMainnetConfirm}
+            />
+          ) : null}
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Strategy</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <StrategyPicker
+                hideLabel
+                strategies={botStrategies}
+                selectedId={strategyId}
+                onSelect={(id) => {
+                  setStrategyId(id)
+                  setError(null)
+                }}
+              />
+              {hiddenCount > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {hiddenCount} DCA {hiddenCount === 1 ? "strategy is" : "strategies are"}{" "}
+                  hidden — the DCA ladder is backtest-only and can't run as a
+                  bot yet.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
 
           {strategyChosen ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Markets</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
             <div className="grid gap-2">
               <Label>Exchange</Label>
               <Select value={exchange} onValueChange={setExchange}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-8 w-full">
                   <SelectValue placeholder="Select exchange" />
                 </SelectTrigger>
                 <SelectContent>
@@ -244,7 +300,6 @@ export function NewBotDialog({
                 </SelectContent>
               </Select>
             </div>
-          ) : null}
 
           {showMarkets ? (
             <div className="grid gap-2">
@@ -286,7 +341,7 @@ export function NewBotDialog({
                       )
                     }
                   >
-                    <SelectTrigger className="w-36">
+                    <SelectTrigger className="h-8 w-36">
                       <SelectValue placeholder="Add market" />
                     </SelectTrigger>
                     <SelectContent>
@@ -319,25 +374,11 @@ export function NewBotDialog({
             <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
               {selectedMarkets.length} market
               {selectedMarkets.length === 1 ? "" : "s"} · signal{" "}
-              {strategy.config.interval} · {settingsSummary(strategy.config)}
+              {strategy.config.interval} · {strategySummary(strategy.config)}
             </div>
           ) : null}
-
-          {mode === "live" && !isLiveMainnet ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-              Live mode signs real orders with this wallet on its network.
-              Paper-test the strategy first.
-            </div>
-          ) : null}
-
-          {isLiveMainnet ? (
-            <MainnetConfirmField
-              id="bot-mainnet-confirm"
-              message="This bot will trade real money on mainnet. Type MAINNET to confirm."
-              value={mainnetConfirm}
-              disabled={busy}
-              onChange={setMainnetConfirm}
-            />
+              </CardContent>
+            </Card>
           ) : null}
 
           {error ? (

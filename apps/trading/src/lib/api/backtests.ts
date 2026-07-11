@@ -16,10 +16,13 @@ import {
   type GroupCombinedCurve,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
-import { indicatorIdSchema, type IndicatorId } from "@/lib/indicators/registry"
 import {
-  strategyConfigSchema as signalConfigSchema,
+  normalizeStrategyConfig,
+  strategyConfigSchema,
+  strategyTypeIdSchema,
+  strategyTypeOf,
   type StrategyConfig,
+  type StrategyTypeId,
 } from "@/lib/strategies/strategy-config"
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
@@ -43,8 +46,8 @@ export type BacktestListItem = {
   id: string
   groupId: string
   name: string
-  /** The run's indicator (registry id) — the strategy identity. */
-  indicatorType: IndicatorId
+  /** The run's strategy identity: its indicator (registry id), or "dca". */
+  indicatorType: StrategyTypeId
   market: string
   network: string
   interval: string
@@ -119,9 +122,9 @@ export type BacktestCandlesResponse = {
   simStartMs: number
 }
 
-/** Default run-name prefix: the config's indicator. */
+/** Default run-name prefix: the config's strategy type (indicator or "dca"). */
 function runLabelOf(params: StrategyConfig): string {
-  return params.indicator.type
+  return strategyTypeOf(params)
 }
 
 const runBacktestSchema = z
@@ -146,8 +149,8 @@ const runBacktestSchema = z
     takerFeeBps: z.number().min(0).max(50).optional(),
     makerFeeBps: z.number().min(0).max(50).optional(),
     slippageBps: z.number().min(0).max(100).optional(),
-    /** The strategy's full config: indicator + universal settings. */
-    params: signalConfigSchema,
+    /** The strategy's full config (signal or DCA). */
+    params: strategyConfigSchema,
   })
   .superRefine((data, ctx) => {
     if (data.params.interval !== data.interval) {
@@ -378,7 +381,7 @@ function buildRunInput(args: {
 }
 
 const loadBacktestsSchema = z.object({
-  indicatorType: indicatorIdSchema.optional(),
+  indicatorType: strategyTypeIdSchema.optional(),
   /** Restrict to one run group — the group page needs nothing else. */
   groupId: z.string().min(1).optional(),
   page: z.number().int().min(1).optional(),
@@ -548,7 +551,7 @@ const deleteBacktestsSchema = z
   .object({
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
-    indicatorTypes: z.array(indicatorIdSchema).max(8).optional(),
+    indicatorTypes: z.array(strategyTypeIdSchema).max(9).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.ids?.length && !data.groupIds?.length && !data.indicatorTypes?.length) {
@@ -666,7 +669,7 @@ function serializeListItem(row: ListRow): BacktestListItem {
     id: row.id,
     groupId: row.groupId,
     name: row.name,
-    indicatorType: row.indicatorType as IndicatorId,
+    indicatorType: row.indicatorType as StrategyTypeId,
     market: row.market,
     network: row.network,
     interval: row.interval,
@@ -730,7 +733,9 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     createdAt: row.createdAt.toISOString(),
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
-    params: row.params as StrategyConfig,
+    // Normalized so `params.kind` is always set (pre-kind rows lack it).
+    params:
+      normalizeStrategyConfig(row.params) ?? (row.params as StrategyConfig),
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

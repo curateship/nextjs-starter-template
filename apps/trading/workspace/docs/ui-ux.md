@@ -21,7 +21,14 @@ Read before building or changing any page. One rule above all: **reuse the exist
 
 ## Modals
 
-- Always `DialogContent variant="admin"`; copy the anatomy from `sidebar-settings.tsx` (header / scrollable body / footer). Never invent a modal layout.
+- Always `DialogContent variant="admin"` (header / scrollable body / footer). Never invent a modal layout.
+- Admin modals have **one uniform light-gray shell** — built into `ui/dialog.tsx` (half-muted mixed over popover, theme-aware). Never re-tint the header, body, or footer separately, and never override the shell color per dialog.
+- **Group the body into white section cards**: `<Card size="sm">` with the section title INSIDE the card (`CardHeader` → `CardTitle`, optional `CardDescription` for a hint), fields in `CardContent`. Every field belongs to a card — no stray fields sitting on the gray shell.
+- Don't override `DialogBody`'s gap — the modal's own `gap-6` spaces the cards.
+- **Dropdowns in modals are `h-8`**: every `SelectTrigger` inside a dialog gets `className="h-8 …"` (compact, matching modal inputs).
+- **Footers sit directly on the shell**: no border, no background band (the admin default footer is already borderless — don't add one back).
+- Tiny confirmation dialogs (title + description + buttons, no fields) need no cards.
+- Reference implementation: `src/components/backtest/new-run-dialog.tsx`.
 
 ## Scrolling
 
