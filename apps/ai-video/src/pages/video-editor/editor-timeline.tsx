@@ -53,6 +53,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -648,6 +649,9 @@ export function ExportControls({
   )
   const [modalOpen, setModalOpen] = React.useState(false)
   const [quality, setQuality] = React.useState<RenderQuality>("high")
+  const [includeEndCard, setIncludeEndCard] = React.useState(
+    config.brandKit.endCard.enabled
+  )
   const [filename, setFilename] = React.useState(defaultFilename)
   const [status, setStatus] = React.useState<
     "idle" | "queued" | "rendering" | "ready" | "error"
@@ -745,7 +749,11 @@ export function ExportControls({
     try {
       // The render reads the saved timeline — persist any pending edits first.
       await flushSave()
-      const info = await startProjectRender(projectId, quality)
+      const info = await startProjectRender(
+        projectId,
+        quality,
+        includeEndCard
+      )
       previewPendingRef.current = true
       applyRenderInfo(info)
       if (info.status === "ready") {
@@ -779,6 +787,7 @@ export function ExportControls({
 
   function handleOpenExport() {
     setFilename(defaultFilename)
+    setIncludeEndCard(config.brandKit.endCard.enabled)
     setModalOpen(true)
   }
 
@@ -856,6 +865,18 @@ export function ExportControls({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-center gap-3 rounded-md border bg-background p-3">
+                  <Checkbox
+                    id="export-include-end-card"
+                    checked={includeEndCard}
+                    onCheckedChange={(checked) =>
+                      setIncludeEndCard(checked === true)
+                    }
+                  />
+                  <Label htmlFor="export-include-end-card">
+                    Include end card
+                  </Label>
                 </div>
               </div>
             )}

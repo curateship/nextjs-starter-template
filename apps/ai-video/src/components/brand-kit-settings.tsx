@@ -31,7 +31,7 @@ import {
   type ShellConfig,
 } from "@/lib/ai-video"
 import type { MediaItem } from "@/lib/api/media"
-import type { TextFontId } from "@/lib/text-fonts"
+import { getTextFont, type TextFontId } from "@/lib/text-fonts"
 
 type BrandKitSettingsProps = {
   config: ShellConfig
@@ -53,6 +53,10 @@ export function BrandKitSettings({
 }: BrandKitSettingsProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const brandKit = config.brandKit
+  const savedCtaPhrases = Array.from(
+    new Set(brandKit.ctaPhrases.map((phrase) => phrase.trim()).filter(Boolean))
+  )
+  const endCardFont = getTextFont(brandKit.fonts.heading)
 
   function updateBrandKit(patch: Partial<BrandKitConfig>) {
     onConfigChange({
@@ -428,6 +432,150 @@ export function BrandKitSettings({
             <PlusIcon className="size-4" />
             Add Phrase
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>End Card</CardTitle>
+          <CardDescription>
+            Append a branded call to action to video exports.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1fr)]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-background p-3">
+              <Label htmlFor="brand-end-card-enabled">Enabled</Label>
+              <Switch
+                id="brand-end-card-enabled"
+                checked={brandKit.endCard.enabled}
+                disabled={isSaving}
+                onCheckedChange={(enabled) =>
+                  updateBrandKit({
+                    endCard: { ...brandKit.endCard, enabled },
+                  })
+                }
+                aria-label="Enable end card"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="brand-end-card-duration">Duration</Label>
+              <Slider
+                id="brand-end-card-duration"
+                value={[brandKit.endCard.durationSeconds]}
+                min={2}
+                max={5}
+                step={1}
+                disabled={isSaving}
+                onValueChange={(value) =>
+                  updateBrandKit({
+                    endCard: {
+                      ...brandKit.endCard,
+                      durationSeconds: value[0],
+                    },
+                  })
+                }
+                aria-label="End card duration"
+              />
+              <span className="text-xs text-muted-foreground">
+                {brandKit.endCard.durationSeconds} seconds
+              </span>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="brand-end-card-background">Background</Label>
+              <ColorPicker
+                id="brand-end-card-background"
+                value={brandKit.endCard.backgroundColor}
+                swatches={brandKit.colors}
+                disabled={isSaving}
+                onChange={(backgroundColor) =>
+                  updateBrandKit({
+                    endCard: { ...brandKit.endCard, backgroundColor },
+                  })
+                }
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="brand-end-card-saved-cta">Saved CTA</Label>
+              <Select
+                value={
+                  savedCtaPhrases.includes(brandKit.endCard.ctaText)
+                    ? brandKit.endCard.ctaText
+                    : ""
+                }
+                disabled={isSaving || savedCtaPhrases.length === 0}
+                onValueChange={(ctaText) =>
+                  updateBrandKit({
+                    endCard: { ...brandKit.endCard, ctaText },
+                  })
+                }
+              >
+                <SelectTrigger id="brand-end-card-saved-cta">
+                  <SelectValue
+                    placeholder={
+                      savedCtaPhrases.length
+                        ? "Choose a saved phrase"
+                        : "No saved phrases"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedCtaPhrases.map((phrase) => (
+                    <SelectItem key={phrase} value={phrase}>
+                      {phrase}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="brand-end-card-cta">CTA text</Label>
+              <Input
+                id="brand-end-card-cta"
+                value={brandKit.endCard.ctaText}
+                maxLength={180}
+                disabled={isSaving}
+                onChange={(event) =>
+                  updateBrandKit({
+                    endCard: {
+                      ...brandKit.endCard,
+                      ctaText: event.target.value,
+                    },
+                  })
+                }
+                placeholder="Start your free trial today"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Preview</Label>
+            <div
+              role="img"
+              aria-label="End card preview"
+              className="flex aspect-video flex-col items-center justify-center gap-4 overflow-hidden rounded-md border p-6 text-center"
+              style={{
+                backgroundColor: brandKit.endCard.backgroundColor,
+                color: brandKit.captionStyle.color,
+                fontFamily: endCardFont.family,
+                fontWeight: endCardFont.weight,
+              }}
+            >
+              {brandKit.logo.previewUrl ? (
+                <img
+                  src={brandKit.logo.previewUrl}
+                  alt=""
+                  className="max-h-2/5 max-w-2/5 object-contain"
+                />
+              ) : null}
+              <span className="text-xl leading-tight">
+                {brandKit.endCard.ctaText || "Your call to action"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Uses the brand logo, heading font, and caption text color.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -544,6 +544,7 @@ export const aiVideoRenderJobs = pgTable(
       .notNull()
       .references(() => aiVideoProjects.id, { onDelete: "cascade" }),
     quality: varchar("quality", { length: 10 }).notNull(),
+    includeEndCard: boolean("include_end_card").notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     attempts: integer("attempts").notNull().default(0),
     // Running jobs hold a lease the worker keeps extending; a lease that

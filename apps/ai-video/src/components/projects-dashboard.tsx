@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useShellRuntime } from "@/components/shell-runtime"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -92,6 +93,7 @@ function formatDuration(ms: number) {
 // opening one launches the editor at /admin/video-editor/$projectId.
 export function ProjectsDashboard() {
   const navigate = useNavigate()
+  const { config } = useShellRuntime()
   const [projects, setProjects] = React.useState<ProjectItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -120,6 +122,9 @@ export function ProjectsDashboard() {
   // Bulk export: the ids picked when the quality dialog opened (null = closed).
   const [exportIds, setExportIds] = React.useState<string[] | null>(null)
   const [exportQuality, setExportQuality] = React.useState<RenderQuality>("high")
+  const [includeEndCard, setIncludeEndCard] = React.useState(
+    config.brandKit.endCard.enabled
+  )
   const [exporting, setExporting] = React.useState(false)
 
   // One-time load; `loading` starts true so no state resets are needed here.
@@ -328,6 +333,7 @@ export function ProjectsDashboard() {
 
   function openExportDialog() {
     setExportIds(Array.from(selectedIds))
+    setIncludeEndCard(config.brandKit.endCard.enabled)
     setError(null)
     setNotice(null)
   }
@@ -338,7 +344,11 @@ export function ProjectsDashboard() {
     if (!exportIds?.length) return
     setExporting(true)
     try {
-      const { results } = await enqueueProjectRenders(exportIds, exportQuality)
+      const { results } = await enqueueProjectRenders(
+        exportIds,
+        exportQuality,
+        includeEndCard
+      )
       const namesById = new Map(
         projects.map((project) => [project.id, project.name])
       )
@@ -692,6 +702,18 @@ export function ProjectsDashboard() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center gap-3 rounded-md border bg-background p-3">
+                <Checkbox
+                  id="bulk-export-include-end-card"
+                  checked={includeEndCard}
+                  onCheckedChange={(checked) =>
+                    setIncludeEndCard(checked === true)
+                  }
+                />
+                <Label htmlFor="bulk-export-include-end-card">
+                  Include end card
+                </Label>
               </div>
             </div>
           </DialogBody>

@@ -57,6 +57,14 @@ export const brandKitConfigSchema = z
         opacity: z.number().int().min(0).max(100),
       })
       .strict(),
+    endCard: z
+      .object({
+        enabled: z.boolean(),
+        durationSeconds: z.number().int().min(2).max(5),
+        backgroundColor: brandColorSchema,
+        ctaText: z.string().max(180),
+      })
+      .strict(),
     ctaPhrases: z.array(z.string().max(180)).max(20),
     exportNamingPattern: z.string().min(1).max(120),
   })
