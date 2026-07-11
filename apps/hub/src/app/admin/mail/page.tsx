@@ -3,11 +3,11 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { MailAccountsDashboard } from "@/components/admin/mail/MailAccountsDashboard"
+import { MailAccountsDashboard, MailAccountsSkeleton } from "@/components/admin/mail/MailAccountsDashboard"
 
 export default function AdminMailPage() {
   const { currentSite, loading, sites } = useSiteSwitcher()
-  const message = loading || sites.length > 0 ? "Loading mail..." : "Choose a site to manage mail."
+  const isLoading = loading || sites.length > 0
 
   return (
     <>
@@ -15,9 +15,11 @@ export default function AdminMailPage() {
       <AdminLayout noPadding>
         {currentSite ? (
           <MailAccountsDashboard siteId={currentSite.id} />
+        ) : isLoading ? (
+          <MailAccountsSkeleton />
         ) : (
           <div className="p-8 text-sm text-muted-foreground">
-            {message}
+            Choose a site to manage mail.
           </div>
         )}
       </AdminLayout>

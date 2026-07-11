@@ -436,7 +436,7 @@ export function PostBlockListPanel({
       <div className="w-[250px] sticky top-0 self-start max-h-screen overflow-y-auto px-2.5 pb-2.5 pt-5">
         {blocksLoading ? (
           <div className="mb-4 px-5">
-            <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
+            <div className="h-7 bg-muted rounded motion-safe:animate-pulse w-1/2"></div>
           </div>
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
@@ -458,13 +458,13 @@ export function PostBlockListPanel({
               <div key={i} className="p-3 rounded-lg opacity-60">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded animate-pulse"></div>
+                    <div className="w-7 h-7 bg-muted rounded motion-safe:animate-pulse"></div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-3.5 h-3.5 bg-muted rounded-sm animate-pulse"></div>
-                      <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+                      <div className="w-3.5 h-3.5 bg-muted rounded-sm motion-safe:animate-pulse"></div>
+                      <div className="h-4 w-24 bg-muted rounded motion-safe:animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
+                  <div className="w-5 h-5 bg-muted rounded motion-safe:animate-pulse"></div>
                 </div>
               </div>
             ))}
@@ -518,7 +518,7 @@ export function PostBlockListPanel({
         {canEditStructure && onAddBlock && (
           <div className="px-5 mt-3">
             {blocksLoading ? (
-              <div className="h-9 w-28 bg-muted rounded animate-pulse"></div>
+              <div className="h-9 w-28 bg-muted rounded motion-safe:animate-pulse"></div>
             ) : (
               <Button variant="outline" size="sm" onClick={onAddBlock}>
                 <Plus className="w-4 h-4 mr-1" />

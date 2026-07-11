@@ -40,6 +40,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   SidebarContent,
   SidebarFooter,
@@ -572,6 +573,45 @@ function ThreadDetail({ mail }: { mail: MailItem | null }) {
         <p className="text-sm leading-relaxed text-muted-foreground">{mail.teaser}</p>
       </div>
     </ScrollArea>
+  )
+}
+
+export function MailAccountsSkeleton() {
+  return (
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col overflow-hidden" aria-hidden="true">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+        <div className="flex gap-2">
+          {[72, 68, 64].map((width) => <Skeleton key={width} className="h-8" style={{ width }} />)}
+        </div>
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="h-full w-full shrink-0 border-r bg-sidebar md:w-[320px]">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className="flex gap-3 border-b p-4">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-5/6" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden flex-1 space-y-4 p-4 md:block">
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56" />
+            </div>
+          </div>
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </div>
+      </div>
+    </div>
   )
 }
 

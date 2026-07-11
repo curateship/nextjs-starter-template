@@ -50,25 +50,25 @@ function DefaultPreviewSkeleton() {
     <div className="mx-auto max-w-[1152px] space-y-12 px-8 py-12">
       <div className="grid gap-10 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="h-12 w-full animate-pulse rounded bg-muted" />
-          <div className="h-12 w-4/5 animate-pulse rounded bg-muted" />
+          <div className="h-12 w-full rounded bg-muted motion-safe:animate-pulse" />
+          <div className="h-12 w-4/5 rounded bg-muted motion-safe:animate-pulse" />
           <div className="space-y-2 pt-2">
-            <div className="h-4 w-full animate-pulse rounded bg-muted/60" />
-            <div className="h-4 w-11/12 animate-pulse rounded bg-muted/60" />
-            <div className="h-4 w-3/4 animate-pulse rounded bg-muted/60" />
+            <div className="h-4 w-full rounded bg-muted/60 motion-safe:animate-pulse" />
+            <div className="h-4 w-11/12 rounded bg-muted/60 motion-safe:animate-pulse" />
+            <div className="h-4 w-3/4 rounded bg-muted/60 motion-safe:animate-pulse" />
           </div>
         </div>
-        <div className="aspect-video animate-pulse rounded-xl bg-muted/40" />
+        <div className="aspect-video rounded-xl bg-muted/40 motion-safe:animate-pulse" />
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
         {[1, 2, 3].map(item => (
           <div key={item} className="space-y-3">
-            <div className="h-40 animate-pulse rounded-lg bg-muted/40" />
-            <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+            <div className="h-40 rounded-lg bg-muted/40 motion-safe:animate-pulse" />
+            <div className="h-5 w-3/4 rounded bg-muted motion-safe:animate-pulse" />
             <div className="space-y-2">
-              <div className="h-3.5 animate-pulse rounded bg-muted/40" />
-              <div className="h-3.5 w-5/6 animate-pulse rounded bg-muted/40" />
+              <div className="h-3.5 rounded bg-muted/40 motion-safe:animate-pulse" />
+              <div className="h-3.5 w-5/6 rounded bg-muted/40 motion-safe:animate-pulse" />
             </div>
           </div>
         ))}

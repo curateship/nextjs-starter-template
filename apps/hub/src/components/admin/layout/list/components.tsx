@@ -265,17 +265,17 @@ export function AdminListSkeleton({
         <TableRow key={index}>
           {showCheckbox && (
             <TableCell column="select">
-              <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-4 rounded bg-muted motion-safe:animate-pulse" />
             </TableCell>
           )}
           <TableCell column="main">
             <div className="flex items-center space-x-4">
               {showThumbnail && (
-                <div className="h-10 w-10 animate-pulse rounded bg-muted" />
+                <div className="h-10 w-10 rounded bg-muted motion-safe:animate-pulse" />
               )}
               <div>
-                <div className="mb-2 h-4 w-36 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
+                <div className="mb-2 h-4 w-36 rounded bg-muted motion-safe:animate-pulse" />
+                <div className="h-3 w-24 rounded bg-muted/60 motion-safe:animate-pulse" />
               </div>
             </div>
           </TableCell>
@@ -286,7 +286,7 @@ export function AdminListSkeleton({
             >
               <div
                 className={cn(
-                  "animate-pulse rounded bg-muted",
+                  "rounded bg-muted motion-safe:animate-pulse",
                   columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-4 w-20",
                 )}
               />
@@ -298,7 +298,7 @@ export function AdminListSkeleton({
                 {Array.from({ length: actionCount }, (_, actionIndex) => (
                   <div
                     key={actionIndex}
-                    className="h-8 w-8 animate-pulse rounded bg-muted"
+                    className="h-8 w-8 rounded bg-muted motion-safe:animate-pulse"
                   />
                 ))}
               </div>
