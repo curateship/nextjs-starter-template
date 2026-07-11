@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { WebData2WsEvent } from "@nktkas/hyperliquid"
+import type { AccountSnapshot } from "@/lib/hl/hooks"
 import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
@@ -34,12 +34,12 @@ type PositionAction = {
 }
 
 export function PositionsTable({
-  webData,
+  account,
   walletId,
   mids,
   onDone,
 }: {
-  webData: WebData2WsEvent | null
+  account: AccountSnapshot | null
   walletId: string | null
   mids: Record<string, string>
   onDone: (message: string, tone: "ok" | "error") => void
@@ -47,7 +47,7 @@ export function PositionsTable({
   const [pending, setPending] = React.useState<PositionAction | null>(null)
   const [busy, setBusy] = React.useState(false)
 
-  const positions = (webData?.clearinghouseState?.assetPositions ?? []).filter(
+  const positions = (account?.clearinghouseState?.assetPositions ?? []).filter(
     ({ position }) => Number(position.szi) !== 0
   )
 
@@ -207,16 +207,16 @@ export function PositionsTable({
 }
 
 export function OpenOrdersTable({
-  webData,
+  account,
   walletId,
   onDone,
 }: {
-  webData: WebData2WsEvent | null
+  account: AccountSnapshot | null
   walletId: string | null
   onDone: (message: string, tone: "ok" | "error") => void
 }) {
   const [cancelling, setCancelling] = React.useState<number | null>(null)
-  const orders = webData?.openOrders ?? []
+  const orders = account?.openOrders ?? []
 
   async function cancel(coin: string, oid: number) {
     if (!walletId) return

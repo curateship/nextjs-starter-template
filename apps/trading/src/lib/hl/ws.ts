@@ -8,7 +8,6 @@ import {
   type L2BookWsEvent,
   type TradesWsEvent,
   type UserFillsWsEvent,
-  type WebData2WsEvent,
 } from "@nktkas/hyperliquid"
 
 import type { TradingNetwork } from "@/lib/hl/network"
@@ -134,16 +133,6 @@ export function subscribeTrades(
 ) {
   return acquire(`${network}:trades:${coin}`, listener, (emit) =>
     getSubscriptionClient(network).trades({ coin }, (data) => emit(data))
-  )
-}
-
-export function subscribeWebData2(
-  network: TradingNetwork,
-  user: `0x${string}`,
-  listener: (data: WebData2WsEvent) => void
-) {
-  return acquire(`${network}:webData2:${user.toLowerCase()}`, listener, (emit) =>
-    getSubscriptionClient(network).webData2({ user }, (data) => emit(data))
   )
 }
 

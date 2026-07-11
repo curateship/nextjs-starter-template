@@ -204,6 +204,24 @@ export function serializeWallet(row: TradingWallet) {
   }
 }
 
+/**
+ * serializeWallet plus the live perps equity of each wallet's account on the
+ * exchange (null when the lookup fails). Lookups run in parallel.
+ */
+export async function serializeWalletsWithEquity(rows: TradingWallet[]) {
+  const { getInfoClient } = await import("@/server/hyperliquid/info")
+  return Promise.all(
+    rows.map(async (row) => {
+      const address = (row.vaultAddress ?? row.accountAddress) as `0x${string}`
+      const equity = await getInfoClient(row.network as TradingNetwork)
+        .clearinghouseState({ user: address })
+        .then((state) => Number(state.marginSummary.accountValue))
+        .catch(() => null)
+      return { ...serializeWallet(row), equity }
+    })
+  )
+}
+
 function isUniqueViolation(error: unknown) {
   return isPgErrorWithCode(error, "23505")
 }

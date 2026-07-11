@@ -22,7 +22,7 @@ const loadTradingContextFn = createServerFn({ method: "GET" }).handler(
       throw new Error("Missing Custom Shell session")
     }
 
-    const { listUserWallets, serializeWallet } = await import(
+    const { listUserWallets, serializeWalletsWithEquity } = await import(
       "@/server/wallets"
     )
     const { getDefaultNetwork, isMainnetEnabled } = await import(
@@ -47,7 +47,7 @@ const loadTradingContextFn = createServerFn({ method: "GET" }).handler(
     return {
       network: getDefaultNetwork(),
       mainnetEnabled: isMainnetEnabled(),
-      wallets: wallets.map(serializeWallet),
+      wallets: await serializeWalletsWithEquity(wallets),
       paperWallets: paperWallets.map(serializePaperWallet),
       workerOnline: heartbeat
         ? Date.now() - heartbeat.lastSeenAt.getTime() < WORKER_ONLINE_WINDOW_MS

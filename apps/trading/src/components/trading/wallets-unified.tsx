@@ -472,7 +472,15 @@ function ExchangeWalletRow({
           {wallet.network}
         </Badge>
       </TableCell>
-      <TableCell column="mutedMeta">—</TableCell>
+      <TableCell column="meta">
+        {typeof wallet.equity === "number" ? (
+          <span className="font-mono tabular-nums">
+            ${wallet.equity.toFixed(2)}
+          </span>
+        ) : (
+          "—"
+        )}
+      </TableCell>
       <TableCell column="meta">
         <div className="flex items-center gap-1.5">
           {wallet.status === "pending" ? (
@@ -738,7 +746,8 @@ function networkKey(row: WalletRow): string {
 }
 
 function balanceKey(row: WalletRow): number {
-  return row.kind === "paper" ? row.wallet.cash : -1
+  if (row.kind === "paper") return row.wallet.cash
+  return row.wallet.equity ?? -1
 }
 
 function statusRank(row: WalletRow): number {

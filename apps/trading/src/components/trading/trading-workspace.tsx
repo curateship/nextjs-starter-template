@@ -87,7 +87,7 @@ import { formatCompactUsd, formatPriceDisplay } from "@/components/trading/forma
 import {
   useAllMids,
   useMarketRows,
-  useWebData2,
+  useAccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
@@ -175,7 +175,7 @@ export function TradingWorkspace({
   const accountAddress =
     selectedWallet?.vault_address ?? selectedWallet?.account_address ?? null
 
-  const webData = useWebData2(network, isPaper ? null : accountAddress)
+  const account = useAccountSnapshot(network, isPaper ? null : accountAddress)
   const marketRows = useMarketRows(network)
   const mids = useAllMids(network)
 
@@ -209,19 +209,19 @@ export function TradingWorkspace({
           withdrawable: paperAccount.wallet.cash,
         }
       : null
-    : webData
+    : account
       ? {
           equity: Number(
-            webData.clearinghouseState?.marginSummary?.accountValue ?? 0
+            account.clearinghouseState?.marginSummary?.accountValue ?? 0
           ),
-          unrealized: (webData.clearinghouseState?.assetPositions ?? []).reduce(
+          unrealized: (account.clearinghouseState?.assetPositions ?? []).reduce(
             (sum, { position }) => sum + Number(position.unrealizedPnl ?? 0),
             0
           ),
           marginUsed: Number(
-            webData.clearinghouseState?.marginSummary?.totalMarginUsed ?? 0
+            account.clearinghouseState?.marginSummary?.totalMarginUsed ?? 0
           ),
-          withdrawable: Number(webData.clearinghouseState?.withdrawable ?? 0),
+          withdrawable: Number(account.clearinghouseState?.withdrawable ?? 0),
         }
       : null
 
@@ -229,7 +229,7 @@ export function TradingWorkspace({
   const paperPosition = paperAccount?.positions.find(
     (position) => position.coin === market
   )
-  const sandboxPosition = webData?.clearinghouseState?.assetPositions?.find(
+  const sandboxPosition = account?.clearinghouseState?.assetPositions?.find(
     ({ position }) => position.coin === market
   )?.position
   const positionSzi = isPaper
@@ -280,7 +280,7 @@ export function TradingWorkspace({
         })
       }
     }
-    for (const order of webData?.openOrders ?? []) {
+    for (const order of account?.openOrders ?? []) {
       if (order.coin !== market) continue
       lines.push({
         id: `order-${order.oid}`,
@@ -291,7 +291,7 @@ export function TradingWorkspace({
       })
     }
     return lines
-  }, [isPaper, paperPosition, paperAccount?.openOrders, sandboxPosition, webData?.openOrders, market])
+  }, [isPaper, paperPosition, paperAccount?.openOrders, sandboxPosition, account?.openOrders, market])
 
   const notify = React.useCallback(
     (text: string, tone: "ok" | "error") => {
@@ -330,7 +330,7 @@ export function TradingWorkspace({
     if (id.startsWith("order-")) {
       if (!selectedWallet?.is_active) return
       const oid = Number(id.slice("order-".length))
-      const order = webData?.openOrders?.find((entry) => entry.oid === oid)
+      const order = account?.openOrders?.find((entry) => entry.oid === oid)
       if (!order) return
       void modifyOrder({
         walletId: selectedWallet.id,
@@ -638,7 +638,7 @@ export function TradingWorkspace({
               ) : (
                 <SandboxBottomTabs
                   network={network}
-                  webData={webData}
+                  account={account}
                   walletId={
                     selectedWallet?.is_active
                       ? (selectedWallet?.id ?? null)
@@ -828,23 +828,23 @@ function PaperBottomTabs({
 
 function SandboxBottomTabs({
   network,
-  webData,
+  account,
   walletId,
   accountAddress,
   mids,
   onNotify,
 }: {
   network: TradingNetwork
-  webData: ReturnType<typeof useWebData2>
+  account: ReturnType<typeof useAccountSnapshot>
   walletId: string | null
   accountAddress: string | null
   mids: Record<string, string>
   onNotify: (message: string, tone: "ok" | "error") => void
 }) {
   const positionCount = (
-    webData?.clearinghouseState?.assetPositions ?? []
+    account?.clearinghouseState?.assetPositions ?? []
   ).filter(({ position }) => Number(position.szi) !== 0).length
-  const orderCount = webData?.openOrders?.length ?? 0
+  const orderCount = account?.openOrders?.length ?? 0
 
   return (
     <Tabs
@@ -864,7 +864,7 @@ function SandboxBottomTabs({
       </TabsList>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PositionsTable
-          webData={webData}
+          account={account}
           walletId={walletId}
           mids={mids}
           onDone={onNotify}
@@ -872,7 +872,7 @@ function SandboxBottomTabs({
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">
         <OpenOrdersTable
-          webData={webData}
+          account={account}
           walletId={walletId}
           onDone={onNotify}
         />
@@ -977,7 +977,7 @@ function MarketInfoBar({
           {change.toFixed(2)}%
         </span>
       </div>
-      <div className="hidden items-center gap-x-4 text-[11px] text-muted-foreground lg:flex">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
         <MarketStat label="Index" value={formatPriceDisplay(marketRow.oraclePx)} />
         <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />

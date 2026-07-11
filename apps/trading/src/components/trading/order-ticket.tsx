@@ -222,12 +222,14 @@ export function OrderTicket({
         <div className="flex gap-1 rounded-lg bg-muted p-1">
           <SegmentButton
             active={state.side === "buy"}
+            activeClass="bg-emerald-600 text-white shadow-sm"
             onClick={() => setState({ ...state, side: "buy" })}
           >
             Long
           </SegmentButton>
           <SegmentButton
             active={state.side === "sell"}
+            activeClass="bg-red-600 text-white shadow-sm"
             onClick={() => setState({ ...state, side: "sell" })}
           >
             Short
@@ -444,7 +446,12 @@ export function OrderTicket({
         <Button
           type="button"
           disabled={submitDisabled}
-          className="w-full rounded-lg font-semibold"
+          className={cn(
+            "w-full rounded-lg font-semibold text-white",
+            state.side === "buy"
+              ? "bg-emerald-600 hover:bg-emerald-700"
+              : "bg-red-600 hover:bg-red-700"
+          )}
           onClick={() => setConfirming(true)}
         >
           {disabledReason ??
@@ -482,13 +489,18 @@ export function OrderTicket({
   )
 }
 
-/** Monochrome segmented-control button (Long/Short, Limit/Market). */
+/**
+ * Segmented-control button (Long/Short, Limit/Market). Defaults to the
+ * monochrome black fill; Long/Short pass green/red via activeClass.
+ */
 function SegmentButton({
   active,
+  activeClass = "bg-primary text-primary-foreground shadow-sm",
   onClick,
   children,
 }: {
   active: boolean
+  activeClass?: string
   onClick: () => void
   children: React.ReactNode
 }) {
@@ -498,9 +510,7 @@ function SegmentButton({
       onClick={onClick}
       className={cn(
         "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground"
+        active ? activeClass : "text-muted-foreground hover:text-foreground"
       )}
     >
       {children}
