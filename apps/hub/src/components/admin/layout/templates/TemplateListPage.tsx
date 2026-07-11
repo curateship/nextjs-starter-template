@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
 
@@ -111,6 +112,11 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [creating, setCreating] = useState(false)
   const [settingsTemplate, setSettingsTemplate] = useState<TTemplate | null>(null)
 
+  function reportError(message: string) {
+    setError(message)
+    showActionError(message)
+  }
+
   const loadTemplates = useCallback(async () => {
     if (!currentSite?.id) {
       setLoading(true)
@@ -131,13 +137,13 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
         pageSize
       })
       if (loadError) {
-        setError(loadError)
+        reportError(loadError)
         return
       }
       setTemplates(data || [])
       setTotal(totalCount)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load templates")
+      reportError(err instanceof Error ? err.message : "Failed to load templates")
     } finally {
       setLoading(false)
     }
@@ -157,7 +163,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     })
 
     if (createError) {
-      setError(createError)
+      reportError(createError)
       setCreating(false)
       return
     }
@@ -174,7 +180,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     setMassDeleting(true)
     const { error: deleteError } = await deleteTemplates(Array.from(templateSelection.selectedIds))
     if (deleteError) {
-      setError(deleteError)
+      reportError(deleteError)
     } else {
       templateSelection.clearSelection()
     }
@@ -203,7 +209,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     if (!currentSite?.id || total === 0) return
     const { ids, error: idsError } = await getTemplateIds(currentSite.id)
     if (idsError) {
-      setError(idsError)
+      reportError(idsError)
       return
     }
     templateSelection.selectAll(ids)
@@ -212,7 +218,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   async function handleSetDefault(templateId: string) {
     const { error: defaultError } = await setDefaultTemplate(templateId)
     if (defaultError) {
-      setError(defaultError)
+      reportError(defaultError)
     }
     templateSelection.remove(templateId)
     loadTemplates()

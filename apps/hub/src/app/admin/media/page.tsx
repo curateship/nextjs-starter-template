@@ -40,7 +40,7 @@ import {
 } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
-import { toast } from "sonner"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -95,12 +95,12 @@ export default function ImagesPage() {
       const mimeType = filterType === "svg" ? "image/svg+xml" : undefined
       const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSiteId, mimeType)
       if (error) {
-        toast.error(`Failed to load images: ${error}`)
+        showActionError(`Failed to load images: ${error}`)
       } else {
         setPaginatedData(data)
       }
     } catch (error) {
-      toast.error("Failed to load images")
+      showActionError("Failed to load images")
     } finally {
       setIsLoading(false)
     }
@@ -140,15 +140,15 @@ export default function ImagesPage() {
     try {
       const { error } = await deleteMediaAction(image.id, currentSiteId)
       if (error) {
-        toast.error(`Failed to delete image: ${error}`)
+        showActionError(`Failed to delete image: ${error}`)
         return false
       } else {
-        toast.success("Image deleted successfully")
+        showActionSuccess("Image deleted successfully")
         loadImages()
         return true
       }
     } catch (error) {
-      toast.error("Failed to delete image")
+      showActionError("Failed to delete image")
       return false
     } finally {
       setIsDeleting(false)
@@ -173,9 +173,9 @@ export default function ImagesPage() {
       )
 
       if (error) {
-        toast.error(`Failed to update image: ${error}`)
+        showActionError(`Failed to update image: ${error}`)
       } else {
-        toast.success("Image updated successfully")
+        showActionSuccess("Image updated successfully")
         // Update the item in current page data
         if (paginatedData) {
           setPaginatedData({
@@ -187,7 +187,7 @@ export default function ImagesPage() {
         setEditAltText("")
       }
     } catch (error) {
-      toast.error("Failed to update image")
+      showActionError("Failed to update image")
     }
   }
 
@@ -201,7 +201,7 @@ export default function ImagesPage() {
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error(
+      showActionError(
         "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
       )
       return
@@ -213,7 +213,7 @@ export default function ImagesPage() {
     const maxSize = fileType === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     const maxSizeLabel = fileType === "image" ? "10MB" : "100MB"
     if (file.size > maxSize) {
-      toast.error(`File size too large. Maximum size is ${maxSizeLabel}.`)
+      showActionError(`File size too large. Maximum size is ${maxSizeLabel}.`)
       return
     }
 
@@ -235,10 +235,10 @@ export default function ImagesPage() {
         throw new Error(result.error || "Upload failed")
       }
 
-      toast.success("Image uploaded successfully!")
+      showActionSuccess("Image uploaded successfully!")
       loadImages()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed")
+      showActionError(error instanceof Error ? error.message : "Upload failed")
     } finally {
       setIsUploading(false)
       // Clear the input
@@ -274,17 +274,17 @@ export default function ImagesPage() {
       }
 
       if (successCount > 0) {
-        toast.success(`Successfully deleted ${successCount} ${successCount === 1 ? "item" : "items"}`)
+        showActionSuccess(`Successfully deleted ${successCount} ${successCount === 1 ? "item" : "items"}`)
       }
       if (failCount > 0) {
-        toast.error(`Failed to delete ${failCount} ${failCount === 1 ? "item" : "items"}`)
+        showActionError(`Failed to delete ${failCount} ${failCount === 1 ? "item" : "items"}`)
       }
 
       clearMediaSelection()
       setMassDeleteConfirmOpen(false)
       loadImages()
     } catch (error) {
-      toast.error("Failed to delete items")
+      showActionError("Failed to delete items")
     } finally {
       setIsDeleting(false)
     }

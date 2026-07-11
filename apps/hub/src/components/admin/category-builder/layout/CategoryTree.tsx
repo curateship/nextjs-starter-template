@@ -26,6 +26,7 @@ import {
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 
 interface CategoryTreeProps {
   categories: Category[]
@@ -74,7 +75,7 @@ export function CategoryTree({
       setDeleteDialogOpen(false)
       setCategoryToDelete(null)
     } else {
-      alert(error || 'Failed to delete category')
+      showActionError(error || 'Failed to delete category')
     }
     setIsDeleting(false)
   }

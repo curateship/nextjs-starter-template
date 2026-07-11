@@ -9,6 +9,7 @@ import { getMxrouteConfig } from '@/lib/actions/integrations/config-helpers'
 import { createMailProvider, setupMxrouteDomain, type MailDnsRecord, type ProviderMailbox } from './provider'
 import { encrypt } from '@/lib/utils/encryption'
 import { requireAdmin } from '@/lib/db/helpers'
+import { actionFailure, actionSuccess, type AdminActionResult } from '@/lib/actions/action-result'
 
 const LOCAL_PART_REGEX = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i
 
@@ -237,16 +238,16 @@ export async function getMailDashboardAction(siteId: string): Promise<{ data: Ma
   }
 }
 
-export async function saveMxrouteIntegrationAction(input: SaveMxrouteInput): Promise<{ success: boolean; error: string | null }> {
+export async function saveMxrouteIntegrationAction(input: SaveMxrouteInput): Promise<AdminActionResult> {
   try {
     const site = await getOwnedSite(input.siteId)
-    if (!site) return { success: false, error: 'Site not found' }
+    if (!site) return actionFailure('Site not found')
 
     const server = input.server.trim().toLowerCase()
     const username = input.username.trim()
     const apiKey = input.apiKey.trim()
-    if (!server || !username || !apiKey) return { success: false, error: 'MXroute server, username, and API key are required.' }
-    if (!isValidHostname(server)) return { success: false, error: 'Enter a valid MXroute server hostname.' }
+    if (!server || !username || !apiKey) return actionFailure('MXroute server, username, and API key are required.')
+    if (!isValidHostname(server)) return actionFailure('Enter a valid MXroute server hostname.')
 
     await createOrUpdateIntegration(input.siteId, 'mxroute', {
       server,
@@ -256,30 +257,30 @@ export async function saveMxrouteIntegrationAction(input: SaveMxrouteInput): Pro
     })
 
     revalidatePath('/admin/mail')
-    return { success: true, error: null }
+    return actionSuccess(undefined)
   } catch (error) {
     console.error('saveMxrouteIntegrationAction error:', error instanceof Error ? error.message : String(error))
-    return { success: false, error: 'Failed to save MXroute settings' }
+    return actionFailure('Something went wrong saving MXroute settings — the error has been logged.')
   }
 }
 
-export async function createMailboxAction(input: CreateMailboxInput): Promise<{ success: boolean; error: string | null }> {
+export async function createMailboxAction(input: CreateMailboxInput): Promise<AdminActionResult> {
   try {
     const site = await getOwnedSite(input.siteId)
-    if (!site) return { success: false, error: 'Site not found' }
+    if (!site) return actionFailure('Site not found')
 
     const domain = normalizeDomain(site.customDomain)
-    if (!domain) return { success: false, error: 'Add and verify a custom domain before creating mailboxes.' }
+    if (!domain) return actionFailure('Add and verify a custom domain before creating mailboxes.')
 
     const localPart = normalizeLocalPart(input.localPart)
-    if (!LOCAL_PART_REGEX.test(localPart)) return { success: false, error: 'Use a valid mailbox name before the @.' }
+    if (!LOCAL_PART_REGEX.test(localPart)) return actionFailure('Use a valid mailbox name before the @.')
 
     const passwordError = assertPassword(input.password)
-    if (passwordError) return { success: false, error: passwordError }
+    if (passwordError) return actionFailure(passwordError)
 
     const quotaMb = Number.isFinite(input.quotaMb) ? Math.max(0, Math.min(Math.round(input.quotaMb), 102400)) : 1024
     const mxrouteConfig = await getMxrouteConfig(input.siteId)
-    if (!providerConfigured(mxrouteConfig)) return { success: false, error: 'Connect MXroute before creating mailboxes.' }
+    if (!providerConfigured(mxrouteConfig)) return actionFailure('Connect MXroute before creating mailboxes.')
 
     const mailDomain = await ensureMailDomain(input.siteId, domain)
     const provider = createMailProvider('mxroute', mxrouteConfig!)
@@ -320,23 +321,23 @@ export async function createMailboxAction(input: CreateMailboxInput): Promise<{ 
       })
 
     revalidatePath('/admin/mail')
-    return { success: true, error: null }
+    return actionSuccess(undefined)
   } catch (error) {
     console.error('createMailboxAction error:', error instanceof Error ? error.message : String(error))
-    return { success: false, error: 'Failed to create mailbox' }
+    return actionFailure('Something went wrong creating the mailbox — the error has been logged.')
   }
 }
 
-export async function setupMailDomainAction(siteId: string): Promise<{ success: boolean; error: string | null }> {
+export async function setupMailDomainAction(siteId: string): Promise<AdminActionResult> {
   try {
     const site = await getOwnedSite(siteId)
-    if (!site) return { success: false, error: 'Site not found' }
+    if (!site) return actionFailure('Site not found')
 
     const domain = normalizeDomain(site.customDomain)
-    if (!domain) return { success: false, error: 'Add and verify a custom domain before setting up mail.' }
+    if (!domain) return actionFailure('Add and verify a custom domain before setting up mail.')
 
     const mxrouteConfig = await getMxrouteConfig(siteId)
-    if (!providerConfigured(mxrouteConfig)) return { success: false, error: 'Connect MXroute before setting up the mail domain.' }
+    if (!providerConfigured(mxrouteConfig)) return actionFailure('Connect MXroute before setting up the mail domain.')
 
     const mailDomain = await ensureMailDomain(siteId, domain)
     await setupMxrouteDomain(mxrouteConfig!, domain)
@@ -346,17 +347,17 @@ export async function setupMailDomainAction(siteId: string): Promise<{ success: 
       .where(eq(mailDomains.id, mailDomain.id))
 
     revalidatePath('/admin/mail')
-    return { success: true, error: null }
+    return actionSuccess(undefined)
   } catch (error) {
     console.error('setupMailDomainAction error:', error instanceof Error ? error.message : String(error))
-    return { success: false, error: 'Failed to set up domain in MXroute. Confirm the verification TXT record has propagated.' }
+    return actionFailure('Something went wrong setting up the MXroute domain — the error has been logged.')
   }
 }
 
-export async function disableMailboxAction(siteId: string, mailboxId: string): Promise<{ success: boolean; error: string | null }> {
+export async function disableMailboxAction(siteId: string, mailboxId: string): Promise<AdminActionResult> {
   try {
     const site = await getOwnedSite(siteId)
-    if (!site) return { success: false, error: 'Site not found' }
+    if (!site) return actionFailure('Site not found')
 
     const [mailbox] = await db
       .select({ id: mailboxes.id })
@@ -364,7 +365,7 @@ export async function disableMailboxAction(siteId: string, mailboxId: string): P
       .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.siteId, siteId)))
       .limit(1)
 
-    if (!mailbox) return { success: false, error: 'Mailbox not found' }
+    if (!mailbox) return actionFailure('Mailbox not found')
 
     await db
       .update(mailboxes)
@@ -372,9 +373,9 @@ export async function disableMailboxAction(siteId: string, mailboxId: string): P
       .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.siteId, siteId)))
 
     revalidatePath('/admin/mail')
-    return { success: true, error: null }
+    return actionSuccess(undefined)
   } catch (error) {
     console.error('disableMailboxAction error:', error instanceof Error ? error.message : String(error))
-    return { success: false, error: 'Failed to disable mailbox' }
+    return actionFailure('Something went wrong disabling the mailbox — the error has been logged.')
   }
 }

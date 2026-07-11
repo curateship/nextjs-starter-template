@@ -63,6 +63,7 @@ import {
 import { applyThemeToSiteAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
 type TagFilter = "all-tags" | "untagged" | string
@@ -100,6 +101,16 @@ export default function SitesPage() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const siteSort = useAdminSort<SiteSortColumn>()
 
+  const reportError = (message: string) => {
+    setError(message)
+    showActionError(message)
+  }
+
+  const reportDuplicateError = (message: string) => {
+    setDuplicateError(message)
+    showActionError(message)
+  }
+
   useEffect(() => {
     loadSites()
   }, [])
@@ -118,7 +129,7 @@ export default function SitesPage() {
       const { data, error } = await getAllSitesAction()
 
       if (error) {
-        setError(error)
+        reportError(error)
         return
       }
 
@@ -126,7 +137,7 @@ export default function SitesPage() {
         setSites(data)
       }
     } catch (err) {
-      setError("Failed to load sites")
+      reportError("Failed to load sites")
     } finally {
       setLoading(false)
     }
@@ -138,7 +149,7 @@ export default function SitesPage() {
       const { success, error } = await deleteSiteAction(siteId)
 
       if (error) {
-        setError(`Failed to delete site: ${error}`)
+        reportError(error)
         return
       }
 
@@ -147,7 +158,7 @@ export default function SitesPage() {
         await refreshSites()
       }
     } catch (err) {
-      setError("Failed to delete site")
+      reportError("Failed to delete site")
     } finally {
       setDeleting(null)
       setDeleteConfirm(null)
@@ -183,7 +194,7 @@ export default function SitesPage() {
 
     const name = duplicateName.trim()
     if (!name) {
-      setDuplicateError("Site name is required")
+      reportDuplicateError("Site name is required")
       return
     }
 
@@ -199,7 +210,7 @@ export default function SitesPage() {
       })
 
       if (error || !data) {
-        setDuplicateError(error || "Failed to duplicate site")
+        reportDuplicateError(error || "Failed to duplicate site")
         return
       }
 
@@ -208,7 +219,7 @@ export default function SitesPage() {
       setDuplicateConfirm(null)
       setDuplicateName("")
     } catch {
-      setDuplicateError("Failed to duplicate site")
+      reportDuplicateError("Failed to duplicate site")
     } finally {
       setDuplicating(false)
     }
@@ -585,6 +596,11 @@ function CreateSiteModal({
   const hasTemplate = selectedTemplateId && selectedTemplateId !== "none"
   const isCustomDomainVerificationError = /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
+  const reportError = (message: string) => {
+    setError(message)
+    showActionError(message)
+  }
+
   useEffect(() => {
     getTemplateSitesAction().then(({ data }) => {
       if (data) setTemplates(data)
@@ -595,12 +611,12 @@ function CreateSiteModal({
     event.preventDefault()
 
     if (!siteName.trim()) {
-      setError("Site name is required")
+      reportError("Site name is required")
       return
     }
 
     if (!subdomain.trim()) {
-      setError("Subdomain is required")
+      reportError("Subdomain is required")
       return
     }
 
@@ -627,21 +643,21 @@ function CreateSiteModal({
       })
 
       if (createError || !data) {
-        setError(createError || "Failed to create site")
+        reportError(createError || "Failed to create site")
         return
       }
 
       if (hasTemplate) {
         const { error: themeError } = await applyThemeToSiteAction(data.id, selectedTemplateId)
         if (themeError) {
-          setError(`Site created but failed to apply template: ${themeError}`)
+          reportError(`Site created but failed to apply template: ${themeError}`)
           return
         }
       }
 
       onCreated(data)
     } catch {
-      setError("Failed to create site. Please try again.")
+      reportError("Failed to create site. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

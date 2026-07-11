@@ -23,6 +23,7 @@ import {
 } from "@/lib/actions/account-pages/account-pages-actions"
 import { getAccountPagePreviewPath } from "@/lib/utils/account-page-path"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 
 export default function AccountPageBuilderPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -63,11 +64,13 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
         setPagesLoading(true)
         const { data, error } = await getAccountPagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
+          showActionError(error)
           return
         }
         setPages(data || [])
 
       } catch {
+        showActionError("Couldn't load account pages — please try again.")
       } finally {
         setPagesLoading(false)
       }

@@ -13,7 +13,6 @@ import {
   Settings,
   Trash2,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +49,7 @@ import {
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils/tailwind"
+import { runAction, showActionError } from "@/lib/utils/admin-action-feedback"
 import {
   createMailboxAction,
   disableMailboxAction,
@@ -282,16 +282,20 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
   const [apiKey, setApiKey] = useState("")
   const [webmailUrl, setWebmailUrl] = useState("https://webmail.mxroute.com")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
     setSaving(true)
-    const result = await saveMxrouteIntegrationAction({ siteId, server, username, apiKey, webmailUrl })
+    const outcome = await runAction(
+      () => saveMxrouteIntegrationAction({ siteId, server, username, apiKey, webmailUrl }),
+      { successMessage: "MXroute settings saved" },
+    )
     setSaving(false)
-    if (result.error) {
-      toast.error(result.error)
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
-    toast.success("MXroute settings saved")
+    setError(null)
     setApiKey("")
     await onSaved()
   }
@@ -321,6 +325,7 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
             <Input id="mxroute-webmail" value={webmailUrl} onChange={(event) => setWebmailUrl(event.target.value)} />
           </div>
         </div>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save MXroute"}</Button>
       </CardContent>
     </Card>
@@ -340,16 +345,20 @@ function CreateMailboxForm({
   const [password, setPassword] = useState("")
   const [quotaMb, setQuotaMb] = useState(1024)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleCreate = async () => {
     setSaving(true)
-    const result = await createMailboxAction({ siteId, localPart, password, quotaMb })
+    const outcome = await runAction(
+      () => createMailboxAction({ siteId, localPart, password, quotaMb }),
+      { successMessage: "Mailbox created" },
+    )
     setSaving(false)
-    if (result.error) {
-      toast.error(result.error)
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
-    toast.success("Mailbox created")
+    setError(null)
     setLocalPart("")
     setPassword("")
     await onCreated()
@@ -376,6 +385,7 @@ function CreateMailboxForm({
             <Input id="mailbox-quota" type="number" min={0} value={quotaMb} onChange={(event) => setQuotaMb(Number(event.target.value))} disabled={disabled} />
           </div>
         </div>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleCreate} disabled={disabled || saving}>{saving ? "Creating..." : "Create mailbox"}</Button>
       </CardContent>
     </Card>
@@ -396,26 +406,22 @@ function SettingsModal({
 
   const setupDomain = async () => {
     setSettingUpDomain(true)
-    const result = await setupMailDomainAction(siteId)
+    const outcome = await runAction(
+      () => setupMailDomainAction(siteId),
+      { successMessage: "Mail domain sent to MXroute" },
+    )
     setSettingUpDomain(false)
-    if (result.error) {
-      toast.error(result.error)
-      return
-    }
-    toast.success("Mail domain sent to MXroute")
-    await onRefresh()
+    if (outcome.ok) await onRefresh()
   }
 
   const disableMailbox = async (mailbox: MailboxListItem) => {
     setDisablingId(mailbox.id)
-    const result = await disableMailboxAction(siteId, mailbox.id)
+    const outcome = await runAction(
+      () => disableMailboxAction(siteId, mailbox.id),
+      { successMessage: "Mailbox disabled in Hub" },
+    )
     setDisablingId(null)
-    if (result.error) {
-      toast.error(result.error)
-      return
-    }
-    toast.success("Mailbox disabled in Hub")
-    await onRefresh()
+    if (outcome.ok) await onRefresh()
   }
 
   return (
@@ -625,7 +631,7 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
 
   const loadData = useCallback(async () => {
     const result = await getMailDashboardAction(siteId)
-    if (result.error) toast.error(result.error)
+    if (result.error) showActionError(result.error)
     setData(result.data)
   }, [siteId])
 
