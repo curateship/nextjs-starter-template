@@ -11,6 +11,7 @@ Guidance for agents working in Trading.
 - Before changing task-driven work, check `workspace/tasks/`.
 - **Before back-testing any strategy, read and follow `workspace/docs/back-testing-rule.md`.**
 - **Before building or changing any UI/layout, read and follow `workspace/docs/ui-ux.md` (design guide — all layout gaps must match the site gap).**
+- **Before adding any new page, dashboard, or nav item, read and follow `workspace/docs/app-guide.md`** 
 
 ## App Context
 

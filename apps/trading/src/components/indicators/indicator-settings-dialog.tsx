@@ -1,0 +1,222 @@
+import * as React from "react"
+import { Loader2Icon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  INDICATOR_LABELS,
+  INDICATOR_PARAM_FIELDS,
+  indicatorColor,
+  primaryColorSlot,
+  type IndicatorConfig,
+} from "@/lib/trading/indicators-config"
+import { SESSION_OPTIONS, type SessionKey } from "@/lib/trading/sessions"
+
+/**
+ * Shared editor for one overlay indicator's settings (name, params, session,
+ * color) — used by both the Indicators dashboard and the chart's Indicators
+ * dropdown. Saving is delegated to `onSave` so each caller can persist and
+ * update its own local state.
+ */
+export function OverlaySettingsDialog({
+  indicator,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  indicator: IndicatorConfig
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (next: IndicatorConfig) => Promise<void>
+}) {
+  const [name, setName] = React.useState("")
+  const [params, setParams] = React.useState<Record<string, string>>({})
+  const [session, setSession] = React.useState<SessionKey>("nyse")
+  const [color, setColor] = React.useState<string | undefined>(undefined)
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // Seed the draft whenever the dialog (re)opens or targets another indicator.
+  const [prevSeed, setPrevSeed] = React.useState<IndicatorConfig | null>(null)
+  const seed = open ? indicator : null
+  if (prevSeed !== seed) {
+    setPrevSeed(seed)
+    if (seed) {
+      setName(seed.name ?? "")
+      setParams(
+        Object.fromEntries(
+          INDICATOR_PARAM_FIELDS[seed.type].map((field) => [
+            field.key,
+            String(seed.params[field.key] ?? ""),
+          ])
+        )
+      )
+      setSession(seed.session ?? "nyse")
+      setColor(seed.color)
+      setBusy(false)
+      setError(null)
+    }
+  }
+
+  const fields = INDICATOR_PARAM_FIELDS[indicator.type]
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+  const defaultLabel =
+    indicator.type === "ema"
+      ? `${INDICATOR_LABELS.ema} ${indicator.params.period}`
+      : INDICATOR_LABELS[indicator.type]
+
+  async function submit() {
+    const nextParams: Record<string, number> = { ...indicator.params }
+    for (const field of fields) {
+      const value = Number(params[field.key])
+      if (!Number.isFinite(value) || value <= 0) {
+        setError(`${field.label} must be a positive number.`)
+        return
+      }
+      nextParams[field.key] = value
+    }
+    const next: IndicatorConfig = {
+      ...indicator,
+      name: name.trim() || undefined,
+      params: nextParams,
+      color,
+    }
+    if (indicator.type === "session") next.session = session
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(next)
+      onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (busy ? null : onOpenChange(next))}
+    >
+      <DialogContent variant="admin" className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{defaultLabel} settings</DialogTitle>
+          <DialogDescription>
+            Rename the indicator, tune its settings, and pick its chart color.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="indicator-name">Name</Label>
+                <Input
+                  id="indicator-name"
+                  value={name}
+                  placeholder={defaultLabel}
+                  maxLength={80}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
+              {fields.map((field) => (
+                <div key={field.key} className="grid gap-2">
+                  <Label htmlFor={`indicator-param-${field.key}`}>
+                    {field.label}
+                  </Label>
+                  <Input
+                    id={`indicator-param-${field.key}`}
+                    type="number"
+                    step={field.step ?? 1}
+                    min={0}
+                    value={params[field.key] ?? ""}
+                    onChange={(event) =>
+                      setParams((prev) => ({
+                        ...prev,
+                        [field.key]: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+              {indicator.type === "session" ? (
+                <div className="grid gap-2">
+                  <Label>Session</Label>
+                  <Select
+                    value={session}
+                    onValueChange={(value) => setSession(value as SessionKey)}
+                  >
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SESSION_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="grid gap-2">
+                <Label htmlFor="indicator-color">Color</Label>
+                <input
+                  id="indicator-color"
+                  type="color"
+                  className="h-8 w-16 cursor-pointer rounded border-0 bg-transparent p-0"
+                  value={
+                    color ?? indicatorColor(primaryColorSlot(indicator), isDark)
+                  }
+                  onChange={(event) => setColor(event.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          {error ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="button" disabled={busy} onClick={() => void submit()}>
+            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

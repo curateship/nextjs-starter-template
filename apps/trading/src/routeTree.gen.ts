@@ -18,6 +18,7 @@ import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
+import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
@@ -84,6 +85,11 @@ const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
 const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
   id: '/pnl',
   path: '/pnl',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedIndicatorsRoute = AuthenticatedIndicatorsRouteImport.update({
+  id: '/indicators',
+  path: '/indicators',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
@@ -289,6 +297,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/indicators': typeof AuthenticatedIndicatorsRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
@@ -325,6 +334,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/indicators'
     | '/pnl'
     | '/portfolio'
     | '/templates'
@@ -357,6 +367,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/audit'
+    | '/indicators'
     | '/pnl'
     | '/portfolio'
     | '/templates'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audit'
+    | '/_authenticated/indicators'
     | '/_authenticated/pnl'
     | '/_authenticated/portfolio'
     | '/_authenticated/templates'
@@ -490,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/pnl'
       fullPath: '/pnl'
       preLoaderRoute: typeof AuthenticatedPnlRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/indicators': {
+      id: '/_authenticated/indicators'
+      path: '/indicators'
+      fullPath: '/indicators'
+      preLoaderRoute: typeof AuthenticatedIndicatorsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/audit': {
@@ -704,6 +723,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedIndicatorsRoute: typeof AuthenticatedIndicatorsRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
@@ -732,6 +752,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedIndicatorsRoute: AuthenticatedIndicatorsRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,

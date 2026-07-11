@@ -93,14 +93,11 @@ import {
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
-  DEFAULT_INDICATORS,
-  INDICATOR_LABELS,
-  INDICATOR_PARAM_FIELDS,
-  indicatorColor,
-  primaryColorSlot,
+  indicatorDisplayName,
   type IndicatorConfig,
-  type IndicatorType,
 } from "@/lib/trading/indicators-config"
+import { saveIndicator } from "@/lib/api/indicators"
+import { OverlaySettingsDialog } from "@/components/indicators/indicator-settings-dialog"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
@@ -121,6 +118,7 @@ export function TradingWorkspace({
   market,
   selectedValue,
   workerOnline,
+  initialIndicators,
   onMarketChange,
   onWalletChange,
 }: {
@@ -131,6 +129,8 @@ export function TradingWorkspace({
   /** Sandbox wallet id, or `paper:<id>` for in-house paper wallets. */
   selectedValue: string | null
   workerOnline?: boolean
+  /** The user's overlay-indicator settings from the route loader (DB-backed). */
+  initialIndicators: IndicatorConfig[]
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -362,7 +362,34 @@ export function TradingWorkspace({
   const outerLayout = usePersistedLayout("trading-layout-vertical")
   const innerLayout = usePersistedLayout("trading-layout-horizontal")
   const rightLayout = usePersistedLayout("trading-layout-right")
-  const [indicators, setIndicators] = usePersistedIndicators()
+  // DB-backed indicator settings: local state flips instantly for the chart;
+  // saves are fire-and-forget so they never add latency to a toggle.
+  const [indicators, setIndicators] = React.useState(initialIndicators)
+  const [prevIndicators, setPrevIndicators] = React.useState(initialIndicators)
+  if (prevIndicators !== initialIndicators) {
+    // Loader re-ran (e.g. navigated back from the Indicators dashboard):
+    // adopt the fresh settings during render.
+    setPrevIndicators(initialIndicators)
+    setIndicators(initialIndicators)
+  }
+  const updateIndicator = (id: string, patch: Partial<IndicatorConfig>) => {
+    const next = indicators.map((ind) =>
+      ind.id === id ? { ...ind, ...patch } : ind
+    )
+    setIndicators(next)
+    const row = next.find((ind) => ind.id === id)
+    if (row) {
+      void saveIndicator(row).catch(() =>
+        notify("Saving indicator settings failed.", "error")
+      )
+    }
+  }
+  // The trade chart only works with the pinned set; the full list is managed
+  // on the Indicators dashboard.
+  const pinnedIndicators = React.useMemo(
+    () => indicators.filter((ind) => ind.pinned),
+    [indicators]
+  )
   const [panels, setPanels] = usePersistedPanels()
   const [chartStrategy, setChartStrategy] = usePersistedState<ChartStrategyState>(
     "trading-chart-strategy",
@@ -473,8 +500,8 @@ export function TradingWorkspace({
                   }
                   afterIntervals={
                     <IndicatorsMenu
-                      indicators={indicators}
-                      onChange={setIndicators}
+                      indicators={pinnedIndicators}
+                      onUpdate={updateIndicator}
                     />
                   }
                 >
@@ -506,7 +533,7 @@ export function TradingWorkspace({
                     interval={interval}
                     priceLines={priceLines}
                     markers={quickMarkers}
-                    indicators={indicators}
+                    indicators={pinnedIndicators}
                     chartStrategy={
                       chartStrategy.indicator ? chartStrategy : null
                     }
@@ -959,125 +986,85 @@ function usePersistedLayout(key: string) {
   return { defaultLayout, onLayoutChanged }
 }
 
-/** Accepts a value only if it matches the current canonical indicator shape. */
-function isIndicatorConfig(value: unknown): value is IndicatorConfig {
-  if (!value || typeof value !== "object") return false
-  const config = value as Record<string, unknown>
-  if (typeof config.id !== "string" || typeof config.enabled !== "boolean") {
-    return false
-  }
-  if (config.color !== undefined && typeof config.color !== "string") return false
-  if (typeof config.type !== "string" || !(config.type in INDICATOR_PARAM_FIELDS)) {
-    return false
-  }
-  const params = config.params
-  if (!params || typeof params !== "object") return false
-  return INDICATOR_PARAM_FIELDS[config.type as IndicatorType].every((field) => {
-    const value = (params as Record<string, unknown>)[field.key]
-    return typeof value === "number" && Number.isFinite(value) && value > 0
-  })
-}
-
 /**
- * Hard cut: localStorage prefs are non-authoritative. Use them only when the
- * whole blob matches the current canonical shape; otherwise discard and reset
- * to defaults — no field-by-field migration or coercion of stale state.
- */
-function parsePersistedIndicators(raw: string): IndicatorConfig[] {
-  const parsed: unknown = JSON.parse(raw)
-  if (Array.isArray(parsed) && parsed.every(isIndicatorConfig)) {
-    return withMissingDefaults(parsed)
-  }
-  console.warn("Invalid trading-indicators in storage; resetting to defaults.")
-  return DEFAULT_INDICATORS
-}
-
-/**
- * Appends default indicators the stored list predates (e.g. a "Base" added
- * after the user first saved their prefs) so new indicators always show up,
- * without touching their existing customizations. Additive only — no
- * field-by-field migration of stored entries.
- */
-function withMissingDefaults(stored: IndicatorConfig[]): IndicatorConfig[] {
-  const ids = new Set(stored.map((config) => config.id))
-  const missing = DEFAULT_INDICATORS.filter((config) => !ids.has(config.id))
-  return missing.length ? [...stored, ...missing] : stored
-}
-
-function usePersistedIndicators() {
-  return usePersistedState<IndicatorConfig[]>(
-    "trading-indicators",
-    DEFAULT_INDICATORS,
-    parsePersistedIndicators
-  )
-}
-
-/**
- * TradingView-style overlay list: purely show/hide (plus a color swatch) for
- * the painted chart lines. Lives next to the timeframe buttons; strategy
- * signals are picked separately on the right.
+ * TradingView-style overlay list over the PINNED indicators only (the full
+ * set is managed on the Indicators dashboard): show/hide checkboxes for the
+ * painted chart lines; clicking a name opens the shared settings modal. Lives
+ * next to the timeframe buttons; strategy signals are picked separately.
  */
 function IndicatorsMenu({
   indicators,
-  onChange,
+  onUpdate,
 }: {
   indicators: IndicatorConfig[]
-  onChange: React.Dispatch<React.SetStateAction<IndicatorConfig[]>>
+  onUpdate: (id: string, patch: Partial<IndicatorConfig>) => void
 }) {
   const activeCount = indicators.filter((ind) => ind.enabled).length
-  const isDark =
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("dark")
-
-  const update = (id: string, patch: Partial<IndicatorConfig>) =>
-    onChange((prev) =>
-      prev.map((ind) => (ind.id === id ? { ...ind, ...patch } : ind))
-    )
+  const [editingId, setEditingId] = React.useState<string | null>(null)
+  const editing = indicators.find((ind) => ind.id === editingId) ?? null
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs"
-        >
-          Indicators{activeCount ? ` (${activeCount})` : ""}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 gap-1 p-2">
-        {indicators.map((ind) => (
-          <div
-            key={ind.id}
-            className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
           >
-            <Checkbox
-              id={`ind-${ind.id}`}
-              checked={ind.enabled}
-              onCheckedChange={(checked) =>
-                update(ind.id, { enabled: checked === true })
-              }
-            />
-            <Label
-              htmlFor={`ind-${ind.id}`}
-              className="flex-1 cursor-pointer text-xs font-medium"
+            Indicators{activeCount ? ` (${activeCount})` : ""}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-60 gap-1 p-2">
+          {indicators.length === 0 ? (
+            <div className="px-1 py-1 text-xs text-muted-foreground">
+              No pinned indicators — pin them on the{" "}
+              <a href="/indicators" className="underline underline-offset-2">
+                Indicators
+              </a>{" "}
+              page.
+            </div>
+          ) : null}
+          {indicators.map((ind) => (
+            <div
+              key={ind.id}
+              className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
             >
-              {INDICATOR_LABELS[ind.type]}
-              {ind.type === "ema" ? ` ${ind.params.period}` : ""}
-            </Label>
-            <input
-              type="color"
-              aria-label={`${INDICATOR_LABELS[ind.type]} color`}
-              className="h-5 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
-              value={ind.color ?? indicatorColor(primaryColorSlot(ind), isDark)}
-              onChange={(event) =>
-                update(ind.id, { color: event.target.value })
-              }
-            />
-          </div>
-        ))}
-      </PopoverContent>
-    </Popover>
+              <Checkbox
+                id={`ind-${ind.id}`}
+                checked={ind.enabled}
+                onCheckedChange={(checked) =>
+                  onUpdate(ind.id, { enabled: checked === true })
+                }
+              />
+              <button
+                type="button"
+                className="flex-1 cursor-pointer text-left text-xs font-medium"
+                title="Indicator settings"
+                onClick={() => setEditingId(ind.id)}
+              >
+                {indicatorDisplayName(ind)}
+              </button>
+            </div>
+          ))}
+        </PopoverContent>
+      </Popover>
+      {editing ? (
+        <OverlaySettingsDialog
+          indicator={editing}
+          open={editingId !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingId(null)
+          }}
+          onSave={(next) => {
+            // Local flip is instant; persistence is the same fire-and-forget
+            // path the checkboxes use (failures surface via the notify strip).
+            onUpdate(next.id, next)
+            return Promise.resolve()
+          }}
+        />
+      ) : null}
+    </>
   )
 }

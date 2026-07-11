@@ -310,6 +310,43 @@ export const tradingStrategies = pgTable(
   ]
 )
 
+/**
+ * Per-user settings for the trade chart's overlay indicators. One row per
+ * customized indicator (rows are created lazily on first save); indicators
+ * without a row fall back to `DEFAULT_INDICATORS`.
+ */
+export const tradingIndicatorSettings = pgTable(
+  "indicator_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Stable indicator key from DEFAULT_INDICATORS (e.g. "ema-20", "session"). */
+    indicatorId: varchar("indicator_id", { length: 40 }).notNull(),
+    type: varchar("type", { length: 20 }).notNull(),
+    /** User rename; null = default label. */
+    name: varchar("name", { length: 80 }),
+    enabled: boolean("enabled").notNull(),
+    /** Pinned = in the trade chart's working set (dropdown + drawing). */
+    pinned: boolean("pinned").notNull().default(false),
+    params: jsonb("params").$type<Record<string, number>>().notNull(),
+    /** #rrggbb line-color override; null = palette default. */
+    color: varchar("color", { length: 20 }),
+    /** Picked session (Sessions indicator only). */
+    session: varchar("session", { length: 20 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("indicator_settings_user_id_indicator_id_unique").on(
+      table.userId,
+      table.indicatorId
+    ),
+    index("ix_indicator_settings_user_id").on(table.userId),
+  ]
+)
+
 export const tradingBots = pgTable(
   "bots",
   {
