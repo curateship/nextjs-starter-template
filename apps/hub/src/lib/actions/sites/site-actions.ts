@@ -80,6 +80,14 @@ function sanitizeSiteTag(input?: string | null): string | undefined {
   return tag ? tag.slice(0, 50) : undefined
 }
 
+function unexpectedSiteActionError(action: string, error: unknown, context?: Record<string, unknown>) {
+  console.error(`Site ${action} failed:`, {
+    ...context,
+    error: error instanceof Error ? error.message : String(error),
+  })
+  return `Something went wrong ${action} — the error has been logged.`
+}
+
 function sanitizeCustomDomain(input?: string | null): string | null {
   if (!input) return null
   let d = String(input).trim().toLowerCase()
@@ -348,10 +356,15 @@ async function prepareCustomDomain(
     where: currentSiteId
       ? and(inArray(sites.customDomain, getCustomDomainAliases(domain)), ne(sites.id, currentSiteId))
       : inArray(sites.customDomain, getCustomDomainAliases(domain)),
-    columns: { id: true },
+    columns: { id: true, name: true, userId: true },
   })
   if (existing) {
-    return { domain: null, error: 'Custom domain is already assigned to another site' }
+    return {
+      domain: null,
+      error: existing.userId === userId
+        ? `Domain "${domain}" is already in use by your site "${existing.name}".`
+        : `Domain "${domain}" is already in use by another site.`,
+    }
   }
 
   const verificationValue = getCustomDomainVerificationValue(domain, userId)
@@ -425,7 +438,7 @@ export async function getAllSitesAction(): Promise<{ data: Site[] | null; error:
 
     return { data: result.map(normalizeSite), error: null }
   } catch (error) {
-    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { data: null, error: unexpectedSiteActionError('loading sites', error) }
   }
 }
 
@@ -490,7 +503,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     if (!created) return { data: null, error: 'Failed to create site' }
     return { data: normalizeSite(created), error: null }
   } catch (error) {
-    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { data: null, error: unexpectedSiteActionError('creating the site', error) }
   }
 }
 
@@ -598,7 +611,7 @@ export async function cloneSiteAction(
 
     return { data: normalizeSite(cloned), error: null }
   } catch (error) {
-    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { data: null, error: unexpectedSiteActionError('duplicating the site', error) }
   }
 }
 
@@ -677,7 +690,7 @@ export async function updateSiteAction(
 
     return { data: normalizeSite(updated), error: null }
   } catch (error) {
-    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { data: null, error: unexpectedSiteActionError('saving the site', error) }
   }
 }
 
@@ -698,11 +711,7 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
 
     return { success: true, error: null }
   } catch (error) {
-    console.error('Failed to delete site', {
-      siteId,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return { success: false, error: 'Failed to delete site' }
+    return { success: false, error: unexpectedSiteActionError('deleting the site', error, { siteId }) }
   }
 }
 
@@ -718,7 +727,7 @@ export async function getSiteByIdAction(siteId: string): Promise<{ data: Site | 
     if (!result) return { data: null, error: 'Site not found or access denied' }
     return { data: normalizeSite(result), error: null }
   } catch (error) {
-    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { data: null, error: unexpectedSiteActionError('loading the site', error) }
   }
 }
 
@@ -748,7 +757,7 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
 
     return { available: false, suggestion, error: null }
   } catch (error) {
-    return { available: false, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    return { available: false, error: unexpectedSiteActionError('checking subdomain availability', error) }
   }
 }
 
@@ -793,12 +802,7 @@ async function updateSiteChromeField(
 
     return { success: true, error: null }
   } catch (error) {
-    console.error('Failed to update site chrome field', {
-      fieldName,
-      siteId,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return { success: false, error: 'Failed to save site settings' }
+    return { success: false, error: unexpectedSiteActionError('saving site settings', error, { fieldName, siteId }) }
   }
 }
 

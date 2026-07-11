@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import type { ContentListItem, ContentListPageProps } from "@/components/admin/layout/content/contentListTypes"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 
 interface ContentListSelection {
   clearSelection: () => void
@@ -64,6 +65,11 @@ export function useContentListMutations<TItem extends ContentListItem>({
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
+  function reportError(message: string) {
+    setErrorMessage(message)
+    showActionError(message)
+  }
+
   async function confirmDeleteItem() {
     if (!pendingDeleteId) return
 
@@ -74,7 +80,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
     try {
       const { success, error: deleteError } = await deleteItem(itemIdToDelete)
       if (deleteError || !success) {
-        setErrorMessage(deleteError || `Failed to delete ${itemLabel.toLowerCase()}`)
+        reportError(deleteError || `Failed to delete ${itemLabel.toLowerCase()}`)
         return
       }
 
@@ -85,7 +91,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
         removeItem(itemIdToDelete)
       }
     } catch {
-      setErrorMessage(`Failed to delete ${itemLabel.toLowerCase()}`)
+      reportError(`Failed to delete ${itemLabel.toLowerCase()}`)
     } finally {
       setDeletingItemId(null)
     }
@@ -100,7 +106,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
       const idsToDelete = new Set(ids)
       const { success, error: deleteError } = await deleteItems(ids)
       if (deleteError || !success) {
-        setErrorMessage(deleteError || `Failed to delete ${itemLabelPlural.toLowerCase()}`)
+        reportError(deleteError || `Failed to delete ${itemLabelPlural.toLowerCase()}`)
         return
       }
 
@@ -111,7 +117,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
         removeItems(idsToDelete)
       }
     } catch {
-      setErrorMessage(`Failed to delete ${itemLabelPlural.toLowerCase()}`)
+      reportError(`Failed to delete ${itemLabelPlural.toLowerCase()}`)
     } finally {
       setMassDeleting(false)
     }
@@ -123,7 +129,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
     try {
       const { data, error: duplicateError } = await duplicateItem(item.id, duplicateTitle(item))
       if (duplicateError) {
-        setErrorMessage(`Failed to duplicate ${itemLabel.toLowerCase()}: ${duplicateError}`)
+        reportError(`Failed to duplicate ${itemLabel.toLowerCase()}: ${duplicateError}`)
         return
       }
 
@@ -133,7 +139,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
         appendItem(data)
       }
     } catch {
-      setErrorMessage(`Failed to duplicate ${itemLabel.toLowerCase()}`)
+      reportError(`Failed to duplicate ${itemLabel.toLowerCase()}`)
     } finally {
       setDuplicatingItemId(null)
     }

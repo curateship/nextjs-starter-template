@@ -16,7 +16,7 @@ import {
 } from "@/lib/actions/sponsors/sponsor-portal-actions"
 import { cn } from "@/lib/utils/tailwind"
 import { Check, Copy, Link2, RefreshCw, ShieldOff } from "lucide-react"
-import { toast } from "sonner"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 interface SponsorReportLinkCellProps {
   sponsorId: string
@@ -43,7 +43,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error("Could not copy the link. Copy it manually: " + url)
+      showActionError("Could not copy the link. Copy it manually: " + url)
     }
   }
 
@@ -53,14 +53,14 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
     setPending(false)
 
     if (result.error || !result.data) {
-      toast.error(result.error || "Failed to create report link")
+      showActionError(result.error || "Failed to create report link")
       return
     }
 
     setFreshUrl(result.data.url)
     onLinkChange(sponsorId, result.data.link)
     await copyToClipboard(result.data.url)
-    toast.success("Report link created and copied to clipboard")
+    showActionSuccess("Report link created and copied to clipboard")
   }
 
   const handleRevoke = async () => {
@@ -69,13 +69,13 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
     setPending(false)
 
     if (result.error || !result.data) {
-      toast.error(result.error || "Failed to revoke report link")
+      showActionError(result.error || "Failed to revoke report link")
       return
     }
 
     setFreshUrl(null)
     onLinkChange(sponsorId, result.data)
-    toast.success("Report link revoked")
+    showActionSuccess("Report link revoked")
   }
 
   const status = link?.status

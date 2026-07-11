@@ -17,6 +17,7 @@ import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/Pa
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { showActionError } from "@/lib/utils/admin-action-feedback"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -67,11 +68,13 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         setPagesLoading(true)
         const { data, error } = await getSitePagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
+          showActionError(error)
           return
         }
         setPages(data || [])
 
       } catch {
+        showActionError("Couldn't load pages — please try again.")
       } finally {
         setPagesLoading(false)
       }

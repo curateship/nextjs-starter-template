@@ -24,7 +24,7 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import Image from "next/image"
 import { Search, ImageIcon, VideoIcon, Upload, X, Play, Filter } from "lucide-react"
-import { toast } from "sonner"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -86,12 +86,12 @@ export function MediaPicker({
       const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, scopedSiteId, mimeType)
 
       if (error) {
-        toast.error(`Failed to load media: ${error}`)
+        showActionError(`Failed to load media: ${error}`)
       } else {
         setPaginatedData(data)
       }
     } catch (error) {
-      toast.error('Failed to load media')
+      showActionError('Failed to load media')
     } finally {
       setIsLoading(false)
     }
@@ -167,7 +167,7 @@ export function MediaPicker({
       const message = showVideos
         ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
         : 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.'
-      toast.error(message)
+      showActionError(message)
       return
     }
 
@@ -177,7 +177,7 @@ export function MediaPicker({
     const maxSize = fileType === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     const maxSizeLabel = fileType === 'image' ? '10MB' : '100MB'
     if (file.size > maxSize) {
-      toast.error(`File size too large. Maximum size is ${maxSizeLabel}.`)
+      showActionError(`File size too large. Maximum size is ${maxSizeLabel}.`)
       return
     }
 
@@ -196,7 +196,7 @@ export function MediaPicker({
   const handleUpload = async () => {
     if (!uploadFile) return
     if (!scopedSiteId) {
-      toast.error('Select a site before uploading media')
+      showActionError('Select a site before uploading media')
       return
     }
 
@@ -221,7 +221,7 @@ export function MediaPicker({
         throw new Error(result.error || 'Upload failed')
       }
 
-      toast.success("Media uploaded successfully!")
+      showActionSuccess("Media uploaded successfully!")
 
       // Select the newly uploaded media immediately
       if (actualOnSelect) {
@@ -237,7 +237,7 @@ export function MediaPicker({
       onOpenChange(false)
 
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Upload failed')
+      showActionError(error instanceof Error ? error.message : 'Upload failed')
     } finally {
       setIsUploading(false)
     }

@@ -37,7 +37,7 @@ import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/med
 import type { MediaData } from "@/lib/actions/media/media-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ImageOff, Image as ImageIcon, RefreshCw, Trash2, VideoIcon } from "lucide-react"
-import { toast } from "sonner"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 type SortColumn = "name" | "type" | "size" | "added"
 
@@ -68,15 +68,15 @@ export default function UnusedMediaPage() {
     try {
       const { data, error } = await scanUnusedMediaAction(currentSiteId)
       if (error) {
-        toast.error(`Scan failed: ${error}`)
+        showActionError(`Scan failed: ${error}`)
         return
       }
 
       setMediaItems(data?.data ?? [])
       setScannedAt(data?.scanned_at ?? new Date().toISOString())
-      toast.success(`Found ${data?.total ?? 0} unused media ${(data?.total ?? 0) === 1 ? "item" : "items"}`)
+      showActionSuccess(`Found ${data?.total ?? 0} unused media ${(data?.total ?? 0) === 1 ? "item" : "items"}`)
     } catch {
-      toast.error("Scan failed")
+      showActionError("Scan failed")
     } finally {
       setIsScanning(false)
     }
@@ -89,15 +89,15 @@ export default function UnusedMediaPage() {
     try {
       const { success, deletedCount, error } = await deleteMediaItemsAction(ids, currentSiteId)
       if (!success || error) {
-        toast.error(`Delete failed: ${error ?? "Unknown error"}`)
+        showActionError(`Delete failed: ${error ?? "Unknown error"}`)
         return
       }
 
       setMediaItems((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? null)
       ids.forEach((id) => mediaSelection.remove(id))
-      toast.success(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
+      showActionSuccess(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
     } catch {
-      toast.error("Delete failed")
+      showActionError("Delete failed")
     } finally {
       setIsDeleting(false)
       setDeleteConfirmOpen(false)

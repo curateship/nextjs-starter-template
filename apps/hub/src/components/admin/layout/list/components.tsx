@@ -42,7 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions";
 import { cn } from "@/lib/utils/tailwind";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
-import { toast } from "sonner";
+import { showActionError } from "@/lib/utils/admin-action-feedback";
 import type { AdminSortDirection } from "./hooks";
 
 type AdminTableStatus = {
@@ -345,7 +345,7 @@ export function AdminListFooter({
     setIsSavingPageSize(false);
 
     if (result.error) {
-      toast.error(`Failed to save rows per page: ${result.error}`);
+      showActionError(`Failed to save rows per page: ${result.error}`);
     }
   };
 
