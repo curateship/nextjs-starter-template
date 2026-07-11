@@ -143,6 +143,14 @@ type RenderWatermark = {
   widthPercent: number
   opacity: number
 }
+type RenderEndCard = {
+  logoFile: string | null
+  durationSeconds: number
+  backgroundColor: string
+  ctaText: string
+  fontId: BrandKitConfig["fonts"]["heading"]
+  textColor: string
+}
 
 function flattenForRender(tracks: EditorTrack[]) {
   const visuals: RenderClip[] = []
@@ -171,7 +179,8 @@ function flattenForRender(tracks: EditorTrack[]) {
 export async function renderProject(
   projectId: string,
   userId: string,
-  quality: RenderQuality
+  quality: RenderQuality,
+  includeEndCard: boolean
 ) {
   const dir = await mkdtemp(path.join(tmpdir(), "render-"))
   try {
@@ -232,11 +241,30 @@ export async function renderProject(
         audioPresence.set(media.id, await hasAudioStream(file))
       }
     }
-    const watermark = await resolveWatermark({
-      userId,
-      dir,
-      brandKit: await getCurrentWorkspaceBrandKit(userId),
-    })
+    const brandKit = await getCurrentWorkspaceBrandKit(userId)
+    const logoFile =
+      brandKit.watermark.enabled || includeEndCard
+        ? await resolveBrandLogo({ userId, dir, brandKit })
+        : null
+    const watermark =
+      brandKit.watermark.enabled && logoFile
+        ? {
+            file: logoFile,
+            position: brandKit.watermark.position,
+            widthPercent: brandKit.watermark.widthPercent,
+            opacity: brandKit.watermark.opacity,
+          }
+        : null
+    const endCard: RenderEndCard | null = includeEndCard
+      ? {
+          logoFile,
+          durationSeconds: brandKit.endCard.durationSeconds,
+          backgroundColor: brandKit.endCard.backgroundColor,
+          ctaText: brandKit.endCard.ctaText,
+          fontId: brandKit.fonts.heading,
+          textColor: brandKit.captionStyle.color,
+        }
+      : null
 
     const command = await buildFfmpegCommand({
       dir,
@@ -247,6 +275,7 @@ export async function renderProject(
       sourceFiles,
       audioPresence,
       watermark,
+      endCard,
       crf: QUALITY_PRESETS[quality].crf,
     })
 
@@ -341,6 +370,7 @@ async function buildFfmpegCommand(options: {
   sourceFiles: Map<string, string>
   audioPresence: Map<string, boolean>
   watermark: RenderWatermark | null
+  endCard: RenderEndCard | null
   crf: number
 }) {
   const {
@@ -352,12 +382,14 @@ async function buildFfmpegCommand(options: {
     sourceFiles,
     audioPresence,
     watermark,
+    endCard,
     crf,
   } = options
   const durationS = durationMs / 1000
+  const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
   const inputs: string[] = []
   const filters: string[] = [
-    `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${durationS}[v0]`,
+    `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${outputDurationS}[v0]`,
   ]
   const audioLabels: string[] = []
   let inputIndex = 0
@@ -491,6 +523,61 @@ async function buildFfmpegCommand(options: {
     visualStep += 1
   }
 
+  if (endCard) {
+    const cardDuration = endCard.durationSeconds
+    const cardEnd = durationS + cardDuration
+    const backgroundColor = endCard.backgroundColor.replace("#", "0x")
+    let cardStep = 0
+    filters.push(
+      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${cardDuration}[ec0]`
+    )
+
+    if (endCard.logoFile) {
+      const logoWidth = Math.round(size.width * 0.32)
+      const logoHeight = Math.round(size.height * 0.24)
+      const logoY = endCard.ctaText.trim() ? "H*0.38-h/2" : "(H-h)/2"
+      inputs.push(
+        "-loop",
+        "1",
+        "-t",
+        String(cardDuration),
+        "-i",
+        endCard.logoFile
+      )
+      filters.push(
+        `[${inputIndex}:v]format=rgba,scale=${logoWidth}:${logoHeight}:force_original_aspect_ratio=decrease[ec-logo]`,
+        `[ec${cardStep}][ec-logo]overlay=x=(W-w)/2:y=${logoY}[ec${cardStep + 1}]`
+      )
+      inputIndex += 1
+      cardStep += 1
+    }
+
+    if (endCard.ctaText.trim()) {
+      const textFile = path.join(dir, "end-card-text.png")
+      await writeFile(textFile, await renderEndCardTextPng(endCard, size))
+      inputs.push(
+        "-loop",
+        "1",
+        "-t",
+        String(cardDuration),
+        "-i",
+        textFile
+      )
+      filters.push(
+        `[${inputIndex}:v]format=rgba[ec-text]`,
+        `[ec${cardStep}][ec-text]overlay=x=0:y=0[ec${cardStep + 1}]`
+      )
+      inputIndex += 1
+      cardStep += 1
+    }
+
+    filters.push(
+      `[ec${cardStep}]fade=t=in:st=0:d=0.25,setpts=PTS-STARTPTS+${durationS}/TB[ec]`,
+      `[v${visualStep}][ec]overlay=x=0:y=0:enable='between(t,${durationS},${cardEnd})'[v${visualStep + 1}]`
+    )
+    visualStep += 1
+  }
+
   const finalVideo = `v${visualStep}`
   const hasAudio = audioLabels.length > 0
   if (hasAudio) {
@@ -522,13 +609,13 @@ async function buildFfmpegCommand(options: {
     "-r",
     String(OUTPUT_FPS),
     "-t",
-    String(durationS),
+    String(outputDurationS),
     "-movflags",
     "+faststart",
   ]
 }
 
-async function resolveWatermark({
+async function resolveBrandLogo({
   userId,
   dir,
   brandKit,
@@ -536,9 +623,9 @@ async function resolveWatermark({
   userId: string
   dir: string
   brandKit: BrandKitConfig
-}): Promise<RenderWatermark | null> {
+}): Promise<string | null> {
   const logoId = brandKit.logo.mediaId
-  if (!brandKit.watermark.enabled || !logoId) return null
+  if (!logoId) return null
 
   const [logo] = await db
     .select()
@@ -551,22 +638,18 @@ async function resolveWatermark({
     const object = await getFromR2(logo.storagePath)
     if (!object.Body) return null
     const bytes = await bodyToBytes(object.Body)
-    const watermarkBytes =
-      logo.mimeType === "image/svg+xml"
-        ? loadResvg().Resvg(new TextDecoder().decode(bytes)).render().asPng()
-        : bytes
+    let logoBytes = bytes
+    if (logo.mimeType === "image/svg+xml") {
+      const { Resvg } = loadResvg()
+      logoBytes = new Resvg(new TextDecoder().decode(bytes)).render().asPng()
+    }
     const ext =
       logo.mimeType === "image/svg+xml"
         ? ".png"
         : path.extname(logo.storagePath) || ".img"
-    const file = path.join(dir, `watermark${ext}`)
-    await writeFile(file, watermarkBytes)
-    return {
-      file,
-      position: brandKit.watermark.position,
-      widthPercent: brandKit.watermark.widthPercent,
-      opacity: brandKit.watermark.opacity,
-    }
+    const file = path.join(dir, `brand-logo${ext}`)
+    await writeFile(file, logoBytes)
+    return file
   } catch {
     return null
   }
@@ -743,6 +826,58 @@ async function renderTextPng(
     },
   })
   return resvg.render().asPng()
+}
+
+async function renderEndCardTextPng(
+  endCard: RenderEndCard,
+  size: { width: number; height: number }
+) {
+  const font = requireTextFont(endCard.fontId)
+  const fontFile = renderFontPath(font.fileName)
+  if (!existsSync(fontFile)) {
+    throw new Error("Render font is missing on the server")
+  }
+
+  let fontSize = size.height * 0.06
+  let lines = wrapTextLines(
+    endCard.ctaText.trim(),
+    fontSize * font.widthRatio,
+    size.width * 0.8
+  )
+  while (
+    fontSize > size.height * 0.035 &&
+    lines.length * fontSize * 1.2 > size.height * 0.35
+  ) {
+    fontSize -= 2
+    lines = wrapTextLines(
+      endCard.ctaText.trim(),
+      fontSize * font.widthRatio,
+      size.width * 0.8
+    )
+  }
+
+  const lineHeight = fontSize * 1.2
+  const centerY = endCard.logoFile ? size.height * 0.68 : size.height * 0.5
+  const firstBaseline =
+    centerY - (lines.length * lineHeight) / 2 + lineHeight / 2 + fontSize * 0.36
+  const spans = lines.map(
+    (line, index) =>
+      `<tspan x="${size.width / 2}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${escapeXml(line) || " "}</tspan>`
+  )
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
+  <text text-anchor="middle" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${endCard.textColor}">${spans.join("")}</text>
+</svg>`
+
+  const { Resvg } = loadResvg()
+  return new Resvg(svg, {
+    font: {
+      fontFiles: [fontFile],
+      loadSystemFonts: false,
+      defaultFontFamily: font.family,
+    },
+  })
+    .render()
+    .asPng()
 }
 
 // --- Process helpers ---------------------------------------------------------

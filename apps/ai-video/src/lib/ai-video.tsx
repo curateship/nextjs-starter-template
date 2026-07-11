@@ -254,6 +254,12 @@ export type BrandKitConfig = {
     widthPercent: number
     opacity: number
   }
+  endCard: {
+    enabled: boolean
+    durationSeconds: number
+    backgroundColor: string
+    ctaText: string
+  }
   ctaPhrases: string[]
   exportNamingPattern: string
 }
@@ -352,6 +358,12 @@ export function createDefaultBrandKitConfig(): BrandKitConfig {
       position: "bottom-right",
       widthPercent: 16,
       opacity: 80,
+    },
+    endCard: {
+      enabled: false,
+      durationSeconds: 3,
+      backgroundColor: DEFAULT_BRAND_KIT_COLORS[0].value,
+      ctaText: "",
     },
     ctaPhrases: [],
     exportNamingPattern: "{project}-{date}",

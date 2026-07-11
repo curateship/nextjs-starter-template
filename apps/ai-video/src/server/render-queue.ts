@@ -122,7 +122,8 @@ async function countActiveJobs(userId: string) {
 async function insertRenderJob(
   userId: string,
   projectId: string,
-  quality: RenderQuality
+  quality: RenderQuality,
+  includeEndCard: boolean
 ): Promise<{ jobId: string | null; inserted: boolean }> {
   const timestamp = now()
   const [inserted] = await db
@@ -132,6 +133,7 @@ async function insertRenderJob(
       userId,
       projectId,
       quality,
+      includeEndCard,
       status: "queued",
       attempts: 0,
       createdAt: timestamp,
@@ -212,7 +214,8 @@ export async function getProjectRenderForCurrentUser(
 
 export async function enqueueProjectRenderForCurrentUser(
   projectId: string,
-  quality: RenderQuality = "high"
+  quality: RenderQuality,
+  includeEndCard: boolean
 ): Promise<ProjectRenderInfo> {
   requireAppOrigin()
   const user = await requireUser()
@@ -229,7 +232,7 @@ export async function enqueueProjectRenderForCurrentUser(
     if ((await countActiveJobs(user.id)) >= MAX_ACTIVE_JOBS_PER_USER) {
       throw new Error(QUEUE_FULL_MESSAGE)
     }
-    await insertRenderJob(user.id, projectId, quality)
+    await insertRenderJob(user.id, projectId, quality, includeEndCard)
     kickRenderWorker()
   }
   return loadRenderInfo(user.id, projectId)
@@ -237,7 +240,8 @@ export async function enqueueProjectRenderForCurrentUser(
 
 export async function enqueueProjectRendersForCurrentUser(
   projectIds: string[],
-  quality: RenderQuality
+  quality: RenderQuality,
+  includeEndCard: boolean
 ): Promise<BatchRenderResponse> {
   requireAppOrigin()
   const user = await requireUser()
@@ -295,7 +299,8 @@ export async function enqueueProjectRendersForCurrentUser(
     const { jobId, inserted } = await insertRenderJob(
       user.id,
       projectId,
-      quality
+      quality,
+      includeEndCard
     )
     if (inserted) activeCount += 1
     results.push({
@@ -360,6 +365,7 @@ type ClaimedJob = {
   user_id: string
   project_id: string
   quality: RenderQuality
+  include_end_card: boolean
   lease_token: string
 }
 
@@ -445,7 +451,7 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
       limit 1
       for update skip locked
     )
-    returning id, user_id, project_id, quality, lease_token
+    returning id, user_id, project_id, quality, include_end_card, lease_token
   `)
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
@@ -477,7 +483,12 @@ async function runJob(job: ClaimedJob) {
   heartbeat.unref()
 
   try {
-    await renderProject(job.project_id, job.user_id, job.quality)
+    await renderProject(
+      job.project_id,
+      job.user_id,
+      job.quality,
+      job.include_end_card
+    )
     await finishJob(job, {
       status: "ready",
       errorMessage: null,

@@ -141,12 +141,17 @@ const startRenderFn = createServerFn({ method: "POST" })
   .inputValidator(
     projectIdSchema.extend({
       quality: z.enum(["high", "medium", "low"]),
+      includeEndCard: z.boolean(),
     })
   )
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
     const { enqueueProjectRenderForCurrentUser } =
       await import("@/server/render-queue")
-    return enqueueProjectRenderForCurrentUser(data.projectId, data.quality)
+    return enqueueProjectRenderForCurrentUser(
+      data.projectId,
+      data.quality,
+      data.includeEndCard
+    )
   })
 
 const getRenderFn = createServerFn({ method: "GET" })
@@ -162,12 +167,17 @@ const enqueueRendersFn = createServerFn({ method: "POST" })
     z.object({
       projectIds: z.array(z.string().min(1).max(36)).min(1).max(100),
       quality: z.enum(["high", "medium", "low"]),
+      includeEndCard: z.boolean(),
     })
   )
   .handler(async ({ data }): Promise<BatchRenderResponse> => {
     const { enqueueProjectRendersForCurrentUser } =
       await import("@/server/render-queue")
-    return enqueueProjectRendersForCurrentUser(data.projectIds, data.quality)
+    return enqueueProjectRendersForCurrentUser(
+      data.projectIds,
+      data.quality,
+      data.includeEndCard
+    )
   })
 
 const cancelRenderFn = createServerFn({ method: "POST" })
@@ -180,9 +190,10 @@ const cancelRenderFn = createServerFn({ method: "POST" })
 
 export function startProjectRender(
   projectId: string,
-  quality: RenderQuality = "high"
+  quality: RenderQuality,
+  includeEndCard: boolean
 ) {
-  return startRenderFn({ data: { projectId, quality } })
+  return startRenderFn({ data: { projectId, quality, includeEndCard } })
 }
 
 export function getProjectRender(projectId: string) {
@@ -191,9 +202,10 @@ export function getProjectRender(projectId: string) {
 
 export function enqueueProjectRenders(
   projectIds: string[],
-  quality: RenderQuality
+  quality: RenderQuality,
+  includeEndCard: boolean
 ) {
-  return enqueueRendersFn({ data: { projectIds, quality } })
+  return enqueueRendersFn({ data: { projectIds, quality, includeEndCard } })
 }
 
 export function cancelProjectRender(projectId: string) {
