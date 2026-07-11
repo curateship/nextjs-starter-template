@@ -3,7 +3,6 @@ import type {
   CandleWsEvent,
   L2BookWsEvent,
   TradesWsEvent,
-  WebData2WsEvent,
 } from "@nktkas/hyperliquid"
 
 import type { TradingNetwork } from "@/lib/hl/network"
@@ -14,7 +13,6 @@ import {
   subscribeCandle,
   subscribeL2Book,
   subscribeTrades,
-  subscribeWebData2,
   type CandleInterval,
 } from "@/lib/hl/ws"
 
@@ -228,18 +226,56 @@ export function useTrades(network: TradingNetwork, coin: string) {
   return state?.key === key ? state.data : EMPTY_TRADES
 }
 
-export function useWebData2(
+/** Account balances + open orders, in the shape the old webData2 feed used. */
+type BrowserInfoClient = ReturnType<typeof getBrowserInfoClient>
+export type AccountSnapshot = {
+  clearinghouseState: Awaited<
+    ReturnType<BrowserInfoClient["clearinghouseState"]>
+  >
+  openOrders: Awaited<ReturnType<BrowserInfoClient["frontendOpenOrders"]>>
+}
+
+const ACCOUNT_REFRESH_MS = 4_000
+
+/**
+ * Live account state (equity, positions, open orders) for a real wallet.
+ * Hyperliquid retired the webData2 websocket feed this used to ride on (its
+ * webData3 replacement no longer carries clearinghouse state), so this now
+ * polls the stable HTTP info endpoints — same ~5s freshness the old feed had.
+ */
+export function useAccountSnapshot(
   network: TradingNetwork,
   address: string | null | undefined
 ) {
   const key = `${network}:${address ?? ""}`
-  const [state, setState] = React.useState<Keyed<WebData2WsEvent> | null>(null)
+  const [state, setState] = React.useState<Keyed<AccountSnapshot> | null>(null)
 
   React.useEffect(() => {
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
-    return subscribeWebData2(network, address as `0x${string}`, (data) => {
-      setState({ key, data })
-    })
+    let cancelled = false
+    const client = getBrowserInfoClient(network)
+    const user = address as `0x${string}`
+
+    async function refresh() {
+      try {
+        const [clearinghouseState, openOrders] = await Promise.all([
+          client.clearinghouseState({ user }),
+          client.frontendOpenOrders({ user }),
+        ])
+        if (!cancelled) {
+          setState({ key, data: { clearinghouseState, openOrders } })
+        }
+      } catch {
+        // Transient fetch failure — keep showing the last snapshot.
+      }
+    }
+
+    void refresh()
+    const timer = setInterval(() => void refresh(), ACCOUNT_REFRESH_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
   }, [network, address, key])
 
   return state?.key === key ? state.data : null

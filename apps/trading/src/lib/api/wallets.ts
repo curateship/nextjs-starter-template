@@ -15,6 +15,8 @@ export type WalletItem = {
   approval_valid_until: string | null
   created_at: string
   updated_at: string
+  /** Live perps equity on the exchange; only the wallets list fetches it. */
+  equity?: number | null
 }
 
 export type WalletListResponse = {
@@ -126,11 +128,13 @@ async function requireUser() {
 }
 
 async function walletListForUser(userId: string): Promise<WalletListResponse> {
-  const { listUserWallets, serializeWallet } = await import("@/server/wallets")
+  const { listUserWallets, serializeWalletsWithEquity } = await import(
+    "@/server/wallets"
+  )
   const { isMainnetEnabled } = await import("@/server/hyperliquid/transport")
   const wallets = await listUserWallets(userId)
   return {
-    wallets: wallets.map(serializeWallet),
+    wallets: await serializeWalletsWithEquity(wallets),
     mainnetEnabled: isMainnetEnabled(),
   }
 }

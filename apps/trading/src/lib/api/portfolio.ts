@@ -36,7 +36,7 @@ const loadPortfolioFn = createServerFn({ method: "POST" })
     const wallets = await listUserWallets(user.id)
     const wallet = data.walletId
       ? (wallets.find((row) => row.id === data.walletId) ?? null)
-      : (wallets[0] ?? null)
+      : (wallets.find((row) => row.isActive) ?? wallets[0] ?? null)
     if (!wallet) {
       return {
         walletId: null,
