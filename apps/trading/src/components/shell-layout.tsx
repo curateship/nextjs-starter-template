@@ -229,6 +229,7 @@ function isFullBleedLocation(location: {
   return (
     location.pathname === "/trade" ||
     /^\/bots\/.+/.test(location.pathname) ||
+    /^\/automations\/.+/.test(location.pathname) ||
     (location.pathname === "/backtest" && Boolean(search.run || search.draft))
   )
 }

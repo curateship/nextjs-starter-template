@@ -20,7 +20,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { saveStrategy, type StrategyListItem } from "@/lib/api/strategies"
+import {
+  saveStrategy,
+  type SavedStrategyConfig,
+  type StrategyListItem,
+} from "@/lib/api/strategies"
 import {
   defaultStrategyConfig,
   strategyKindOf,
@@ -73,6 +77,10 @@ export function StrategyEditorDialog({
       setError("Give the strategy a name.")
       return
     }
+    if (config.kind === "automation") {
+      setError("Automations must be edited from the Automations canvas.")
+      return
+    }
     // Parse the kind's own branch for precise error messages (the union's
     // aggregated errors are unreadable).
     const parsed = strategyKindOf(config).configSchema.safeParse(config)
@@ -85,7 +93,7 @@ export function StrategyEditorDialog({
       const { strategy } = await saveStrategy({
         strategyId: target?.id,
         name: name.trim(),
-        config: parsed.data as StrategyConfig,
+        config: parsed.data as SavedStrategyConfig,
       })
       onOpenChange(false)
       onSaved(strategy)

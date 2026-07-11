@@ -3,6 +3,11 @@ import type { ChartMarker, ChartPriceLine } from "@/components/chart/price-chart
 import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { StrategySettings } from "@/lib/strategies/settings"
 
+type BotProtectionSettings = Pick<
+  StrategySettings,
+  "takeProfitPct" | "stopLossPct"
+>
+
 const GREEN = "#089981"
 const RED = "#f23645"
 
@@ -77,7 +82,7 @@ function pctOff(px: number, ref: number, above: boolean): string {
  * targets write back to settings.takeProfitPct / stopLossPct.
  */
 export function buildSignalBotOverlays(
-  settings: StrategySettings,
+  settings: BotProtectionSettings,
   state: BotMarketState | null
 ): { lines: ChartPriceLine[]; targets: Record<string, BotDragTarget> } {
   const lines: ChartPriceLine[] = []
@@ -134,7 +139,7 @@ export function buildSignalBotOverlays(
 
 /** Right-click menu for signal bots: add whichever of TP/SL isn't set. */
 export function buildSignalBotMenuItems(
-  settings: StrategySettings,
+  settings: BotProtectionSettings,
   state: BotMarketState | null,
   markPrice: number,
   price: number
@@ -165,4 +170,3 @@ export function buildSignalBotMenuItems(
   }
   return items
 }
-

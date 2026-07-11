@@ -13,7 +13,7 @@ import { assertNetworkEnabled } from "@/server/hyperliquid/transport"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import type { CandleInterval } from "./strategies/contract"
 
-const CANDLE_HISTORY = 600
+const CANDLE_HISTORY = 1400
 
 type Listener<T> = (data: T) => void
 

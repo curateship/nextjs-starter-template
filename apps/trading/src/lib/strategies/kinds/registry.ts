@@ -1,4 +1,5 @@
 import type { AnyStrategyKindModule } from "./contract"
+import { automationKind } from "./automation"
 import { dcaKind } from "./dca"
 import { signalKind } from "./signal"
 
@@ -12,6 +13,7 @@ import { signalKind } from "./signal"
  * (including legacy kind-less configs).
  */
 export const STRATEGY_KINDS: readonly AnyStrategyKindModule[] = [
+  automationKind,
   dcaKind,
   signalKind,
 ]

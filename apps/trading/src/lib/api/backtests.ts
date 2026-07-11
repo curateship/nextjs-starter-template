@@ -17,6 +17,7 @@ import {
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import {
+  automationStrategyConfigSchema,
   normalizeStrategyConfig,
   strategyConfigSchema,
   strategyTypeIdSchema,
@@ -86,6 +87,7 @@ export type BacktestListResponse = {
 export type BacktestDetail = {
   id: string
   groupId: string
+  automationId: string | null
   name: string
   market: string
   network: string
@@ -135,6 +137,8 @@ const runBacktestSchema = z
      * replaced in place, new markets are added as new rows.
      */
     groupId: z.string().min(1).optional(),
+    /** Automation source; its server-compiled config replaces client params. */
+    automationId: z.string().uuid().nullable().optional(),
     /** Main market — the workspace opens on this one's run. */
     market: z.string().min(1).max(20),
     /**
@@ -188,6 +192,79 @@ const runBacktestSchema = z
 
 const backtestIdSchema = z.object({ backtestId: z.string().min(1) })
 
+export type BacktestAutomationSourceInput = {
+  automationId?: string | null
+  groupId?: string
+  interval: BacktestInterval
+  params: StrategyConfig
+}
+
+/**
+ * Resolves Automation params at the trusted server boundary. Fresh runs must
+ * use an owned, currently valid Automation. An existing group may reuse its
+ * immutable snapshot after the editable source has been deleted.
+ */
+export async function resolveBacktestAutomationSource<
+  T extends BacktestAutomationSourceInput,
+>(
+  userId: string,
+  input: T
+): Promise<
+  Omit<T, "automationId" | "params"> & {
+    automationId: string | null
+    params: StrategyConfig
+  }
+> {
+  if (input.automationId) {
+    const { getUserAutomation } = await import("@/server/automations")
+    const source = await getUserAutomation(userId, input.automationId)
+    if (!source) throw new Error("Automation not found")
+    const compiled = automationStrategyConfigSchema.safeParse(
+      source.compiledConfig
+    )
+    if (!compiled.success) {
+      throw new Error("Fix this Automation before running a backtest.")
+    }
+    assertAutomationInterval(input.interval, compiled.data.interval)
+    return {
+      ...input,
+      automationId: source.id,
+      params: compiled.data,
+    }
+  }
+
+  if (input.params.kind !== "automation") {
+    return {
+      ...input,
+      automationId: input.automationId ?? null,
+      params: input.params,
+    }
+  }
+  if (!input.groupId) {
+    throw new Error("Select an Automation before running a backtest.")
+  }
+
+  const { getUserBacktest } = await import("@/server/backtests")
+  const anchor = await getUserBacktest(userId, input.groupId)
+  const snapshot = automationStrategyConfigSchema.safeParse(anchor?.params)
+  if (!anchor || !snapshot.success) throw new Error("Run not found.")
+  assertAutomationInterval(input.interval, snapshot.data.interval)
+  return {
+    ...input,
+    automationId: anchor.automationId,
+    params: snapshot.data,
+  }
+}
+
+function assertAutomationInterval(
+  requested: BacktestInterval,
+  configured: BacktestInterval
+) {
+  if (requested !== configured) {
+    throw new Error("Backtest timeframe must match the Automation timeframe.")
+  }
+}
+
 const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
@@ -201,11 +278,12 @@ const runBacktestFn = createServerFn({ method: "POST" })
     const { kickBacktestQueue } = await import("@/server/backtest/queue")
     requireAppOrigin()
     const user = await requireUser()
+    const resolvedData = await resolveBacktestAutomationSource(user.id, data)
 
     // Enqueue markets as `pending` and return immediately; the background queue
     // downloads history and runs the engine one market at a time so a big basket
     // can't hold the request open or flood the candle source.
-    const result = await enqueueRun(user.id, data, {
+    const result = await enqueueRun(user.id, resolvedData, {
       createUserBacktest,
       resetUserBacktest,
       listGroupRuns,
@@ -276,6 +354,7 @@ async function enqueueRun(
     const configChanged =
       !anchor ||
       stableStringify(data.params) !== stableStringify(anchor.params) ||
+      (data.automationId ?? null) !== anchor.automationId ||
       stableStringify(costs) !== stableStringify(anchor.costs) ||
       data.interval !== anchor.interval ||
       data.startingEquity !== Number(anchor.startingEquity)
@@ -369,6 +448,7 @@ function buildRunInput(args: {
   return {
     name,
     groupId,
+    automationId: data.automationId,
     market,
     network: "mainnet",
     interval: data.interval,
@@ -700,6 +780,7 @@ function serializeListItem(row: ListRow): BacktestListItem {
 type DetailRow = {
   id: string
   groupId: string
+  automationId: string | null
   name: string
   market: string
   network: string
@@ -721,6 +802,7 @@ function serializeDetail(row: DetailRow): BacktestDetail {
   return {
     id: row.id,
     groupId: row.groupId,
+    automationId: row.automationId,
     name: row.name,
     market: row.market,
     network: row.network,

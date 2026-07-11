@@ -1,6 +1,11 @@
 import * as React from "react"
 import { ClientOnly, useRouter } from "@tanstack/react-router"
-import { FlaskConicalIcon, Loader2Icon, SettingsIcon, XIcon } from "lucide-react"
+import {
+  FlaskConicalIcon,
+  Loader2Icon,
+  SettingsIcon,
+  XIcon,
+} from "lucide-react"
 
 import {
   formatFocusDays,
@@ -62,6 +67,7 @@ import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   isStrategyConfig,
   strategyConfigSchema,
+  type AutomationStrategyConfig,
   type SignalStrategyConfig,
 } from "@/lib/strategies/strategy-config"
 import { SettingsFields } from "@/components/strategies/settings-fields"
@@ -72,6 +78,8 @@ import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 
 type ParamValues = Record<string, string>
+const PROTECTIVE_KEYS = ["takeProfitPct", "stopLossPct"] as const
+const NO_PROTECTIVE_KEYS: readonly (typeof PROTECTIVE_KEYS)[number][] = []
 
 /**
  * Right-click menu on the bot chart: adds whichever TP/SL isn't set yet at
@@ -231,6 +239,30 @@ function SignalBotSettings({
   )
 }
 
+/** Automation rules stay fixed on the bot; protection is edited in its rail. */
+function AutomationBotSettings({
+  bot,
+  config,
+}: {
+  bot: BotDetailResponse["bot"]
+  config: AutomationStrategyConfig
+}) {
+  const source = bot.source_name ?? "Saved Automation"
+  return (
+    <div className="grid gap-4 p-4 text-sm">
+      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{source}</span> ·{" "}
+        {config.interval} · {config.rules.length} action{" "}
+        {config.rules.length === 1 ? "rule" : "rules"}
+      </div>
+      <p className="text-muted-foreground">
+        This bot keeps the Automation rules it copied at creation. Use the order
+        controls beside the chart to change take profit or stop loss.
+      </p>
+    </div>
+  )
+}
+
 /**
  * The bot workspace: backtest-style chart layout around a live bot. Left rail
  * shows the locked strategy parameters, the right rail edits SL/TP live, the
@@ -252,6 +284,19 @@ export function BotWorkspace({
   const network = (
     bot.network === "mainnet" ? "mainnet" : "testnet"
   ) as TradingNetwork
+
+  // Runnable bots carry a validated Strategy or Automation snapshot. Anything
+  // else is retired history and stays read-only.
+  const botConfig = React.useMemo(() => {
+    if (!isStrategyConfig(bot.params)) return null
+    return bot.params.kind === "signal" || bot.params.kind === "automation"
+      ? bot.params
+      : null
+  }, [bot.params])
+  const signalConfig = botConfig?.kind === "signal" ? botConfig : null
+  const automationConfig = botConfig?.kind === "automation" ? botConfig : null
+  const protection =
+    signalConfig?.settings ?? automationConfig?.protection ?? null
 
   const [selectedMarket, setSelectedMarket] = React.useState(
     bot.markets[0] ?? ""
@@ -279,7 +324,9 @@ export function BotWorkspace({
     marketRow && Number(marketRow.prevDayPx) > 0
       ? (Number(marketRow.markPx) / Number(marketRow.prevDayPx) - 1) * 100
       : null
-  const [interval, setInterval] = React.useState<CandleInterval>("15m")
+  const [interval, setInterval] = React.useState<CandleInterval>(
+    botConfig?.interval ?? "15m"
+  )
   const [marketsOpen, setMarketsOpen] = React.useState(true)
   const [controlsOpen, setControlsOpen] = React.useState(true)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -296,36 +343,23 @@ export function BotWorkspace({
     y: number
   } | null>(null)
   const chartApiRef = React.useRef<PriceChartHandle | null>(null)
-  const registerChartApi = React.useCallback(
-    (api: PriceChartHandle | null) => {
-      chartApiRef.current = api
-    },
-    []
-  )
-
-  // New-model bots carry a StrategyConfig snapshot instead of legacy params.
-  // Bots only run signal strategies, so anything else reads as archived.
-  const signalConfig = React.useMemo(
-    () =>
-      isStrategyConfig(bot.params) && bot.params.kind === "signal"
-        ? bot.params
-        : null,
-    [bot.params]
-  )
+  const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
+    chartApiRef.current = api
+  }, [])
 
   // The editable protective levels (TP/SL) as form strings. Archived legacy
   // bots are read-only, so they expose nothing here.
   const seed = React.useMemo<ParamValues>(() => {
     const out: ParamValues = {}
-    if (!signalConfig) return out
-    out.takeProfitPct = signalConfig.settings.takeProfitPct
-      ? String(signalConfig.settings.takeProfitPct)
+    if (!protection) return out
+    out.takeProfitPct = protection.takeProfitPct
+      ? String(protection.takeProfitPct)
       : ""
-    out.stopLossPct = signalConfig.settings.stopLossPct
-      ? String(signalConfig.settings.stopLossPct)
+    out.stopLossPct = protection.stopLossPct
+      ? String(protection.stopLossPct)
       : ""
     return out
-  }, [signalConfig])
+  }, [protection])
 
   // Display toggles for the strategy paint (shared with the trade terminal's
   // dialog). Only the toggles persist — strategy/params are re-derived from
@@ -333,7 +367,10 @@ export function BotWorkspace({
   // default seeds from the bot's real param so painted signals match trades.
   const [chartDisplay, setChartDisplay] = usePersistedState<ChartStrategyState>(
     "bot-chart-display",
-    { ...DEFAULT_CHART_STRATEGY, consolidationFilter: seed.consolidationFilter !== "false" },
+    {
+      ...DEFAULT_CHART_STRATEGY,
+      consolidationFilter: seed.consolidationFilter !== "false",
+    },
     (raw) => ({
       ...DEFAULT_CHART_STRATEGY,
       ...(JSON.parse(raw) as Partial<ChartStrategyState>),
@@ -357,7 +394,7 @@ export function BotWorkspace({
   // other param is read fresh from the bot at save time (see applyValues). So a
   // params change from elsewhere — the Settings sheet, or a status change that
   // bumps updated_at — can never be clobbered by a stale draft.
-  const protectiveKeys = signalConfig ? ["takeProfitPct", "stopLossPct"] : []
+  const protectiveKeys = botConfig ? PROTECTIVE_KEYS : NO_PROTECTIVE_KEYS
   const seedProtective = React.useMemo(() => {
     const values: ParamValues = {}
     for (const key of protectiveKeys) values[key] = seed[key] ?? ""
@@ -416,20 +453,29 @@ export function BotWorkspace({
    */
   async function applyValues(protective: ParamValues) {
     setSlTpError(null)
-    if (!signalConfig) return // archived legacy bots are read-only
+    if (!botConfig) return // archived legacy bots are read-only
 
     const num = (raw?: string) => {
       const value = Number(raw)
       return raw && value > 0 ? value : undefined
     }
-    const parsed = strategyConfigSchema.safeParse({
-      ...signalConfig,
-      settings: {
-        ...signalConfig.settings,
-        takeProfitPct: num(protective.takeProfitPct),
-        stopLossPct: num(protective.stopLossPct),
-      },
-    })
+    const takeProfitPct = num(protective.takeProfitPct)
+    const stopLossPct = num(protective.stopLossPct)
+    const nextConfig =
+      botConfig.kind === "signal"
+        ? {
+            ...botConfig,
+            settings: {
+              ...botConfig.settings,
+              takeProfitPct,
+              stopLossPct,
+            },
+          }
+        : {
+            ...botConfig,
+            protection: { takeProfitPct, stopLossPct },
+          }
+    const parsed = strategyConfigSchema.safeParse(nextConfig)
     if (!parsed.success) {
       setSlTpError(parsed.error.issues[0]?.message ?? "Invalid levels")
       return
@@ -459,10 +505,10 @@ export function BotWorkspace({
   // settings. Archived legacy bots draw no lines.
   const chart = React.useMemo(
     () =>
-      signalConfig
-        ? buildSignalBotOverlays(signalConfig.settings, state)
+      protection
+        ? buildSignalBotOverlays(protection, state)
         : { lines: [], targets: {} },
-    [signalConfig, state]
+    [protection, state]
   )
 
   /** Dropping a TP/SL line re-prices and saves immediately — no confirm. */
@@ -478,7 +524,7 @@ export function BotWorkspace({
 
   /** Right-click on the chart: add whichever protective levels aren't set. */
   function handleChartContextMenu(px: number, x: number, y: number) {
-    if (!(px > 0)) return
+    if (!protection || !(px > 0)) return
     setChartMenu({ price: px, x, y })
   }
 
@@ -549,13 +595,8 @@ export function BotWorkspace({
   const innerLayout = usePersistedLayout("bot-workspace-horizontal")
 
   const chartMenuItems =
-    chartMenu && signalConfig
-      ? buildSignalBotMenuItems(
-          signalConfig.settings,
-          state,
-          markPrice,
-          chartMenu.price
-        )
+    chartMenu && protection
+      ? buildSignalBotMenuItems(protection, state, markPrice, chartMenu.price)
       : []
 
   return (
@@ -627,7 +668,9 @@ export function BotWorkspace({
                     onIntervalChange={setInterval}
                     legend={{
                       chips: markers.length > 0,
-                      signals: Boolean(chartStrategy?.showSignals),
+                      signals: Boolean(
+                        automationConfig || chartStrategy?.showSignals
+                      ),
                     }}
                     ohlc={ohlc}
                   >
@@ -635,10 +678,10 @@ export function BotWorkspace({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-xs"
-                      disabled={!signalConfig}
+                      disabled={!botConfig}
                       title={
-                        signalConfig
-                          ? "Replay this bot's strategy over recent history"
+                        botConfig
+                          ? "Replay this bot's setup over recent history"
                           : "Archived legacy bots can't be quick-tested"
                       }
                       onClick={() => setQuickTestOpen(true)}
@@ -652,9 +695,11 @@ export function BotWorkspace({
                       className="size-6 text-muted-foreground"
                       aria-label="Strategy display settings"
                       title={
-                        chartStrategy
-                          ? "Strategy display settings"
-                          : "This strategy has no chart decorations — its levels are the live order lines"
+                        automationConfig
+                          ? "Automation paint combines its connected indicators"
+                          : chartStrategy
+                            ? "Strategy display settings"
+                            : "This strategy has no chart decorations — its levels are the live order lines"
                       }
                       disabled={!chartStrategy}
                       onClick={() => setChartDisplayOpen(true)}
@@ -670,6 +715,7 @@ export function BotWorkspace({
                       priceLines={chart.lines}
                       markers={markers}
                       chartStrategy={chartStrategy}
+                      strategyConfig={automationConfig}
                       focusPoints={focusPoints}
                       focusResult={focusResult}
                       onCrosshairOhlc={setOhlc}
@@ -731,7 +777,8 @@ export function BotWorkspace({
         onOpenChange={setQuickTestOpen}
         network={network}
         market={selectedMarket}
-        config={signalConfig}
+        config={botConfig}
+        automationId={bot.automation_id ?? undefined}
         onSaved={(backtestId) =>
           void router.navigate({ to: "/backtest", search: { run: backtestId } })
         }
@@ -759,9 +806,7 @@ export function BotWorkspace({
           aria-describedby={undefined}
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <SheetTitle className="text-sm">
-              Edit bot
-            </SheetTitle>
+            <SheetTitle className="text-sm">Edit bot</SheetTitle>
             <SheetClose asChild>
               <Button
                 variant="ghost"
@@ -784,17 +829,18 @@ export function BotWorkspace({
                   notify(message, tone)
                 }}
               />
+            ) : automationConfig ? (
+              <AutomationBotSettings bot={bot} config={automationConfig} />
             ) : (
               <div className="p-4 text-sm text-muted-foreground">
                 This bot uses a retired strategy and is archived — its history
-                stays readable, but nothing can be edited. Create a new bot
-                from a saved strategy instead.
+                stays readable, but nothing can be edited. Create a new bot from
+                a saved strategy instead.
               </div>
             )}
           </div>
         </SheetContent>
       </Sheet>
-
     </div>
   )
 }

@@ -16,7 +16,7 @@ import {
 } from "@/lib/indicators/registry"
 import {
   defaultStrategyConfig,
-  STRATEGY_TYPE_IDS,
+  STRATEGY_EDITOR_TYPE_IDS,
   strategyKindOf,
   strategyTypeDescription,
   strategyTypeLabel,
@@ -162,7 +162,7 @@ export function StrategyConfigFields({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STRATEGY_TYPE_IDS.map((id) => (
+              {STRATEGY_EDITOR_TYPE_IDS.map((id) => (
                 <SelectItem key={id} value={id}>
                   {strategyTypeLabel(id)}
                 </SelectItem>

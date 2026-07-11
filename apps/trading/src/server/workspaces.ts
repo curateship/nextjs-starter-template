@@ -374,6 +374,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-automations",
+          label: "Automations",
+          href: "/automations",
+          icon: "workflow",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-backtest",
           label: "Backtest",
           href: "/backtest",

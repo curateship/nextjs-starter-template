@@ -18,12 +18,14 @@ import {
   EMPTY_STRATEGY_OVERLAYS,
   type ChartStrategyState,
 } from "@/components/chart/chart-strategy"
+import { configOverlays } from "@/components/chart/indicator-overlays"
 import type { StrategyChartOverlays } from "@/components/backtest/backtest-overlays"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
 import { loadOlderHlCandles } from "@/lib/api/hl-candles"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
+import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import {
   bollinger,
   ema,
@@ -1500,6 +1502,7 @@ export function PriceChart({
   markers = [],
   indicators = [],
   chartStrategy,
+  strategyConfig,
   overrideOverlays,
   focusPoints,
   focusResult,
@@ -1518,6 +1521,8 @@ export function PriceChart({
   indicators?: IndicatorConfig[]
   /** When set, paints the selected strategy's signals/overlays over the chart. */
   chartStrategy?: ChartStrategyState | null
+  /** Full saved config paint, including merged Automation indicators/actions. */
+  strategyConfig?: StrategyConfig | null
   /**
    * When set, replaces the live-painted strategy overlays entirely — used by
    * Quick Test so the chart shows exactly what the test computed.
@@ -1617,10 +1622,12 @@ export function PriceChart({
   const strategy = React.useMemo(
     () =>
       overrideOverlays ??
-      (chartStrategy
-        ? buildChartStrategyOverlays(candles, chartStrategy)
-        : EMPTY_STRATEGY_OVERLAYS),
-    [candles, chartStrategy, overrideOverlays]
+      (strategyConfig
+        ? configOverlays(strategyConfig, candles)
+        : chartStrategy
+          ? buildChartStrategyOverlays(candles, chartStrategy)
+          : EMPTY_STRATEGY_OVERLAYS),
+    [candles, chartStrategy, strategyConfig, overrideOverlays]
   )
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto

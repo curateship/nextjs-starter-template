@@ -14,6 +14,8 @@ export type CreateBacktestInput = {
   name: string
   /** Market-group lineage; omitted for the first row (group = its own id). */
   groupId?: string
+  /** Editable Automation that produced this immutable params snapshot. */
+  automationId?: string | null
   market: string
   network: TradingNetwork
   interval: string
@@ -30,6 +32,7 @@ function backtestConfigValues(input: CreateBacktestInput) {
   return {
     name: input.name.slice(0, 255),
     strategyType: input.params.kind,
+    automationId: input.automationId ?? null,
     market: input.market,
     network: input.network,
     interval: input.interval,

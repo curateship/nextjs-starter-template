@@ -1,6 +1,10 @@
 import { z } from "zod"
 
 import type { IndicatorId } from "@/lib/indicators/registry"
+import {
+  automationStrategyConfigSchema,
+  type AutomationStrategyConfig,
+} from "@/lib/automations/automation"
 import type { AnyStrategyKindModule } from "./kinds/contract"
 import {
   dcaStrategyConfigSchema,
@@ -17,8 +21,10 @@ import {
 } from "./kinds/signal"
 
 export {
+  automationStrategyConfigSchema,
   dcaStrategyConfigSchema,
   signalStrategyConfigSchema,
+  type AutomationStrategyConfig,
   type DcaStrategyConfig,
   type SignalStrategyConfig,
 }
@@ -32,11 +38,15 @@ export {
  * parses everywhere the moment its card is registered. This manual type
  * union is the one line a new kind adds here.
  */
-export type StrategyConfig = SignalStrategyConfig | DcaStrategyConfig
+export type StrategyConfig =
+  | SignalStrategyConfig
+  | DcaStrategyConfig
+  | AutomationStrategyConfig
 
 type StrategyConfigInput =
   | z.input<typeof signalStrategyConfigSchema>
   | z.input<typeof dcaStrategyConfigSchema>
+  | z.input<typeof automationStrategyConfigSchema>
 
 export const strategyConfigSchema = z.union(
   STRATEGY_KINDS.map((kind) => kind.configSchema)
@@ -76,11 +86,16 @@ export function normalizeStrategyConfig(params: unknown): StrategyConfig | null 
  * indicator (registry id), single-engine kinds by their kind id. Drives the
  * backtest overview rows and the /backtest/$strategyType routes.
  */
-export type StrategyTypeId = IndicatorId | "dca"
+export type StrategyTypeId = IndicatorId | "dca" | "automation"
 
 export const STRATEGY_TYPE_IDS = STRATEGY_KINDS.flatMap((kind) =>
   kind.typeIds()
 ) as readonly StrategyTypeId[]
+
+/** Types the normal Strategies editor may create; Automations use a canvas. */
+export const STRATEGY_EDITOR_TYPE_IDS = STRATEGY_KINDS.filter(
+  (kind) => kind.availableInStrategyEditor !== false
+).flatMap((kind) => kind.typeIds()) as readonly StrategyTypeId[]
 
 export const strategyTypeIdSchema = z.enum(
   STRATEGY_TYPE_IDS as [StrategyTypeId, ...StrategyTypeId[]]
