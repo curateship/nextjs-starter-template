@@ -174,6 +174,27 @@ describe("upsertUserIndicator", () => {
     expect(ema?.params).toEqual({ period: 25 })
   })
 
+  it("rejects invalid Price Action settings", async () => {
+    const userId = await createTestUser()
+    const invalidParams: Record<string, number>[] = [
+      { bullHammer: 2 },
+      { wickBodyRatio: 0 },
+      { extremeLookback: 0 },
+      { sweepLookback: 1.5 },
+      { swingLookback: 1.5 },
+    ]
+    for (const params of invalidParams) {
+      await expect(
+        upsertUserIndicator(userId, {
+          id: "price-action",
+          enabled: true,
+          pinned: false,
+          params,
+        })
+      ).rejects.toThrow("Invalid Price Action parameter")
+    }
+  })
+
   it("keeps users isolated from each other", async () => {
     const userA = await createTestUser()
     const userB = await createTestUser()
