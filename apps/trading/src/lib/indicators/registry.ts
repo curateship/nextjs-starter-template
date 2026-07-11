@@ -5,7 +5,6 @@ import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
 import { emaCrossIndicator } from "./defs/ema-cross"
 import { macdCrossIndicator } from "./defs/macd-cross"
-import { qflBaseIndicator } from "./defs/qfl-base"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
 import { vwapCrossIndicator } from "./defs/vwap-cross"
@@ -18,7 +17,6 @@ export const INDICATOR_IDS = [
   "vwap_cross",
   "breakout",
   "bollinger",
-  "qfl_base",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -41,7 +39,6 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   vwap_cross: erase(vwapCrossIndicator),
   breakout: erase(breakoutIndicator),
   bollinger: erase(bollingerIndicator),
-  qfl_base: erase(qflBaseIndicator),
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps
