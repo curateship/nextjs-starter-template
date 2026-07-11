@@ -104,12 +104,20 @@ import { cn } from "@/lib/utils"
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
-// Bottom-panel tabs share the backtest workspace's underline styling: a light
-// gray bar with active tabs marked by an underline instead of a filled box.
+// Bottom-panel tabs share the backtest workspace's underline styling: active
+// tabs are marked by an underline instead of a filled box.
 const BOTTOM_TABS_LIST =
-  "h-auto w-full justify-start gap-4 rounded-none border-none bg-muted/50 px-4 py-0"
+  "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
 const BOTTOM_TAB_TRIGGER =
   "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
+
+// Floating-panel look: every terminal region is a white rounded card on the
+// muted page canvas, separated by invisible resize handles. Per Tyler's call,
+// the terminal uses HALF the site gap (8px / 12px) so the dense layout keeps
+// its screen space — documented as an exception in workspace/docs/ui-ux.md.
+const PANEL_CARD = "h-full min-h-0 overflow-hidden rounded-xl border bg-card"
+const GAP_HANDLE =
+  "w-2 bg-transparent after:hidden sm:w-3 aria-[orientation=horizontal]:h-2 sm:aria-[orientation=horizontal]:h-3"
 
 export function TradingWorkspace({
   network,
@@ -442,7 +450,7 @@ export function TradingWorkspace({
         : null
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/40">
       <AccountStrip
         options={options}
         selectedValue={selectedValue}
@@ -464,162 +472,187 @@ export function TradingWorkspace({
         </div>
       ) : null}
 
-      <ResizablePanelGroup
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        defaultLayout={outerLayout.defaultLayout}
-        onLayoutChanged={outerLayout.onLayoutChanged}
-      >
-        <ResizablePanel id="main" defaultSize="72%" minSize="30%">
-          <ResizablePanelGroup
-            orientation="horizontal"
-            defaultLayout={innerLayout.defaultLayout}
-            onLayoutChanged={innerLayout.onLayoutChanged}
-          >
-            <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
-              <MarketWatchlist
-                network={network}
-                selected={market}
-                onSelect={onMarketChange}
-              />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
-              <div className="flex h-full min-h-0 flex-col">
-                <ChartToolbar
-                  intervals={CANDLE_INTERVALS}
-                  interval={interval}
-                  onIntervalChange={setInterval}
-                  legend={{
-                    signals: Boolean(
-                      chartStrategy.indicator && chartStrategy.showSignals
-                    ),
-                  }}
-                  leading={
-                    <span className="text-sm font-semibold">{market}</span>
-                  }
-                  afterIntervals={
-                    <IndicatorsMenu
-                      indicators={pinnedIndicators}
-                      onUpdate={updateIndicator}
-                    />
-                  }
-                >
-                  <StrategyToolbar
-                    state={chartStrategy}
-                    onChange={setChartStrategy}
-                    onOpenSettings={() => setStrategySettingsOpen(true)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    disabled={!chartStrategy.indicator}
-                    title={
-                      chartStrategy.indicator
-                        ? "Replay this strategy over recent history"
-                        : "Pick a strategy first"
-                    }
-                    onClick={() => setQuickTestOpen(true)}
-                  >
-                    <FlaskConicalIcon className="size-3.5" />
-                    Test
-                  </Button>
-                </ChartToolbar>
-                <div className="min-h-0 flex-1">
-                  <PriceChart
+      <div className="min-h-0 flex-1 p-1.5 sm:p-2 md:p-3">
+        <ResizablePanelGroup
+          orientation="vertical"
+          defaultLayout={outerLayout.defaultLayout}
+          onLayoutChanged={outerLayout.onLayoutChanged}
+        >
+          <ResizablePanel id="main" defaultSize="72%" minSize="30%">
+            <ResizablePanelGroup
+              orientation="horizontal"
+              defaultLayout={innerLayout.defaultLayout}
+              onLayoutChanged={innerLayout.onLayoutChanged}
+            >
+              <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
+                <div className={PANEL_CARD}>
+                  <MarketWatchlist
                     network={network}
-                    coin={market}
-                    interval={interval}
-                    priceLines={priceLines}
-                    markers={quickMarkers}
-                    indicators={pinnedIndicators}
-                    chartStrategy={
-                      chartStrategy.indicator ? chartStrategy : null
-                    }
-                    overrideOverlays={quickOverlays}
-                    onLineDragEnd={handleLineDragEnd}
-                    onChartContextMenu={handleChartContextMenu}
-                    registerApi={registerChartApi}
+                    selected={market}
+                    onSelect={onMarketChange}
                   />
                 </div>
-              </div>
-            </ResizablePanel>
-            {panels.orderBook || panels.marketDepth ? (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel id="book-tape" defaultSize="18%" minSize="12%">
-                  <ResizablePanelGroup
-                    orientation="vertical"
-                    defaultLayout={rightLayout.defaultLayout}
-                    onLayoutChanged={rightLayout.onLayoutChanged}
+              </ResizablePanel>
+              <ResizableHandle className={GAP_HANDLE} />
+              <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
+                <div className={cn(PANEL_CARD, "flex flex-col")}>
+                  <ChartToolbar
+                    intervals={CANDLE_INTERVALS}
+                    interval={interval}
+                    onIntervalChange={setInterval}
+                    legend={{
+                      signals: Boolean(
+                        chartStrategy.indicator && chartStrategy.showSignals
+                      ),
+                    }}
+                    leading={
+                      <span className="text-sm font-semibold">{market}</span>
+                    }
+                    afterIntervals={
+                      <IndicatorsMenu
+                        indicators={pinnedIndicators}
+                        onUpdate={updateIndicator}
+                      />
+                    }
                   >
-                    {panels.orderBook ? (
-                      <ResizablePanel id="book" defaultSize="60%" minSize="20%">
-                        <OrderBook
-                          network={network}
-                          coin={market}
-                          onPriceClick={(px) => setPrefill({ px })}
-                        />
-                      </ResizablePanel>
-                    ) : null}
-                    {panels.orderBook && panels.marketDepth ? (
-                      <ResizableHandle withHandle />
-                    ) : null}
-                    {panels.marketDepth ? (
-                      <ResizablePanel id="tape" defaultSize="40%" minSize="15%">
-                        <TradesTape network={network} coin={market} />
-                      </ResizablePanel>
-                    ) : null}
-                  </ResizablePanelGroup>
-                </ResizablePanel>
-              </>
-            ) : null}
-            <ResizableHandle withHandle />
-            <ResizablePanel id="ticket" defaultSize="18%" minSize="14%">
-              <ScrollArea className="h-full">
-                <OrderTicket
+                    <StrategyToolbar
+                      state={chartStrategy}
+                      onChange={setChartStrategy}
+                      onOpenSettings={() => setStrategySettingsOpen(true)}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      disabled={!chartStrategy.indicator}
+                      title={
+                        chartStrategy.indicator
+                          ? "Replay this strategy over recent history"
+                          : "Pick a strategy first"
+                      }
+                      onClick={() => setQuickTestOpen(true)}
+                    >
+                      <FlaskConicalIcon className="size-3.5" />
+                      Test
+                    </Button>
+                  </ChartToolbar>
+                  <div className="min-h-0 flex-1">
+                    <PriceChart
+                      network={network}
+                      coin={market}
+                      interval={interval}
+                      priceLines={priceLines}
+                      markers={quickMarkers}
+                      indicators={pinnedIndicators}
+                      chartStrategy={
+                        chartStrategy.indicator ? chartStrategy : null
+                      }
+                      overrideOverlays={quickOverlays}
+                      onLineDragEnd={handleLineDragEnd}
+                      onChartContextMenu={handleChartContextMenu}
+                      registerApi={registerChartApi}
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
+              {panels.orderBook || panels.marketDepth ? (
+                <>
+                  <ResizableHandle className={GAP_HANDLE} />
+                  <ResizablePanel
+                    id="book-tape"
+                    defaultSize="16%"
+                    minSize="12%"
+                  >
+                    <ResizablePanelGroup
+                      orientation="vertical"
+                      defaultLayout={rightLayout.defaultLayout}
+                      onLayoutChanged={rightLayout.onLayoutChanged}
+                    >
+                      {panels.orderBook ? (
+                        <ResizablePanel
+                          id="book"
+                          defaultSize="60%"
+                          minSize="20%"
+                        >
+                          <div className={PANEL_CARD}>
+                            <OrderBook
+                              network={network}
+                              coin={market}
+                              onPriceClick={(px) => setPrefill({ px })}
+                            />
+                          </div>
+                        </ResizablePanel>
+                      ) : null}
+                      {panels.orderBook && panels.marketDepth ? (
+                        <ResizableHandle className={GAP_HANDLE} />
+                      ) : null}
+                      {panels.marketDepth ? (
+                        <ResizablePanel
+                          id="tape"
+                          defaultSize="40%"
+                          minSize="15%"
+                        >
+                          <div className={PANEL_CARD}>
+                            <TradesTape network={network} coin={market} />
+                          </div>
+                        </ResizablePanel>
+                      ) : null}
+                    </ResizablePanelGroup>
+                  </ResizablePanel>
+                </>
+              ) : null}
+              <ResizableHandle className={GAP_HANDLE} />
+              <ResizablePanel id="ticket" defaultSize="20%" minSize="14%">
+                <div className={cn(PANEL_CARD, "flex flex-col")}>
+                  <ScrollArea className="min-h-0 flex-1">
+                    <OrderTicket
+                      walletId={
+                        selectedWallet?.is_active
+                          ? (selectedWallet?.id ?? null)
+                          : null
+                      }
+                      paperWalletId={paperWalletId}
+                      market={market}
+                      marketRow={marketRow}
+                      markPx={markPx}
+                      equity={equity}
+                      positionSzi={positionSzi}
+                      prefill={prefill}
+                      disabledReason={ticketDisabledReason}
+                    />
+                  </ScrollArea>
+                  <AccountSummaryPanel
+                    summary={summary}
+                    isPaper={isPaper}
+                    workerOnline={workerOnline}
+                  />
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ResizablePanel>
+          <ResizableHandle className={GAP_HANDLE} />
+          <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
+            <div className={PANEL_CARD}>
+              {isPaper ? (
+                <PaperBottomTabs account={paperAccount} onNotify={notify} />
+              ) : (
+                <SandboxBottomTabs
+                  network={network}
+                  webData={webData}
                   walletId={
                     selectedWallet?.is_active
                       ? (selectedWallet?.id ?? null)
                       : null
                   }
-                  paperWalletId={paperWalletId}
-                  market={market}
-                  marketRow={marketRow}
-                  markPx={markPx}
-                  equity={equity}
-                  positionSzi={positionSzi}
-                  prefill={prefill}
-                  disabledReason={ticketDisabledReason}
+                  accountAddress={accountAddress}
+                  mids={mids}
+                  onNotify={notify}
                 />
-                <AccountSummaryPanel
-                  summary={summary}
-                  isPaper={isPaper}
-                  workerOnline={workerOnline}
-                />
-              </ScrollArea>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
-          {isPaper ? (
-            <PaperBottomTabs account={paperAccount} onNotify={notify} />
-          ) : (
-            <SandboxBottomTabs
-              network={network}
-              webData={webData}
-              walletId={
-                selectedWallet?.is_active ? (selectedWallet?.id ?? null) : null
-              }
-              accountAddress={accountAddress}
-              mids={mids}
-              onNotify={notify}
-            />
-          )}
-        </ResizablePanel>
-      </ResizablePanelGroup>
+              )}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
 
       <ChartOrderMenu
         menu={chartMenu}
@@ -929,36 +962,38 @@ function MarketInfoBar({
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-base font-bold">{marketRow.coin}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-[15px] font-bold">{marketRow.coin}-PERP</span>
         <span className="text-[10px] text-muted-foreground">
-          Perp · {marketRow.maxLeverage}x
+          {marketRow.maxLeverage}x
         </span>
       </div>
-      <div className="flex flex-col leading-tight">
-        <span className={cn("font-mono text-sm font-semibold tabular-nums", tone)}>
+      <div className="flex items-baseline gap-2">
+        <span className={cn("font-mono text-lg font-semibold tabular-nums", tone)}>
           {price > 0 ? formatPriceDisplay(String(price)) : "—"}
         </span>
-        <span className={cn("font-mono text-[10px] tabular-nums", tone)}>
+        <span className={cn("font-mono text-[11px] tabular-nums", tone)}>
           {change >= 0 ? "+" : ""}
           {change.toFixed(2)}%
         </span>
       </div>
-      <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
-      <MarketStat label="Index" value={formatPriceDisplay(marketRow.oraclePx)} />
-      <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />
-      <MarketStat label="24h Vol" value={formatCompactUsd(Number(marketRow.dayNtlVlm))} />
-      <MarketStat label="Open Interest" value={formatCompactUsd(openInterestUsd)} />
+      <div className="hidden items-center gap-x-4 text-[11px] text-muted-foreground lg:flex">
+        <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
+        <MarketStat label="Index" value={formatPriceDisplay(marketRow.oraclePx)} />
+        <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />
+        <MarketStat label="24h Vol" value={formatCompactUsd(Number(marketRow.dayNtlVlm))} />
+        <MarketStat label="OI" value={formatCompactUsd(openInterestUsd)} />
+      </div>
     </div>
   )
 }
 
 function MarketStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col leading-tight">
-      <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
-      <span className="font-mono text-xs tabular-nums">{value}</span>
-    </div>
+    <span className="whitespace-nowrap">
+      {label}{" "}
+      <span className="font-mono text-foreground tabular-nums">{value}</span>
+    </span>
   )
 }
 

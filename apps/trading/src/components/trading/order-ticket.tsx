@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -218,54 +217,43 @@ export function OrderTicket({
   }
 
   return (
-    <ScrollArea className="h-full">
+    <div>
       <div className="flex flex-col gap-3 p-3 text-xs">
-        <div className="grid grid-cols-2 gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant={state.side === "buy" ? "default" : "outline"}
-            className={cn(
-              state.side === "buy" &&
-                "bg-emerald-600 text-white hover:bg-emerald-700"
-            )}
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <SegmentButton
+            active={state.side === "buy"}
             onClick={() => setState({ ...state, side: "buy" })}
           >
-            Buy / Long
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={state.side === "sell" ? "default" : "outline"}
-            className={cn(
-              state.side === "sell" && "bg-red-600 text-white hover:bg-red-700"
-            )}
+            Long
+          </SegmentButton>
+          <SegmentButton
+            active={state.side === "sell"}
             onClick={() => setState({ ...state, side: "sell" })}
           >
-            Sell / Short
-          </Button>
+            Short
+          </SegmentButton>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="grid gap-1">
+        <div className="flex gap-2">
+          <div className="grid flex-1 gap-1">
             <Label className="text-[11px]">Type</Label>
-            <Select
-              value={state.orderType}
-              onValueChange={(value) =>
-                setState({ ...state, orderType: value as "market" | "limit" })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="limit">Limit</SelectItem>
-                <SelectItem value="market">Market</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-1 rounded-lg bg-muted p-1">
+              <SegmentButton
+                active={state.orderType === "limit"}
+                onClick={() => setState({ ...state, orderType: "limit" })}
+              >
+                Limit
+              </SegmentButton>
+              <SegmentButton
+                active={state.orderType === "market"}
+                onClick={() => setState({ ...state, orderType: "market" })}
+              >
+                Market
+              </SegmentButton>
+            </div>
           </div>
-          <div className="grid gap-1">
-            <Label className="text-[11px]">Time in force</Label>
+          <div className="grid w-24 gap-1">
+            <Label className="text-[11px]">TIF</Label>
             <Select
               value={state.tif}
               disabled={state.orderType === "market"}
@@ -273,7 +261,7 @@ export function OrderTicket({
                 setState({ ...state, tif: value as TicketState["tif"] })
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full rounded-lg border-none bg-muted shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -287,33 +275,53 @@ export function OrderTicket({
 
         {state.orderType === "limit" ? (
           <div className="grid gap-1">
-            <Label htmlFor="ticket-px" className="text-[11px]">
-              Limit price
-            </Label>
-            <Input
-              id="ticket-px"
-              value={state.px}
-              placeholder={markPx ? String(markPx) : "0.0"}
-              inputMode="decimal"
-              className="h-8 font-mono"
-              onChange={(event) =>
-                setState({ ...state, px: event.target.value.trim() })
-              }
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="ticket-px" className="text-[11px]">
+                Limit price
+              </Label>
+              <button
+                type="button"
+                className="text-[11px] font-semibold hover:underline"
+                disabled={!markPx}
+                onClick={() =>
+                  setState({ ...state, px: markPx ? String(markPx) : "" })
+                }
+              >
+                Mid
+              </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg bg-muted px-3">
+              <Input
+                id="ticket-px"
+                value={state.px}
+                placeholder={markPx ? String(markPx) : "0.0"}
+                inputMode="decimal"
+                className="h-9 flex-1 border-none bg-transparent p-0 font-mono shadow-none focus-visible:ring-0"
+                onChange={(event) =>
+                  setState({ ...state, px: event.target.value.trim() })
+                }
+              />
+              <span className="text-[11px] text-muted-foreground">USD</span>
+            </div>
           </div>
         ) : null}
 
         <div className="grid gap-1">
-          <Label htmlFor="ticket-sz" className="text-[11px]">
-            Size
-          </Label>
-          <div className="flex gap-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="ticket-sz" className="text-[11px]">
+              Size
+            </Label>
+            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+              Avail. {formatUsd(equity)}
+            </span>
+          </div>
+          <div className="flex items-center rounded-lg bg-muted pl-3">
             <Input
               id="ticket-sz"
               value={state.szInput}
               placeholder="0"
               inputMode="decimal"
-              className="h-8 flex-1 font-mono"
+              className="h-9 flex-1 border-none bg-transparent p-0 font-mono shadow-none focus-visible:ring-0"
               onChange={(event) =>
                 setState({ ...state, szInput: event.target.value.trim() })
               }
@@ -324,7 +332,7 @@ export function OrderTicket({
                 setState({ ...state, szUnit: value as SizeUnit })
               }
             >
-              <SelectTrigger className="w-24">
+              <SelectTrigger className="w-fit border-none bg-transparent text-[11px] shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -333,6 +341,20 @@ export function OrderTicket({
                 <SelectItem value="pct">% equity</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="mt-0.5 flex gap-1.5">
+            {[10, 25, 50, 100].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                className="flex-1 rounded-md bg-muted py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() =>
+                  setState({ ...state, szUnit: "pct", szInput: String(pct) })
+                }
+              >
+                {pct}%
+              </button>
+            ))}
           </div>
           {szCoin > 0 ? (
             <span className="text-[11px] text-muted-foreground">
@@ -364,7 +386,7 @@ export function OrderTicket({
                 setState({ ...state, isCross: value === "cross" })
               }
             >
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1 rounded-lg border-none bg-muted shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -401,7 +423,7 @@ export function OrderTicket({
           </Label>
         </div>
 
-        <div className="grid gap-1 rounded-md border bg-muted/30 p-2 font-mono text-[11px] tabular-nums">
+        <div className="grid gap-1.5 rounded-lg bg-muted p-3 font-mono text-[11px] tabular-nums">
           <PreviewRow label="Order value" value={`$${preview.notionalUsd.toFixed(2)}`} />
           <PreviewRow
             label="Margin required"
@@ -410,6 +432,7 @@ export function OrderTicket({
           <PreviewRow label="Est. fee" value={`$${preview.estFeeUsd.toFixed(3)}`} />
           <PreviewRow
             label="Est. liq. price"
+            tone="danger"
             value={
               preview.estLiquidationPx
                 ? preview.estLiquidationPx.toFixed(2)
@@ -421,16 +444,11 @@ export function OrderTicket({
         <Button
           type="button"
           disabled={submitDisabled}
-          className={cn(
-            "w-full",
-            state.side === "buy"
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-              : "bg-red-600 text-white hover:bg-red-700"
-          )}
+          className="w-full rounded-lg font-semibold"
           onClick={() => setConfirming(true)}
         >
           {disabledReason ??
-            `${state.side === "buy" ? "Buy" : "Sell"} ${market}`}
+            `${state.side === "buy" ? "Long" : "Short"} ${market}-PERP`}
         </Button>
 
         {status ? (
@@ -460,8 +478,42 @@ export function OrderTicket({
         onOpenChange={setConfirming}
         onConfirm={() => void submit()}
       />
-    </ScrollArea>
+    </div>
   )
+}
+
+/** Monochrome segmented-control button (Long/Short, Limit/Market). */
+function SegmentButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function formatUsd(value: number): string {
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  })
 }
 
 function ConfirmOrderDialog({
@@ -494,7 +546,7 @@ function ConfirmOrderDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>
-            Confirm {state.side === "buy" ? "Buy" : "Sell"} {market}
+            Confirm {state.side === "buy" ? "Long" : "Short"} {market}
           </DialogTitle>
           <DialogDescription>
             Review the order before it is signed and sent to Hyperliquid.
@@ -504,15 +556,7 @@ function ConfirmOrderDialog({
           <SummaryRow label="Market" value={`${market}-PERP`} />
           <SummaryRow
             label="Side"
-            value={
-              <Badge
-                className={
-                  state.side === "buy" ? "bg-emerald-600" : "bg-red-600"
-                }
-              >
-                {state.side === "buy" ? "Buy / Long" : "Sell / Short"}
-              </Badge>
-            }
+            value={<Badge>{state.side === "buy" ? "Long" : "Short"}</Badge>}
           />
           <SummaryRow
             label="Type"
@@ -559,16 +603,7 @@ function ConfirmOrderDialog({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              disabled={busy}
-              className={
-                state.side === "buy"
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-red-600 text-white hover:bg-red-700"
-              }
-              onClick={onConfirm}
-            >
+            <Button type="button" disabled={busy} onClick={onConfirm}>
               {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
               {busy ? "Submitting..." : "Confirm order"}
             </Button>
@@ -579,11 +614,21 @@ function ConfirmOrderDialog({
   )
 }
 
-function PreviewRow({ label, value }: { label: string; value: string }) {
+function PreviewRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone?: "danger"
+}) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <span>{value}</span>
+      <span className={cn(tone === "danger" && value !== "—" && "text-red-500")}>
+        {value}
+      </span>
     </div>
   )
 }
