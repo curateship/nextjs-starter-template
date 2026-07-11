@@ -73,27 +73,27 @@ export function MarketWatchlist({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-col gap-2 border-b p-2">
+      <div className="flex flex-col gap-2 p-3 pb-2">
         <div className="relative">
-          <SearchIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             placeholder="Search markets"
-            className="h-8 pl-7 text-xs"
+            className="h-9 rounded-lg border-none bg-muted pl-8 text-xs shadow-none"
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
+        <div className="flex gap-1.5">
           {TABS.map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => setTab(item.value)}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium transition-colors",
+                "flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors",
                 tab === item.value
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               {item.value === "fav" ? (
@@ -115,14 +115,14 @@ export function MarketWatchlist({
         />
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div>
+        <div className="px-2 py-1">
           {visible.map(({ row, change }) => {
             const isFavorite = favorites.has(row.coin)
             return (
               <div
                 key={row.coin}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 hover:bg-muted/50",
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/70",
                   selected === row.coin && "bg-muted"
                 )}
               >
@@ -150,14 +150,16 @@ export function MarketWatchlist({
                     <span className="truncate text-sm font-semibold leading-tight">
                       {row.coin}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
                       {formatCompactUsd(Number(row.dayNtlVlm))}
                     </span>
                   </span>
                   <span
                     className={cn(
-                      "font-mono text-sm tabular-nums",
-                      change >= 0 ? "text-emerald-600" : "text-red-500"
+                      "rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums",
+                      change >= 0
+                        ? "bg-emerald-500/10 text-emerald-600"
+                        : "bg-red-500/10 text-red-500"
                     )}
                   >
                     {change >= 0 ? "+" : ""}

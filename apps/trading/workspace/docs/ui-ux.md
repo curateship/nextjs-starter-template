@@ -7,6 +7,7 @@ Read before building or changing any page. One rule above all: **reuse the exist
 - The site gap is defined once, in `DashboardContent` (`src/components/ui/dashboard-content.tsx`): `p-3 space-y-4 sm:p-4 sm:space-y-6 md:p-6` → **24px on desktop**.
 - Every layout gap (between columns, cards, sections) must match it: `gap-4 sm:gap-6` / `space-y-4 sm:space-y-6`.
 - Never invent other layout gaps (`gap-3`, `gap-8`, ad-hoc margins) and never add a padding wrapper around a page — `DashboardContent` already provides the gutter.
+- **Exception (Tyler's call, July 2026): the full-screen Trade terminal uses HALF the site gap** — 8px/12px (`w-2 sm:w-3` gap handles, `p-1.5 sm:p-2 md:p-3` page padding) — so the dense floating-panel layout keeps its screen space. This applies only to the trade terminal's panel grid, not to regular dashboards.
 - Small gaps inside a card (`gap-1`/`gap-2` between label and value) are fine.
 - Wrong vs right: ![wrong](assets/pasted-image-1783710798036774000.png) ![site gap to match](assets/pasted-image-1783710819371950000.png)
 
