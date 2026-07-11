@@ -1,8 +1,9 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { CircleHelpIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
@@ -15,6 +16,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +30,7 @@ import {
 import {
   INDICATOR_LABELS,
   INDICATOR_PARAM_FIELDS,
+  PRICE_ACTION_PATTERNS,
   indicatorColor,
   primaryColorSlot,
   type IndicatorConfig,
@@ -63,10 +70,12 @@ export function OverlaySettingsDialog({
       setName(seed.name ?? "")
       setParams(
         Object.fromEntries(
-          INDICATOR_PARAM_FIELDS[seed.type].map((field) => [
-            field.key,
-            String(seed.params[field.key] ?? ""),
-          ])
+          [
+            ...INDICATOR_PARAM_FIELDS[seed.type].map((field) => field.key),
+            ...(seed.type === "priceAction"
+              ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
+              : []),
+          ].map((key) => [key, String(seed.params[key] ?? "")])
         )
       )
       setSession(seed.session ?? "nyse")
@@ -87,6 +96,11 @@ export function OverlaySettingsDialog({
 
   async function submit() {
     const nextParams: Record<string, number> = { ...indicator.params }
+    if (indicator.type === "priceAction") {
+      for (const pattern of PRICE_ACTION_PATTERNS) {
+        nextParams[pattern.key] = Number(params[pattern.key] ?? 1)
+      }
+    }
     for (const field of fields) {
       const value = Number(params[field.key])
       if (!Number.isFinite(value) || value <= 0) {
@@ -99,7 +113,7 @@ export function OverlaySettingsDialog({
       ...indicator,
       name: name.trim() || undefined,
       params: nextParams,
-      color,
+      color: indicator.type === "priceAction" ? undefined : color,
     }
     if (indicator.type === "session") next.session = session
     setBusy(true)
@@ -123,13 +137,67 @@ export function OverlaySettingsDialog({
         <DialogHeader>
           <DialogTitle>{defaultLabel} settings</DialogTitle>
           <DialogDescription>
-            Rename the indicator, tune its settings, and pick its chart color.
+            Rename the indicator and tune its settings.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
+          {indicator.type === "priceAction"
+            ? (["bull", "bear"] as const).map((side) => (
+                <Card key={side} size="sm">
+                  <CardHeader>
+                    <CardTitle>
+                      {side === "bull" ? "Bullish" : "Bearish"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3">
+                    {PRICE_ACTION_PATTERNS.filter(
+                      (pattern) => pattern.side === side
+                    ).map((pattern) => (
+                      <label
+                        key={pattern.key}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={Number(params[pattern.key] ?? 1) !== 0}
+                          onCheckedChange={(checked) =>
+                            setParams((prev) => ({
+                              ...prev,
+                              [pattern.key]: checked === true ? "1" : "0",
+                            }))
+                          }
+                        />
+                        {pattern.label}
+                        {pattern.key === "bearShootingStar" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="About Shooting Star"
+                                onClick={(event) => {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                }}
+                              >
+                                <CircleHelpIcon className="size-3.5 text-muted-foreground" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" sideOffset={6}>
+                              Shooting Star is the standard name for the
+                              bearish reverse-Hammer shape.
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </label>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))
+            : null}
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Settings</CardTitle>
+              <CardTitle>
+                {indicator.type === "priceAction" ? "General" : "Settings"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
               <div className="grid gap-2">
@@ -142,10 +210,29 @@ export function OverlaySettingsDialog({
                   onChange={(event) => setName(event.target.value)}
                 />
               </div>
-              {fields.map((field) => (
+              {indicator.type !== "priceAction" ? fields.map((field) => (
                 <div key={field.key} className="grid gap-2">
                   <Label htmlFor={`indicator-param-${field.key}`}>
                     {field.label}
+                    {field.description ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={`About ${field.label}`}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                            }}
+                          >
+                            <CircleHelpIcon className="ml-1 inline size-3.5 text-muted-foreground" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={6}>
+                          {field.description}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
                   </Label>
                   <Input
                     id={`indicator-param-${field.key}`}
@@ -161,7 +248,7 @@ export function OverlaySettingsDialog({
                     }
                   />
                 </div>
-              ))}
+              )) : null}
               {indicator.type === "session" ? (
                 <div className="grid gap-2">
                   <Label>Session</Label>
@@ -182,20 +269,82 @@ export function OverlaySettingsDialog({
                   </Select>
                 </div>
               ) : null}
-              <div className="grid gap-2">
-                <Label htmlFor="indicator-color">Color</Label>
-                <input
-                  id="indicator-color"
-                  type="color"
-                  className="h-8 w-16 cursor-pointer rounded border-0 bg-transparent p-0"
-                  value={
-                    color ?? indicatorColor(primaryColorSlot(indicator), isDark)
-                  }
-                  onChange={(event) => setColor(event.target.value)}
-                />
-              </div>
+              {indicator.type !== "priceAction" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="indicator-color">Color</Label>
+                  <input
+                    id="indicator-color"
+                    type="color"
+                    className="h-8 w-16 cursor-pointer rounded border-0 bg-transparent p-0"
+                    value={
+                      color ??
+                      indicatorColor(primaryColorSlot(indicator), isDark)
+                    }
+                    onChange={(event) => setColor(event.target.value)}
+                  />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
+          {indicator.type === "priceAction"
+            ? [
+                {
+                  title: "Hammer & Shooting Star",
+                  keys: ["wickBodyRatio", "extremeLookback"],
+                },
+                { title: "Liquidity Sweep", keys: ["sweepLookback"] },
+                { title: "Break of Structure", keys: ["swingLookback"] },
+              ].map((group) => (
+                <Card key={group.title} size="sm">
+                  <CardHeader>
+                    <CardTitle>{group.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    {fields
+                      .filter((field) => group.keys.includes(field.key))
+                      .map((field) => (
+                        <div key={field.key} className="grid gap-2">
+                          <Label htmlFor={`indicator-param-${field.key}`}>
+                            {field.label}
+                            {field.description ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label={`About ${field.label}`}
+                                    onClick={(event) => {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                    }}
+                                  >
+                                    <CircleHelpIcon className="ml-1 inline size-3.5 text-muted-foreground" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" sideOffset={6}>
+                                  {field.description}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : null}
+                          </Label>
+                          <Input
+                            id={`indicator-param-${field.key}`}
+                            type="number"
+                            step={field.step ?? 1}
+                            min={0}
+                            value={params[field.key] ?? ""}
+                            onChange={(event) =>
+                              setParams((prev) => ({
+                                ...prev,
+                                [field.key]: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                  </CardContent>
+                </Card>
+              ))
+            : null}
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}

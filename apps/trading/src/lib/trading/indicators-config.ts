@@ -13,6 +13,7 @@ export type IndicatorType =
   | "macd"
   | "base"
   | "session"
+  | "priceAction"
 
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
@@ -75,12 +76,43 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     params: {},
     session: "nyse",
   },
+  {
+    id: "price-action",
+    type: "priceAction",
+    enabled: false,
+    pinned: false,
+    params: {
+      bullHammer: 1,
+      bearShootingStar: 1,
+      bullEngulfing: 1,
+      bearEngulfing: 1,
+      bullSweep: 1,
+      bearSweep: 1,
+      bullBos: 1,
+      bearBos: 1,
+      wickBodyRatio: 2,
+      extremeLookback: 5,
+      sweepLookback: 20,
+      swingLookback: 5,
+    },
+  },
 ]
+
+export const PRICE_ACTION_PATTERNS = [
+  { side: "bull", key: "bullHammer", label: "Hammer" },
+  { side: "bull", key: "bullEngulfing", label: "Engulfing" },
+  { side: "bull", key: "bullSweep", label: "Liquidity sweep" },
+  { side: "bull", key: "bullBos", label: "Break of structure" },
+  { side: "bear", key: "bearShootingStar", label: "Shooting star" },
+  { side: "bear", key: "bearEngulfing", label: "Engulfing" },
+  { side: "bear", key: "bearSweep", label: "Liquidity sweep" },
+  { side: "bear", key: "bearBos", label: "Break of structure" },
+] as const
 
 /** Editable numeric params per indicator type, in display order. */
 export const INDICATOR_PARAM_FIELDS: Record<
   IndicatorType,
-  { key: string; label: string; step?: number }[]
+  { key: string; label: string; step?: number; description?: string }[]
 > = {
   ema: [{ key: "period", label: "Period" }],
   vwap: [],
@@ -103,6 +135,33 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "pumpPeriods", label: "Pump periods" },
   ],
   session: [],
+  priceAction: [
+    {
+      key: "wickBodyRatio",
+      label: "Wick/body ratio",
+      step: 0.5,
+      description:
+        "The wick must be this many times larger than the candle body. Higher values require a stronger Hammer or Shooting Star.",
+    },
+    {
+      key: "extremeLookback",
+      label: "Extreme lookback",
+      description:
+        "Hammer and Shooting Star must be the lowest or highest candle across this many earlier candles. Higher values require a clearer local extreme.",
+    },
+    {
+      key: "sweepLookback",
+      label: "Sweep lookback",
+      description:
+        "A liquidity sweep must take out the high or low from this many earlier candles, then close back inside the range.",
+    },
+    {
+      key: "swingLookback",
+      label: "Swing lookback",
+      description:
+        "A swing high or low must stand out against this many candles on each side. Higher values find fewer, larger breaks of structure later.",
+    },
+  ],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -113,6 +172,7 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   macd: "MACD",
   base: "Base",
   session: "Sessions",
+  priceAction: "Price Action",
 }
 
 /** The label shown for an indicator: user rename, or the default label. */
@@ -126,6 +186,19 @@ export function indicatorDisplayName(config: IndicatorConfig): string {
 /** Short human summary of an indicator's settings (e.g. "Period 14 · Overbought 70"). */
 export function indicatorSettingsSummary(config: IndicatorConfig): string {
   if (config.type === "session") return sessionLabel(config.session ?? "nyse")
+  if (config.type === "priceAction") {
+    const bullish = PRICE_ACTION_PATTERNS.filter(
+      (pattern) =>
+        pattern.side === "bull" &&
+        (config.params[pattern.key] ?? 1) !== 0
+    ).length
+    const bearish = PRICE_ACTION_PATTERNS.filter(
+      (pattern) =>
+        pattern.side === "bear" &&
+        (config.params[pattern.key] ?? 1) !== 0
+    ).length
+    return `${bullish} bullish · ${bearish} bearish`
+  }
   return INDICATOR_PARAM_FIELDS[config.type]
     .map((field) => `${field.label} ${config.params[field.key]}`)
     .join(" · ")

@@ -169,13 +169,17 @@ export function IndicatorsDashboard({
               {indicatorSettingsSummary(row) || "—"}
             </TableCell>
             <TableCell column="meta">
-              <span
-                className="inline-block size-3 rounded-full"
-                style={{
-                  backgroundColor:
-                    row.color ?? indicatorColor(primaryColorSlot(row), isDark),
-                }}
-              />
+              {row.type === "priceAction" ? (
+                "—"
+              ) : (
+                <span
+                  className="inline-block size-3 rounded-full"
+                  style={{
+                    backgroundColor:
+                      row.color ?? indicatorColor(primaryColorSlot(row), isDark),
+                  }}
+                />
+              )}
             </TableCell>
             <TableCell column="meta">
               <div className="flex items-center gap-1">

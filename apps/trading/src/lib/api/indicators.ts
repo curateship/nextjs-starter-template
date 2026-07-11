@@ -17,7 +17,7 @@ const saveSchema = z.object({
   id: z.string().min(1).max(40),
   enabled: z.boolean(),
   pinned: z.boolean(),
-  params: z.record(z.string(), z.number().finite().positive()),
+  params: z.record(z.string(), z.number().finite().nonnegative()),
   name: z.string().trim().max(80).optional(),
   color: z
     .string()

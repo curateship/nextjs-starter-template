@@ -27,6 +27,10 @@ import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import {
+  detectPriceAction,
+  priceActionOptionsFromParams,
+} from "@/lib/strategies/price-action"
+import {
   bollinger,
   ema,
   macd,
@@ -101,6 +105,8 @@ export type ChartMarker = {
   /** Chip letter for a priced marker: O = open, C = close, R = re-entry. */
   letter?: "O" | "C" | "R"
 }
+
+const EMPTY_PRICE_ACTION_MARKERS: ChartMarker[] = []
 
 /** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
 export type PriceChartHandle = {
@@ -1630,6 +1636,22 @@ export function PriceChart({
     [candles, chartStrategy, strategyConfig, overrideOverlays]
   )
 
+  const priceActionParams = indicators.find(
+    (indicator) => indicator.type === "priceAction" && indicator.enabled
+  )?.params
+  const priceActionMarkers = React.useMemo<ChartMarker[]>(() => {
+    if (!priceActionParams || candles.length === 0) {
+      return EMPTY_PRICE_ACTION_MARKERS
+    }
+    return detectPriceAction(
+      candles,
+      priceActionOptionsFromParams(priceActionParams)
+    ).map((signal) => ({
+      time: candles[signal.index].t,
+      side: signal.side === "bull" ? "buy" : "sell",
+    }))
+  }, [candles, priceActionParams])
+
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
   // bounded by that session's own high and low (like the measure tool's
@@ -1736,7 +1758,7 @@ export function PriceChart({
       coin={coin}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={[...markers, ...strategy.markers]}
+      markers={[...markers, ...strategy.markers, ...priceActionMarkers]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={strategy.overlayLines}
       zones={zones}

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import {
   DEFAULT_INDICATORS,
   INDICATOR_PARAM_FIELDS,
+  PRICE_ACTION_PATTERNS,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
 import { isSessionKey, type SessionKey } from "@/lib/trading/sessions"
@@ -67,11 +68,36 @@ export async function upsertUserIndicator(
 ): Promise<IndicatorConfig> {
   const def = DEFAULT_INDICATORS.find((entry) => entry.id === input.id)
   if (!def) throw new Error(`Unknown indicator: ${input.id}`)
+  if (def.type === "priceAction") {
+    for (const pattern of PRICE_ACTION_PATTERNS) {
+      const value = input.params[pattern.key]
+      if (value !== undefined && value !== 0 && value !== 1) {
+        throw new Error(`Invalid Price Action parameter: ${pattern.key}`)
+      }
+    }
+    for (const field of INDICATOR_PARAM_FIELDS.priceAction) {
+      const value = input.params[field.key]
+      if (
+        value !== undefined &&
+        (!Number.isFinite(value) ||
+          value <= 0 ||
+          (field.key !== "wickBodyRatio" && !Number.isInteger(value)))
+      ) {
+        throw new Error(`Invalid Price Action parameter: ${field.key}`)
+      }
+    }
+  }
   // Store only the params this indicator type defines — never arbitrary keys.
+  const paramKeys = [
+    ...INDICATOR_PARAM_FIELDS[def.type].map((field) => field.key),
+    ...(def.type === "priceAction"
+      ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
+      : []),
+  ]
   const params = Object.fromEntries(
-    INDICATOR_PARAM_FIELDS[def.type]
-      .filter((field) => input.params[field.key] !== undefined)
-      .map((field) => [field.key, input.params[field.key]])
+    paramKeys
+      .filter((key) => input.params[key] !== undefined)
+      .map((key) => [key, input.params[key]])
   )
   const values = {
     userId,
