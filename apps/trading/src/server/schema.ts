@@ -314,6 +314,8 @@ export const tradingAutomations = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 80 }).notNull(),
+    /** Free-form trading-style category (e.g. "Day Trading"); see automation-types. */
+    type: varchar("type", { length: 40 }).notNull().default("Uncategorized"),
     interval: varchar("interval", { length: 5 })
       .$type<StrategyInterval>()
       .notNull()

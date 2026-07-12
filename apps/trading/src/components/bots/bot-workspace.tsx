@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ClientOnly, useRouter } from "@tanstack/react-router"
 import { XIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   formatFocusDays,
@@ -246,10 +247,6 @@ export function BotWorkspace({
   const [controlsOpen, setControlsOpen] = React.useState(true)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const [notice, setNotice] = React.useState<{
-    tone: "ok" | "error"
-    text: string
-  } | null>(null)
   const [slTpBusy, setSlTpBusy] = React.useState(false)
   const [slTpError, setSlTpError] = React.useState<string | null>(null)
   const [chartMenu, setChartMenu] = React.useState<{
@@ -311,17 +308,12 @@ export function BotWorkspace({
 
   const notify = React.useCallback(
     (text: string, tone: "ok" | "error") => {
-      setNotice({ text, tone })
+      if (tone === "ok") toast.success(text)
+      else toast.error(text)
       setTimeout(() => void refresh(), 800)
     },
     [refresh]
   )
-
-  React.useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(() => setNotice(null), 6000)
-    return () => clearTimeout(timer)
-  }, [notice])
 
   async function run(command: BotCommand) {
     setBusy(true)
@@ -498,19 +490,6 @@ export function BotWorkspace({
         onCommand={(command) => void run(command)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      {notice ? (
-        <div
-          className={cn(
-            "border-b px-4 py-1.5 text-xs",
-            notice.tone === "ok"
-              ? "border-emerald-600/30 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
-          )}
-        >
-          {notice.text}
-        </div>
-      ) : null}
-
       <ClientOnly
         fallback={
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

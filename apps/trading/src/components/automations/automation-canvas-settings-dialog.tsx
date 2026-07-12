@@ -23,6 +23,7 @@ import type {
   AutomationBacktestSettings,
   AutomationProtection,
 } from "@/lib/automations/automation"
+import { normalizeAutomationType } from "@/lib/automations/automation-types"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
 import {
@@ -35,28 +36,35 @@ import {
   AutomationBacktestCard,
   AutomationProtectionCard,
 } from "./automation-settings-fields"
+import { AutomationTypeSelect } from "./automation-type-select"
 
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 export function AutomationCanvasSettingsDialog({
   open,
+  type,
   interval,
   protection,
   backtest,
+  knownTypes = [],
   onOpenChange,
   onApply,
 }: {
   open: boolean
+  type: string
   interval: StrategyInterval
   protection: AutomationProtection
   backtest: AutomationBacktestSettings
+  knownTypes?: readonly string[]
   onOpenChange: (open: boolean) => void
   onApply: (settings: {
+    type: string
     interval: StrategyInterval
     protection: AutomationProtection
     backtest: AutomationBacktestSettings
   }) => void
 }) {
+  const [draftType, setDraftType] = React.useState(type)
   const [draftInterval, setDraftInterval] = React.useState(interval)
   const [takeProfit, setTakeProfit] = React.useState("")
   const [stopLoss, setStopLoss] = React.useState("")
@@ -68,6 +76,7 @@ export function AutomationCanvasSettingsDialog({
 
   React.useEffect(() => {
     if (!open) return
+    setDraftType(type)
     setDraftInterval(interval)
     setTakeProfit(
       protection.takeProfitPct === undefined
@@ -79,7 +88,7 @@ export function AutomationCanvasSettingsDialog({
     )
     setBacktestValues(backtestSettingsToValues(backtest))
     setError(null)
-  }, [backtest, interval, open, protection])
+  }, [backtest, interval, open, protection, type])
 
   const apply = () => {
     const parsed = parseAutomationProtection({
@@ -91,6 +100,7 @@ export function AutomationCanvasSettingsDialog({
     if (!parsedBacktest.backtest) return setError(parsedBacktest.error)
 
     onApply({
+      type: normalizeAutomationType(draftType),
       interval: draftInterval,
       protection: parsed.protection,
       backtest: parsedBacktest.backtest,
@@ -112,7 +122,16 @@ export function AutomationCanvasSettingsDialog({
             <CardHeader>
               <CardTitle>Schedule</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="canvas-automation-type">Type</Label>
+                <AutomationTypeSelect
+                  id="canvas-automation-type"
+                  value={draftType}
+                  knownTypes={knownTypes}
+                  onChange={setDraftType}
+                />
+              </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="canvas-automation-timeframe">Timeframe</Label>
                 <Select

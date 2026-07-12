@@ -27,6 +27,10 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations"
 import { DEFAULT_AUTOMATION_BACKTEST_SETTINGS } from "@/lib/automations/automation"
+import {
+  normalizeAutomationType,
+  UNCATEGORIZED_TYPE,
+} from "@/lib/automations/automation-types"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
 import {
@@ -40,6 +44,7 @@ import {
   AutomationBacktestCard,
   AutomationProtectionCard,
 } from "./automation-settings-fields"
+import { AutomationTypeSelect } from "./automation-type-select"
 
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 const EMPTY_PROTECTION: AutomationProtectionValues = {
@@ -52,14 +57,17 @@ const DEFAULT_BACKTEST_VALUES = backtestSettingsToValues(
 
 export function CreateAutomationDialog({
   open,
+  knownTypes = [],
   onOpenChange,
   onCreated,
 }: {
   open: boolean
+  knownTypes?: readonly string[]
   onOpenChange: (open: boolean) => void
   onCreated: (automation: AutomationDetail) => void
 }) {
   const [name, setName] = React.useState("")
+  const [type, setType] = React.useState<string>(UNCATEGORIZED_TYPE)
   const [interval, setInterval] = React.useState<StrategyInterval>("15m")
   const [protection, setProtection] =
     React.useState<AutomationProtectionValues>(EMPTY_PROTECTION)
@@ -71,6 +79,7 @@ export function CreateAutomationDialog({
 
   const reset = () => {
     setName("")
+    setType(UNCATEGORIZED_TYPE)
     setInterval("15m")
     setProtection(EMPTY_PROTECTION)
     setBacktest(DEFAULT_BACKTEST_VALUES)
@@ -103,6 +112,7 @@ export function CreateAutomationDialog({
     try {
       const automation = await createAutomation({
         name: trimmedName,
+        type: normalizeAutomationType(type),
         interval,
         protection: parsedProtection.protection,
         backtest: parsedBacktest.backtest,
@@ -150,28 +160,40 @@ export function CreateAutomationDialog({
                   }}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="automation-timeframe">Timeframe</Label>
-                <Select
-                  value={interval}
-                  onValueChange={(value) =>
-                    setInterval(value as StrategyInterval)
-                  }
-                >
-                  <SelectTrigger
-                    id="automation-timeframe"
-                    className="h-8 w-full"
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="automation-type">Type</Label>
+                  <AutomationTypeSelect
+                    id="automation-type"
+                    value={type}
+                    knownTypes={knownTypes}
+                    disabled={busy}
+                    onChange={setType}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="automation-timeframe">Timeframe</Label>
+                  <Select
+                    value={interval}
+                    onValueChange={(value) =>
+                      setInterval(value as StrategyInterval)
+                    }
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INTERVALS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      id="automation-timeframe"
+                      className="h-8 w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INTERVALS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>

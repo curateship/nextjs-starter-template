@@ -1,6 +1,7 @@
 import * as React from "react"
 import { SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
+import { toast } from "sonner"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
 
@@ -141,11 +142,6 @@ export function TradingWorkspace({
   const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
     chartApiRef.current = api
   }, [])
-  const [notice, setNotice] = React.useState<{
-    tone: "ok" | "error"
-    text: string
-  } | null>(null)
-
   const isPaper = selectedValue?.startsWith(PAPER_WALLET_PREFIX) ?? false
   const paperWalletId = isPaper
     ? (selectedValue?.slice(PAPER_WALLET_PREFIX.length) ?? null)
@@ -276,7 +272,8 @@ export function TradingWorkspace({
 
   const notify = React.useCallback(
     (text: string, tone: "ok" | "error") => {
-      setNotice({ text, tone })
+      if (tone === "ok") toast.success(text)
+      else toast.error(text)
       if (paperWalletId) {
         setTimeout(() => void refreshPaper(), 800)
       }
@@ -326,12 +323,6 @@ export function TradingWorkspace({
         .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
     }
   }
-
-  React.useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(() => setNotice(null), 6000)
-    return () => clearTimeout(timer)
-  }, [notice])
 
   const options: WalletOption[] = [
     ...paperWallets.map((wallet) => ({
@@ -398,19 +389,6 @@ export function TradingWorkspace({
         left={<MarketInfoBar marketRow={marketRow} price={markPx} />}
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
-
-      {notice ? (
-        <div
-          className={cn(
-            "border-b px-3 py-1.5 text-xs",
-            notice.tone === "ok"
-              ? "border-emerald-600/30 bg-emerald-600/10 text-emerald-700"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
-          )}
-        >
-          {notice.text}
-        </div>
-      ) : null}
 
       <div className="min-h-0 flex-1 p-1.5 sm:p-2 md:p-3">
         <ResizablePanelGroup
@@ -569,10 +547,9 @@ export function TradingWorkspace({
         onAction={(side, px) => {
           setPrefill({ px, side })
           setChartMenu(null)
-          setNotice({
-            tone: "ok",
-            text: `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`,
-          })
+          toast.success(
+            `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`
+          )
         }}
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}

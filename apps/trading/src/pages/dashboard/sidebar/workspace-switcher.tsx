@@ -8,6 +8,7 @@ import {
   Loader2Icon,
   PlusIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -82,7 +83,7 @@ export function WorkspaceSwitcher({
     } catch (error) {
       const message = getWorkspaceErrorMessage(error)
       setError(message)
-      window.alert(message)
+      toast.error(message)
     } finally {
       setBusyWorkspaceId(null)
     }

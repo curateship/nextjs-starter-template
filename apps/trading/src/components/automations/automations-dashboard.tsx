@@ -16,11 +16,18 @@ import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import { useShellRuntime } from "@/components/shell-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogBody,
@@ -45,10 +52,13 @@ import {
   type AutomationDetail,
   type AutomationListItem,
 } from "@/lib/api/automations"
+import { normalizeAutomationType } from "@/lib/automations/automation-types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useRowSelection } from "@/lib/use-row-selection"
 
-type SortColumn = "name" | "interval" | "summary" | "updated"
+type SortColumn = "name" | "type" | "interval" | "summary" | "updated"
+
+const ALL_TYPES = "__all__"
 
 const intervalOrder = ["1m", "5m", "15m", "1h", "4h", "1d"]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
@@ -67,6 +77,7 @@ export function AutomationsDashboard({
   const { config } = useShellRuntime()
   const [automations, setAutomations] = React.useState(initial)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [typeFilter, setTypeFilter] = React.useState<string>(ALL_TYPES)
   const [sortColumn, setSortColumn] = React.useState<SortColumn>("updated")
   const [sortDirection, setSortDirection] =
     React.useState<TableSortDirection>("desc")
@@ -82,19 +93,41 @@ export function AutomationsDashboard({
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
+  // The categories actually present, so the filter only offers real values.
+  const typeOptions = React.useMemo(() => {
+    const set = new Set<string>()
+    for (const automation of automations) {
+      set.add(normalizeAutomationType(automation.type))
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [automations])
+
   const rows = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const direction = sortDirection === "asc" ? 1 : -1
     return automations
       .filter(
         (automation) =>
+          typeFilter === ALL_TYPES ||
+          normalizeAutomationType(automation.type) === typeFilter
+      )
+      .filter(
+        (automation) =>
           !query ||
           automation.name.toLowerCase().includes(query) ||
+          normalizeAutomationType(automation.type).toLowerCase().includes(query) ||
           automation.interval.toLowerCase().includes(query) ||
           automation.summary.toLowerCase().includes(query)
       )
       .sort((a, b) => {
       if (sortColumn === "name") return a.name.localeCompare(b.name) * direction
+      if (sortColumn === "type") {
+        return (
+          normalizeAutomationType(a.type).localeCompare(
+            normalizeAutomationType(b.type)
+          ) * direction
+        )
+      }
       if (sortColumn === "interval") {
         return (
           (intervalOrder.indexOf(a.interval) -
@@ -107,7 +140,7 @@ export function AutomationsDashboard({
       }
       return (Date.parse(a.updated_at) - Date.parse(b.updated_at)) * direction
       })
-  }, [automations, searchQuery, sortColumn, sortDirection])
+  }, [automations, searchQuery, typeFilter, sortColumn, sortDirection])
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const page = Math.min(currentPage, totalPages)
@@ -222,6 +255,25 @@ export function AutomationsDashboard({
                 Delete ({selection.selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <Select
+              value={typeFilter}
+              onValueChange={(value) => {
+                setTypeFilter(value)
+                setCurrentPage(1)
+              }}
+            >
+              <DashboardToolbarSelectTrigger aria-label="Filter by type">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TYPES}>All types</SelectItem>
+                {typeOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <DashboardToolbarSearch
               name="automation-search"
               aria-label="Search Automations"
@@ -279,6 +331,13 @@ export function AutomationsDashboard({
                 onSort={toggleSort}
               />
               <SortableHead
+                label="Type"
+                column="type"
+                active={sortColumn}
+                direction={sortDirection}
+                onSort={toggleSort}
+              />
+              <SortableHead
                 label="Timeframe"
                 column="interval"
                 active={sortColumn}
@@ -305,11 +364,11 @@ export function AutomationsDashboard({
         }
         isEmpty={paginatedRows.length === 0}
         emptyText={
-          searchQuery
-            ? "No Automations match that search."
+          searchQuery || typeFilter !== ALL_TYPES
+            ? "No Automations match those filters."
             : "No automations yet. Create one to connect indicators into trading rules."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
       >
         {paginatedRows.map((automation) => (
           <TableRow key={automation.id}>
@@ -336,6 +395,11 @@ export function AutomationsDashboard({
                   {automation.isValid ? "Ready" : "Draft"}
                 </Badge>
               </button>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge variant="outline" className="font-normal">
+                {normalizeAutomationType(automation.type)}
+              </Badge>
             </TableCell>
             <TableCell column="meta">{automation.interval}</TableCell>
             <TableCell column="mutedMeta">{automation.summary}</TableCell>
@@ -394,12 +458,14 @@ export function AutomationsDashboard({
 
       <CreateAutomationDialog
         open={createOpen}
+        knownTypes={typeOptions}
         onOpenChange={setCreateOpen}
         onCreated={(automation) => void openAutomation(automation.id)}
       />
 
       <AutomationSettingsDialog
         target={settingsTarget}
+        knownTypes={typeOptions}
         onOpenChange={(open) => {
           if (!open) setSettingsTarget(null)
         }}
@@ -538,6 +604,7 @@ function toListItem(automation: AutomationDetail): AutomationListItem {
   return {
     id: automation.id,
     name: automation.name,
+    type: automation.type,
     interval: automation.interval,
     isValid:
       automation.compiledConfig !== null && automation.errors.length === 0,

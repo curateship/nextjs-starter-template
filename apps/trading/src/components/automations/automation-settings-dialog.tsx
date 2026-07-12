@@ -39,15 +39,18 @@ import {
   AutomationBacktestCard,
   AutomationProtectionCard,
 } from "./automation-settings-fields"
+import { AutomationTypeSelect } from "./automation-type-select"
 
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 export function AutomationSettingsDialog({
   target,
+  knownTypes = [],
   onOpenChange,
   onSaved,
 }: {
   target: AutomationListItem | null
+  knownTypes?: readonly string[]
   onOpenChange: (open: boolean) => void
   onSaved: (automation: AutomationDetail) => void
 }) {
@@ -56,6 +59,7 @@ export function AutomationSettingsDialog({
     <AutomationSettingsDialogForm
       key={target.id}
       target={target}
+      knownTypes={knownTypes}
       onOpenChange={onOpenChange}
       onSaved={onSaved}
     />
@@ -64,16 +68,19 @@ export function AutomationSettingsDialog({
 
 function AutomationSettingsDialogForm({
   target,
+  knownTypes,
   onOpenChange,
   onSaved,
 }: {
   target: AutomationListItem
+  knownTypes: readonly string[]
   onOpenChange: (open: boolean) => void
   onSaved: (automation: AutomationDetail) => void
 }) {
   const [detail, setDetail] = React.useState<AutomationDetail | null>(null)
   const [values, setValues] = React.useState<AutomationSettingsValues>({
     name: target.name,
+    type: target.type,
     interval: target.interval,
     takeProfitPct: "",
     stopLossPct: "",
@@ -94,6 +101,7 @@ function AutomationSettingsDialogForm({
         setDetail(automation)
         setValues({
           name: automation.name,
+          type: automation.type,
           interval: automation.interval,
           takeProfitPct:
             automation.protection.takeProfitPct === undefined
@@ -170,6 +178,16 @@ function AutomationSettingsDialogForm({
                   maxLength={80}
                   disabled={loading || saving}
                   onChange={(event) => update("name", event.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="automation-settings-type">Type</Label>
+                <AutomationTypeSelect
+                  id="automation-settings-type"
+                  value={values.type}
+                  knownTypes={knownTypes}
+                  disabled={loading || saving}
+                  onChange={(next) => update("type", next)}
                 />
               </div>
               <div className="grid gap-1.5">

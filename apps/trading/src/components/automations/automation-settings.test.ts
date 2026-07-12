@@ -10,6 +10,7 @@ import {
 const detail: AutomationDetail = {
   id: "11111111-1111-4111-8111-111111111111",
   name: "Original",
+  type: "Day Trading",
   interval: "15m",
   graph: {
     nodes: [
@@ -45,6 +46,10 @@ const backtestValues = {
   slippageBps: "2",
 }
 
+// Spread into every settings-values fixture below so `type` is always present
+// (the buildAutomationSettingsSave signature now requires it).
+const baseValues = { ...backtestValues, type: "Swing Trading" }
+
 describe("buildAutomationSettingsSave", () => {
   it("updates settings without replacing the saved canvas graph", () => {
     const result = buildAutomationSettingsSave(detail, {
@@ -52,13 +57,14 @@ describe("buildAutomationSettingsSave", () => {
       interval: "1h",
       takeProfitPct: "6.5",
       stopLossPct: "2",
-      ...backtestValues,
+      ...baseValues,
     })
 
     expect(result).toEqual({
       payload: {
         automationId: detail.id,
         name: "Updated setup",
+        type: "Swing Trading",
         interval: "1h",
         graph: detail.graph,
         protection: { takeProfitPct: 6.5, stopLossPct: 2 },
@@ -80,7 +86,7 @@ describe("buildAutomationSettingsSave", () => {
         interval: "1h",
         takeProfitPct: "",
         stopLossPct: "",
-        ...backtestValues,
+        ...baseValues,
       }).payload?.protection
     ).toEqual({})
 
@@ -90,7 +96,7 @@ describe("buildAutomationSettingsSave", () => {
         interval: "1h",
         takeProfitPct: "5",
         stopLossPct: "-1",
-        ...backtestValues,
+        ...baseValues,
       })
     ).toEqual({
       payload: null,
@@ -105,7 +111,7 @@ describe("buildAutomationSettingsSave", () => {
         interval: "1h",
         takeProfitPct: "",
         stopLossPct: "",
-        ...backtestValues,
+        ...baseValues,
         startingEquity: "0",
       }).error
     ).toContain("Starting capital")
@@ -116,7 +122,7 @@ describe("buildAutomationSettingsSave", () => {
         interval: "1h",
         takeProfitPct: "",
         stopLossPct: "",
-        ...backtestValues,
+        ...baseValues,
         takerFeeBps: "51",
       }).error
     ).toContain("Taker fee")
