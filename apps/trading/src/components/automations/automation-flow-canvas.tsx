@@ -1,5 +1,7 @@
 import * as React from "react"
+import { Maximize2Icon, MinusIcon, PlusIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import type {
   AutomationGraph,
   AutomationSourcePort,
@@ -8,7 +10,9 @@ import type {
 import { cn } from "@/lib/utils"
 
 import {
+  clampZoom,
   edgePath,
+  fitViewport,
   flowBounds,
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -134,38 +138,28 @@ export function AutomationFlowCanvas({
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
       const current = currentRef.current.graph
-      if (event.ctrlKey || event.metaKey) {
-        const rect = canvas.getBoundingClientRect()
-        const anchorX = event.clientX - rect.left
-        const anchorY = event.clientY - rect.top
-        const nextZoom = Math.min(
-          2,
-          Math.max(0.25, current.viewport.zoom * Math.exp(-event.deltaY * 0.01))
-        )
-        onGraphChange({
-          ...current,
-          viewport: {
-            zoom: nextZoom,
-            x:
-              anchorX -
-              (anchorX - current.viewport.x) *
-                (nextZoom / current.viewport.zoom),
-            y:
-              anchorY -
-              (anchorY - current.viewport.y) *
-                (nextZoom / current.viewport.zoom),
-          },
-        })
-      } else {
-        onGraphChange({
-          ...current,
-          viewport: {
-            ...current.viewport,
-            x: current.viewport.x - event.deltaX,
-            y: current.viewport.y - event.deltaY,
-          },
-        })
-      }
+      const rect = canvas.getBoundingClientRect()
+      const anchorX = event.clientX - rect.left
+      const anchorY = event.clientY - rect.top
+      // Normalize scroll units so a wheel notch zooms the same amount whether the
+      // browser reports pixels (Chrome/most webviews), lines (Firefox), or pages.
+      const unit =
+        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height || 1 : 1
+      const nextZoom = clampZoom(
+        current.viewport.zoom * Math.exp(-event.deltaY * unit * 0.0015)
+      )
+      onGraphChange({
+        ...current,
+        viewport: {
+          zoom: nextZoom,
+          x:
+            anchorX -
+            (anchorX - current.viewport.x) * (nextZoom / current.viewport.zoom),
+          y:
+            anchorY -
+            (anchorY - current.viewport.y) * (nextZoom / current.viewport.zoom),
+        },
+      })
     }
     canvas.addEventListener("wheel", wheel, { passive: false })
     return () => canvas.removeEventListener("wheel", wheel)
@@ -290,6 +284,34 @@ export function AutomationFlowCanvas({
         (MINIMAP_HEIGHT - 20) / Math.max(1, bounds.maxY - bounds.minY)
       )
     : 0
+
+  const zoomByFactor = (factor: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const current = graph.viewport
+    const anchorX = (rect?.width ?? 800) / 2
+    const anchorY = (rect?.height ?? 560) / 2
+    const nextZoom = clampZoom(current.zoom * factor)
+    onGraphChange({
+      ...graph,
+      viewport: {
+        zoom: nextZoom,
+        x: anchorX - (anchorX - current.x) * (nextZoom / current.zoom),
+        y: anchorY - (anchorY - current.y) * (nextZoom / current.zoom),
+      },
+    })
+  }
+
+  const fitToView = () => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    onGraphChange({
+      ...graph,
+      viewport: fitViewport(
+        graph.nodes,
+        rect?.width || 800,
+        rect?.height || 560
+      ),
+    })
+  }
 
   const centerViewportAt = (worldX: number, worldY: number) => {
     const canvas = canvasRef.current?.getBoundingClientRect()
@@ -489,8 +511,46 @@ export function AutomationFlowCanvas({
         </button>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-3 left-3 hidden rounded-md border bg-card/90 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-sm md:block">
-        Scroll to pan · ⌘ scroll to zoom · Select ports to connect
+      <div
+        className="absolute bottom-3 left-3 flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Zoom out"
+          onClick={() => zoomByFactor(1 / 1.2)}
+        >
+          <MinusIcon className="size-3.5" />
+        </Button>
+        <span className="w-11 text-center font-mono text-[10px] text-muted-foreground">
+          {Math.round(graph.viewport.zoom * 100)}%
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Zoom in"
+          onClick={() => zoomByFactor(1.2)}
+        >
+          <PlusIcon className="size-3.5" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs"
+          aria-label="Fit automation to view"
+          onClick={fitToView}
+        >
+          <Maximize2Icon className="size-3.5" />
+          Fit
+        </Button>
+      </div>
+
+      <div className="pointer-events-none absolute top-3 left-3 hidden rounded-md border bg-card/90 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-sm md:block">
+        Scroll to zoom · Drag to pan · Select ports to connect
       </div>
     </div>
   )

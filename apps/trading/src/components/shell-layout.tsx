@@ -63,14 +63,19 @@ export function ShellLayout({
   // the padded DashboardContent wrapper: the live trade terminal and the bot
   // workspace always, and the backtest chart workspace when opened with
   // ?run= / ?draft= (the strategies list at /backtest and the bot fleet list
-  // keep their padding). Judge both the target page and the settled one: the
-  // target frames a fresh load / refresh correctly (the resolved location lags
-  // there and would otherwise fall back to padded), while the settled one keeps
-  // an outgoing full-bleed screen from flipping its padding mid-navigation.
+  // keep their padding). Base this on the location that is actually rendered in
+  // the Outlet. Once settled that is `location`; while a navigation is pending
+  // the previous route stays mounted (leaf routes have no pending component),
+  // so match the settled `resolvedLocation` instead of the pending target —
+  // otherwise padding is stripped from the outgoing page a frame early (a
+  // visible flash when leaving a padded table for the full-bleed chart).
   const fullBleed = useRouterState({
     select: (state) =>
-      isFullBleedLocation(state.location) ||
-      isFullBleedLocation(state.resolvedLocation ?? state.location),
+      isFullBleedLocation(
+        state.status === "pending"
+          ? (state.resolvedLocation ?? state.location)
+          : state.location
+      ),
   })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const [settingsError, setSettingsError] = React.useState<string | null>(null)

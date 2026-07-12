@@ -1,11 +1,13 @@
 import type {
   AutomationBacktestSettings,
 } from "@/lib/automations/automation"
+import { normalizeAutomationType } from "@/lib/automations/automation-types"
 import type { AutomationDetail } from "@/lib/api/automations"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
 export type AutomationSettingsValues = {
   name: string
+  type: string
   interval: StrategyInterval
   takeProfitPct: string
   stopLossPct: string
@@ -134,6 +136,7 @@ export function buildAutomationSettingsSave(
     payload: {
       automationId: detail.id,
       name,
+      type: normalizeAutomationType(values.type),
       interval: values.interval,
       graph: detail.graph,
       protection: parsedProtection.protection,

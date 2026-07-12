@@ -11,6 +11,11 @@ Read before building or changing any page. One rule above all: **reuse the exist
 - Small gaps inside a card (`gap-1`/`gap-2` between label and value) are fine.
 - Wrong vs right: ![wrong](assets/pasted-image-1783710798036774000.png) ![site gap to match](assets/pasted-image-1783710819371950000.png)
 
+## Full-bleed pages (padding on navigation)
+
+- A few pages drop the `DashboardContent` gutter and manage their own edges: the live Trade terminal, the bot workspace, an automation editor, and the backtest chart. This opt-out is decided in ONE place — `isFullBleedLocation` in `src/components/shell-layout.tsx`. Add a page there; don't wrap or unwrap padding per route.
+- **Decide padding from the page that is actually rendered, never the page you are navigating to.** During a navigation the old page stays mounted until the new one's data loads, so `shell-layout` reads the *settled* location (`resolvedLocation` while `status === "pending"`, otherwise `location`). Judging the pending target instead strips padding off the still-visible old page for a frame — a visible flash when leaving a padded table for the full-bleed chart. (Fixed July 2026; don't reintroduce the target-location check.)
+
 ## Tables
 
 - Use `DashboardTable` (`src/components/dashboard-table.tsx`) for every dashboard table — never hand-roll one.

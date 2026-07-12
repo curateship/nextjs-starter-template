@@ -15,6 +15,7 @@ import {
   type AutomationStrategyConfig,
   type AutomationValidationError,
 } from "@/lib/automations/automation"
+import { normalizeAutomationType } from "@/lib/automations/automation-types"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -104,6 +105,7 @@ export async function createUserAutomation(
   userId: string,
   input: {
     name: string
+    type?: string
     interval: StrategyInterval
     protection?: AutomationProtection
     backtest?: AutomationBacktestSettings
@@ -118,6 +120,7 @@ export async function createUserAutomation(
         id: uuid(),
         userId,
         name: nameSchema.parse(input.name),
+        type: normalizeAutomationType(input.type),
         interval: input.interval,
         graph: storedDraft(
           EMPTY_GRAPH,
@@ -141,6 +144,7 @@ export async function saveUserAutomation(
   automationId: string,
   input: {
     name: string
+    type?: string
     interval: StrategyInterval
     graph: AutomationGraph
     protection: AutomationProtection
@@ -165,6 +169,7 @@ export async function saveUserAutomation(
       .update(tradingAutomations)
       .set({
         name,
+        type: normalizeAutomationType(input.type),
         interval: draft.interval,
         graph: storedDraft(draft.graph, draft.protection, draft.backtest),
         compiledConfig,
@@ -200,6 +205,7 @@ export async function duplicateUserAutomation(
           id: uuid(),
           userId,
           name: copyName(source.name, copyNumber),
+          type: source.type,
           interval: source.interval,
           graph: source.graph,
           compiledConfig: source.compiledConfig,

@@ -12,12 +12,14 @@ import {
   type AutomationStrategyConfig,
   type AutomationValidationError,
 } from "@/lib/automations/automation"
+import { automationTypeSchema } from "@/lib/automations/automation-types"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 import type { TradingAutomation } from "@/server/schema"
 
 export type AutomationListItem = {
   id: string
   name: string
+  type: string
   interval: StrategyInterval
   summary: string
   isValid: boolean
@@ -27,6 +29,7 @@ export type AutomationListItem = {
 export type AutomationDetail = {
   id: string
   name: string
+  type: string
   interval: StrategyInterval
   graph: AutomationGraph
   protection: AutomationProtection
@@ -42,6 +45,7 @@ const nameSchema = z.string().trim().min(1).max(80)
 const automationIdSchema = z.object({ automationId: z.string().uuid() })
 const createSchema = z.object({
   name: nameSchema,
+  type: automationTypeSchema,
   interval: intervalSchema,
   protection: automationDraftProtectionSchema.default({}),
   backtest: automationBacktestSettingsSchema.default(
@@ -50,6 +54,7 @@ const createSchema = z.object({
 })
 const saveSchema = automationIdSchema.extend({
   name: nameSchema,
+  type: automationTypeSchema,
   interval: intervalSchema,
   graph: automationGraphSchema,
   protection: automationDraftProtectionSchema,
@@ -87,6 +92,7 @@ const listAutomationsFn = createServerFn({ method: "GET" }).handler(
           return {
             id: row.id,
             name: row.name,
+            type: row.type,
             interval: row.interval,
             summary: isValid
               ? `${rules} action ${rules === 1 ? "rule" : "rules"}`
@@ -202,6 +208,7 @@ async function serializeDetail(
   return {
     id: row.id,
     name: row.name,
+    type: row.type,
     interval: row.interval,
     graph: inspected.graph,
     protection: inspected.protection,

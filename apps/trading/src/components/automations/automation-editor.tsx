@@ -1,6 +1,6 @@
 import * as React from "react"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
-import type { Layout } from "react-resizable-panels"
+import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
@@ -38,13 +38,9 @@ import {
 } from "@/lib/indicators/registry"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
-import {
-  clampZoom,
-  fitViewport,
-  nextNodePosition,
-  type CanvasSize,
-} from "./canvas-model"
+import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
+import { AutomationPanelToggles } from "./automation-panel-toggles"
 import { automationNodeName } from "./node-labels"
 
 export function AutomationEditor({
@@ -65,6 +61,7 @@ export function AutomationEditor({
   onBacktest?: () => void
 }) {
   const [name, setName] = React.useState(initial.name)
+  const [type, setType] = React.useState(initial.type)
   const [interval, setInterval] = React.useState<StrategyInterval>(
     initial.interval
   )
@@ -89,11 +86,28 @@ export function AutomationEditor({
   const [saving, setSaving] = React.useState(false)
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [desktop, setDesktop] = React.useState(false)
+  const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
+  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
   const [logOpen, setLogOpen] = React.useState(true)
   const [logEntries, setLogEntries] = React.useState<AutomationLogEntry[]>([])
   const graphRef = React.useRef(graph)
-  const horizontalLayout = useAutomationLayout("automation-editor-horizontal")
+  const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const horizontalLayout = useAutomationLayout("automation-editor-horizontal-v2")
   const verticalLayout = useAutomationLayout("automation-editor-vertical")
+
+  const togglePalette = React.useCallback(() => {
+    const panel = palettePanelRef.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }, [])
+  const toggleInspector = React.useCallback(() => {
+    const panel = inspectorPanelRef.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }, [])
 
   React.useEffect(() => {
     graphRef.current = graph
@@ -112,6 +126,7 @@ export function AutomationEditor({
   const serialize = React.useCallback(
     (
       nextName: string,
+      nextType: string,
       nextInterval: StrategyInterval,
       nextGraph: AutomationGraph,
       nextProtection: AutomationProtection,
@@ -119,6 +134,7 @@ export function AutomationEditor({
     ) =>
       JSON.stringify({
         name: nextName,
+        type: nextType,
         interval: nextInterval,
         graph: nextGraph,
         protection: nextProtection,
@@ -129,6 +145,7 @@ export function AutomationEditor({
   const [lastSaved, setLastSaved] = React.useState(() =>
     serialize(
       initial.name,
+      initial.type,
       initial.interval,
       initial.graph,
       initial.protection,
@@ -150,6 +167,7 @@ export function AutomationEditor({
   )
   const currentSerialized = serialize(
     name,
+    type,
     interval,
     graph,
     protection,
@@ -261,35 +279,13 @@ export function AutomationEditor({
     [record]
   )
 
-  const zoomBy = React.useCallback(
-    (factor: number) => {
-      setGraph((current) => {
-        const zoom = clampZoom(current.viewport.zoom * factor)
-        const anchorX = (canvasSize.width || 800) / 2
-        const anchorY = (canvasSize.height || 560) / 2
-        return {
-          ...current,
-          viewport: {
-            zoom,
-            x:
-              anchorX -
-              (anchorX - current.viewport.x) * (zoom / current.viewport.zoom),
-            y:
-              anchorY -
-              (anchorY - current.viewport.y) * (zoom / current.viewport.zoom),
-          },
-        }
-      })
-    },
-    [canvasSize.height, canvasSize.width]
-  )
-
   const handleSave = React.useCallback(async () => {
     if (saving) return
     setSaving(true)
     setSaveError(null)
     const payload = {
       name,
+      type,
       interval,
       graph,
       protection,
@@ -301,6 +297,7 @@ export function AutomationEditor({
         ...payload,
       })
       setName(saved.name)
+      setType(saved.type)
       setInterval(saved.interval)
       setGraph(saved.graph)
       setProtection(saved.protection)
@@ -308,6 +305,7 @@ export function AutomationEditor({
       setLastSaved(
         serialize(
           saved.name,
+          saved.type,
           saved.interval,
           saved.graph,
           saved.protection,
@@ -338,6 +336,7 @@ export function AutomationEditor({
     record,
     saving,
     serialize,
+    type,
   ])
 
   const inspector = (
@@ -370,22 +369,30 @@ export function AutomationEditor({
     >
       <ResizablePanel
         id="palette"
-        defaultSize="18%"
+        panelRef={palettePanelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="16%"
         minSize="14%"
         maxSize="26%"
+        onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
         <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel id="canvas" defaultSize="58%" minSize="35%">
+      <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
         <div className="flex h-full min-h-0">{canvas}</div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel
         id="inspector"
-        defaultSize="24%"
+        panelRef={inspectorPanelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="20%"
         minSize="18%"
         maxSize="34%"
+        onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
         {inspector}
       </ResizablePanel>
@@ -398,26 +405,11 @@ export function AutomationEditor({
     <div className="flex h-full min-h-0 flex-col bg-background">
       <AutomationToolbar
         name={name}
-        zoom={graph.viewport.zoom}
         runnable={compiled.config !== null && !dirty && !saving}
         dirty={dirty}
         saving={saving}
         onNameChange={setName}
         onOpenSettings={() => setSettingsOpen(true)}
-        onZoomOut={() => zoomBy(1 / 1.2)}
-        onZoomIn={() => zoomBy(1.2)}
-        onFit={() =>
-          setGraph((current) => ({
-            ...current,
-            viewport: fitViewport(
-              current.nodes,
-              canvasSize.width || 800,
-              canvasSize.height || 560
-            ),
-          }))
-        }
-        logOpen={logOpen}
-        onToggleLog={() => setLogOpen((open) => !open)}
         onSave={() => void handleSave()}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
@@ -456,6 +448,11 @@ export function AutomationEditor({
             <AutomationActivityLog
               entries={logEntries}
               onCollapse={() => setLogOpen(false)}
+              showPanelToggles={desktop}
+              paletteCollapsed={paletteCollapsed}
+              inspectorCollapsed={inspectorCollapsed}
+              onTogglePalette={togglePalette}
+              onToggleInspector={toggleInspector}
             />
           </ResizablePanel>
         ) : null}
@@ -468,26 +465,37 @@ export function AutomationEditor({
           <span className="ml-2 text-xs text-muted-foreground">
             {logEntries.length} {logEntries.length === 1 ? "event" : "events"}
           </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="ml-auto"
-            aria-label="Expand activity log"
-            onClick={() => setLogOpen(true)}
-          >
-            <ChevronsUpIcon className="size-4" />
-          </Button>
+          <div className="ml-auto flex items-center gap-1">
+            {desktop ? (
+              <AutomationPanelToggles
+                paletteCollapsed={paletteCollapsed}
+                inspectorCollapsed={inspectorCollapsed}
+                onTogglePalette={togglePalette}
+                onToggleInspector={toggleInspector}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Expand activity log"
+              onClick={() => setLogOpen(true)}
+            >
+              <ChevronsUpIcon className="size-4" />
+            </Button>
+          </div>
         </div>
       ) : null}
 
       <AutomationCanvasSettingsDialog
         open={settingsOpen}
+        type={type}
         interval={interval}
         protection={protection}
         backtest={backtestSettings}
         onOpenChange={setSettingsOpen}
         onApply={(settings) => {
+          setType(settings.type)
           setInterval(settings.interval)
           setProtection(settings.protection)
           setBacktestSettings(settings.backtest)

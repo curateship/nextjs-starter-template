@@ -3,13 +3,9 @@ import {
   ArrowLeftIcon,
   BotIcon,
   FlaskConicalIcon,
-  ListIcon,
-  Maximize2Icon,
-  MinusIcon,
   MoreHorizontalIcon,
   PanelLeftIcon,
   PanelRightIcon,
-  PlusIcon,
   SettingsIcon,
 } from "lucide-react"
 
@@ -24,17 +20,11 @@ import { Input } from "@/components/ui/input"
 
 export function AutomationToolbar({
   name,
-  zoom,
   runnable,
   dirty,
   saving,
   onNameChange,
   onOpenSettings,
-  onZoomOut,
-  onZoomIn,
-  onFit,
-  logOpen,
-  onToggleLog,
   onSave,
   onOpenPalette,
   onOpenInspector,
@@ -42,17 +32,11 @@ export function AutomationToolbar({
   onBacktest,
 }: {
   name: string
-  zoom: number
   runnable: boolean
   dirty: boolean
   saving: boolean
   onNameChange: (name: string) => void
   onOpenSettings: () => void
-  onZoomOut: () => void
-  onZoomIn: () => void
-  onFit: () => void
-  logOpen: boolean
-  onToggleLog: () => void
   onSave: () => void
   onOpenPalette: () => void
   onOpenInspector: () => void
@@ -86,62 +70,6 @@ export function AutomationToolbar({
         />
       </div>
       <div className="ml-auto" />
-      <div className="hidden items-center rounded-lg border p-0.5 xl:flex">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Zoom out"
-          onClick={onZoomOut}
-        >
-          <MinusIcon className="size-3.5" />
-        </Button>
-        <span className="w-11 text-center font-mono text-[10px] text-muted-foreground">
-          {Math.round(zoom * 100)}%
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Zoom in"
-          onClick={onZoomIn}
-        >
-          <PlusIcon className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 px-2 text-xs"
-          aria-label="Fit automation to view"
-          onClick={onFit}
-        >
-          <Maximize2Icon className="size-3.5" />
-          Fit
-        </Button>
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        className="xl:hidden"
-        aria-label="Fit automation to view"
-        onClick={onFit}
-      >
-        <Maximize2Icon className="size-3.5" />
-      </Button>
-      <Button
-        type="button"
-        variant={logOpen ? "secondary" : "outline"}
-        size="sm"
-        className="h-8 gap-1.5 px-2 text-xs"
-        aria-label={logOpen ? "Hide activity log" : "Show activity log"}
-        aria-pressed={logOpen}
-        onClick={onToggleLog}
-      >
-        <ListIcon className="size-3.5" />
-        <span className="hidden sm:inline">Log</span>
-      </Button>
       <Button
         type="button"
         variant="outline"
@@ -156,14 +84,13 @@ export function AutomationToolbar({
       <Button
         type="button"
         variant="outline"
-        size="icon-sm"
-        className="hidden xl:inline-flex"
+        size="sm"
+        className="hidden h-8 xl:inline-flex"
         disabled={!runnable}
-        aria-label="Create bot"
-        title="Create Bot"
         onClick={onCreateBot}
       >
         <BotIcon className="size-3.5" />
+        Create Bot
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -191,12 +118,12 @@ export function AutomationToolbar({
       <Button
         type="button"
         variant="outline"
-        size="icon-sm"
-        aria-label="Automation settings"
-        title="Automation settings"
+        size="sm"
+        className="h-8"
         onClick={onOpenSettings}
       >
         <SettingsIcon className="size-3.5" />
+        Settings
       </Button>
       <Button
         type="button"

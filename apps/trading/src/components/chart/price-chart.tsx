@@ -605,6 +605,13 @@ export function PriceChartView({
 
         const onContextMenu = (event: MouseEvent) => {
           event.preventDefault()
+          // While the shift-click measure box is active, a right-click cancels
+          // it instead of opening any menu.
+          if (measuringRef.current) {
+            clearMeasure()
+            event.stopPropagation()
+            return
+          }
           // Parent owns the menu (e.g. the live chart's trading actions) → hand
           // it the price and let it render. Otherwise show our built-in menu.
           if (contextMenuRef.current) {

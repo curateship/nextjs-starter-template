@@ -91,6 +91,7 @@ beforeEach(async () => {
     await applyMigration(client, migration)
   }
   await applyMigration(client, "../../drizzle/0020_trading_automations.sql")
+  await applyMigration(client, "../../drizzle/0025_automation_type.sql")
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })
@@ -384,6 +385,23 @@ describe("0020 trading Automations migration", () => {
       "select count(*)::int as count from information_schema.tables where table_name = 'trading_automations'"
     )
     expect(result.rows).toEqual([{ count: 1 }])
+    await fresh.close()
+  })
+
+  it("adds the type column idempotently, defaulting to Uncategorized", async () => {
+    const fresh = new PGlite()
+    for (const migration of BASE_MIGRATIONS) {
+      await applyMigration(fresh, migration)
+    }
+    await applyMigration(fresh, "../../drizzle/0020_trading_automations.sql")
+    await applyMigration(fresh, "../../drizzle/0025_automation_type.sql")
+    await applyMigration(fresh, "../../drizzle/0025_automation_type.sql")
+
+    const result = await fresh.query<{ column_default: string | null }>(
+      `select column_default from information_schema.columns
+       where table_name = 'trading_automations' and column_name = 'type'`
+    )
+    expect(result.rows).toEqual([{ column_default: "'Uncategorized'::character varying" }])
     await fresh.close()
   })
 

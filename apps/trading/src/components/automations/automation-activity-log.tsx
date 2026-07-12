@@ -3,6 +3,7 @@ import { ChevronsDownIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
+import { AutomationPanelToggles } from "./automation-panel-toggles"
 import type { AutomationLogEntry } from "./automation-log"
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -14,9 +15,19 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
 export function AutomationActivityLog({
   entries,
   onCollapse,
+  showPanelToggles = false,
+  paletteCollapsed = false,
+  inspectorCollapsed = false,
+  onTogglePalette,
+  onToggleInspector,
 }: {
   entries: AutomationLogEntry[]
   onCollapse: () => void
+  showPanelToggles?: boolean
+  paletteCollapsed?: boolean
+  inspectorCollapsed?: boolean
+  onTogglePalette?: () => void
+  onToggleInspector?: () => void
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -27,16 +38,25 @@ export function AutomationActivityLog({
         <span className="text-xs text-muted-foreground">
           {entries.length} {entries.length === 1 ? "event" : "events"}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="ml-auto"
-          aria-label="Collapse activity log"
-          onClick={onCollapse}
-        >
-          <ChevronsDownIcon className="size-4" />
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          {showPanelToggles && onTogglePalette && onToggleInspector ? (
+            <AutomationPanelToggles
+              paletteCollapsed={paletteCollapsed}
+              inspectorCollapsed={inspectorCollapsed}
+              onTogglePalette={onTogglePalette}
+              onToggleInspector={onToggleInspector}
+            />
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Collapse activity log"
+            onClick={onCollapse}
+          >
+            <ChevronsDownIcon className="size-4" />
+          </Button>
+        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div
