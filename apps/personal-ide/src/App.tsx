@@ -126,6 +126,7 @@ function App() {
     docs,
     refreshResources,
     resetResources,
+    resourceFolders,
     resourcesRef,
     setResources,
     skillFilter,
@@ -234,6 +235,7 @@ function App() {
     createFolder,
     createPastedImageFile: createNativePastedImageFile,
     duplicateEntry,
+    moveEntry,
     renameEntry,
     revealEntry,
     trashEntry,
@@ -302,6 +304,7 @@ function App() {
         activePath: activePathRef.current,
         directories: directoriesRef.current,
         docs: previousResources.docs,
+        folders: previousResources.folders,
         gitStatus: gitStatusRef.current,
         skills: previousResources.skills,
         tabs: tabsRef.current,
@@ -330,6 +333,7 @@ function App() {
       setDirectories(savedEditor?.directories ?? { "": { open: true, loading: true } })
       setResources({
         docs: savedEditor?.docs ?? [],
+        folders: savedEditor?.folders ?? { tasks: [], skills: [], docs: [] },
         skills: savedEditor?.skills ?? [],
         tasks: savedEditor?.tasks ?? [],
       })
@@ -419,14 +423,14 @@ function App() {
     }
   }
 
-  async function createTask(title: string) {
+  async function createTask(title: string, folder?: string) {
     if (!activeWorkspaceId) {
       setFileError("Create or select a workspace first")
       return
     }
 
     try {
-      const task = await createNativeTask(activeWorkspaceId, title)
+      const task = await createNativeTask(activeWorkspaceId, title, folder)
       await refreshResources()
       await openPath(task.path, fileName(task.path))
     } catch (error) {
@@ -466,14 +470,14 @@ function App() {
     void pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
   }
 
-  async function createSkill(name: string) {
+  async function createSkill(name: string, folder?: string) {
     if (!activeWorkspaceId) {
       setFileError("Create or select a workspace first")
       return
     }
 
     try {
-      const skill = await createNativeSkill(activeWorkspaceId, name)
+      const skill = await createNativeSkill(activeWorkspaceId, name, folder)
       await refreshResources()
       await openPath(skill.path, "SKILL.md")
     } catch (error) {
@@ -481,14 +485,14 @@ function App() {
     }
   }
 
-  async function createDoc(title: string) {
+  async function createDoc(title: string, folder?: string) {
     if (!activeWorkspaceId) {
       setFileError("Create or select a workspace first")
       return
     }
 
     try {
-      const doc = await createNativeDoc(activeWorkspaceId, title)
+      const doc = await createNativeDoc(activeWorkspaceId, title, folder)
       await refreshResources()
       await openPath(doc.path, fileName(doc.path))
     } catch (error) {
@@ -616,12 +620,14 @@ function App() {
                           error={fileError}
                           filter={taskFilter}
                           filterOptions={taskStatusOptions}
+                          folders={resourceFolders.tasks}
                           tasks={visibleTasks}
                           onCreate={createTask}
                           onCreateFolder={createFolder}
                           onCopyPath={copyEntryPath}
                           onDuplicate={duplicateEntry}
                           onFilterChange={setTaskFilter}
+                          onMove={moveEntry}
                           onOpenTask={(task) => openPath(task.path, fileName(task.path))}
                           onRefresh={refreshFiles}
                           onRename={renameEntry}
@@ -654,6 +660,7 @@ function App() {
                         <SkillsPanel
                           error={fileError}
                           filter={skillFilter}
+                          folders={resourceFolders.skills}
                           hasSkills={skills.length > 0}
                           pinnedSkillSlugs={pinnedSkillSlugs}
                           skills={visibleSkills}
@@ -663,6 +670,7 @@ function App() {
                           onDuplicate={duplicateEntry}
                           onExecuteSkill={executeSkill}
                           onFilterChange={setSkillFilter}
+                          onMove={moveEntry}
                           onOpenSkill={(skill) => openPath(skill.path, "SKILL.md")}
                           onPinSkill={pinSkill}
                           onRefresh={refreshFiles}
@@ -677,10 +685,12 @@ function App() {
                         <DocsPanel
                           error={fileError}
                           docs={docs}
+                          folders={resourceFolders.docs}
                           onCreate={createDoc}
                           onCreateFolder={createFolder}
                           onCopyPath={copyEntryPath}
                           onDuplicate={duplicateEntry}
+                          onMove={moveEntry}
                           onOpenDoc={(doc) => openPath(doc.path, fileName(doc.path))}
                           onRefresh={refreshFiles}
                           onRename={renameEntry}

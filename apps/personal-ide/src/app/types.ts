@@ -50,6 +50,7 @@ export type WorkspaceEditorState = {
   activePath: string
   directories: Record<string, DirectoryState>
   docs: DocItem[]
+  folders: ResourceFolders
   gitStatus: GitStatus
   skills: SkillItem[]
   tabs: EditorTab[]
@@ -76,6 +77,12 @@ export type SkillItem = {
 export type DocItem = {
   name: string
   path: string
+}
+
+export type ResourceFolders = {
+  tasks: string[]
+  skills: string[]
+  docs: string[]
 }
 
 export type GitFile = {

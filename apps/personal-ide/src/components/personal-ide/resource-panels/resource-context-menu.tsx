@@ -54,7 +54,6 @@ export function ResourceContextMenu({
       menu={menu}
       onClose={onClose}
       onCopyPath={operations.onCopyPath}
-      showCreateFolder={false}
       onCreateFile={() => {
         onStartCreate("file", menu.basePath || basePath)
       }}
@@ -91,7 +90,6 @@ export function FileContextMenu({
   onReveal,
   onTrash,
   onUnpinEntry,
-  showCreateFolder = true,
 }: {
   entryAction?: EntryAction
   isEntryPinned?: (entry: FileEntry) => boolean
@@ -107,7 +105,6 @@ export function FileContextMenu({
   onReveal: (entry: FileEntry) => void
   onTrash: (entry: FileEntry) => void
   onUnpinEntry?: (entry: FileEntry) => void
-  showCreateFolder?: boolean
 }) {
   const entry = menu.entry
   const pinned = entry ? isEntryPinned?.(entry) : false
@@ -125,13 +122,11 @@ export function FileContextMenu({
       role="menu"
     >
       <FileMenuButton icon={<FileText />} label="New File" onClick={() => run(onCreateFile)} />
-      {showCreateFolder ? (
-        <FileMenuButton
-          icon={<FolderPlus />}
-          label="New Folder"
-          onClick={() => run(onCreateFolder)}
-        />
-      ) : null}
+      <FileMenuButton
+        icon={<FolderPlus />}
+        label="New Folder"
+        onClick={() => run(onCreateFolder)}
+      />
       <FileMenuButton icon={<RefreshCw />} label="Refresh" onClick={() => run(onRefresh)} />
 
       {entry ? (

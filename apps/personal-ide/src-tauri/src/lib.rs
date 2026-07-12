@@ -888,7 +888,12 @@ fn create_folder(
         return Err("Folder path is required".to_string());
     }
 
-    let folder = resolve_new_path_inside(&workspace.app_root, path)?;
+    let normalized = path.replace('\\', "/");
+    let folder = if is_shared_skill_path(&normalized) {
+        resolve_new_path_inside(&workspace.worktree_root, &normalized)?
+    } else {
+        resolve_new_path_inside(&workspace.app_root, &normalized)?
+    };
     if folder.exists() {
         return Err("Folder already exists".to_string());
     }
@@ -900,7 +905,7 @@ fn create_folder(
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| "Untitled".to_string()),
-        path: relative_path(&workspace.app_root, &folder)?,
+        path: display_path(&workspace, &folder)?,
         is_dir: true,
     })
 }
@@ -933,6 +938,51 @@ fn rename_path(
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| "Untitled".to_string()),
         path: display_path(&workspace, &target)?,
+        is_dir: metadata.is_dir(),
+    })
+}
+
+#[tauri::command]
+fn move_path(
+    workspace_id: String,
+    source_path: String,
+    target_dir: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<FileEntry, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let source = resolve_editable_path(&workspace, &source_path)?;
+    let target_root = resolve_editable_path(&workspace, &target_dir)?;
+
+    if !target_root.is_dir() {
+        return Err("Target is not a folder".to_string());
+    }
+    if target_root.starts_with(&source) {
+        return Err("Cannot move a folder into itself".to_string());
+    }
+
+    let name = source
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .ok_or_else(|| "Path is invalid".to_string())?;
+    let destination = target_root.join(&name);
+    let metadata = fs::metadata(&source).map_err(|error| error.to_string())?;
+
+    if destination == source {
+        return Ok(FileEntry {
+            name,
+            path: display_path(&workspace, &source)?,
+            is_dir: metadata.is_dir(),
+        });
+    }
+    if destination.exists() {
+        return Err("A file or folder with that name already exists".to_string());
+    }
+
+    fs::rename(&source, &destination).map_err(|error| error.to_string())?;
+
+    Ok(FileEntry {
+        name,
+        path: display_path(&workspace, &destination)?,
         is_dir: metadata.is_dir(),
     })
 }
@@ -1052,14 +1102,7 @@ fn list_tasks(
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
 
     let mut tasks = Vec::new();
-    for entry in fs::read_dir(&root).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
-        let path = entry.path();
-        if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("md") {
-            continue;
-        }
-        tasks.push(read_task(&workspace.app_root, &path)?);
-    }
+    collect_tasks(&workspace.app_root, &root, &mut tasks)?;
 
     tasks.sort_by_key(|task| task.title.to_lowercase());
     Ok(tasks)
@@ -1069,6 +1112,7 @@ fn list_tasks(
 fn create_task(
     workspace_id: String,
     title: String,
+    folder: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<TaskItem, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
@@ -1079,6 +1123,7 @@ fn create_task(
 
     let root = workspace.app_root.join(WORKSPACE_DIR).join("tasks");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let root = resource_target_folder(&workspace, &root, folder)?;
     let path = unique_markdown_path(&root, &slugify(title));
     let settings = editor_settings(&state)?;
     let contents = render_task_template(&settings.default_task_template, title);
@@ -1097,28 +1142,7 @@ fn list_skills(
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
 
     let mut skills = Vec::new();
-    for entry in fs::read_dir(&root).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-
-        let skill_path = path.join("SKILL.md");
-        if !skill_path.is_file() {
-            continue;
-        }
-
-        let slug = entry.file_name().to_string_lossy().to_string();
-        let contents = fs::read_to_string(&skill_path).map_err(|error| error.to_string())?;
-        let fields = parse_frontmatter(&contents);
-        skills.push(SkillItem {
-            name: title_from_slug(&slug),
-            slug,
-            path: display_path(&workspace, &skill_path)?,
-            tags: parse_skill_tags(fields.get("tags")),
-        });
-    }
+    collect_skills(&workspace, &root, &mut skills)?;
 
     skills.sort_by_key(|skill| skill.name.to_lowercase());
     Ok(skills)
@@ -1128,6 +1152,7 @@ fn list_skills(
 fn create_skill(
     workspace_id: String,
     name: String,
+    folder: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<SkillItem, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
@@ -1138,6 +1163,7 @@ fn create_skill(
 
     let root = shared_skills_root(&workspace);
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let root = resource_target_folder(&workspace, &root, folder)?;
     let slug = unique_slug(&root, &slugify(name));
     let folder = root.join(&slug);
     fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
@@ -1175,9 +1201,35 @@ fn list_docs(
 }
 
 #[tauri::command]
+fn list_resource_folders(
+    workspace_id: String,
+    base: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<String>, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let normalized = base.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return Err("Base path is required".to_string());
+    }
+
+    let root = if is_shared_skill_path(&normalized) {
+        resolve_new_path_inside(&workspace.worktree_root, &normalized)?
+    } else {
+        resolve_new_path_inside(&workspace.app_root, &normalized)?
+    };
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+
+    let mut folders = Vec::new();
+    collect_resource_folders(&workspace, &root, &mut folders)?;
+    folders.sort_by_key(|folder| folder.to_lowercase());
+    Ok(folders)
+}
+
+#[tauri::command]
 fn create_doc(
     workspace_id: String,
     title: String,
+    folder: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<DocItem, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
@@ -1188,6 +1240,7 @@ fn create_doc(
 
     let root = workspace.app_root.join(WORKSPACE_DIR).join("docs");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let root = resource_target_folder(&workspace, &root, folder)?;
     let path = unique_markdown_path(&root, &slugify(title));
     fs::write(&path, format!("# {}\n\n", title)).map_err(|error| error.to_string())?;
 
@@ -3050,6 +3103,102 @@ fn frontmatter_bounds(contents: &str) -> Option<(usize, usize, usize)> {
     Some((start, end, after))
 }
 
+fn collect_tasks(app_root: &Path, folder: &Path, tasks: &mut Vec<TaskItem>) -> Result<(), String> {
+    for entry in fs::read_dir(folder).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_tasks(app_root, &path, tasks)?;
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+            tasks.push(read_task(app_root, &path)?);
+        }
+    }
+    Ok(())
+}
+
+fn collect_skills(
+    workspace: &WorkspaceRecord,
+    folder: &Path,
+    skills: &mut Vec<SkillItem>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(folder).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let skill_path = path.join("SKILL.md");
+        if !skill_path.is_file() {
+            collect_skills(workspace, &path, skills)?;
+            continue;
+        }
+
+        let slug = entry.file_name().to_string_lossy().to_string();
+        let contents = fs::read_to_string(&skill_path).map_err(|error| error.to_string())?;
+        let fields = parse_frontmatter(&contents);
+        skills.push(SkillItem {
+            name: title_from_slug(&slug),
+            slug,
+            path: display_path(workspace, &skill_path)?,
+            tags: parse_skill_tags(fields.get("tags")),
+        });
+    }
+    Ok(())
+}
+
+fn collect_resource_folders(
+    workspace: &WorkspaceRecord,
+    folder: &Path,
+    folders: &mut Vec<String>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(folder).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        // Skill folders are items, not grouping folders.
+        if path.join("SKILL.md").is_file() {
+            continue;
+        }
+
+        let relative = display_path(workspace, &path)?;
+        let assets_root = format!("{}/docs/assets", WORKSPACE_DIR);
+        if relative == assets_root || relative.starts_with(&format!("{}/", assets_root)) {
+            continue;
+        }
+
+        folders.push(relative);
+        collect_resource_folders(workspace, &path, folders)?;
+    }
+    Ok(())
+}
+
+fn resource_target_folder(
+    workspace: &WorkspaceRecord,
+    root: &Path,
+    folder: Option<String>,
+) -> Result<PathBuf, String> {
+    let folder = folder
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let Some(folder) = folder else {
+        return Ok(root.to_path_buf());
+    };
+
+    let target = resolve_editable_path(workspace, &folder)?;
+    let root = fs::canonicalize(root).map_err(|error| error.to_string())?;
+    if !target.starts_with(&root) {
+        return Err("Folder is outside this section".to_string());
+    }
+    if !target.is_dir() {
+        return Err("Folder does not exist".to_string());
+    }
+
+    Ok(target)
+}
+
 fn collect_docs(app_root: &Path, folder: &Path, docs: &mut Vec<DocItem>) -> Result<(), String> {
     for entry in fs::read_dir(folder).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
@@ -3762,6 +3911,7 @@ pub fn run() {
             create_pasted_image,
             create_folder,
             rename_path,
+            move_path,
             trash_path,
             duplicate_path,
             reveal_path,
@@ -3772,6 +3922,7 @@ pub fn run() {
             create_skill,
             list_docs,
             create_doc,
+            list_resource_folders,
             git_status,
             git_status_basic,
             diff_hunks,
