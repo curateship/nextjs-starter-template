@@ -13,7 +13,8 @@ import { useMarketRows } from "@/lib/hl/hooks"
 const routeApi = getRouteApi("/_authenticated/automations/$automationId")
 
 export function AutomationRouteContent() {
-  const { automation, trading } = routeApi.useLoaderData()
+  const { automation, trading, pinnedIndicators, indicatorParamSeeds } =
+    routeApi.useLoaderData()
   const router = useRouter()
   const markets = useMarketRows(trading.network)
   const defaultMarket =
@@ -45,6 +46,8 @@ export function AutomationRouteContent() {
       <AutomationEditor
         key={automation.id}
         initial={automation}
+        pinnedIndicators={pinnedIndicators}
+        indicatorParamSeeds={indicatorParamSeeds}
         onQuickTest={() => void openQuickTest()}
         onCreateBot={() => {
           setLaunchError(null)

@@ -106,6 +106,7 @@ function StrategySettingsDialogContent({
         pinned: currentStrategy.pinned,
       })
       onChanged({ ...currentStrategy, config: result.config, templates })
+      onOpenChange(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Saving settings failed")
     } finally {

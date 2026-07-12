@@ -8,7 +8,6 @@ import {
   toneClass,
   usd,
 } from "@/components/backtest/backtest-format"
-import { SettingsFields } from "@/components/strategies/settings-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -32,7 +31,6 @@ import {
 import { runBacktest } from "@/lib/api/backtests"
 import { runQuickTest, type QuickTestResponse } from "@/lib/api/quick-test"
 import { INDICATORS } from "@/lib/indicators/registry"
-import type { StrategySettings } from "@/lib/strategies/settings"
 import {
   strategyTypeLabel,
   strategyTypeOf,
@@ -53,7 +51,6 @@ export function QuickTestDialog({
   networkEditable = false,
   config,
   automationId,
-  settingsEditable = false,
   onResult,
   onSaved,
 }: {
@@ -70,8 +67,6 @@ export function QuickTestDialog({
   config: StrategyConfig | null
   /** Saved Automation source used for an authoritative Backtest snapshot. */
   automationId?: string
-  /** Trade page: tweak the settings block before running (bots are fixed). */
-  settingsEditable?: boolean
   /** Fired with the finished test (and again on close) so charts can paint it. */
   onResult?: (response: QuickTestResponse | null) => void
   /** Fired with the saved run's id after Save to library. */
@@ -80,32 +75,20 @@ export function QuickTestDialog({
   const [windowDays, setWindowDays] = React.useState("30")
   const [testNetwork, setTestNetwork] = React.useState(network)
   const [testMarket, setTestMarket] = React.useState(market)
-  const [settings, setSettings] = React.useState<StrategySettings | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [response, setResponse] = React.useState<QuickTestResponse | null>(null)
-  const [sort, setSort] = React.useState<{ col: TradeSortCol; dir: 1 | -1 }>({
-    col: "n",
-    dir: 1,
-  })
 
   // Reset ONLY when the dialog opens. The bot page re-fetches its data every
   // few seconds, which re-creates the config object — keying on it here would
   // wipe a freshly shown result mid-read.
-  const configRef = React.useRef(config)
-  configRef.current = config
   React.useEffect(() => {
     if (!open) return
     setError(null)
     setResponse(null)
     setTestNetwork(network)
     setTestMarket(market)
-    setSettings(
-      configRef.current?.kind === "signal"
-        ? { ...configRef.current.settings }
-        : null
-    )
   }, [open, market, network])
 
   if (!config) return null
@@ -113,8 +96,7 @@ export function QuickTestDialog({
     config.kind === "signal"
       ? INDICATORS[config.indicator.type].label
       : strategyTypeLabel(strategyTypeOf(config))
-  const testConfig: StrategyConfig =
-    config.kind === "signal" && settings ? { ...config, settings } : config
+  const testConfig: StrategyConfig = config
 
   async function run() {
     setError(null)
@@ -159,16 +141,6 @@ export function QuickTestDialog({
   }
 
   const result = response?.result ?? null
-  const stats = result?.stats
-  const trades = result
-    ? [...result.trades].sort(
-        (a, b) =>
-          (tradeSortValue(a, sort.col) - tradeSortValue(b, sort.col)) * sort.dir
-      )
-    : []
-
-  const toggleSort = (col: TradeSortCol) =>
-    setSort((s) => ({ col, dir: s.col === col ? ((s.dir * -1) as 1 | -1) : 1 }))
 
   return (
     <Dialog
@@ -250,142 +222,10 @@ export function QuickTestDialog({
                   />
                 </div>
               </div>
-
-              {settingsEditable && testConfig.kind === "signal" && settings ? (
-                <div>
-                  <div className="mb-2 text-[11px] font-medium text-muted-foreground">
-                    Trade settings for this test
-                  </div>
-                  <SettingsFields value={settings} onChange={setSettings} />
-                </div>
-              ) : null}
             </CardContent>
           </Card>
 
-          {stats ? (
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Results</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                <div className="grid grid-cols-4 gap-2">
-                  <QuickStat
-                    label="Net P&L"
-                    value={pct(stats.netPnlPct)}
-                    tone={stats.netPnlPct}
-                    sub={signedUsd(stats.netPnl)}
-                  />
-                  <QuickStat
-                    label="Trades"
-                    value={String(stats.all.trades)}
-                    sub={`${(stats.all.winRate * 100).toFixed(0)}% win`}
-                  />
-                  <QuickStat
-                    label="Max DD"
-                    value={pct(-Math.abs(stats.maxDrawdownPct))}
-                    tone={-1}
-                    sub={usd(Math.abs(stats.maxDrawdownUsd))}
-                  />
-                  <QuickStat
-                    label="Fees"
-                    value={usd(stats.fees)}
-                    sub="incl. slippage"
-                  />
-                </div>
-                {stats.warnings?.length ? (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-                    {stats.warnings[0]}
-                  </div>
-                ) : null}
-                {result && result.trades.length > 0 ? (
-                  <div className="max-h-48 overflow-y-auto rounded-md border">
-                    <table className="w-full text-[11px]">
-                      <thead className="sticky top-0 bg-muted/80 text-left">
-                        <tr>
-                          <SortTh
-                            label="#"
-                            col="n"
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                          <SortTh
-                            label="Side"
-                            col="side"
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                          <SortTh
-                            label="Entry"
-                            col="entry"
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                          <SortTh
-                            label="Exit"
-                            col="exit"
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                          <SortTh
-                            label="P&L"
-                            col="pnl"
-                            right
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                          <SortTh
-                            label="Return"
-                            col="return"
-                            right
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                        </tr>
-                      </thead>
-                      <tbody className="font-mono">
-                        {trades.map((trade) => (
-                          <tr key={trade.n} className="border-t">
-                            <td className="px-2 py-1 text-muted-foreground">
-                              {trade.n}
-                            </td>
-                            <td
-                              className={
-                                trade.side === "long"
-                                  ? "px-2 py-1 text-emerald-600"
-                                  : "px-2 py-1 text-red-500"
-                              }
-                            >
-                              {trade.side}
-                            </td>
-                            <td className="px-2 py-1">
-                              {fmtPrice(trade.entryPx)}
-                            </td>
-                            <td className="px-2 py-1">
-                              {fmtPrice(trade.exitPx)}
-                            </td>
-                            <td
-                              className={`px-2 py-1 text-right ${toneClass(trade.pnl)}`}
-                            >
-                              {signedUsd(trade.pnl)}
-                            </td>
-                            <td
-                              className={`px-2 py-1 text-right ${toneClass(trade.returnPct)}`}
-                            >
-                              {pct(trade.returnPct)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No completed trades in this window.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ) : null}
+          {result ? <QuickTestResults result={result} /> : null}
 
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
         </DialogBody>
@@ -409,6 +249,115 @@ export function QuickTestDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The quick test's Results card — stats row, warning, sortable trades table.
+ * Shared by the Quick Test dialog and the chart's strategy settings modal.
+ */
+export function QuickTestResults({
+  result,
+}: {
+  result: NonNullable<QuickTestResponse["result"]>
+}) {
+  const [sort, setSort] = React.useState<{ col: TradeSortCol; dir: 1 | -1 }>({
+    col: "n",
+    dir: 1,
+  })
+  const stats = result.stats
+  const trades = [...result.trades].sort(
+    (a, b) =>
+      (tradeSortValue(a, sort.col) - tradeSortValue(b, sort.col)) * sort.dir
+  )
+  const toggleSort = (col: TradeSortCol) =>
+    setSort((s) => ({ col, dir: s.col === col ? ((s.dir * -1) as 1 | -1) : 1 }))
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Results</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="grid grid-cols-4 gap-2">
+          <QuickStat
+            label="Net P&L"
+            value={pct(stats.netPnlPct)}
+            tone={stats.netPnlPct}
+            sub={signedUsd(stats.netPnl)}
+          />
+          <QuickStat
+            label="Trades"
+            value={String(stats.all.trades)}
+            sub={`${(stats.all.winRate * 100).toFixed(0)}% win`}
+          />
+          <QuickStat
+            label="Max DD"
+            value={pct(-Math.abs(stats.maxDrawdownPct))}
+            tone={-1}
+            sub={usd(Math.abs(stats.maxDrawdownUsd))}
+          />
+          <QuickStat label="Fees" value={usd(stats.fees)} sub="incl. slippage" />
+        </div>
+        {stats.warnings?.length ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+            {stats.warnings[0]}
+          </div>
+        ) : null}
+        {result.trades.length > 0 ? (
+          <div className="max-h-48 overflow-y-auto rounded-md border">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-muted/80 text-left">
+                <tr>
+                  <SortTh label="#" col="n" sort={sort} onSort={toggleSort} />
+                  <SortTh label="Side" col="side" sort={sort} onSort={toggleSort} />
+                  <SortTh label="Entry" col="entry" sort={sort} onSort={toggleSort} />
+                  <SortTh label="Exit" col="exit" sort={sort} onSort={toggleSort} />
+                  <SortTh label="P&L" col="pnl" right sort={sort} onSort={toggleSort} />
+                  <SortTh
+                    label="Return"
+                    col="return"
+                    right
+                    sort={sort}
+                    onSort={toggleSort}
+                  />
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {trades.map((trade) => (
+                  <tr key={trade.n} className="border-t">
+                    <td className="px-2 py-1 text-muted-foreground">{trade.n}</td>
+                    <td
+                      className={
+                        trade.side === "long"
+                          ? "px-2 py-1 text-emerald-600"
+                          : "px-2 py-1 text-red-500"
+                      }
+                    >
+                      {trade.side}
+                    </td>
+                    <td className="px-2 py-1">{fmtPrice(trade.entryPx)}</td>
+                    <td className="px-2 py-1">{fmtPrice(trade.exitPx)}</td>
+                    <td className={`px-2 py-1 text-right ${toneClass(trade.pnl)}`}>
+                      {signedUsd(trade.pnl)}
+                    </td>
+                    <td
+                      className={`px-2 py-1 text-right ${toneClass(trade.returnPct)}`}
+                    >
+                      {pct(trade.returnPct)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No completed trades in this window.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

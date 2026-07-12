@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
 import {
   INDICATORS,
   INDICATOR_IDS,
@@ -83,9 +84,11 @@ const loadStrategyLibraryFn = createServerFn({ method: "POST" }).handler(
     const { listUserStrategies, listUserStrategySettings } = await import(
       "@/server/strategies"
     )
-    const [templateRows, settingRows] = await Promise.all([
+    const { listUserIndicators } = await import("@/server/indicators")
+    const [templateRows, settingRows, chartIndicators] = await Promise.all([
       listUserStrategies(user.id),
       listUserStrategySettings(user.id),
+      listUserIndicators(user.id),
     ])
     const templates = templateRows.flatMap((row) => {
       const template = serializeTemplate(row)
@@ -100,14 +103,26 @@ const loadStrategyLibraryFn = createServerFn({ method: "POST" }).handler(
           : []
       })
     )
+    // A fresh Price Action strategy starts as an exact copy of the chart's
+    // Price Action settings; only its own save diverges from the chart later.
+    const chartPriceAction = chartIndicators.find(
+      (indicator) => indicator.type === "priceAction"
+    )
+    const seededDefault = (type: IndicatorId): SignalStrategyConfig => {
+      const config = defaultStrategyConfig(type, "15m") as SignalStrategyConfig
+      if (type === "price_action" && chartPriceAction) {
+        config.indicator.params = priceActionParamsFromChart(
+          chartPriceAction.params
+        )
+      }
+      return config
+    }
     return {
       strategies: INDICATOR_IDS.map((type) => ({
         type,
         label: INDICATORS[type].label,
         description: INDICATORS[type].description,
-        config:
-          settings.get(type)?.config ??
-          (defaultStrategyConfig(type, "15m") as SignalStrategyConfig),
+        config: settings.get(type)?.config ?? seededDefault(type),
         pinned: settings.get(type)?.pinned ?? false,
         templates: templates.filter(
           (template) => template.config.indicator.type === type
