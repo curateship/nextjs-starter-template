@@ -7,13 +7,23 @@ import {
   taskMatchesFilter,
   taskStatusFilterOptions,
 } from "@/app/resources"
-import type { DocItem, GitRefreshMode, SkillItem, TaskItem, TaskStatus } from "@/app/types"
+import type {
+  DocItem,
+  GitRefreshMode,
+  ResourceFolders,
+  SkillItem,
+  TaskItem,
+  TaskStatus,
+} from "@/app/types"
 
 type ResourceSnapshot = {
   docs: DocItem[]
+  folders: ResourceFolders
   skills: SkillItem[]
   tasks: TaskItem[]
 }
+
+const EMPTY_FOLDERS: ResourceFolders = { tasks: [], skills: [], docs: [] }
 
 type UseWorkspaceResourcesOptions = {
   activeWorkspaceId: string
@@ -33,20 +43,29 @@ export function useWorkspaceResources({
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [skillFilter, setSkillFilter] = useState("all")
   const [docs, setDocs] = useState<DocItem[]>([])
-  const resourcesRef = useRef<ResourceSnapshot>({ docs: [], skills: [], tasks: [] })
+  const [resourceFolders, setResourceFolders] = useState<ResourceFolders>(EMPTY_FOLDERS)
+  const resourcesRef = useRef<ResourceSnapshot>({
+    docs: [],
+    folders: EMPTY_FOLDERS,
+    skills: [],
+    tasks: [],
+  })
 
   useEffect(() => {
-    resourcesRef.current = { docs, skills, tasks }
-  }, [docs, skills, tasks])
+    resourcesRef.current = { docs, folders: resourceFolders, skills, tasks }
+  }, [docs, resourceFolders, skills, tasks])
 
   const setResources = useCallback((resources: ResourceSnapshot) => {
     setTasks((current) => tasksEqual(current, resources.tasks) ? current : resources.tasks)
     setSkills((current) => skillsEqual(current, resources.skills) ? current : resources.skills)
     setDocs((current) => docsEqual(current, resources.docs) ? current : resources.docs)
+    setResourceFolders((current) => (
+      foldersEqual(current, resources.folders) ? current : resources.folders
+    ))
   }, [])
 
   const resetResources = useCallback(() => {
-    setResources({ docs: [], skills: [], tasks: [] })
+    setResources({ docs: [], folders: EMPTY_FOLDERS, skills: [], tasks: [] })
   }, [setResources])
 
   const refreshResources = useCallback(async function refreshResources(
@@ -83,6 +102,7 @@ export function useWorkspaceResources({
     docs,
     refreshResources,
     resetResources,
+    resourceFolders,
     resourcesRef,
     setResources,
     skillFilter,
@@ -95,6 +115,16 @@ export function useWorkspaceResources({
     visibleSkills,
     visibleTasks,
   }
+}
+
+function foldersEqual(left: ResourceFolders, right: ResourceFolders) {
+  const sameList = (a: string[], b: string[]) =>
+    arraysEqual(a, b, (item, next) => item === next)
+  return (
+    sameList(left.tasks, right.tasks) &&
+    sameList(left.skills, right.skills) &&
+    sameList(left.docs, right.docs)
+  )
 }
 
 function docsEqual(left: DocItem[], right: DocItem[]) {

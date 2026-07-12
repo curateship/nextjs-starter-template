@@ -5,6 +5,7 @@ import {
   createPastedImage,
   createTextFile,
   duplicatePath,
+  movePath,
   renamePath,
   revealPath,
   trashPath,
@@ -107,6 +108,21 @@ export function useWorkspaceFileActions({
     }
   }
 
+  async function moveEntry(sourcePath: string, targetDir: string) {
+    if (!activeWorkspaceId) return
+
+    try {
+      const moved = await movePath(activeWorkspaceId, sourcePath, targetDir)
+      onFileError("")
+      onUpdateTabsForRename(sourcePath, moved.path)
+      setDirectories((current) => removeDirectoryPrefix(current, sourcePath))
+      await refreshDirectories(parentPath(sourcePath), targetDir)
+      await onRefreshResources()
+    } catch (error) {
+      onFileError(readableError(error))
+    }
+  }
+
   async function trashEntry(entry: FileEntry) {
     if (!activeWorkspaceId) return
     const message = entry.isDir
@@ -177,6 +193,7 @@ export function useWorkspaceFileActions({
     createFolder,
     createPastedImageFile,
     duplicateEntry,
+    moveEntry,
     renameEntry,
     revealEntry,
     trashEntry,

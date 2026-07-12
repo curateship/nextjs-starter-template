@@ -37,6 +37,10 @@ export function renamePath(workspaceId: string, oldPath: string, newName: string
   return invoke<FileEntry>("rename_path", { workspaceId, oldPath, newName })
 }
 
+export function movePath(workspaceId: string, sourcePath: string, targetDir: string) {
+  return invoke<FileEntry>("move_path", { workspaceId, sourcePath, targetDir })
+}
+
 export function trashPath(workspaceId: string, path: string) {
   return invoke("trash_path", { workspaceId, path })
 }

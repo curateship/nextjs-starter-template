@@ -14,5 +14,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      // The IDE creates/moves task, doc, and skill files at runtime. Watching
+      // them makes the dev server full-reload the app on every move.
+      ignored: ["**/workspace/**", "**/.agents/**", "**/dist/**", "**/src-tauri/**"],
+    },
   },
 })

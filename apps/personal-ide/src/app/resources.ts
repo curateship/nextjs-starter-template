@@ -52,10 +52,6 @@ export function docFileEntry(doc: DocItem): FileEntry {
   return { name: fileName(doc.path), path: doc.path, isDir: false }
 }
 
-export function ensureMarkdownPath(path: string) {
-  return path.toLowerCase().endsWith(".md") ? path : `${path}.md`
-}
-
 export function resourceNameFromPath(path: string) {
   return fileName(path).replace(/\.md$/i, "")
 }
