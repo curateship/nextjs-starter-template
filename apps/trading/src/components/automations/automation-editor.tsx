@@ -196,6 +196,8 @@ export function AutomationEditor({
             },
           },
         }
+      } else if (choice.kind === "lookback") {
+        node = { id, kind: "lookback", bars: 48, x, y }
       } else {
         node = {
           id,

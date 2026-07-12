@@ -82,6 +82,8 @@ export function AutomationInspector({
             <IndicatorFields node={selectedNode} onChange={onNodeChange} />
           ) : selectedNode.kind === "action" ? (
             <ActionFields node={selectedNode} onChange={onNodeChange} />
+          ) : selectedNode.kind === "lookback" ? (
+            <LookbackFields node={selectedNode} onChange={onNodeChange} />
           ) : (
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               {selectedNode.op.toUpperCase()} nodes are no longer supported.
@@ -205,6 +207,38 @@ function IndicatorField({
         className="h-8 text-xs"
         onChange={(event) => onChange(Number(event.target.value))}
       />
+    </div>
+  )
+}
+
+function LookbackFields({
+  node,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "lookback" }>
+  onChange: (node: AutomationNode) => void
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={`lookback-${node.id}`} className="text-xs">
+        Valid for (candles)
+      </Label>
+      <Input
+        id={`lookback-${node.id}`}
+        type="number"
+        min={1}
+        max={1400}
+        step={1}
+        value={node.bars}
+        className="h-8 text-xs"
+        onChange={(event) =>
+          onChange({ ...node, bars: Number(event.target.value) })
+        }
+      />
+      <p className="text-[11px] text-muted-foreground">
+        The incoming signal counts for this many candles after it fires, then
+        goes stale and blocks everything downstream until a fresh signal.
+      </p>
     </div>
   )
 }

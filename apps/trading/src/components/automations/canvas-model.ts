@@ -48,6 +48,8 @@ export function nodeOutputPorts(node: AutomationNode): NodePort[] {
     ]
   }
   if (node.kind === "logic") return [{ id: "match", label: "Match" }]
+  // Look Back forwards the (time-limited) trend to the next indicator.
+  if (node.kind === "lookback") return [{ id: "trend", label: "Trend" }]
   // Actions chain onward to their exit watchers (e.g. Long → EMA → Close).
   return [{ id: "then", label: "Then" }]
 }

@@ -3,7 +3,7 @@ import {
   type AutomationCondition,
   type AutomationStrategyConfig,
 } from "@/lib/automations/automation"
-import { INDICATORS } from "@/lib/indicators/registry"
+import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
 
 import { eraseKind, type StrategyKindModule } from "./contract"
 
@@ -17,16 +17,20 @@ function triggersOf(
 
 export function automationWarmupBars(config: AutomationStrategyConfig) {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
-  const selections = triggers.flatMap((trigger) => [
-    trigger.indicator,
-    ...(trigger.filters ?? []).map((filter) => filter.indicator),
-  ])
+  const bars = (selection: IndicatorSelection, extra = 0) =>
+    INDICATORS[selection.type].warmupBars(selection.params as never) +
+    extra +
+    5
   return Math.max(
     5,
-    ...selections.map((selection) => {
-      const module = INDICATORS[selection.type]
-      return module.warmupBars(selection.params as never) + 5
-    })
+    ...triggers.flatMap((trigger) => [
+      bars(trigger.indicator),
+      // A Look Back filter must SEE a signal up to maxAgeBars old, so its
+      // indicator needs its own warmup that far back in the window.
+      ...(trigger.filters ?? []).map((filter) =>
+        bars(filter.indicator, filter.maxAgeBars ?? 0)
+      ),
+    ])
   )
 }
 

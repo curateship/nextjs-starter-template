@@ -228,15 +228,22 @@ export function AutomationFlowCanvas({
     const draft = currentRef.current.connect
     if (!draft || draft.from === targetId) return
     const current = currentRef.current.graph
+    const source = current.nodes.find((node) => node.id === draft.from)
     const target = current.nodes.find((node) => node.id === targetId)
-    // Trend chains indicators; Bullish/Bearish signals drive actions.
+    // Trend chains indicators (optionally via Look Back); Bullish/Bearish
+    // signals drive actions.
     const allowed =
+      source &&
       target &&
-      (draft.sourcePort === "trend" || draft.sourcePort === "then"
-        ? target.kind === "indicator"
-        : draft.sourcePort === "match"
-          ? false
-          : target.kind === "action")
+      (draft.sourcePort === "trend"
+        ? source.kind === "lookback"
+          ? target.kind === "indicator"
+          : target.kind === "indicator" || target.kind === "lookback"
+        : draft.sourcePort === "then"
+          ? target.kind === "indicator"
+          : draft.sourcePort === "match"
+            ? false
+            : target.kind === "action")
     if (!allowed) {
       setConnect(null)
       return

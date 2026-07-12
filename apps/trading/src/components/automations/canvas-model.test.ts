@@ -42,6 +42,9 @@ describe("Automation canvas model", () => {
         y: 0,
       })
     ).toEqual([{ id: "then", label: "Then" }])
+    expect(
+      nodeOutputPorts({ id: "lb", kind: "lookback", bars: 48, x: 0, y: 0 })
+    ).toEqual([{ id: "trend", label: "Trend" }])
   })
 
   it("anchors named outputs and inputs to the node edges", () => {

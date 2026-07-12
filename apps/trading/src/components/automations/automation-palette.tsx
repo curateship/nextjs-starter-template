@@ -3,6 +3,7 @@ import {
   ActivityIcon,
   SearchIcon,
   ShieldXIcon,
+  TimerIcon,
   TrendingDownIcon,
   TrendingUpIcon,
 } from "lucide-react"
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils"
 
 export type AutomationPaletteChoice =
   | { kind: "indicator"; indicatorType: IndicatorId }
+  | { kind: "lookback" }
   | { kind: "action"; action: "buy" | "short" | "close" }
 
 type PaletteItem = {
@@ -27,6 +29,16 @@ type PaletteItem = {
   icon: React.ComponentType<{ className?: string }>
   choice: AutomationPaletteChoice
 }
+
+const filterItems: PaletteItem[] = [
+  {
+    key: "filter-lookback",
+    name: "Look Back",
+    description: "Incoming signal only counts for a set number of candles",
+    icon: TimerIcon,
+    choice: { kind: "lookback" },
+  },
+]
 
 const actionItems: PaletteItem[] = [
   {
@@ -75,6 +87,7 @@ export function AutomationPalette({
   }))
   const groups = [
     { label: "Indicators", items: indicatorItems },
+    { label: "Filters", items: filterItems },
     { label: "Actions", items: actionItems },
   ]
     .map((group) => ({
