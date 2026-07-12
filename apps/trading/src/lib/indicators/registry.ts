@@ -58,6 +58,7 @@ export const SIGNAL_FOR_CHART_TYPE: Partial<Record<IndicatorType, IndicatorId>> 
   rsi: "rsi_levels",
   macd: "macd_cross",
   priceAction: "price_action",
+  qqe: "qqe",
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

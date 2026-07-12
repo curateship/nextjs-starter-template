@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
 import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import { db, type CustomShellDb } from "@/server/db"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
@@ -20,7 +20,7 @@ export type CreateBacktestInput = {
   network: TradingNetwork
   interval: string
   /** The strategy's full config snapshot. */
-  params: StrategyConfig
+  params: AutomationConfig
   costs: BacktestCosts
   startTime: Date
   endTime: Date

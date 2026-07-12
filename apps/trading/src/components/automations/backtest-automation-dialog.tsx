@@ -36,7 +36,7 @@ import {
 } from "@/lib/api/backtests"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { MAX_EXTRA_MARKETS, maxWindowDays } from "@/lib/backtest/types"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import { summarizeGroupProgress } from "./backtest-progress"
 
@@ -58,7 +58,7 @@ export function BacktestAutomationDialog({
   onOpenChange: (open: boolean) => void
   automationId: string
   automationName: string
-  interval: StrategyInterval
+  interval: AutomationInterval
 }) {
   const router = useRouter()
   const markets = useBinanceMarketRows()

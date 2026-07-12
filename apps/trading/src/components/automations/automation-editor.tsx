@@ -28,7 +28,6 @@ import {
   type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationNode,
-  type AutomationProtection,
 } from "@/lib/automations/automation"
 import { saveAutomation, type AutomationDetail } from "@/lib/api/automations"
 import {
@@ -36,7 +35,7 @@ import {
   type IndicatorId,
   type IndicatorParamValue,
 } from "@/lib/indicators/registry"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
@@ -62,11 +61,10 @@ export function AutomationEditor({
 }) {
   const [name, setName] = React.useState(initial.name)
   const [type, setType] = React.useState(initial.type)
-  const [interval, setInterval] = React.useState<StrategyInterval>(
+  const [interval, setInterval] = React.useState<AutomationInterval>(
     initial.interval
   )
   const [graph, setGraph] = React.useState(initial.graph)
-  const [protection, setProtection] = React.useState(initial.protection)
   const [backtestSettings, setBacktestSettings] = React.useState(
     initial.backtest
   )
@@ -127,9 +125,8 @@ export function AutomationEditor({
     (
       nextName: string,
       nextType: string,
-      nextInterval: StrategyInterval,
+      nextInterval: AutomationInterval,
       nextGraph: AutomationGraph,
-      nextProtection: AutomationProtection,
       nextBacktest: AutomationBacktestSettings
     ) =>
       JSON.stringify({
@@ -137,7 +134,6 @@ export function AutomationEditor({
         type: nextType,
         interval: nextInterval,
         graph: nextGraph,
-        protection: nextProtection,
         backtest: nextBacktest,
       }),
     []
@@ -148,7 +144,6 @@ export function AutomationEditor({
       initial.type,
       initial.interval,
       initial.graph,
-      initial.protection,
       initial.backtest
     )
   )
@@ -162,15 +157,14 @@ export function AutomationEditor({
   }, [])
 
   const compiled = React.useMemo(
-    () => compileAutomationGraph({ interval, graph, protection }),
-    [graph, interval, protection]
+    () => compileAutomationGraph({ interval, graph }),
+    [graph, interval]
   )
   const currentSerialized = serialize(
     name,
     type,
     interval,
     graph,
-    protection,
     backtestSettings
   )
   const dirty = currentSerialized !== lastSaved
@@ -232,6 +226,10 @@ export function AutomationEditor({
         }
       } else if (choice.kind === "lookback") {
         node = { id, kind: "lookback", bars: 48, x, y }
+      } else if (choice.kind === "takeProfit") {
+        node = { id, kind: "takeProfit", pct: 2, x, y }
+      } else if (choice.kind === "stopLoss") {
+        node = { id, kind: "stopLoss", pct: 1, x, y }
       } else {
         node = {
           id,
@@ -288,7 +286,6 @@ export function AutomationEditor({
       type,
       interval,
       graph,
-      protection,
       backtest: backtestSettings,
     }
     try {
@@ -300,7 +297,6 @@ export function AutomationEditor({
       setType(saved.type)
       setInterval(saved.interval)
       setGraph(saved.graph)
-      setProtection(saved.protection)
       setBacktestSettings(saved.backtest)
       setLastSaved(
         serialize(
@@ -308,7 +304,6 @@ export function AutomationEditor({
           saved.type,
           saved.interval,
           saved.graph,
-          saved.protection,
           saved.backtest
         )
       )
@@ -332,7 +327,6 @@ export function AutomationEditor({
     initial.id,
     interval,
     name,
-    protection,
     record,
     saving,
     serialize,
@@ -491,13 +485,11 @@ export function AutomationEditor({
         open={settingsOpen}
         type={type}
         interval={interval}
-        protection={protection}
         backtest={backtestSettings}
         onOpenChange={setSettingsOpen}
         onApply={(settings) => {
           setType(settings.type)
           setInterval(settings.interval)
-          setProtection(settings.protection)
           setBacktestSettings(settings.backtest)
         }}
       />

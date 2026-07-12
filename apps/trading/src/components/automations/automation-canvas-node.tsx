@@ -3,8 +3,10 @@ import {
   ActivityIcon,
   AlertCircleIcon,
   GitBranchIcon,
+  OctagonXIcon,
   RepeatIcon,
   ShieldXIcon,
+  TargetIcon,
   TimerIcon,
   TrendingDownIcon,
   TrendingUpIcon,
@@ -19,6 +21,7 @@ import { cn } from "@/lib/utils"
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
+  nodeAttachmentPorts,
   nodeOutputPorts,
   portOut,
 } from "./canvas-model"
@@ -44,6 +47,9 @@ export function AutomationCanvasNode({
   onConnectFinish: () => void
 }) {
   const ports = nodeOutputPorts(node)
+  const attachmentPorts = nodeAttachmentPorts(node)
+  const isProtectionNode =
+    node.kind === "takeProfit" || node.kind === "stopLoss"
   return (
     <div
       role="button"
@@ -107,25 +113,52 @@ export function AutomationCanvasNode({
         </span>
       </div>
 
-      <button
-        type="button"
-        data-port="input"
-        aria-label={`Connect to ${automationNodeName(node)}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerUp={(event) => {
-          event.stopPropagation()
-          onConnectFinish()
-        }}
-        onClick={(event) => {
-          event.stopPropagation()
-          onConnectFinish()
-        }}
-        className={cn(
-          "absolute -left-2 size-4 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
-          connecting ? "border-primary" : "border-muted-foreground/60"
-        )}
-        style={{ top: NODE_HEIGHT / 2 - 8 }}
-      />
+      {/* Take Profit / Stop Loss attach vertically, so their inbound hooks sit
+          on the top and bottom edges instead of the left. */}
+      {isProtectionNode ? (
+        (["top", "bottom"] as const).map((edge) => (
+          <button
+            key={edge}
+            type="button"
+            data-port="input"
+            aria-label={`Connect to ${automationNodeName(node)}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => {
+              event.stopPropagation()
+              onConnectFinish()
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onConnectFinish()
+            }}
+            className={cn(
+              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+              connecting ? "border-primary" : "border-muted-foreground/60"
+            )}
+            style={edge === "top" ? { top: -8 } : { bottom: -8 }}
+          />
+        ))
+      ) : (
+        <button
+          type="button"
+          data-port="input"
+          aria-label={`Connect to ${automationNodeName(node)}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => {
+            event.stopPropagation()
+            onConnectFinish()
+          }}
+          onClick={(event) => {
+            event.stopPropagation()
+            onConnectFinish()
+          }}
+          className={cn(
+            "absolute -left-2 size-4 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+            connecting ? "border-primary" : "border-muted-foreground/60"
+          )}
+          style={{ top: NODE_HEIGHT / 2 - 8 }}
+        />
+      )}
 
       {ports.map((port) => {
         const centerY = portOut(node, port.id).y - node.y
@@ -157,6 +190,36 @@ export function AutomationCanvasNode({
           </React.Fragment>
         )
       })}
+
+      {attachmentPorts.map((port) => {
+        const onTop = port.edge === "top"
+        // Colour carries the meaning: green = take profit, red = stop loss.
+        const isTp = port.id === "tp"
+        const label = isTp ? "Take profit" : "Stop loss"
+        return (
+          <button
+            key={port.id}
+            type="button"
+            data-port={port.id}
+            title={`${label} — connect a ${label} node`}
+            aria-label={`Connect from ${automationNodeName(node)} ${label} hook`}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              event.preventDefault()
+              onConnectStart(port.id)
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onConnectStart(port.id)
+            }}
+            className={cn(
+              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+              isTp ? "border-emerald-500" : "border-red-500"
+            )}
+            style={onTop ? { top: -8 } : { bottom: -8 }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -165,6 +228,8 @@ function NodeIcon({ node }: { node: AutomationNode }) {
   if (node.kind === "indicator") return <ActivityIcon className="size-4" />
   if (node.kind === "logic") return <GitBranchIcon className="size-4" />
   if (node.kind === "lookback") return <TimerIcon className="size-4" />
+  if (node.kind === "takeProfit") return <TargetIcon className="size-4" />
+  if (node.kind === "stopLoss") return <OctagonXIcon className="size-4" />
   if (node.action === "buy") return <TrendingUpIcon className="size-4" />
   if (node.action === "short") return <TrendingDownIcon className="size-4" />
   if (node.action === "reverse") return <RepeatIcon className="size-4" />

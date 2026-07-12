@@ -9,8 +9,8 @@ import type {
   BacktestTrade,
 } from "@/lib/backtest/types"
 import {
-  strategyTakeProfitPct,
-  type StrategyConfig,
+  automationTakeProfitPct,
+  type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 import type { CandleInterval, HistoryCandle } from "@/server/backtest/history"
 
@@ -25,7 +25,7 @@ import { BacktestBroker } from "./broker"
 
 export type RunBacktestConfig = {
   strategy: Strategy<never, unknown>
-  params: StrategyConfig
+  params: AutomationConfig
   /** Ascending candles including warmup history before simStartMs. */
   candles: HistoryCandle[]
   /** Trading begins on the first candle whose open time is ≥ this. */
@@ -52,7 +52,7 @@ const round = (value: number) => Math.round(value * 1e6) / 1e6
  */
 class BacktestRunner {
   private readonly strategy: Strategy<never, unknown>
-  private readonly params: StrategyConfig
+  private readonly params: AutomationConfig
   private readonly candlesNum: HistoryCandle[]
   private readonly candlesWs: CandleWsEvent[]
   private readonly simStartMs: number
@@ -189,7 +189,7 @@ class BacktestRunner {
     // If the average winner exceeds it, the fill model or data is broken.
     // Each strategy kind declares its own TP bound (DCA's sits above the
     // average entry, so the same logic holds).
-    const tp = strategyTakeProfitPct(this.params)
+    const tp = automationTakeProfitPct(this.params)
     if (tp) {
       const wins = this.trades.filter((t) => t.pnl > 0)
       if (wins.length >= 10) {

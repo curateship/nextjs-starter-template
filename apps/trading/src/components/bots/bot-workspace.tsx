@@ -51,13 +51,17 @@ import {
   updateBot,
   type BotDetailResponse,
 } from "@/lib/api/bots"
+import {
+  automationProtectionSchema,
+  type AutomationProtection,
+} from "@/lib/automations/automation"
 import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
-  isStrategyConfig,
-  strategyConfigSchema,
-  type AutomationStrategyConfig,
+  isAutomationConfig,
+  automationConfigSchema,
+  type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
@@ -165,7 +169,7 @@ function AutomationBotSettings({
   config,
 }: {
   bot: BotDetailResponse["bot"]
-  config: AutomationStrategyConfig
+  config: AutomationConfig
 }) {
   const source = bot.source_name ?? "Saved Automation"
   return (
@@ -208,11 +212,19 @@ export function BotWorkspace({
   // Runnable bots carry a validated Automation snapshot. Anything else is
   // retired history and stays read-only.
   const botConfig = React.useMemo(() => {
-    if (!isStrategyConfig(bot.params)) return null
+    if (!isAutomationConfig(bot.params)) return null
     return bot.params.kind === "automation" ? bot.params : null
   }, [bot.params])
   const automationConfig = botConfig
-  const protection = automationConfig?.protection ?? null
+  // Per-side protection (long vs short). Old bots stored a single flat pair —
+  // coerce it so the rail and chart lines read the same shape either way.
+  const protection = React.useMemo<AutomationProtection | null>(() => {
+    if (!automationConfig) return null
+    const parsed = automationProtectionSchema.safeParse(
+      automationConfig.protection ?? {}
+    )
+    return parsed.success ? (parsed.data as AutomationProtection) : {}
+  }, [automationConfig])
 
   const [selectedMarket, setSelectedMarket] = React.useState(
     bot.markets[0] ?? ""
@@ -225,6 +237,13 @@ export function BotWorkspace({
   }, [bot.markets, selectedMarket])
 
   const state = states.find((row) => row.market === selectedMarket) ?? null
+  // The open position's side chooses which levels the rail/chart edit. Flat
+  // defaults to long so you can pre-set the long exit before an entry fires.
+  const positionSzi = state?.paper_position
+    ? Number(state.paper_position.szi)
+    : 0
+  const activeSide: "long" | "short" = positionSzi < 0 ? "short" : "long"
+  const activeLevels = protection?.[activeSide] ?? null
   const openOrders = data.open_orders.filter(
     (order) => order.market === selectedMarket
   )
@@ -263,15 +282,15 @@ export function BotWorkspace({
   // bots are read-only, so they expose nothing here.
   const seed = React.useMemo<ParamValues>(() => {
     const out: ParamValues = {}
-    if (!protection) return out
-    out.takeProfitPct = protection.takeProfitPct
-      ? String(protection.takeProfitPct)
+    if (!activeLevels) return out
+    out.takeProfitPct = activeLevels.takeProfitPct
+      ? String(activeLevels.takeProfitPct)
       : ""
-    out.stopLossPct = protection.stopLossPct
-      ? String(protection.stopLossPct)
+    out.stopLossPct = activeLevels.stopLossPct
+      ? String(activeLevels.stopLossPct)
       : ""
     return out
-  }, [protection])
+  }, [activeLevels])
 
   // Hovered candle for the toolbar's O/H/L/C readout (null while not hovering).
   const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
@@ -345,11 +364,16 @@ export function BotWorkspace({
     }
     const takeProfitPct = num(protective.takeProfitPct)
     const stopLossPct = num(protective.stopLossPct)
+    // Only the open side's levels change; the other side is left intact.
+    const base = protection ?? {}
     const nextConfig = {
-            ...botConfig,
-            protection: { takeProfitPct, stopLossPct },
-          }
-    const parsed = strategyConfigSchema.safeParse(nextConfig)
+      ...botConfig,
+      protection: {
+        ...base,
+        [activeSide]: { takeProfitPct, stopLossPct },
+      },
+    }
+    const parsed = automationConfigSchema.safeParse(nextConfig)
     if (!parsed.success) {
       setSlTpError(parsed.error.issues[0]?.message ?? "Invalid levels")
       return
@@ -379,10 +403,10 @@ export function BotWorkspace({
   // settings. Archived legacy bots draw no lines.
   const chart = React.useMemo(
     () =>
-      protection
-        ? buildBotProtectionOverlays(protection, state)
+      activeLevels
+        ? buildBotProtectionOverlays(activeLevels, state)
         : { lines: [], targets: {} },
-    [protection, state]
+    [activeLevels, state]
   )
 
   /** Dropping a TP/SL line re-prices and saves immediately — no confirm. */
@@ -470,7 +494,12 @@ export function BotWorkspace({
 
   const chartMenuItems =
     chartMenu && protection
-      ? buildBotProtectionMenuItems(protection, state, markPrice, chartMenu.price)
+      ? buildBotProtectionMenuItems(
+          activeLevels ?? {},
+          state,
+          markPrice,
+          chartMenu.price
+        )
       : []
 
   return (
@@ -537,7 +566,7 @@ export function BotWorkspace({
                       interval={interval}
                       priceLines={chart.lines}
                       markers={markers}
-                      strategyConfig={automationConfig}
+                      automationConfig={automationConfig}
                       focusPoints={focusPoints}
                       focusResult={focusResult}
                       onCrosshairOhlc={setOhlc}

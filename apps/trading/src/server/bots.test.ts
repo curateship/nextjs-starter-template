@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { AutomationStrategyConfig } from "@/lib/automations/automation"
+import type { AutomationConfig } from "@/lib/automations/automation"
 import {
   createUserBot,
   getBotDetail,
@@ -25,7 +25,7 @@ vi.mock("@/server/hyperliquid/info", () => ({
   getAssetInfo: vi.fn(async () => ({ assetId: 0, szDecimals: 4 })),
 }))
 
-const AUTOMATION_CONFIG: AutomationStrategyConfig = {
+const AUTOMATION_CONFIG: AutomationConfig = {
   v: 2,
   kind: "automation",
   interval: "15m",
@@ -115,7 +115,7 @@ async function createWallet(userId: string) {
 
 async function createAutomation(
   userId: string,
-  compiledConfig: AutomationStrategyConfig | null = AUTOMATION_CONFIG,
+  compiledConfig: AutomationConfig | null = AUTOMATION_CONFIG,
   name = "Authoritative Automation"
 ) {
   const createdAt = now()
@@ -129,7 +129,6 @@ async function createAutomation(
       nodes: [],
       edges: [],
       viewport: { x: 0, y: 0, zoom: 1 },
-      protection: {},
     },
     compiledConfig,
     createdAt,
@@ -214,9 +213,9 @@ describe("Automation bot updates and commands", () => {
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
     const bot = await createUserBot(userId, botInput(walletId, automationId))
-    const untrusted: AutomationStrategyConfig = {
+    const untrusted: AutomationConfig = {
       ...AUTOMATION_CONFIG,
-      protection: { takeProfitPct: 3 },
+      protection: { long: { takeProfitPct: 3 } },
       rules: [{ ...AUTOMATION_CONFIG.rules[0], targetEquityPct: 90 }],
     }
 
@@ -228,7 +227,7 @@ describe("Automation bot updates and commands", () => {
 
     expect(updated.params).toEqual({
       ...AUTOMATION_CONFIG,
-      protection: { takeProfitPct: 3 },
+      protection: { long: { takeProfitPct: 3 } },
     })
   })
 

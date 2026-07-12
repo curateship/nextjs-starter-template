@@ -26,7 +26,8 @@ const detail: AutomationDetail = {
     edges: [],
     viewport: { x: 12, y: 24, zoom: 1.25 },
   },
-  protection: { takeProfitPct: 4 },
+  // Protection now lives in the canvas nodes, not the settings dialog.
+  protection: {},
   backtest: {
     startingEquity: 10_000,
     takerFeeBps: 4.5,
@@ -55,8 +56,6 @@ describe("buildAutomationSettingsSave", () => {
     const result = buildAutomationSettingsSave(detail, {
       name: "  Updated setup  ",
       interval: "1h",
-      takeProfitPct: "6.5",
-      stopLossPct: "2",
       ...baseValues,
     })
 
@@ -67,7 +66,6 @@ describe("buildAutomationSettingsSave", () => {
         type: "Swing Trading",
         interval: "1h",
         graph: detail.graph,
-        protection: { takeProfitPct: 6.5, stopLossPct: 2 },
         backtest: {
           startingEquity: 25_000,
           takerFeeBps: 10,
@@ -79,38 +77,11 @@ describe("buildAutomationSettingsSave", () => {
     })
   })
 
-  it("clears optional protection and rejects invalid percentages", () => {
-    expect(
-      buildAutomationSettingsSave(detail, {
-        name: "Updated setup",
-        interval: "1h",
-        takeProfitPct: "",
-        stopLossPct: "",
-        ...baseValues,
-      }).payload?.protection
-    ).toEqual({})
-
-    expect(
-      buildAutomationSettingsSave(detail, {
-        name: "Updated setup",
-        interval: "1h",
-        takeProfitPct: "5",
-        stopLossPct: "-1",
-        ...baseValues,
-      })
-    ).toEqual({
-      payload: null,
-      error: "Stop loss must be greater than 0% and no more than 100%.",
-    })
-  })
-
   it("rejects invalid backtest amounts", () => {
     expect(
       buildAutomationSettingsSave(detail, {
         name: "Updated setup",
         interval: "1h",
-        takeProfitPct: "",
-        stopLossPct: "",
         ...baseValues,
         startingEquity: "0",
       }).error
@@ -120,8 +91,6 @@ describe("buildAutomationSettingsSave", () => {
       buildAutomationSettingsSave(detail, {
         name: "Updated setup",
         interval: "1h",
-        takeProfitPct: "",
-        stopLossPct: "",
         ...baseValues,
         takerFeeBps: "51",
       }).error

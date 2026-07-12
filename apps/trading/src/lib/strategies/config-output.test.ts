@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { StrategyConfig } from "./strategy-config"
-import { strategyInputRows } from "./strategy-config"
+import type { AutomationConfig } from "./strategy-config"
+import { automationInputRows } from "./strategy-config"
 import { computeStrategyOutput } from "./config-output"
 
 const candles = [
@@ -13,7 +13,7 @@ const candles = [
 
 describe("computeStrategyOutput", () => {
   it("returns merged indicator paint and entry signals for an Automation", () => {
-    const config: StrategyConfig = {
+    const config: AutomationConfig = {
       v: 2,
       kind: "automation",
       interval: "15m",
@@ -37,7 +37,7 @@ describe("computeStrategyOutput", () => {
 
     expect(output.signals).toEqual([{ time: 3, side: "buy" }])
     expect(output.paint.lines[0].id).toBe("breakout:breakout-high")
-    expect(strategyInputRows(config).map((row) => row.label)).not.toContain(
+    expect(automationInputRows(config).map((row) => row.label)).not.toContain(
       "Timeframe"
     )
   })

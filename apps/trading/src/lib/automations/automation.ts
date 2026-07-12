@@ -6,7 +6,7 @@ import {
   indicatorIdSchema,
   indicatorSelectionSchema,
 } from "@/lib/indicators/registry"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 export type AutomationIndicatorNode = {
   id: string
@@ -45,11 +45,34 @@ export type AutomationLookbackNode = {
   y: number
 }
 
+/**
+ * A protective exit hung on a Long or Short entry: `pct` is the take-profit
+ * distance from entry. The runtime picks it by the open position's side.
+ */
+export type AutomationTakeProfitNode = {
+  id: string
+  kind: "takeProfit"
+  pct: number
+  x: number
+  y: number
+}
+
+/** Stop-loss twin of {@link AutomationTakeProfitNode}. */
+export type AutomationStopLossNode = {
+  id: string
+  kind: "stopLoss"
+  pct: number
+  x: number
+  y: number
+}
+
 export type AutomationNode =
   | AutomationIndicatorNode
   | AutomationLogicNode
   | AutomationActionNode
   | AutomationLookbackNode
+  | AutomationTakeProfitNode
+  | AutomationStopLossNode
 
 /**
  * Ceiling on the engine's per-candle evaluation window (candles). A Look Back
@@ -73,9 +96,20 @@ export type AutomationGraph = {
   viewport: { x: number; y: number; zoom: number }
 }
 
-export type AutomationProtection = {
+/** One side's protective exits, percent from entry. */
+export type ProtectionLevels = {
   takeProfitPct?: number
   stopLossPct?: number
+}
+
+/**
+ * Per-side protective exits. The runtime picks `long` for long positions and
+ * `short` for short positions, so a short can bank profit at a tighter level
+ * than a long. Derived from the Take Profit / Stop Loss nodes at compile time.
+ */
+export type AutomationProtection = {
+  long?: ProtectionLevels
+  short?: ProtectionLevels
 }
 
 /**
@@ -121,10 +155,10 @@ export type AutomationRule = {
   condition: AutomationCondition
 }
 
-export type AutomationStrategyConfig = {
+export type AutomationConfig = {
   v: 2
   kind: "automation"
-  interval: StrategyInterval
+  interval: AutomationInterval
   rules: AutomationRule[]
   protection: AutomationProtection
 }
@@ -152,18 +186,29 @@ export type AutomationValidationError = {
 }
 
 export type AutomationCompileResult = {
-  config: AutomationStrategyConfig | null
+  config: AutomationConfig | null
   errors: AutomationValidationError[]
 }
 
 function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
-  return node.kind === "indicator"
-    ? port === "bullish" || port === "bearish" || port === "trend"
-    : node.kind === "logic"
-      ? port === "match"
-      : node.kind === "lookback"
-        ? port === "trend"
-        : port === "then"
+  switch (node.kind) {
+    case "indicator":
+      return port === "bullish" || port === "bearish" || port === "trend"
+    case "logic":
+      return port === "match"
+    case "lookback":
+      return port === "trend"
+    case "action":
+      // Long/Short also expose the Take Profit / Stop Loss attachment hooks.
+      return (
+        port === "then" ||
+        ((node.action === "buy" || node.action === "short") &&
+          (port === "tp" || port === "sl"))
+      )
+    default:
+      // Take Profit / Stop Loss are leaf targets — they emit nothing.
+      return false
+  }
 }
 
 const idSchema = z.string().min(1).max(64)
@@ -213,17 +258,56 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     x: z.number().finite(),
     y: z.number().finite(),
   }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("takeProfit"),
+    pct: z.number().finite(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("stopLoss"),
+    pct: z.number().finite(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
 ])
 
-export const automationProtectionSchema = z.object({
+const protectionLevelsSchema = z.object({
   takeProfitPct: z.number().positive().max(1000).optional(),
   stopLossPct: z.number().positive().max(100).optional(),
 })
 
-export const automationDraftProtectionSchema = z.object({
-  takeProfitPct: z.number().finite().min(-10_000).max(10_000).optional(),
-  stopLossPct: z.number().finite().min(-10_000).max(10_000).optional(),
-})
+/**
+ * DELIBERATE COMPATIBILITY SHIM. Config snapshots saved before per-side
+ * protection stored a single flat pair `{ takeProfitPct, stopLossPct }`. Those
+ * snapshots are immutable (a bot's / backtest's `params` is frozen at creation),
+ * so the canonical per-side schema can't parse them and they would fail to load.
+ * Reading a flat pair as both sides keeps historical backtests viewable.
+ * Deletion criteria: safe to remove once no `bots`/`backtests` row carries a flat
+ * `protection` pair (query: `params::text ~ '"protection":\s*\{\s*"(take|stop)'`).
+ */
+export function coerceLegacyProtection(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === "object" &&
+    !("long" in value) &&
+    !("short" in value) &&
+    ("takeProfitPct" in value || "stopLossPct" in value)
+  ) {
+    return { long: value, short: value }
+  }
+  return value
+}
+
+export const automationProtectionSchema = z.preprocess(
+  coerceLegacyProtection,
+  z.object({
+    long: protectionLevelsSchema.optional(),
+    short: protectionLevelsSchema.optional(),
+  })
+)
 
 export const DEFAULT_AUTOMATION_BACKTEST_SETTINGS: AutomationBacktestSettings =
   {
@@ -262,7 +346,6 @@ export const automationGraphSchema = z.object({
 export const automationDraftSchema = z.object({
   interval: intervalSchema,
   graph: automationGraphSchema,
-  protection: automationDraftProtectionSchema,
   backtest: automationBacktestSettingsSchema.default(
     DEFAULT_AUTOMATION_BACKTEST_SETTINGS
   ),
@@ -323,29 +406,22 @@ const automationRuleSchema = z
     }
   })
 
-export const automationStrategyConfigSchema: z.ZodType<AutomationStrategyConfig> =
+export const automationConfigSchema: z.ZodType<AutomationConfig> =
   z.object({
     v: z.literal(2),
     kind: z.literal("automation"),
     interval: intervalSchema,
     rules: z.array(automationRuleSchema).min(1).max(100),
     protection: automationProtectionSchema,
-  }) as z.ZodType<AutomationStrategyConfig>
+  }) as z.ZodType<AutomationConfig>
 
 export function compileAutomationGraph(input: {
-  interval: StrategyInterval
-  protection: AutomationProtection
+  interval: AutomationInterval
   graph: AutomationGraph
 }): AutomationCompileResult {
   const { nodes, edges } = input.graph
   const errors: AutomationValidationError[] = []
   const addError = (error: AutomationValidationError) => errors.push(error)
-  if (!automationProtectionSchema.safeParse(input.protection).success) {
-    addError({
-      code: "invalid_protection",
-      message: "Take profit and stop loss must be valid positive percentages.",
-    })
-  }
   if (nodes.length > 100 || edges.length > 200) {
     addError({
       code: "limit",
@@ -455,9 +531,23 @@ export function compileAutomationGraph(input: {
         edgeId: edge.id,
         message: "The Then output can only connect to an indicator.",
       })
+    } else if (edge.sourcePort === "tp" && target.kind !== "takeProfit") {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: "The Take Profit hook can only connect to a Take Profit node.",
+      })
+    } else if (edge.sourcePort === "sl" && target.kind !== "stopLoss") {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: "The Stop Loss hook can only connect to a Stop Loss node.",
+      })
     } else if (
       edge.sourcePort !== "trend" &&
       edge.sourcePort !== "then" &&
+      edge.sourcePort !== "tp" &&
+      edge.sourcePort !== "sl" &&
       target.kind !== "action"
     ) {
       addError({
@@ -541,6 +631,33 @@ export function compileAutomationGraph(input: {
         })
       }
     }
+    if (node.kind === "takeProfit" || node.kind === "stopLoss") {
+      const label = node.kind === "takeProfit" ? "Take Profit" : "Stop Loss"
+      const maxPct = node.kind === "takeProfit" ? 1000 : 100
+      if (!(node.pct > 0 && node.pct <= maxPct)) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message: `${label} must be greater than 0% and no more than ${maxPct}%.`,
+        })
+      }
+      const port = node.kind === "takeProfit" ? "tp" : "sl"
+      const attached = (incoming.get(node.id) ?? []).some((edge) => {
+        const parent = nodeById.get(edge.from)
+        return (
+          parent?.kind === "action" &&
+          (parent.action === "buy" || parent.action === "short") &&
+          edge.sourcePort === port
+        )
+      })
+      if (!attached) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message: `${label} must hang off a Long or Short entry's ${node.kind === "takeProfit" ? "take-profit" : "stop-loss"} hook.`,
+        })
+      }
+    }
   }
 
   const connected = new Set<string>(actions.map((node) => node.id))
@@ -552,6 +669,15 @@ export function compileAutomationGraph(input: {
     }
   }
   for (const action of actions) markAncestors(action.id)
+  // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action → node), so
+  // ancestor-marking never reaches them — count an attached one as connected.
+  for (const node of nodes) {
+    if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
+    const attached = (incoming.get(node.id) ?? []).some(
+      (edge) => nodeById.get(edge.from)?.kind === "action"
+    )
+    if (attached) connected.add(node.id)
+  }
   for (const node of nodes) {
     if (!connected.has(node.id)) {
       addError({
@@ -634,6 +760,38 @@ export function compileAutomationGraph(input: {
     return rule
   })
 
+  // Fold every Take Profit / Stop Loss node into its entry's side (Long → long,
+  // Short → short). One side set twice with different numbers is a conflict.
+  const protection: AutomationProtection = {}
+  const setLevel = (
+    side: "long" | "short",
+    key: "takeProfitPct" | "stopLossPct",
+    pct: number,
+    nodeId: string
+  ) => {
+    const existing = protection[side]?.[key]
+    if (existing !== undefined && existing !== pct) {
+      addError({
+        code: "invalid_protection",
+        nodeId,
+        message: `${side === "long" ? "Long" : "Short"} ${key === "takeProfitPct" ? "take-profit" : "stop-loss"} is set twice with different values.`,
+      })
+      return
+    }
+    protection[side] = { ...protection[side], [key]: pct }
+  }
+  for (const node of nodes) {
+    if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
+    const key = node.kind === "takeProfit" ? "takeProfitPct" : "stopLossPct"
+    for (const edge of incoming.get(node.id) ?? []) {
+      const parent = nodeById.get(edge.from)
+      if (parent?.kind !== "action") continue
+      if (parent.action === "buy") setLevel("long", key, node.pct, node.id)
+      else if (parent.action === "short")
+        setLevel("short", key, node.pct, node.id)
+    }
+  }
+
   // A capped filter must be able to SEE a signal maxAgeBars old inside the
   // engine window: the indicator's own warmup plus the cap has to fit, or
   // the automation would silently never trade.
@@ -671,7 +829,7 @@ export function compileAutomationGraph(input: {
       kind: "automation",
       interval: input.interval,
       rules,
-      protection: input.protection,
+      protection,
     },
     errors: [],
   }

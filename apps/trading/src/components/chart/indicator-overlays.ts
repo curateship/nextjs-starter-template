@@ -1,7 +1,7 @@
 import type { StrategyChartOverlays } from "@/components/backtest/backtest-overlays"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { computeStrategyOutput } from "@/lib/strategies/config-output"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 
 type OhlcCandle = {
   t: number
@@ -22,7 +22,7 @@ export const EMPTY_STRATEGY_OVERLAYS: StrategyChartOverlays = {
 
 /** A strategy config → chart overlays (indicator lines, zones, bar colors). */
 export function configOverlays(
-  config: StrategyConfig,
+  config: AutomationConfig,
   candles: OhlcCandle[]
 ): StrategyChartOverlays {
   if (candles.length === 0) return EMPTY_STRATEGY_OVERLAYS

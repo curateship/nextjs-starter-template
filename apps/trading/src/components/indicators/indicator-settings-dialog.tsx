@@ -112,6 +112,16 @@ export function OverlaySettingsDialog({
       }
     }
     for (const field of fields) {
+      // Select stores the chosen option's index; boolean stores 0/1. Both can
+      // legitimately be 0, so only plain numeric fields require a positive value.
+      if (field.kind === "select") {
+        nextParams[field.key] = Number(params[field.key] ?? 0)
+        continue
+      }
+      if (field.kind === "boolean") {
+        nextParams[field.key] = (params[field.key] ?? "1") !== "0" ? 1 : 0
+        continue
+      }
       const value = Number(params[field.key])
       if (!Number.isFinite(value) || value <= 0) {
         setError(`${field.label} must be a positive number.`)
@@ -241,45 +251,85 @@ export function OverlaySettingsDialog({
                   ))}
                 </div>
               ) : null}
-              {indicator.type !== "priceAction" ? fields.map((field) => (
-                <div key={field.key} className="grid gap-2">
-                  <Label htmlFor={`indicator-param-${field.key}`}>
-                    {field.label}
-                    {field.description ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label={`About ${field.label}`}
-                            onClick={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                            }}
+              {indicator.type !== "priceAction"
+                ? fields.map((field) =>
+                    field.kind === "boolean" ? (
+                      <label
+                        key={field.key}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={(params[field.key] ?? "1") !== "0"}
+                          onCheckedChange={(checked) =>
+                            setParams((prev) => ({
+                              ...prev,
+                              [field.key]: checked === true ? "1" : "0",
+                            }))
+                          }
+                        />
+                        {field.label}
+                      </label>
+                    ) : (
+                      <div key={field.key} className="grid gap-2">
+                        <Label htmlFor={`indicator-param-${field.key}`}>
+                          {field.label}
+                          {field.description ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  aria-label={`About ${field.label}`}
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                  }}
+                                >
+                                  <CircleHelpIcon className="ml-1 inline size-3.5 text-muted-foreground" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" sideOffset={6}>
+                                {field.description}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                        </Label>
+                        {field.kind === "select" && field.options ? (
+                          <Select
+                            value={params[field.key] ?? "0"}
+                            onValueChange={(value) =>
+                              setParams((prev) => ({ ...prev, [field.key]: value }))
+                            }
                           >
-                            <CircleHelpIcon className="ml-1 inline size-3.5 text-muted-foreground" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" sideOffset={6}>
-                          {field.description}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : null}
-                  </Label>
-                  <Input
-                    id={`indicator-param-${field.key}`}
-                    type="number"
-                    step={field.step ?? 1}
-                    min={0}
-                    value={params[field.key] ?? ""}
-                    onChange={(event) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        [field.key]: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              )) : null}
+                            <SelectTrigger className="h-8 w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {field.options.map((option, index) => (
+                                <SelectItem key={option} value={String(index)}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id={`indicator-param-${field.key}`}
+                            type="number"
+                            step={field.step ?? 1}
+                            min={0}
+                            value={params[field.key] ?? ""}
+                            onChange={(event) =>
+                              setParams((prev) => ({
+                                ...prev,
+                                [field.key]: event.target.value,
+                              }))
+                            }
+                          />
+                        )}
+                      </div>
+                    )
+                  )
+                : null}
               {indicator.type === "session" ? (
                 <div className="grid gap-2">
                   <Label>Session</Label>

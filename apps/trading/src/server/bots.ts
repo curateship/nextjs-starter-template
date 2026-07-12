@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto"
 import { and, count, desc, eq, inArray, sql, sum } from "drizzle-orm"
 
 import {
-  strategyConfigSchema,
-  type StrategyConfig,
+  automationConfigSchema,
+  type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 import { db, type CustomShellDb } from "@/server/db"
 import { getAssetInfo } from "@/server/hyperliquid/info"
@@ -165,7 +165,7 @@ export async function getBotDetail(
 export type UpdateBotInput = {
   name: string
   markets: string[]
-  params: StrategyConfig
+  params: AutomationConfig
 }
 
 /**
@@ -193,18 +193,18 @@ export async function updateUserBot(
       "This bot uses a retired strategy and is archived — it can't be edited."
     )
   }
-  const requestedParams = strategyConfigSchema.parse(input.params)
+  const requestedParams = automationConfigSchema.parse(input.params)
   if (requestedParams.kind !== bot.strategyType) {
     throw new Error("A bot's Automation source cannot be changed.")
   }
 
-  const stored = strategyConfigSchema.safeParse(bot.params)
+  const stored = automationConfigSchema.safeParse(bot.params)
   if (!stored.success) {
     throw new Error("This Automation bot has an invalid saved configuration.")
   }
   // The graph snapshot is immutable on a bot. Only its protective levels are
   // editable here; replacement rules must come from a newly created bot.
-  const params: StrategyConfig = {
+  const params: AutomationConfig = {
     ...stored.data,
     protection: requestedParams.protection,
   }
@@ -297,7 +297,7 @@ export async function createUserBot(
   const owned = await getUserAutomation(userId, input.automationId, database)
   if (!owned) throw new Error("Automation not found")
 
-  const compiled = strategyConfigSchema.safeParse(owned.compiledConfig)
+  const compiled = automationConfigSchema.safeParse(owned.compiledConfig)
   if (!compiled.success) {
     throw new Error(
       "Automation is incomplete. Save a valid canvas before creating a bot."
@@ -305,7 +305,7 @@ export async function createUserBot(
   }
   // Never trust a client copy of an Automation graph. The saved, server-
   // compiled config is the only configuration allowed to reach execution.
-  const params: StrategyConfig = compiled.data
+  const params: AutomationConfig = compiled.data
   const automationId = owned.id
 
   // Dedupe while preserving order; a bot needs at least one market.

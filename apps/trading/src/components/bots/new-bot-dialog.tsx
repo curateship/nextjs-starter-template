@@ -36,7 +36,7 @@ import {
   type TradingContextResponse,
 } from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
-import { strategySummary } from "@/lib/strategies/strategy-config"
+import { automationSummary } from "@/lib/strategies/strategy-config"
 
 /** Exchanges the bot can trade on. Only Hyperliquid exists today. */
 const EXCHANGES: { id: string; label: string }[] = [
@@ -445,7 +445,7 @@ function NewBotDialogForm({
                   <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
                     {selectedMarkets.length} market
                     {selectedMarkets.length === 1 ? "" : "s"} · {config.kind} ·{" "}
-                    {config.interval} · {strategySummary(config)}
+                    {config.interval} · {automationSummary(config)}
                   </div>
                 ) : null}
               </CardContent>

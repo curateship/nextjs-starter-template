@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { DEFAULT_BACKTEST_COSTS } from "@/lib/backtest/types"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import type { HistoryCandle } from "@/server/backtest/history"
 
 import type { Strategy, StrategyCtx } from "../strategies/contract"
@@ -9,7 +9,7 @@ import { runBacktest, type RunBacktestConfig } from "./runner"
 
 /** Minimal valid config — the toy strategy ignores it; the runner only reads
  * the kind's takeProfitPct bound for its credibility check. */
-const TOY_CONFIG: StrategyConfig = {
+const TOY_CONFIG: AutomationConfig = {
   v: 2,
   kind: "automation",
   interval: "1h",
@@ -48,7 +48,7 @@ function makeThresholdCfg(
     if (opts.stopLossPct) out.push(entry * (1 - opts.stopLossPct / 100))
     return out
   }
-  const strategy: Strategy<StrategyConfig, ThresholdState> = {
+  const strategy: Strategy<AutomationConfig, ThresholdState> = {
     type: "toy",
     warmup: () => ({ candleIntervals: ["1h"] }),
     init: () => ({ boughtOnce: false, exitRequested: false }),

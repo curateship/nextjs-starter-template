@@ -7,6 +7,10 @@ import {
   vwap,
 } from "@/lib/strategies/indicators"
 import { computeConsolidation, computeQqeSeries } from "@/lib/strategies/qqe"
+import {
+  DEFAULT_INDICATORS,
+  qqeChartToModuleParams,
+} from "@/lib/trading/indicators-config"
 import type { IndicatorCandle, IndicatorSignal } from "./contract"
 import { INDICATORS } from "./registry"
 
@@ -78,6 +82,29 @@ describe("QQE indicator parity", () => {
     const qqe = computeQqeSeries(CANDLES, params as never)
     const raw = qqe.buy.filter(Boolean).length + qqe.sell.filter(Boolean).length
     expect(output.signals).toHaveLength(raw)
+  })
+
+  it("chart default config maps to the module defaults (chart ↔ module parity)", () => {
+    const chartDefault = DEFAULT_INDICATORS.find((ind) => ind.type === "qqe")
+    expect(chartDefault).toBeDefined()
+    const mapped = qqeChartToModuleParams(chartDefault!.params)
+    const parsed = INDICATORS.qqe.paramsSchema.parse(mapped)
+    expect(parsed).toEqual(INDICATORS.qqe.defaultParams)
+  })
+
+  it("maps every MA-type / RSI-source index back to a valid enum", () => {
+    const chartDefault = DEFAULT_INDICATORS.find((ind) => ind.type === "qqe")!
+    for (let maType = 0; maType < 11; maType += 1) {
+      for (let rsiSource = 0; rsiSource < 7; rsiSource += 1) {
+        const mapped = qqeChartToModuleParams({
+          ...chartDefault.params,
+          maType,
+          rsiSource,
+        })
+        // Parses cleanly → the index landed on a real enum member.
+        expect(() => INDICATORS.qqe.paramsSchema.parse(mapped)).not.toThrow()
+      }
+    }
   })
 })
 

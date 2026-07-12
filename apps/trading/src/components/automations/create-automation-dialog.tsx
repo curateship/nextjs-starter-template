@@ -31,26 +31,17 @@ import {
   normalizeAutomationType,
   UNCATEGORIZED_TYPE,
 } from "@/lib/automations/automation-types"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import {
   backtestSettingsToValues,
   parseAutomationBacktestSettings,
-  parseAutomationProtection,
   type AutomationBacktestValues,
-  type AutomationProtectionValues,
 } from "./automation-settings"
-import {
-  AutomationBacktestCard,
-  AutomationProtectionCard,
-} from "./automation-settings-fields"
+import { AutomationBacktestCard } from "./automation-settings-fields"
 import { AutomationTypeSelect } from "./automation-type-select"
 
-const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
-const EMPTY_PROTECTION: AutomationProtectionValues = {
-  takeProfitPct: "",
-  stopLossPct: "",
-}
+const INTERVALS: AutomationInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 const DEFAULT_BACKTEST_VALUES = backtestSettingsToValues(
   DEFAULT_AUTOMATION_BACKTEST_SETTINGS
 )
@@ -68,9 +59,7 @@ export function CreateAutomationDialog({
 }) {
   const [name, setName] = React.useState("")
   const [type, setType] = React.useState<string>(UNCATEGORIZED_TYPE)
-  const [interval, setInterval] = React.useState<StrategyInterval>("15m")
-  const [protection, setProtection] =
-    React.useState<AutomationProtectionValues>(EMPTY_PROTECTION)
+  const [interval, setInterval] = React.useState<AutomationInterval>("15m")
   const [backtest, setBacktest] = React.useState<AutomationBacktestValues>(
     DEFAULT_BACKTEST_VALUES
   )
@@ -81,7 +70,6 @@ export function CreateAutomationDialog({
     setName("")
     setType(UNCATEGORIZED_TYPE)
     setInterval("15m")
-    setProtection(EMPTY_PROTECTION)
     setBacktest(DEFAULT_BACKTEST_VALUES)
     setError(null)
   }
@@ -97,11 +85,6 @@ export function CreateAutomationDialog({
       setError("Give this automation a name.")
       return
     }
-    const parsedProtection = parseAutomationProtection(protection)
-    if (!parsedProtection.protection) {
-      setError(parsedProtection.error)
-      return
-    }
     const parsedBacktest = parseAutomationBacktestSettings(backtest)
     if (!parsedBacktest.backtest) {
       setError(parsedBacktest.error)
@@ -114,7 +97,6 @@ export function CreateAutomationDialog({
         name: trimmedName,
         type: normalizeAutomationType(type),
         interval,
-        protection: parsedProtection.protection,
         backtest: parsedBacktest.backtest,
       })
       changeOpen(false)
@@ -176,7 +158,7 @@ export function CreateAutomationDialog({
                   <Select
                     value={interval}
                     onValueChange={(value) =>
-                      setInterval(value as StrategyInterval)
+                      setInterval(value as AutomationInterval)
                     }
                   >
                     <SelectTrigger
@@ -197,12 +179,6 @@ export function CreateAutomationDialog({
               </div>
             </CardContent>
           </Card>
-          <AutomationProtectionCard
-            idPrefix="create-automation"
-            values={protection}
-            disabled={busy}
-            onChange={setProtection}
-          />
           <AutomationBacktestCard
             idPrefix="create-automation"
             values={backtest}

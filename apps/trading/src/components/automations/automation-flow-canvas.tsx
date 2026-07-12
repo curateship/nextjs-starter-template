@@ -14,10 +14,12 @@ import {
   edgePath,
   fitViewport,
   flowBounds,
+  isProtectionPort,
   NODE_HEIGHT,
   NODE_WIDTH,
   portIn,
   portOut,
+  protectionPortIn,
   type CanvasPoint,
   type CanvasSize,
 } from "./canvas-model"
@@ -225,7 +227,7 @@ export function AutomationFlowCanvas({
     const source = current.nodes.find((node) => node.id === draft.from)
     const target = current.nodes.find((node) => node.id === targetId)
     // Trend chains indicators (optionally via Look Back); Bullish/Bearish
-    // signals drive actions.
+    // signals drive actions; the TP/SL hooks attach protective exit nodes.
     const allowed =
       source &&
       target &&
@@ -235,9 +237,13 @@ export function AutomationFlowCanvas({
           : target.kind === "indicator" || target.kind === "lookback"
         : draft.sourcePort === "then"
           ? target.kind === "indicator"
-          : draft.sourcePort === "match"
-            ? false
-            : target.kind === "action")
+          : draft.sourcePort === "tp"
+            ? target.kind === "takeProfit"
+            : draft.sourcePort === "sl"
+              ? target.kind === "stopLoss"
+              : draft.sourcePort === "match"
+                ? false
+                : target.kind === "action")
     if (!allowed) {
       setConnect(null)
       return
@@ -381,9 +387,12 @@ export function AutomationFlowCanvas({
           height={1}
         >
           {renderedEdges.map(({ edge, source, target }) => {
+            const from = portOut(source, edge.sourcePort)
+            const vertical = isProtectionPort(edge.sourcePort)
             const path = edgePath(
-              portOut(source, edge.sourcePort),
-              portIn(target)
+              from,
+              vertical ? protectionPortIn(from, target) : portIn(target),
+              vertical
             )
             const selected = edge.id === selectedEdgeId
             const invalid = errorEdgeIds.has(edge.id)
@@ -429,7 +438,8 @@ export function AutomationFlowCanvas({
             <path
               d={edgePath(
                 portOut(nodeById.get(connect.from)!, connect.sourcePort),
-                connect.point
+                connect.point,
+                isProtectionPort(connect.sourcePort)
               )}
               fill="none"
               stroke="var(--primary)"
