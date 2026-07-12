@@ -44,7 +44,7 @@ const logic = (id: string, op: "and" | "or"): AutomationNode => ({
 
 const action = (
   id: string,
-  actionType: "buy" | "short" | "close",
+  actionType: "buy" | "short" | "close" | "reverse",
   targetEquityPct = 10
 ): AutomationNode => ({
   id,
@@ -796,6 +796,35 @@ describe("resolveAutomationActions", () => {
         new Set(["ema:buy"])
       )
     ).toEqual({ action: { action: "close" }, warning: null })
+  })
+
+  it("gives Reverse priority over a matching entry but not Close", () => {
+    const compiled = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("short", "short", 20),
+          action("reverse", "reverse", 30),
+        ],
+        edges: [
+          edge("e1", "ema", "bearish", "short"),
+          edge("e2", "ema", "bearish", "reverse"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(
+      resolveAutomationActions(
+        compiled.config?.rules ?? [],
+        new Set(["ema:sell"])
+      )
+    ).toEqual({
+      action: { action: "reverse", targetEquityPct: 30 },
+      warning: null,
+    })
   })
 
   it("blocks simultaneous Buy and Short actions", () => {

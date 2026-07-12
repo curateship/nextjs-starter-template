@@ -56,6 +56,18 @@ export function automationTargetOrders(input: {
     ]
   }
 
+  if (action.action === "reverse") {
+    // Flip whatever is held to the opposite side in one step. With no open
+    // position there is nothing to reverse.
+    if (positionSzi === 0) return []
+    const side = positionSzi > 0 ? "sell" : "buy"
+    const reversedSz = (equity * action.targetEquityPct) / 100 / mid
+    return [
+      marketOrder("auto:flip-close", side, Math.abs(positionSzi), true),
+      marketOrder("auto:target-entry", side, reversedSz, false),
+    ]
+  }
+
   const targetSzi =
     ((equity * action.targetEquityPct) / 100 / mid) *
     (action.action === "buy" ? 1 : -1)
@@ -136,7 +148,9 @@ export function createAutomationStrategy(
         const label =
           pendingAction.action === "close"
             ? "Close position"
-            : `${pendingAction.action === "buy" ? "Buy" : "Short"} ${pendingAction.targetEquityPct}%`
+            : pendingAction.action === "reverse"
+              ? `Reverse ${pendingAction.targetEquityPct}%`
+              : `${pendingAction.action === "buy" ? "Buy" : "Short"} ${pendingAction.targetEquityPct}%`
         ctx.emit(
           "automation_action",
           `${label} matched at ${candles[candles.length - 1].c}.`

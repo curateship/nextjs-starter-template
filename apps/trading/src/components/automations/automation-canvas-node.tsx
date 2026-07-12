@@ -3,6 +3,7 @@ import {
   ActivityIcon,
   AlertCircleIcon,
   GitBranchIcon,
+  RepeatIcon,
   ShieldXIcon,
   TimerIcon,
   TrendingDownIcon,
@@ -166,5 +167,6 @@ function NodeIcon({ node }: { node: AutomationNode }) {
   if (node.kind === "lookback") return <TimerIcon className="size-4" />
   if (node.action === "buy") return <TrendingUpIcon className="size-4" />
   if (node.action === "short") return <TrendingDownIcon className="size-4" />
+  if (node.action === "reverse") return <RepeatIcon className="size-4" />
   return <ShieldXIcon className="size-4" />
 }
