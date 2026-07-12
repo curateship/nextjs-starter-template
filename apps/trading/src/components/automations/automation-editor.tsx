@@ -30,7 +30,11 @@ import {
   type AutomationProtection,
 } from "@/lib/automations/automation"
 import { saveAutomation, type AutomationDetail } from "@/lib/api/automations"
-import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
+import {
+  INDICATORS,
+  type IndicatorId,
+  type IndicatorParamValue,
+} from "@/lib/indicators/registry"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
 import {
@@ -44,11 +48,19 @@ import { automationNodeName } from "./node-labels"
 
 export function AutomationEditor({
   initial,
+  pinnedIndicators,
+  indicatorParamSeeds,
   onQuickTest,
   onCreateBot,
   onCreateBacktest,
 }: {
   initial: AutomationDetail
+  pinnedIndicators: IndicatorId[]
+  /** Per-indicator starting params (e.g. the chart's saved Price Action
+   * settings) a new node copies instead of the module defaults. */
+  indicatorParamSeeds?: Partial<
+    Record<IndicatorId, Record<string, IndicatorParamValue>>
+  >
   onQuickTest?: () => void
   onCreateBot?: () => void
   onCreateBacktest?: () => void
@@ -180,6 +192,7 @@ export function AutomationEditor({
                 string,
                 IndicatorParamValue
               >),
+              ...indicatorParamSeeds?.[choice.indicatorType],
             },
           },
         }
@@ -204,7 +217,13 @@ export function AutomationEditor({
       setPaletteOpen(false)
       record(`Added ${automationNodeName(node)}.`)
     },
-    [canvasSize.width, graph.nodes.length, graph.viewport, record]
+    [
+      canvasSize.width,
+      graph.nodes.length,
+      graph.viewport,
+      indicatorParamSeeds,
+      record,
+    ]
   )
 
   const handleCanvasGraphChange = React.useCallback(
@@ -326,7 +345,7 @@ export function AutomationEditor({
         minSize="14%"
         maxSize="26%"
       >
-        <AutomationPalette onAdd={addNode} />
+        <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel id="canvas" defaultSize="58%" minSize="35%">
@@ -459,7 +478,7 @@ export function AutomationEditor({
           className="w-[min(90vw,320px)] gap-0 p-0"
         >
           <SheetPanelHeader title="Add a node" />
-          <AutomationPalette onAdd={addNode} />
+          <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
         </SheetContent>
       </Sheet>
       <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>

@@ -1,6 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { ChevronDownIcon, FlaskConicalIcon, SettingsIcon } from "lucide-react"
+import { ChevronDownIcon, SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -42,12 +41,10 @@ import {
   type ChartStrategyState,
 } from "@/components/chart/chart-strategy"
 import { IndicatorSettingsDialog } from "@/components/chart/chart-strategy-settings"
-import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
 import { buildRunMarkers } from "@/components/backtest/backtest-overlays"
 import { outputToOverlays } from "@/components/chart/indicator-overlays"
 import type { QuickTestResponse } from "@/lib/api/quick-test"
 import type { FixedStrategyItem } from "@/lib/api/strategies"
-import { DEFAULT_STRATEGY_SETTINGS } from "@/lib/strategies/settings"
 import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
 import { INDICATORS } from "@/lib/indicators/registry"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -142,7 +139,6 @@ export function TradingWorkspace({
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
-  const navigate = useNavigate()
   // Remembers the last-used timeframe across visits instead of a fixed 4h.
   const [interval, setInterval] = usePersistedState<CandleInterval>(
     "trading-interval",
@@ -407,9 +403,25 @@ export function TradingWorkspace({
       ...(JSON.parse(raw) as Partial<ChartStrategyState>),
     })
   )
+  // Live copy of each strategy's saved config — the chart dialog edits this
+  // and writes it back to the SAME strategy_settings save the Strategies page
+  // uses, so the chart and the Strategies page can never show different
+  // values. Bots and backtests still snapshot at creation.
+  const [strategyConfigs, setStrategyConfigs] = React.useState(
+    () =>
+      new Map(
+        initialStrategies.map((strategy) => [strategy.type, strategy.config])
+      )
+  )
   const pinnedStrategies = React.useMemo(
-    () => initialStrategies.filter((strategy) => strategy.pinned),
-    [initialStrategies]
+    () =>
+      initialStrategies
+        .filter((strategy) => strategy.pinned)
+        .map((strategy) => ({
+          ...strategy,
+          config: strategyConfigs.get(strategy.type) ?? strategy.config,
+        })),
+    [initialStrategies, strategyConfigs]
   )
   const selectedStrategyType = chartStrategy.indicator?.type
   if (
@@ -418,24 +430,23 @@ export function TradingWorkspace({
   ) {
     setChartStrategy({ ...chartStrategy, indicator: null })
   }
+  const selectedStrategyConfig = selectedStrategyType
+    ? strategyConfigs.get(selectedStrategyType)
+    : undefined
   const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
-  const [quickTestOpen, setQuickTestOpen] = React.useState(false)
   const [quickTest, setQuickTest] = React.useState<QuickTestResponse | null>(
     null
   )
 
-  // Ad-hoc config for Quick Test: the picked indicator at the chart's
-  // timeframe; trade settings are chosen inside the dialog.
-  const quickConfig = React.useMemo<SignalStrategyConfig | null>(() => {
-    if (!chartStrategy.indicator) return null
-    return {
-      v: 2,
-      kind: "signal",
-      interval,
-      indicator: chartStrategy.indicator,
-      settings: { ...DEFAULT_STRATEGY_SETTINGS },
-    }
-  }, [chartStrategy.indicator, interval])
+  const updateSelectedStrategyConfig = React.useCallback(
+    (next: SignalStrategyConfig) => {
+      if (!selectedStrategyType) return
+      setStrategyConfigs((current) =>
+        new Map(current).set(selectedStrategyType, next)
+      )
+    },
+    [selectedStrategyType]
+  )
 
   // The last quick test's chips AND paint; stale the moment the context
   // changes. While active, the chart shows the test's own computation —
@@ -513,7 +524,9 @@ export function TradingWorkspace({
                     onIntervalChange={setInterval}
                     legend={{
                       signals: Boolean(
-                        chartStrategy.indicator && chartStrategy.showSignals
+                        panels.signalLegend &&
+                          chartStrategy.indicator &&
+                          chartStrategy.showSignals
                       ),
                     }}
                     leading={
@@ -532,21 +545,6 @@ export function TradingWorkspace({
                       onChange={setChartStrategy}
                       onOpenSettings={() => setStrategySettingsOpen(true)}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      disabled={!chartStrategy.indicator}
-                      title={
-                        chartStrategy.indicator
-                          ? "Replay this strategy over recent history"
-                          : "Pick a strategy first"
-                      }
-                      onClick={() => setQuickTestOpen(true)}
-                    >
-                      <FlaskConicalIcon className="size-3.5" />
-                      Test
-                    </Button>
                   </ChartToolbar>
                   <div className="min-h-0 flex-1">
                     <PriceChart
@@ -686,19 +684,20 @@ export function TradingWorkspace({
         onOpenChange={setStrategySettingsOpen}
         state={chartStrategy}
         onChange={setChartStrategy}
-      />
-
-      <QuickTestDialog
-        open={quickTestOpen}
-        onOpenChange={setQuickTestOpen}
+        config={selectedStrategyConfig}
+        onConfigChange={(next) => {
+          updateSelectedStrategyConfig(next)
+          // The chart paints from the same edited params, live.
+          setChartStrategy({ ...chartStrategy, indicator: next.indicator })
+        }}
+        pinned={
+          initialStrategies.find(
+            (strategy) => strategy.type === selectedStrategyType
+          )?.pinned ?? false
+        }
         network={network}
         market={market}
-        config={quickConfig}
-        settingsEditable
-        onResult={setQuickTest}
-        onSaved={(backtestId) =>
-          void navigate({ to: "/backtest", search: { run: backtestId } })
-        }
+        onQuickTestResult={setQuickTest}
       />
     </div>
   )
@@ -899,14 +898,24 @@ function SandboxBottomTabs({
   )
 }
 
-type PanelVisibility = { orderBook: boolean; marketDepth: boolean }
+type PanelVisibility = {
+  orderBook: boolean
+  marketDepth: boolean
+  /** The "▲▼ signal only — not a trade" legend in the chart toolbar. */
+  signalLegend: boolean
+}
 
 const PANELS_STORAGE_KEY = "trading-visible-panels"
-const DEFAULT_PANELS: PanelVisibility = { orderBook: true, marketDepth: true }
+const DEFAULT_PANELS: PanelVisibility = {
+  orderBook: true,
+  marketDepth: true,
+  signalLegend: true,
+}
 
 const PANEL_OPTIONS: { key: keyof PanelVisibility; label: string }[] = [
   { key: "orderBook", label: "Order Book" },
   { key: "marketDepth", label: "Market Depth" },
+  { key: "signalLegend", label: "Signal legend" },
 ]
 
 /** Cog dropdown to show/hide dashboard panels. */

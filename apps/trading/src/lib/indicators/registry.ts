@@ -1,10 +1,12 @@
 import { z } from "zod"
 
+import type { IndicatorType } from "@/lib/trading/indicators-config"
 import type { IndicatorModule } from "./contract"
 import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
 import { emaCrossIndicator } from "./defs/ema-cross"
 import { macdCrossIndicator } from "./defs/macd-cross"
+import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
 import { vwapCrossIndicator } from "./defs/vwap-cross"
@@ -17,6 +19,7 @@ export const INDICATOR_IDS = [
   "vwap_cross",
   "breakout",
   "bollinger",
+  "price_action",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -39,6 +42,22 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   vwap_cross: erase(vwapCrossIndicator),
   breakout: erase(breakoutIndicator),
   bollinger: erase(bollingerIndicator),
+  price_action: erase(priceActionIndicator),
+}
+
+/**
+ * Chart-overlay indicator types that have a signal-module counterpart.
+ * Pinning the chart indicator also offers its signal version on the
+ * automation canvas. Base and Sessions are draw-only (no buy/sell rule),
+ * so they have no entry here.
+ */
+export const SIGNAL_FOR_CHART_TYPE: Partial<Record<IndicatorType, IndicatorId>> = {
+  ema: "ema_cross",
+  vwap: "vwap_cross",
+  bollinger: "bollinger",
+  rsi: "rsi_levels",
+  macd: "macd_cross",
+  priceAction: "price_action",
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

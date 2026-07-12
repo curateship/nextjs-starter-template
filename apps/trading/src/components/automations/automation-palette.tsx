@@ -71,23 +71,27 @@ const actionItems: PaletteItem[] = [
   },
 ]
 
-const indicatorItems: PaletteItem[] = INDICATOR_IDS.map((id) => ({
-  key: `indicator-${id}`,
-  name: INDICATORS[id].label,
-  description: INDICATORS[id].description,
-  icon: ActivityIcon,
-  choice: { kind: "indicator", indicatorType: id },
-}))
-
 export function AutomationPalette({
   className,
+  pinnedIndicators,
   onAdd,
 }: {
   className?: string
+  /** Indicator ids the user pinned on the Strategies page — the only ones offered. */
+  pinnedIndicators: IndicatorId[]
   onAdd: (choice: AutomationPaletteChoice) => void
 }) {
   const [search, setSearch] = React.useState("")
   const query = search.trim().toLowerCase()
+  const indicatorItems: PaletteItem[] = INDICATOR_IDS.filter((id) =>
+    pinnedIndicators.includes(id)
+  ).map((id) => ({
+    key: `indicator-${id}`,
+    name: INDICATORS[id].label,
+    description: INDICATORS[id].description,
+    icon: ActivityIcon,
+    choice: { kind: "indicator", indicatorType: id },
+  }))
   const groups = [
     { label: "Indicators", items: indicatorItems },
     { label: "Logic", items: logicItems },
@@ -131,6 +135,20 @@ export function AutomationPalette({
         scrollBarClassName="right-1 data-vertical:w-2"
       >
         <div className="flex flex-col gap-4 p-3">
+          {pinnedIndicators.length === 0 ? (
+            <section aria-labelledby="palette-Indicators">
+              <h2
+                id="palette-Indicators"
+                className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
+              >
+                Indicators
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                No pinned indicators — pin strategies on the Strategies page to
+                use them here.
+              </p>
+            </section>
+          ) : null}
           {groups.map((group) => (
             <section
               key={group.label}

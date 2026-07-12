@@ -789,7 +789,6 @@ export function BotWorkspace({
           open={chartDisplayOpen}
           onOpenChange={setChartDisplayOpen}
           state={chartStrategy}
-          hideParams
           onChange={(next) =>
             // Persist only the display toggles — the indicator re-derives
             // from the bot's config, so it must never hit localStorage.
