@@ -1835,11 +1835,10 @@ function toVolumeData(candle: ChartCandle): HistogramData {
   }
 }
 
-/** Days label for the measure tool: finer precision for shorter spans. */
+/** Duration label for the measure tool: hours within a day, then days. */
 function formatDays(days: number): string {
-  let decimals = 0
-  if (days < 1) decimals = 2
-  else if (days < 10) decimals = 1
+  if (days < 1) return `${(days * 24).toFixed(1)}h`
+  const decimals = days < 10 ? 1 : 0
   return `${days.toFixed(decimals)}d`
 }
 

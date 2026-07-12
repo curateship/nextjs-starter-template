@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import type { StrategyListItem } from "@/lib/api/strategies"
+import type { StrategyTemplateListItem } from "@/lib/api/strategies"
 import {
   strategySummary,
   strategyTypeLabel,
@@ -9,17 +9,16 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Saved-strategy card list shared by the New Bot and New Run dialogs: one
- * card per strategy with its indicator, timeframe, and settings one-liner.
- * `strategies` is null while loading.
+ * Saved-template card list shared by the New Bot and New Run dialogs.
+ * `templates` is null while loading.
  */
-export function StrategyPicker({
-  strategies,
+export function StrategyTemplatePicker({
+  templates,
   selectedId,
   onSelect,
   hideLabel = false,
 }: {
-  strategies: StrategyListItem[] | null
+  templates: StrategyTemplateListItem[] | null
   selectedId: string | null
   onSelect: (id: string) => void
   /** Hide the built-in "Strategy" label when a surrounding card titles it. */
@@ -27,19 +26,18 @@ export function StrategyPicker({
 }) {
   return (
     <div className="grid gap-2">
-      {hideLabel ? null : <Label>Strategy</Label>}
-      {strategies === null ? (
+      {hideLabel ? null : <Label>Template</Label>}
+      {templates === null ? (
         <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-          Loading strategies…
+          Loading templates…
         </div>
-      ) : strategies.length === 0 ? (
+      ) : templates.length === 0 ? (
         <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-          No saved strategies yet. Create one on the Strategies page first — a
-          strategy is an indicator plus one settings block.
+          No saved templates yet. Create one from a strategy's settings.
         </div>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          {strategies.map((item) => (
+          {templates.map((item) => (
             <button
               key={item.id}
               type="button"

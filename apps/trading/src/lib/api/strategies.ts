@@ -2,23 +2,34 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  INDICATORS,
+  INDICATOR_IDS,
+  indicatorIdSchema,
+  type IndicatorId,
+} from "@/lib/indicators/registry"
+import {
+  defaultStrategyConfig,
   normalizeStrategyConfig,
-  strategyConfigSchema,
-  type StrategyConfig,
+  signalStrategyConfigSchema,
+  type SignalStrategyConfig,
 } from "@/lib/strategies/strategy-config"
 
-export type StrategyListItem = {
+export type StrategyTemplateListItem = {
   id: string
   name: string
-  config: StrategyConfig
+  config: SignalStrategyConfig
   created_at: string
   updated_at: string
 }
 
-export type SavedStrategyConfig = Exclude<
-  StrategyConfig,
-  { kind: "automation" }
->
+export type FixedStrategyItem = {
+  type: IndicatorId
+  label: string
+  description: string
+  config: SignalStrategyConfig
+  pinned: boolean
+  templates: StrategyTemplateListItem[]
+}
 
 async function requireUser() {
   const { findCurrentUser } = await import("@/server/security")
@@ -29,47 +40,106 @@ async function requireUser() {
   return user
 }
 
-function serialize(row: {
+function serializeTemplate(row: {
   id: string
   name: string
   config: unknown
   createdAt: Date
   updatedAt: Date
-}): StrategyListItem {
+}): StrategyTemplateListItem | null {
+  const config = normalizeStrategyConfig(row.config)
+  if (!config || config.kind !== "signal") return null
   return {
     id: row.id,
     name: row.name,
-    // Normalized so `config.kind` is always set (pre-kind rows lack it).
-    config:
-      normalizeStrategyConfig(row.config) ?? (row.config as StrategyConfig),
+    config,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
 }
 
-const upsertSchema = z.object({
+const upsertTemplateSchema = z.object({
   strategyId: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
-  config: strategyConfigSchema.refine(
-    (config) => config.kind !== "automation",
-    "Automations must be saved from the Automations canvas."
-  ),
+  config: signalStrategyConfigSchema,
 })
+
+const saveSettingsSchema = z
+  .object({
+    strategyType: indicatorIdSchema,
+    config: signalStrategyConfigSchema,
+    pinned: z.boolean(),
+  })
+  .refine((value) => value.config.indicator.type === value.strategyType, {
+    message: "Strategy settings must match the selected strategy.",
+    path: ["config", "indicator", "type"],
+  })
 
 const idSchema = z.object({ strategyId: z.string().uuid() })
 
-const listStrategiesFn = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ strategies: StrategyListItem[] }> => {
+const loadStrategyLibraryFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ strategies: FixedStrategyItem[] }> => {
     const user = await requireUser()
-    const { listUserStrategies } = await import("@/server/strategies")
-    const rows = await listUserStrategies(user.id)
-    return { strategies: rows.map(serialize) }
+    const { listUserStrategies, listUserStrategySettings } = await import(
+      "@/server/strategies"
+    )
+    const [templateRows, settingRows] = await Promise.all([
+      listUserStrategies(user.id),
+      listUserStrategySettings(user.id),
+    ])
+    const templates = templateRows.flatMap((row) => {
+      const template = serializeTemplate(row)
+      return template ? [template] : []
+    })
+    const settings = new Map(
+      settingRows.flatMap((row) => {
+        const config = normalizeStrategyConfig(row.config)
+        return config?.kind === "signal" &&
+          config.indicator.type === row.strategyType
+          ? [[row.strategyType as IndicatorId, { config, pinned: row.pinned }] as const]
+          : []
+      })
+    )
+    return {
+      strategies: INDICATOR_IDS.map((type) => ({
+        type,
+        label: INDICATORS[type].label,
+        description: INDICATORS[type].description,
+        config:
+          settings.get(type)?.config ??
+          (defaultStrategyConfig(type, "15m") as SignalStrategyConfig),
+        pinned: settings.get(type)?.pinned ?? false,
+        templates: templates.filter(
+          (template) => template.config.indicator.type === type
+        ),
+      })),
+    }
   }
 )
 
-const saveStrategyFn = createServerFn({ method: "POST" })
-  .inputValidator(upsertSchema)
-  .handler(async ({ data }): Promise<{ strategy: StrategyListItem }> => {
+const saveStrategySettingsFn = createServerFn({ method: "POST" })
+  .inputValidator(saveSettingsSchema)
+  .handler(async ({ data }): Promise<{ config: SignalStrategyConfig }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    requireAppOrigin()
+    const user = await requireUser()
+    const { saveUserStrategySettings } = await import("@/server/strategies")
+    const row = await saveUserStrategySettings(
+      user.id,
+      data.strategyType,
+      data.config,
+      data.pinned
+    )
+    const config = normalizeStrategyConfig(row.config)
+    if (!config || config.kind !== "signal") {
+      throw new Error("Saved strategy settings are invalid")
+    }
+    return { config }
+  })
+
+const saveStrategyTemplateFn = createServerFn({ method: "POST" })
+  .inputValidator(upsertTemplateSchema)
+  .handler(async ({ data }): Promise<{ template: StrategyTemplateListItem }> => {
     const { requireAppOrigin } = await import("@/server/origin")
     requireAppOrigin()
     const user = await requireUser()
@@ -79,13 +149,17 @@ const saveStrategyFn = createServerFn({ method: "POST" })
     if (data.strategyId) {
       const row = await updateUserStrategy(user.id, data.strategyId, data)
       if (!row) throw new Error("Strategy not found")
-      return { strategy: serialize(row) }
+      const template = serializeTemplate(row)
+      if (!template) throw new Error("Saved template is invalid")
+      return { template }
     }
     const row = await createUserStrategy(user.id, data)
-    return { strategy: serialize(row) }
+    const template = serializeTemplate(row)
+    if (!template) throw new Error("Saved template is invalid")
+    return { template }
   })
 
-const deleteStrategyFn = createServerFn({ method: "POST" })
+const deleteStrategyTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(idSchema)
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     const { requireAppOrigin } = await import("@/server/origin")
@@ -95,14 +169,20 @@ const deleteStrategyFn = createServerFn({ method: "POST" })
     return { ok: await deleteUserStrategy(user.id, data.strategyId) }
   })
 
-export function loadStrategies() {
-  return listStrategiesFn()
+export function loadStrategyLibrary() {
+  return loadStrategyLibraryFn()
 }
 
-export function saveStrategy(input: z.infer<typeof upsertSchema>) {
-  return saveStrategyFn({ data: input })
+export function saveStrategySettings(input: z.infer<typeof saveSettingsSchema>) {
+  return saveStrategySettingsFn({ data: input })
 }
 
-export function deleteStrategy(strategyId: string) {
-  return deleteStrategyFn({ data: { strategyId } })
+export function saveStrategyTemplate(
+  input: z.infer<typeof upsertTemplateSchema>
+) {
+  return saveStrategyTemplateFn({ data: input })
+}
+
+export function deleteStrategyTemplate(strategyId: string) {
+  return deleteStrategyTemplateFn({ data: { strategyId } })
 }

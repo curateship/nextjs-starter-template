@@ -1,9 +1,8 @@
 import * as React from "react"
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { PinIcon, PinOffIcon, SettingsIcon } from "lucide-react"
 
-import { StrategyEditorDialog } from "@/components/strategies/strategy-editor"
 import { DashboardTable } from "@/components/dashboard-table"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import { StrategySettingsDialog } from "@/components/strategies/strategy-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,112 +12,133 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  deleteStrategy,
-  loadStrategies,
-  type StrategyListItem,
+  saveStrategySettings,
+  type FixedStrategyItem,
 } from "@/lib/api/strategies"
-import {
-  strategySummary,
-  strategyTypeDescription,
-  strategyTypeLabel,
-  strategyTypeOf,
-} from "@/lib/strategies/strategy-config"
+import { strategySummary } from "@/lib/strategies/strategy-config"
+import { cn } from "@/lib/utils"
 
-/**
- * The strategies library — the new model's home page. A strategy is one
- * indicator + one settings block; bots pick from this list and snapshot the
- * config at creation.
- */
-export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
+/** The seven fixed strategies. Settings and named templates live under each row. */
+export function StrategyManager({ initial }: { initial: FixedStrategyItem[] }) {
   const [strategies, setStrategies] = React.useState(initial)
-  const [editorOpen, setEditorOpen] = React.useState(false)
-  const [target, setTarget] = React.useState<StrategyListItem | null>(null)
+  const [targetType, setTargetType] = React.useState<
+    FixedStrategyItem["type"] | null
+  >(null)
+  const [status, setStatus] = React.useState<{
+    tone: "error" | "success"
+    text: string
+  } | null>(null)
+  const target =
+    strategies.find((strategy) => strategy.type === targetType) ?? null
 
-  const refresh = React.useCallback(async () => {
-    const { strategies: rows } = await loadStrategies()
-    setStrategies(rows)
-  }, [])
+  const updateStrategy = (next: FixedStrategyItem) => {
+    setStrategies((current) =>
+      current.map((strategy) =>
+        strategy.type === next.type ? next : strategy
+      )
+    )
+  }
+
+  const sorted = React.useMemo(
+    () => [...strategies].sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+    [strategies]
+  )
+
+  const togglePinned = (strategy: FixedStrategyItem) => {
+    const next = { ...strategy, pinned: !strategy.pinned }
+    updateStrategy(next)
+    setStatus(null)
+    void saveStrategySettings({
+      strategyType: next.type,
+      config: next.config,
+      pinned: next.pinned,
+    }).catch(() =>
+      setStatus({ tone: "error", text: `Saving ${next.label} failed` })
+    )
+  }
 
   return (
     <>
       <DashboardTable
         title="Strategies"
         count={strategies.length}
-        controls={
-          <DashboardToolbarButton
-            onClick={() => {
-              setTarget(null)
-              setEditorOpen(true)
-            }}
-          >
-            <PlusIcon className="size-4" />
-            New Strategy
-          </DashboardToolbarButton>
-        }
+        status={status}
         footer={{ type: "summary", count: strategies.length, label: "strategies" }}
         header={
           <TableHeader>
             <TableRow>
               <TableHead column="main">Strategy</TableHead>
-              <TableHead column="meta">Type</TableHead>
               <TableHead column="meta">Timeframe</TableHead>
               <TableHead column="meta">Settings</TableHead>
+              <TableHead column="meta">Templates</TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
-        isEmpty={strategies.length === 0}
-        emptyText="No strategies yet. A strategy is an indicator plus one settings block — create your first."
+        isEmpty={false}
+        emptyText=""
         emptyColSpan={5}
       >
-        {strategies.map((item) => (
-          <TableRow key={item.id}>
+        {sorted.map((strategy) => (
+          <TableRow
+            key={strategy.type}
+            className={cn(
+              strategy.pinned && "border-l-2 border-amber-500 bg-amber-500/5"
+            )}
+          >
             <TableCell column="main">
               <button
                 type="button"
-                className="text-left font-medium hover:underline"
-                title={`Edit ${item.name}`}
-                onClick={() => {
-                  setTarget(item)
-                  setEditorOpen(true)
-                }}
+                className="inline-flex items-center gap-1.5 text-left font-medium hover:underline"
+                onClick={() => setTargetType(strategy.type)}
               >
-                {item.name}
+                {strategy.pinned ? (
+                  <PinIcon className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                ) : null}
+                {strategy.label}
               </button>
               <div className="text-xs text-muted-foreground">
-                {strategyTypeDescription(strategyTypeOf(item.config))}
+                {strategy.description}
               </div>
             </TableCell>
-            <TableCell column="meta">
-              <Badge variant="secondary">
-                {strategyTypeLabel(strategyTypeOf(item.config))}
-              </Badge>
+            <TableCell column="meta">{strategy.config.interval}</TableCell>
+            <TableCell column="mutedMeta">
+              {strategySummary(strategy.config)}
             </TableCell>
-            <TableCell column="meta">{item.config.interval}</TableCell>
-            <TableCell column="mutedMeta">{strategySummary(item.config)}</TableCell>
             <TableCell column="meta">
-              <div className="flex gap-1">
+              <Badge variant="secondary">{strategy.templates.length}</Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Edit strategy"
-                  onClick={() => {
-                    setTarget(item)
-                    setEditorOpen(true)
-                  }}
+                  aria-label={
+                    strategy.pinned
+                      ? `Unpin ${strategy.label}`
+                      : `Pin ${strategy.label}`
+                  }
+                  title={
+                    strategy.pinned
+                      ? "Unpin from trade chart"
+                      : "Pin to trade chart"
+                  }
+                  onClick={() => togglePinned(strategy)}
                 >
-                  <PencilIcon className="size-3.5" />
+                  {strategy.pinned ? (
+                    <PinOffIcon className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <PinIcon className="size-3.5 text-muted-foreground" />
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="text-destructive"
-                  aria-label="Delete strategy"
-                  onClick={() => {
-                    void deleteStrategy(item.id).then(refresh)
-                  }}
+                  aria-label={`Edit ${strategy.label} settings`}
+                  title="Strategy settings"
+                  onClick={() => setTargetType(strategy.type)}
                 >
-                  <Trash2Icon className="size-3.5" />
+                  <SettingsIcon className="size-3.5" />
                 </Button>
               </div>
             </TableCell>
@@ -126,11 +146,11 @@ export function StrategyManager({ initial }: { initial: StrategyListItem[] }) {
         ))}
       </DashboardTable>
 
-      <StrategyEditorDialog
-        open={editorOpen}
-        target={target}
-        onOpenChange={setEditorOpen}
-        onSaved={() => void refresh()}
+      <StrategySettingsDialog
+        open={target !== null}
+        strategy={target}
+        onOpenChange={(open) => (open ? null : setTargetType(null))}
+        onChanged={updateStrategy}
       />
     </>
   )

@@ -37,9 +37,12 @@ const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
 export function StrategyConfigFields({
   value,
   onChange,
+  lockedType,
 }: {
   value: StrategyConfig
   onChange: (next: StrategyConfig) => void
+  /** Fixed-strategy settings and templates cannot switch strategy type. */
+  lockedType?: StrategyTypeId
 }) {
   const kind = strategyKindOf(value)
 
@@ -128,7 +131,7 @@ export function StrategyConfigFields({
 
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className={lockedType ? "grid" : "grid grid-cols-2 gap-3"}>
         <div className="grid gap-1.5">
           <Label className="text-xs">Timeframe</Label>
           <Select
@@ -152,24 +155,26 @@ export function StrategyConfigFields({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Strategy</Label>
-          <Select
-            value={strategyTypeOf(value)}
-            onValueChange={(type) => pickType(type as StrategyTypeId)}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STRATEGY_EDITOR_TYPE_IDS.map((id) => (
-                <SelectItem key={id} value={id}>
-                  {strategyTypeLabel(id)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {lockedType ? null : (
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Strategy</Label>
+            <Select
+              value={strategyTypeOf(value)}
+              onValueChange={(type) => pickType(type as StrategyTypeId)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STRATEGY_EDITOR_TYPE_IDS.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {strategyTypeLabel(id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
       <p className="text-[11px] text-muted-foreground">
         {strategyTypeDescription(strategyTypeOf(value))}

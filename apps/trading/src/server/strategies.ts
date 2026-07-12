@@ -3,10 +3,55 @@ import { randomUUID } from "node:crypto"
 import { and, desc, eq } from "drizzle-orm"
 
 import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { IndicatorId } from "@/lib/indicators/registry"
 import { db, type CustomShellDb } from "@/server/db"
-import { tradingStrategies, type TradingStrategy } from "@/server/schema"
+import {
+  tradingStrategies,
+  tradingStrategySettings,
+  type TradingStrategy,
+  type TradingStrategySettings,
+} from "@/server/schema"
 
 const now = () => new Date()
+
+export async function listUserStrategySettings(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<TradingStrategySettings[]> {
+  return database
+    .select()
+    .from(tradingStrategySettings)
+    .where(eq(tradingStrategySettings.userId, userId))
+}
+
+export async function saveUserStrategySettings(
+  userId: string,
+  strategyType: IndicatorId,
+  config: StrategyConfig,
+  pinned: boolean,
+  database: CustomShellDb = db
+): Promise<TradingStrategySettings> {
+  const timestamp = now()
+  const [row] = await database
+    .insert(tradingStrategySettings)
+    .values({
+      userId,
+      strategyType,
+      config,
+      pinned,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: [
+        tradingStrategySettings.userId,
+        tradingStrategySettings.strategyType,
+      ],
+      set: { config, pinned, updatedAt: timestamp },
+    })
+    .returning()
+  return row
+}
 
 /** All of a user's saved strategies, newest first. */
 export async function listUserStrategies(
