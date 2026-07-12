@@ -20,7 +20,7 @@ export function computeStrategyOutput(
     return {
       paint: evaluated.paint,
       signals: evaluated.actions.flatMap((action) =>
-        action.action === "close"
+        action.action === "close" || action.action === "reverse"
           ? []
           : [
               {

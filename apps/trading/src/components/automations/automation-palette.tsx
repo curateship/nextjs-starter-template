@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   ActivityIcon,
+  RepeatIcon,
   SearchIcon,
   ShieldXIcon,
   TimerIcon,
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils"
 export type AutomationPaletteChoice =
   | { kind: "indicator"; indicatorType: IndicatorId }
   | { kind: "lookback" }
-  | { kind: "action"; action: "buy" | "short" | "close" }
+  | { kind: "action"; action: "buy" | "short" | "close" | "reverse" }
 
 type PaletteItem = {
   key: string
@@ -54,6 +55,13 @@ const actionItems: PaletteItem[] = [
     description: "Target a short portfolio percentage",
     icon: TrendingDownIcon,
     choice: { kind: "action", action: "short" },
+  },
+  {
+    key: "action-reverse",
+    name: "Reverse Position",
+    description: "Flip to the opposite side in one step (close + open)",
+    icon: RepeatIcon,
+    choice: { kind: "action", action: "reverse" },
   },
   {
     key: "action-close",

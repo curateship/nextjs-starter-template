@@ -27,7 +27,7 @@ export type AutomationLogicNode = {
 export type AutomationActionNode = {
   id: string
   kind: "action"
-  action: "buy" | "short" | "close"
+  action: "buy" | "short" | "close" | "reverse"
   targetEquityPct?: number
   x: number
   y: number
@@ -116,7 +116,7 @@ export type AutomationCondition =
 
 export type AutomationRule = {
   id: string
-  action: "buy" | "short" | "close"
+  action: "buy" | "short" | "close" | "reverse"
   targetEquityPct?: number
   condition: AutomationCondition
 }
@@ -201,7 +201,7 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
   z.object({
     id: idSchema,
     kind: z.literal("action"),
-    action: z.enum(["buy", "short", "close"]),
+    action: z.enum(["buy", "short", "close", "reverse"]),
     targetEquityPct: z.number().finite().optional(),
     x: z.number().finite(),
     y: z.number().finite(),
@@ -302,7 +302,7 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
 const automationRuleSchema = z
   .object({
     id: idSchema,
-    action: z.enum(["buy", "short", "close"]),
+    action: z.enum(["buy", "short", "close", "reverse"]),
     targetEquityPct: z.number().min(1).max(100).optional(),
     condition: automationConditionSchema,
   })
@@ -715,6 +715,7 @@ function conditionMatches(
 
 export type ResolvedAutomationAction =
   | { action: "buy" | "short"; targetEquityPct: number }
+  | { action: "reverse"; targetEquityPct: number }
   | { action: "close" }
 
 export function resolveAutomationActions(
@@ -725,8 +726,23 @@ export function resolveAutomationActions(
   const matched = rules.filter((rule) =>
     conditionMatches(rule.condition, fired, filterState)
   )
+  // Precedence: close > reverse > entries. Close always flattens; a reverse
+  // (flip whatever is held) outranks a plain entry so a trend flip wins over a
+  // same-candle entry signal.
   if (matched.some((rule) => rule.action === "close")) {
     return { action: { action: "close" }, warning: null }
+  }
+  const reverses = matched.filter((rule) => rule.action === "reverse")
+  if (reverses.length > 0) {
+    return {
+      action: {
+        action: "reverse",
+        targetEquityPct: Math.max(
+          ...reverses.map((rule) => rule.targetEquityPct ?? 0)
+        ),
+      },
+      warning: null,
+    }
   }
   const buys = matched.filter((rule) => rule.action === "buy")
   const shorts = matched.filter((rule) => rule.action === "short")

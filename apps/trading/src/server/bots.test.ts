@@ -66,6 +66,7 @@ beforeEach(async () => {
     "../../drizzle/0020_trading_automations.sql",
     "../../drizzle/0021_wallet_onboarding.sql",
     "../../drizzle/0024_remove_strategies.sql",
+    "../../drizzle/0025_automation_type.sql",
   ]) {
     await applyMigration(client, file)
   }

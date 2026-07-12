@@ -127,6 +127,65 @@ describe("Automation through the real backtest runner", () => {
     ).toBeCloseTo((10_000 + result.stats.netPnl) * 0.4, -1)
   })
 
+  it("reverses a long into a short in one step when a Reverse rule matches", () => {
+    const reverseConfig: AutomationStrategyConfig = {
+      ...config,
+      protection: {},
+      rules: [
+        config.rules[0],
+        {
+          id: "reverse",
+          action: "reverse",
+          targetEquityPct: 40,
+          condition: {
+            kind: "trigger",
+            nodeId: "breakout",
+            indicator: { type: "breakout", params: { lookback: 3 } },
+            side: "sell",
+          },
+        },
+      ],
+    }
+    const history = [
+      ...candles.slice(0, 4),
+      { t: STEP * 4, T: STEP * 5 - 1, o: 13, h: 13.5, l: 7, c: 8, v: 1, n: 1 },
+    ]
+    const result = run(reverseConfig, history)
+
+    expect(result.fills.map((fill) => fill.purpose)).toEqual([
+      "auto:target-entry",
+      "auto:flip-close",
+      "auto:target-entry",
+    ])
+    expect(result.openPosition?.side).toBe("short")
+    expect(
+      Math.abs(result.openPosition!.szi * result.openPosition!.entryPx)
+    ).toBeCloseTo((10_000 + result.stats.netPnl) * 0.4, -1)
+  })
+
+  it("does not reverse when flat — the first entry still needs its own signal", () => {
+    const reverseOnlyConfig: AutomationStrategyConfig = {
+      ...config,
+      protection: {},
+      rules: [
+        {
+          id: "reverse",
+          action: "reverse",
+          targetEquityPct: 40,
+          condition: {
+            kind: "trigger",
+            nodeId: "breakout",
+            indicator: { type: "breakout", params: { lookback: 3 } },
+            side: "buy",
+          },
+        },
+      ],
+    }
+    // Breakout buys fire on the rising candles, but with no open position a
+    // Reverse has nothing to flip, so no orders are ever placed.
+    expect(run(reverseOnlyConfig, candles).fills).toEqual([])
+  })
+
   it("closes a position when a Close rule matches", () => {
     const closeConfig: AutomationStrategyConfig = {
       ...config,

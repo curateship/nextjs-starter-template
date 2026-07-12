@@ -105,6 +105,65 @@ describe("automationTargetOrders", () => {
       }),
     ])
   })
+
+  it("reverses a long into a short in one step", () => {
+    expect(
+      automationTargetOrders({
+        mid: 100,
+        equity: 10_000,
+        positionSzi: 10,
+        action: { action: "reverse", targetEquityPct: 25 },
+      })
+    ).toEqual([
+      expect.objectContaining({
+        purpose: "auto:flip-close",
+        side: "sell",
+        sz: "10",
+        reduceOnly: true,
+      }),
+      expect.objectContaining({
+        purpose: "auto:target-entry",
+        side: "sell",
+        sz: "25",
+        reduceOnly: false,
+      }),
+    ])
+  })
+
+  it("reverses a short into a long in one step", () => {
+    expect(
+      automationTargetOrders({
+        mid: 100,
+        equity: 10_000,
+        positionSzi: -10,
+        action: { action: "reverse", targetEquityPct: 25 },
+      })
+    ).toEqual([
+      expect.objectContaining({
+        purpose: "auto:flip-close",
+        side: "buy",
+        sz: "10",
+        reduceOnly: true,
+      }),
+      expect.objectContaining({
+        purpose: "auto:target-entry",
+        side: "buy",
+        sz: "25",
+        reduceOnly: false,
+      }),
+    ])
+  })
+
+  it("does nothing when reversing with no open position", () => {
+    expect(
+      automationTargetOrders({
+        mid: 100,
+        equity: 10_000,
+        positionSzi: 0,
+        action: { action: "reverse", targetEquityPct: 25 },
+      })
+    ).toEqual([])
+  })
 })
 
 describe("createAutomationStrategy", () => {

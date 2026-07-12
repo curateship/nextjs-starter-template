@@ -7,6 +7,7 @@ export function automationNodeName(node: AutomationNode) {
   if (node.kind === "lookback") return "Look Back"
   if (node.action === "buy") return "Long"
   if (node.action === "short") return "Short"
+  if (node.action === "reverse") return "Reverse Position"
   return "Close Position"
 }
 
@@ -21,5 +22,8 @@ export function automationNodeDescription(node: AutomationNode) {
     return `The incoming signal only counts for ${node.bars} candles after it fires.`
   }
   if (node.action === "close") return "Closes the current market position."
+  if (node.action === "reverse") {
+    return `Flips the current position to the opposite side (${node.targetEquityPct ?? 10}%).`
+  }
   return `Targets ${node.targetEquityPct ?? 10}% of account equity.`
 }

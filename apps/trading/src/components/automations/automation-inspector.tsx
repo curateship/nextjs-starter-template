@@ -277,8 +277,9 @@ function ActionFields({
         }
       />
       <p className="text-[11px] text-muted-foreground">
-        The engine adjusts toward this target instead of stacking another full
-        order on every signal.
+        {node.action === "reverse"
+          ? "When the position flips, the new opposite side targets this percentage of account equity. With no open position there is nothing to reverse."
+          : "The engine adjusts toward this target instead of stacking another full order on every signal."}
       </p>
     </div>
   )
