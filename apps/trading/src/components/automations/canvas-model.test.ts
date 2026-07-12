@@ -26,6 +26,7 @@ describe("Automation canvas model", () => {
   it("exposes stable named ports for every node kind", () => {
     expect(nodeOutputPorts(indicator)).toEqual([
       { id: "bullish", label: "Bullish" },
+      { id: "trend", label: "Trend" },
       { id: "bearish", label: "Bearish" },
     ])
     expect(
@@ -40,11 +41,12 @@ describe("Automation canvas model", () => {
         x: 0,
         y: 0,
       })
-    ).toEqual([])
+    ).toEqual([{ id: "then", label: "Then" }])
   })
 
   it("anchors named outputs and inputs to the node edges", () => {
     expect(portOut(indicator, "bullish")).toEqual({ x: 380, y: 74 })
+    expect(portOut(indicator, "trend")).toEqual({ x: 380, y: 94 })
     expect(portOut(indicator, "bearish")).toEqual({ x: 380, y: 114 })
     expect(portIn(indicator)).toEqual({ x: 100, y: 94 })
   })

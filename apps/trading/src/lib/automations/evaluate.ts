@@ -35,9 +35,9 @@ function triggersOf(
     : condition.children.flatMap(triggersOf)
 }
 
-function selectionKey(
-  condition: Extract<AutomationCondition, { kind: "trigger" }>
-) {
+function selectionKey(condition: {
+  indicator: { type: string; params: Record<string, unknown> }
+}) {
   const params = Object.fromEntries(
     Object.entries(condition.indicator.params).sort(([a], [b]) =>
       a.localeCompare(b)
@@ -77,21 +77,22 @@ export function evaluateAutomation(
   config: AutomationStrategyConfig
 ): AutomationEvaluation {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
+  const filters = triggers.flatMap((trigger) => trigger.filters ?? [])
   const outputBySelection = new Map<string, IndicatorOutput>()
   const outputByNode = new Map<string, IndicatorOutput>()
   const paint = emptyPaint()
 
-  for (const trigger of triggers) {
-    const key = selectionKey(trigger)
+  for (const source of [...triggers, ...filters]) {
+    const key = selectionKey(source)
     let output = outputBySelection.get(key)
     if (!output) {
-      const module = INDICATORS[trigger.indicator.type]
-      const params = module.paramsSchema.parse(trigger.indicator.params)
+      const module = INDICATORS[source.indicator.type]
+      const params = module.paramsSchema.parse(source.indicator.params)
       output = module.compute(candles, params as never)
       outputBySelection.set(key, output)
-      mergePaint(paint, output, trigger.nodeId)
+      mergePaint(paint, output, source.nodeId)
     }
-    outputByNode.set(trigger.nodeId, output)
+    outputByNode.set(source.nodeId, output)
   }
 
   const firedByTime = new Map<number, Set<string>>()
@@ -104,12 +105,34 @@ export function evaluateAutomation(
     }
   }
 
+  // Trend filters latch: a filter counts as bullish/bearish from its most
+  // recent signal (same candle included) until the opposite signal.
+  const filterCursors = [...new Set(filters.map((filter) => filter.nodeId))]
+    .map((nodeId) => ({
+      nodeId,
+      signals: [...(outputByNode.get(nodeId)?.signals ?? [])].sort(
+        (a, b) => a.time - b.time
+      ),
+      index: 0,
+    }))
+  const filterState = new Map<string, "buy" | "sell">()
+
   const actions: AutomationActionEvent[] = []
   const warnings: { time: number; message: string }[] = []
   for (const candle of candles) {
+    for (const cursor of filterCursors) {
+      while (
+        cursor.index < cursor.signals.length &&
+        cursor.signals[cursor.index].time <= candle.t
+      ) {
+        filterState.set(cursor.nodeId, cursor.signals[cursor.index].side)
+        cursor.index++
+      }
+    }
     const resolved = resolveAutomationActions(
       config.rules,
-      firedByTime.get(candle.t) ?? new Set<string>()
+      firedByTime.get(candle.t) ?? new Set<string>(),
+      filterState
     )
     if (resolved.action) actions.push({ time: candle.t, ...resolved.action })
     if (resolved.warning)

@@ -196,8 +196,6 @@ export function AutomationEditor({
             },
           },
         }
-      } else if (choice.kind === "logic") {
-        node = { id, kind: "logic", op: choice.op, x, y }
       } else {
         node = {
           id,
@@ -313,7 +311,6 @@ export function AutomationEditor({
   const inspector = (
     <AutomationInspector
       selectedNode={selectedNode}
-      edges={graph.edges}
       errors={compiled.errors}
       onNodeChange={updateNode}
       onDeleteNode={deleteNode}

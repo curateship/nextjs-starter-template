@@ -105,27 +105,25 @@ export function AutomationCanvasNode({
         </span>
       </div>
 
-      {node.kind !== "indicator" ? (
-        <button
-          type="button"
-          data-port="input"
-          aria-label={`Connect to ${automationNodeName(node)}`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerUp={(event) => {
-            event.stopPropagation()
-            onConnectFinish()
-          }}
-          onClick={(event) => {
-            event.stopPropagation()
-            onConnectFinish()
-          }}
-          className={cn(
-            "absolute -left-2 size-4 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
-            connecting ? "border-primary" : "border-muted-foreground/60"
-          )}
-          style={{ top: NODE_HEIGHT / 2 - 8 }}
-        />
-      ) : null}
+      <button
+        type="button"
+        data-port="input"
+        aria-label={`Connect to ${automationNodeName(node)}`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerUp={(event) => {
+          event.stopPropagation()
+          onConnectFinish()
+        }}
+        onClick={(event) => {
+          event.stopPropagation()
+          onConnectFinish()
+        }}
+        className={cn(
+          "absolute -left-2 size-4 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+          connecting ? "border-primary" : "border-muted-foreground/60"
+        )}
+        style={{ top: NODE_HEIGHT / 2 - 8 }}
+      />
 
       {ports.map((port) => {
         const centerY = portOut(node, port.id).y - node.y

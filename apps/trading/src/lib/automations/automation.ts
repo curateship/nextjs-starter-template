@@ -57,14 +57,23 @@ export type AutomationProtection = {
   stopLossPct?: number
 }
 
+export type AutomationFilter = {
+  nodeId: string
+  indicator: IndicatorSelection
+}
+
 export type AutomationCondition =
   | {
       kind: "trigger"
       nodeId: string
       indicator: IndicatorSelection
       side: "buy" | "sell"
+      /** Upstream trend filters whose latched side must equal `side`. */
+      filters?: AutomationFilter[]
     }
   | {
+      // "and" survives only in configs compiled before chaining replaced
+      // logic nodes; new compiles emit "or" solely for multi-input actions.
       kind: "and" | "or"
       nodeId: string
       children: AutomationCondition[]
@@ -96,7 +105,7 @@ export type AutomationValidationError = {
     | "invalid_edge"
     | "cycle"
     | "dangling"
-    | "logic_input"
+    | "legacy_logic"
     | "action_input"
     | "empty"
     | "limit"
@@ -112,10 +121,10 @@ export type AutomationCompileResult = {
 
 function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
   return node.kind === "indicator"
-    ? port === "bullish" || port === "bearish"
+    ? port === "bullish" || port === "bearish" || port === "trend"
     : node.kind === "logic"
       ? port === "match"
-      : false
+      : port === "then"
 }
 
 const idSchema = z.string().min(1).max(64)
@@ -202,6 +211,12 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
       nodeId: idSchema,
       indicator: indicatorSelectionSchema,
       side: z.enum(["buy", "sell"]),
+      filters: z
+        .array(
+          z.object({ nodeId: idSchema, indicator: indicatorSelectionSchema })
+        )
+        .max(100)
+        .optional(),
     }),
     z.object({
       kind: z.enum(["and", "or"]),
@@ -333,15 +348,30 @@ export function compileAutomationGraph(input: {
         message: "Connection uses an invalid output.",
       })
     }
-    if (
-      target.kind === "indicator" ||
-      source.kind === "action" ||
-      source.id === target.id
-    ) {
+    if (source.id === target.id) {
       addError({
         code: "invalid_edge",
         edgeId: edge.id,
         message: "This connection is not allowed.",
+      })
+    } else if (
+      (edge.sourcePort === "trend" || edge.sourcePort === "then") &&
+      target.kind !== "indicator"
+    ) {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: `The ${edge.sourcePort === "trend" ? "Trend" : "Then"} output can only connect to an indicator.`,
+      })
+    } else if (
+      edge.sourcePort !== "trend" &&
+      edge.sourcePort !== "then" &&
+      target.kind !== "action"
+    ) {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: "Bullish and Bearish outputs can only connect to an action.",
       })
     }
     const key = `${edge.from}:${edge.sourcePort}:${edge.to}`
@@ -382,18 +412,19 @@ export function compileAutomationGraph(input: {
     addError({ code: "empty", message: "Add at least one action." })
   for (const node of nodes) {
     const count = incoming.get(node.id)?.length ?? 0
-    if (node.kind === "logic" && count < 2) {
+    if (node.kind === "logic") {
       addError({
-        code: "logic_input",
+        code: "legacy_logic",
         nodeId: node.id,
-        message: "AND and OR need at least two inputs.",
+        message:
+          "AND/OR nodes are no longer supported. Delete this node and connect indicators directly — multiple connections into an action mean any of them fires it.",
       })
     }
-    if (node.kind === "action" && count !== 1) {
+    if (node.kind === "action" && count < 1) {
       addError({
         code: "action_input",
         nodeId: node.id,
-        message: "Action needs exactly one condition.",
+        message: "Action needs at least one condition.",
       })
     }
   }
@@ -419,30 +450,46 @@ export function compileAutomationGraph(input: {
 
   if (errors.length > 0) return { config: null, errors }
 
+  const collectFilters = (
+    indicatorId: string,
+    seen: Set<string>
+  ): AutomationFilter[] => {
+    const filters: AutomationFilter[] = []
+    for (const edge of incoming.get(indicatorId) ?? []) {
+      const upstream = nodeById.get(edge.from)
+      if (!upstream || upstream.kind !== "indicator" || seen.has(upstream.id)) {
+        continue
+      }
+      seen.add(upstream.id)
+      filters.push({ nodeId: upstream.id, indicator: upstream.indicator })
+      filters.push(...collectFilters(upstream.id, seen))
+    }
+    return filters
+  }
+
   const compileEdge = (edge: AutomationEdge): AutomationCondition => {
     const source = nodeById.get(edge.from)
-    if (!source || source.kind === "action")
+    if (!source || source.kind !== "indicator")
       throw new Error("Invalid compiled graph")
-    if (source.kind === "indicator") {
-      return {
-        kind: "trigger",
-        nodeId: source.id,
-        indicator: source.indicator,
-        side: edge.sourcePort === "bullish" ? "buy" : "sell",
-      }
-    }
+    const filters = collectFilters(source.id, new Set([source.id]))
     return {
-      kind: source.op,
+      kind: "trigger",
       nodeId: source.id,
-      children: (incoming.get(source.id) ?? []).map(compileEdge),
+      indicator: source.indicator,
+      side: edge.sourcePort === "bullish" ? "buy" : "sell",
+      ...(filters.length > 0 ? { filters } : {}),
     }
   }
 
   const rules = actions.map((node): AutomationRule => {
+    const inputs = (incoming.get(node.id) ?? []).map(compileEdge)
     const rule: AutomationRule = {
       id: node.id,
       action: node.action,
-      condition: compileEdge((incoming.get(node.id) ?? [])[0]),
+      condition:
+        inputs.length === 1
+          ? inputs[0]
+          : { kind: "or", nodeId: node.id, children: inputs },
     }
     if (node.action !== "close") rule.targetEquityPct = node.targetEquityPct
     return rule
@@ -459,16 +506,31 @@ export function compileAutomationGraph(input: {
   }
 }
 
+/** Latched trend per filter node id — the side of its most recent signal. */
+export type AutomationFilterState = ReadonlyMap<string, "buy" | "sell">
+
+const NO_FILTER_STATE: AutomationFilterState = new Map()
+
 function conditionMatches(
   condition: AutomationCondition,
-  fired: ReadonlySet<string>
+  fired: ReadonlySet<string>,
+  filterState: AutomationFilterState
 ): boolean {
   if (condition.kind === "trigger") {
-    return fired.has(`${condition.nodeId}:${condition.side}`)
+    return (
+      fired.has(`${condition.nodeId}:${condition.side}`) &&
+      (condition.filters ?? []).every(
+        (filter) => filterState.get(filter.nodeId) === condition.side
+      )
+    )
   }
   return condition.kind === "and"
-    ? condition.children.every((child) => conditionMatches(child, fired))
-    : condition.children.some((child) => conditionMatches(child, fired))
+    ? condition.children.every((child) =>
+        conditionMatches(child, fired, filterState)
+      )
+    : condition.children.some((child) =>
+        conditionMatches(child, fired, filterState)
+      )
 }
 
 export type ResolvedAutomationAction =
@@ -477,10 +539,11 @@ export type ResolvedAutomationAction =
 
 export function resolveAutomationActions(
   rules: AutomationRule[],
-  fired: ReadonlySet<string>
+  fired: ReadonlySet<string>,
+  filterState: AutomationFilterState = NO_FILTER_STATE
 ): { action: ResolvedAutomationAction | null; warning: string | null } {
   const matched = rules.filter((rule) =>
-    conditionMatches(rule.condition, fired)
+    conditionMatches(rule.condition, fired, filterState)
   )
   if (matched.some((rule) => rule.action === "close")) {
     return { action: { action: "close" }, warning: null }
@@ -490,7 +553,7 @@ export function resolveAutomationActions(
   if (buys.length > 0 && shorts.length > 0) {
     return {
       action: null,
-      warning: "Buy and Short matched on the same candle; no entry was placed.",
+      warning: "Long and Short matched on the same candle; no entry was placed.",
     }
   }
   const candidates = buys.length > 0 ? buys : shorts

@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   ActivityIcon,
-  GitBranchIcon,
   SearchIcon,
   ShieldXIcon,
   TrendingDownIcon,
@@ -19,7 +18,6 @@ import { cn } from "@/lib/utils"
 
 export type AutomationPaletteChoice =
   | { kind: "indicator"; indicatorType: IndicatorId }
-  | { kind: "logic"; op: "and" | "or" }
   | { kind: "action"; action: "buy" | "short" | "close" }
 
 type PaletteItem = {
@@ -30,27 +28,10 @@ type PaletteItem = {
   choice: AutomationPaletteChoice
 }
 
-const logicItems: PaletteItem[] = [
-  {
-    key: "logic-and",
-    name: "AND",
-    description: "Require every input on the same candle",
-    icon: GitBranchIcon,
-    choice: { kind: "logic", op: "and" },
-  },
-  {
-    key: "logic-or",
-    name: "OR",
-    description: "Match when any input fires",
-    icon: GitBranchIcon,
-    choice: { kind: "logic", op: "or" },
-  },
-]
-
 const actionItems: PaletteItem[] = [
   {
     key: "action-buy",
-    name: "Buy",
+    name: "Long",
     description: "Target a long portfolio percentage",
     icon: TrendingUpIcon,
     choice: { kind: "action", action: "buy" },
@@ -94,7 +75,6 @@ export function AutomationPalette({
   }))
   const groups = [
     { label: "Indicators", items: indicatorItems },
-    { label: "Logic", items: logicItems },
     { label: "Actions", items: actionItems },
   ]
     .map((group) => ({

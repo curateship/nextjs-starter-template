@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type {
-  AutomationEdge,
   AutomationNode,
   AutomationValidationError,
 } from "@/lib/automations/automation"
@@ -26,14 +25,12 @@ import { automationNodeDescription, automationNodeName } from "./node-labels"
 export function AutomationInspector({
   className,
   selectedNode,
-  edges,
   errors,
   onNodeChange,
   onDeleteNode,
 }: {
   className?: string
   selectedNode: AutomationNode | null
-  edges: AutomationEdge[]
   errors: AutomationValidationError[]
   onNodeChange: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
@@ -87,9 +84,11 @@ export function AutomationInspector({
             <ActionFields node={selectedNode} onChange={onNodeChange} />
           ) : (
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              {selectedNode.op.toUpperCase()} currently has{" "}
-              {edges.filter((edge) => edge.to === selectedNode.id).length}{" "}
-              inputs. It needs at least two.
+              {selectedNode.op.toUpperCase()} nodes are no longer supported.
+              Delete this node and connect indicators directly — chain an
+              indicator&apos;s Trend output into another indicator to filter
+              it, and connect several signals into one action to fire on any
+              of them.
             </div>
           )}
 
@@ -118,12 +117,18 @@ function IndicatorFields({
   onChange: (node: AutomationNode) => void
 }) {
   const module = INDICATORS[node.indicator.type]
+  // Show what will actually run: settings saved before a param existed get
+  // the schema default filled in (the same default evaluation uses).
+  const parsed = module.paramsSchema.safeParse(node.indicator.params)
+  const params = parsed.success
+    ? (parsed.data as Record<string, IndicatorParamValue>)
+    : node.indicator.params
   const setParam = (key: string, value: IndicatorParamValue) =>
     onChange({
       ...node,
       indicator: {
         ...node.indicator,
-        params: { ...node.indicator.params, [key]: value },
+        params: { ...params, [key]: value },
       },
     })
 
@@ -133,7 +138,7 @@ function IndicatorFields({
         <IndicatorField
           key={field.key}
           field={field}
-          value={node.indicator.params[field.key]}
+          value={params[field.key]}
           inputId={`automation-${node.id}-${field.key}`}
           onChange={(value) => setParam(field.key, value)}
         />
