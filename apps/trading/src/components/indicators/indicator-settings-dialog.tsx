@@ -28,10 +28,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  EMA_TOGGLES,
   INDICATOR_LABELS,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
   indicatorColor,
+  indicatorDisplayName,
   primaryColorSlot,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
@@ -75,6 +77,9 @@ export function OverlaySettingsDialog({
             ...(seed.type === "priceAction"
               ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
               : []),
+            ...(seed.type === "ema"
+              ? EMA_TOGGLES.map((toggle) => toggle.key)
+              : []),
           ].map((key) => [key, String(seed.params[key] ?? "")])
         )
       )
@@ -91,7 +96,7 @@ export function OverlaySettingsDialog({
     document.documentElement.classList.contains("dark")
   const defaultLabel =
     indicator.type === "ema"
-      ? `${INDICATOR_LABELS.ema} ${indicator.params.period}`
+      ? indicatorDisplayName({ ...indicator, name: undefined })
       : INDICATOR_LABELS[indicator.type]
 
   async function submit() {
@@ -99,6 +104,11 @@ export function OverlaySettingsDialog({
     if (indicator.type === "priceAction") {
       for (const pattern of PRICE_ACTION_PATTERNS) {
         nextParams[pattern.key] = Number(params[pattern.key] ?? 1)
+      }
+    }
+    if (indicator.type === "ema") {
+      for (const toggle of EMA_TOGGLES) {
+        nextParams[toggle.key] = Number(params[toggle.key] ?? 1) !== 0 ? 1 : 0
       }
     }
     for (const field of fields) {
@@ -210,6 +220,27 @@ export function OverlaySettingsDialog({
                   onChange={(event) => setName(event.target.value)}
                 />
               </div>
+              {indicator.type === "ema" ? (
+                <div className="grid gap-3">
+                  {EMA_TOGGLES.map((toggle) => (
+                    <label
+                      key={toggle.key}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={Number(params[toggle.key] ?? 1) !== 0}
+                        onCheckedChange={(checked) =>
+                          setParams((prev) => ({
+                            ...prev,
+                            [toggle.key]: checked === true ? "1" : "0",
+                          }))
+                        }
+                      />
+                      {toggle.label} on
+                    </label>
+                  ))}
+                </div>
+              ) : null}
               {indicator.type !== "priceAction" ? fields.map((field) => (
                 <div key={field.key} className="grid gap-2">
                   <Label htmlFor={`indicator-param-${field.key}`}>

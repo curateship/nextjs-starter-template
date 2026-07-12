@@ -128,6 +128,17 @@ export function StrategyConfigFields({
 
   const kindParams = kind.params?.(value as never)
   const editorNote = kind.editorNote?.(value as never)
+  // Show what will actually run: params saved before a field existed get the
+  // schema default filled in (the same default evaluation uses).
+  const signalParams = (() => {
+    if (value.kind !== "signal") return null
+    const parsed = INDICATORS[value.indicator.type].paramsSchema.safeParse(
+      value.indicator.params
+    )
+    return parsed.success
+      ? (parsed.data as Record<string, IndicatorParamValue>)
+      : value.indicator.params
+  })()
 
   return (
     <div className="grid gap-4">
@@ -188,7 +199,7 @@ export function StrategyConfigFields({
             {INDICATORS[value.indicator.type].paramFields.map((field) =>
               renderField(
                 field,
-                value.indicator.params[field.key],
+                (signalParams ?? value.indicator.params)[field.key],
                 setIndicatorParam
               )
             )}

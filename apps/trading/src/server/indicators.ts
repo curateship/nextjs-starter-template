@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 
 import {
   DEFAULT_INDICATORS,
+  EMA_TOGGLES,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
   type IndicatorConfig,
@@ -87,12 +88,30 @@ export async function upsertUserIndicator(
       }
     }
   }
+  if (def.type === "ema") {
+    for (const toggle of EMA_TOGGLES) {
+      const value = input.params[toggle.key]
+      if (value !== undefined && value !== 0 && value !== 1) {
+        throw new Error(`Invalid EMA parameter: ${toggle.key}`)
+      }
+    }
+    for (const field of INDICATOR_PARAM_FIELDS.ema) {
+      const value = input.params[field.key]
+      if (
+        value !== undefined &&
+        (!Number.isFinite(value) || value < 2 || !Number.isInteger(value))
+      ) {
+        throw new Error(`Invalid EMA parameter: ${field.key}`)
+      }
+    }
+  }
   // Store only the params this indicator type defines — never arbitrary keys.
   const paramKeys = [
     ...INDICATOR_PARAM_FIELDS[def.type].map((field) => field.key),
     ...(def.type === "priceAction"
       ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
       : []),
+    ...(def.type === "ema" ? EMA_TOGGLES.map((toggle) => toggle.key) : []),
   ]
   const params = Object.fromEntries(
     paramKeys

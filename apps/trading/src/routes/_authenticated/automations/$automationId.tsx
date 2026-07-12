@@ -8,6 +8,7 @@ import { getAutomation } from "@/lib/api/automations"
 import { loadIndicators } from "@/lib/api/indicators"
 import { loadStrategyLibrary } from "@/lib/api/strategies"
 import { loadTradingContext } from "@/lib/api/trading"
+import { emaCrossParamsFromChart } from "@/lib/indicators/defs/ema-cross"
 import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
 import { SIGNAL_FOR_CHART_TYPE } from "@/lib/indicators/registry"
 
@@ -36,13 +37,21 @@ export const Route = createFileRoute(
           }),
       ]),
     ]
-    // New Price Action nodes start as an exact copy of the chart's settings.
+    // New indicator nodes start as an exact copy of the chart's settings.
     const chartPriceAction = chartIndicators.find(
       (indicator) => indicator.type === "priceAction"
     )
-    const indicatorParamSeeds = chartPriceAction
-      ? { price_action: priceActionParamsFromChart(chartPriceAction.params) }
-      : {}
+    const chartEma = chartIndicators.find(
+      (indicator) => indicator.type === "ema"
+    )
+    const indicatorParamSeeds = {
+      ...(chartPriceAction
+        ? { price_action: priceActionParamsFromChart(chartPriceAction.params) }
+        : {}),
+      ...(chartEma
+        ? { ema_cross: emaCrossParamsFromChart(chartEma.params) }
+        : {}),
+    }
     return { automation, trading, pinnedIndicators, indicatorParamSeeds }
   },
   errorComponent: AutomationRouteError,

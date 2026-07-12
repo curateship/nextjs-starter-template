@@ -87,7 +87,7 @@ describe("EMA-cross parity with legacy momentum ema_cross", () => {
     const slow = 26
     const output = INDICATORS.ema_cross.compute(
       CANDLES,
-      { fast, slow } as never
+      INDICATORS.ema_cross.paramsSchema.parse({ fast, slow }) as never
     )
 
     // Legacy momentum readSignal, evaluated on every prefix (worker

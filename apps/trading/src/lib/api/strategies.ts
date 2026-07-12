@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { emaCrossParamsFromChart } from "@/lib/indicators/defs/ema-cross"
 import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
 import {
   INDICATORS,
@@ -103,10 +104,13 @@ const loadStrategyLibraryFn = createServerFn({ method: "POST" }).handler(
           : []
       })
     )
-    // A fresh Price Action strategy starts as an exact copy of the chart's
-    // Price Action settings; only its own save diverges from the chart later.
+    // A fresh strategy starts as an exact copy of the chart indicator's
+    // settings; only its own save diverges from the chart later.
     const chartPriceAction = chartIndicators.find(
       (indicator) => indicator.type === "priceAction"
+    )
+    const chartEma = chartIndicators.find(
+      (indicator) => indicator.type === "ema"
     )
     const seededDefault = (type: IndicatorId): SignalStrategyConfig => {
       const config = defaultStrategyConfig(type, "15m") as SignalStrategyConfig
@@ -114,6 +118,9 @@ const loadStrategyLibraryFn = createServerFn({ method: "POST" }).handler(
         config.indicator.params = priceActionParamsFromChart(
           chartPriceAction.params
         )
+      }
+      if (type === "ema_cross" && chartEma) {
+        config.indicator.params = emaCrossParamsFromChart(chartEma.params)
       }
       return config
     }

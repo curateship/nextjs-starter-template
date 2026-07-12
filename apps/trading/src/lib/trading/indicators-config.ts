@@ -37,8 +37,22 @@ export type IndicatorConfig = {
 }
 
 export const DEFAULT_INDICATORS: IndicatorConfig[] = [
-  { id: "ema-20", type: "ema", enabled: false, pinned: false, params: { period: 20 } },
-  { id: "ema-50", type: "ema", enabled: false, pinned: false, params: { period: 50 } },
+  // One EMA indicator with up to three lines — the SAME settings shape the
+  // EMA Cross strategy uses, so chart and strategy always match.
+  {
+    id: "ema",
+    type: "ema",
+    enabled: false,
+    pinned: false,
+    params: {
+      fast: 20,
+      slow: 50,
+      third: 200,
+      showFast: 1,
+      showSlow: 1,
+      showThird: 1,
+    },
+  },
   { id: "vwap", type: "vwap", enabled: false, pinned: false, params: {} },
   {
     id: "bollinger",
@@ -98,6 +112,28 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
   },
 ]
 
+/** The EMA indicator's per-line on/off switches (stored as 0/1). */
+export const EMA_TOGGLES = [
+  { key: "showFast", periodKey: "fast", label: "EMA 1" },
+  { key: "showSlow", periodKey: "slow", label: "EMA 2" },
+  { key: "showThird", periodKey: "third", label: "EMA 3" },
+] as const
+
+/** The chart lines an EMA config draws: switched-on entries with the palette
+ * slot each line colors from. */
+export function emaLines(
+  params: Record<string, number>
+): { slot: "ema-fast" | "ema-slow" | "ema-third"; period: number }[] {
+  const slots = ["ema-fast", "ema-slow", "ema-third"] as const
+  return EMA_TOGGLES.flatMap((toggle, index) => {
+    const period = params[toggle.periodKey]
+    const on = (params[toggle.key] ?? 1) !== 0
+    return on && Number.isFinite(period) && period >= 2
+      ? [{ slot: slots[index], period }]
+      : []
+  })
+}
+
 export const PRICE_ACTION_PATTERNS = [
   { side: "bull", key: "bullHammer", label: "Hammer" },
   { side: "bull", key: "bullEngulfing", label: "Engulfing" },
@@ -114,7 +150,11 @@ export const INDICATOR_PARAM_FIELDS: Record<
   IndicatorType,
   { key: string; label: string; step?: number; description?: string }[]
 > = {
-  ema: [{ key: "period", label: "Period" }],
+  ema: [
+    { key: "fast", label: "EMA 1 period" },
+    { key: "slow", label: "EMA 2 period" },
+    { key: "third", label: "EMA 3 period" },
+  ],
   vwap: [],
   bollinger: [
     { key: "period", label: "Period" },
@@ -180,12 +220,20 @@ export function indicatorDisplayName(config: IndicatorConfig): string {
   const custom = config.name?.trim()
   if (custom) return custom
   const label = INDICATOR_LABELS[config.type]
-  return config.type === "ema" ? `${label} ${config.params.period}` : label
+  if (config.type !== "ema") return label
+  const periods = emaLines(config.params).map((line) => line.period)
+  return periods.length > 0 ? `${label} ${periods.join("/")}` : label
 }
 
 /** Short human summary of an indicator's settings (e.g. "Period 14 · Overbought 70"). */
 export function indicatorSettingsSummary(config: IndicatorConfig): string {
   if (config.type === "session") return sessionLabel(config.session ?? "nyse")
+  if (config.type === "ema") {
+    const lines = emaLines(config.params)
+    return lines.length > 0
+      ? lines.map((line) => `EMA ${line.period}`).join(" · ")
+      : "All lines off"
+  }
   if (config.type === "priceAction") {
     const bullish = PRICE_ACTION_PATTERNS.filter(
       (pattern) =>
@@ -211,11 +259,9 @@ type ThemeHex = { light: string; dark: string }
 
 /** Hardcoded palette (LWC can't parse the app's oklch tokens). */
 const PALETTE: Record<string, ThemeHex> = {
-  "ema-20": { light: "#2563eb", dark: "#60a5fa" },
-  "ema-50": { light: "#ea580c", dark: "#fb923c" },
-  // Strategy-derived EMAs on the backtest chart.
   "ema-fast": { light: "#2563eb", dark: "#60a5fa" },
   "ema-slow": { light: "#ea580c", dark: "#fb923c" },
+  "ema-third": { light: "#16a34a", dark: "#4ade80" },
   vwap: { light: "#7c3aed", dark: "#a78bfa" },
   "bollinger-mid": { light: "#0891b2", dark: "#22d3ee" },
   "bollinger-band": { light: "#94a3b8", dark: "#64748b" },
@@ -238,7 +284,7 @@ export function indicatorColor(slot: string, isDark: boolean): string {
 export function primaryColorSlot(config: IndicatorConfig): string {
   switch (config.type) {
     case "ema":
-      return config.id
+      return "ema-fast"
     case "bollinger":
       return "bollinger-mid"
     case "macd":
