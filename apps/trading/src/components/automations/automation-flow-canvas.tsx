@@ -228,6 +228,19 @@ export function AutomationFlowCanvas({
     const draft = currentRef.current.connect
     if (!draft || draft.from === targetId) return
     const current = currentRef.current.graph
+    const target = current.nodes.find((node) => node.id === targetId)
+    // Trend chains indicators; Bullish/Bearish signals drive actions.
+    const allowed =
+      target &&
+      (draft.sourcePort === "trend" || draft.sourcePort === "then"
+        ? target.kind === "indicator"
+        : draft.sourcePort === "match"
+          ? false
+          : target.kind === "action")
+    if (!allowed) {
+      setConnect(null)
+      return
+    }
     const duplicate = current.edges.some(
       (edge) =>
         edge.from === draft.from &&

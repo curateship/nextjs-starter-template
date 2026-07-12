@@ -39,6 +39,7 @@ import {
   vwap,
 } from "@/lib/strategies/indicators"
 import {
+  emaLines,
   indicatorColor,
   OSCILLATORS,
   type IndicatorConfig,
@@ -999,7 +1000,15 @@ export function PriceChartView({
     for (const ind of indicators) {
       if (!ind.enabled) continue
       if (ind.type === "ema") {
-        addLine(ind.id, ind.id, ind.color, 0)
+        // Up to three lines from one config; a custom color tints line 1.
+        for (const line of emaLines(ind.params)) {
+          addLine(
+            `${ind.id}:${line.slot}`,
+            line.slot,
+            line.slot === "ema-fast" ? ind.color : undefined,
+            0
+          )
+        }
       } else if (ind.type === "vwap") {
         addLine("vwap", "vwap", ind.color, 0)
       } else if (ind.type === "base") {
@@ -1169,7 +1178,9 @@ export function PriceChartView({
     for (const ind of indicators) {
       if (!ind.enabled) continue
       if (ind.type === "ema") {
-        setLine(ind.id, ema(closes, ind.params.period))
+        for (const line of emaLines(ind.params)) {
+          setLine(`${ind.id}:${line.slot}`, ema(closes, line.period))
+        }
       } else if (ind.type === "vwap") {
         setLine("vwap", vwap(candles))
       } else if (ind.type === "base") {

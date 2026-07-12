@@ -17,11 +17,15 @@ function triggersOf(
 
 export function automationWarmupBars(config: AutomationStrategyConfig) {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
+  const selections = triggers.flatMap((trigger) => [
+    trigger.indicator,
+    ...(trigger.filters ?? []).map((filter) => filter.indicator),
+  ])
   return Math.max(
     5,
-    ...triggers.map((trigger) => {
-      const module = INDICATORS[trigger.indicator.type]
-      return module.warmupBars(trigger.indicator.params as never) + 5
+    ...selections.map((selection) => {
+      const module = INDICATORS[selection.type]
+      return module.warmupBars(selection.params as never) + 5
     })
   )
 }
@@ -34,7 +38,7 @@ const automationKindModule: StrategyKindModule<AutomationStrategyConfig> = {
   typeOf: () => "automation",
   typeLabel: () => "Automation",
   typeDescription: () =>
-    "Connects indicator signals with AND/OR logic and percentage-sized trading actions.",
+    "Chains indicator trend filters into signal triggers with percentage-sized trading actions.",
   defaultConfig: (_typeId, interval) => ({
     v: 2,
     kind: "automation",

@@ -43,11 +43,13 @@ export function nodeOutputPorts(node: AutomationNode): NodePort[] {
   if (node.kind === "indicator") {
     return [
       { id: "bullish", label: "Bullish" },
+      { id: "trend", label: "Trend" },
       { id: "bearish", label: "Bearish" },
     ]
   }
   if (node.kind === "logic") return [{ id: "match", label: "Match" }]
-  return []
+  // Actions chain onward to their exit watchers (e.g. Long → EMA → Close).
+  return [{ id: "then", label: "Then" }]
 }
 
 export function portOut(
@@ -62,7 +64,7 @@ export function portOut(
   const y =
     ports.length <= 1
       ? node.y + NODE_HEIGHT / 2
-      : node.y + (index === 0 ? 24 : NODE_HEIGHT - 24)
+      : node.y + 24 + (index * (NODE_HEIGHT - 48)) / (ports.length - 1)
   return { x: node.x + NODE_WIDTH, y }
 }
 

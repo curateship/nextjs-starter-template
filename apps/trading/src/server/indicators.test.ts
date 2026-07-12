@@ -134,25 +134,33 @@ describe("upsertUserIndicator", () => {
   it("updates the existing row instead of duplicating it", async () => {
     const userId = await createTestUser()
     await upsertUserIndicator(userId, {
-      id: "ema-20",
+      id: "ema",
       enabled: true,
       pinned: true,
-      params: { period: 20 },
+      params: { fast: 20 },
     })
     const updated = await upsertUserIndicator(userId, {
-      id: "ema-20",
+      id: "ema",
       enabled: false,
       pinned: false,
-      params: { period: 34 },
+      params: { fast: 34, showThird: 0 },
       color: "#00ff00",
     })
 
     expect(updated).toEqual({
-      id: "ema-20",
+      id: "ema",
       type: "ema",
       enabled: false,
       pinned: false,
-      params: { period: 34 },
+      // Stored keys overlay the defaults.
+      params: {
+        fast: 34,
+        slow: 50,
+        third: 200,
+        showFast: 1,
+        showSlow: 1,
+        showThird: 0,
+      },
       color: "#00ff00",
     })
     const rows = await database.select().from(schema.tradingIndicatorSettings)
@@ -162,16 +170,42 @@ describe("upsertUserIndicator", () => {
   it("drops params keys the indicator type does not define", async () => {
     const userId = await createTestUser()
     await upsertUserIndicator(userId, {
-      id: "ema-20",
+      id: "ema",
       enabled: true,
       pinned: false,
-      params: { period: 25, bogus: 1, injected: 999 },
+      params: { fast: 25, bogus: 1, injected: 999 },
     })
 
     const ema = (await listUserIndicators(userId)).find(
-      (ind) => ind.id === "ema-20"
+      (ind) => ind.id === "ema"
     )
-    expect(ema?.params).toEqual({ period: 25 })
+    expect(ema?.params).toEqual({
+      fast: 25,
+      slow: 50,
+      third: 200,
+      showFast: 1,
+      showSlow: 1,
+      showThird: 1,
+    })
+  })
+
+  it("rejects invalid EMA settings", async () => {
+    const userId = await createTestUser()
+    const invalidParams: Record<string, number>[] = [
+      { showFast: 2 },
+      { fast: 0 },
+      { slow: 10.5 },
+    ]
+    for (const params of invalidParams) {
+      await expect(
+        upsertUserIndicator(userId, {
+          id: "ema",
+          enabled: true,
+          pinned: false,
+          params,
+        })
+      ).rejects.toThrow("Invalid EMA parameter")
+    }
   })
 
   it("rejects invalid Price Action settings", async () => {

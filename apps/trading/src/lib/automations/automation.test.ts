@@ -7,6 +7,7 @@ import {
   strategyTypeOf,
 } from "@/lib/strategies/strategy-config"
 import { INDICATORS } from "@/lib/indicators/registry"
+import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
 
 import {
   automationDraftSchema,
@@ -15,6 +16,7 @@ import {
   resolveAutomationActions,
   type AutomationEdge,
   type AutomationNode,
+  type AutomationRule,
 } from "./automation"
 import { evaluateAutomation } from "./evaluate"
 
@@ -56,7 +58,7 @@ const action = (
 const edge = (
   id: string,
   from: string,
-  sourcePort: "bullish" | "bearish" | "match",
+  sourcePort: "bullish" | "bearish" | "trend" | "then" | "match",
   to: string
 ): AutomationEdge => ({ id, from, sourcePort, to })
 
@@ -88,7 +90,7 @@ describe("compileAutomationGraph", () => {
     ])
   })
 
-  it("requires every AND input to fire on the same evaluation", () => {
+  it("rejects legacy AND/OR nodes with a delete instruction", () => {
     const result = compileAutomationGraph({
       interval: "15m",
       protection: {},
@@ -108,22 +110,11 @@ describe("compileAutomationGraph", () => {
       },
     })
 
-    expect(result.errors).toEqual([])
-    const rules = result.config?.rules ?? []
-    expect(resolveAutomationActions(rules, new Set(["ema:buy"]))).toEqual({
-      action: null,
-      warning: null,
-    })
-    expect(resolveAutomationActions(rules, new Set(["rsi:buy"]))).toEqual({
-      action: null,
-      warning: null,
-    })
-    expect(
-      resolveAutomationActions(rules, new Set(["ema:buy", "rsi:buy"]))
-    ).toEqual({ action: { action: "buy", targetEquityPct: 20 }, warning: null })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain("legacy_logic")
   })
 
-  it("lets OR match any connected signal", () => {
+  it("fires an action when any of its multiple inputs matches", () => {
     const result = compileAutomationGraph({
       interval: "15m",
       protection: {},
@@ -131,26 +122,30 @@ describe("compileAutomationGraph", () => {
         nodes: [
           indicator("ema"),
           indicator("rsi", "rsi_levels"),
-          logic("either", "or"),
           action("short", "short", 15),
         ],
         edges: [
-          edge("e1", "ema", "bearish", "either"),
-          edge("e2", "rsi", "bearish", "either"),
-          edge("e3", "either", "match", "short"),
+          edge("e1", "ema", "bearish", "short"),
+          edge("e2", "rsi", "bearish", "short"),
         ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
     })
 
+    expect(result.errors).toEqual([])
     const rules = result.config?.rules ?? []
+    expect(rules[0].condition.kind).toBe("or")
     expect(resolveAutomationActions(rules, new Set(["rsi:sell"]))).toEqual({
       action: { action: "short", targetEquityPct: 15 },
       warning: null,
     })
+    expect(resolveAutomationActions(rules, new Set())).toEqual({
+      action: null,
+      warning: null,
+    })
   })
 
-  it("compiles nested AND and OR conditions", () => {
+  it("compiles trend chains into trigger filters", () => {
     const result = compileAutomationGraph({
       interval: "15m",
       protection: {},
@@ -158,47 +153,148 @@ describe("compileAutomationGraph", () => {
         nodes: [
           indicator("ema"),
           indicator("rsi", "rsi_levels"),
-          indicator("confirm"),
-          logic("either", "or"),
-          logic("both", "and"),
           action("buy", "buy", 30),
         ],
         edges: [
-          edge("e1", "ema", "bullish", "either"),
-          edge("e2", "rsi", "bullish", "either"),
-          edge("e3", "either", "match", "both"),
-          edge("e4", "confirm", "bullish", "both"),
-          edge("e5", "both", "match", "buy"),
+          edge("e1", "ema", "trend", "rsi"),
+          edge("e2", "rsi", "bullish", "buy"),
         ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
     })
 
     expect(result.errors).toEqual([])
-    expect(
-      resolveAutomationActions(
-        result.config?.rules ?? [],
-        new Set(["rsi:buy", "confirm:buy"])
-      ).action
-    ).toEqual({ action: "buy", targetEquityPct: 30 })
-    expect(
-      resolveAutomationActions(result.config?.rules ?? [], new Set(["ema:buy"]))
-        .action
-    ).toBeNull()
+    expect(result.config?.rules[0].condition).toEqual({
+      kind: "trigger",
+      nodeId: "rsi",
+      indicator: {
+        type: "rsi_levels",
+        params: { period: 14, buyBelow: 30, sellAbove: 70 },
+      },
+      side: "buy",
+      filters: [
+        {
+          nodeId: "ema",
+          indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
+        },
+      ],
+    })
   })
 
-  it("rejects cycles, dangling nodes, and actions without one condition", () => {
+  it("collects every ancestor in a multi-link chain as a filter", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("a"),
+          indicator("b", "rsi_levels"),
+          indicator("c"),
+          action("buy", "buy", 10),
+        ],
+        edges: [
+          edge("e1", "a", "trend", "b"),
+          edge("e2", "b", "trend", "c"),
+          edge("e3", "c", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    const condition = result.config?.rules[0].condition
+    expect(condition?.kind).toBe("trigger")
+    expect(
+      condition?.kind === "trigger"
+        ? condition.filters?.map((filter) => filter.nodeId).sort()
+        : []
+    ).toEqual(["a", "b"])
+  })
+
+  it("blocks triggers whose filters disagree or have no state yet", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("ema"),
+          indicator("rsi", "rsi_levels"),
+          action("buy", "buy", 30),
+        ],
+        edges: [
+          edge("e1", "ema", "trend", "rsi"),
+          edge("e2", "rsi", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    const rules = result.config?.rules ?? []
+    const fired = new Set(["rsi:buy"])
+
+    expect(
+      resolveAutomationActions(rules, fired, new Map([["ema", "buy"]])).action
+    ).toEqual({ action: "buy", targetEquityPct: 30 })
+    expect(
+      resolveAutomationActions(rules, fired, new Map([["ema", "sell"]])).action
+    ).toBeNull()
+    expect(resolveAutomationActions(rules, fired).action).toBeNull()
+  })
+
+  it("still resolves legacy AND/OR condition snapshots", () => {
+    const rules: AutomationRule[] = [
+      {
+        id: "buy",
+        action: "buy" as const,
+        targetEquityPct: 20,
+        condition: {
+          kind: "and" as const,
+          nodeId: "both",
+          children: [
+            {
+              kind: "trigger" as const,
+              nodeId: "ema",
+              indicator: {
+                type: "ema_cross" as const,
+                params: { fast: 20, slow: 50 },
+              },
+              side: "buy" as const,
+            },
+            {
+              kind: "trigger" as const,
+              nodeId: "rsi",
+              indicator: {
+                type: "rsi_levels" as const,
+                params: { period: 14, buyBelow: 30, sellAbove: 70 },
+              },
+              side: "buy" as const,
+            },
+          ],
+        },
+      },
+    ]
+
+    expect(resolveAutomationActions(rules, new Set(["ema:buy"])).action)
+      .toBeNull()
+    expect(
+      resolveAutomationActions(rules, new Set(["ema:buy", "rsi:buy"])).action
+    ).toEqual({ action: "buy", targetEquityPct: 20 })
+  })
+
+  it("rejects invalid ports, cycles, dangling nodes, and empty actions", () => {
     const result = compileAutomationGraph({
       interval: "15m",
       protection: {},
       graph: {
         nodes: [
           indicator("unused"),
-          logic("a", "and"),
-          logic("b", "or"),
+          indicator("a"),
+          indicator("b", "rsi_levels"),
           action("buy", "buy", 10),
         ],
-        edges: [edge("e1", "a", "match", "b"), edge("e2", "b", "match", "a")],
+        edges: [
+          edge("e1", "a", "trend", "b"),
+          edge("e2", "b", "trend", "a"),
+        ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
     })
@@ -207,6 +303,93 @@ describe("compileAutomationGraph", () => {
     expect(result.errors.map((error) => error.code)).toEqual(
       expect.arrayContaining(["cycle", "dangling", "action_input"])
     )
+  })
+
+  it("lets an action chain onward to its exit watcher without changing rules", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("entry"),
+          indicator("exit", "rsi_levels"),
+          action("long", "buy", 10),
+          action("close", "close"),
+        ],
+        edges: [
+          edge("e1", "entry", "bullish", "long"),
+          edge("e2", "long", "then", "exit"),
+          edge("e3", "exit", "bearish", "close"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    // The Then link is visual flow only: the exit trigger has no filters and
+    // the entry rule is untouched.
+    expect(result.config?.rules).toEqual([
+      expect.objectContaining({
+        id: "long",
+        condition: expect.objectContaining({ nodeId: "entry", side: "buy" }),
+      }),
+      expect.objectContaining({
+        id: "close",
+        condition: expect.objectContaining({ nodeId: "exit", side: "sell" }),
+      }),
+    ])
+    const closeCondition = result.config?.rules[1].condition
+    expect(
+      closeCondition?.kind === "trigger" ? closeCondition.filters : "set"
+    ).toBeUndefined()
+  })
+
+  it("rejects Then wires into actions", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("entry"),
+          action("long", "buy", 10),
+          action("close", "close"),
+        ],
+        edges: [
+          edge("e1", "entry", "bullish", "long"),
+          edge("e2", "long", "then", "close"),
+          edge("e3", "entry", "bearish", "close"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain("invalid_edge")
+  })
+
+  it("rejects trend wires into actions and signal wires into indicators", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("a"),
+          indicator("b", "rsi_levels"),
+          action("buy", "buy", 10),
+        ],
+        edges: [
+          edge("e1", "a", "trend", "buy"),
+          edge("e2", "a", "bullish", "b"),
+          edge("e3", "b", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.config).toBeNull()
+    expect(
+      result.errors.filter((error) => error.code === "invalid_edge")
+    ).toHaveLength(2)
   })
 
   it("rejects duplicate connection ids and targets on Close actions", () => {
@@ -403,7 +586,7 @@ describe("resolveAutomationActions", () => {
       )
     ).toEqual({
       action: null,
-      warning: "Buy and Short matched on the same candle; no entry was placed.",
+      warning: "Long and Short matched on the same candle; no entry was placed.",
     })
   })
 })
@@ -467,13 +650,11 @@ describe("evaluateAutomation", () => {
             y: 0,
             indicator: { type: "breakout", params: { lookback: 3 } },
           },
-          logic("either", "or"),
           action("buy", "buy", 25),
         ],
         edges: [
-          edge("e1", "first", "bullish", "either"),
-          edge("e2", "second", "bullish", "either"),
-          edge("e3", "either", "match", "buy"),
+          edge("e1", "first", "bullish", "buy"),
+          edge("e2", "second", "bullish", "buy"),
         ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
@@ -491,5 +672,122 @@ describe("evaluateAutomation", () => {
     } finally {
       compute.mockRestore()
     }
+  })
+
+  it("latches trend filters from their most recent signal", () => {
+    const emptyPaint = {
+      indicators: [],
+      lines: [],
+      zones: [],
+      barColors: [],
+    }
+    const compute = vi
+      .spyOn(INDICATORS.breakout, "compute")
+      .mockImplementation((_candles, params) =>
+        (params as { lookback: number }).lookback === 4
+          ? {
+              paint: emptyPaint,
+              signals: [
+                { time: 1, side: "buy" },
+                { time: 5, side: "sell" },
+              ],
+            }
+          : {
+              paint: emptyPaint,
+              signals: [
+                { time: 0, side: "buy" },
+                { time: 1, side: "buy" },
+                { time: 3, side: "buy" },
+                { time: 4, side: "sell" },
+                { time: 6, side: "buy" },
+              ],
+            }
+      )
+    const config = {
+      v: 2 as const,
+      kind: "automation" as const,
+      interval: "15m" as const,
+      protection: {},
+      rules: [
+        {
+          id: "buy",
+          action: "buy" as const,
+          targetEquityPct: 10,
+          condition: {
+            kind: "trigger" as const,
+            nodeId: "trigger",
+            indicator: { type: "breakout" as const, params: { lookback: 3 } },
+            side: "buy" as const,
+            filters: [
+              {
+                nodeId: "filter",
+                indicator: {
+                  type: "breakout" as const,
+                  params: { lookback: 4 },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const candles = Array.from({ length: 7 }, (_, t) => ({
+      t,
+      o: 10,
+      h: 11,
+      l: 9,
+      c: 10,
+      v: 1,
+    }))
+
+    try {
+      const evaluated = evaluateAutomation(candles, config)
+      // t0: filter has no state yet; t1: latches bullish on the same candle;
+      // t3: still latched; t4: trigger is bearish; t6: filter flipped at t5.
+      expect(evaluated.actions).toEqual([
+        { time: 1, action: "buy", targetEquityPct: 10 },
+        { time: 3, action: "buy", targetEquityPct: 10 },
+      ])
+    } finally {
+      compute.mockRestore()
+    }
+  })
+
+  it("includes filter indicators in warmup", () => {
+    const config = {
+      v: 2 as const,
+      kind: "automation" as const,
+      interval: "15m" as const,
+      protection: {},
+      rules: [
+        {
+          id: "buy",
+          action: "buy" as const,
+          targetEquityPct: 10,
+          condition: {
+            kind: "trigger" as const,
+            nodeId: "trigger",
+            indicator: {
+              type: "ema_cross" as const,
+              params: { fast: 20, slow: 50 },
+            },
+            side: "buy" as const,
+            filters: [
+              {
+                nodeId: "filter",
+                indicator: {
+                  type: "ema_cross" as const,
+                  params: { fast: 20, slow: 100 },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }
+
+    expect(automationWarmupBars(config)).toBe(
+      INDICATORS.ema_cross.warmupBars({ fast: 20, slow: 100 } as never) + 5
+    )
   })
 })
