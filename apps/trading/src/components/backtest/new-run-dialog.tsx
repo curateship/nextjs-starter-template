@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, PlusIcon, XIcon } from "lucide-react"
+import { Loader2Icon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,10 @@ import {
   type AutomationListItem,
 } from "@/lib/api/automations"
 import { runBacktest } from "@/lib/api/backtests"
-import { loadStrategies, type StrategyListItem } from "@/lib/api/strategies"
+import {
+  loadStrategyLibrary,
+  type StrategyTemplateListItem,
+} from "@/lib/api/strategies"
 import {
   DEFAULT_BACKTEST_COSTS,
   MAX_EXTRA_MARKETS,
@@ -50,8 +53,7 @@ import {
   type StrategyTypeId,
 } from "@/lib/strategies/strategy-config"
 import { StrategyConfigFields } from "@/components/strategies/strategy-config-fields"
-import { StrategyEditorDialog } from "@/components/strategies/strategy-editor"
-import { StrategyPicker } from "@/components/strategies/strategy-picker"
+import { StrategyTemplatePicker } from "@/components/strategies/strategy-picker"
 
 type MarketRowLike = { coin: string }
 
@@ -70,9 +72,7 @@ export type RunEditTarget = {
 }
 
 /**
- * New Backtest Run (new model): pick a saved strategy, the markets, and the
- * window — the run launches straight into the queue. The strategy's indicator
- * and settings come from its saved config; edit those on the Strategies page.
+ * New Backtest Run: pick a saved template, the markets, and the window.
  */
 export function NewRunDialog({
   open,
@@ -97,9 +97,9 @@ export function NewRunDialog({
   /** Receives the main run's id once the run group is queued. */
   onLaunched: (backtestId: string) => void | Promise<void>
 }) {
-  const [strategies, setStrategies] = React.useState<StrategyListItem[] | null>(
-    null
-  )
+  const [strategies, setStrategies] = React.useState<
+    StrategyTemplateListItem[] | null
+  >(null)
   const [strategyId, setStrategyId] = React.useState<string | null>(null)
   const [source, setSource] = React.useState<"strategy" | "automation">(
     initialAutomationId || strategyType === "automation"
@@ -136,7 +136,6 @@ export function NewRunDialog({
   )
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [editorOpen, setEditorOpen] = React.useState(false)
 
   // Seed ONLY when the dialog opens (or targets another group). The parent
   // re-renders on every market-price tick, re-creating the editTarget object
@@ -169,10 +168,10 @@ export function NewRunDialog({
     )
     if (target) return
     let cancelled = false
-    void Promise.all([loadStrategies(), listAutomations()])
-      .then(([savedStrategies, savedAutomations]) => {
+    void Promise.all([loadStrategyLibrary(), listAutomations()])
+      .then(([library, savedAutomations]) => {
         if (!cancelled) {
-          setStrategies(savedStrategies.strategies)
+          setStrategies(library.strategies.flatMap((row) => row.templates))
           setAutomations(savedAutomations.automations)
         }
       })
@@ -271,7 +270,7 @@ export function NewRunDialog({
       return setError(
         source === "automation"
           ? "Pick a valid Automation."
-          : "Pick a strategy."
+          : "Pick a template."
       )
     }
     // Re-run edits are free-form — validate through the kind's own schema
@@ -336,7 +335,7 @@ export function NewRunDialog({
           <DialogDescription>
             {editTarget
               ? "Adjust anything — strategy, markets, window, or costs — and re-run this group. Changing the strategy or window replaces every market's results; only adding markets keeps existing ones."
-              : "Pick a saved Strategy or Automation and the markets to replay it on — one result per market."}
+              : "Pick a saved template or Automation and the markets to replay it on — one result per market."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -369,7 +368,7 @@ export function NewRunDialog({
                       }}
                     >
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="strategy">Strategy</TabsTrigger>
+                        <TabsTrigger value="strategy">Template</TabsTrigger>
                         <TabsTrigger value="automation">Automation</TabsTrigger>
                       </TabsList>
                     </Tabs>
@@ -419,21 +418,15 @@ export function NewRunDialog({
                         yet — a template is this strategy plus its parameters
                         and settings.
                       </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => setEditorOpen(true)}
-                      >
-                        <PlusIcon className="size-3.5" />
-                        Create template
-                      </Button>
+                      <span>
+                        Create one from this strategy's settings on the
+                        Strategies page.
+                      </span>
                     </div>
                   ) : (
-                    <StrategyPicker
+                    <StrategyTemplatePicker
                       hideLabel
-                      strategies={visibleStrategies}
+                      templates={visibleStrategies}
                       selectedId={strategyId}
                       onSelect={(id) => {
                         setStrategyId(id)
@@ -647,18 +640,6 @@ export function NewRunDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-      {/* Stacked template editor for the scoped empty state; saving selects
-          the new template so the run can launch immediately. */}
-      <StrategyEditorDialog
-        open={editorOpen}
-        target={null}
-        initialType={strategyType === "automation" ? undefined : strategyType}
-        onOpenChange={setEditorOpen}
-        onSaved={(saved) => {
-          setStrategies((current) => [saved, ...(current ?? [])])
-          setStrategyId(saved.id)
-        }}
-      />
     </Dialog>
   )
 }

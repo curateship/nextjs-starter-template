@@ -32,21 +32,24 @@ import {
   type AutomationListItem,
 } from "@/lib/api/automations"
 import { createBot, getBotErrorMessage } from "@/lib/api/bots"
-import { loadStrategies, type StrategyListItem } from "@/lib/api/strategies"
+import {
+  loadStrategyLibrary,
+  type StrategyTemplateListItem,
+} from "@/lib/api/strategies"
 import {
   loadTradingContext,
   type TradingContextResponse,
 } from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { strategySummary } from "@/lib/strategies/strategy-config"
-import { StrategyPicker } from "@/components/strategies/strategy-picker"
+import { StrategyTemplatePicker } from "@/components/strategies/strategy-picker"
 
 /** Exchanges the bot can trade on. Only Hyperliquid exists today. */
 const EXCHANGES: { id: string; label: string }[] = [
   { id: "hyperliquid", label: "Hyperliquid" },
 ]
 
-/** Guided bot creation from a saved Strategy or a valid Automation snapshot. */
+/** Guided bot creation from a saved template or valid Automation snapshot. */
 type NewBotDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -74,9 +77,9 @@ function NewBotDialogForm({
   const [context, setContext] = React.useState<TradingContextResponse | null>(
     null
   )
-  const [strategies, setStrategies] = React.useState<StrategyListItem[] | null>(
-    null
-  )
+  const [strategies, setStrategies] = React.useState<
+    StrategyTemplateListItem[] | null
+  >(null)
   const [automations, setAutomations] = React.useState<
     AutomationListItem[] | null
   >(null)
@@ -109,12 +112,12 @@ function NewBotDialogForm({
       try {
         const [ctx, saved, savedAutomations] = await Promise.all([
           loadTradingContext(),
-          loadStrategies(),
+          loadStrategyLibrary(),
           listAutomations(),
         ])
         if (cancelled) return
         setContext(ctx)
-        setStrategies(saved.strategies)
+        setStrategies(saved.strategies.flatMap((row) => row.templates))
         setAutomations(savedAutomations.automations)
         const selectable = ctx.wallets.filter(
           (wallet) => wallet.status === "active"
@@ -198,7 +201,7 @@ function NewBotDialogForm({
     setError(null)
     if (!name.trim()) return setError("Give the bot a name.")
     if (!walletId) return setError("Select a wallet.")
-    if (source === "strategy" && !strategy) return setError("Pick a Strategy.")
+    if (source === "strategy" && !strategy) return setError("Pick a template.")
     if (
       source === "automation" &&
       (!selectedAutomationId || !automation?.compiledConfig)
@@ -257,7 +260,7 @@ function NewBotDialogForm({
         <DialogHeader>
           <DialogTitle>New Bot</DialogTitle>
           <DialogDescription>
-            Pick a saved Strategy or Automation, then choose where it trades.
+            Pick a saved template or Automation, then choose where it trades.
             The bot keeps its own copy of that setup.
           </DialogDescription>
         </DialogHeader>
@@ -357,16 +360,16 @@ function NewBotDialogForm({
                 }}
               >
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="strategy">Strategy</TabsTrigger>
+                  <TabsTrigger value="strategy">Template</TabsTrigger>
                   <TabsTrigger value="automation">Automation</TabsTrigger>
                 </TabsList>
               </Tabs>
 
               {source === "strategy" ? (
                 <>
-                  <StrategyPicker
+                  <StrategyTemplatePicker
                     hideLabel
-                    strategies={botStrategies}
+                    templates={botStrategies}
                     selectedId={strategyId}
                     onSelect={(id) => {
                       setStrategyId(id)

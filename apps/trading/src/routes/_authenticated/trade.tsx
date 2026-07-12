@@ -6,6 +6,7 @@ import {
   TradingWorkspace,
 } from "@/components/trading/trading-workspace"
 import { loadIndicators } from "@/lib/api/indicators"
+import { loadStrategyLibrary } from "@/lib/api/strategies"
 import { loadTradingContext } from "@/lib/api/trading"
 
 const tradeSearchSchema = z.object({
@@ -16,17 +17,18 @@ const tradeSearchSchema = z.object({
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: tradeSearchSchema,
   loader: async () => {
-    const [context, indicators] = await Promise.all([
+    const [context, indicators, strategyLibrary] = await Promise.all([
       loadTradingContext(),
       loadIndicators(),
+      loadStrategyLibrary(),
     ])
-    return { ...context, indicators }
+    return { ...context, indicators, strategies: strategyLibrary.strategies }
   },
   component: TradeRoute,
 })
 
 function TradeRoute() {
-  const { network, wallets, paperWallets, workerOnline, indicators } =
+  const { network, wallets, paperWallets, workerOnline, indicators, strategies } =
     Route.useLoaderData()
   const { market, wallet } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -57,6 +59,7 @@ function TradeRoute() {
         selectedValue={selectedValue}
         workerOnline={workerOnline}
         initialIndicators={indicators}
+        initialStrategies={strategies}
         onMarketChange={(coin) =>
           void navigate({
             search: (current) => ({ ...current, market: coin }),

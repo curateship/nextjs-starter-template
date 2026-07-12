@@ -46,13 +46,10 @@ import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
 import { buildRunMarkers } from "@/components/backtest/backtest-overlays"
 import { outputToOverlays } from "@/components/chart/indicator-overlays"
 import type { QuickTestResponse } from "@/lib/api/quick-test"
+import type { FixedStrategyItem } from "@/lib/api/strategies"
 import { DEFAULT_STRATEGY_SETTINGS } from "@/lib/strategies/settings"
 import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
-import {
-  INDICATORS,
-  INDICATOR_IDS,
-  type IndicatorParamValue,
-} from "@/lib/indicators/registry"
+import { INDICATORS } from "@/lib/indicators/registry"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -127,6 +124,7 @@ export function TradingWorkspace({
   selectedValue,
   workerOnline,
   initialIndicators,
+  initialStrategies,
   onMarketChange,
   onWalletChange,
 }: {
@@ -139,6 +137,8 @@ export function TradingWorkspace({
   workerOnline?: boolean
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
+  /** The seven fixed strategies, including the user's saved pin choices. */
+  initialStrategies: FixedStrategyItem[]
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -407,6 +407,17 @@ export function TradingWorkspace({
       ...(JSON.parse(raw) as Partial<ChartStrategyState>),
     })
   )
+  const pinnedStrategies = React.useMemo(
+    () => initialStrategies.filter((strategy) => strategy.pinned),
+    [initialStrategies]
+  )
+  const selectedStrategyType = chartStrategy.indicator?.type
+  if (
+    selectedStrategyType &&
+    !pinnedStrategies.some((strategy) => strategy.type === selectedStrategyType)
+  ) {
+    setChartStrategy({ ...chartStrategy, indicator: null })
+  }
   const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
   const [quickTestOpen, setQuickTestOpen] = React.useState(false)
   const [quickTest, setQuickTest] = React.useState<QuickTestResponse | null>(
@@ -517,6 +528,7 @@ export function TradingWorkspace({
                   >
                     <StrategyToolbar
                       state={chartStrategy}
+                      strategies={pinnedStrategies}
                       onChange={setChartStrategy}
                       onOpenSettings={() => setStrategySettingsOpen(true)}
                     />
@@ -702,10 +714,12 @@ export function TradingWorkspace({
  */
 function StrategyToolbar({
   state,
+  strategies,
   onChange,
   onOpenSettings,
 }: {
   state: ChartStrategyState
+  strategies: FixedStrategyItem[]
   onChange: (next: ChartStrategyState) => void
   onOpenSettings: () => void
 }) {
@@ -736,46 +750,47 @@ function StrategyToolbar({
             None
           </Label>
         </div>
-        {INDICATOR_IDS.map((id) => {
-          const selected = state.indicator?.type === id
+        {strategies.length === 0 ? (
+          <div className="px-1 py-1 text-xs text-muted-foreground">
+            No pinned strategies — pin them on the{" "}
+            <a href="/strategies" className="underline underline-offset-2">
+              Strategies
+            </a>{" "}
+            page.
+          </div>
+        ) : null}
+        {strategies.map((strategy) => {
+          const selected = state.indicator?.type === strategy.type
           return (
             <div
-              key={id}
+              key={strategy.type}
               className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
             >
               <Checkbox
-                id={`strat-${id}`}
+                id={`strat-${strategy.type}`}
                 checked={selected}
                 onCheckedChange={(checked) =>
                   onChange({
                     ...state,
                     indicator:
                       checked === true
-                        ? {
-                            type: id,
-                            params: {
-                              ...(INDICATORS[id].defaultParams as Record<
-                                string,
-                                IndicatorParamValue
-                              >),
-                            },
-                          }
+                        ? strategy.config.indicator
                         : null,
                   })
                 }
               />
               <Label
-                htmlFor={`strat-${id}`}
+                htmlFor={`strat-${strategy.type}`}
                 className="flex-1 cursor-pointer text-xs font-medium"
               >
-                {INDICATORS[id].label}
+                {strategy.label}
               </Label>
               {selected ? (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="size-5 text-muted-foreground"
-                  aria-label={`${INDICATORS[id].label} settings`}
+                  aria-label={`${strategy.label} settings`}
                   title="Strategy settings"
                   onClick={onOpenSettings}
                 >

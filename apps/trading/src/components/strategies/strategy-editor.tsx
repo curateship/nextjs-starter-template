@@ -1,11 +1,12 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { StrategyConfigFields } from "@/components/strategies/strategy-config-fields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -13,150 +14,306 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  saveStrategy,
-  type SavedStrategyConfig,
-  type StrategyListItem,
+  deleteStrategyTemplate,
+  saveStrategySettings,
+  saveStrategyTemplate,
+  type FixedStrategyItem,
+  type StrategyTemplateListItem,
 } from "@/lib/api/strategies"
-import {
-  defaultStrategyConfig,
-  strategyKindOf,
-  type StrategyConfig,
-  type StrategyTypeId,
-} from "@/lib/strategies/strategy-config"
+import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
+import { cn } from "@/lib/utils"
 
-/**
- * Create/edit one saved strategy: a name plus the full config form (shared
- * with the backtest re-run dialog — a template is just a saved starting
- * point). Everything type-specific renders off the strategy-kind registry,
- * so new kinds need no edits here.
- */
-export function StrategyEditorDialog({
+export function StrategySettingsDialog({
   open,
-  target,
-  initialType,
+  strategy,
   onOpenChange,
-  onSaved,
+  onChanged,
 }: {
   open: boolean
-  /** null = create new. */
-  target: StrategyListItem | null
-  /** Seeds a new strategy's type (e.g. from a scoped New Run dialog). */
-  initialType?: StrategyTypeId
+  strategy: FixedStrategyItem | null
   onOpenChange: (open: boolean) => void
-  onSaved: (saved: StrategyListItem) => void
+  onChanged: (strategy: FixedStrategyItem) => void
 }) {
-  const [name, setName] = React.useState("")
-  const [config, setConfig] = React.useState<StrategyConfig>(() =>
-    defaultStrategyConfig("qqe", "15m")
+  if (!open || !strategy) return null
+  return (
+    <StrategySettingsDialogContent
+      key={strategy.type}
+      open={open}
+      strategy={strategy}
+      onOpenChange={onOpenChange}
+      onChanged={onChanged}
+    />
   )
+}
+
+function StrategySettingsDialogContent({
+  open,
+  strategy,
+  onOpenChange,
+  onChanged,
+}: {
+  open: boolean
+  strategy: FixedStrategyItem
+  onOpenChange: (open: boolean) => void
+  onChanged: (strategy: FixedStrategyItem) => void
+}) {
+  const [tab, setTab] = React.useState("settings")
+  const [settings, setSettings] = React.useState<SignalStrategyConfig>(
+    strategy.config
+  )
+  const [templates, setTemplates] = React.useState<
+    StrategyTemplateListItem[]
+  >(strategy.templates)
+  const [templateId, setTemplateId] = React.useState<string | null>(null)
+  const [templateName, setTemplateName] = React.useState("")
+  const [templateConfig, setTemplateConfig] =
+    React.useState<SignalStrategyConfig | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const currentStrategy = strategy
+  const currentSettings = settings
 
-  React.useEffect(() => {
-    if (!open) return
-    setName(target?.name ?? "")
-    setConfig(
-      target
-        ? target.config
-        : defaultStrategyConfig(initialType ?? "qqe", "15m")
-    )
+  const selectTemplate = (template: StrategyTemplateListItem) => {
+    setTemplateId(template.id)
+    setTemplateName(template.name)
+    setTemplateConfig(template.config)
     setError(null)
-  }, [open, target, initialType])
+  }
 
-  async function save() {
+  const newTemplate = () => {
+    setTemplateId(null)
+    setTemplateName(`${currentStrategy.label} template`)
+    setTemplateConfig(currentSettings)
+    setTab("templates")
     setError(null)
-    if (!name.trim()) {
-      setError("Give the strategy a name.")
-      return
+  }
+
+  async function saveSettings() {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await saveStrategySettings({
+        strategyType: currentStrategy.type,
+        config: currentSettings,
+        pinned: currentStrategy.pinned,
+      })
+      onChanged({ ...currentStrategy, config: result.config, templates })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Saving settings failed")
+    } finally {
+      setBusy(false)
     }
-    if (config.kind === "automation") {
-      setError("Automations must be edited from the Automations canvas.")
-      return
-    }
-    // Parse the kind's own branch for precise error messages (the union's
-    // aggregated errors are unreadable).
-    const parsed = strategyKindOf(config).configSchema.safeParse(config)
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Invalid configuration")
+  }
+
+  async function saveTemplate() {
+    if (!templateConfig || !templateName.trim()) {
+      setError("Give the template a name.")
       return
     }
     setBusy(true)
+    setError(null)
     try {
-      const { strategy } = await saveStrategy({
-        strategyId: target?.id,
-        name: name.trim(),
-        config: parsed.data as SavedStrategyConfig,
+      const { template } = await saveStrategyTemplate({
+        strategyId: templateId ?? undefined,
+        name: templateName.trim(),
+        config: templateConfig,
       })
-      onOpenChange(false)
-      onSaved(strategy)
+      const next = templateId
+        ? templates.map((item) => (item.id === template.id ? template : item))
+        : [template, ...templates]
+      setTemplates(next)
+      selectTemplate(template)
+      onChanged({ ...currentStrategy, config: currentSettings, templates: next })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed")
+      setError(err instanceof Error ? err.message : "Saving template failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeTemplate() {
+    if (!templateId) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteStrategyTemplate(templateId)
+      const next = templates.filter((item) => item.id !== templateId)
+      setTemplates(next)
+      setTemplateId(null)
+      setTemplateName("")
+      setTemplateConfig(null)
+      onChanged({ ...currentStrategy, config: currentSettings, templates: next })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Deleting template failed")
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin" className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{target ? "Edit strategy" : "New strategy"}</DialogTitle>
-          <DialogDescription>
-            An indicator strategy trades its chart signals with one settings
-            block; other engines (like the DCA ladder) bring their own knobs.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>General settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-1.5">
-                <Label htmlFor="strategy-name" className="text-xs">
-                  Name
-                </Label>
-                <Input
-                  id="strategy-name"
-                  value={name}
-                  placeholder="e.g. QQE 15m BTC"
-                  className="h-8 text-xs"
-                  onChange={(event) => setName(event.target.value)}
-                />
+    <Dialog open={open} onOpenChange={(next) => (busy ? null : onOpenChange(next))}>
+      <DialogContent variant="admin">
+        <Tabs value={tab} onValueChange={setTab} className="contents">
+          <DialogHeader className="pr-16 sm:flex-row sm:items-center sm:gap-6">
+            <div>
+              <DialogTitle>{currentStrategy.label}</DialogTitle>
+            </div>
+            <TabsList className="grid w-full shrink-0 grid-cols-2 sm:w-64">
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="templates">
+                Templates ({templates.length})
+              </TabsTrigger>
+            </TabsList>
+          </DialogHeader>
+          <DialogBody>
+            <TabsContent value="settings">
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Default settings</CardTitle>
+                  <CardDescription>
+                    These settings are the starting point for this strategy.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <StrategyConfigFields
+                    value={currentSettings}
+                    lockedType={currentStrategy.type}
+                    onChange={(config) =>
+                      config.kind === "signal" ? setSettings(config) : undefined
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="templates">
+              <div className="grid gap-4 md:grid-cols-[12rem_1fr]">
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Saved templates</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      onClick={newTemplate}
+                    >
+                      <PlusIcon className="size-3.5" />
+                      New template
+                    </Button>
+                    {templates.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No templates saved yet.
+                      </p>
+                    ) : (
+                      templates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          className={cn(
+                            "rounded-md border px-2 py-1.5 text-left text-xs hover:bg-muted/50",
+                            template.id === templateId &&
+                              "border-primary bg-muted"
+                          )}
+                          onClick={() => selectTemplate(template)}
+                        >
+                          {template.name}
+                        </button>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>
+                      {templateId ? "Edit template" : "New template"}
+                    </CardTitle>
+                    <CardDescription>
+                      Rename it or change its individual settings.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    {templateConfig ? (
+                      <>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="strategy-template-name">Name</Label>
+                          <Input
+                            id="strategy-template-name"
+                            className="h-8"
+                            value={templateName}
+                            onChange={(event) =>
+                              setTemplateName(event.target.value)
+                            }
+                          />
+                        </div>
+                        <StrategyConfigFields
+                          value={templateConfig}
+                          lockedType={currentStrategy.type}
+                          onChange={(config) =>
+                            config.kind === "signal"
+                              ? setTemplateConfig(config)
+                              : undefined
+                          }
+                        />
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Select a template or create a new one.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+            </TabsContent>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Strategy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StrategyConfigFields value={config} onChange={setConfig} />
-            </CardContent>
-          </Card>
-
-          {error ? (
-            <p className="text-xs text-destructive">{error}</p>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => void save()}>
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            {target ? "Save changes" : "Create strategy"}
-          </Button>
-        </DialogFooter>
+            {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          </DialogBody>
+          <DialogFooter>
+            {tab === "settings" ? (
+              <>
+                <Button variant="outline" disabled={busy} onClick={newTemplate}>
+                  Save as template
+                </Button>
+                <Button disabled={busy} onClick={() => void saveSettings()}>
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  Save settings
+                </Button>
+              </>
+            ) : (
+              <>
+                {templateId ? (
+                  <Button
+                    variant="outline"
+                    className="mr-auto text-destructive"
+                    disabled={busy}
+                    onClick={() => void removeTemplate()}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </Button>
+                ) : null}
+                <Button
+                  disabled={busy || !templateConfig}
+                  onClick={() => void saveTemplate()}
+                >
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  {templateId ? "Save template" : "Create template"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

@@ -317,6 +317,25 @@ export const tradingStrategies = pgTable(
   ]
 )
 
+/** Per-user defaults for each fixed indicator strategy. */
+export const tradingStrategySettings = pgTable(
+  "strategy_settings",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    strategyType: varchar("strategy_type", { length: 40 }).notNull(),
+    config: jsonb("config").notNull(),
+    pinned: boolean("pinned").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.strategyType] }),
+    index("ix_strategy_settings_user_id").on(table.userId),
+  ]
+)
+
 export type TradingAutomationDraft = AutomationGraph & {
   protection: AutomationProtection
 }
@@ -1055,6 +1074,8 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
 export type TradingStrategy = typeof tradingStrategies.$inferSelect
+export type TradingStrategySettings =
+  typeof tradingStrategySettings.$inferSelect
 export type TradingAutomation = typeof tradingAutomations.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect
