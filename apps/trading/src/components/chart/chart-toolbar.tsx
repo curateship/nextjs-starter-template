@@ -2,23 +2,32 @@ import type * as React from "react"
 
 import { price as fmtPrice } from "@/components/backtest/backtest-format"
 import type { ChartCandle } from "@/components/chart/price-chart"
+import { CHIP_COLORS } from "@/components/chart/trade-chips"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { cn } from "@/lib/utils"
 
 /** Which mark types the chart is currently showing, for the legend. */
 export type ChartLegendFlags = {
-  /** Price-pinned O/C chips — real fills/trades. */
+  /** Price-pinned O/C/F chips — real fills/trades (long / short / flip). */
   chips?: boolean
 }
 
 /** A colored-line legend entry (e.g. a breakout channel or VWAP band). */
 export type ChartLegendLine = { id: string; color: string; label: string }
 
-function LegendChip({ color, letter }: { color: string; letter: string }) {
+function LegendChip({
+  color,
+  letter,
+  textColor,
+}: {
+  color: string
+  letter?: string
+  textColor?: string
+}) {
   return (
     <span
-      className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] text-[8px] font-bold text-white"
-      style={{ backgroundColor: color }}
+      className="inline-flex h-3 w-3 items-center justify-center rounded-full text-[8px] font-bold"
+      style={{ backgroundColor: color, color: textColor ?? "#fff" }}
     >
       {letter}
     </span>
@@ -60,11 +69,13 @@ export function ChartToolbar({
   const legendItems: React.ReactNode[] = []
   if (legend?.chips) {
     legendItems.push(
-      <span key="chips" className="flex items-center gap-1">
-        <LegendChip color="#089981" letter="O" />
-        <span>opened</span>
-        <LegendChip color="#f23645" letter="C" />
-        <span>closed</span>
+      <span key="chips" className="flex items-center gap-1.5">
+        <LegendChip color={CHIP_COLORS.long} />
+        <span>long</span>
+        <LegendChip color={CHIP_COLORS.short} />
+        <span>short</span>
+        <LegendChip color={CHIP_COLORS.flip} letter="F" textColor={CHIP_COLORS.flipText} />
+        <span>flip</span>
       </span>
     )
   }

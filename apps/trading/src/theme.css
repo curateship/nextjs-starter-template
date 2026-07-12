@@ -145,3 +145,16 @@
     @apply font-sans;
     }
 }
+
+/* Animated trade chips on the price chart: a glowing dot that pulses, ringed by
+   radar waves that expand and fade. Color carries the meaning (green = long,
+   red = short, yellow = flip); see price-chart.tsx. */
+@keyframes chip-ring {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  70% { transform: scale(1.4); opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes chip-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.7); opacity: 0.7; }
+}

@@ -5,12 +5,9 @@ import type {
   ChartPriceLine,
   ChartZone,
 } from "@/components/chart/price-chart"
+import { CHIP_COLORS } from "@/components/chart/trade-chips"
 import type { BacktestResult } from "@/lib/backtest/types"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
-
-/** Trade chips read by open/close, not buy/sell: green "O" opens, red "C" closes. */
-const OPEN_COLOR = "#089981"
-const CLOSE_COLOR = "#f23645"
 
 export type StrategyChartOverlays = {
   /** Rendered through the shared indicator system (theme-aware). */
@@ -25,39 +22,78 @@ export type StrategyChartOverlays = {
   barColors: ChartBarColor[]
 }
 
-/** Price-pinned "O" (open) / "C" (close) chips for each round trip, plus any
- * still-open position's entry. Letters read by open/close, not buy/sell. */
+/**
+ * Price-pinned chips for each round trip, plus any still-open position's entry.
+ * A trade's chips take its side color (long green, short red); the letter says
+ * open ("O") or close ("C"). A reverse — one trade closing at the exact instant
+ * the opposite-side trade opens — collapses to a single yellow flip ("F") chip
+ * instead of a close + reopen sitting side by side.
+ */
 export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
   const markers: ChartMarker[] = []
-  const open = (time: number, side: "buy" | "sell", price: number): ChartMarker => ({
-    time,
-    side,
-    price,
-    letter: "O",
-    color: OPEN_COLOR,
-  })
-  const close = (time: number, side: "buy" | "sell", price: number): ChartMarker => ({
-    time,
-    side,
-    price,
-    letter: "C",
-    color: CLOSE_COLOR,
-  })
-  for (const trade of result.trades) {
+  const trades = result.trades
+  const open = result.openPosition
+  // The reopen half of a flip can be the next trade OR the still-open position
+  // (a reverse whose new side never closed within the window).
+  const nextOpenAfter = (i: number) =>
+    trades[i + 1] ?? (i === trades.length - 1 ? open : null)
+  for (let i = 0; i < trades.length; i += 1) {
+    const trade = trades[i]
+    const prev = trades[i - 1]
+    const next = nextOpenAfter(i)
     const entrySide = trade.side === "long" ? "buy" : "sell"
-    markers.push(open(trade.entryTime, entrySide, trade.entryPx))
-    markers.push(
-      close(trade.exitTime, entrySide === "buy" ? "sell" : "buy", trade.exitPx)
-    )
+    const sideColor = trade.side === "long" ? CHIP_COLORS.long : CHIP_COLORS.short
+    // A flip point is a close and an opposite-side open at the same instant.
+    const flipIn =
+      prev && prev.exitTime === trade.entryTime && prev.side !== trade.side
+    const flipOut =
+      next && next.entryTime === trade.exitTime && next.side !== trade.side
+    // Entry chip — skipped when this open is the reopen half of a flip the
+    // previous trade's exit already marked.
+    if (!flipIn) {
+      markers.push({
+        time: trade.entryTime,
+        side: entrySide,
+        price: trade.entryPx,
+        letter: "O",
+        color: sideColor,
+      })
+    }
+    // Exit chip — one yellow "F" for a flip, otherwise a side-colored "C".
+    if (flipOut) {
+      markers.push({
+        time: trade.exitTime,
+        side: entrySide === "buy" ? "sell" : "buy",
+        price: trade.exitPx,
+        letter: "F",
+        color: CHIP_COLORS.flip,
+        textColor: CHIP_COLORS.flipText,
+      })
+    } else {
+      markers.push({
+        time: trade.exitTime,
+        side: entrySide === "buy" ? "sell" : "buy",
+        price: trade.exitPx,
+        letter: "C",
+        color: sideColor,
+      })
+    }
   }
-  if (result.openPosition) {
-    markers.push(
-      open(
-        result.openPosition.entryTime,
-        result.openPosition.side === "long" ? "buy" : "sell",
-        result.openPosition.entryPx
-      )
-    )
+  if (open) {
+    const last = trades[trades.length - 1]
+    // Skip the open marker when this position is the reopen half of a flip the
+    // last trade's exit already marked with an "F".
+    const isFlipReopen =
+      last && last.exitTime === open.entryTime && last.side !== open.side
+    if (!isFlipReopen) {
+      markers.push({
+        time: open.entryTime,
+        side: open.side === "long" ? "buy" : "sell",
+        price: open.entryPx,
+        letter: "O",
+        color: open.side === "long" ? CHIP_COLORS.long : CHIP_COLORS.short,
+      })
+    }
   }
   return markers
 }

@@ -86,16 +86,18 @@ export type ChartMarker = {
   /** Fill time, ms epoch. */
   time: number
   side: "buy" | "sell"
-  /** Override the default side color (e.g. pink for QQE trend re-entries). */
+  /** Chip color, carrying the meaning: green = long, red = short, yellow = flip. */
   color?: string
+  /** Letter color; defaults to white. Used to keep the flip "F" legible on yellow. */
+  textColor?: string
   /**
-   * Exact fill price: every marker is a price-pinned O/C/R chip sitting on
+   * Exact fill price: every marker is a price-pinned O/C/F chip sitting on
    * the candle at that price (see `letter`). Markers exist only for real
    * fills — indicator signal arrows were removed July 2026.
    */
   price: number
-  /** Chip letter: O = open, C = close, R = re-entry. */
-  letter?: "O" | "C" | "R"
+  /** Chip letter: O = open, C = close, F = flip (close + reopen in one step). */
+  letter?: "O" | "C" | "F"
 }
 
 /** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
@@ -306,10 +308,10 @@ export function PriceChartView({
   const [focusPixels, setFocusPixels] = React.useState<
     { x: number; y: number; label: string; placement: "above" | "below" }[]
   >([])
-  // Pixel positions of price-pinned open/close/re-entry chips, kept in sync with
+  // Pixel positions of price-pinned open/close/flip chips, kept in sync with
   // pan/zoom/resize the same way the focus ring is.
   const [markerPixels, setMarkerPixels] = React.useState<
-    { x: number; y: number; letter: string; color: string }[]
+    { x: number; y: number; letter: string; color: string; textColor?: string }[]
   >([])
   // Built-in right-click "Reset View" menu (viewport coords); only used when the
   // parent hasn't taken over the context menu with its own handler.
@@ -852,7 +854,7 @@ export function PriceChartView({
     }
   }, [ready, focusPoints, overlayRevision])
 
-  // Pin each priced open/close/re-entry chip to its exact fill price on the
+  // Pin each priced open/close/flip chip to its exact fill price on the
   // candle, re-projecting on pan/zoom/resize and dropping any that scroll off
   // screen so the DOM only ever holds the chips currently visible.
   // Sorted by time so the chips inside any visible window are one contiguous
@@ -889,7 +891,13 @@ export function PriceChartView({
         return
       }
       const width = timeScale.width()
-      const next: { x: number; y: number; letter: string; color: string }[] = []
+      const next: {
+        x: number
+        y: number
+        letter: string
+        color: string
+        textColor?: string
+      }[] = []
       for (let i = start; i < end; i += 1) {
         const marker = pricedMarkers[i]
         const sec = Math.floor(marker.time / 1000)
@@ -905,15 +913,16 @@ export function PriceChartView({
           color:
             marker.color ??
             (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
+          textColor: marker.textColor,
         })
       }
-      // Declutter: chips landing on the same spot (e.g. a close and a re-open on
-      // one candle) would stack. Nudge each colliding chip right so they sit
-      // side by side; the y (fill price) stays exact, only the x drifts.
-      const STEP = 16 // chip width (14px) + a small gap
+      // Declutter: chips landing on the same spot (e.g. a scale-in landing on a
+      // close) would stack. Nudge each colliding chip right so they sit side by
+      // side; the y (fill price) stays exact, only the x drifts.
+      const STEP = 16 // chip width (12px) + a small gap
       // Break same-candle ties by what happened, not by price: the close (C)
-      // comes before the re-open (O/R). Otherwise the left-right order flips on
-      // tiny fill-price differences and a close-and-reopen looks like two closes.
+      // comes before any re-open (O). Otherwise the left-right order flips on
+      // tiny fill-price differences.
       const rank = (c: { letter: string }) => (c.letter === "C" ? 0 : 1)
       next.sort((a, b) => a.x - b.x || rank(a) - rank(b) || a.y - b.y)
       const placed: { x: number; y: number }[] = []
@@ -1357,13 +1366,50 @@ export function PriceChartView({
           {markerPixels.map((m, i) => (
             <div
               key={`${m.letter}-${m.x}-${m.y}-${i}`}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: m.x, top: m.y }}
+              className="absolute"
+              style={{ left: m.x, top: m.y, width: 0, height: 0 }}
             >
-              {/* Solid chip: O = open, C = close, R = re-entry, pinned to fill price. */}
+              {/* Animated fill chip: a glowing dot (O = open, C = close, F = flip)
+                  ringed by two radar waves, staggered by half a cycle. Color
+                  carries the side: green = long, red = short, yellow = flip. */}
               <span
-                className="flex h-[14px] w-[14px] items-center justify-center rounded-[4px] text-[9px] font-bold leading-none text-white shadow-sm"
-                style={{ backgroundColor: m.color }}
+                className="absolute rounded-full border-2"
+                style={{
+                  left: 0,
+                  top: 0,
+                  width: 13,
+                  height: 13,
+                  margin: "-6.5px 0 0 -6.5px",
+                  borderColor: m.color,
+                  animation: "chip-ring 1.3s ease-out infinite",
+                }}
+              />
+              <span
+                className="absolute rounded-full border-2"
+                style={{
+                  left: 0,
+                  top: 0,
+                  width: 13,
+                  height: 13,
+                  margin: "-6.5px 0 0 -6.5px",
+                  borderColor: m.color,
+                  animation: "chip-ring 1.3s ease-out infinite 0.65s",
+                }}
+              />
+              <span
+                className="absolute flex items-center justify-center rounded-full font-bold leading-none"
+                style={{
+                  left: 0,
+                  top: 0,
+                  width: 12,
+                  height: 12,
+                  margin: "-6px 0 0 -6px",
+                  fontSize: 8,
+                  backgroundColor: m.color,
+                  color: m.textColor ?? "#fff",
+                  boxShadow: `0 0 6px ${m.color}`,
+                  animation: "chip-dot 1.3s ease-in-out infinite",
+                }}
               >
                 {m.letter}
               </span>

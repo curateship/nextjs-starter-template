@@ -52,7 +52,6 @@ export function StrategyTester({
   selectedTradeN?: number | null
   /** Row click — null when the selected trade is clicked again. */
   onSelectTrade?: (trade: BacktestTrade | null) => void
-  /** Entry times that are trend re-entries ("R"), so those rows get tagged. */
 }) {
   const stats = result?.stats
   const net = stats?.netPnl ?? 0
