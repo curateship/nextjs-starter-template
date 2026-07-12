@@ -5,7 +5,6 @@ import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationStrategyConfig } from "@/lib/automations/automation"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
 import {
   createUserBot,
   getBotDetail,
@@ -25,19 +24,6 @@ import * as schema from "@/server/schema"
 vi.mock("@/server/hyperliquid/info", () => ({
   getAssetInfo: vi.fn(async () => ({ assetId: 0, szDecimals: 4 })),
 }))
-
-const SIGNAL_CONFIG: StrategyConfig = {
-  v: 2,
-  kind: "signal",
-  interval: "15m",
-  indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
-  settings: {
-    direction: "both",
-    orderSizeUsd: 250,
-    compounding: false,
-    flipOnOppositeSignal: true,
-  },
-}
 
 const AUTOMATION_CONFIG: AutomationStrategyConfig = {
   v: 2,
@@ -79,6 +65,7 @@ beforeEach(async () => {
     "../../drizzle/0017_remove_legacy_strategies.sql",
     "../../drizzle/0020_trading_automations.sql",
     "../../drizzle/0021_wallet_onboarding.sql",
+    "../../drizzle/0024_remove_strategies.sql",
   ]) {
     await applyMigration(client, file)
   }
@@ -150,32 +137,27 @@ async function createAutomation(
   return id
 }
 
-function botInput(walletId: string) {
+function botInput(walletId: string, automationId: string) {
   return {
     name: "Test bot",
     walletId,
     markets: ["BTC"],
     exchange: "hyperliquid",
     mode: "paper" as const,
-    params: SIGNAL_CONFIG,
+    automationId,
     paperStartingEquity: 10_000,
   }
 }
 
 describe("Automation bot creation", () => {
-  it("snapshots the owner's compiled config and ignores client-supplied params", async () => {
+  it("snapshots the owner's compiled config", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
 
-    const bot = await createUserBot(userId, {
-      ...botInput(walletId),
-      automationId,
-      params: SIGNAL_CONFIG,
-    })
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
 
     expect(bot.strategyType).toBe("automation")
-    expect(bot.strategyId).toBeNull()
     expect(bot.automationId).toBe(automationId)
     expect(bot.params).toEqual(AUTOMATION_CONFIG)
     expect((await getBotDetail(userId, bot.id)).sourceName).toBe(
@@ -190,10 +172,7 @@ describe("Automation bot creation", () => {
     const automationId = await createAutomation(ownerId)
 
     await expect(
-      createUserBot(attackerId, {
-        ...botInput(walletId),
-        automationId,
-      })
+      createUserBot(attackerId, botInput(walletId, automationId))
     ).rejects.toThrow("Automation not found")
   })
 
@@ -203,31 +182,28 @@ describe("Automation bot creation", () => {
     const automationId = await createAutomation(userId, null)
 
     await expect(
-      createUserBot(userId, {
-        ...botInput(walletId),
-        automationId,
-      })
+      createUserBot(userId, botInput(walletId, automationId))
     ).rejects.toThrow("Automation is incomplete")
   })
 
-  it("limits Automation bots to one market while Signal bots remain multi-market", async () => {
+  it("requires an Automation and limits bots to one market", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
 
     await expect(
       createUserBot(userId, {
-        ...botInput(walletId),
-        automationId,
+        ...botInput(walletId, automationId),
         markets: ["BTC", "ETH"],
       })
     ).rejects.toThrow("one market")
 
-    const signalBot = await createUserBot(userId, {
-      ...botInput(walletId),
-      markets: ["BTC", "ETH"],
-    })
-    expect(signalBot.markets).toEqual(["BTC", "ETH"])
+    await expect(
+      createUserBot(userId, {
+        ...botInput(walletId, automationId),
+        automationId: undefined,
+      })
+    ).rejects.toThrow("Choose a saved Automation")
   })
 })
 
@@ -236,10 +212,7 @@ describe("Automation bot updates and commands", () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
-    const bot = await createUserBot(userId, {
-      ...botInput(walletId),
-      automationId,
-    })
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
     const untrusted: AutomationStrategyConfig = {
       ...AUTOMATION_CONFIG,
       protection: { takeProfitPct: 3 },
@@ -262,10 +235,7 @@ describe("Automation bot updates and commands", () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
-    const bot = await createUserBot(userId, {
-      ...botInput(walletId),
-      automationId,
-    })
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
 
     await sendBotCommand(userId, bot.id, "start")
 

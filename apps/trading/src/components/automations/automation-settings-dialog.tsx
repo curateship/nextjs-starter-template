@@ -31,9 +31,14 @@ import {
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
 import {
+  backtestSettingsToValues,
   buildAutomationSettingsSave,
   type AutomationSettingsValues,
 } from "./automation-settings"
+import {
+  AutomationBacktestCard,
+  AutomationProtectionCard,
+} from "./automation-settings-fields"
 
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
@@ -72,6 +77,10 @@ function AutomationSettingsDialogForm({
     interval: target.interval,
     takeProfitPct: "",
     stopLossPct: "",
+    startingEquity: "",
+    takerFeeBps: "",
+    makerFeeBps: "",
+    slippageBps: "",
   })
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -94,6 +103,7 @@ function AutomationSettingsDialogForm({
             automation.protection.stopLossPct === undefined
               ? ""
               : String(automation.protection.stopLossPct),
+          ...backtestSettingsToValues(automation.backtest),
         })
       })
       .catch((loadError) => {
@@ -186,47 +196,19 @@ function AutomationSettingsDialogForm({
             </CardContent>
           </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Protection</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="automation-settings-take-profit">
-                  Take profit %
-                </Label>
-                <Input
-                  id="automation-settings-take-profit"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  placeholder="Off"
-                  value={values.takeProfitPct}
-                  disabled={loading || saving}
-                  onChange={(event) =>
-                    update("takeProfitPct", event.target.value)
-                  }
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="automation-settings-stop-loss">
-                  Stop loss %
-                </Label>
-                <Input
-                  id="automation-settings-stop-loss"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  placeholder="Off"
-                  value={values.stopLossPct}
-                  disabled={loading || saving}
-                  onChange={(event) =>
-                    update("stopLossPct", event.target.value)
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <AutomationProtectionCard
+            idPrefix="automation-settings"
+            values={values}
+            disabled={loading || saving}
+            onChange={(next) => setValues((current) => ({ ...current, ...next }))}
+          />
+
+          <AutomationBacktestCard
+            idPrefix="automation-settings"
+            values={values}
+            disabled={loading || saving}
+            onChange={(next) => setValues((current) => ({ ...current, ...next }))}
+          />
 
           {error ? (
             <div

@@ -1,11 +1,6 @@
 import * as React from "react"
 import { ClientOnly, useRouter } from "@tanstack/react-router"
-import {
-  FlaskConicalIcon,
-  Loader2Icon,
-  SettingsIcon,
-  XIcon,
-} from "lucide-react"
+import { XIcon } from "lucide-react"
 
 import {
   formatFocusDays,
@@ -17,8 +12,8 @@ import { BotActivityTabs } from "@/components/bots/bot-activity-tabs"
 import { buildBotRoundTrips } from "@/components/bots/bot-round-trips"
 import {
   buildBotFillMarkers,
-  buildSignalBotMenuItems,
-  buildSignalBotOverlays,
+  buildBotProtectionMenuItems,
+  buildBotProtectionOverlays,
   type BotChartMenuItem,
 } from "@/components/bots/bot-chart-overlays"
 import { BotMarketsPanel } from "@/components/bots/bot-markets-panel"
@@ -27,13 +22,7 @@ import {
   BotWorkspaceHeader,
   type BotCommand,
 } from "@/components/bots/bot-workspace-header"
-import {
-  DEFAULT_CHART_STRATEGY,
-  type ChartStrategyState,
-} from "@/components/chart/chart-strategy"
-import { IndicatorSettingsDialog } from "@/components/chart/chart-strategy-settings"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
-import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
 import {
   PriceChart,
   type ChartCandle,
@@ -68,13 +57,9 @@ import {
   isStrategyConfig,
   strategyConfigSchema,
   type AutomationStrategyConfig,
-  type SignalStrategyConfig,
 } from "@/lib/strategies/strategy-config"
-import { SettingsFields } from "@/components/strategies/settings-fields"
-import { INDICATORS } from "@/lib/indicators/registry"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
-import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 
 type ParamValues = Record<string, string>
@@ -173,72 +158,6 @@ function BotChartMenu({
   )
 }
 
-/**
- * Settings sheet for a new-model bot: edits the universal settings block of
- * its snapshotted strategy config. The indicator and its params are fixed at
- * creation — change those on the Strategies page and create a new bot.
- */
-function SignalBotSettings({
-  botId,
-  bot,
-  config,
-  onSaved,
-}: {
-  botId: string
-  bot: BotDetailResponse["bot"]
-  config: SignalStrategyConfig
-  onSaved: (message: string, tone: "ok" | "error") => void
-}) {
-  const [settings, setSettings] = React.useState(config.settings)
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const module = INDICATORS[config.indicator.type]
-
-  async function save() {
-    setError(null)
-    const parsed = strategyConfigSchema.safeParse({ ...config, settings })
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Invalid settings")
-      return
-    }
-    setBusy(true)
-    try {
-      await updateBot({
-        botId,
-        name: bot.name,
-        markets: bot.markets,
-        params: parsed.data,
-      })
-      onSaved(
-        bot.status === "running"
-          ? "Settings updated — bot restarting with the new values."
-          : "Settings updated.",
-        "ok"
-      )
-    } catch (err) {
-      setError(getBotErrorMessage(err))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4 overflow-y-auto p-4">
-      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{module.label}</span> ·{" "}
-        {config.interval} — the indicator and its parameters are fixed at
-        creation. To change them, edit the strategy on the Strategies page and
-        create a new bot.
-      </div>
-      <SettingsFields value={settings} onChange={setSettings} />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      <Button size="sm" disabled={busy} onClick={() => void save()}>
-        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-        Save settings
-      </Button>
-    </div>
-  )
-}
-
 /** Automation rules stay fixed on the bot; protection is edited in its rail. */
 function AutomationBotSettings({
   bot,
@@ -285,18 +204,14 @@ export function BotWorkspace({
     bot.network === "mainnet" ? "mainnet" : "testnet"
   ) as TradingNetwork
 
-  // Runnable bots carry a validated Strategy or Automation snapshot. Anything
-  // else is retired history and stays read-only.
+  // Runnable bots carry a validated Automation snapshot. Anything else is
+  // retired history and stays read-only.
   const botConfig = React.useMemo(() => {
     if (!isStrategyConfig(bot.params)) return null
-    return bot.params.kind === "signal" || bot.params.kind === "automation"
-      ? bot.params
-      : null
+    return bot.params.kind === "automation" ? bot.params : null
   }, [bot.params])
-  const signalConfig = botConfig?.kind === "signal" ? botConfig : null
-  const automationConfig = botConfig?.kind === "automation" ? botConfig : null
-  const protection =
-    signalConfig?.settings ?? automationConfig?.protection ?? null
+  const automationConfig = botConfig
+  const protection = automationConfig?.protection ?? null
 
   const [selectedMarket, setSelectedMarket] = React.useState(
     bot.markets[0] ?? ""
@@ -361,35 +276,12 @@ export function BotWorkspace({
     return out
   }, [protection])
 
-  // Display toggles for the strategy paint (shared with the trade terminal's
-  // dialog). Only the toggles persist — strategy/params are re-derived from
-  // the bot every render so they can never go stale. The consolidation-filter
-  // default seeds from the bot's real param so painted signals match trades.
-  const [chartDisplay, setChartDisplay] = usePersistedState<ChartStrategyState>(
-    "bot-chart-display",
-    {
-      ...DEFAULT_CHART_STRATEGY,
-      consolidationFilter: seed.consolidationFilter !== "false",
-    },
-    (raw) => ({
-      ...DEFAULT_CHART_STRATEGY,
-      ...(JSON.parse(raw) as Partial<ChartStrategyState>),
-    })
-  )
-  const [chartDisplayOpen, setChartDisplayOpen] = React.useState(false)
-  const [quickTestOpen, setQuickTestOpen] = React.useState(false)
   // Hovered candle for the toolbar's O/H/L/C readout (null while not hovering).
   const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
   const [selectedTradeId, setSelectedTradeId] = React.useState<string | null>(
     null
   )
 
-  // Paint the bot's own indicator — the same compute the engine trades on.
-  // Archived legacy bots paint nothing (their charts stay lines-and-fills).
-  const chartStrategy = React.useMemo<ChartStrategyState | null>(() => {
-    if (!signalConfig) return null
-    return { ...chartDisplay, indicator: signalConfig.indicator }
-  }, [chartDisplay, signalConfig])
   // The SL/TP draft holds ONLY the protective keys the right rail edits; every
   // other param is read fresh from the bot at save time (see applyValues). So a
   // params change from elsewhere — the Settings sheet, or a status change that
@@ -461,17 +353,7 @@ export function BotWorkspace({
     }
     const takeProfitPct = num(protective.takeProfitPct)
     const stopLossPct = num(protective.stopLossPct)
-    const nextConfig =
-      botConfig.kind === "signal"
-        ? {
-            ...botConfig,
-            settings: {
-              ...botConfig.settings,
-              takeProfitPct,
-              stopLossPct,
-            },
-          }
-        : {
+    const nextConfig = {
             ...botConfig,
             protection: { takeProfitPct, stopLossPct },
           }
@@ -506,7 +388,7 @@ export function BotWorkspace({
   const chart = React.useMemo(
     () =>
       protection
-        ? buildSignalBotOverlays(protection, state)
+        ? buildBotProtectionOverlays(protection, state)
         : { lines: [], targets: {} },
     [protection, state]
   )
@@ -596,7 +478,7 @@ export function BotWorkspace({
 
   const chartMenuItems =
     chartMenu && protection
-      ? buildSignalBotMenuItems(protection, state, markPrice, chartMenu.price)
+      ? buildBotProtectionMenuItems(protection, state, markPrice, chartMenu.price)
       : []
 
   return (
@@ -666,47 +548,9 @@ export function BotWorkspace({
                     intervals={CANDLE_INTERVALS}
                     interval={interval}
                     onIntervalChange={setInterval}
-                    legend={{
-                      chips: markers.length > 0,
-                      signals: Boolean(
-                        automationConfig || chartStrategy?.showSignals
-                      ),
-                    }}
+                    legend={{ chips: markers.length > 0 }}
                     ohlc={ohlc}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      disabled={!botConfig}
-                      title={
-                        botConfig
-                          ? "Replay this bot's setup over recent history"
-                          : "Archived legacy bots can't be quick-tested"
-                      }
-                      onClick={() => setQuickTestOpen(true)}
-                    >
-                      <FlaskConicalIcon className="size-3.5" />
-                      Test
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 text-muted-foreground"
-                      aria-label="Strategy display settings"
-                      title={
-                        automationConfig
-                          ? "Automation paint combines its connected indicators"
-                          : chartStrategy
-                            ? "Strategy display settings"
-                            : "This strategy has no chart decorations — its levels are the live order lines"
-                      }
-                      disabled={!chartStrategy}
-                      onClick={() => setChartDisplayOpen(true)}
-                    >
-                      <SettingsIcon className="size-3.5" />
-                    </Button>
-                  </ChartToolbar>
+                  />
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={network}
@@ -714,7 +558,6 @@ export function BotWorkspace({
                       interval={interval}
                       priceLines={chart.lines}
                       markers={markers}
-                      chartStrategy={chartStrategy}
                       strategyConfig={automationConfig}
                       focusPoints={focusPoints}
                       focusResult={focusResult}
@@ -772,31 +615,6 @@ export function BotWorkspace({
         onClose={() => setChartMenu(null)}
       />
 
-      <QuickTestDialog
-        open={quickTestOpen}
-        onOpenChange={setQuickTestOpen}
-        network={network}
-        market={selectedMarket}
-        config={botConfig}
-        automationId={bot.automation_id ?? undefined}
-        onSaved={(backtestId) =>
-          void router.navigate({ to: "/backtest", search: { run: backtestId } })
-        }
-      />
-
-      {chartStrategy ? (
-        <IndicatorSettingsDialog
-          open={chartDisplayOpen}
-          onOpenChange={setChartDisplayOpen}
-          state={chartStrategy}
-          onChange={(next) =>
-            // Persist only the display toggles — the indicator re-derives
-            // from the bot's config, so it must never hit localStorage.
-            setChartDisplay({ ...next, indicator: null })
-          }
-        />
-      ) : null}
-
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent
           side="right"
@@ -818,23 +636,13 @@ export function BotWorkspace({
             </SheetClose>
           </div>
           <div className="min-h-0 flex-1">
-            {signalConfig ? (
-              <SignalBotSettings
-                botId={botId}
-                bot={bot}
-                config={signalConfig}
-                onSaved={(message, tone) => {
-                  setSettingsOpen(false)
-                  notify(message, tone)
-                }}
-              />
-            ) : automationConfig ? (
+            {automationConfig ? (
               <AutomationBotSettings bot={bot} config={automationConfig} />
             ) : (
               <div className="p-4 text-sm text-muted-foreground">
                 This bot uses a retired strategy and is archived — its history
                 stays readable, but nothing can be edited. Create a new bot from
-                a saved strategy instead.
+                a saved Automation instead.
               </div>
             )}
           </div>

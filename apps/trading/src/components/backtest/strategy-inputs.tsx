@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -6,27 +6,26 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 /**
  * Read-only config rail for a loaded run. Saved runs are immutable, so this
  * just lists what the run was executed with: window, equity, costs, and the
- * strategy's indicator + settings. Without a run it's a New Run CTA.
+ * strategy's indicator + settings. Without a run it points at Automations,
+ * where backtests are launched.
  */
 export function StrategyInputs({
   title,
   rows,
-  onNewRun,
 }: {
-  /** Strategy/indicator name for the header — null shows the New Run CTA. */
+  /** Strategy/indicator name for the header — null shows the empty CTA. */
   title: string | null
   rows: { label: string; value: string }[]
-  onNewRun: () => void
 }) {
   if (!title) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
         <p className="text-xs text-muted-foreground">
-          Create a run to configure a strategy and see its results here.
+          Backtests are launched from an Automation — open one and press
+          Backtest.
         </p>
-        <Button size="sm" className="gap-1.5" onClick={onNewRun}>
-          <PlusIcon className="size-3.5" />
-          New Run
+        <Button asChild size="sm">
+          <Link to="/automations">Go to Automations</Link>
         </Button>
       </div>
     )

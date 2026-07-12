@@ -22,11 +22,13 @@ alter table bots add column if not exists strategy_id varchar(36)
   references strategies(id) on delete set null;
 
 -- 'signal' joins the strategy-type CHECKs; legacy values stay so old rows
--- remain valid and readable.
+-- remain valid and readable. 'automation' is included so re-runs never fail
+-- against rows created by the later automation era (every migration re-runs
+-- on each db:setup); 0024 owns the final definition.
 alter table bots drop constraint if exists bots_strategy_type_check;
 alter table bots
   add constraint bots_strategy_type_check
-  check (strategy_type in ('signal', 'grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy'));
+  check (strategy_type in ('signal', 'automation', 'grid', 'dca', 'momentum', 'qqe', 'vwap', 'copy'));
 
 -- The user's ONE universal settings default lives under 'universal'.
 alter table strategy_defaults

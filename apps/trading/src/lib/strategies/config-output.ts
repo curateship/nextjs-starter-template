@@ -3,8 +3,6 @@ import type {
   IndicatorCandle,
   IndicatorOutput,
 } from "@/lib/indicators/contract"
-import { INDICATORS } from "@/lib/indicators/registry"
-
 import type { StrategyConfig } from "./strategy-config"
 
 const EMPTY_OUTPUT: IndicatorOutput = {
@@ -17,11 +15,6 @@ export function computeStrategyOutput(
   candles: IndicatorCandle[],
   config: StrategyConfig
 ): IndicatorOutput {
-  if (config.kind === "signal") {
-    const module = INDICATORS[config.indicator.type]
-    const params = module.paramsSchema.parse(config.indicator.params)
-    return module.compute(candles, params as never)
-  }
   if (config.kind === "automation") {
     const evaluated = evaluateAutomation(candles, config)
     return {

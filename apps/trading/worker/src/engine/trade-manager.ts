@@ -1,64 +1,15 @@
-import type { StrategySettings } from "@/lib/strategies/settings"
+import type { ProtectionSettings } from "@/lib/strategies/settings"
 
 /**
- * THE trade manager: the only TP/SL/flip implementation in the system. Pure
- * functions consumed by the signal engine's live tick path AND the backtest
- * runner's intrabar `exitTriggers` pause — written once, so live and simulated
- * exits can never drift apart (the old per-strategy duplication is gone).
+ * THE trade manager: the only TP/SL implementation in the system. Pure
+ * functions consumed by the automation engine's live tick path AND the
+ * backtest runner's intrabar `exitTriggers` pause — written once, so live and
+ * simulated exits can never drift apart.
  */
-
-/** The engine's whole per-market state; shaped for `marketEntryExitOrders`. */
-export type TradeState = {
-  pendingEntry: "long" | "short" | null
-  exitRequested: boolean
-}
-
-export const INITIAL_TRADE_STATE: TradeState = {
-  pendingEntry: null,
-  exitRequested: false,
-}
 
 type Position = { szi: number; entryPx: number } | null
 
-type ProtectionSettings = Pick<
-  StrategySettings,
-  "takeProfitPct" | "stopLossPct"
->
-
 type ExitState = { exitRequested: boolean }
-
-/**
- * Signal → intent. Applies the direction filter and flip-on-opposite rule:
- *  - flat + allowed direction → pending entry
- *  - positioned, same direction → nothing (already in)
- *  - positioned, opposite signal + flip on → flip (re-enter if the new
- *    direction is allowed, otherwise exit only)
- *  - flip off → the signal is ignored; only TP/SL exit the trade
- */
-export function applySignal(
-  state: TradeState,
-  settings: StrategySettings,
-  positionSzi: number,
-  side: "buy" | "sell"
-): TradeState {
-  const wantLong = side === "buy"
-  const allowed =
-    settings.direction === "both" ||
-    (settings.direction === "long") === wantLong
-
-  if (positionSzi === 0) {
-    return allowed
-      ? { ...state, pendingEntry: wantLong ? "long" : "short" }
-      : state
-  }
-
-  const positionLong = positionSzi > 0
-  if (positionLong === wantLong) return state
-  if (!settings.flipOnOppositeSignal) return state
-  return allowed
-    ? { ...state, pendingEntry: wantLong ? "long" : "short" }
-    : { ...state, exitRequested: true }
-}
 
 /**
  * The TP/SL price levels for the current position. The backtest runner pauses

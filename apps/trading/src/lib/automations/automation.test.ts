@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  STRATEGY_EDITOR_TYPE_IDS,
   STRATEGY_TYPE_IDS,
   strategyConfigSchema,
   strategyTypeOf,
@@ -13,6 +12,7 @@ import {
   automationDraftSchema,
   automationStrategyConfigSchema,
   compileAutomationGraph,
+  DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
   resolveAutomationActions,
   type AutomationEdge,
   type AutomationNode,
@@ -641,6 +641,53 @@ describe("Automation schemas", () => {
     expect(draft.success).toBe(true)
   })
 
+  it("round-trips backtest settings and defaults them on old drafts", () => {
+    const graph = {
+      nodes: [indicator("ema")],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+    const withSettings = automationDraftSchema.safeParse({
+      interval: "15m",
+      protection: {},
+      graph,
+      backtest: {
+        startingEquity: 25_000,
+        takerFeeBps: 10,
+        makerFeeBps: 2,
+        slippageBps: 3,
+      },
+    })
+    expect(withSettings.success).toBe(true)
+    expect(withSettings.data?.backtest.startingEquity).toBe(25_000)
+
+    // Drafts saved before backtest settings existed carry no key at all.
+    const oldDraft = automationDraftSchema.safeParse({
+      interval: "15m",
+      protection: {},
+      graph,
+    })
+    expect(oldDraft.success).toBe(true)
+    expect(oldDraft.data?.backtest).toEqual(
+      DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+    )
+
+    // Out-of-range fees are rejected, not silently clamped.
+    expect(
+      automationDraftSchema.safeParse({
+        interval: "15m",
+        protection: {},
+        graph,
+        backtest: {
+          startingEquity: 25_000,
+          takerFeeBps: 51,
+          makerFeeBps: 2,
+          slippageBps: 3,
+        },
+      }).success
+    ).toBe(false)
+  })
+
   it("accepts compiled output as a runnable strategy config", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
@@ -658,7 +705,6 @@ describe("Automation schemas", () => {
     expect(strategyConfigSchema.safeParse(compiled.config).success).toBe(true)
     expect(strategyTypeOf(compiled.config!)).toBe("automation")
     expect(STRATEGY_TYPE_IDS).toContain("automation")
-    expect(STRATEGY_EDITOR_TYPE_IDS).not.toContain("automation")
   })
 
   it("rejects oversized draft graphs at the API boundary", () => {

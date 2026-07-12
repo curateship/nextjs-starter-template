@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -20,10 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { AutomationProtection } from "@/lib/automations/automation"
+import type {
+  AutomationBacktestSettings,
+  AutomationProtection,
+} from "@/lib/automations/automation"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
-import { parseAutomationProtection } from "./automation-settings"
+import {
+  backtestSettingsToValues,
+  parseAutomationBacktestSettings,
+  parseAutomationProtection,
+  type AutomationBacktestValues,
+} from "./automation-settings"
+import {
+  AutomationBacktestCard,
+  AutomationProtectionCard,
+} from "./automation-settings-fields"
 
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
@@ -31,21 +42,28 @@ export function AutomationCanvasSettingsDialog({
   open,
   interval,
   protection,
+  backtest,
   onOpenChange,
   onApply,
 }: {
   open: boolean
   interval: StrategyInterval
   protection: AutomationProtection
+  backtest: AutomationBacktestSettings
   onOpenChange: (open: boolean) => void
   onApply: (settings: {
     interval: StrategyInterval
     protection: AutomationProtection
+    backtest: AutomationBacktestSettings
   }) => void
 }) {
   const [draftInterval, setDraftInterval] = React.useState(interval)
   const [takeProfit, setTakeProfit] = React.useState("")
   const [stopLoss, setStopLoss] = React.useState("")
+  const [backtestValues, setBacktestValues] =
+    React.useState<AutomationBacktestValues>(() =>
+      backtestSettingsToValues(backtest)
+    )
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -59,8 +77,9 @@ export function AutomationCanvasSettingsDialog({
     setStopLoss(
       protection.stopLossPct === undefined ? "" : String(protection.stopLossPct)
     )
+    setBacktestValues(backtestSettingsToValues(backtest))
     setError(null)
-  }, [interval, open, protection])
+  }, [backtest, interval, open, protection])
 
   const apply = () => {
     const parsed = parseAutomationProtection({
@@ -68,10 +87,13 @@ export function AutomationCanvasSettingsDialog({
       stopLossPct: stopLoss,
     })
     if (!parsed.protection) return setError(parsed.error)
+    const parsedBacktest = parseAutomationBacktestSettings(backtestValues)
+    if (!parsedBacktest.backtest) return setError(parsedBacktest.error)
 
     onApply({
       interval: draftInterval,
       protection: parsed.protection,
+      backtest: parsedBacktest.backtest,
     })
     onOpenChange(false)
   }
@@ -114,37 +136,20 @@ export function AutomationCanvasSettingsDialog({
             </CardContent>
           </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Protection</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="canvas-automation-take-profit">Take profit %</Label>
-                <Input
-                  id="canvas-automation-take-profit"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  placeholder="Off"
-                  value={takeProfit}
-                  onChange={(event) => setTakeProfit(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="canvas-automation-stop-loss">Stop loss %</Label>
-                <Input
-                  id="canvas-automation-stop-loss"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  placeholder="Off"
-                  value={stopLoss}
-                  onChange={(event) => setStopLoss(event.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <AutomationProtectionCard
+            idPrefix="canvas-automation"
+            values={{ takeProfitPct: takeProfit, stopLossPct: stopLoss }}
+            onChange={(next) => {
+              setTakeProfit(next.takeProfitPct)
+              setStopLoss(next.stopLossPct)
+            }}
+          />
+
+          <AutomationBacktestCard
+            idPrefix="canvas-automation"
+            values={backtestValues}
+            onChange={setBacktestValues}
+          />
 
           {error ? (
             <div

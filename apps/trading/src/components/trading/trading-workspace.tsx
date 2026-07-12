@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronDownIcon, SettingsIcon } from "lucide-react"
+import { SettingsIcon } from "lucide-react"
 import type { Layout } from "react-resizable-panels"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -36,17 +36,6 @@ import {
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
-import {
-  DEFAULT_CHART_STRATEGY,
-  type ChartStrategyState,
-} from "@/components/chart/chart-strategy"
-import { IndicatorSettingsDialog } from "@/components/chart/chart-strategy-settings"
-import { buildRunMarkers } from "@/components/backtest/backtest-overlays"
-import { outputToOverlays } from "@/components/chart/indicator-overlays"
-import type { QuickTestResponse } from "@/lib/api/quick-test"
-import type { FixedStrategyItem } from "@/lib/api/strategies"
-import type { SignalStrategyConfig } from "@/lib/strategies/strategy-config"
-import { INDICATORS } from "@/lib/indicators/registry"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -56,7 +45,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
@@ -121,7 +109,6 @@ export function TradingWorkspace({
   selectedValue,
   workerOnline,
   initialIndicators,
-  initialStrategies,
   onMarketChange,
   onWalletChange,
 }: {
@@ -134,8 +121,6 @@ export function TradingWorkspace({
   workerOnline?: boolean
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
-  /** The seven fixed strategies, including the user's saved pin choices. */
-  initialStrategies: FixedStrategyItem[]
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -395,73 +380,6 @@ export function TradingWorkspace({
     [indicators]
   )
   const [panels, setPanels] = usePersistedPanels()
-  const [chartStrategy, setChartStrategy] = usePersistedState<ChartStrategyState>(
-    "trading-chart-strategy",
-    DEFAULT_CHART_STRATEGY,
-    (raw) => ({
-      ...DEFAULT_CHART_STRATEGY,
-      ...(JSON.parse(raw) as Partial<ChartStrategyState>),
-    })
-  )
-  // Live copy of each strategy's saved config — the chart dialog edits this
-  // and writes it back to the SAME strategy_settings save the Strategies page
-  // uses, so the chart and the Strategies page can never show different
-  // values. Bots and backtests still snapshot at creation.
-  const [strategyConfigs, setStrategyConfigs] = React.useState(
-    () =>
-      new Map(
-        initialStrategies.map((strategy) => [strategy.type, strategy.config])
-      )
-  )
-  const pinnedStrategies = React.useMemo(
-    () =>
-      initialStrategies
-        .filter((strategy) => strategy.pinned)
-        .map((strategy) => ({
-          ...strategy,
-          config: strategyConfigs.get(strategy.type) ?? strategy.config,
-        })),
-    [initialStrategies, strategyConfigs]
-  )
-  const selectedStrategyType = chartStrategy.indicator?.type
-  if (
-    selectedStrategyType &&
-    !pinnedStrategies.some((strategy) => strategy.type === selectedStrategyType)
-  ) {
-    setChartStrategy({ ...chartStrategy, indicator: null })
-  }
-  const selectedStrategyConfig = selectedStrategyType
-    ? strategyConfigs.get(selectedStrategyType)
-    : undefined
-  const [strategySettingsOpen, setStrategySettingsOpen] = React.useState(false)
-  const [quickTest, setQuickTest] = React.useState<QuickTestResponse | null>(
-    null
-  )
-
-  const updateSelectedStrategyConfig = React.useCallback(
-    (next: SignalStrategyConfig) => {
-      if (!selectedStrategyType) return
-      setStrategyConfigs((current) =>
-        new Map(current).set(selectedStrategyType, next)
-      )
-    },
-    [selectedStrategyType]
-  )
-
-  // The last quick test's chips AND paint; stale the moment the context
-  // changes. While active, the chart shows the test's own computation —
-  // zones, arrows, and trade chips from one run, so they always correspond.
-  React.useEffect(() => {
-    setQuickTest(null)
-  }, [market, interval, chartStrategy.indicator])
-  const quickMarkers = React.useMemo(
-    () => (quickTest ? buildRunMarkers(quickTest.result) : []),
-    [quickTest]
-  )
-  const quickOverlays = React.useMemo(
-    () => (quickTest ? outputToOverlays(quickTest.output) : null),
-    [quickTest]
-  )
 
   const ticketDisabledReason = isPaper
     ? null
@@ -522,13 +440,6 @@ export function TradingWorkspace({
                     intervals={CANDLE_INTERVALS}
                     interval={interval}
                     onIntervalChange={setInterval}
-                    legend={{
-                      signals: Boolean(
-                        panels.signalLegend &&
-                          chartStrategy.indicator &&
-                          chartStrategy.showSignals
-                      ),
-                    }}
                     leading={
                       <span className="text-sm font-semibold">{market}</span>
                     }
@@ -538,26 +449,14 @@ export function TradingWorkspace({
                         onUpdate={updateIndicator}
                       />
                     }
-                  >
-                    <StrategyToolbar
-                      state={chartStrategy}
-                      strategies={pinnedStrategies}
-                      onChange={setChartStrategy}
-                      onOpenSettings={() => setStrategySettingsOpen(true)}
-                    />
-                  </ChartToolbar>
+                  />
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={network}
                       coin={market}
                       interval={interval}
                       priceLines={priceLines}
-                      markers={quickMarkers}
                       indicators={pinnedIndicators}
-                      chartStrategy={
-                        chartStrategy.indicator ? chartStrategy : null
-                      }
-                      overrideOverlays={quickOverlays}
                       onLineDragEnd={handleLineDragEnd}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
@@ -679,128 +578,7 @@ export function TradingWorkspace({
         onClose={() => setChartMenu(null)}
       />
 
-      <IndicatorSettingsDialog
-        open={strategySettingsOpen}
-        onOpenChange={setStrategySettingsOpen}
-        state={chartStrategy}
-        onChange={setChartStrategy}
-        config={selectedStrategyConfig}
-        onConfigChange={(next) => {
-          updateSelectedStrategyConfig(next)
-          // The chart paints from the same edited params, live.
-          setChartStrategy({ ...chartStrategy, indicator: next.indicator })
-        }}
-        pinned={
-          initialStrategies.find(
-            (strategy) => strategy.type === selectedStrategyType
-          )?.pinned ?? false
-        }
-        network={network}
-        market={market}
-        onQuickTestResult={setQuickTest}
-      />
     </div>
-  )
-}
-
-/**
- * Chart-toolbar strategy picker, styled like the Indicators menu: a checkbox
- * list (one strategy at a time — checking one replaces the other) with a cog
- * beside the checked strategy to open its settings dialog. The picked
- * strategy paints signals from the SAME compute the strategy engine trades
- * on. (Strategies are built from indicators, but the show/hide overlay list
- * is the separate "Indicators" menu by the timeframes.)
- */
-function StrategyToolbar({
-  state,
-  strategies,
-  onChange,
-  onOpenSettings,
-}: {
-  state: ChartStrategyState
-  strategies: FixedStrategyItem[]
-  onChange: (next: ChartStrategyState) => void
-  onOpenSettings: () => void
-}) {
-  const label = state.indicator
-    ? INDICATORS[state.indicator.type].label
-    : "Strategy"
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
-          {label}
-          <ChevronDownIcon className="size-3" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-60 gap-1 p-2">
-        <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50">
-          <Checkbox
-            id="strat-none"
-            checked={!state.indicator}
-            onCheckedChange={(checked) => {
-              if (checked === true) onChange({ ...state, indicator: null })
-            }}
-          />
-          <Label
-            htmlFor="strat-none"
-            className="flex-1 cursor-pointer text-xs font-medium"
-          >
-            None
-          </Label>
-        </div>
-        {strategies.length === 0 ? (
-          <div className="px-1 py-1 text-xs text-muted-foreground">
-            No pinned strategies — pin them on the{" "}
-            <a href="/strategies" className="underline underline-offset-2">
-              Strategies
-            </a>{" "}
-            page.
-          </div>
-        ) : null}
-        {strategies.map((strategy) => {
-          const selected = state.indicator?.type === strategy.type
-          return (
-            <div
-              key={strategy.type}
-              className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
-            >
-              <Checkbox
-                id={`strat-${strategy.type}`}
-                checked={selected}
-                onCheckedChange={(checked) =>
-                  onChange({
-                    ...state,
-                    indicator:
-                      checked === true
-                        ? strategy.config.indicator
-                        : null,
-                  })
-                }
-              />
-              <Label
-                htmlFor={`strat-${strategy.type}`}
-                className="flex-1 cursor-pointer text-xs font-medium"
-              >
-                {strategy.label}
-              </Label>
-              {selected ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-5 text-muted-foreground"
-                  aria-label={`${strategy.label} settings`}
-                  title="Strategy settings"
-                  onClick={onOpenSettings}
-                >
-                  <SettingsIcon className="size-3.5" />
-                </Button>
-              ) : null}
-            </div>
-          )
-        })}
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -901,21 +679,17 @@ function SandboxBottomTabs({
 type PanelVisibility = {
   orderBook: boolean
   marketDepth: boolean
-  /** The "▲▼ signal only — not a trade" legend in the chart toolbar. */
-  signalLegend: boolean
 }
 
 const PANELS_STORAGE_KEY = "trading-visible-panels"
 const DEFAULT_PANELS: PanelVisibility = {
   orderBook: true,
   marketDepth: true,
-  signalLegend: true,
 }
 
 const PANEL_OPTIONS: { key: keyof PanelVisibility; label: string }[] = [
   { key: "orderBook", label: "Order Book" },
   { key: "marketDepth", label: "Market Depth" },
-  { key: "signalLegend", label: "Signal legend" },
 ]
 
 /** Cog dropdown to show/hide dashboard panels. */

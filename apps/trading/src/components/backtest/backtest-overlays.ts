@@ -17,18 +17,12 @@ export type StrategyChartOverlays = {
   indicators: IndicatorConfig[]
   /** Generic line series (breakout channel). */
   overlayLines: ChartOverlayLine[]
-  /** Grid levels / TP / SL / DCA ladder. */
+  /** Horizontal levels (TP / SL). */
   priceLines: ChartPriceLine[]
   /** Filled rectangles (QQE consolidation zones). */
   zones: ChartZone[]
   /** Per-bar candle recoloring (QQE state). */
   barColors: ChartBarColor[]
-  /**
-   * Raw indicator signals (TradingView-style Buy/Sell labels), independent of
-   * position state — fills only mark actual trades, so e.g. repeat sell
-   * signals while already short would otherwise be invisible.
-   */
-  markers: ChartMarker[]
 }
 
 /** Price-pinned "O" (open) / "C" (close) chips for each round trip, plus any

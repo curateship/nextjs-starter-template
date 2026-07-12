@@ -9,9 +9,6 @@ import { cn } from "@/lib/utils"
 export type ChartLegendFlags = {
   /** Price-pinned O/C chips — real fills/trades. */
   chips?: boolean
-  /** Pink R chips / bars — trend re-entries (QQE). */
-  /** Plain arrows — strategy signals, NOT actual trades. */
-  signals?: boolean
 }
 
 /** A colored-line legend entry (e.g. a breakout channel or VWAP band). */
@@ -71,18 +68,6 @@ export function ChartToolbar({
       </span>
     )
   }
-  if (legend?.signals) {
-    legendItems.push(
-      <span key="signals" className="flex items-center gap-1">
-        <span className="text-[9px] leading-none">
-          <span style={{ color: "#089981" }}>▲</span>
-          <span style={{ color: "#f23645" }}>▼</span>
-        </span>
-        <span>signal only — not a trade</span>
-      </span>
-    )
-  }
-
   return (
     <div className="flex items-center gap-3 border-b px-3 py-1.5">
       {leading}

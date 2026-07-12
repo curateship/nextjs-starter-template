@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
-  DEFAULT_BACKTEST_COSTS,
   MAX_BACKTEST_BARS,
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
@@ -19,9 +18,7 @@ import {
 import {
   automationStrategyConfigSchema,
   normalizeStrategyConfig,
-  strategyConfigSchema,
   strategyTypeIdSchema,
-  strategyTypeOf,
   type StrategyConfig,
   type StrategyTypeId,
 } from "@/lib/strategies/strategy-config"
@@ -47,7 +44,7 @@ export type BacktestListItem = {
   id: string
   groupId: string
   name: string
-  /** The run's strategy identity: its indicator (registry id), or "dca". */
+  /** The run's strategy identity: its indicator (registry id) or "automation". */
   indicatorType: StrategyTypeId
   market: string
   network: string
@@ -124,21 +121,15 @@ export type BacktestCandlesResponse = {
   simStartMs: number
 }
 
-/** Default run-name prefix: the config's strategy type (indicator or "dca"). */
-function runLabelOf(params: StrategyConfig): string {
-  return strategyTypeOf(params)
-}
-
 const runBacktestSchema = z
   .object({
     name: z.string().max(255).optional(),
     /**
-     * Re-run into an existing run group: markets already in the group are
-     * replaced in place, new markets are added as new rows.
+     * The only run source. Everything else about the run — interval, compiled
+     * strategy, fees, starting capital — is read server-side from the saved
+     * Automation, so the client can't send a config that differs from it.
      */
-    groupId: z.string().min(1).optional(),
-    /** Automation source; its server-compiled config replaces client params. */
-    automationId: z.string().uuid().nullable().optional(),
+    automationId: z.string().uuid(),
     /** Main market — the workspace opens on this one's run. */
     market: z.string().min(1).max(20),
     /**
@@ -147,24 +138,9 @@ const runBacktestSchema = z
      * run group's total upstream cost.
      */
     extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
-    interval: z.enum(CANDLE_INTERVALS),
     windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
-    startingEquity: z.number().positive().max(100_000_000),
-    takerFeeBps: z.number().min(0).max(50).optional(),
-    makerFeeBps: z.number().min(0).max(50).optional(),
-    slippageBps: z.number().min(0).max(100).optional(),
-    /** The strategy's full config (signal or DCA). */
-    params: strategyConfigSchema,
   })
   .superRefine((data, ctx) => {
-    if (data.params.interval !== data.interval) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Backtest timeframe must match the strategy's signal interval.",
-        path: ["interval"],
-      })
-    }
     const markets = [data.market, ...(data.extraMarkets ?? [])]
     if (new Set(markets).size !== markets.length) {
       ctx.addIssue({
@@ -173,95 +149,51 @@ const runBacktestSchema = z
         path: ["extraMarkets"],
       })
     }
-    if (data.windowDays > maxWindowDays(data.interval)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `That window is too long for ${data.interval} candles — a run covers at most ${maxWindowDays(data.interval)} days at ${data.interval}. Shorten the window or use a coarser timeframe.`,
-        path: ["windowDays"],
-      })
-    }
-    const totalBars = markets.length * windowBars(data.interval, data.windowDays)
-    if (totalBars > MAX_TOTAL_RUN_BARS) {
-      ctx.addIssue({
-        code: "custom",
-        message: `This run would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`,
-        path: ["extraMarkets"],
-      })
-    }
   })
 
 const backtestIdSchema = z.object({ backtestId: z.string().min(1) })
 
-export type BacktestAutomationSourceInput = {
-  automationId?: string | null
-  groupId?: string
+export type ResolvedAutomationRun = {
+  automationId: string
+  automationName: string
   interval: BacktestInterval
   params: StrategyConfig
+  costs: BacktestCosts
+  startingEquity: number
 }
 
 /**
- * Resolves Automation params at the trusted server boundary. Fresh runs must
- * use an owned, currently valid Automation. An existing group may reuse its
- * immutable snapshot after the editable source has been deleted.
+ * Resolves everything a run needs from the saved Automation at the trusted
+ * server boundary: the compiled config plus the automation's own backtest
+ * settings (fees + starting capital).
  */
-export async function resolveBacktestAutomationSource<
-  T extends BacktestAutomationSourceInput,
->(
+export async function resolveAutomationRun(
   userId: string,
-  input: T
-): Promise<
-  Omit<T, "automationId" | "params"> & {
-    automationId: string | null
-    params: StrategyConfig
+  automationId: string
+): Promise<ResolvedAutomationRun> {
+  const { getUserAutomation, inspectAutomation } = await import(
+    "@/server/automations"
+  )
+  const source = await getUserAutomation(userId, automationId)
+  if (!source) throw new Error("Automation not found")
+  const compiled = automationStrategyConfigSchema.safeParse(
+    source.compiledConfig
+  )
+  if (!compiled.success) {
+    throw new Error("Fix this Automation before running a backtest.")
   }
-> {
-  if (input.automationId) {
-    const { getUserAutomation } = await import("@/server/automations")
-    const source = await getUserAutomation(userId, input.automationId)
-    if (!source) throw new Error("Automation not found")
-    const compiled = automationStrategyConfigSchema.safeParse(
-      source.compiledConfig
-    )
-    if (!compiled.success) {
-      throw new Error("Fix this Automation before running a backtest.")
-    }
-    assertAutomationInterval(input.interval, compiled.data.interval)
-    return {
-      ...input,
-      automationId: source.id,
-      params: compiled.data,
-    }
-  }
-
-  if (input.params.kind !== "automation") {
-    return {
-      ...input,
-      automationId: input.automationId ?? null,
-      params: input.params,
-    }
-  }
-  if (!input.groupId) {
-    throw new Error("Select an Automation before running a backtest.")
-  }
-
-  const { getUserBacktest } = await import("@/server/backtests")
-  const anchor = await getUserBacktest(userId, input.groupId)
-  const snapshot = automationStrategyConfigSchema.safeParse(anchor?.params)
-  if (!anchor || !snapshot.success) throw new Error("Run not found.")
-  assertAutomationInterval(input.interval, snapshot.data.interval)
+  const inspected = inspectAutomation(source)
   return {
-    ...input,
-    automationId: anchor.automationId,
-    params: snapshot.data,
-  }
-}
-
-function assertAutomationInterval(
-  requested: BacktestInterval,
-  configured: BacktestInterval
-) {
-  if (requested !== configured) {
-    throw new Error("Backtest timeframe must match the Automation timeframe.")
+    automationId: source.id,
+    automationName: source.name,
+    interval: compiled.data.interval,
+    params: compiled.data,
+    costs: {
+      takerFeeBps: inspected.backtest.takerFeeBps,
+      makerFeeBps: inspected.backtest.makerFeeBps,
+      slippageBps: inspected.backtest.slippageBps,
+    },
+    startingEquity: inspected.backtest.startingEquity,
   }
 }
 
@@ -269,166 +201,65 @@ const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const {
-      createUserBacktest,
-      resetUserBacktest,
-      listGroupRuns,
-      getUserBacktest,
-    } = await import("@/server/backtests")
+    const { createUserBacktest } = await import("@/server/backtests")
     const { kickBacktestQueue } = await import("@/server/backtest/queue")
     requireAppOrigin()
     const user = await requireUser()
-    const resolvedData = await resolveBacktestAutomationSource(user.id, data)
+    const run = await resolveAutomationRun(user.id, data.automationId)
+
+    // The window limits depend on the automation's interval, so they're
+    // checked here rather than in the schema.
+    const markets = [data.market, ...(data.extraMarkets ?? [])]
+    if (data.windowDays > maxWindowDays(run.interval)) {
+      throw new Error(
+        `That window is too long for ${run.interval} candles — a run covers at most ${maxWindowDays(run.interval)} days at ${run.interval}. Shorten the window or use a coarser timeframe.`
+      )
+    }
+    const totalBars = markets.length * windowBars(run.interval, data.windowDays)
+    if (totalBars > MAX_TOTAL_RUN_BARS) {
+      throw new Error(
+        `This run would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`
+      )
+    }
 
     // Enqueue markets as `pending` and return immediately; the background queue
     // downloads history and runs the engine one market at a time so a big basket
     // can't hold the request open or flood the candle source.
-    const result = await enqueueRun(user.id, resolvedData, {
-      createUserBacktest,
-      resetUserBacktest,
-      listGroupRuns,
-      getUserBacktest,
-    })
+    const result = await enqueueRun(user.id, data, run, { createUserBacktest })
     kickBacktestQueue()
     return result
   })
 
 type BacktestEnqueueServer = Pick<
   typeof import("@/server/backtests"),
-  | "createUserBacktest"
-  | "resetUserBacktest"
-  | "listGroupRuns"
-  | "getUserBacktest"
+  "createUserBacktest"
 >
 
-/** Canonical JSON (keys sorted at every depth) so config equality ignores key order. */
-function stableStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, val) =>
-    val && typeof val === "object" && !Array.isArray(val)
-      ? Object.fromEntries(
-          Object.entries(val as Record<string, unknown>).sort(([a], [b]) =>
-            a.localeCompare(b)
-          )
-        )
-      : val
-  )
-}
-
 /**
- * Queues a config across its market basket as `pending` rows (the background
- * queue fills in results). Fresh runs create one row per market sharing a new
- * groupId. Re-runs (`groupId` set) are incremental:
- *
- * - If the strategy/risk/fee/interval/equity config **or** the window changed,
- *   it's a full re-run — every market is requeued over a fresh window (a
- *   backtest's numbers depend on its whole history, so partial dates can't be
- *   reused).
- * - Otherwise only genuinely new markets are queued; markets already in the
- *   group keep their results and their existing window untouched.
- *
- * Returns the run id to open (the group's main row on a re-run).
+ * Queues the run across its market basket as `pending` rows (the background
+ * queue fills in results). One row per market, all sharing the first market's
+ * row id as groupId. Returns the run id to open.
  */
 async function enqueueRun(
   userId: string,
   data: z.infer<typeof runBacktestSchema>,
+  run: ResolvedAutomationRun,
   server: BacktestEnqueueServer
 ): Promise<{ backtestId: string }> {
-  const { createUserBacktest, resetUserBacktest, listGroupRuns, getUserBacktest } =
-    server
+  const { createUserBacktest } = server
 
   const markets = [data.market, ...(data.extraMarkets ?? [])]
-  const costs: BacktestCosts = {
-    takerFeeBps: data.takerFeeBps ?? DEFAULT_BACKTEST_COSTS.takerFeeBps,
-    makerFeeBps: data.makerFeeBps ?? DEFAULT_BACKTEST_COSTS.makerFeeBps,
-    slippageBps: data.slippageBps ?? DEFAULT_BACKTEST_COSTS.slippageBps,
-  }
-
-  // --- Re-run: decide full re-run vs. add-only ------------------------------
-  if (data.groupId) {
-    const siblings = await listGroupRuns(userId, data.groupId)
-    if (siblings.length === 0) throw new Error("Run not found.")
-    const existingMarkets = new Set(siblings.map((s) => s.market))
-    // The group's anchor row (id === groupId) holds the shared config.
-    const anchor = await getUserBacktest(userId, data.groupId)
-
-    const configChanged =
-      !anchor ||
-      stableStringify(data.params) !== stableStringify(anchor.params) ||
-      (data.automationId ?? null) !== anchor.automationId ||
-      stableStringify(costs) !== stableStringify(anchor.costs) ||
-      data.interval !== anchor.interval ||
-      data.startingEquity !== Number(anchor.startingEquity)
-    const anchorWindowDays = anchor
-      ? Math.round(
-          (anchor.endTime.getTime() - anchor.startTime.getTime()) / 86_400_000
-        )
-      : -1
-    const windowChanged = data.windowDays !== anchorWindowDays
-
-    if (configChanged || windowChanged) {
-      // Full re-run: requeue every submitted market over a fresh window.
-      const endTime = new Date()
-      const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
-      const name =
-        data.name?.trim() ||
-        `${runLabelOf(data.params)} · ${markets.join(", ")} · ${data.interval}`
-      for (const market of markets) {
-        const input = buildRunInput({
-          name,
-          groupId: data.groupId,
-          market,
-          data,
-          costs,
-          startTime,
-          endTime,
-        })
-        const existingId = siblings.find((s) => s.market === market)?.id
-        if (existingId) {
-          await resetUserBacktest(userId, existingId, input)
-        } else {
-          await createUserBacktest(userId, input)
-        }
-      }
-    } else {
-      // Nothing that affects results changed — only queue markets not already
-      // in the group, reusing the group's existing window and name so the
-      // basket stays consistent. Existing rows keep their results.
-      const newMarkets = markets.filter((m) => !existingMarkets.has(m))
-      for (const market of newMarkets) {
-        const input = buildRunInput({
-          name: anchor!.name,
-          groupId: data.groupId,
-          market,
-          data,
-          costs,
-          startTime: anchor!.startTime,
-          endTime: anchor!.endTime,
-        })
-        await createUserBacktest(userId, input)
-      }
-    }
-
-    return { backtestId: data.groupId }
-  }
-
-  // --- Fresh run: one new row per market, sharing the main market's id ------
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
   const name =
     data.name?.trim() ||
-    `${runLabelOf(data.params)} · ${markets.join(", ")} · ${data.interval}`
+    `${run.automationName} · ${markets.join(", ")} · ${run.interval}`
   let mainId: string | null = null
   for (const market of markets) {
-    const input = buildRunInput({
-      name,
-      groupId: mainId ?? undefined,
-      market,
-      data,
-      costs,
-      startTime,
-      endTime,
-    })
-    const backtest = await createUserBacktest(userId, input)
+    const backtest = await createUserBacktest(
+      userId,
+      buildRunInput({ name, groupId: mainId ?? undefined, market, run, startTime, endTime })
+    )
     mainId = mainId ?? backtest.id
   }
   return { backtestId: mainId as string }
@@ -439,24 +270,23 @@ function buildRunInput(args: {
   name: string
   groupId: string | undefined
   market: string
-  data: z.infer<typeof runBacktestSchema>
-  costs: BacktestCosts
+  run: ResolvedAutomationRun
   startTime: Date
   endTime: Date
 }): CreateBacktestInput {
-  const { name, groupId, market, data, costs, startTime, endTime } = args
+  const { name, groupId, market, run, startTime, endTime } = args
   return {
     name,
     groupId,
-    automationId: data.automationId,
+    automationId: run.automationId,
     market,
     network: "mainnet",
-    interval: data.interval,
-    params: data.params,
-    costs,
+    interval: run.interval,
+    params: run.params,
+    costs: run.costs,
     startTime,
     endTime,
-    startingEquity: data.startingEquity,
+    startingEquity: run.startingEquity,
   }
 }
 
@@ -532,7 +362,11 @@ const loadBacktestFn = createServerFn({ method: "POST" })
     const { getUserBacktest, listGroupRuns } = await import(
       "@/server/backtests"
     )
+    const { kickBacktestQueue } = await import("@/server/backtest/queue")
     const user = await requireUser()
+    // The progress modal polls this while runs are pending — kicking here
+    // (idempotent) revives a queue stalled by a server restart mid-run.
+    kickBacktestQueue()
     const row = await getUserBacktest(user.id, data.backtestId)
     if (!row) return { backtest: null, groupRuns: [] }
     const siblings = await listGroupRuns(user.id, row.groupId)

@@ -6,8 +6,6 @@ import {
 } from "@/components/automations/automation-route-content"
 import { getAutomation } from "@/lib/api/automations"
 import { loadIndicators } from "@/lib/api/indicators"
-import { loadStrategyLibrary } from "@/lib/api/strategies"
-import { loadTradingContext } from "@/lib/api/trading"
 import { emaCrossParamsFromChart } from "@/lib/indicators/defs/ema-cross"
 import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
 import { SIGNAL_FOR_CHART_TYPE } from "@/lib/indicators/registry"
@@ -16,26 +14,20 @@ export const Route = createFileRoute(
   "/_authenticated/automations/$automationId"
 )({
   loader: async ({ params }) => {
-    const [automation, trading, library, chartIndicators] = await Promise.all([
+    const [automation, chartIndicators] = await Promise.all([
       getAutomation(params.automationId),
-      loadTradingContext(),
-      loadStrategyLibrary(),
       loadIndicators(),
     ])
-    // Pins from either home count: the Strategies page pins signal modules
-    // directly; a pinned chart indicator offers its signal counterpart.
+    // A pinned chart indicator offers its signal counterpart in the palette.
     const pinnedIndicators = [
-      ...new Set([
-        ...library.strategies
-          .filter((strategy) => strategy.pinned)
-          .map((strategy) => strategy.type),
-        ...chartIndicators
+      ...new Set(
+        chartIndicators
           .filter((indicator) => indicator.pinned)
           .flatMap((indicator) => {
             const type = SIGNAL_FOR_CHART_TYPE[indicator.type]
             return type ? [type] : []
-          }),
-      ]),
+          })
+      ),
     ]
     // New indicator nodes start as an exact copy of the chart's settings.
     const chartPriceAction = chartIndicators.find(
@@ -52,7 +44,7 @@ export const Route = createFileRoute(
         ? { ema_cross: emaCrossParamsFromChart(chartEma.params) }
         : {}),
     }
-    return { automation, trading, pinnedIndicators, indicatorParamSeeds }
+    return { automation, pinnedIndicators, indicatorParamSeeds }
   },
   errorComponent: AutomationRouteError,
   component: AutomationRouteContent,

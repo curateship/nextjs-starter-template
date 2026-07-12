@@ -9,7 +9,6 @@ import {
   MoreHorizontalIcon,
   PanelLeftIcon,
   PanelRightIcon,
-  PlayIcon,
   PlusIcon,
   SettingsIcon,
 } from "lucide-react"
@@ -39,9 +38,8 @@ export function AutomationToolbar({
   onSave,
   onOpenPalette,
   onOpenInspector,
-  onQuickTest,
   onCreateBot,
-  onCreateBacktest,
+  onBacktest,
 }: {
   name: string
   zoom: number
@@ -58,9 +56,8 @@ export function AutomationToolbar({
   onSave: () => void
   onOpenPalette: () => void
   onOpenInspector: () => void
-  onQuickTest?: () => void
   onCreateBot?: () => void
-  onCreateBacktest?: () => void
+  onBacktest?: () => void
 }) {
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-2 sm:px-3">
@@ -151,10 +148,10 @@ export function AutomationToolbar({
         size="sm"
         className="hidden h-8 xl:inline-flex"
         disabled={!runnable}
-        onClick={onQuickTest}
+        onClick={onBacktest}
       >
-        <PlayIcon className="size-3.5" />
-        Quick Test
+        <FlaskConicalIcon className="size-3.5" />
+        Backtest
       </Button>
       <Button
         type="button"
@@ -167,18 +164,6 @@ export function AutomationToolbar({
         onClick={onCreateBot}
       >
         <BotIcon className="size-3.5" />
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        className="hidden xl:inline-flex"
-        disabled={!runnable}
-        aria-label="Create backtest"
-        title="Create Backtest"
-        onClick={onCreateBacktest}
-      >
-        <FlaskConicalIcon className="size-3.5" />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -193,17 +178,13 @@ export function AutomationToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem disabled={!runnable} onSelect={onQuickTest}>
-            <PlayIcon className="size-4" />
-            Quick Test
+          <DropdownMenuItem disabled={!runnable} onSelect={onBacktest}>
+            <FlaskConicalIcon className="size-4" />
+            Backtest
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!runnable} onSelect={onCreateBot}>
             <BotIcon className="size-4" />
             Create Bot
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!runnable} onSelect={onCreateBacktest}>
-            <FlaskConicalIcon className="size-4" />
-            Create Backtest
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

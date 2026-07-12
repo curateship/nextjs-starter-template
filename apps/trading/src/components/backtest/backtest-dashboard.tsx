@@ -52,7 +52,6 @@ import {
   type StrategyChartOverlays,
 } from "./backtest-overlays"
 import { BacktestSummary } from "./backtest-summary"
-import { NewRunDialog } from "./new-run-dialog"
 import { StrategyInputs } from "./strategy-inputs"
 import { StrategyTester } from "./strategy-tester"
 
@@ -63,7 +62,6 @@ const EMPTY_OVERLAYS: StrategyChartOverlays = {
   priceLines: [],
   zones: [],
   barColors: [],
-  markers: [],
 }
 const WINDOW_DEBOUNCE_MS = 500
 
@@ -148,7 +146,6 @@ export function BacktestDashboard({
   const [focusedTrade, setFocusedTrade] = React.useState<BacktestTrade | null>(
     null
   )
-  const [dialogOpen, setDialogOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [inputsOpen, setInputsOpen] = React.useState(true)
   const [summaryOpen, setSummaryOpen] = React.useState(true)
@@ -521,7 +518,6 @@ export function BacktestDashboard({
         runs={initialRuns}
         onSelectRun={selectRun}
         onViewAll={onViewAll}
-        onNewRun={() => setDialogOpen(true)}
         inputsOpen={inputsOpen}
         onToggleInputs={() => setInputsOpen((open) => !open)}
         summaryOpen={summaryOpen}
@@ -529,11 +525,8 @@ export function BacktestDashboard({
         onBack={() => {
           if (run) {
             void router.navigate({
-              to: "/backtest/$strategyType/$groupId",
-              params: {
-                strategyType: strategyTypeOf(run.params),
-                groupId: run.groupId,
-              },
+              to: "/backtest/$groupId",
+              params: { groupId: run.groupId },
             })
           } else {
             onViewAll()
@@ -571,7 +564,6 @@ export function BacktestDashboard({
                   runConfig ? strategyTypeLabel(strategyTypeOf(runConfig)) : null
                 }
                 rows={inputRows}
-                onNewRun={() => setDialogOpen(true)}
               />
             </ResizablePanel>
             ) : null}
@@ -587,13 +579,7 @@ export function BacktestDashboard({
                   }
                   interval={interval}
                   onIntervalChange={setTimeframe}
-                  legend={{
-                    chips: Boolean(result),
-                    signals:
-                      !result &&
-                      (runConfig?.kind === "signal" ||
-                        runConfig?.kind === "automation"),
-                  }}
+                  legend={{ chips: Boolean(result) }}
                   legendLines={labeledOverlayLines}
                   ohlc={readout}
                 />
@@ -654,13 +640,6 @@ export function BacktestDashboard({
         </ResizablePanel>
       </ResizablePanelGroup>
 
-      <NewRunDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        markets={markets}
-        defaultMarket={market}
-        onLaunched={(backtestId) => onRunIdChange(backtestId)}
-      />
     </div>
   )
 }

@@ -4,7 +4,6 @@ import {
   ChevronDownIcon,
   PanelLeftIcon,
   PanelRightIcon,
-  PlusIcon,
 } from "lucide-react"
 
 import type {
@@ -50,7 +49,6 @@ export function BacktestHeader({
   runs,
   onSelectRun,
   onViewAll,
-  onNewRun,
   inputsOpen,
   onToggleInputs,
   summaryOpen,
@@ -75,8 +73,6 @@ export function BacktestHeader({
   runs: BacktestListItem[]
   onSelectRun: (id: string) => void
   onViewAll: () => void
-  onNewRun: () => void
-  /** "run" = execute a draft across its markets; null once a run is loaded. */
   /** Left inputs rail visibility + toggle. */
   inputsOpen: boolean
   onToggleInputs: () => void
@@ -280,16 +276,6 @@ export function BacktestHeader({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 gap-1.5 text-xs"
-        onClick={onNewRun}
-      >
-        <PlusIcon className="size-3.5" />
-        New Run
-      </Button>
 
       <IconButton
         label={summaryOpen ? "Hide summary panel" : "Show summary panel"}

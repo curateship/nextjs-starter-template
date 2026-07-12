@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
 import { RunHistoryDashboard } from "@/components/backtest/strategies-dashboard"
 import {
@@ -6,18 +6,9 @@ import {
   loadGroupCurve,
   loadGroupMetrics,
 } from "@/lib/api/backtests"
-import {
-  strategyTypeIdSchema,
-  type StrategyTypeId,
-} from "@/lib/strategies/strategy-config"
 
-export const Route = createFileRoute(
-  "/_authenticated/backtest/$strategyType/$groupId"
-)({
+export const Route = createFileRoute("/_authenticated/backtest/$groupId")({
   loader: async ({ params }) => {
-    // The $strategyType param is an indicator id (e.g. "qqe") or "dca".
-    if (!strategyTypeIdSchema.safeParse(params.strategyType).success)
-      throw notFound()
     // One group's rows, its blended metrics, and its combined P&L curve,
     // fetched in parallel — this page must never pay for the full run catalog.
     const [data, groupMetrics, groupCurve] = await Promise.all([
@@ -32,11 +23,10 @@ export const Route = createFileRoute(
 
 function RunHistoryRoute() {
   const { runs, groupMetrics, groupCurve } = Route.useLoaderData()
-  const { strategyType, groupId } = Route.useParams()
+  const { groupId } = Route.useParams()
   return (
     <RunHistoryDashboard
       runs={runs}
-      strategyType={strategyType as StrategyTypeId}
       groupId={groupId}
       groupMetrics={groupMetrics}
       groupCurve={groupCurve}

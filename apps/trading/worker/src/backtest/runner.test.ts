@@ -8,18 +8,24 @@ import type { Strategy, StrategyCtx } from "../strategies/contract"
 import { runBacktest, type RunBacktestConfig } from "./runner"
 
 /** Minimal valid config — the toy strategy ignores it; the runner only reads
- * settings.takeProfitPct for its credibility check. */
+ * the kind's takeProfitPct bound for its credibility check. */
 const TOY_CONFIG: StrategyConfig = {
   v: 2,
-  kind: "signal",
+  kind: "automation",
   interval: "1h",
-  indicator: { type: "ema_cross", params: { fast: 2, slow: 4 } },
-  settings: {
-    direction: "both",
-    orderSizeUsd: 1_000,
-    compounding: false,
-    flipOnOppositeSignal: false,
-  },
+  protection: {},
+  rules: [
+    {
+      id: "buy",
+      action: "buy",
+      condition: {
+        kind: "trigger",
+        nodeId: "toy",
+        indicator: { type: "ema_cross", params: { fast: 2, slow: 4 } },
+        side: "buy",
+      },
+    },
+  ],
 }
 
 const STEP_MS = 3_600_000
@@ -43,7 +49,7 @@ function makeThresholdCfg(
     return out
   }
   const strategy: Strategy<StrategyConfig, ThresholdState> = {
-    type: "signal",
+    type: "toy",
     warmup: () => ({ candleIntervals: ["1h"] }),
     init: () => ({ boughtOnce: false, exitRequested: false }),
     onTick: (ctx) => {

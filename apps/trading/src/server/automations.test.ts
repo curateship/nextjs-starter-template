@@ -1,15 +1,17 @@
 import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import type {
-  AutomationGraph,
-  AutomationProtection,
+import {
+  DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
+  type AutomationGraph,
+  type AutomationProtection,
 } from "@/lib/automations/automation"
 import { DEFAULT_BACKTEST_COSTS } from "@/lib/backtest/types"
-import { resolveBacktestAutomationSource } from "@/lib/api/backtests"
+import { resolveAutomationRun } from "@/lib/api/backtests"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   createUserAutomation,
@@ -127,7 +129,26 @@ describe("Automation storage", () => {
     expect(row.compiledConfig).toBeNull()
     expect(inspected.graph).toEqual(EMPTY_GRAPH)
     expect(inspected.protection).toEqual({})
+    expect(inspected.backtest).toEqual(DEFAULT_AUTOMATION_BACKTEST_SETTINGS)
     expect(inspected.errors.map((error) => error.code)).toContain("empty")
+  })
+
+  it("defaults backtest settings on rows saved before they existed", async () => {
+    const userId = await createTestUser()
+    const created = await createUserAutomation(userId, {
+      name: "Old row",
+      interval: "15m",
+    })
+    // Simulate a pre-change row: stored draft without a `backtest` key.
+    await database
+      .update(schema.tradingAutomations)
+      .set({ graph: { ...EMPTY_GRAPH, protection: {} } })
+      .where(eq(schema.tradingAutomations.id, created.id))
+
+    const row = await getUserAutomation(userId, created.id)
+    expect(inspectAutomation(row!).backtest).toEqual(
+      DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+    )
   })
 
   it("compiles a valid draft and persists graph, viewport, and protection", async () => {
@@ -303,7 +324,7 @@ describe("Automation storage", () => {
     expect(snapshot?.params).toEqual(compiledConfig)
   })
 
-  it("resolves a fresh Automation backtest from the owner's compiled config", async () => {
+  it("resolves a run from the owner's compiled config and stored settings", async () => {
     const owner = await createTestUser()
     const stranger = await createTestUser()
     const created = await createUserAutomation(owner, {
@@ -315,77 +336,38 @@ describe("Automation storage", () => {
       interval: "15m",
       graph: VALID_GRAPH,
       protection: {},
+      backtest: {
+        startingEquity: 25_000,
+        takerFeeBps: 10,
+        makerFeeBps: 2,
+        slippageBps: 3,
+      },
     })
-    const forged = {
-      ...saved!.compiledConfig!,
-      rules: saved!.compiledConfig!.rules.map((rule) => ({
-        ...rule,
-        targetEquityPct: rule.action === "close" ? undefined : 99,
-      })),
-    }
 
-    const resolved = await resolveBacktestAutomationSource(owner, {
-      automationId: saved!.id,
-      interval: "15m",
-      params: forged,
-    })
+    const resolved = await resolveAutomationRun(owner, saved!.id)
     expect(resolved.params).toEqual(saved?.compiledConfig)
     expect(resolved.automationId).toBe(saved?.id)
+    expect(resolved.automationName).toBe("Owned source")
+    expect(resolved.interval).toBe("15m")
+    // Costs and capital come from the automation row, never the client.
+    expect(resolved.startingEquity).toBe(25_000)
+    expect(resolved.costs).toEqual({
+      takerFeeBps: 10,
+      makerFeeBps: 2,
+      slippageBps: 3,
+    })
 
-    await expect(
-      resolveBacktestAutomationSource(stranger, {
-        automationId: saved!.id,
-        interval: "15m",
-        params: forged,
-      })
-    ).rejects.toThrow("Automation not found")
+    await expect(resolveAutomationRun(stranger, saved!.id)).rejects.toThrow(
+      "Automation not found"
+    )
 
     const invalid = await createUserAutomation(owner, {
       name: "Incomplete source",
       interval: "15m",
     })
-    await expect(
-      resolveBacktestAutomationSource(owner, {
-        automationId: invalid.id,
-        interval: "15m",
-        params: forged,
-      })
-    ).rejects.toThrow("Fix this Automation")
-  })
-
-  it("resolves a deleted Automation rerun from its owned group snapshot", async () => {
-    const userId = await createTestUser()
-    const created = await createUserAutomation(userId, {
-      name: "Disposable source",
-      interval: "15m",
-    })
-    const saved = await saveUserAutomation(userId, created.id, {
-      name: created.name,
-      interval: "15m",
-      graph: VALID_GRAPH,
-      protection: {},
-    })
-    const backtest = await createUserBacktest(userId, {
-      name: "Saved group",
-      automationId: saved!.id,
-      market: "BTC",
-      network: "mainnet",
-      interval: "15m",
-      params: saved!.compiledConfig!,
-      costs: DEFAULT_BACKTEST_COSTS,
-      startTime: new Date("2026-01-01T00:00:00Z"),
-      endTime: new Date("2026-01-02T00:00:00Z"),
-      startingEquity: 10_000,
-    })
-    await deleteUserAutomation(userId, saved!.id)
-
-    const resolved = await resolveBacktestAutomationSource(userId, {
-      groupId: backtest.groupId,
-      interval: "15m",
-      params: saved!.compiledConfig!,
-    })
-    expect(resolved.params).toEqual(saved?.compiledConfig)
-    expect(resolved.automationId).toBeNull()
+    await expect(resolveAutomationRun(owner, invalid.id)).rejects.toThrow(
+      "Fix this Automation"
+    )
   })
 })
 

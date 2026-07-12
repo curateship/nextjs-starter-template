@@ -28,10 +28,6 @@ export type CreateBotInput = {
   markets: string[]
   exchange: string
   mode: "paper" | "live"
-  /** Required for Signal bots; ignored when automationId is present. */
-  params?: StrategyConfig
-  /** Saved strategy the config was snapshotted from. */
-  strategyId?: string
   /** Saved Automation whose server-compiled config is snapshotted. */
   automationId?: string
   paperStartingEquity?: number
@@ -46,9 +42,9 @@ export type BotCommandName =
   | "update_params"
 
 const MANUAL_PREFIX = "ffffffff"
-const RUNNABLE_BOT_TYPES = new Set(["signal", "automation"])
+const RUNNABLE_BOT_TYPES = new Set(["automation"])
 
-function isRunnableBotType(type: string): type is "signal" | "automation" {
+function isRunnableBotType(type: string): type is "automation" {
   return RUNNABLE_BOT_TYPES.has(type)
 }
 
@@ -152,10 +148,6 @@ export async function getBotDetail(
     sourceName =
       (await getUserAutomation(userId, bot.automationId, database))?.name ??
       null
-  } else if (bot.strategyId) {
-    const { getUserStrategy } = await import("@/server/strategies")
-    sourceName =
-      (await getUserStrategy(userId, bot.strategyId, database))?.name ?? null
   }
 
   return {
@@ -202,30 +194,19 @@ export async function updateUserBot(
     )
   }
   const requestedParams = strategyConfigSchema.parse(input.params)
-  if (!isRunnableBotType(requestedParams.kind)) {
-    throw new Error(
-      "DCA strategies can't run as bots yet — backtest them for now."
-    )
-  }
   if (requestedParams.kind !== bot.strategyType) {
-    throw new Error("A bot's Strategy or Automation source cannot be changed.")
+    throw new Error("A bot's Automation source cannot be changed.")
   }
 
-  let params: StrategyConfig = requestedParams
-  if (bot.strategyType === "automation") {
-    const stored = strategyConfigSchema.safeParse(bot.params)
-    if (!stored.success || stored.data.kind !== "automation") {
-      throw new Error("This Automation bot has an invalid saved configuration.")
-    }
-    if (requestedParams.kind !== "automation") {
-      throw new Error("Automation bot settings are invalid.")
-    }
-    // The graph snapshot is immutable on a bot. Only its protective levels are
-    // editable here; replacement rules must come from a newly created bot.
-    params = {
-      ...stored.data,
-      protection: requestedParams.protection,
-    }
+  const stored = strategyConfigSchema.safeParse(bot.params)
+  if (!stored.success) {
+    throw new Error("This Automation bot has an invalid saved configuration.")
+  }
+  // The graph snapshot is immutable on a bot. Only its protective levels are
+  // editable here; replacement rules must come from a newly created bot.
+  const params: StrategyConfig = {
+    ...stored.data,
+    protection: requestedParams.protection,
   }
 
   const markets = [
@@ -309,56 +290,30 @@ export async function createUserBot(
     throw new Error("Wallet is disabled")
   }
 
-  let params: StrategyConfig
-  let strategyId: string | null = null
-  let automationId: string | null = null
-
-  if (input.automationId) {
-    if (input.strategyId) {
-      throw new Error("Pick either a Strategy or an Automation, not both.")
-    }
-    const { getUserAutomation } = await import("@/server/automations")
-    const owned = await getUserAutomation(userId, input.automationId, database)
-    if (!owned) throw new Error("Automation not found")
-
-    const compiled = strategyConfigSchema.safeParse(owned.compiledConfig)
-    if (!compiled.success || compiled.data.kind !== "automation") {
-      throw new Error(
-        "Automation is incomplete. Save a valid canvas before creating a bot."
-      )
-    }
-    // Never trust a client copy of an Automation graph. The saved, server-
-    // compiled config is the only configuration allowed to reach execution.
-    params = compiled.data
-    automationId = owned.id
-  } else {
-    if (!input.params) throw new Error("Strategy configuration is required")
-    const parsed = strategyConfigSchema.parse(input.params)
-    if (parsed.kind === "automation") {
-      throw new Error("Choose a saved Automation before creating this bot.")
-    }
-    if (parsed.kind !== "signal") {
-      throw new Error(
-        "DCA strategies can't run as bots yet — backtest them for now."
-      )
-    }
-    params = parsed
-
-    // strategy_id is display-only provenance, but it must still point at one of
-    // the creator's own strategies — never someone else's row.
-    if (input.strategyId) {
-      const { getUserStrategy } = await import("@/server/strategies")
-      const owned = await getUserStrategy(userId, input.strategyId, database)
-      strategyId = owned ? owned.id : null
-    }
+  if (!input.automationId) {
+    throw new Error("Choose a saved Automation before creating this bot.")
   }
+  const { getUserAutomation } = await import("@/server/automations")
+  const owned = await getUserAutomation(userId, input.automationId, database)
+  if (!owned) throw new Error("Automation not found")
+
+  const compiled = strategyConfigSchema.safeParse(owned.compiledConfig)
+  if (!compiled.success) {
+    throw new Error(
+      "Automation is incomplete. Save a valid canvas before creating a bot."
+    )
+  }
+  // Never trust a client copy of an Automation graph. The saved, server-
+  // compiled config is the only configuration allowed to reach execution.
+  const params: StrategyConfig = compiled.data
+  const automationId = owned.id
 
   // Dedupe while preserving order; a bot needs at least one market.
   const markets = [
     ...new Set(input.markets.map((m) => m.trim()).filter(Boolean)),
   ]
   if (markets.length === 0) throw new Error("Pick at least one market")
-  if (params.kind === "automation" && markets.length !== 1) {
+  if (markets.length !== 1) {
     throw new Error("Automation bots can trade exactly one market.")
   }
 
@@ -379,7 +334,6 @@ export async function createUserBot(
           userId,
           name: name.slice(0, 255),
           strategyType: params.kind,
-          strategyId,
           automationId,
           walletId: wallet.id,
           markets,

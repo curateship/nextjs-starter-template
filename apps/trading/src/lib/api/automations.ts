@@ -2,8 +2,11 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  automationBacktestSettingsSchema,
   automationGraphSchema,
   automationDraftProtectionSchema,
+  DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
+  type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationProtection,
   type AutomationStrategyConfig,
@@ -27,6 +30,7 @@ export type AutomationDetail = {
   interval: StrategyInterval
   graph: AutomationGraph
   protection: AutomationProtection
+  backtest: AutomationBacktestSettings
   compiledConfig: AutomationStrategyConfig | null
   errors: AutomationValidationError[]
   created_at: string
@@ -36,12 +40,22 @@ export type AutomationDetail = {
 const intervalSchema = z.enum(["1m", "5m", "15m", "1h", "4h", "1d"])
 const nameSchema = z.string().trim().min(1).max(80)
 const automationIdSchema = z.object({ automationId: z.string().uuid() })
-const createSchema = z.object({ name: nameSchema, interval: intervalSchema })
+const createSchema = z.object({
+  name: nameSchema,
+  interval: intervalSchema,
+  protection: automationDraftProtectionSchema.default({}),
+  backtest: automationBacktestSettingsSchema.default(
+    DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+  ),
+})
 const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   interval: intervalSchema,
   graph: automationGraphSchema,
   protection: automationDraftProtectionSchema,
+  backtest: automationBacktestSettingsSchema.default(
+    DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+  ),
 })
 
 const SAFE_ERROR_MESSAGES = new Set([
@@ -191,6 +205,7 @@ async function serializeDetail(
     interval: row.interval,
     graph: inspected.graph,
     protection: inspected.protection,
+    backtest: inspected.backtest,
     compiledConfig: inspected.compiledConfig,
     errors: inspected.errors,
     created_at: row.createdAt.toISOString(),

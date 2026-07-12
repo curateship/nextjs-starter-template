@@ -26,9 +26,29 @@ import {
   getAutomationErrorMessage,
   type AutomationDetail,
 } from "@/lib/api/automations"
+import { DEFAULT_AUTOMATION_BACKTEST_SETTINGS } from "@/lib/automations/automation"
 import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
 
+import {
+  backtestSettingsToValues,
+  parseAutomationBacktestSettings,
+  parseAutomationProtection,
+  type AutomationBacktestValues,
+  type AutomationProtectionValues,
+} from "./automation-settings"
+import {
+  AutomationBacktestCard,
+  AutomationProtectionCard,
+} from "./automation-settings-fields"
+
 const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
+const EMPTY_PROTECTION: AutomationProtectionValues = {
+  takeProfitPct: "",
+  stopLossPct: "",
+}
+const DEFAULT_BACKTEST_VALUES = backtestSettingsToValues(
+  DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+)
 
 export function CreateAutomationDialog({
   open,
@@ -41,12 +61,19 @@ export function CreateAutomationDialog({
 }) {
   const [name, setName] = React.useState("")
   const [interval, setInterval] = React.useState<StrategyInterval>("15m")
+  const [protection, setProtection] =
+    React.useState<AutomationProtectionValues>(EMPTY_PROTECTION)
+  const [backtest, setBacktest] = React.useState<AutomationBacktestValues>(
+    DEFAULT_BACKTEST_VALUES
+  )
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   const reset = () => {
     setName("")
     setInterval("15m")
+    setProtection(EMPTY_PROTECTION)
+    setBacktest(DEFAULT_BACKTEST_VALUES)
     setError(null)
   }
 
@@ -61,12 +88,24 @@ export function CreateAutomationDialog({
       setError("Give this automation a name.")
       return
     }
+    const parsedProtection = parseAutomationProtection(protection)
+    if (!parsedProtection.protection) {
+      setError(parsedProtection.error)
+      return
+    }
+    const parsedBacktest = parseAutomationBacktestSettings(backtest)
+    if (!parsedBacktest.backtest) {
+      setError(parsedBacktest.error)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
       const automation = await createAutomation({
         name: trimmedName,
         interval,
+        protection: parsedProtection.protection,
+        backtest: parsedBacktest.backtest,
       })
       changeOpen(false)
       onCreated(automation)
@@ -136,6 +175,18 @@ export function CreateAutomationDialog({
               </div>
             </CardContent>
           </Card>
+          <AutomationProtectionCard
+            idPrefix="create-automation"
+            values={protection}
+            disabled={busy}
+            onChange={setProtection}
+          />
+          <AutomationBacktestCard
+            idPrefix="create-automation"
+            values={backtest}
+            disabled={busy}
+            onChange={setBacktest}
+          />
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}

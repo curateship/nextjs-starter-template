@@ -379,17 +379,9 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/automations",
           icon: "workflow",
           visible: true,
-        },
-        {
-          type: "item",
-          id: "item-strategies",
-          label: "Strategies",
-          href: "/strategies",
-          icon: "layers",
-          visible: true,
           children: [
             {
-              id: "item-strategies-backtest",
+              id: "item-automations-backtest",
               label: "Backtest",
               href: "/backtest",
               icon: "flask-conical",

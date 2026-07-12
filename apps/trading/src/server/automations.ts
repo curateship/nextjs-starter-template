@@ -2,11 +2,14 @@ import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
+  automationBacktestSettingsSchema,
   automationDraftSchema,
   automationDraftProtectionSchema,
   automationGraphSchema,
   automationStrategyConfigSchema,
   compileAutomationGraph,
+  DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
+  type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationProtection,
   type AutomationStrategyConfig,
@@ -24,6 +27,11 @@ import { now, uuid } from "@/server/util"
 const nameSchema = z.string().trim().min(1).max(80)
 const storedDraftSchema = automationGraphSchema.extend({
   protection: automationDraftProtectionSchema,
+  // Rows saved before backtest settings existed have no key (default);
+  // anything unreadable falls back to defaults instead of bricking the row.
+  backtest: automationBacktestSettingsSchema
+    .catch(DEFAULT_AUTOMATION_BACKTEST_SETTINGS)
+    .default(DEFAULT_AUTOMATION_BACKTEST_SETTINGS),
 })
 
 const EMPTY_GRAPH: AutomationGraph = {
@@ -35,6 +43,7 @@ const EMPTY_GRAPH: AutomationGraph = {
 export type InspectedAutomation = {
   graph: AutomationGraph
   protection: AutomationProtection
+  backtest: AutomationBacktestSettings
   compiledConfig: AutomationStrategyConfig | null
   errors: AutomationValidationError[]
 }
@@ -44,7 +53,7 @@ export function inspectAutomation(row: TradingAutomation): InspectedAutomation {
   if (!parsedDraft.success) {
     throw new Error("Automation draft could not be read")
   }
-  const { protection, ...graph } = parsedDraft.data
+  const { protection, backtest, ...graph } = parsedDraft.data
   const compiled = compileAutomationGraph({
     interval: row.interval,
     graph,
@@ -56,6 +65,7 @@ export function inspectAutomation(row: TradingAutomation): InspectedAutomation {
   return {
     graph,
     protection,
+    backtest,
     compiledConfig: storedConfig.success ? storedConfig.data : null,
     errors: compiled.errors,
   }
@@ -92,7 +102,12 @@ export async function getUserAutomation(
 
 export async function createUserAutomation(
   userId: string,
-  input: { name: string; interval: StrategyInterval },
+  input: {
+    name: string
+    interval: StrategyInterval
+    protection?: AutomationProtection
+    backtest?: AutomationBacktestSettings
+  },
   database: CustomShellDb = db
 ): Promise<TradingAutomation> {
   const createdAt = now()
@@ -104,7 +119,11 @@ export async function createUserAutomation(
         userId,
         name: nameSchema.parse(input.name),
         interval: input.interval,
-        graph: storedDraft(EMPTY_GRAPH, {}),
+        graph: storedDraft(
+          EMPTY_GRAPH,
+          input.protection ?? {},
+          input.backtest ?? DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+        ),
         compiledConfig: null,
         createdAt,
         updatedAt: createdAt,
@@ -125,6 +144,7 @@ export async function saveUserAutomation(
     interval: StrategyInterval
     graph: AutomationGraph
     protection: AutomationProtection
+    backtest?: AutomationBacktestSettings
   },
   database: CustomShellDb = db
 ): Promise<TradingAutomation | null> {
@@ -133,6 +153,7 @@ export async function saveUserAutomation(
     interval: input.interval,
     graph: input.graph,
     protection: input.protection,
+    backtest: input.backtest,
   })
   const compiled = compileAutomationGraph(draft)
   const compiledConfig = compiled.config
@@ -145,7 +166,7 @@ export async function saveUserAutomation(
       .set({
         name,
         interval: draft.interval,
-        graph: storedDraft(draft.graph, draft.protection),
+        graph: storedDraft(draft.graph, draft.protection, draft.backtest),
         compiledConfig,
         updatedAt: now(),
       })
@@ -215,9 +236,10 @@ export async function deleteUserAutomation(
 
 function storedDraft(
   graph: AutomationGraph,
-  protection: AutomationProtection
+  protection: AutomationProtection,
+  backtest: AutomationBacktestSettings
 ): TradingAutomationDraft {
-  return { ...graph, protection }
+  return { ...graph, protection, backtest }
 }
 
 function copyName(sourceName: string, copyNumber: number): string {
