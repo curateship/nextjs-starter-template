@@ -106,7 +106,8 @@ export function evaluateAutomation(
   }
 
   // Trend filters latch: a filter counts as bullish/bearish from its most
-  // recent signal (same candle included) until the opposite signal.
+  // recent signal (same candle included) until the opposite signal — subject
+  // to any Look Back cap, which the resolver checks against the latch age.
   const filterCursors = [...new Set(filters.map((filter) => filter.nodeId))]
     .map((nodeId) => ({
       nodeId,
@@ -115,19 +116,30 @@ export function evaluateAutomation(
       ),
       index: 0,
     }))
-  const filterState = new Map<string, "buy" | "sell">()
+  const latched = new Map<string, { side: "buy" | "sell"; barIndex: number }>()
 
   const actions: AutomationActionEvent[] = []
   const warnings: { time: number; message: string }[] = []
-  for (const candle of candles) {
+  for (let i = 0; i < candles.length; i++) {
+    const candle = candles[i]
     for (const cursor of filterCursors) {
       while (
         cursor.index < cursor.signals.length &&
         cursor.signals[cursor.index].time <= candle.t
       ) {
-        filterState.set(cursor.nodeId, cursor.signals[cursor.index].side)
+        latched.set(cursor.nodeId, {
+          side: cursor.signals[cursor.index].side,
+          barIndex: i,
+        })
         cursor.index++
       }
+    }
+    const filterState = new Map<
+      string,
+      { side: "buy" | "sell"; age: number }
+    >()
+    for (const [nodeId, latch] of latched) {
+      filterState.set(nodeId, { side: latch.side, age: i - latch.barIndex })
     }
     const resolved = resolveAutomationActions(
       config.rules,

@@ -232,12 +232,203 @@ describe("compileAutomationGraph", () => {
     const fired = new Set(["rsi:buy"])
 
     expect(
-      resolveAutomationActions(rules, fired, new Map([["ema", "buy"]])).action
+      resolveAutomationActions(
+        rules,
+        fired,
+        new Map([["ema", { side: "buy" as const, age: 3 }]])
+      ).action
     ).toEqual({ action: "buy", targetEquityPct: 30 })
     expect(
-      resolveAutomationActions(rules, fired, new Map([["ema", "sell"]])).action
+      resolveAutomationActions(
+        rules,
+        fired,
+        new Map([["ema", { side: "sell" as const, age: 0 }]])
+      ).action
     ).toBeNull()
     expect(resolveAutomationActions(rules, fired).action).toBeNull()
+  })
+
+  it("compiles Look Back nodes into a filter age cap and enforces it", () => {
+    const lookback: AutomationNode = {
+      id: "lb",
+      kind: "lookback",
+      bars: 48,
+      x: 0,
+      y: 0,
+    }
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("ema"),
+          lookback,
+          indicator("rsi", "rsi_levels"),
+          action("buy", "buy", 30),
+        ],
+        edges: [
+          edge("e1", "ema", "trend", "lb"),
+          edge("e2", "lb", "trend", "rsi"),
+          edge("e3", "rsi", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    const condition = result.config?.rules[0].condition
+    expect(condition?.kind === "trigger" ? condition.filters : []).toEqual([
+      {
+        nodeId: "ema",
+        indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
+        maxAgeBars: 48,
+      },
+    ])
+
+    const rules = result.config?.rules ?? []
+    const fired = new Set(["rsi:buy"])
+    expect(
+      resolveAutomationActions(
+        rules,
+        fired,
+        new Map([["ema", { side: "buy" as const, age: 47 }]])
+      ).action
+    ).toEqual({ action: "buy", targetEquityPct: 30 })
+    // Age 48 with a 48-bar cap is stale: the signal candle counts as bar 1.
+    expect(
+      resolveAutomationActions(
+        rules,
+        fired,
+        new Map([["ema", { side: "buy" as const, age: 48 }]])
+      ).action
+    ).toBeNull()
+  })
+
+  it("keeps the strictest cap when a filter reaches the trigger twice", () => {
+    // Diamond: ema wires to the trigger directly AND through a Look Back.
+    // The capped path must win — a capped AND an uncapped path means capped.
+    const lookback: AutomationNode = {
+      id: "lb",
+      kind: "lookback",
+      bars: 10,
+      x: 0,
+      y: 0,
+    }
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("ema"),
+          lookback,
+          indicator("rsi", "rsi_levels"),
+          action("buy", "buy", 30),
+        ],
+        edges: [
+          edge("e1", "ema", "trend", "rsi"),
+          edge("e2", "ema", "trend", "lb"),
+          edge("e3", "lb", "trend", "rsi"),
+          edge("e4", "rsi", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    const condition = result.config?.rules[0].condition
+    const filters = condition?.kind === "trigger" ? condition.filters : []
+    expect(filters).toHaveLength(1)
+    expect(filters?.[0]).toMatchObject({ nodeId: "ema", maxAgeBars: 10 })
+  })
+
+  it("rejects a Look Back too large for its indicator's warm-up window", () => {
+    // ema_cross 20/50 needs 150 warm-up candles; 1300 + 150 + 5 > 1400.
+    const lookback: AutomationNode = {
+      id: "lb",
+      kind: "lookback",
+      bars: 1300,
+      x: 0,
+      y: 0,
+    }
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          indicator("ema"),
+          lookback,
+          indicator("rsi", "rsi_levels"),
+          action("buy", "buy", 30),
+        ],
+        edges: [
+          edge("e1", "ema", "trend", "lb"),
+          edge("e2", "lb", "trend", "rsi"),
+          edge("e3", "rsi", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_lookback"
+    )
+  })
+
+  it("rejects a Look Back without input and bad bars values", () => {
+    const lookback: AutomationNode = {
+      id: "lb",
+      kind: "lookback",
+      bars: 0.5,
+      x: 0,
+      y: 0,
+    }
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [
+          lookback,
+          indicator("rsi", "rsi_levels"),
+          action("buy", "buy", 10),
+        ],
+        edges: [
+          edge("e1", "lb", "trend", "rsi"),
+          edge("e2", "rsi", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toEqual(
+      expect.arrayContaining(["invalid_lookback", "lookback_input"])
+    )
+  })
+
+  it("refuses wiring a Look Back into an action", () => {
+    const lookback: AutomationNode = {
+      id: "lb",
+      kind: "lookback",
+      bars: 10,
+      x: 0,
+      y: 0,
+    }
+    const result = compileAutomationGraph({
+      interval: "15m",
+      protection: {},
+      graph: {
+        nodes: [indicator("ema"), lookback, action("buy", "buy", 10)],
+        edges: [
+          edge("e1", "ema", "trend", "lb"),
+          edge("e2", "lb", "trend", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain("invalid_edge")
   })
 
   it("still resolves legacy AND/OR condition snapshots", () => {
@@ -747,6 +938,79 @@ describe("evaluateAutomation", () => {
       expect(evaluated.actions).toEqual([
         { time: 1, action: "buy", targetEquityPct: 10 },
         { time: 3, action: "buy", targetEquityPct: 10 },
+      ])
+    } finally {
+      compute.mockRestore()
+    }
+  })
+
+  it("expires a Look Back-capped filter after maxAgeBars candles", () => {
+    const emptyPaint = {
+      indicators: [],
+      lines: [],
+      zones: [],
+      barColors: [],
+    }
+    const compute = vi
+      .spyOn(INDICATORS.breakout, "compute")
+      .mockImplementation((_candles, params) =>
+        (params as { lookback: number }).lookback === 4
+          ? {
+              paint: emptyPaint,
+              signals: [{ time: 1, side: "buy" }],
+            }
+          : {
+              paint: emptyPaint,
+              signals: [
+                { time: 1, side: "buy" },
+                { time: 3, side: "buy" },
+              ],
+            }
+      )
+    const config = {
+      v: 2 as const,
+      kind: "automation" as const,
+      interval: "15m" as const,
+      protection: {},
+      rules: [
+        {
+          id: "buy",
+          action: "buy" as const,
+          targetEquityPct: 10,
+          condition: {
+            kind: "trigger" as const,
+            nodeId: "trigger",
+            indicator: { type: "breakout" as const, params: { lookback: 3 } },
+            side: "buy" as const,
+            filters: [
+              {
+                nodeId: "filter",
+                indicator: {
+                  type: "breakout" as const,
+                  params: { lookback: 4 },
+                },
+                maxAgeBars: 2,
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const candles = Array.from({ length: 5 }, (_, t) => ({
+      t,
+      o: 10,
+      h: 11,
+      l: 9,
+      c: 10,
+      v: 1,
+    }))
+
+    try {
+      const evaluated = evaluateAutomation(candles, config)
+      // Filter latches at t1. Cap 2: fresh at t1 (age 0) and t2 (age 1),
+      // stale from t3 — so the t3 trigger is blocked.
+      expect(evaluated.actions).toEqual([
+        { time: 1, action: "buy", targetEquityPct: 10 },
       ])
     } finally {
       compute.mockRestore()

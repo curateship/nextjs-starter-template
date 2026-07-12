@@ -1,5 +1,6 @@
 import type { ResolvedAutomationAction } from "@/lib/automations/automation"
 import type { AutomationStrategyConfig } from "@/lib/automations/automation"
+import { AUTOMATION_MAX_WINDOW_BARS } from "@/lib/automations/automation"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { evaluateAutomation } from "@/lib/automations/evaluate"
 import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
@@ -11,7 +12,6 @@ import type {
 } from "../strategies/contract"
 import { exitLevels, tickExit } from "./trade-manager"
 
-const MAX_WINDOW = 1400
 
 export type AutomationState = {
   pendingAction: ResolvedAutomationAction | null
@@ -84,7 +84,7 @@ export function automationTargetOrders(input: {
 export function createAutomationStrategy(
   config: AutomationStrategyConfig
 ): Strategy<never, AutomationState> {
-  const window = Math.min(automationWarmupBars(config), MAX_WINDOW)
+  const window = Math.min(automationWarmupBars(config), AUTOMATION_MAX_WINDOW_BARS)
   const initialState = (): AutomationState => ({
     pendingAction: null,
     exitRequested: false,
