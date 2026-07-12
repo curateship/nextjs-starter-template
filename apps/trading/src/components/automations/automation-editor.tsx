@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet"
 import {
   compileAutomationGraph,
+  type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationNode,
   type AutomationProtection,
@@ -50,9 +51,8 @@ export function AutomationEditor({
   initial,
   pinnedIndicators,
   indicatorParamSeeds,
-  onQuickTest,
   onCreateBot,
-  onCreateBacktest,
+  onBacktest,
 }: {
   initial: AutomationDetail
   pinnedIndicators: IndicatorId[]
@@ -61,9 +61,8 @@ export function AutomationEditor({
   indicatorParamSeeds?: Partial<
     Record<IndicatorId, Record<string, IndicatorParamValue>>
   >
-  onQuickTest?: () => void
   onCreateBot?: () => void
-  onCreateBacktest?: () => void
+  onBacktest?: () => void
 }) {
   const [name, setName] = React.useState(initial.name)
   const [interval, setInterval] = React.useState<StrategyInterval>(
@@ -71,6 +70,9 @@ export function AutomationEditor({
   )
   const [graph, setGraph] = React.useState(initial.graph)
   const [protection, setProtection] = React.useState(initial.protection)
+  const [backtestSettings, setBacktestSettings] = React.useState(
+    initial.backtest
+  )
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null
   )
@@ -112,18 +114,26 @@ export function AutomationEditor({
       nextName: string,
       nextInterval: StrategyInterval,
       nextGraph: AutomationGraph,
-      nextProtection: AutomationProtection
+      nextProtection: AutomationProtection,
+      nextBacktest: AutomationBacktestSettings
     ) =>
       JSON.stringify({
         name: nextName,
         interval: nextInterval,
         graph: nextGraph,
         protection: nextProtection,
+        backtest: nextBacktest,
       }),
     []
   )
   const [lastSaved, setLastSaved] = React.useState(() =>
-    serialize(initial.name, initial.interval, initial.graph, initial.protection)
+    serialize(
+      initial.name,
+      initial.interval,
+      initial.graph,
+      initial.protection,
+      initial.backtest
+    )
   )
 
   React.useEffect(() => {
@@ -138,7 +148,13 @@ export function AutomationEditor({
     () => compileAutomationGraph({ interval, graph, protection }),
     [graph, interval, protection]
   )
-  const currentSerialized = serialize(name, interval, graph, protection)
+  const currentSerialized = serialize(
+    name,
+    interval,
+    graph,
+    protection,
+    backtestSettings
+  )
   const dirty = currentSerialized !== lastSaved
   const selectedNode = selectedNodeId
     ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
@@ -272,7 +288,13 @@ export function AutomationEditor({
     if (saving) return
     setSaving(true)
     setSaveError(null)
-    const payload = { name, interval, graph, protection }
+    const payload = {
+      name,
+      interval,
+      graph,
+      protection,
+      backtest: backtestSettings,
+    }
     try {
       const saved = await saveAutomation({
         automationId: initial.id,
@@ -282,8 +304,15 @@ export function AutomationEditor({
       setInterval(saved.interval)
       setGraph(saved.graph)
       setProtection(saved.protection)
+      setBacktestSettings(saved.backtest)
       setLastSaved(
-        serialize(saved.name, saved.interval, saved.graph, saved.protection)
+        serialize(
+          saved.name,
+          saved.interval,
+          saved.graph,
+          saved.protection,
+          saved.backtest
+        )
       )
       record(
         saved.compiledConfig
@@ -300,6 +329,7 @@ export function AutomationEditor({
       setSaving(false)
     }
   }, [
+    backtestSettings,
     graph,
     initial.id,
     interval,
@@ -391,16 +421,8 @@ export function AutomationEditor({
         onSave={() => void handleSave()}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
-        onQuickTest={
-          onQuickTest
-            ? () => {
-                record("Opened Quick Test.")
-                onQuickTest()
-              }
-            : undefined
-        }
         onCreateBot={onCreateBot}
-        onCreateBacktest={onCreateBacktest}
+        onBacktest={onBacktest}
       />
       {saveError ? (
         <div
@@ -463,10 +485,12 @@ export function AutomationEditor({
         open={settingsOpen}
         interval={interval}
         protection={protection}
+        backtest={backtestSettings}
         onOpenChange={setSettingsOpen}
         onApply={(settings) => {
           setInterval(settings.interval)
           setProtection(settings.protection)
+          setBacktestSettings(settings.backtest)
         }}
       />
 

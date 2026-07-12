@@ -94,39 +94,16 @@ const createBotSchema = z
     markets: z.array(z.string().min(1).max(20)).min(1),
     exchange: z.string().min(1).max(20).default("hyperliquid"),
     mode: z.enum(["paper", "live"]),
-    /** Signal config. Automation configs are loaded by id on the server. */
-    params: strategyConfigSchema.optional(),
-    strategyId: z.string().uuid().optional(),
-    automationId: z.string().uuid().optional(),
+    /** The bot's config is the Automation's server-compiled snapshot. */
+    automationId: z.string().uuid(),
     paperStartingEquity: z.number().positive().max(100_000_000).optional(),
   })
   .superRefine((input, ctx) => {
-    if (input.automationId && input.strategyId) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["automationId"],
-        message: "Pick either a Strategy or an Automation, not both.",
-      })
-    }
-    if (input.automationId && input.markets.length !== 1) {
+    if (input.markets.length !== 1) {
       ctx.addIssue({
         code: "custom",
         path: ["markets"],
         message: "Automation bots can trade exactly one market.",
-      })
-    }
-    if (!input.automationId && !input.params) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["params"],
-        message: "Strategy configuration is required.",
-      })
-    }
-    if (!input.automationId && input.params?.kind === "automation") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["automationId"],
-        message: "Choose a saved Automation before creating this bot.",
       })
     }
   })

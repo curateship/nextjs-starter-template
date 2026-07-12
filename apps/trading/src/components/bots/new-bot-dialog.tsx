@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MainnetConfirmField } from "@/components/trading/connect-wallet-flow"
 import {
   getAutomation,
@@ -33,23 +32,18 @@ import {
 } from "@/lib/api/automations"
 import { createBot, getBotErrorMessage } from "@/lib/api/bots"
 import {
-  loadStrategyLibrary,
-  type StrategyTemplateListItem,
-} from "@/lib/api/strategies"
-import {
   loadTradingContext,
   type TradingContextResponse,
 } from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { strategySummary } from "@/lib/strategies/strategy-config"
-import { StrategyTemplatePicker } from "@/components/strategies/strategy-picker"
 
 /** Exchanges the bot can trade on. Only Hyperliquid exists today. */
 const EXCHANGES: { id: string; label: string }[] = [
   { id: "hyperliquid", label: "Hyperliquid" },
 ]
 
-/** Guided bot creation from a saved template or valid Automation snapshot. */
+/** Guided bot creation from a valid saved Automation snapshot. */
 type NewBotDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -77,20 +71,13 @@ function NewBotDialogForm({
   const [context, setContext] = React.useState<TradingContextResponse | null>(
     null
   )
-  const [strategies, setStrategies] = React.useState<
-    StrategyTemplateListItem[] | null
-  >(null)
   const [automations, setAutomations] = React.useState<
     AutomationListItem[] | null
   >(null)
-  const [source, setSource] = React.useState<"strategy" | "automation">(
-    initialAutomationId ? "automation" : "strategy"
-  )
 
   const [name, setName] = React.useState("")
   const [walletId, setWalletId] = React.useState("")
   const [mode, setMode] = React.useState<"paper" | "live">("paper")
-  const [strategyId, setStrategyId] = React.useState<string | null>(null)
   const [automationId, setAutomationId] = React.useState<string | null>(
     initialAutomationId ?? null
   )
@@ -110,14 +97,12 @@ function NewBotDialogForm({
     let cancelled = false
     void (async () => {
       try {
-        const [ctx, saved, savedAutomations] = await Promise.all([
+        const [ctx, savedAutomations] = await Promise.all([
           loadTradingContext(),
-          loadStrategyLibrary(),
           listAutomations(),
         ])
         if (cancelled) return
         setContext(ctx)
-        setStrategies(saved.strategies.flatMap((row) => row.templates))
         setAutomations(savedAutomations.automations)
         const selectable = ctx.wallets.filter(
           (wallet) => wallet.status === "active"
@@ -141,21 +126,12 @@ function NewBotDialogForm({
   const network = context?.network ?? "testnet"
   const marketRows = useMarketRows(network)
 
-  // Bots only run signal strategies — DCA is backtest-only for now. Hidden
-  // templates are counted so the picker can say why they're missing.
-  const botStrategies = React.useMemo(
-    () => strategies?.filter((row) => row.config.kind === "signal") ?? null,
-    [strategies]
-  )
-  const hiddenCount = (strategies?.length ?? 0) - (botStrategies?.length ?? 0)
   const validAutomations = React.useMemo(
     () => automations?.filter((row) => row.isValid) ?? null,
     [automations]
   )
   const selectedAutomationId =
-    source === "automation"
-      ? (automationId ?? validAutomations?.[0]?.id ?? null)
-      : null
+    automationId ?? validAutomations?.[0]?.id ?? null
 
   React.useEffect(() => {
     if (!open || !selectedAutomationId) return
@@ -185,11 +161,7 @@ function NewBotDialogForm({
     selectedAutomationId !== null &&
     automationRequest?.id !== selectedAutomationId
 
-  const strategy = botStrategies?.find((row) => row.id === strategyId) ?? null
-  const config =
-    source === "automation"
-      ? (automation?.compiledConfig ?? null)
-      : (strategy?.config ?? null)
+  const config = automation?.compiledConfig ?? null
   const sourceChosen = config != null
   const showMarkets = sourceChosen && exchange !== ""
 
@@ -201,18 +173,12 @@ function NewBotDialogForm({
     setError(null)
     if (!name.trim()) return setError("Give the bot a name.")
     if (!walletId) return setError("Select a wallet.")
-    if (source === "strategy" && !strategy) return setError("Pick a template.")
-    if (
-      source === "automation" &&
-      (!selectedAutomationId || !automation?.compiledConfig)
-    ) {
+    if (!selectedAutomationId || !automation?.compiledConfig) {
       return setError("Pick a valid Automation.")
     }
     if (!exchange) return setError("Select an exchange.")
-    if (selectedMarkets.length === 0)
-      return setError("Pick at least one market.")
-    if (source === "automation" && selectedMarkets.length !== 1) {
-      return setError("Automation bots can trade exactly one market.")
+    if (selectedMarkets.length !== 1) {
+      return setError("Pick exactly one market.")
     }
     const equity = Number(paperEquity)
     if (mode === "paper" && !(equity > 0)) {
@@ -227,12 +193,7 @@ function NewBotDialogForm({
         markets: selectedMarkets,
         exchange,
         mode,
-        params: source === "strategy" ? strategy?.config : undefined,
-        strategyId: source === "strategy" ? strategy?.id : undefined,
-        automationId:
-          source === "automation"
-            ? (selectedAutomationId ?? undefined)
-            : undefined,
+        automationId: selectedAutomationId,
         paperStartingEquity: mode === "paper" ? equity : undefined,
       })
       onOpenChange(false)
@@ -260,8 +221,8 @@ function NewBotDialogForm({
         <DialogHeader>
           <DialogTitle>New Bot</DialogTitle>
           <DialogDescription>
-            Pick a saved template or Automation, then choose where it trades.
-            The bot keeps its own copy of that setup.
+            Pick a saved Automation, then choose where it trades. The bot keeps
+            its own copy of that setup.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -275,7 +236,7 @@ function NewBotDialogForm({
                 <Input
                   id="bot-name"
                   value={name}
-                  placeholder="QQE 15m basket"
+                  placeholder="Trend confirmation 15m"
                   autoFocus
                   onChange={(event) => setName(event.target.value)}
                 />
@@ -345,46 +306,10 @@ function NewBotDialogForm({
 
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Source</CardTitle>
+              <CardTitle>Automation</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Tabs
-                value={source}
-                onValueChange={(value) => {
-                  const next = value as "strategy" | "automation"
-                  setSource(next)
-                  if (next === "automation") {
-                    setSelectedMarkets((current) => current.slice(0, 1))
-                  }
-                  setError(null)
-                }}
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="strategy">Template</TabsTrigger>
-                  <TabsTrigger value="automation">Automation</TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              {source === "strategy" ? (
-                <>
-                  <StrategyTemplatePicker
-                    hideLabel
-                    templates={botStrategies}
-                    selectedId={strategyId}
-                    onSelect={(id) => {
-                      setStrategyId(id)
-                      setError(null)
-                    }}
-                  />
-                  {hiddenCount > 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      {hiddenCount} DCA{" "}
-                      {hiddenCount === 1 ? "strategy is" : "strategies are"}{" "}
-                      hidden — DCA is handled by the simple Strategies system.
-                    </p>
-                  ) : null}
-                </>
-              ) : validAutomations === null ? (
+              {validAutomations === null ? (
                 <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                   Loading Automations…
                 </div>
@@ -436,9 +361,7 @@ function NewBotDialogForm({
           {sourceChosen ? (
             <Card size="sm">
               <CardHeader>
-                <CardTitle>
-                  {source === "automation" ? "Market" : "Markets"}
-                </CardTitle>
+                <CardTitle>Market</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-2">
@@ -459,14 +382,7 @@ function NewBotDialogForm({
 
                 {showMarkets ? (
                   <div className="grid gap-2">
-                    <Label>
-                      {source === "automation" ? "Market" : "Markets"}{" "}
-                      {selectedMarkets.length > 0 ? (
-                        <span className="font-normal text-muted-foreground">
-                          ({selectedMarkets.length} selected)
-                        </span>
-                      ) : null}
-                    </Label>
+                    <Label>Market</Label>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {selectedMarkets.map((coin) => (
                         <Badge
@@ -489,28 +405,13 @@ function NewBotDialogForm({
                         </Badge>
                       ))}
                       {availableMarkets.length > 0 &&
-                      (source === "strategy" ||
-                        selectedMarkets.length === 0) ? (
+                      selectedMarkets.length === 0 ? (
                         <Select
                           value=""
-                          onValueChange={(coin) =>
-                            setSelectedMarkets((current) =>
-                              source === "automation"
-                                ? [coin]
-                                : current.includes(coin)
-                                  ? current
-                                  : [...current, coin]
-                            )
-                          }
+                          onValueChange={(coin) => setSelectedMarkets([coin])}
                         >
                           <SelectTrigger className="h-8 w-36">
-                            <SelectValue
-                              placeholder={
-                                source === "automation"
-                                  ? "Select market"
-                                  : "Add market"
-                              }
-                            />
+                            <SelectValue placeholder="Select market" />
                           </SelectTrigger>
                           <SelectContent>
                             {availableMarkets.map((row) => (
@@ -527,10 +428,7 @@ function NewBotDialogForm({
 
                 {showMarkets && mode === "paper" ? (
                   <div className="grid gap-2">
-                    <Label htmlFor="bot-equity">
-                      Paper equity
-                      {source === "strategy" ? " per market" : ""} (USD)
-                    </Label>
+                    <Label htmlFor="bot-equity">Paper equity (USD)</Label>
                     <Input
                       id="bot-equity"
                       inputMode="decimal"

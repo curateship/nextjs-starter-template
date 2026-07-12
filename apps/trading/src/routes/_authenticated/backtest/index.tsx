@@ -2,8 +2,8 @@ import { ClientOnly, createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 
 import { BacktestDashboard } from "@/components/backtest/backtest-dashboard"
-import { StrategiesOverview } from "@/components/backtest/strategies-dashboard"
-import { loadBacktests } from "@/lib/api/backtests"
+import { RunGroupsDashboard } from "@/components/backtest/strategies-dashboard"
+import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
 
 const backtestSearchSchema = z.object({
   run: z.string().optional(),
@@ -11,22 +11,29 @@ const backtestSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/backtest/")({
   validateSearch: backtestSearchSchema,
-  loader: () => loadBacktests(),
+  loader: async () => {
+    const data = await loadBacktests()
+    // Blended per-group metrics for the run list (the API caps one metrics
+    // request at 100 groups; beyond that the DD/Bucket cells just stay empty).
+    const groupIds = [...new Set(data.runs.map((run) => run.groupId))]
+    const groupMetrics = await loadGroupMetrics(groupIds.slice(0, 100))
+    return { ...data, groupMetrics }
+  },
   component: BacktestRoute,
 })
 
 /**
- * The Backtest dashboard: without a run it lists the strategies (drill-down
- * into runs and re-run history); with `?run=` it opens the chart workspace
- * for that run.
+ * The Backtest dashboard: without a run it lists the run groups directly
+ * (every run comes from an Automation, so there is no strategy-type level);
+ * with `?run=` it opens the chart workspace for that run.
  */
 function BacktestRoute() {
-  const { runs } = Route.useLoaderData()
+  const { runs, groupMetrics } = Route.useLoaderData()
   const { run } = Route.useSearch()
   const navigate = Route.useNavigate()
 
   if (!run) {
-    return <StrategiesOverview runs={runs} />
+    return <RunGroupsDashboard runs={runs} groupMetrics={groupMetrics} />
   }
 
   return (

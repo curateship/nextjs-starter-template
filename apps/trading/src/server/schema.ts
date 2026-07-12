@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type {
+  AutomationBacktestSettings,
   AutomationGraph,
   AutomationProtection,
   AutomationStrategyConfig,
@@ -294,50 +295,10 @@ export const tradingWalletNonces = pgTable(
   ]
 )
 
-/**
- * Saved, named strategies (the new model): one indicator + the universal
- * settings block, as a `StrategyConfig` jsonb. Bots snapshot the config at
- * creation; this row is the editable source new bots copy from.
- */
-export const tradingStrategies = pgTable(
-  "strategies",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 80 }).notNull(),
-    config: jsonb("config").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    unique("strategies_user_id_name_unique").on(table.userId, table.name),
-    index("ix_strategies_user_id").on(table.userId),
-  ]
-)
-
-/** Per-user defaults for each fixed indicator strategy. */
-export const tradingStrategySettings = pgTable(
-  "strategy_settings",
-  {
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    strategyType: varchar("strategy_type", { length: 40 }).notNull(),
-    config: jsonb("config").notNull(),
-    pinned: boolean("pinned").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.strategyType] }),
-    index("ix_strategy_settings_user_id").on(table.userId),
-  ]
-)
-
 export type TradingAutomationDraft = AutomationGraph & {
   protection: AutomationProtection
+  /** Absent on rows saved before per-automation backtest settings existed. */
+  backtest?: AutomationBacktestSettings
 }
 
 /**
@@ -444,11 +405,6 @@ export const tradingBots = pgTable(
     statusReason: text("status_reason"),
     params: jsonb("params").notNull(),
     riskParams: jsonb("risk_params").notNull().default({}),
-    /** Saved strategy this bot's config was snapshotted from (display only). */
-    strategyId: varchar("strategy_id", { length: 36 }).references(
-      () => tradingStrategies.id,
-      { onDelete: "set null" }
-    ),
     /** Automation this bot snapshotted; params remain runnable if it is deleted. */
     automationId: varchar("automation_id", { length: 36 }).references(
       () => tradingAutomations.id,
@@ -462,7 +418,7 @@ export const tradingBots = pgTable(
   (table) => [
     check(
       "bots_strategy_type_check",
-      sql`${table.strategyType} in ('signal', 'automation')`
+      sql`${table.strategyType} in ('automation')`
     ),
     check("bots_mode_check", sql`${table.mode} in ('paper', 'live')`),
     check(
@@ -1073,9 +1029,6 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
-export type TradingStrategy = typeof tradingStrategies.$inferSelect
-export type TradingStrategySettings =
-  typeof tradingStrategySettings.$inferSelect
 export type TradingAutomation = typeof tradingAutomations.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect

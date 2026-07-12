@@ -11,14 +11,11 @@ import {
 import {
   ChevronDownIcon,
   HistoryIcon,
-  LayersIcon,
   ListFilterIcon,
   ListIcon,
   Loader2Icon,
   PinIcon,
   PinOffIcon,
-  PlusIcon,
-  SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -63,9 +60,7 @@ import {
 } from "@/components/ui/table"
 import {
   deleteBacktests,
-  loadBacktest,
   updateRunStatus,
-  type BacktestDetail,
   type BacktestListItem,
 } from "@/lib/api/backtests"
 import type {
@@ -73,13 +68,6 @@ import type {
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
-import {
-  STRATEGY_TYPE_IDS,
-  strategyTypeDescription,
-  strategyTypeLabel,
-  type StrategyTypeId,
-} from "@/lib/strategies/strategy-config"
 import { cn } from "@/lib/utils"
 
 import {
@@ -90,7 +78,6 @@ import {
   usd,
   windowDaysOf,
 } from "./backtest-format"
-import { NewRunDialog } from "./new-run-dialog"
 import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
@@ -361,32 +348,6 @@ function DeleteSelectedButton({
   )
 }
 
-/** Toolbar "New Run" button + the creation modal; opens the run's workspace. */
-function NewRunButton({ strategyType }: { strategyType?: StrategyTypeId }) {
-  const navigate = useNavigate()
-  const markets = useBinanceMarketRows()
-  const [open, setOpen] = React.useState(false)
-
-  return (
-    <>
-      <DashboardToolbarButton type="button" onClick={() => setOpen(true)}>
-        <PlusIcon className="size-4" />
-        New Run
-      </DashboardToolbarButton>
-      <NewRunDialog
-        open={open}
-        onOpenChange={setOpen}
-        markets={markets}
-        defaultMarket="BTC"
-        strategyType={strategyType}
-        onLaunched={(backtestId) =>
-          void navigate({ to: "/backtest", search: { run: backtestId } })
-        }
-      />
-    </>
-  )
-}
-
 function sortHead<Column extends string>(
   label: string,
   column: Column,
@@ -406,213 +367,8 @@ function sortHead<Column extends string>(
 }
 
 // ---------------------------------------------------------------------------
-// Level 1 — /strategies: one row per indicator that has runs.
-// ---------------------------------------------------------------------------
-
-type StrategyRow = {
-  type: StrategyTypeId
-  label: string
-  groups: number
-  executions: number
-  bestNetPct: number | null
-  lastRunAt: number | null
-}
-
-type StrategySort = "strategy" | "groups" | "executions" | "best" | "last"
-
-export function StrategiesOverview({
-  runs,
-}: {
-  runs: BacktestListItem[]
-}) {
-  const navigate = useNavigate()
-  const state = useTableState<StrategySort>("last")
-  const selection = useSelection()
-  const [pendingDelete, setPendingDelete] = React.useState<StrategyRow | null>(
-    null
-  )
-
-  // One row per strategy type (indicator or DCA) that has runs.
-  const rows = React.useMemo<StrategyRow[]>(() => {
-    return STRATEGY_TYPE_IDS.flatMap((type) => {
-      const own = runs.filter((run) => run.indicatorType === type)
-      if (own.length === 0) return []
-      const done = own.filter(
-        (run) => run.status === "done" && run.netPnlPct !== null
-      )
-      return [
-        {
-          type,
-          label: strategyTypeLabel(type),
-          groups: new Set(own.map((run) => run.groupId)).size,
-          executions: own.length,
-          bestNetPct: done.length
-            ? Math.max(...done.map((run) => run.netPnlPct as number))
-            : null,
-          lastRunAt: own.length ? Date.parse(own[0].createdAt) : null,
-        },
-      ]
-    })
-  }, [runs])
-
-  const sorted = React.useMemo(() => {
-    const direction = state.sortDirection === "asc" ? 1 : -1
-    return [...rows].sort((a, b) => {
-      if (state.sortColumn === "strategy")
-        return a.label.localeCompare(b.label) * direction
-      if (state.sortColumn === "groups") return (a.groups - b.groups) * direction
-      if (state.sortColumn === "executions")
-        return (a.executions - b.executions) * direction
-      if (state.sortColumn === "best")
-        return ((a.bestNetPct ?? -Infinity) - (b.bestNetPct ?? -Infinity)) * direction
-      return ((a.lastRunAt ?? 0) - (b.lastRunAt ?? 0)) * direction
-    })
-  }, [rows, state.sortColumn, state.sortDirection])
-
-  const visibleIds = sorted.map((row) => row.type as string)
-
-  return (
-    <div className="w-full pb-8">
-      <DashboardTable
-        title="Strategies"
-        icon={<LayersIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={rows.length}
-        selectedCount={selection.selected.size}
-        onClearSelection={selection.clear}
-        controls={
-          <>
-            {selection.selected.size ? (
-              <DeleteSelectedButton
-                count={selection.selected.size}
-                description={`This permanently deletes every run and its re-run history for ${selection.selected.size} ${selection.selected.size === 1 ? "strategy" : "strategies"}. The strategies themselves stay available for new runs.`}
-                onDelete={async () => {
-                  await deleteBacktests({
-                    indicatorTypes: [...selection.selected] as StrategyTypeId[],
-                  })
-                }}
-                onDone={selection.clear}
-              />
-            ) : null}
-            <NewRunButton />
-          </>
-        }
-        header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.headerState(visibleIds)}
-                  onCheckedChange={(checked) =>
-                    selection.toggleVisible(visibleIds, checked === true)
-                  }
-                  aria-label="Select all strategies"
-                />
-              </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={state.sortColumn === "strategy"}
-                  direction={state.sortDirection}
-                  onClick={() => state.toggleSort("strategy")}
-                >
-                  Strategy
-                </TableSortButton>
-              </TableHead>
-              {sortHead("Runs", "groups", state)}
-              {sortHead("Executions", "executions", state)}
-              {sortHead("Best Net %", "best", state)}
-              {sortHead("Last run", "last", state)}
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-        }
-        isEmpty={sorted.length === 0}
-        emptyText="No runs yet — create one with New Run."
-        emptyColSpan={7}
-        footer={{ type: "summary", count: sorted.length, label: "strategies" }}
-      >
-        {sorted.map((row) => (
-          <TableRow
-            key={row.type}
-            className="cursor-pointer"
-            onClick={() =>
-              void navigate({
-                to: "/backtest/$strategyType",
-                params: { strategyType: row.type },
-              })
-            }
-          >
-            <TableCell column="select" onClick={(event) => event.stopPropagation()}>
-              <Checkbox
-                checked={selection.selected.has(row.type)}
-                onCheckedChange={() => selection.toggle(row.type)}
-                aria-label={`Select ${row.label}`}
-              />
-            </TableCell>
-            <TableCell column="main">
-              <div className="font-medium">{row.label}</div>
-              <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                {strategyTypeDescription(row.type)}
-              </div>
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {row.groups}
-            </TableCell>
-            <TableCell column="meta" className="font-mono tabular-nums">
-              {row.executions}
-            </TableCell>
-            <TableCell
-              column="meta"
-              className={cn(
-                "font-mono tabular-nums",
-                row.bestNetPct !== null ? toneClass(row.bestNetPct) : undefined
-              )}
-            >
-              {row.bestNetPct !== null ? pct(row.bestNetPct) : "—"}
-            </TableCell>
-            <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
-              {row.lastRunAt ? dateTimeFormatter.format(row.lastRunAt) : "—"}
-            </TableCell>
-            <TableCell column="meta" onClick={(event) => event.stopPropagation()}>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={`Delete ${row.label} runs`}
-                  onClick={() => setPendingDelete(row)}
-                >
-                  <Trash2Icon className="size-4 text-muted-foreground hover:text-destructive" />
-                </Button>
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </DashboardTable>
-
-      <ConfirmDeleteDialog
-        open={pendingDelete !== null}
-        onOpenChange={(next) => {
-          if (!next) setPendingDelete(null)
-        }}
-        description={
-          pendingDelete
-            ? `This permanently deletes all ${pendingDelete.executions} execution${pendingDelete.executions === 1 ? "" : "s"} across ${pendingDelete.groups} run${pendingDelete.groups === 1 ? "" : "s"} of ${pendingDelete.label}. The strategy stays available for new runs.`
-            : ""
-        }
-        onDelete={async () => {
-          if (pendingDelete) {
-            await deleteBacktests({ indicatorTypes: [pendingDelete.type] })
-          }
-        }}
-      />
-    </div>
-  )
-}
-
-
-// ---------------------------------------------------------------------------
-// Level 2 — /strategies/$strategyType: one row per named run (group).
+// /backtest — one row per named run (group). Every run is an Automation run,
+// so the old per-strategy-type level above this was removed.
 // ---------------------------------------------------------------------------
 
 type GroupRow = {
@@ -702,29 +458,17 @@ function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
   }
 }
 
-export function StrategyRunsDashboard({
+export function RunGroupsDashboard({
   runs,
-  strategyType,
-  pagination,
-  onPaginationChange,
   groupMetrics,
 }: {
   runs: BacktestListItem[]
-  strategyType: StrategyTypeId
-  pagination?: {
-    page: number
-    pageSize: number
-    total: number
-    totalPages: number
-  }
-  onPaginationChange?: (patch: { page?: number; pageSize?: number }) => void
   groupMetrics: Record<string, GroupPortfolioMetrics>
 }) {
   const navigate = useNavigate()
   const router = useRouter()
   const state = useTableState<GroupSort>("last")
   const selection = useSelection()
-  const [editing, setEditing] = React.useState<GroupRow | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<GroupRow | null>(
     null
   )
@@ -736,7 +480,6 @@ export function StrategyRunsDashboard({
   const groups = React.useMemo<GroupRow[]>(() => {
     const byGroup = new Map<string, BacktestListItem[]>()
     for (const run of runs) {
-      if (run.indicatorType !== strategyType) continue
       const list = byGroup.get(run.groupId)
       if (list) list.push(run)
       else byGroup.set(run.groupId, [run])
@@ -801,7 +544,7 @@ export function StrategyRunsDashboard({
         ),
       }
     })
-  }, [runs, strategyType, groupMetrics])
+  }, [runs, groupMetrics])
 
   // While any run is still queued/running, refresh the list live so the
   // progress column (and results) fill in as the queue works.
@@ -833,10 +576,11 @@ export function StrategyRunsDashboard({
     })
   }, [groups, filter, state.search, state.sortColumn, state.sortDirection])
 
-  const serverPaged = pagination !== undefined && onPaginationChange !== undefined
-  const { rows: pageRows, totalPages } = serverPaged
-    ? { rows: filtered, totalPages: pagination.totalPages }
-    : paginate(filtered, state.page, state.pageSize)
+  const { rows: pageRows, totalPages } = paginate(
+    filtered,
+    state.page,
+    state.pageSize
+  )
   const visibleIds = pageRows.map((group) => group.groupId)
 
   async function applyStatus(
@@ -867,14 +611,7 @@ export function StrategyRunsDashboard({
   return (
     <div className="w-full pb-8">
       <DashboardTable
-        title={
-          <Breadcrumbs
-            crumbs={[
-              { label: "Backtest", to: "/backtest" },
-              { label: strategyTypeLabel(strategyType) },
-            ]}
-          />
-        }
+        title="Backtest"
         icon={<ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={filtered.length}
         selectedCount={selection.selected.size}
@@ -946,7 +683,6 @@ export function StrategyRunsDashboard({
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <NewRunButton strategyType={strategyType} />
           </>
         }
         header={
@@ -988,17 +724,13 @@ export function StrategyRunsDashboard({
         emptyColSpan={15}
         footer={{
           type: "pagination",
-          page: pagination?.page ?? state.page,
-          pageSize: pagination?.pageSize ?? state.pageSize,
-          total: pagination?.total ?? filtered.length,
+          page: state.page,
+          pageSize: state.pageSize,
+          total: filtered.length,
           totalPages,
           pageSizeOptions,
-          onPageChange: serverPaged
-            ? (page) => onPaginationChange({ page })
-            : state.setPage,
-          onPageSizeChange: serverPaged
-            ? (pageSize) => onPaginationChange({ page: 1, pageSize })
-            : state.setPageSize,
+          onPageChange: state.setPage,
+          onPageSizeChange: state.setPageSize,
         }}
       >
         {pageRows.map((group) => (
@@ -1010,8 +742,8 @@ export function StrategyRunsDashboard({
             )}
             onClick={() =>
               void navigate({
-                to: "/backtest/$strategyType/$groupId",
-                params: { strategyType, groupId: group.groupId },
+                to: "/backtest/$groupId",
+                params: { groupId: group.groupId },
               })
             }
           >
@@ -1130,16 +862,6 @@ export function StrategyRunsDashboard({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label={`Edit ${group.name}`}
-                  onClick={() => setEditing(group)}
-                >
-                  <SettingsIcon className="size-4 text-muted-foreground" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
                   aria-label={`Delete ${group.name}`}
                   onClick={() => setPendingDelete(group)}
                 >
@@ -1150,14 +872,6 @@ export function StrategyRunsDashboard({
           </TableRow>
         ))}
       </DashboardTable>
-
-      {editing ? (
-        <EditRunDialog
-          key={editing.groupId}
-          group={editing}
-          onClose={() => setEditing(null)}
-        />
-      ) : null}
 
       <ConfirmDeleteDialog
         open={pendingDelete !== null}
@@ -1179,100 +893,8 @@ export function StrategyRunsDashboard({
   )
 }
 
-/**
- * Loads a run group's full config into the shared run dialog; Re-run executes
- * the edited config back into the same group — existing markets are replaced
- * with fresh results, newly added markets are added to the run.
- */
-function EditRunDialog({
-  group,
-  onClose,
-}: {
-  group: GroupRow
-  onClose: () => void
-}) {
-  const router = useRouter()
-  const markets = useBinanceMarketRows()
-  const [loaded, setLoaded] = React.useState<{
-    detail: BacktestDetail
-    groupMarkets: string[]
-  } | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    let cancelled = false
-    void loadBacktest(group.mainId)
-      .then((res) => {
-        if (cancelled) return
-        if (!res.backtest) {
-          setLoadError("Run not found.")
-          return
-        }
-        setLoaded({
-          detail: res.backtest,
-          groupMarkets: res.groupRuns.map((run) => run.market),
-        })
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError("Failed to load the run configuration.")
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [group.mainId])
-
-  if (!loaded) {
-    return (
-      <Dialog
-        open
-        onOpenChange={(next) => {
-          if (!next) onClose()
-        }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Edit Run</DialogTitle>
-            <DialogDescription>
-              {loadError ?? "Loading the run configuration…"}
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  const { detail, groupMarkets } = loaded
-
-  const extraMarkets = groupMarkets.filter((coin) => coin !== detail.market)
-  return (
-    <NewRunDialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose()
-      }}
-      markets={markets}
-      defaultMarket={detail.market}
-      editTarget={{
-        groupId: group.groupId,
-        name: detail.name,
-        market: detail.market,
-        extraMarkets,
-        windowDays: windowDaysOf(detail),
-        equity: detail.startingEquity,
-        takerFeeBps: detail.costs.takerFeeBps,
-        makerFeeBps: detail.costs.makerFeeBps,
-        slippageBps: detail.costs.slippageBps,
-        config: detail.params,
-      }}
-      onLaunched={async () => {
-        await router.invalidate()
-      }}
-    />
-  )
-}
-
 // ---------------------------------------------------------------------------
-// Level 3 — /backtest/$strategyType/$groupId: one result row per market.
+// /backtest/$groupId — one result row per market of a run group.
 // ---------------------------------------------------------------------------
 
 type MarketSort = "market" | "net" | "dd" | "win" | "sharpe" | "trades"
@@ -1283,13 +905,11 @@ const CHART_DOWN = "#f23645"
 
 export function RunHistoryDashboard({
   runs,
-  strategyType,
   groupId,
   groupMetrics,
   groupCurve,
 }: {
   runs: BacktestListItem[]
-  strategyType: StrategyTypeId
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
   groupCurve: GroupCombinedCurve | null
@@ -1416,10 +1036,6 @@ export function RunHistoryDashboard({
             <Breadcrumbs
               crumbs={[
                 { label: "Backtest", to: "/backtest" },
-                {
-                  label: strategyTypeLabel(strategyType),
-                  to: `/backtest/${strategyType}`,
-                },
                 { label: truncateWords(runName, 10) },
               ]}
             />

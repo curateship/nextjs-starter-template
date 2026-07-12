@@ -178,12 +178,6 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/automations",
         visible: true,
-      },
-      {
-        type: "item",
-        label: "Strategies",
-        href: "/strategies",
-        visible: true,
         children: [{ label: "Backtest", href: "/backtest" }],
       },
       { type: "item", label: "Portfolio", href: "/portfolio", visible: true },

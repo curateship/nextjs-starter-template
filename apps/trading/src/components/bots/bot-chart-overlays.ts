@@ -1,12 +1,7 @@
 import { price as fmtPrice } from "@/components/backtest/backtest-format"
 import type { ChartMarker, ChartPriceLine } from "@/components/chart/price-chart"
 import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
-import type { StrategySettings } from "@/lib/strategies/settings"
-
-type BotProtectionSettings = Pick<
-  StrategySettings,
-  "takeProfitPct" | "stopLossPct"
->
+import type { ProtectionSettings } from "@/lib/strategies/settings"
 
 const GREEN = "#089981"
 const RED = "#f23645"
@@ -77,12 +72,12 @@ function pctOff(px: number, ref: number, above: boolean): string {
 }
 
 /**
- * New-model ("signal") bot chart lines: entry marker plus draggable TP/SL
- * derived from the universal settings block, drawn once positioned. Drag
- * targets write back to settings.takeProfitPct / stopLossPct.
+ * Bot chart lines: entry marker plus draggable TP/SL derived from the
+ * Automation's protection block, drawn once positioned. Drag targets write
+ * back to protection.takeProfitPct / stopLossPct.
  */
-export function buildSignalBotOverlays(
-  settings: BotProtectionSettings,
+export function buildBotProtectionOverlays(
+  settings: ProtectionSettings,
   state: BotMarketState | null
 ): { lines: ChartPriceLine[]; targets: Record<string, BotDragTarget> } {
   const lines: ChartPriceLine[] = []
@@ -137,9 +132,9 @@ export function buildSignalBotOverlays(
   return { lines, targets }
 }
 
-/** Right-click menu for signal bots: add whichever of TP/SL isn't set. */
-export function buildSignalBotMenuItems(
-  settings: BotProtectionSettings,
+/** Right-click chart menu: add whichever of TP/SL isn't set. */
+export function buildBotProtectionMenuItems(
+  settings: ProtectionSettings,
   state: BotMarketState | null,
   markPrice: number,
   price: number

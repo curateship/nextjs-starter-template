@@ -3,9 +3,7 @@ import {
   type StrategyConfig,
 } from "@/lib/strategies/strategy-config"
 
-import { createDcaStrategy } from "../engine/dca-strategy"
 import { createAutomationStrategy } from "../engine/automation-strategy"
-import { createSignalStrategy } from "../engine/signal-strategy"
 import type { Strategy } from "./contract"
 
 /**
@@ -14,8 +12,6 @@ import type { Strategy } from "./contract"
  */
 const ENGINES: Record<string, (config: never) => Strategy<never, unknown>> = {
   automation: createAutomationStrategy as never,
-  signal: createSignalStrategy as never,
-  dca: createDcaStrategy as never,
 }
 
 /**

@@ -1,21 +1,17 @@
 # Indicator ↔ Strategy Parity Rule
 
-**One indicator, one set of settings, everywhere.** Strategy signals come from
-indicators, so an indicator must look and behave identically in every place it
-appears:
+**One indicator, one set of settings, everywhere.** Automation signals come
+from indicators, so an indicator must look and behave identically in every
+place it appears:
 
 - the trade chart and its indicator settings modal
 - the automation canvas nodes
-- the Strategies page editor
-- the backtest / quick test chart
+- the backtest chart
 - the live bot worker
 
 If an indicator's settings change shape (new period, new toggle, new
 parameter), the strategy that derives from it changes with it — they share the
 same settings. Never add a capability to only one side.
-
-The only exceptions are strategies that are explicitly NOT indicator-based
-(e.g. DCA ladders). Everything else derives from an indicator.
 
 ## How the code enforces this
 
@@ -30,16 +26,18 @@ The only exceptions are strategies that are explicitly NOT indicator-based
   booleans as 0/1). Example: EMA is ONE indicator with `fast/slow/third` +
   `showFast/showSlow/showThird` on both sides — never separate "EMA 20 /
   EMA 50" chart entries next to an "EMA Cross" strategy with different fields.
-- **Chart seeds strategy.** New strategy/automation nodes start as an exact
+- **Chart seeds the canvas.** New automation indicator nodes start as an exact
   copy of the chart indicator's saved settings via a `<name>ParamsFromChart()`
   function in the indicator's def file (see `priceActionParamsFromChart`,
-  `emaCrossParamsFromChart`), wired into the Strategies loader
-  (`src/lib/api/strategies.ts`) and the automation route loader
+  `emaCrossParamsFromChart`), wired into the automation route loader
   (`src/routes/_authenticated/automations/$automationId.tsx`).
-- **Strategy paints in chart shape.** An indicator module's `paint.indicators`
-  must emit the SAME config shape the chart's own overlay uses (EMA Cross
-  emits one `type: "ema"` config with all three lines), so a strategy on the
-  backtest chart draws exactly what the trade chart draws.
+- **Automation paints in chart shape.** An indicator module's
+  `paint.indicators` must emit the SAME config shape the chart's own overlay
+  uses (EMA Cross emits one `type: "ema"` config with all three lines), so an
+  automation on the backtest chart draws exactly what the trade chart draws.
+- **No signal arrows.** Charts never paint indicator buy/sell arrows (removed
+  July 2026 — one signal is not a trade). Chips mark real fills; indicator
+  paint is lines/zones/bar-colors only.
 - **Old saved settings.** When adding a parameter, give it a zod `.default()`
   that preserves the old behavior, and remember editors must display
   schema-PARSED params (see `IndicatorFields` in the automation inspector) so

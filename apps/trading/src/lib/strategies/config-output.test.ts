@@ -41,25 +41,4 @@ describe("computeStrategyOutput", () => {
       "Timeframe"
     )
   })
-
-  it("returns empty paint for a non-indicator DCA strategy", () => {
-    const config: StrategyConfig = {
-      v: 2,
-      kind: "dca",
-      interval: "15m",
-      dca: {
-        baseOrderUsd: 49,
-        priceStepPct: 0.5,
-        stepMultiplier: 1,
-        sizeMultiplier: 1.75,
-        safetyOrders: 8,
-        takeProfitPct: 0.5,
-      },
-    }
-
-    expect(computeStrategyOutput(candles, config)).toEqual({
-      paint: { indicators: [], lines: [], zones: [], barColors: [] },
-      signals: [],
-    })
-  })
 })

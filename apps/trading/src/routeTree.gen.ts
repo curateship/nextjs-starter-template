@@ -15,7 +15,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
-import { Route as AuthenticatedStrategiesRouteImport } from './routes/_authenticated/strategies'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
@@ -31,6 +30,7 @@ import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_a
 import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
 import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
 import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
+import { Route as AuthenticatedBacktestGroupIdRouteImport } from './routes/_authenticated/backtest/$groupId'
 import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -38,9 +38,7 @@ import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedScannerWhalesRouteRouteImport } from './routes/_authenticated/scanner/whales/route'
 import { Route as AuthenticatedScannerWhalesIndexRouteImport } from './routes/_authenticated/scanner/whales/index'
-import { Route as AuthenticatedBacktestStrategyTypeIndexRouteImport } from './routes/_authenticated/backtest/$strategyType/index'
 import { Route as AuthenticatedScannerWhalesAddressRouteImport } from './routes/_authenticated/scanner/whales/$address'
-import { Route as AuthenticatedBacktestStrategyTypeGroupIdRouteImport } from './routes/_authenticated/backtest/$strategyType/$groupId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -72,11 +70,6 @@ const AuthenticatedWalletsRoute = AuthenticatedWalletsRouteImport.update({
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
   id: '/trade',
   path: '/trade',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedStrategiesRoute = AuthenticatedStrategiesRouteImport.update({
-  id: '/strategies',
-  path: '/strategies',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
@@ -162,6 +155,12 @@ const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
   path: '/bots/$botId',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBacktestGroupIdRoute =
+  AuthenticatedBacktestGroupIdRouteImport.update({
+    id: '/backtest/$groupId',
+    path: '/backtest/$groupId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAutomationsAutomationIdRoute =
   AuthenticatedAutomationsAutomationIdRouteImport.update({
     id: '/automations/$automationId',
@@ -203,23 +202,11 @@ const AuthenticatedScannerWhalesIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedScannerWhalesRouteRoute,
   } as any)
-const AuthenticatedBacktestStrategyTypeIndexRoute =
-  AuthenticatedBacktestStrategyTypeIndexRouteImport.update({
-    id: '/backtest/$strategyType/',
-    path: '/backtest/$strategyType/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedScannerWhalesAddressRoute =
   AuthenticatedScannerWhalesAddressRouteImport.update({
     id: '/$address',
     path: '/$address',
     getParentRoute: () => AuthenticatedScannerWhalesRouteRoute,
-  } as any)
-const AuthenticatedBacktestStrategyTypeGroupIdRoute =
-  AuthenticatedBacktestStrategyTypeGroupIdRouteImport.update({
-    id: '/backtest/$strategyType/$groupId',
-    path: '/backtest/$strategyType/$groupId',
-    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminSettingsTabRoute =
   AuthenticatedAdminSettingsTabRouteImport.update({
@@ -246,7 +233,6 @@ export interface FileRoutesByFullPath {
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
-  '/strategies': typeof AuthenticatedStrategiesRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -256,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -269,9 +256,7 @@ export interface FileRoutesByFullPath {
   '/scanner/': typeof AuthenticatedScannerIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/backtest/$strategyType/$groupId': typeof AuthenticatedBacktestStrategyTypeGroupIdRoute
   '/scanner/whales/$address': typeof AuthenticatedScannerWhalesAddressRoute
-  '/backtest/$strategyType/': typeof AuthenticatedBacktestStrategyTypeIndexRoute
   '/scanner/whales/': typeof AuthenticatedScannerWhalesIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -281,7 +266,6 @@ export interface FileRoutesByTo {
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
-  '/strategies': typeof AuthenticatedStrategiesRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -291,6 +275,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -304,9 +289,7 @@ export interface FileRoutesByTo {
   '/scanner': typeof AuthenticatedScannerIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/backtest/$strategyType/$groupId': typeof AuthenticatedBacktestStrategyTypeGroupIdRoute
   '/scanner/whales/$address': typeof AuthenticatedScannerWhalesAddressRoute
-  '/backtest/$strategyType': typeof AuthenticatedBacktestStrategyTypeIndexRoute
   '/scanner/whales': typeof AuthenticatedScannerWhalesIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -318,7 +301,6 @@ export interface FileRoutesById {
   '/_authenticated/indicators': typeof AuthenticatedIndicatorsRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
-  '/_authenticated/strategies': typeof AuthenticatedStrategiesRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -329,6 +311,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/_authenticated/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
   '/_authenticated/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/_authenticated/scanner/book': typeof AuthenticatedScannerBookRoute
   '/_authenticated/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -342,9 +325,7 @@ export interface FileRoutesById {
   '/_authenticated/scanner/': typeof AuthenticatedScannerIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/_authenticated/backtest/$strategyType/$groupId': typeof AuthenticatedBacktestStrategyTypeGroupIdRoute
   '/_authenticated/scanner/whales/$address': typeof AuthenticatedScannerWhalesAddressRoute
-  '/_authenticated/backtest/$strategyType/': typeof AuthenticatedBacktestStrategyTypeIndexRoute
   '/_authenticated/scanner/whales/': typeof AuthenticatedScannerWhalesIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -357,7 +338,6 @@ export interface FileRouteTypes {
     | '/indicators'
     | '/pnl'
     | '/portfolio'
-    | '/strategies'
     | '/trade'
     | '/wallets'
     | '/workspaces'
@@ -367,6 +347,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/automations/$automationId'
+    | '/backtest/$groupId'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -380,9 +361,7 @@ export interface FileRouteTypes {
     | '/scanner/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
-    | '/backtest/$strategyType/$groupId'
     | '/scanner/whales/$address'
-    | '/backtest/$strategyType/'
     | '/scanner/whales/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
@@ -392,7 +371,6 @@ export interface FileRouteTypes {
     | '/indicators'
     | '/pnl'
     | '/portfolio'
-    | '/strategies'
     | '/trade'
     | '/wallets'
     | '/workspaces'
@@ -402,6 +380,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/automations/$automationId'
+    | '/backtest/$groupId'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -415,9 +394,7 @@ export interface FileRouteTypes {
     | '/scanner'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
-    | '/backtest/$strategyType/$groupId'
     | '/scanner/whales/$address'
-    | '/backtest/$strategyType'
     | '/scanner/whales'
     | '/api/v1/media/$mediaId/file'
   id:
@@ -428,7 +405,6 @@ export interface FileRouteTypes {
     | '/_authenticated/indicators'
     | '/_authenticated/pnl'
     | '/_authenticated/portfolio'
-    | '/_authenticated/strategies'
     | '/_authenticated/trade'
     | '/_authenticated/wallets'
     | '/_authenticated/workspaces'
@@ -439,6 +415,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
     | '/_authenticated/automations/$automationId'
+    | '/_authenticated/backtest/$groupId'
     | '/_authenticated/bots/$botId'
     | '/_authenticated/scanner/book'
     | '/_authenticated/scanner/crowded'
@@ -452,9 +429,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scanner/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
-    | '/_authenticated/backtest/$strategyType/$groupId'
     | '/_authenticated/scanner/whales/$address'
-    | '/_authenticated/backtest/$strategyType/'
     | '/_authenticated/scanner/whales/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
@@ -507,13 +482,6 @@ declare module '@tanstack/react-router' {
       path: '/trade'
       fullPath: '/trade'
       preLoaderRoute: typeof AuthenticatedTradeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/strategies': {
-      id: '/_authenticated/strategies'
-      path: '/strategies'
-      fullPath: '/strategies'
-      preLoaderRoute: typeof AuthenticatedStrategiesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/portfolio': {
@@ -621,6 +589,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBotsBotIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/backtest/$groupId': {
+      id: '/_authenticated/backtest/$groupId'
+      path: '/backtest/$groupId'
+      fullPath: '/backtest/$groupId'
+      preLoaderRoute: typeof AuthenticatedBacktestGroupIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/automations/$automationId': {
       id: '/_authenticated/automations/$automationId'
       path: '/automations/$automationId'
@@ -670,26 +645,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScannerWhalesIndexRouteImport
       parentRoute: typeof AuthenticatedScannerWhalesRouteRoute
     }
-    '/_authenticated/backtest/$strategyType/': {
-      id: '/_authenticated/backtest/$strategyType/'
-      path: '/backtest/$strategyType'
-      fullPath: '/backtest/$strategyType/'
-      preLoaderRoute: typeof AuthenticatedBacktestStrategyTypeIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/scanner/whales/$address': {
       id: '/_authenticated/scanner/whales/$address'
       path: '/$address'
       fullPath: '/scanner/whales/$address'
       preLoaderRoute: typeof AuthenticatedScannerWhalesAddressRouteImport
       parentRoute: typeof AuthenticatedScannerWhalesRouteRoute
-    }
-    '/_authenticated/backtest/$strategyType/$groupId': {
-      id: '/_authenticated/backtest/$strategyType/$groupId'
-      path: '/backtest/$strategyType/$groupId'
-      fullPath: '/backtest/$strategyType/$groupId'
-      preLoaderRoute: typeof AuthenticatedBacktestStrategyTypeGroupIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings/$tab': {
       id: '/_authenticated/admin/settings/$tab'
@@ -766,7 +727,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedIndicatorsRoute: typeof AuthenticatedIndicatorsRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
-  AuthenticatedStrategiesRoute: typeof AuthenticatedStrategiesRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
@@ -777,6 +737,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
+  AuthenticatedBacktestGroupIdRoute: typeof AuthenticatedBacktestGroupIdRoute
   AuthenticatedBotsBotIdRoute: typeof AuthenticatedBotsBotIdRoute
   AuthenticatedScannerBookRoute: typeof AuthenticatedScannerBookRoute
   AuthenticatedScannerCrowdedRoute: typeof AuthenticatedScannerCrowdedRoute
@@ -788,8 +749,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBacktestIndexRoute: typeof AuthenticatedBacktestIndexRoute
   AuthenticatedBotsIndexRoute: typeof AuthenticatedBotsIndexRoute
   AuthenticatedScannerIndexRoute: typeof AuthenticatedScannerIndexRoute
-  AuthenticatedBacktestStrategyTypeGroupIdRoute: typeof AuthenticatedBacktestStrategyTypeGroupIdRoute
-  AuthenticatedBacktestStrategyTypeIndexRoute: typeof AuthenticatedBacktestStrategyTypeIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -797,7 +756,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndicatorsRoute: AuthenticatedIndicatorsRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
-  AuthenticatedStrategiesRoute: AuthenticatedStrategiesRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
@@ -810,6 +768,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAutomationsAutomationIdRoute:
     AuthenticatedAutomationsAutomationIdRoute,
+  AuthenticatedBacktestGroupIdRoute: AuthenticatedBacktestGroupIdRoute,
   AuthenticatedBotsBotIdRoute: AuthenticatedBotsBotIdRoute,
   AuthenticatedScannerBookRoute: AuthenticatedScannerBookRoute,
   AuthenticatedScannerCrowdedRoute: AuthenticatedScannerCrowdedRoute,
@@ -821,10 +780,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBacktestIndexRoute: AuthenticatedBacktestIndexRoute,
   AuthenticatedBotsIndexRoute: AuthenticatedBotsIndexRoute,
   AuthenticatedScannerIndexRoute: AuthenticatedScannerIndexRoute,
-  AuthenticatedBacktestStrategyTypeGroupIdRoute:
-    AuthenticatedBacktestStrategyTypeGroupIdRoute,
-  AuthenticatedBacktestStrategyTypeIndexRoute:
-    AuthenticatedBacktestStrategyTypeIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

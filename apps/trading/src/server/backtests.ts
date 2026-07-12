@@ -19,7 +19,7 @@ export type CreateBacktestInput = {
   market: string
   network: TradingNetwork
   interval: string
-  /** The strategy's full config (signal or DCA). */
+  /** The strategy's full config snapshot. */
   params: StrategyConfig
   costs: BacktestCosts
   startTime: Date
@@ -180,7 +180,7 @@ export async function resetOrphanedRunning(
 }
 
 /** The run's strategy identity from the config JSON: its indicator id, or the
- * config kind ("dca") for strategies that have no indicator. */
+ * config kind ("automation") for strategies that have no indicator. */
 const indicatorTypeSql = sql<
   string | null
 >`coalesce(${tradingBacktests.params} #>> '{indicator,type}', ${tradingBacktests.params} ->> 'kind')`

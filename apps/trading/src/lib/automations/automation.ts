@@ -78,6 +78,18 @@ export type AutomationProtection = {
   stopLossPct?: number
 }
 
+/**
+ * Backtest inputs saved on the automation itself so every run of it uses the
+ * same money and cost assumptions. Never part of the compiled config — the
+ * live worker must not see fees.
+ */
+export type AutomationBacktestSettings = {
+  startingEquity: number
+  takerFeeBps: number
+  makerFeeBps: number
+  slippageBps: number
+}
+
 export type AutomationFilter = {
   nodeId: string
   indicator: IndicatorSelection
@@ -213,6 +225,21 @@ export const automationDraftProtectionSchema = z.object({
   stopLossPct: z.number().finite().min(-10_000).max(10_000).optional(),
 })
 
+export const DEFAULT_AUTOMATION_BACKTEST_SETTINGS: AutomationBacktestSettings =
+  {
+    startingEquity: 10_000,
+    takerFeeBps: 4.5,
+    makerFeeBps: 1.5,
+    slippageBps: 0,
+  }
+
+export const automationBacktestSettingsSchema = z.object({
+  startingEquity: z.number().positive().max(100_000_000),
+  takerFeeBps: z.number().min(0).max(50),
+  makerFeeBps: z.number().min(0).max(50),
+  slippageBps: z.number().min(0).max(100),
+})
+
 export const automationGraphSchema = z.object({
   nodes: z.array(automationNodeSchema).max(100),
   edges: z
@@ -236,6 +263,9 @@ export const automationDraftSchema = z.object({
   interval: intervalSchema,
   graph: automationGraphSchema,
   protection: automationDraftProtectionSchema,
+  backtest: automationBacktestSettingsSchema.default(
+    DEFAULT_AUTOMATION_BACKTEST_SETTINGS
+  ),
 })
 
 const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>

@@ -38,6 +38,24 @@ the live worker and the backtester.
   too-large Look Back errors instead of silently never trading.
 - No cycles; every node must reach an action.
 
+## Backtesting (the only way to run one)
+
+- The **Backtest** button in the editor toolbar is the single backtest entry
+  point for the whole app (Quick Test and the old New Run dialog were
+  removed). It opens a minimal modal: pick one-to-many markets and how many
+  days, press Test.
+- Everything else — timeframe, compiled strategy, **fees, slippage, and
+  starting capital** — comes from the Automation itself. Fees + capital are
+  per-Automation settings ("Backtest defaults"), set in the create dialog and
+  both settings dialogs, stored in the draft JSONB next to `protection`. The
+  server reads them from the saved row; the client cannot override them, so
+  every run of an Automation is cost-comparable.
+- The modal shows per-market progress and can be closed — runs continue in
+  the server queue. When every market finishes it opens the result page
+  (`/backtest?run=<group>`). Re-running = pressing Backtest again (each run
+  is a fresh immutable group).
+- Bots are created from Automations only (the template source was removed).
+
 ## Runtime behavior worth knowing
 
 - Hammer / Shooting Star from Price Action confirm 2 candles after the

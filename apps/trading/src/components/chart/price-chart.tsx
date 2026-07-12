@@ -5,31 +5,22 @@ import type {
   IChartApi,
   IPriceLine,
   ISeriesApi,
-  ISeriesMarkersPluginApi,
   LineData,
   SeriesDefinition,
   SeriesType,
-  Time,
   UTCTimestamp,
 } from "lightweight-charts"
 
 import {
-  buildChartStrategyOverlays,
+  configOverlays,
   EMPTY_STRATEGY_OVERLAYS,
-  type ChartStrategyState,
-} from "@/components/chart/chart-strategy"
-import { configOverlays } from "@/components/chart/indicator-overlays"
-import type { StrategyChartOverlays } from "@/components/backtest/backtest-overlays"
+} from "@/components/chart/indicator-overlays"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
 import { loadOlderHlCandles } from "@/lib/api/hl-candles"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import type { StrategyConfig } from "@/lib/strategies/strategy-config"
-import {
-  detectPriceAction,
-  priceActionOptionsFromParams,
-} from "@/lib/strategies/price-action"
 import {
   bollinger,
   ema,
@@ -98,16 +89,14 @@ export type ChartMarker = {
   /** Override the default side color (e.g. pink for QQE trend re-entries). */
   color?: string
   /**
-   * Exact fill price. When set, the marker renders as a price-pinned O/C/R chip
-   * sitting on the candle at that price (see `letter`); when absent it falls
-   * back to a library arrow above/below the bar (live orders have no price).
+   * Exact fill price: every marker is a price-pinned O/C/R chip sitting on
+   * the candle at that price (see `letter`). Markers exist only for real
+   * fills — indicator signal arrows were removed July 2026.
    */
-  price?: number
-  /** Chip letter for a priced marker: O = open, C = close, R = re-entry. */
+  price: number
+  /** Chip letter: O = open, C = close, R = re-entry. */
   letter?: "O" | "C" | "R"
 }
-
-const EMPTY_PRICE_ACTION_MARKERS: ChartMarker[] = []
 
 /** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
 export type PriceChartHandle = {
@@ -291,9 +280,6 @@ export function PriceChartView({
     >
   >(new Map())
   const priceLineRefs = React.useRef<Map<string, IPriceLine>>(new Map())
-  const markersPluginRef = React.useRef<ISeriesMarkersPluginApi<Time> | null>(
-    null
-  )
   const lineSpecsRef = React.useRef<Map<string, ChartPriceLine>>(new Map())
   const draggingRef = React.useRef<{ id: string; price: number } | null>(null)
   const recentDropsRef = React.useRef<
@@ -402,7 +388,6 @@ export function PriceChartView({
     void import("lightweight-charts").then(
       ({
         createChart,
-        createSeriesMarkers,
         CandlestickSeries,
         HistogramSeries,
         LineSeries,
@@ -455,7 +440,6 @@ export function PriceChartView({
         chartRef.current = chart
         candleSeriesRef.current = candleSeries
         volumeSeriesRef.current = volumeSeries
-        markersPluginRef.current = createSeriesMarkers(candleSeries, [])
         setReady(true)
 
         chart.subscribeCrosshairMove((param) => {
@@ -685,7 +669,6 @@ export function PriceChartView({
       indicatorSeries.clear()
       overlaySeries.clear()
       seriesCtorsRef.current = null
-      markersPluginRef.current = null
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
       chartRef.current?.remove()
@@ -1306,24 +1289,6 @@ export function PriceChartView({
     }
   }, [ready, priceLines])
 
-  React.useEffect(() => {
-    const plugin = markersPluginRef.current
-    if (!ready || !plugin) return
-    plugin.setMarkers(
-      // Priced markers render as price-pinned chips in the DOM overlay below;
-      // only unpriced markers (live orders) fall back to library arrows.
-      [...markers]
-        .filter((marker) => marker.price == null)
-        .sort((a, b) => a.time - b.time)
-        .map((marker) => ({
-          time: Math.floor(marker.time / 1000) as UTCTimestamp,
-          position: marker.side === "buy" ? "belowBar" : "aboveBar",
-          shape: marker.side === "buy" ? "arrowUp" : "arrowDown",
-          color: marker.color ?? (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
-        }))
-    )
-  }, [ready, markers])
-
   // Bounding box of the focused trade's entry + exit pixels, so the result box
   // spans from one to the other. Only when both are on screen (the focus effect
   // pans them into view together).
@@ -1518,9 +1483,7 @@ export function PriceChart({
   priceLines = [],
   markers = [],
   indicators = [],
-  chartStrategy,
   strategyConfig,
-  overrideOverlays,
   focusPoints,
   focusResult,
   onCrosshairOhlc,
@@ -1536,15 +1499,8 @@ export function PriceChart({
   markers?: ChartMarker[]
   /** Technical-indicator overlays and oscillator sub-panes. */
   indicators?: IndicatorConfig[]
-  /** When set, paints the selected strategy's signals/overlays over the chart. */
-  chartStrategy?: ChartStrategyState | null
-  /** Full saved config paint, including merged Automation indicators/actions. */
+  /** Full saved config paint (an Automation's connected-indicator lines). */
   strategyConfig?: StrategyConfig | null
-  /**
-   * When set, replaces the live-painted strategy overlays entirely — used by
-   * Quick Test so the chart shows exactly what the test computed.
-   */
-  overrideOverlays?: StrategyChartOverlays | null
   /** Pulse rings the chart pans to (e.g. a selected fill). */
   focusPoints?: ChartFocusPoint[]
   /** Entry → exit result box for a focused round trip. */
@@ -1638,30 +1594,11 @@ export function PriceChart({
 
   const strategy = React.useMemo(
     () =>
-      overrideOverlays ??
-      (strategyConfig
+      strategyConfig
         ? configOverlays(strategyConfig, candles)
-        : chartStrategy
-          ? buildChartStrategyOverlays(candles, chartStrategy)
-          : EMPTY_STRATEGY_OVERLAYS),
-    [candles, chartStrategy, strategyConfig, overrideOverlays]
+        : EMPTY_STRATEGY_OVERLAYS,
+    [candles, strategyConfig]
   )
-
-  const priceActionParams = indicators.find(
-    (indicator) => indicator.type === "priceAction" && indicator.enabled
-  )?.params
-  const priceActionMarkers = React.useMemo<ChartMarker[]>(() => {
-    if (!priceActionParams || candles.length === 0) {
-      return EMPTY_PRICE_ACTION_MARKERS
-    }
-    return detectPriceAction(
-      candles,
-      priceActionOptionsFromParams(priceActionParams)
-    ).map((signal) => ({
-      time: candles[signal.index].t,
-      side: signal.side === "bull" ? "buy" : "sell",
-    }))
-  }, [candles, priceActionParams])
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
@@ -1769,7 +1706,7 @@ export function PriceChart({
       coin={coin}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={[...markers, ...strategy.markers, ...priceActionMarkers]}
+      markers={markers}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={strategy.overlayLines}
       zones={zones}

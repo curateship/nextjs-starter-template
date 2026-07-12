@@ -1,45 +1,20 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 
+import { BacktestAutomationDialog } from "@/components/automations/backtest-automation-dialog"
 import { AutomationEditor } from "@/components/automations/automation-editor"
-import { NewRunDialog } from "@/components/backtest/new-run-dialog"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
-import { QuickTestDialog } from "@/components/chart/quick-test-dialog"
 import { Button } from "@/components/ui/button"
-import { getAutomation, getAutomationErrorMessage } from "@/lib/api/automations"
-import type { AutomationStrategyConfig } from "@/lib/automations/automation"
-import { useMarketRows } from "@/lib/hl/hooks"
+import { getAutomationErrorMessage } from "@/lib/api/automations"
 
 const routeApi = getRouteApi("/_authenticated/automations/$automationId")
 
 export function AutomationRouteContent() {
-  const { automation, trading, pinnedIndicators, indicatorParamSeeds } =
+  const { automation, pinnedIndicators, indicatorParamSeeds } =
     routeApi.useLoaderData()
   const router = useRouter()
-  const markets = useMarketRows(trading.network)
-  const defaultMarket =
-    markets.find((row) => row.coin === "BTC")?.coin ?? markets[0]?.coin ?? "BTC"
-  const [quickTestOpen, setQuickTestOpen] = React.useState(false)
   const [botOpen, setBotOpen] = React.useState(false)
   const [backtestOpen, setBacktestOpen] = React.useState(false)
-  const [quickConfig, setQuickConfig] =
-    React.useState<AutomationStrategyConfig | null>(null)
-  const [launchError, setLaunchError] = React.useState<string | null>(null)
-
-  const openQuickTest = async () => {
-    setLaunchError(null)
-    try {
-      const saved = await getAutomation(automation.id)
-      if (!saved.compiledConfig) {
-        setLaunchError("Save a valid Automation before running Quick Test.")
-        return
-      }
-      setQuickConfig(saved.compiledConfig)
-      setQuickTestOpen(true)
-    } catch (error) {
-      setLaunchError(getAutomationErrorMessage(error))
-    }
-  }
 
   return (
     <>
@@ -48,41 +23,8 @@ export function AutomationRouteContent() {
         initial={automation}
         pinnedIndicators={pinnedIndicators}
         indicatorParamSeeds={indicatorParamSeeds}
-        onQuickTest={() => void openQuickTest()}
-        onCreateBot={() => {
-          setLaunchError(null)
-          setBotOpen(true)
-        }}
-        onCreateBacktest={() => {
-          setLaunchError(null)
-          setBacktestOpen(true)
-        }}
-      />
-
-      {launchError ? (
-        <div
-          role="alert"
-          className="fixed top-16 right-4 z-50 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm text-destructive shadow-lg"
-        >
-          {launchError}
-        </div>
-      ) : null}
-
-      <QuickTestDialog
-        open={quickTestOpen}
-        onOpenChange={setQuickTestOpen}
-        network={trading.network}
-        networkEditable={trading.mainnetEnabled}
-        market={defaultMarket}
-        marketOptions={markets}
-        config={quickConfig}
-        automationId={automation.id}
-        onSaved={(backtestId) =>
-          void router.navigate({
-            to: "/backtest",
-            search: { run: backtestId },
-          })
-        }
+        onCreateBot={() => setBotOpen(true)}
+        onBacktest={() => setBacktestOpen(true)}
       />
 
       <NewBotDialog
@@ -94,18 +36,12 @@ export function AutomationRouteContent() {
         }
       />
 
-      <NewRunDialog
+      <BacktestAutomationDialog
         open={backtestOpen}
         onOpenChange={setBacktestOpen}
-        markets={markets}
-        defaultMarket={defaultMarket}
-        initialAutomationId={automation.id}
-        onLaunched={(backtestId) =>
-          void router.navigate({
-            to: "/backtest",
-            search: { run: backtestId },
-          })
-        }
+        automationId={automation.id}
+        automationName={automation.name}
+        interval={automation.interval}
       />
     </>
   )
