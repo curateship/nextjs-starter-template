@@ -134,11 +134,42 @@ async function runMigrations(url) {
     const folder = path.join(root, "drizzle")
     await mkdir(folder, { recursive: true })
     const files = (await readdir(folder)).filter((file) => file.endsWith(".sql")).sort()
+
+    // Ledger: every migration file runs exactly once, ever. Before this
+    // existed the script replayed EVERY file on each run (every dev start),
+    // which required each file to stay re-run-safe forever — and a cleanup
+    // delete written for one era silently destroyed rows created by later
+    // eras (the July 12, 2026 automation-rows incident).
+    //
+    // Transition: a database from the replay era has no ledger, so every file
+    // runs one final time (they are re-run-safe today) and is then recorded;
+    // from then on only genuinely new files execute.
+    await client.query(
+      `create table if not exists _migrations (
+         name text primary key,
+         applied_at timestamptz not null default now()
+       )`
+    )
+    const ledger = await client.query("select name from _migrations")
+    const applied = new Set(ledger.rows.map((row) => row.name))
+
     for (const file of files) {
+      if (applied.has(file)) continue
       const sql = await readFile(path.join(folder, file), "utf8")
-      if (sql.trim()) {
-        await client.query(sql)
+      // One transaction per file: a failed migration rolls back fully and is
+      // NOT recorded, so the next run retries it instead of skipping it.
+      await client.query("begin")
+      try {
+        if (sql.trim()) {
+          await client.query(sql)
+        }
+        await client.query("insert into _migrations (name) values ($1)", [file])
+        await client.query("commit")
+      } catch (error) {
+        await client.query("rollback").catch(() => {})
+        throw error
       }
+      console.log(`Applied migration ${file}`)
     }
   } finally {
     await client.end()
