@@ -579,10 +579,13 @@ export function BacktestDashboard({
             <ResizablePanel id="chart" defaultSize="60%" minSize="30%">
               <div className="flex h-full min-h-0 flex-col">
                 <ChartToolbar
-                  intervals={CANDLE_INTERVALS}
+                  // A loaded run locks to its own timeframe: the indicator
+                  // lines are recomputed from the displayed candles, so any
+                  // other timeframe would draw lines the engine never saw.
+                  intervals={
+                    run ? [run.interval as CandleInterval] : CANDLE_INTERVALS
+                  }
                   interval={interval}
-                  // A saved run is immutable — this only changes the
-                  // chart's display timeframe, to inspect candles.
                   onIntervalChange={setTimeframe}
                   legend={{
                     chips: Boolean(result),
