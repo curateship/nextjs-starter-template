@@ -4,12 +4,14 @@ import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
+import { TradingSettings } from "@/components/trading-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
+  { id: "trading", label: "Trading" },
   { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
@@ -51,7 +53,7 @@ export function SettingsPage({
             Configure the shell defaults for this workspace.
           </p>
         </div>
-        {activeTab === "appearance" ? (
+        {activeTab === "appearance" || activeTab === "trading" ? (
           <span className="text-sm text-muted-foreground">
             Saved automatically in this browser
           </span>
@@ -109,6 +111,7 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
             />
           ) : null}
+          {activeTab === "trading" ? <TradingSettings /> : null}
           {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings

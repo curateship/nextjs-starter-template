@@ -99,7 +99,10 @@ export function BacktestAutomationDialog({
             cancelled = true
             clearInterval(timer)
             onOpenChange(false)
-            void router.navigate({ to: "/backtest", search: { run: groupId } })
+            void router.navigate({
+              to: "/backtest/$groupId",
+              params: { groupId },
+            })
           }
         })
         .catch(() => {
