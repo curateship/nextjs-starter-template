@@ -44,7 +44,7 @@ export function WhalesDashboard({
   const [data] = usePolledData(initial, loadWhaleWallets, filters, POLL_MS)
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Whales"
         icon={

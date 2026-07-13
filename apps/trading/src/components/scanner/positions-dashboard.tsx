@@ -62,7 +62,7 @@ export function PositionsDashboard({
   const [data] = usePolledData(initial, loadPositionEvents, filters, POLL_MS)
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Position Changes"
         icon={

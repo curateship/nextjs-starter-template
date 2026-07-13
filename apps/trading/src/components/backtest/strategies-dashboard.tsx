@@ -609,7 +609,7 @@ export function RunGroupsDashboard({
     })
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Backtest"
         icon={<ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
@@ -1028,8 +1028,8 @@ export function RunHistoryDashboard({
       : null
 
   return (
-    <div className="w-full pb-8">
-      <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="w-full">
+      <div className="grid grid-cols-1 items-start gap-2 md:gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* LEFT — per-market results table (standard dashboard table). */}
         <DashboardTable
           title={
@@ -1156,7 +1156,7 @@ export function RunHistoryDashboard({
         </DashboardTable>
 
         {/* RIGHT — combined summary + P&L curve. */}
-        <div className="flex flex-col gap-4 sm:gap-6">
+        <div className="flex flex-col gap-2 md:gap-3">
           <Card className="gap-4 py-5">
             <CardHeader className="px-5">
               <CardTitle className="text-sm font-semibold">Summary</CardTitle>

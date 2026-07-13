@@ -101,7 +101,7 @@ export function BookDashboard({ initial }: { initial: BookMetricsResponse }) {
   }, [data.items, sort])
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Order Book Scanner"
         icon={

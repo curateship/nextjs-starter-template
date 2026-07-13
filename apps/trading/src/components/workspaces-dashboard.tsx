@@ -155,7 +155,7 @@ export function WorkspacesDashboard({
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       {error ? <Message>{error}</Message> : null}
 
       <DashboardTable

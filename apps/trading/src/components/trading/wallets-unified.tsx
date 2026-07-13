@@ -211,7 +211,7 @@ export function WalletsUnified({
   )
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       {disabledNetworkWallets.length > 0 ? (
         <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 sm:mb-6 dark:text-amber-400">
           {disabledNetworkWallets.length === 1

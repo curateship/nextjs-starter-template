@@ -133,8 +133,8 @@ export function PnlCalendarDashboard({
   const symbolOptions = ["All", ...data.symbols]
 
   return (
-    <div className="flex w-full flex-col gap-4 pb-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex w-full flex-col gap-2 md:gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-2 md:gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">P&amp;L Calendar</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -193,7 +193,7 @@ export function PnlCalendarDashboard({
       </div>
 
       {view === "month" ? (
-        <div className="grid items-start gap-5 lg:grid-cols-[1fr_316px]">
+        <div className="grid items-start gap-2 md:gap-3 lg:grid-cols-[1fr_316px]">
           {/* Calendar */}
           <Card className="gap-0 p-4 sm:p-[18px]">
             <div className="mb-3.5 flex items-center justify-between gap-2">
@@ -258,7 +258,7 @@ export function PnlCalendarDashboard({
           </Card>
 
           {/* Sidebar */}
-          <div className="flex flex-col gap-3.5">
+          <div className="flex flex-col gap-2 md:gap-3">
             <Card className="gap-0 px-[18px] py-4">
               <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Net P&amp;L — {SHORT[month]} {year}
@@ -280,7 +280,7 @@ export function PnlCalendarDashboard({
               )}
             </Card>
 
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
               <StatCard
                 label="Win rate"
                 value={`${monthVM.winRate}%`}
@@ -653,7 +653,7 @@ function YearView({
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-4">
         {vm.months.map((m) => (
           <Card
             key={m.mo}

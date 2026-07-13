@@ -224,7 +224,7 @@ export function FeedbackDashboard({
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <ErrorAlert error={error} className="mt-4" />
 
       <DashboardTable

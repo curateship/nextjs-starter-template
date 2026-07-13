@@ -48,7 +48,7 @@ export function CrowdedDashboard({
   const [data] = usePolledData(initial, loadCrowdSignals, filters, POLL_MS)
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Crowded Trades"
         icon={

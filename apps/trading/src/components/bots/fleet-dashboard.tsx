@@ -100,7 +100,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       {!data.workerOnline ? (
         <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           Bot worker is offline — commands will queue until it reconnects.

@@ -47,7 +47,7 @@ export function LeaderboardDashboard({
   const [data] = usePolledData(initial, loadLeaderboard, filters, POLL_MS)
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Smart Wallet Leaderboard"
         icon={

@@ -77,7 +77,7 @@ export function WhaleTradesDashboard({
   } | null>(null)
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Whale Trades"
         icon={
