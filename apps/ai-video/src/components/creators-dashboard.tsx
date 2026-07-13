@@ -17,6 +17,8 @@ import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
+import { toast } from "sonner"
+
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import {
@@ -87,7 +89,6 @@ export function CreatorsDashboard() {
   const [creators, setCreators] = React.useState<CreatorItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
@@ -154,7 +155,7 @@ export function CreatorsDashboard() {
       setCreators((current) =>
         current.map((c) => (c.id === creatorId ? { ...c, watch: !watch } : c))
       )
-      setError(getCreatorErrorMessage(toggleError))
+      toast.error(getCreatorErrorMessage(toggleError))
     }
   }
 
@@ -170,13 +171,11 @@ export function CreatorsDashboard() {
 
     setCreatingCreator(true)
     setAddCreatorError(null)
-    setError(null)
-    setNotice(null)
     try {
       const creator = await createCreator(trimmedProfileUrl)
       setCreators((current) => upsertCreatorItem(current, creator))
       setCurrentPage(1)
-      setNotice(`Watch is on for @${creator.username}.`)
+      toast.success(`Watch is on for @${creator.username}.`)
       setAddCreatorOpen(false)
       setProfileUrl("")
     } catch (createError) {
@@ -189,15 +188,16 @@ export function CreatorsDashboard() {
   // Manual run of both watcher passes (new reels + stats re-sync).
   async function handleSyncNow() {
     setSyncing(true)
-    setError(null)
-    setNotice(null)
     try {
       const result = await syncCreatorWatch()
-      setNotice(formatWatchSyncNotice(result))
+      const message = formatWatchSyncNotice(result)
+      // Some creators failed to sync → warn (amber); otherwise a clean success.
+      if (result.failed) toast.warning(message)
+      else toast.success(message)
       const data = await listCreators()
       setCreators(data.creators)
     } catch (syncError) {
-      setError(getCreatorErrorMessage(syncError))
+      toast.error(getCreatorErrorMessage(syncError))
     } finally {
       setSyncing(false)
     }
@@ -208,8 +208,6 @@ export function CreatorsDashboard() {
     deleteMany: bulkDeleteCreators,
     setItems: setCreators,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getCreatorErrorMessage,
     // Deleting a creator cascades to their archived reels — warn the user.
     noticeSuffix: "and their reels",
@@ -261,7 +259,7 @@ export function CreatorsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       <DashboardTable
         title="Creators"

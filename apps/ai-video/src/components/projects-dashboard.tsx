@@ -9,6 +9,7 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -98,7 +99,6 @@ export function ProjectsDashboard() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<ProjectTypeFilter>("all")
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
@@ -237,8 +237,6 @@ export function ProjectsDashboard() {
     setName("")
     setSelectedTemplateId(null)
     setModalError(null)
-    setError(null)
-    setNotice(null)
     // Lazy-load the user's templates for the picker on first open. On failure
     // it stays null so the next open retries; the picker just won't show.
     if (templates === null) {
@@ -254,8 +252,6 @@ export function ProjectsDashboard() {
     setModalState({ type: "rename", project })
     setName(project.name)
     setModalError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function closeModal() {
@@ -299,7 +295,7 @@ export function ProjectsDashboard() {
           project.id === updated.id ? updated : project
         )
       )
-      setNotice("Project renamed.")
+      toast.success("Project renamed.")
       closeModal()
     } catch (renameError) {
       setModalError(getProjectErrorMessage(renameError))
@@ -322,8 +318,6 @@ export function ProjectsDashboard() {
     deleteMany: bulkDeleteProjects,
     setItems: setProjects,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getProjectErrorMessage,
   })
 
@@ -334,8 +328,6 @@ export function ProjectsDashboard() {
   function openExportDialog() {
     setExportIds(Array.from(selectedIds))
     setIncludeEndCard(config.brandKit.endCard.enabled)
-    setError(null)
-    setNotice(null)
   }
 
   // Queues one render job per selected project and summarizes the outcome
@@ -369,13 +361,18 @@ export function ProjectsDashboard() {
           .join(", ")
         parts.push(`Skipped ${skipped.length}: ${details}.`)
       }
-      setNotice(parts.join(" ") || "Nothing to export.")
+      const message = parts.join(" ") || "Nothing to export."
+      // Skipped projects → warn (amber); a clean queue → success; nothing
+      // to do → neutral info.
+      if (skipped.length) toast.warning(message)
+      else if (queued || active) toast.success(message)
+      else toast(message)
       clearSelection(exportIds)
       setExportIds(null)
       // Pick up the mirrored queued/rendering statuses right away.
       refetchProjects()
     } catch (exportError) {
-      setError(getProjectErrorMessage(exportError))
+      toast.error(getProjectErrorMessage(exportError))
     } finally {
       setExporting(false)
     }
@@ -441,7 +438,7 @@ export function ProjectsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable

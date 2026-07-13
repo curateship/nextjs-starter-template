@@ -11,6 +11,7 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -162,7 +163,6 @@ export function ExportDashboard() {
   const [exports, setExports] = React.useState<ExportItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortColumn, setSortColumn] =
     React.useState<ExportSortColumn>("exported")
@@ -238,8 +238,6 @@ export function ExportDashboard() {
     deleteMany: deleteMultipleExports,
     setItems: setExports,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getExportErrorMessage,
   })
 
@@ -273,7 +271,7 @@ export function ExportDashboard() {
       current.map((item) => (item.id === updated.id ? updated : item))
     )
     setSelectedExport(updated)
-    setNotice("Export saved.")
+    toast.success("Export saved.")
   }
 
   async function deleteSingleExport(projectId: string) {
@@ -322,7 +320,7 @@ export function ExportDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       <DashboardTable
         title="Export"

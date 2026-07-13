@@ -1,10 +1,12 @@
 import * as React from "react"
+import { toast } from "sonner"
 
 // Single/bulk delete shared by the list/grid dashboards: owns the `deleteIds`
 // (one row or a selection) + `deleting` state and the confirm lifecycle. The
-// host wires in its delete calls, how to drop the deleted rows, and its notice
-// setters. The success message derives from `noun` (single → "Noun deleted.",
-// bulk → "Deleted N nouns."), with an optional suffix for cascade warnings.
+// host wires in its delete calls and how to drop the deleted rows; the outcome
+// is surfaced as a toast. The success message derives from `noun` (single →
+// "Noun deleted.", bulk → "Deleted N nouns."), with an optional suffix for
+// cascade warnings.
 //
 // Removal strategy — provide exactly one:
 //   • setItems — local filter, for dashboards that load every row up front.
@@ -15,8 +17,6 @@ export function useBulkDelete<T extends { id: string }>(opts: {
   deleteOne?: (id: string) => Promise<unknown>
   deleteMany: (ids: string[]) => Promise<{ deletedCount: number }>
   clearSelection: (ids: string[]) => void
-  setNotice: (message: string | null) => void
-  setError: (message: string | null) => void
   formatError: (error: unknown) => string
   setItems?: React.Dispatch<React.SetStateAction<T[]>>
   reload?: () => Promise<unknown>
@@ -33,18 +33,16 @@ export function useBulkDelete<T extends { id: string }>(opts: {
     const ids = deleteIds
 
     setDeleting(true)
-    opts.setError(null)
-    opts.setNotice(null)
     try {
       // Single delete only when the host provides one; otherwise always bulk.
       if (ids.length === 1 && opts.deleteOne) {
         await opts.deleteOne(ids[0])
-        opts.setNotice(
+        toast.success(
           `${opts.noun[0].toUpperCase()}${opts.noun.slice(1)} deleted${suffix}.`
         )
       } else {
         const { deletedCount } = await opts.deleteMany(ids)
-        opts.setNotice(
+        toast.success(
           `Deleted ${deletedCount} ${deletedCount === 1 ? opts.noun : `${opts.noun}s`}${suffix}.`
         )
       }
@@ -60,7 +58,7 @@ export function useBulkDelete<T extends { id: string }>(opts: {
       opts.clearSelection(ids)
       setDeleteIds(null)
     } catch (error) {
-      opts.setError(opts.formatError(error))
+      toast.error(opts.formatError(error))
     } finally {
       setDeleting(false)
     }
