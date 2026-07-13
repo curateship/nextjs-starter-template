@@ -32,7 +32,7 @@ type ShellRuntime = {
   saveStatus: SaveStatus
   feedbackRefreshToken: number
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: () => Promise<boolean>
+  onSaveConfig: (nextConfig?: ShellConfig) => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
 }
@@ -132,15 +132,16 @@ export function ShellLayout({
     setSaveStatus("idle")
   }, [])
 
-  const handleSaveConfig = React.useCallback(async () => {
+  const handleSaveConfig = React.useCallback(async (nextConfig?: ShellConfig) => {
     setSettingsError(null)
     setSaveStatus("saving")
 
     try {
-      await saveShellSettings(config)
+      await saveShellSettings(nextConfig ?? config)
       setSaveStatus("saved")
       return true
     } catch (error) {
+      if (nextConfig) setConfig(config)
       setSettingsError(getShellSettingsErrorMessage(error))
       setSaveStatus("idle")
       return false
@@ -256,6 +257,7 @@ function normalizeConfig(settings: ShellConfig | null) {
       : fallback.dashboardRowsPerPage,
     maxCandles: clampMaxCandles(settings.maxCandles),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
+    orderConfirmation: settings.orderConfirmation,
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation

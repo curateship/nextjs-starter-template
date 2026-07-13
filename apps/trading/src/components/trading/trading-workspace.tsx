@@ -24,6 +24,7 @@ import {
 import { MarketWatchlist } from "@/components/trading/market-watchlist"
 import { OrderBook } from "@/components/trading/order-book"
 import { OrderTicket, type TicketPrefill } from "@/components/trading/order-ticket"
+import { OneClickPanel } from "@/components/trading/one-click-panel"
 import {
   PaperFillsTable,
   PaperOpenOrdersTable,
@@ -110,6 +111,7 @@ export function TradingWorkspace({
   selectedValue,
   workerOnline,
   initialIndicators,
+  orderConfirmation,
   onMarketChange,
   onWalletChange,
 }: {
@@ -122,6 +124,7 @@ export function TradingWorkspace({
   workerOnline?: boolean
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
+  orderConfirmation: boolean
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -492,6 +495,21 @@ export function TradingWorkspace({
               <ResizablePanel id="ticket" defaultSize="20%" minSize="14%">
                 <div className={cn(PANEL_CARD, "flex flex-col")}>
                   <ScrollArea className="min-h-0 flex-1">
+                    <OneClickPanel
+                      walletId={
+                        selectedWallet?.is_active
+                          ? (selectedWallet?.id ?? null)
+                          : null
+                      }
+                      isPaper={isPaper}
+                      market={market}
+                      marketRow={marketRow}
+                      markPx={markPx}
+                      equity={equity}
+                      disabledReason={ticketDisabledReason}
+                      confirmationEnabled={orderConfirmation}
+                      onNotify={notify}
+                    />
                     <OrderTicket
                       walletId={
                         selectedWallet?.is_active
@@ -506,6 +524,7 @@ export function TradingWorkspace({
                       positionSzi={positionSzi}
                       prefill={prefill}
                       disabledReason={ticketDisabledReason}
+                      confirmationEnabled={orderConfirmation}
                     />
                   </ScrollArea>
                   <AccountSummaryPanel

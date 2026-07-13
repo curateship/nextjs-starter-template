@@ -4,6 +4,7 @@ import {
   cancelOrder,
   MANUAL_CLOID_PREFIX,
   modifyOrder,
+  placeBracketOrder,
   placeOrder,
   updateLeverage,
   writeRiskRejection,
@@ -20,6 +21,7 @@ import {
 } from "@/server/risk/risk"
 import { findUserWallet } from "@/server/wallets"
 import type { TradingWallet } from "@/server/schema"
+import { getOrderTemplate } from "@/server/order-templates"
 
 export type ManualOrderInput = {
   walletId: string
@@ -40,6 +42,18 @@ export type ManualOrderResult = {
   status: OrderPlacementStatus
   px: string
   sz: string
+}
+
+export type OneClickOrderInput = {
+  walletId: string
+  market: string
+  side: "buy" | "sell"
+  templateId: string
+}
+
+export type OneClickOrderResult = ManualOrderResult & {
+  stopLossPx: string
+  takeProfitPx: string
 }
 
 /** How far past the best opposing level a "market" IOC limit may sweep. */
@@ -153,6 +167,138 @@ export async function submitManualOrder(
   )
 
   return { status, px, sz }
+}
+
+export async function submitOneClickOrder(
+  userId: string,
+  input: OneClickOrderInput,
+  database: CustomShellDb = db
+): Promise<OneClickOrderResult> {
+  const [wallet, template] = await Promise.all([
+    requireActiveWallet(userId, input.walletId, database),
+    getOrderTemplate(userId, input.templateId, database),
+  ])
+  if (!template) throw new Error("Order template not found")
+
+  const network = wallet.network as TradingNetwork
+  assertNetworkEnabled(network)
+  const asset = await getAssetInfo(network, input.market)
+  const info = getInfoClient(network)
+  const accountAddress = (wallet.vaultAddress ??
+    wallet.accountAddress) as `0x${string}`
+  const [assetData, clearinghouse, openOrders] = await Promise.all([
+    info.metaAndAssetCtxs(),
+    info.clearinghouseState({ user: accountAddress }),
+    info.openOrders({ user: accountAddress }),
+  ])
+  const priceObservedAt = Date.now()
+  const ctx = assetData[1][asset.assetId]
+  if (!ctx) throw new Error(`No market data for ${input.market}`)
+
+  const mark = Number(ctx.markPx)
+  const equity = Number(clearinghouse.marginSummary.accountValue)
+  const orderSizePct = Number(template.orderSizePct)
+  const stopLossPct = Number(template.stopLossPct)
+  const takeProfitPct = Number(template.takeProfitPct)
+  if (
+    !Number.isFinite(mark) ||
+    mark <= 0 ||
+    !Number.isFinite(equity) ||
+    equity <= 0
+  ) {
+    throw new Error("A current price and positive wallet equity are required")
+  }
+
+  const notional = equity * (orderSizePct / 100) * template.leverage
+  const sz = roundSize(notional / mark, asset.szDecimals)
+  const px = roundPrice(applySlippage(ctx.markPx, input.side), asset.szDecimals)
+  const isBuy = input.side === "buy"
+  const stopLossPx = roundPrice(
+    mark * (isBuy ? 1 - stopLossPct / 100 : 1 + stopLossPct / 100),
+    asset.szDecimals
+  )
+  const takeProfitPx = roundPrice(
+    mark * (isBuy ? 1 + takeProfitPct / 100 : 1 - takeProfitPct / 100),
+    asset.szDecimals
+  )
+
+  const position = clearinghouse.assetPositions.find(
+    ({ position }) => position.coin === input.market
+  )?.position
+  const intent = {
+    market: input.market,
+    side: input.side,
+    orderType: "market" as const,
+    px: null,
+    sz,
+    reduceOnly: false,
+    leverage: template.leverage,
+  }
+  const risk = checkOrderIntent(
+    intent,
+    {
+      equity: clearinghouse.marginSummary.accountValue,
+      positionSzi: position?.szi ?? "0",
+      positionNotional: position?.positionValue ?? "0",
+      openOrderCount: openOrders.length,
+    },
+    getManualRiskLimits(asset.maxLeverage),
+    { markPx: ctx.markPx, priceTimestamp: priceObservedAt, now: Date.now() },
+    3
+  )
+  if (!risk.ok) {
+    const reason = describeViolations(risk.violations)
+    await writeRiskRejection(
+      wallet,
+      { actor: "user", userId },
+      {
+        actionType: "order.place",
+        market: input.market,
+        request: intent,
+        reason,
+      },
+      database
+    )
+    throw new Error(reason)
+  }
+
+  await updateManualLeverage(
+    userId,
+    {
+      walletId: input.walletId,
+      market: input.market,
+      leverage: template.leverage,
+      isCross: true,
+    },
+    database
+  )
+  const status = await placeBracketOrder(
+    wallet,
+    { actor: "user", userId },
+    {
+      entry: {
+        assetId: asset.assetId,
+        coin: input.market,
+        isBuy,
+        px,
+        sz,
+        reduceOnly: false,
+        tif: "FrontendMarket",
+        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+      },
+      takeProfit: {
+        triggerPx: takeProfitPx,
+        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+      },
+      stopLoss: {
+        triggerPx: stopLossPx,
+        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+      },
+    },
+    database
+  )
+
+  return { status, px, sz, stopLossPx, takeProfitPx }
 }
 
 export type ModifyManualOrderInput = {

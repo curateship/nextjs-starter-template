@@ -257,6 +257,7 @@ export type ShellConfig = {
   maxCandles: number
   /** Route the /admin URL loads; empty = the default overview at the home route. */
   adminRoute: string
+  orderConfirmation: boolean
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -281,6 +282,7 @@ export function createDefaultShellConfig(): ShellConfig {
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     maxCandles: DEFAULT_MAX_CANDLES,
     adminRoute: "",
+    orderConfirmation: true,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

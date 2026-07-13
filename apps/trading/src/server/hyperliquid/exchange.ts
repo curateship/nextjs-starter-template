@@ -35,6 +35,12 @@ export type OrderPlacementStatus =
   | { kind: "resting"; oid: number }
   | { kind: "filled"; oid: number; avgPx: string; totalSz: string }
 
+export type BracketOrderParams = {
+  entry: PlaceOrderParams
+  takeProfit?: { triggerPx: string; cloid?: `0x${string}` }
+  stopLoss?: { triggerPx: string; cloid?: `0x${string}` }
+}
+
 type ClientEntry = {
   client: ExchangeClient
   nonceRef: { last: number | null }
@@ -136,6 +142,110 @@ export async function placeOrder(
     })
     throw new Error(scrubErrorMessage(error))
   }
+}
+
+export async function placeBracketOrder(
+  wallet: TradingWallet,
+  actor: ExchangeActor,
+  params: BracketOrderParams,
+  database: CustomShellDb = db
+): Promise<OrderPlacementStatus> {
+  const entry = getClientEntry(wallet)
+  const children = [
+    ...(params.takeProfit
+      ? [{ ...params.takeProfit, tpsl: "tp" as const }]
+      : []),
+    ...(params.stopLoss ? [{ ...params.stopLoss, tpsl: "sl" as const }] : []),
+  ]
+  const requests = [
+    {
+      coin: params.entry.coin,
+      isBuy: params.entry.isBuy,
+      px: params.entry.px,
+      sz: params.entry.sz,
+      reduceOnly: params.entry.reduceOnly,
+      tif: params.entry.tif,
+    },
+    ...children.map((child) => ({
+      coin: params.entry.coin,
+      isBuy: !params.entry.isBuy,
+      px: child.triggerPx,
+      sz: params.entry.sz,
+      reduceOnly: true,
+      triggerPx: child.triggerPx,
+      tpsl: child.tpsl,
+    })),
+  ]
+  const cloids = [params.entry.cloid, ...children.map((child) => child.cloid)]
+
+  let statuses: unknown[]
+  try {
+    const response = await entry.client.order({
+      orders: [
+        {
+          a: params.entry.assetId,
+          b: params.entry.isBuy,
+          p: params.entry.px,
+          s: params.entry.sz,
+          r: params.entry.reduceOnly,
+          t: { limit: { tif: params.entry.tif } },
+          ...(params.entry.cloid ? { c: params.entry.cloid } : {}),
+        },
+        ...children.map((child) => ({
+          a: params.entry.assetId,
+          b: !params.entry.isBuy,
+          p: child.triggerPx,
+          s: params.entry.sz,
+          r: true,
+          t: {
+            trigger: {
+              isMarket: true,
+              triggerPx: child.triggerPx,
+              tpsl: child.tpsl,
+            },
+          },
+          ...(child.cloid ? { c: child.cloid } : {}),
+        })),
+      ],
+      grouping: "normalTpsl",
+    })
+    statuses = response.response.data.statuses
+  } catch (error) {
+    const errorMessage = scrubErrorMessage(error)
+    await Promise.all(
+      requests.map((request, index) =>
+        writeAudit(database, wallet, actor, {
+          actionType: "order.place",
+          market: params.entry.coin,
+          nonce: entry.nonceRef.last,
+          cloid: cloids[index] ?? null,
+          request,
+          status: "error",
+          errorMessage,
+        })
+      )
+    )
+    throw new Error(errorMessage)
+  }
+
+  await Promise.all(
+    requests.map((request, index) => {
+      const legStatus = statuses[index]
+      const succeeded = isOrderStatusSuccess(legStatus)
+      return writeAudit(database, wallet, actor, {
+        actionType: "order.place",
+        market: params.entry.coin,
+        nonce: entry.nonceRef.last,
+        cloid: cloids[index] ?? null,
+        request,
+        response: { status: legStatus ?? null },
+        status: succeeded ? "ok" : "error",
+        errorMessage: succeeded ? null : "Exchange rejected this bracket leg",
+      })
+    })
+  )
+
+  return parseBracketOrderStatuses(statuses, requests.length)
 }
 
 export async function cancelOrder(
@@ -313,6 +423,29 @@ export async function writeRiskRejection(
     status: "rejected_risk",
     errorMessage: details.reason,
   })
+}
+
+export function parseBracketOrderStatuses(
+  statuses: unknown[],
+  expectedLegCount = 3
+): OrderPlacementStatus {
+  if (
+    statuses.length !== expectedLegCount ||
+    !statuses.every(isOrderStatusSuccess)
+  ) {
+    throw new Error(
+      "The position may be open without full protection. Check open positions immediately."
+    )
+  }
+  return parseOrderStatus(statuses[0])
+}
+
+function isOrderStatusSuccess(status: unknown): boolean {
+  return Boolean(
+    status &&
+      typeof status === "object" &&
+      ("resting" in status || "filled" in status)
+  )
 }
 
 function parseOrderStatus(status: unknown): OrderPlacementStatus {

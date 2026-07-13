@@ -4,6 +4,7 @@ import {
   buildCloid,
   cloidPrefixOf,
   MANUAL_CLOID_PREFIX,
+  parseBracketOrderStatuses,
   scrubErrorMessage,
 } from "@/server/hyperliquid/exchange"
 import {
@@ -134,6 +135,23 @@ describe("risk engine", () => {
     expect(orders.ok).toBe(false)
   })
 
+  it("counts every order in a bracket against the open-order limit", () => {
+    const result = checkOrderIntent(
+      baseIntent,
+      { ...baseAccount, openOrderCount: 18 },
+      baseLimits,
+      freshRef(),
+      3
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.violations.map((violation) => violation.code)).toContain(
+        "max_open_orders"
+      )
+    }
+  })
+
   it("rejects limit prices far from mark", () => {
     const result = checkOrderIntent(
       { ...baseIntent, px: String(2000 * (1 + (PRICE_SANITY_PCT + 5) / 100)) },
@@ -224,5 +242,32 @@ describe("error scrubbing", () => {
     const bareKey = "cd".repeat(32) // 64 hex chars, no 0x prefix
     const scrubbed = scrubErrorMessage(new Error(`leaked key ${bareKey} oops`))
     expect(scrubbed).not.toContain(bareKey)
+  })
+})
+
+describe("bracket order responses", () => {
+  it("rejects a bracket when either protection order fails", () => {
+    expect(() =>
+      parseBracketOrderStatuses([
+        { filled: { oid: 1, avgPx: "2000", totalSz: "1" } },
+        { error: "Take-profit rejected" },
+        { resting: { oid: 3 } },
+      ])
+    ).toThrow(/position may be open without full protection/i)
+  })
+
+  it("returns the entry status only when every bracket leg succeeds", () => {
+    expect(
+      parseBracketOrderStatuses([
+        { filled: { oid: 1, avgPx: "2000", totalSz: "1" } },
+        { resting: { oid: 2 } },
+        { resting: { oid: 3 } },
+      ])
+    ).toEqual({
+      kind: "filled",
+      oid: 1,
+      avgPx: "2000",
+      totalSz: "1",
+    })
   })
 })

@@ -294,6 +294,31 @@ export const tradingWalletNonces = pgTable(
   ]
 )
 
+export const tradingOrderTemplates = pgTable(
+  "order_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    orderSizePct: numeric("order_size_pct").notNull(),
+    leverage: integer("leverage").notNull().default(5),
+    stopLossPct: numeric("stop_loss_pct").notNull(),
+    takeProfitPct: numeric("take_profit_pct").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("order_templates_user_id_name_unique").on(table.userId, table.name),
+    uniqueIndex("ux_order_templates_user_default")
+      .on(table.userId)
+      .where(sql`${table.isDefault}`),
+    index("ix_order_templates_user_id").on(table.userId),
+  ]
+)
+
 export type TradingAutomationDraft = AutomationGraph & {
   /** Absent on rows saved before per-automation backtest settings existed. */
   backtest?: AutomationBacktestSettings
@@ -1029,6 +1054,7 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
+export type TradingOrderTemplate = typeof tradingOrderTemplates.$inferSelect
 export type TradingAutomation = typeof tradingAutomations.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
 export type TradingBotState = typeof tradingBotState.$inferSelect
