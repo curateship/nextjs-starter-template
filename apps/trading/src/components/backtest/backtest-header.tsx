@@ -89,7 +89,7 @@ export function BacktestHeader({
     .slice(0, 100)
 
   return (
-    <div className="flex items-center gap-4 border-b bg-muted/50 px-4 py-2">
+    <div className="flex items-center gap-4 border-b bg-card px-4 py-2">
       <div className="flex items-center gap-1">
         <IconButton label="Back to run results" onClick={onBack}>
           <ArrowLeftIcon className="size-4" />

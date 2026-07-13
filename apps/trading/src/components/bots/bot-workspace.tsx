@@ -38,6 +38,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  WorkspacePanel,
 } from "@/components/ui/resizable"
 import {
   Sheet,
@@ -504,7 +505,7 @@ export function BotWorkspace({
       : []
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/40">
       <BotWorkspaceHeader
         bot={bot}
         stats={stats}
@@ -521,12 +522,12 @@ export function BotWorkspace({
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
-        <ResizablePanelGroup
-          orientation="vertical"
-          className="min-h-0 flex-1"
-          defaultLayout={outerLayout.defaultLayout}
-          onLayoutChanged={outerLayout.onLayoutChanged}
-        >
+        <div className="min-h-0 flex-1 p-2 md:p-3">
+          <ResizablePanelGroup
+            orientation="vertical"
+            defaultLayout={outerLayout.defaultLayout}
+            onLayoutChanged={outerLayout.onLayoutChanged}
+          >
           <ResizablePanel id="main" defaultSize="68%" minSize="35%">
             <ResizablePanelGroup
               orientation="horizontal"
@@ -535,18 +536,20 @@ export function BotWorkspace({
             >
               {marketsOpen ? (
                 <ResizablePanel id="markets" defaultSize="20%" minSize="14%">
-                  <BotMarketsPanel
-                    markets={bot.markets}
-                    states={states}
-                    marketRows={markets}
-                    selectedMarket={selectedMarket}
-                    onSelect={setSelectedMarket}
-                  />
+                  <WorkspacePanel>
+                    <BotMarketsPanel
+                      markets={bot.markets}
+                      states={states}
+                      marketRows={markets}
+                      selectedMarket={selectedMarket}
+                      onSelect={setSelectedMarket}
+                    />
+                  </WorkspacePanel>
                 </ResizablePanel>
               ) : null}
-              {marketsOpen ? <ResizableHandle withHandle /> : null}
+              {marketsOpen ? <ResizableHandle gap /> : null}
               <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
-                <div className="flex h-full min-h-0 flex-col">
+                <WorkspacePanel className="flex flex-col">
                   <ChartToolbar
                     intervals={CANDLE_INTERVALS}
                     interval={interval}
@@ -570,43 +573,48 @@ export function BotWorkspace({
                       registerApi={registerChartApi}
                     />
                   </div>
-                </div>
+                </WorkspacePanel>
               </ResizablePanel>
-              {controlsOpen ? <ResizableHandle withHandle /> : null}
+              {controlsOpen ? <ResizableHandle gap /> : null}
               {controlsOpen ? (
                 <ResizablePanel id="controls" defaultSize="20%" minSize="14%">
-                  <BotOrderControls
-                    market={selectedMarket}
-                    mode={bot.mode}
-                    draft={draft}
-                    dirty={dirty}
-                    busy={slTpBusy}
-                    error={slTpError}
-                    mid={markPrice}
-                    state={state}
-                    stats={stats}
-                    openOrders={openOrders}
-                    onDraftChange={(key, value) =>
-                      setDraft((current) => ({ ...current, [key]: value }))
-                    }
-                    onApply={() => void applyValues(draft)}
-                  />
+                  <WorkspacePanel>
+                    <BotOrderControls
+                      market={selectedMarket}
+                      mode={bot.mode}
+                      draft={draft}
+                      dirty={dirty}
+                      busy={slTpBusy}
+                      error={slTpError}
+                      mid={markPrice}
+                      state={state}
+                      stats={stats}
+                      openOrders={openOrders}
+                      onDraftChange={(key, value) =>
+                        setDraft((current) => ({ ...current, [key]: value }))
+                      }
+                      onApply={() => void applyValues(draft)}
+                    />
+                  </WorkspacePanel>
                 </ResizablePanel>
               ) : null}
             </ResizablePanelGroup>
           </ResizablePanel>
-          <ResizableHandle withHandle />
+          <ResizableHandle gap />
           <ResizablePanel id="activity" defaultSize="32%" minSize="15%">
-            <BotActivityTabs
-              trips={roundTrips}
-              openOrders={openOrders}
-              events={events}
-              stats={stats}
-              selectedTradeId={selectedTradeId}
-              onSelectTrade={setSelectedTradeId}
-            />
+            <WorkspacePanel>
+              <BotActivityTabs
+                trips={roundTrips}
+                openOrders={openOrders}
+                events={events}
+                stats={stats}
+                selectedTradeId={selectedTradeId}
+                onSelectTrade={setSelectedTradeId}
+              />
+            </WorkspacePanel>
           </ResizablePanel>
-        </ResizablePanelGroup>
+          </ResizablePanelGroup>
+        </div>
       </ClientOnly>
 
       <BotChartMenu

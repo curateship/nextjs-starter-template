@@ -16,6 +16,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  WorkspacePanel,
 } from "@/components/ui/resizable"
 import {
   Sheet,
@@ -371,13 +372,15 @@ export function AutomationEditor({
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
-        <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
+        <WorkspacePanel>
+          <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
+        </WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle withHandle />
+      <ResizableHandle gap />
       <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
-        <div className="flex h-full min-h-0">{canvas}</div>
+        <WorkspacePanel className="flex">{canvas}</WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle withHandle />
+      <ResizableHandle gap />
       <ResizablePanel
         id="inspector"
         panelRef={inspectorPanelRef}
@@ -388,15 +391,15 @@ export function AutomationEditor({
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
-        {inspector}
+        <WorkspacePanel>{inspector}</WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
-    <div className="flex h-full min-h-0">{canvas}</div>
+    <WorkspacePanel className="flex">{canvas}</WorkspacePanel>
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-muted/40">
       <AutomationToolbar
         name={name}
         runnable={compiled.config !== null && !dirty && !saving}
@@ -419,40 +422,43 @@ export function AutomationEditor({
         </div>
       ) : null}
 
-      <ResizablePanelGroup
-        key={`${logOpen ? "log-open" : "log-closed"}-${verticalLayout.layoutKey}`}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        defaultLayout={logOpen ? verticalLayout.defaultLayout : undefined}
-        onLayoutChanged={
-          logOpen ? verticalLayout.onLayoutChanged : undefined
-        }
-      >
-        <ResizablePanel id="workspace" defaultSize="78%" minSize="40%">
-          <div className="flex h-full min-h-0">{workspace}</div>
-        </ResizablePanel>
-        {logOpen ? <ResizableHandle withHandle /> : null}
-        {logOpen ? (
-          <ResizablePanel
-            id="activity-log"
-            defaultSize="22%"
-            minSize="12%"
-            maxSize="45%"
-          >
-            <AutomationActivityLog
-              entries={logEntries}
-              onCollapse={() => setLogOpen(false)}
-              showPanelToggles={desktop}
-              paletteCollapsed={paletteCollapsed}
-              inspectorCollapsed={inspectorCollapsed}
-              onTogglePalette={togglePalette}
-              onToggleInspector={toggleInspector}
-            />
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
+        <ResizablePanelGroup
+          key={`${logOpen ? "log-open" : "log-closed"}-${verticalLayout.layoutKey}`}
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          defaultLayout={logOpen ? verticalLayout.defaultLayout : undefined}
+          onLayoutChanged={
+            logOpen ? verticalLayout.onLayoutChanged : undefined
+          }
+        >
+          <ResizablePanel id="workspace" defaultSize="78%" minSize="40%">
+            <div className="flex h-full min-h-0">{workspace}</div>
           </ResizablePanel>
-        ) : null}
-      </ResizablePanelGroup>
-      {!logOpen ? (
-        <div className="flex min-h-10 shrink-0 items-center border-t bg-background p-4">
+          {logOpen ? <ResizableHandle gap /> : null}
+          {logOpen ? (
+            <ResizablePanel
+              id="activity-log"
+              defaultSize="22%"
+              minSize="12%"
+              maxSize="45%"
+            >
+              <WorkspacePanel>
+                <AutomationActivityLog
+                  entries={logEntries}
+                  onCollapse={() => setLogOpen(false)}
+                  showPanelToggles={desktop}
+                  paletteCollapsed={paletteCollapsed}
+                  inspectorCollapsed={inspectorCollapsed}
+                  onTogglePalette={togglePalette}
+                  onToggleInspector={toggleInspector}
+                />
+              </WorkspacePanel>
+            </ResizablePanel>
+          ) : null}
+        </ResizablePanelGroup>
+        {!logOpen ? (
+          <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
           <span className="text-xs font-semibold tracking-wide uppercase">
             Activity log
           </span>
@@ -478,8 +484,9 @@ export function AutomationEditor({
               <ChevronsUpIcon className="size-4" />
             </Button>
           </div>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <AutomationCanvasSettingsDialog
         open={settingsOpen}

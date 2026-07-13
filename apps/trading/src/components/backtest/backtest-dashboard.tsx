@@ -11,6 +11,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  WorkspacePanel,
 } from "@/components/ui/resizable"
 import {
   loadBacktest,
@@ -500,7 +501,7 @@ export function BacktestDashboard({
   const innerLayout = usePersistedLayout("backtest-layout-horizontal")
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/40">
       <BacktestHeader
         market={market}
         markets={markets}
@@ -545,12 +546,12 @@ export function BacktestDashboard({
         </div>
       ) : null}
 
-      <ResizablePanelGroup
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        defaultLayout={outerLayout.defaultLayout}
-        onLayoutChanged={outerLayout.onLayoutChanged}
-      >
+      <div className="min-h-0 flex-1 p-2 md:p-3">
+        <ResizablePanelGroup
+          orientation="vertical"
+          defaultLayout={outerLayout.defaultLayout}
+          onLayoutChanged={outerLayout.onLayoutChanged}
+        >
         <ResizablePanel id="main" defaultSize="68%" minSize="35%">
           <ResizablePanelGroup
             orientation="horizontal"
@@ -559,17 +560,19 @@ export function BacktestDashboard({
           >
             {inputsOpen ? (
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
-              <StrategyInputs
-                title={
-                  runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
-                }
-                rows={inputRows}
-              />
+              <WorkspacePanel>
+                <StrategyInputs
+                  title={
+                    runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
+                  }
+                  rows={inputRows}
+                />
+              </WorkspacePanel>
             </ResizablePanel>
             ) : null}
-            {inputsOpen ? <ResizableHandle withHandle /> : null}
+            {inputsOpen ? <ResizableHandle gap /> : null}
             <ResizablePanel id="chart" defaultSize="60%" minSize="30%">
-              <div className="flex h-full min-h-0 flex-col">
+              <WorkspacePanel className="flex flex-col">
                 <ChartToolbar
                   // A loaded run locks to its own timeframe: the indicator
                   // lines are recomputed from the displayed candles, so any
@@ -601,44 +604,48 @@ export function BacktestDashboard({
                     onVisibleRangeChange={handleVisibleRange}
                   />
                 </div>
-              </div>
+              </WorkspacePanel>
             </ResizablePanel>
-            {summaryOpen ? <ResizableHandle withHandle /> : null}
+            {summaryOpen ? <ResizableHandle gap /> : null}
             {summaryOpen ? (
             <ResizablePanel id="summary" defaultSize="20%" minSize="13%">
-              <BacktestSummary
-                result={result}
-                markPrice={markPrice}
-                config={{
-                  market,
-                  interval,
-                  windowDays: windowNum,
-                  startingEquity: Number(equity) || 0,
-                  costsText: `taker ${taker}bp · maker ${maker}bp · slip ${slippage}bp`,
-                  network: "mainnet",
-                  ranAt: run?.completedAt
-                    ? new Date(run.completedAt).toLocaleString("en-US", {
-                        hour12: false,
-                      })
-                    : null,
-                }}
-              />
+              <WorkspacePanel>
+                <BacktestSummary
+                  result={result}
+                  markPrice={markPrice}
+                  config={{
+                    market,
+                    interval,
+                    windowDays: windowNum,
+                    startingEquity: Number(equity) || 0,
+                    costsText: `taker ${taker}bp · maker ${maker}bp · slip ${slippage}bp`,
+                    network: "mainnet",
+                    ranAt: run?.completedAt
+                      ? new Date(run.completedAt).toLocaleString("en-US", {
+                          hour12: false,
+                        })
+                      : null,
+                  }}
+                />
+              </WorkspacePanel>
             </ResizablePanel>
             ) : null}
           </ResizablePanelGroup>
         </ResizablePanel>
-        <ResizableHandle withHandle />
+        <ResizableHandle gap />
         <ResizablePanel id="tester" defaultSize="32%" minSize="15%">
-          <StrategyTester
-            result={result}
-            startingEquity={Number(equity) || 0}
-            markPrice={markPrice}
-            selectedTradeN={focusedTrade?.n ?? null}
-            onSelectTrade={handleSelectTrade}
-          />
+          <WorkspacePanel>
+            <StrategyTester
+              result={result}
+              startingEquity={Number(equity) || 0}
+              markPrice={markPrice}
+              selectedTradeN={focusedTrade?.n ?? null}
+              onSelectTrade={handleSelectTrade}
+            />
+          </WorkspacePanel>
         </ResizablePanel>
-      </ResizablePanelGroup>
-
+        </ResizablePanelGroup>
+      </div>
     </div>
   )
 }

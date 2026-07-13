@@ -46,7 +46,7 @@ export function AdminOverview() {
               <Link
                 key={item.id}
                 to={item.href}
-                className="group flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
+                className="group flex items-center gap-3 rounded-xl border border-foreground/5 bg-card p-4 transition-colors hover:bg-muted/50"
               >
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
                   {renderShellIcon(item.icon, "size-4")}

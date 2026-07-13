@@ -5,6 +5,7 @@ import {
   ChartLoadingSkeleton,
   DashboardLoadingSkeleton,
   MarketListLoadingSkeleton,
+  WorkspaceLoadBoundary,
   WorkspaceLoadingSkeleton,
 } from "@/components/loading-skeleton"
 
@@ -21,5 +22,19 @@ describe("loading skeletons", () => {
     expect(markup).toContain('aria-busy="true"')
     expect(markup).toContain('data-slot="skeleton"')
     expect(markup).not.toMatch(/Loading [A-Z]/)
+  })
+
+  it("keeps workspace content hidden behind a skeleton until layout is ready", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceLoadBoundary>
+        <div>Finished workspace</div>
+      </WorkspaceLoadBoundary>
+    )
+
+    expect(markup).toContain('data-slot="workspace-loading-boundary"')
+    expect(markup).toContain('aria-hidden="true"')
+    expect(markup).toContain("invisible")
+    expect(markup).toContain('aria-label="Loading workspace"')
+    expect(markup).toContain("Finished workspace")
   })
 })

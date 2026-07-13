@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 
 import { BotWorkspace } from "@/components/bots/bot-workspace"
+import { WorkspaceLoadBoundary } from "@/components/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import { getBotErrorMessage, loadBotDetail } from "@/lib/api/bots"
 
@@ -17,7 +18,11 @@ export const Route = createFileRoute("/_authenticated/bots/$botId")({
 function BotDetailRoute() {
   const initial = Route.useLoaderData()
   const { botId } = Route.useParams()
-  return <BotWorkspace botId={botId} initial={initial} />
+  return (
+    <WorkspaceLoadBoundary>
+      <BotWorkspace botId={botId} initial={initial} />
+    </WorkspaceLoadBoundary>
+  )
 }
 
 function BotDetailError({ error }: { error: unknown }) {

@@ -4,6 +4,7 @@ import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { BacktestAutomationDialog } from "@/components/automations/backtest-automation-dialog"
 import { AutomationEditor } from "@/components/automations/automation-editor"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
+import { WorkspaceLoadBoundary } from "@/components/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import { getAutomationErrorMessage } from "@/lib/api/automations"
 
@@ -18,14 +19,16 @@ export function AutomationRouteContent() {
 
   return (
     <>
-      <AutomationEditor
-        key={automation.id}
-        initial={automation}
-        pinnedIndicators={pinnedIndicators}
-        indicatorParamSeeds={indicatorParamSeeds}
-        onCreateBot={() => setBotOpen(true)}
-        onBacktest={() => setBacktestOpen(true)}
-      />
+      <WorkspaceLoadBoundary>
+        <AutomationEditor
+          key={automation.id}
+          initial={automation}
+          pinnedIndicators={pinnedIndicators}
+          indicatorParamSeeds={indicatorParamSeeds}
+          onCreateBot={() => setBotOpen(true)}
+          onBacktest={() => setBacktestOpen(true)}
+        />
+      </WorkspaceLoadBoundary>
 
       <NewBotDialog
         open={botOpen}

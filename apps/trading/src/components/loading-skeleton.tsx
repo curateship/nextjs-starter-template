@@ -1,4 +1,7 @@
+import * as React from "react"
+
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 export function DashboardLoadingSkeleton() {
   return (
@@ -49,6 +52,60 @@ export function WorkspaceLoadingSkeleton() {
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
+    </div>
+  )
+}
+
+/**
+ * Keeps resizable workspaces behind their skeleton until fonts and browser
+ * layout have settled. The real panels stay mounted invisibly so their saved
+ * sizes are calculated before the user sees them.
+ */
+export function WorkspaceLoadBoundary({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const [ready, setReady] = React.useState(false)
+
+  React.useEffect(() => {
+    let active = true
+    let firstFrame = 0
+    let secondFrame = 0
+
+    const revealAfterLayout = () => {
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+          if (active) setReady(true)
+        })
+      })
+    }
+
+    void document.fonts.ready.then(revealAfterLayout)
+
+    return () => {
+      active = false
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }, [])
+
+  return (
+    <div
+      data-slot="workspace-loading-boundary"
+      className="relative h-full min-h-0 flex-1"
+    >
+      <div
+        aria-hidden={!ready}
+        className={cn("h-full min-h-0", !ready && "invisible")}
+      >
+        {children}
+      </div>
+      {!ready ? (
+        <div className="absolute inset-0 bg-muted/40">
+          <WorkspaceLoadingSkeleton />
+        </div>
+      ) : null}
     </div>
   )
 }

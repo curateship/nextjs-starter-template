@@ -1,6 +1,5 @@
 import * as React from "react"
 import { SettingsIcon } from "lucide-react"
-import type { Layout } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -56,6 +55,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
@@ -88,6 +88,7 @@ import {
 import { saveIndicator } from "@/lib/api/indicators"
 import { OverlaySettingsDialog } from "@/components/indicators/indicator-settings-dialog"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
+import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 import { describeOpenOrder } from "@/lib/trading/open-order"
@@ -100,15 +101,6 @@ const BOTTOM_TABS_LIST =
   "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
 const BOTTOM_TAB_TRIGGER =
   "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
-
-// Floating-panel look: every terminal region is a white rounded card on the
-// muted page canvas, separated by invisible resize handles. Per Tyler's call,
-// the terminal uses HALF the site gap (8px / 12px) so the dense layout keeps
-// its screen space — documented as an exception in workspace/docs/ui-ux.md.
-const PANEL_CARD =
-  "h-full min-h-0 overflow-hidden rounded-xl border border-foreground/5 bg-card"
-const GAP_HANDLE =
-  "w-2 bg-transparent after:hidden sm:w-3 aria-[orientation=horizontal]:h-2 sm:aria-[orientation=horizontal]:h-3"
 
 export function TradingWorkspace({
   network,
@@ -405,7 +397,7 @@ export function TradingWorkspace({
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
 
-      <div className="min-h-0 flex-1 p-1.5 sm:p-2 md:p-3">
+      <div className="min-h-0 flex-1 p-2 md:p-3">
         <ResizablePanelGroup
           orientation="vertical"
           defaultLayout={outerLayout.defaultLayout}
@@ -418,17 +410,17 @@ export function TradingWorkspace({
               onLayoutChanged={innerLayout.onLayoutChanged}
             >
               <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
-                <div className={PANEL_CARD}>
+                <WorkspacePanel>
                   <MarketWatchlist
                     network={network}
                     selected={market}
                     onSelect={onMarketChange}
                   />
-                </div>
+                </WorkspacePanel>
               </ResizablePanel>
-              <ResizableHandle className={GAP_HANDLE} />
+              <ResizableHandle gap />
               <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
-                <div className={cn(PANEL_CARD, "flex flex-col")}>
+                <WorkspacePanel className="flex flex-col">
                   <ChartToolbar
                     intervals={CANDLE_INTERVALS}
                     interval={interval}
@@ -487,11 +479,11 @@ export function TradingWorkspace({
                       onTrendlinePersistenceError={handleTrendlinePersistenceError}
                     />
                   </div>
-                </div>
+                </WorkspacePanel>
               </ResizablePanel>
               {panels.orderBook || panels.marketDepth ? (
                 <>
-                  <ResizableHandle className={GAP_HANDLE} />
+                  <ResizableHandle gap />
                   <ResizablePanel
                     id="book-tape"
                     defaultSize="16%"
@@ -508,17 +500,17 @@ export function TradingWorkspace({
                           defaultSize="60%"
                           minSize="20%"
                         >
-                          <div className={PANEL_CARD}>
+                          <WorkspacePanel>
                             <OrderBook
                               network={network}
                               coin={market}
                               onPriceClick={(px) => setPrefill({ px })}
                             />
-                          </div>
+                          </WorkspacePanel>
                         </ResizablePanel>
                       ) : null}
                       {panels.orderBook && panels.marketDepth ? (
-                        <ResizableHandle className={GAP_HANDLE} />
+                        <ResizableHandle gap />
                       ) : null}
                       {panels.marketDepth ? (
                         <ResizablePanel
@@ -526,18 +518,18 @@ export function TradingWorkspace({
                           defaultSize="40%"
                           minSize="15%"
                         >
-                          <div className={PANEL_CARD}>
+                          <WorkspacePanel>
                             <TradesTape network={network} coin={market} />
-                          </div>
+                          </WorkspacePanel>
                         </ResizablePanel>
                       ) : null}
                     </ResizablePanelGroup>
                   </ResizablePanel>
                 </>
               ) : null}
-              <ResizableHandle className={GAP_HANDLE} />
+              <ResizableHandle gap />
               <ResizablePanel id="ticket" defaultSize="20%" minSize="14%">
-                <div className={cn(PANEL_CARD, "flex flex-col")}>
+                <WorkspacePanel className="flex flex-col">
                   <ScrollArea className="min-h-0 flex-1">
                     <OrderTicket
                       walletId={
@@ -562,13 +554,13 @@ export function TradingWorkspace({
                     isPaper={isPaper}
                     workerOnline={workerOnline}
                   />
-                </div>
+                </WorkspacePanel>
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
-          <ResizableHandle className={GAP_HANDLE} />
+          <ResizableHandle gap />
           <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
-            <div className={PANEL_CARD}>
+            <WorkspacePanel>
               {isPaper ? (
                 <PaperBottomTabs account={paperAccount} onNotify={notify} />
               ) : (
@@ -585,7 +577,7 @@ export function TradingWorkspace({
                   onNotify={notify}
                 />
               )}
-            </div>
+            </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
@@ -835,30 +827,6 @@ function MarketStat({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-foreground tabular-nums">{value}</span>
     </span>
   )
-}
-
-function usePersistedLayout(key: string) {
-  const [defaultLayout] = React.useState<Layout | undefined>(() => {
-    try {
-      const raw = localStorage.getItem(key)
-      return raw ? (JSON.parse(raw) as Layout) : undefined
-    } catch {
-      return undefined
-    }
-  })
-
-  const onLayoutChanged = React.useCallback(
-    (layout: Layout) => {
-      try {
-        localStorage.setItem(key, JSON.stringify(layout))
-      } catch {
-        // storage full/blocked — layout just won't persist
-      }
-    },
-    [key]
-  )
-
-  return { defaultLayout, onLayoutChanged }
 }
 
 /**

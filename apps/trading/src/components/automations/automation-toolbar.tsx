@@ -44,7 +44,7 @@ export function AutomationToolbar({
   onBacktest?: () => void
 }) {
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-2 sm:px-3">
+    <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
       <Button asChild variant="ghost" size="icon-xs">
         <Link to="/automations" aria-label="Back to Automations">
           <ArrowLeftIcon className="size-4" />

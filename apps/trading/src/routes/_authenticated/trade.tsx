@@ -8,6 +8,10 @@ import {
 import { loadIndicators } from "@/lib/api/indicators"
 import { loadTradingContext } from "@/lib/api/trading"
 import { useShellRuntime } from "@/components/shell-layout"
+import {
+  WorkspaceLoadBoundary,
+  WorkspaceLoadingSkeleton,
+} from "@/components/loading-skeleton"
 
 const tradeSearchSchema = z.object({
   market: z.string().default("ETH"),
@@ -44,29 +48,31 @@ function TradeRoute() {
         (paperWallets[0] ? `${PAPER_WALLET_PREFIX}${paperWallets[0].id}` : null))
 
   return (
-    <ClientOnly fallback={null}>
-      <TradingWorkspace
-        network={network}
-        wallets={wallets}
-        paperWallets={paperWallets}
-        market={market}
-        selectedValue={selectedValue}
-        workerOnline={workerOnline}
-        initialIndicators={indicators}
-        orderConfirmation={runtime.config.orderConfirmation}
-        onMarketChange={(coin) =>
-          void navigate({
-            search: (current) => ({ ...current, market: coin }),
-            replace: true,
-          })
-        }
-        onWalletChange={(value) =>
-          void navigate({
-            search: (current) => ({ ...current, wallet: value }),
-            replace: true,
-          })
-        }
-      />
+    <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
+      <WorkspaceLoadBoundary>
+        <TradingWorkspace
+          network={network}
+          wallets={wallets}
+          paperWallets={paperWallets}
+          market={market}
+          selectedValue={selectedValue}
+          workerOnline={workerOnline}
+          initialIndicators={indicators}
+          orderConfirmation={runtime.config.orderConfirmation}
+          onMarketChange={(coin) =>
+            void navigate({
+              search: (current) => ({ ...current, market: coin }),
+              replace: true,
+            })
+          }
+          onWalletChange={(value) =>
+            void navigate({
+              search: (current) => ({ ...current, wallet: value }),
+              replace: true,
+            })
+          }
+        />
+      </WorkspaceLoadBoundary>
     </ClientOnly>
   )
 }
