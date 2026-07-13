@@ -5,7 +5,7 @@ import {
   ChartLoadingSkeleton,
   DashboardLoadingSkeleton,
   MarketListLoadingSkeleton,
-  WorkspaceLoadBoundary,
+  PageLoadBoundary,
   WorkspaceLoadingSkeleton,
 } from "@/components/loading-skeleton"
 
@@ -24,17 +24,25 @@ describe("loading skeletons", () => {
     expect(markup).not.toMatch(/Loading [A-Z]/)
   })
 
-  it("keeps workspace content hidden behind a skeleton until layout is ready", () => {
+  it("keeps page content hidden behind its skeleton until layout is ready", () => {
     const markup = renderToStaticMarkup(
-      <WorkspaceLoadBoundary>
+      <PageLoadBoundary fallback={<WorkspaceLoadingSkeleton />}>
         <div>Finished workspace</div>
-      </WorkspaceLoadBoundary>
+      </PageLoadBoundary>
     )
 
-    expect(markup).toContain('data-slot="workspace-loading-boundary"')
+    expect(markup).toContain('data-slot="page-loading-boundary"')
     expect(markup).toContain('aria-hidden="true"')
     expect(markup).toContain("invisible")
     expect(markup).toContain('aria-label="Loading workspace"')
     expect(markup).toContain("Finished workspace")
+  })
+
+  it("does not add summary sections above a dashboard table", () => {
+    const markup = renderToStaticMarkup(<DashboardLoadingSkeleton />)
+
+    expect(markup).toContain('data-slot="dashboard-table-skeleton"')
+    expect(markup).not.toContain("h-24")
+    expect(markup).not.toContain("h-7")
   })
 })

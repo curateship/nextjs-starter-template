@@ -2,7 +2,9 @@ import { and, asc, eq } from "drizzle-orm"
 
 import {
   createDefaultTopRightNavigation,
+  DEFAULT_SIDEBAR_WIDTH,
   iconMeta,
+  isSidebarWidth,
   type IconKey,
   type ShellSection,
   type ShellTopNavigationItem,
@@ -20,6 +22,7 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 
 export type WorkspaceSettings = {
   icon: IconKey
+  sidebarWidth: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -303,7 +306,11 @@ export function serializeWorkspace(
 
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    return cleanWorkspaceSettings(value as Partial<WorkspaceSettings>)
+    const settings = value as Partial<WorkspaceSettings>
+    if (!isSidebarWidth(settings.sidebarWidth)) {
+      throw new Error("Saved workspace settings are missing sidebarWidth")
+    }
+    return cleanWorkspaceSettings(settings)
   }
 
   return defaultWorkspaceSettings()
@@ -317,6 +324,9 @@ function cleanWorkspaceSettings(
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : fallback.icon,
+    sidebarWidth: isSidebarWidth(settings.sidebarWidth)
+      ? settings.sidebarWidth
+      : fallback.sidebarWidth,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
@@ -334,6 +344,7 @@ function cleanWorkspaceSettings(
 function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

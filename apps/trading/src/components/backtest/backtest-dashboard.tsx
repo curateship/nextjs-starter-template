@@ -501,7 +501,7 @@ export function BacktestDashboard({
   const innerLayout = usePersistedLayout("backtest-layout-horizontal")
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/40">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60">
       <BacktestHeader
         market={market}
         markets={markets}

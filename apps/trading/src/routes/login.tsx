@@ -44,7 +44,7 @@ function LoginRoute() {
   )
 
   return (
-    <main className="grid min-h-screen place-items-center bg-muted/40 p-2 md:p-3">
+    <main className="grid min-h-screen place-items-center bg-muted/60 p-2 md:p-3">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6"

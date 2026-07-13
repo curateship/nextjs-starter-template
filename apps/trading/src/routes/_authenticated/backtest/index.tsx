@@ -3,10 +3,6 @@ import { z } from "zod"
 
 import { BacktestDashboard } from "@/components/backtest/backtest-dashboard"
 import { RunGroupsDashboard } from "@/components/backtest/strategies-dashboard"
-import {
-  WorkspaceLoadBoundary,
-  WorkspaceLoadingSkeleton,
-} from "@/components/loading-skeleton"
 import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
 
 const backtestSearchSchema = z.object({
@@ -41,21 +37,19 @@ function BacktestRoute() {
   }
 
   return (
-    <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
-      <WorkspaceLoadBoundary>
-        <BacktestDashboard
-          key={run}
-          initialRuns={runs}
-          runId={run}
-          onRunIdChange={(id) =>
-            void navigate({
-              search: (current) => ({ ...current, run: id ?? undefined }),
-              replace: true,
-            })
-          }
-          onViewAll={() => void navigate({ search: { run: undefined } })}
-        />
-      </WorkspaceLoadBoundary>
+    <ClientOnly fallback={null}>
+      <BacktestDashboard
+        key={run}
+        initialRuns={runs}
+        runId={run}
+        onRunIdChange={(id) =>
+          void navigate({
+            search: (current) => ({ ...current, run: id ?? undefined }),
+            replace: true,
+          })
+        }
+        onViewAll={() => void navigate({ search: { run: undefined } })}
+      />
     </ClientOnly>
   )
 }

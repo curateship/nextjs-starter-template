@@ -12,8 +12,12 @@ Read before building or changing any page. One rule above all: **reuse the exist
 
 ## Full-bleed pages (padding on navigation)
 
-- A few pages drop the `DashboardContent` gutter and manage their own edges: the live Trade terminal, the bot workspace, an automation editor, and the backtest chart. This opt-out is decided in ONE place — `isFullBleedLocation` in `src/components/shell-layout.tsx`. Add a page there; don't wrap or unwrap padding per route.
-- **Decide padding from the page that is actually rendered, never the page you are navigating to.** During a navigation the old page stays mounted until the new one's data loads, so `shell-layout` reads the _settled_ location (`resolvedLocation` while `status === "pending"`, otherwise `location`). Judging the pending target instead strips padding off the still-visible old page for a frame — a visible flash when leaving a padded table for the full-bleed chart. (Fixed July 2026; don't reintroduce the target-location check.)
+- A few pages drop the `DashboardContent` gutter and manage their own edges: the live Trade terminal, the bot workspace, an automation editor, and the backtest chart. This opt-out is decided in ONE place — `isFullBleedLocation` in `src/lib/full-bleed-location.ts`. Add a page there; don't wrap or unwrap padding per route.
+- `PageLoadBoundary` hides route transitions, so `shell-layout` uses the current URL as the one source of truth for padding. Do not add a second settled-location path.
+
+## Sidebar
+
+- The desktop sidebar edge supports both click-to-collapse and drag-to-resize. Expanded width is limited to 144–420px and saved in the current workspace's database settings. Arrow keys resize the focused edge in 8px steps.
 
 ## Tables
 
@@ -42,11 +46,12 @@ Read before building or changing any page. One rule above all: **reuse the exist
 ## Loading
 
 - Dashboard data loads must show the shared skeletons from `src/components/loading-skeleton.tsx`; never leave a blank panel or centered “Loading…” sentence.
+- The shared dashboard skeleton contains only the table placeholder. Do not add fake summary cards or title blocks above it because pages have different headers.
 - Route-backed dashboards use the router's default `DashboardLoadingSkeleton`. Full-screen workspaces, charts, tables, and market lists use their matching shared skeleton.
-- Wrap full-screen trade, bot, automation, and backtest workspaces in `WorkspaceLoadBoundary`. It mounts panels invisibly behind `WorkspaceLoadingSkeleton` and reveals them only after fonts and panel sizing have settled, preventing a shrunken first frame.
+- `ShellLayout` wraps every page in `PageLoadBoundary`. It mounts the page invisibly behind the correct dashboard or workspace skeleton and reveals it only after fonts and layout have settled. Do not add route-level loading boundaries.
 - Small action states such as saving a form or submitting a button may still use a compact spinner and text.
 
 ## Components
 
 - Use the shadcn components in `src/components/ui/` and the shared chart/toolbar/card patterns from existing dashboards.
-- The default page canvas is `bg-muted/40`. Content surfaces are white `bg-card` cards with `rounded-xl border border-foreground/5`; use the shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
+- The default page canvas is `bg-muted/60`. Content surfaces are white `bg-card` cards with `rounded-xl border border-foreground/5`; use the shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
