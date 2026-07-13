@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic"
 
 const Toaster = dynamic(
-  () => import("sonner").then(m => m.Toaster),
+  () => import("@/components/ui/sonner").then(m => m.Toaster),
   { ssr: false }
 )
 

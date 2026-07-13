@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router"
 
 import "@/styles.css"
+import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
@@ -28,6 +29,7 @@ function RootComponent() {
       <ThemeProvider>
         <TooltipProvider>
           <Outlet />
+          <Toaster />
         </TooltipProvider>
       </ThemeProvider>
     </RootDocument>
