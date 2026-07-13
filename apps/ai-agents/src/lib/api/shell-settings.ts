@@ -7,6 +7,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/ai-agents"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
@@ -52,6 +53,9 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  // Per-workspace sidebar width. Always populated with a valid value by the
+  // loader (workspace settings default it), so a plain required field is fine.
+  sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -101,6 +105,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       settings: {
         ...shellGlobals,
         workspaceName: workspace.name,
+        sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
         topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
@@ -134,6 +139,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
+            sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
             topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
@@ -178,6 +184,52 @@ export function loadShellSettings() {
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
+}
+
+// Lightweight, per-user save for the draggable sidebar width. Unlike the full
+// shell save this is not admin-gated — any signed-in user can persist their own
+// workspace's sidebar width by dragging the rail.
+const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      sidebarWidth: z
+        .number()
+        .int()
+        .min(MIN_SIDEBAR_WIDTH)
+        .max(MAX_SIDEBAR_WIDTH),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(aiAgentsWorkspaces)
+      .set({
+        settings: { ...settings, sidebarWidth: data.sidebarWidth },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiAgentsWorkspaces.id, workspace.id),
+          eq(aiAgentsWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: aiAgentsWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function saveSidebarWidth(sidebarWidth: number) {
+  return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
 async function requireUser() {

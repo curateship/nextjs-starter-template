@@ -20,6 +20,7 @@ import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
+  saveSidebarWidth,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 
@@ -59,6 +60,12 @@ export function ShellLayout({
     select: (state) => state.location.pathname,
   })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
+  // Last width the server confirmed, plus a serialized save queue + version
+  // counter so rapid drags persist in order and a failure rolls back to the
+  // last-saved width without clobbering a newer in-flight drag.
+  const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
+  const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
+  const sidebarWidthSaveVersionRef = React.useRef(0)
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
@@ -76,7 +83,9 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    setConfig(normalizeConfig(settings))
+    const nextConfig = normalizeConfig(settings)
+    savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
   }, [settings])
@@ -111,6 +120,40 @@ export function ShellLayout({
     setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
+  }, [])
+
+  // Persist the dragged sidebar width on its own (not through the admin-gated
+  // full-config save). Updates local config immediately, then saves; on failure
+  // rolls the width back to the last-confirmed value unless a newer drag has
+  // superseded this one. The app has no toast surface, so a failed save reverts
+  // silently — the visible width snapping back is the feedback. (settingsError
+  // only renders on the admin settings page, so surfacing it here would be a
+  // stale, misplaced error.)
+  const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
+    const version = sidebarWidthSaveVersionRef.current + 1
+    sidebarWidthSaveVersionRef.current = version
+    setConfig((current) => ({ ...current, sidebarWidth }))
+
+    const save = sidebarWidthSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveSidebarWidth(sidebarWidth))
+    sidebarWidthSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    void save
+      .then(() => {
+        savedSidebarWidthRef.current = sidebarWidth
+      })
+      .catch(() => {
+        if (version === sidebarWidthSaveVersionRef.current) {
+          setConfig((current) => ({
+            ...current,
+            sidebarWidth: savedSidebarWidthRef.current,
+          }))
+        }
+      })
   }, [])
 
   const handleSaveConfig = React.useCallback(async () => {
@@ -170,7 +213,11 @@ export function ShellLayout({
   return (
     <ShellRuntimeContext.Provider value={runtime}>
       <div className="min-h-screen bg-background">
-        <SidebarProvider className="h-screen">
+        <SidebarProvider
+          className="h-screen"
+          sidebarWidth={config.sidebarWidth}
+          onSidebarWidthCommit={handleSidebarWidthCommit}
+        >
           <AppSidebar
             config={config}
             user={user}
@@ -215,6 +262,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     )
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
+    sidebarWidth: settings.sidebarWidth ?? fallback.sidebarWidth,
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
