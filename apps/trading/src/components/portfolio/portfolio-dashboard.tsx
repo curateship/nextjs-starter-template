@@ -65,7 +65,7 @@ export function PortfolioDashboard({
       : null
 
   return (
-    <div className="flex w-full flex-col gap-4 pb-12">
+    <div className="flex w-full flex-col gap-2 md:gap-3">
       <div className="flex items-center gap-2">
         <Label htmlFor="portfolio-wallet" className="text-xs text-muted-foreground">
           Wallet
@@ -90,7 +90,7 @@ export function PortfolioDashboard({
         </Select>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-4">
         <StatTile
           label="Realized PnL (90d)"
           value={`${data.stats.totalPnl >= 0 ? "+" : ""}$${data.stats.totalPnl.toFixed(2)}`}
@@ -114,7 +114,7 @@ export function PortfolioDashboard({
         <StatTile label="Fills (90d)" value={String(data.stats.fills)} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-2 md:gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Equity curve</CardTitle>
@@ -215,7 +215,7 @@ export function PortfolioDashboard({
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-2 md:gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Per-market breakdown (90d)</CardTitle>

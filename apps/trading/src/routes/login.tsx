@@ -44,10 +44,10 @@ function LoginRoute() {
   )
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4">
+    <main className="grid min-h-screen place-items-center bg-muted/40 p-2 md:p-3">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
+        className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6"
       >
         <div className="mb-6">
           <h1 className="text-xl font-semibold">Sign in to Trading</h1>

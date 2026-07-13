@@ -354,7 +354,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   )
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <input
         ref={fileInputRef}
         type="file"

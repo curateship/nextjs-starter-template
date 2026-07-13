@@ -26,7 +26,7 @@ export function AdminOverview() {
     .filter((section) => section.items.length > 0)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-2 md:space-y-3">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">
           {config.workspaceName || "Overview"}
@@ -37,11 +37,11 @@ export function AdminOverview() {
       </div>
 
       {sections.map((section) => (
-        <section key={section.id} className="space-y-3">
+        <section key={section.id} className="space-y-2 md:space-y-3">
           <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {section.title}
           </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:gap-3 lg:grid-cols-4">
             {section.items.map((item) => (
               <Link
                 key={item.id}

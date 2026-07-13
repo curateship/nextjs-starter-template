@@ -30,7 +30,7 @@ export function AuditDashboard({ initial }: { initial: AuditPageResponse }) {
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Audit Log"
         icon={

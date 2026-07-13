@@ -120,7 +120,7 @@ export function IndicatorsDashboard({
   )
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <DashboardTable
         title="Indicators"
         icon={

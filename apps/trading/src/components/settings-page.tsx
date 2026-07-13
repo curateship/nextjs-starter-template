@@ -47,8 +47,8 @@ export function SettingsPage({
   const isSaving = saveStatus === "saving"
 
   return (
-    <div className="w-full pb-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="w-full">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between md:mb-3 md:gap-3">
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">
@@ -94,14 +94,14 @@ export function SettingsPage({
       {settingsError ? (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="mb-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive md:mb-3"
         >
           <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{settingsError}</span>
         </div>
       ) : null}
 
-      <div className="flex flex-col items-start gap-6 lg:flex-row">
+      <div className="flex flex-col items-start gap-2 md:gap-3 lg:flex-row">
         <nav className="flex w-full shrink-0 flex-col lg:w-48">
           {settingsTabs.map((tab) => (
             <SettingsTabLink

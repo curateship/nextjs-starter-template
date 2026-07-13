@@ -273,7 +273,7 @@ export function NotificationsPage({
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       {error ? (
         <div
           role="alert"

@@ -6,7 +6,7 @@ export function DashboardLoadingSkeleton() {
       role="status"
       aria-label="Loading dashboard"
       aria-busy="true"
-      className="w-full space-y-4 sm:space-y-6"
+      className="w-full space-y-2 md:space-y-3"
     >
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-2">
@@ -15,12 +15,12 @@ export function DashboardLoadingSkeleton() {
         </div>
         <Skeleton className="h-8 w-24" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Skeleton key={index} className="h-24 w-full" />
         ))}
       </div>
-      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl border border-foreground/5 bg-card">
         <div className="flex items-center justify-between gap-4 bg-muted/50 p-4">
           <Skeleton className="h-6 w-36" />
           <Skeleton className="h-8 w-28" />
@@ -41,7 +41,7 @@ export function WorkspaceLoadingSkeleton() {
       role="status"
       aria-label="Loading workspace"
       aria-busy="true"
-      className="grid h-full min-h-96 grid-cols-1 gap-2 p-1.5 sm:gap-3 sm:p-2 md:p-3 lg:grid-cols-4"
+      className="grid h-full min-h-96 grid-cols-1 gap-2 p-2 md:gap-3 md:p-3 lg:grid-cols-4"
     >
       <Skeleton className="min-h-80 w-full lg:col-span-3" />
       <div className="space-y-2 sm:space-y-3">
@@ -99,7 +99,7 @@ export function MarketListLoadingSkeleton() {
 
 export function ShellLoadingSkeleton() {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-muted/40">
       <aside className="hidden w-64 border-r p-4 md:block">
         <Skeleton className="mb-6 h-8 w-36" />
         <div className="space-y-2">
@@ -124,8 +124,8 @@ export function ShellLoadingSkeleton() {
 
 export function LoginLoadingSkeleton() {
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+    <main className="grid min-h-screen place-items-center bg-muted/40 p-2 md:p-3">
+      <div className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6">
         <Skeleton className="mb-3 h-7 w-48" />
         <Skeleton className="mb-6 h-4 w-40" />
         <div className="space-y-4">

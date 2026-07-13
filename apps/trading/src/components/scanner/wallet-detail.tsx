@@ -47,8 +47,8 @@ export function WalletDetailPage({
   }
 
   return (
-    <div className="w-full space-y-4 pb-8">
-      <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="w-full space-y-2 md:space-y-3">
+      <div className="rounded-xl border border-foreground/5 bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
@@ -248,8 +248,8 @@ function WalletStatsSection({ stats }: { stats: ScannerWalletStatsItem }) {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="space-y-2 md:space-y-3">
+      <div className="rounded-xl border border-foreground/5 bg-card p-4">
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="text-sm font-medium sm:text-base">Stats (30d)</h3>
           <span className="text-xs text-muted-foreground">
