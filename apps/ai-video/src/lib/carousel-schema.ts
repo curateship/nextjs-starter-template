@@ -7,6 +7,20 @@ export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
 export type CarouselItemType = "text" | "image" | "video" | "gradient-shadow"
 export type CarouselTextAlign = "left" | "center" | "right"
 export type CarouselMediaFit = "fill" | "cover" | "contain"
+
+// Direction a gradient-shadow (scrim) fades in. `up` = today's bottom→top
+// behaviour and is the default when the field is absent, so existing saved
+// slides stay valid. `solid` is a flat tint, `radial` a centre-out vignette.
+export const CAROUSEL_SHADOW_DIRECTIONS = [
+  "up",
+  "down",
+  "left",
+  "right",
+  "radial",
+  "solid",
+] as const
+export type CarouselShadowDirection =
+  (typeof CAROUSEL_SHADOW_DIRECTIONS)[number]
 export type CarouselSortBy = "name" | "slide_count" | "format" | "updated_at"
 export type CarouselSortDirection = "asc" | "desc"
 
@@ -50,6 +64,7 @@ export const carouselGradientShadowItemSchema = z
     type: z.literal("gradient-shadow"),
     color: safeColorSchema,
     opacity: z.number().min(0).max(100),
+    direction: z.enum(CAROUSEL_SHADOW_DIRECTIONS).optional(),
   })
   .strict()
 
