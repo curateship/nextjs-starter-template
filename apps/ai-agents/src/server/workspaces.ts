@@ -8,6 +8,10 @@ import {
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-agents"
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+} from "@/lib/sidebar-width"
 import { db, type AiAgentsDb } from "@/server/db"
 import {
   aiAgentsWorkspaces,
@@ -24,6 +28,8 @@ export type WorkspaceSettings = {
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Draggable sidebar width in px, saved per-workspace.
+  sidebarWidth: number
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -320,6 +326,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      // Clamp + fall back to default for rows saved before this field existed.
+      sidebarWidth:
+        typeof settings.sidebarWidth === "number"
+          ? clampSidebarWidth(settings.sidebarWidth)
+          : fallback.sidebarWidth,
     }
   }
 
@@ -345,6 +356,10 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    sidebarWidth:
+      typeof settings.sidebarWidth === "number"
+        ? clampSidebarWidth(settings.sidebarWidth)
+        : fallback.sidebarWidth,
   }
 }
 
@@ -355,6 +370,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   }
 }
 

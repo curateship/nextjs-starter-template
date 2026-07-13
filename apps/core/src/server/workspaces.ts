@@ -7,6 +7,10 @@ import {
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+} from "@/lib/sidebar-width"
+import {
   createDefaultTopRightNavigation,
   iconMeta,
   type IconKey,
@@ -26,6 +30,8 @@ const MEDIA_UNUSED_CHILD = {
 } satisfies ShellChildItem
 export type WorkspaceSettings = {
   icon: IconKey
+  // Draggable sidebar width in px, saved per-workspace.
+  sidebarWidth: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -286,6 +292,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
     const settings = value as Partial<WorkspaceSettings>
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
+      // Default fills rows saved before this field existed; clamp keeps it valid.
+      sidebarWidth:
+        typeof settings.sidebarWidth === "number"
+          ? clampSidebarWidth(settings.sidebarWidth)
+          : fallback.sidebarWidth,
       favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
@@ -312,6 +323,10 @@ function cleanWorkspaceSettings(
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : DEFAULT_WORKSPACE_ICON,
+    sidebarWidth:
+      typeof settings.sidebarWidth === "number"
+        ? clampSidebarWidth(settings.sidebarWidth)
+        : fallback.sidebarWidth,
     favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
@@ -330,6 +345,7 @@ function cleanWorkspaceSettings(
 function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

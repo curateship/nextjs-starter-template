@@ -8,6 +8,11 @@ import {
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from "@/lib/sidebar-width"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellWorkspaces,
@@ -24,6 +29,8 @@ export type WorkspaceSettings = {
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Draggable sidebar width in px, saved per-workspace.
+  sidebarWidth: number
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -320,6 +327,10 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      // Default fills rows saved before this field existed.
+      sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
+        ? settings.sidebarWidth
+        : fallback.sidebarWidth,
     }
   }
 
@@ -345,6 +356,9 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
+      ? settings.sidebarWidth
+      : fallback.sidebarWidth,
   }
 }
 
@@ -355,6 +369,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   }
 }
 
@@ -411,4 +426,13 @@ function createDefaultWorkspaceSections(): ShellSection[] {
 
 function isWorkspaceIcon(value: unknown): value is IconKey {
   return typeof value === "string" && value in iconMeta
+}
+
+function isValidSidebarWidth(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_SIDEBAR_WIDTH &&
+    value <= MAX_SIDEBAR_WIDTH
+  )
 }

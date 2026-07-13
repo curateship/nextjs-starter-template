@@ -34,6 +34,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
+
 export const iconMeta = {
   layoutDashboard: {
     label: "Dashboard",
@@ -251,6 +253,8 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   dashboardRowsPerPage: number
+  // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
+  sidebarWidth: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -273,6 +277,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

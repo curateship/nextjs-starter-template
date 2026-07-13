@@ -8,6 +8,10 @@ import {
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+} from "@/lib/sidebar-width"
 import { db, type Db } from "@/server/db"
 import {
   workspaces,
@@ -21,6 +25,8 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  // Draggable sidebar width in px, saved per-workspace.
+  sidebarWidth: number
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -311,6 +317,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      // Clamp; default fills rows saved before this field existed.
+      sidebarWidth:
+        typeof settings.sidebarWidth === "number"
+          ? clampSidebarWidth(settings.sidebarWidth)
+          : fallback.sidebarWidth,
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
         : fallback.topNavigation,
@@ -336,6 +347,10 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    sidebarWidth:
+      typeof settings.sidebarWidth === "number"
+        ? clampSidebarWidth(settings.sidebarWidth)
+        : fallback.sidebarWidth,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -352,6 +367,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
