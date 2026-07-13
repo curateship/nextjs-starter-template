@@ -27,11 +27,8 @@ const modifyOrderSchema = z.object({
   walletId: z.string().min(1),
   market: z.string().min(1).max(20),
   oid: z.number().int().positive(),
-  side: z.enum(["buy", "sell"]),
   px: decimalString,
-  sz: decimalString,
-  reduceOnly: z.boolean(),
-})
+}).strict()
 
 const updateLeverageSchema = z.object({
   walletId: z.string().min(1),

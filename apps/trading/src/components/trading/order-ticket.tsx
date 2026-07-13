@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { OneClickPanel } from "@/components/trading/one-click-panel"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -64,6 +65,7 @@ export function OrderTicket({
   prefill,
   disabledReason,
   confirmationEnabled,
+  onNotify,
 }: {
   walletId: string | null
   /** When set, orders route to the in-house paper engine instead. */
@@ -76,6 +78,7 @@ export function OrderTicket({
   prefill: TicketPrefill | null
   disabledReason: string | null
   confirmationEnabled: boolean
+  onNotify: (message: string, tone: "ok" | "error") => void
 }) {
   const isPaper = Boolean(paperWalletId)
   const maxLeverage = marketRow?.maxLeverage ?? 1
@@ -444,6 +447,19 @@ export function OrderTicket({
             }
           />
         </div>
+
+        <OneClickPanel
+          side={state.side}
+          walletId={walletId}
+          isPaper={isPaper}
+          market={market}
+          marketRow={marketRow}
+          markPx={markPx}
+          equity={equity}
+          disabledReason={disabledReason}
+          confirmationEnabled={confirmationEnabled}
+          onNotify={onNotify}
+        />
 
         <Button
           type="button"

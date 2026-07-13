@@ -28,17 +28,7 @@ import type { MarketRow } from "@/lib/hl/hooks"
 import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
 import { usePersistedState } from "@/lib/use-persisted-state"
 
-export function OneClickPanel({
-  walletId,
-  isPaper,
-  market,
-  marketRow,
-  markPx,
-  equity,
-  disabledReason,
-  confirmationEnabled,
-  onNotify,
-}: {
+type OneClickOrderOptions = {
   walletId: string | null
   isPaper: boolean
   market: string
@@ -48,15 +38,23 @@ export function OneClickPanel({
   disabledReason: string | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
-}) {
+}
+
+function useOneClickOrder({
+  walletId,
+  isPaper,
+  market,
+  marketRow,
+  markPx,
+  equity,
+  disabledReason,
+  onNotify,
+}: OneClickOrderOptions) {
   const [templates, setTemplates] = React.useState<OrderTemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [selectedId, setSelectedId] = usePersistedState<string | null>(
     "trading:one-click-template",
-    null
-  )
-  const [confirmSide, setConfirmSide] = React.useState<"buy" | "sell" | null>(
     null
   )
   const [busy, setBusy] = React.useState(false)
@@ -107,7 +105,6 @@ export function OneClickPanel({
         side,
         templateId: selected.id,
       })
-      setConfirmSide(null)
       onNotify(
         result.kind === "filled"
           ? `Filled ${result.totalSz} ${market} @ ${result.avgPx}; stop ${result.stopLossPx}, take-profit ${result.takeProfitPx}.`
@@ -115,60 +112,64 @@ export function OneClickPanel({
         "ok"
       )
     } catch (error) {
-      setConfirmSide(null)
       onNotify(getOrderErrorMessage(error), "error")
     } finally {
       setBusy(false)
     }
   }
 
+  return { templates, selected, reason, busy, setSelectedId, submit }
+}
+
+export function OneClickPanel({
+  side,
+  ...options
+}: OneClickOrderOptions & { side: "buy" | "sell" }) {
+  const { templates, selected, reason, busy, setSelectedId, submit } =
+    useOneClickOrder(options)
+  const [confirmSide, setConfirmSide] = React.useState<"buy" | "sell" | null>(
+    null
+  )
+
   return (
-    <div className="flex flex-col gap-2 border-b p-3 text-xs">
-      <Select
-        value={selected?.id ?? ""}
-        disabled={loading || templates.length === 0 || busy}
-        onValueChange={setSelectedId}
-      >
-        <SelectTrigger
-          className="h-8 w-full"
-          aria-label="One-click order template"
-        >
-          <SelectValue placeholder="Select template" />
-        </SelectTrigger>
-        <SelectContent>
-          {templates.map((template) => (
-            <SelectItem key={template.id} value={template.id}>
-              {template.name}
-              {template.isDefault ? " ★" : ""}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="grid gap-1 text-xs">
       <div className="grid grid-cols-2 gap-2">
         <Button
           type="button"
           size="sm"
-          className="bg-emerald-600 text-white hover:bg-emerald-700"
+          className={
+            side === "buy"
+              ? "h-8 bg-emerald-600 text-white hover:bg-emerald-700"
+              : "h-8 bg-red-600 text-white hover:bg-red-700"
+          }
           disabled={Boolean(reason) || busy}
           onClick={() => {
-            if (confirmationEnabled) setConfirmSide("buy")
-            else void submit("buy")
+            if (options.confirmationEnabled) setConfirmSide(side)
+            else void submit(side)
           }}
         >
-          1-Click Long
+          1-Click {side === "buy" ? "Long" : "Short"}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          className="bg-red-600 text-white hover:bg-red-700"
-          disabled={Boolean(reason) || busy}
-          onClick={() => {
-            if (confirmationEnabled) setConfirmSide("sell")
-            else void submit("sell")
-          }}
+        <Select
+          value={selected?.id ?? ""}
+          disabled={templates.length === 0 || busy}
+          onValueChange={setSelectedId}
         >
-          1-Click Short
-        </Button>
+          <SelectTrigger
+            className="h-8 w-full"
+            aria-label="One-click order template"
+          >
+            <SelectValue placeholder="Select template" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " ★" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {reason ? (
         <p className="text-[11px] text-muted-foreground">{reason}</p>
@@ -177,18 +178,85 @@ export function OneClickPanel({
       <OneClickConfirmDialog
         open={Boolean(confirmSide)}
         side={confirmSide ?? "buy"}
-        market={market}
+        market={options.market}
         template={selected}
-        markPx={markPx}
-        equity={equity}
-        marketRow={marketRow}
+        markPx={options.markPx}
+        equity={options.equity}
+        marketRow={options.marketRow}
         busy={busy}
         onOpenChange={(open) => {
           if (!open && !busy) setConfirmSide(null)
         }}
-        onConfirm={() => void submit(confirmSide ?? "buy")}
+        onConfirm={() =>
+          void submit(confirmSide ?? "buy").then(() => setConfirmSide(null))
+        }
       />
     </div>
+  )
+}
+
+export function OneClickMenuActions({
+  onComplete,
+  ...options
+}: OneClickOrderOptions & { onComplete: () => void }) {
+  const { selected, reason, busy, submit } = useOneClickOrder(options)
+  const [confirmSide, setConfirmSide] = React.useState<"buy" | "sell" | null>(
+    null
+  )
+
+  const request = (side: "buy" | "sell") => {
+    if (options.confirmationEnabled) {
+      setConfirmSide(side)
+      return
+    }
+    void submit(side).then(onComplete)
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="w-full justify-start text-emerald-600 hover:text-emerald-700"
+        disabled={Boolean(reason) || busy}
+        title={reason ?? undefined}
+        onClick={() => request("buy")}
+      >
+        1-Click Long
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="w-full justify-start text-red-500 hover:text-red-600"
+        disabled={Boolean(reason) || busy}
+        title={reason ?? undefined}
+        onClick={() => request("sell")}
+      >
+        1-Click Short
+      </Button>
+
+      <OneClickConfirmDialog
+        open={Boolean(confirmSide)}
+        side={confirmSide ?? "buy"}
+        market={options.market}
+        template={selected}
+        markPx={options.markPx}
+        equity={options.equity}
+        marketRow={options.marketRow}
+        busy={busy}
+        onOpenChange={(open) => {
+          if (!open && !busy) setConfirmSide(null)
+        }}
+        onConfirm={() =>
+          void submit(confirmSide ?? "buy").then(() => {
+            setConfirmSide(null)
+            onComplete()
+          })
+        }
+      />
+    </>
   )
 }
 

@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { formatCompactUsd } from "@/components/trading/format"
+import { pinFavoriteMarkets } from "@/components/trading/market-watchlist-order"
 import { MarketListLoadingSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -62,7 +63,7 @@ export function MarketWatchlist({
         ? (a.change - b.change) * direction
         : (Number(a.row.dayNtlVlm) - Number(b.row.dayNtlVlm)) * direction
     )
-    return list
+    return tab === "all" ? pinFavoriteMarkets(list, favorites) : list
   }, [rows, query, tab, favorites, sort])
 
   const toggleSort = (key: SortKey) =>
