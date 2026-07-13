@@ -1,9 +1,11 @@
 import * as React from "react"
 import {
   ActivityIcon,
+  OctagonXIcon,
   RepeatIcon,
   SearchIcon,
   ShieldXIcon,
+  TargetIcon,
   TimerIcon,
   TrendingDownIcon,
   TrendingUpIcon,
@@ -22,6 +24,8 @@ export type AutomationPaletteChoice =
   | { kind: "indicator"; indicatorType: IndicatorId }
   | { kind: "lookback" }
   | { kind: "action"; action: "buy" | "short" | "close" | "reverse" }
+  | { kind: "takeProfit" }
+  | { kind: "stopLoss" }
 
 type PaletteItem = {
   key: string
@@ -72,6 +76,23 @@ const actionItems: PaletteItem[] = [
   },
 ]
 
+const exitItems: PaletteItem[] = [
+  {
+    key: "exit-take-profit",
+    name: "Take Profit",
+    description: "Bank profit at a set % from entry — hang it on a Long or Short",
+    icon: TargetIcon,
+    choice: { kind: "takeProfit" },
+  },
+  {
+    key: "exit-stop-loss",
+    name: "Stop Loss",
+    description: "Cap the loss at a set % from entry — hang it on a Long or Short",
+    icon: OctagonXIcon,
+    choice: { kind: "stopLoss" },
+  },
+]
+
 export function AutomationPalette({
   className,
   pinnedIndicators,
@@ -97,6 +118,7 @@ export function AutomationPalette({
     { label: "Indicators", items: indicatorItems },
     { label: "Filters", items: filterItems },
     { label: "Actions", items: actionItems },
+    { label: "Exits", items: exitItems },
   ]
     .map((group) => ({
       ...group,

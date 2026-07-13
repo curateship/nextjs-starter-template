@@ -3,7 +3,7 @@ import type {
   IndicatorCandle,
   IndicatorOutput,
 } from "@/lib/indicators/contract"
-import type { StrategyConfig } from "./strategy-config"
+import type { AutomationConfig } from "./strategy-config"
 
 const EMPTY_OUTPUT: IndicatorOutput = {
   paint: { indicators: [], lines: [], zones: [], barColors: [] },
@@ -13,7 +13,7 @@ const EMPTY_OUTPUT: IndicatorOutput = {
 /** Chart paint and entry signals for any strategy kind over the same candles. */
 export function computeStrategyOutput(
   candles: IndicatorCandle[],
-  config: StrategyConfig
+  config: AutomationConfig
 ): IndicatorOutput {
   if (config.kind === "automation") {
     const evaluated = evaluateAutomation(candles, config)

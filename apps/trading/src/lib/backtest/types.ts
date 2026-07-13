@@ -5,8 +5,8 @@
  */
 
 import {
-  strategyConfigSchema,
-  strategyKindOf,
+  automationConfigSchema,
+  automationWarmupBars,
 } from "@/lib/strategies/strategy-config"
 
 export type BacktestEquityPoint = {
@@ -212,9 +212,9 @@ export const SIGNAL_WARMUP_CANDLES = 1500
  * path-dependent) via its module's floor.
  */
 export function warmupBarsFor(params: unknown): number {
-  const parsed = strategyConfigSchema.safeParse(params)
+  const parsed = automationConfigSchema.safeParse(params)
   if (!parsed.success) return SIGNAL_WARMUP_CANDLES
-  return strategyKindOf(parsed.data).warmupBars(parsed.data as never)
+  return automationWarmupBars(parsed.data)
 }
 
 /**

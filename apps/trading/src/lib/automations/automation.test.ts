@@ -1,16 +1,15 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  STRATEGY_TYPE_IDS,
-  strategyConfigSchema,
-  strategyTypeOf,
+  AUTOMATION_TYPE_IDS,
+  automationTypeOf,
 } from "@/lib/strategies/strategy-config"
 import { INDICATORS } from "@/lib/indicators/registry"
 import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
 
 import {
   automationDraftSchema,
-  automationStrategyConfigSchema,
+  automationConfigSchema,
   compileAutomationGraph,
   DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
   resolveAutomationActions,
@@ -55,10 +54,26 @@ const action = (
   y: 0,
 })
 
+const takeProfit = (id: string, pct = 2): AutomationNode => ({
+  id,
+  kind: "takeProfit",
+  pct,
+  x: 0,
+  y: 0,
+})
+
+const stopLoss = (id: string, pct = 1): AutomationNode => ({
+  id,
+  kind: "stopLoss",
+  pct,
+  x: 0,
+  y: 0,
+})
+
 const edge = (
   id: string,
   from: string,
-  sourcePort: "bullish" | "bearish" | "trend" | "then" | "match",
+  sourcePort: "bullish" | "bearish" | "trend" | "then" | "match" | "tp" | "sl",
   to: string
 ): AutomationEdge => ({ id, from, sourcePort, to })
 
@@ -66,7 +81,6 @@ describe("compileAutomationGraph", () => {
   it("compiles a direct indicator output into an action rule", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [indicator("ema"), action("buy", "buy", 25)],
         edges: [edge("e1", "ema", "bullish", "buy")],
@@ -93,7 +107,6 @@ describe("compileAutomationGraph", () => {
   it("rejects legacy AND/OR nodes with a delete instruction", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -117,7 +130,6 @@ describe("compileAutomationGraph", () => {
   it("fires an action when any of its multiple inputs matches", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -148,7 +160,6 @@ describe("compileAutomationGraph", () => {
   it("compiles trend chains into trigger filters", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -184,7 +195,6 @@ describe("compileAutomationGraph", () => {
   it("collects every ancestor in a multi-link chain as a filter", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("a"),
@@ -214,7 +224,6 @@ describe("compileAutomationGraph", () => {
   it("blocks triggers whose filters disagree or have no state yet", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -258,7 +267,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -316,7 +324,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -352,7 +359,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -385,7 +391,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           lookback,
@@ -416,7 +421,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [indicator("ema"), lookback, action("buy", "buy", 10)],
         edges: [
@@ -474,7 +478,6 @@ describe("compileAutomationGraph", () => {
   it("rejects invalid ports, cycles, dangling nodes, and empty actions", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("unused"),
@@ -499,7 +502,6 @@ describe("compileAutomationGraph", () => {
   it("lets an action chain onward to its exit watcher without changing rules", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("entry"),
@@ -538,7 +540,6 @@ describe("compileAutomationGraph", () => {
   it("rejects Then wires into actions", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("entry"),
@@ -561,7 +562,6 @@ describe("compileAutomationGraph", () => {
   it("rejects trend wires into actions and signal wires into indicators", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("a"),
@@ -594,7 +594,6 @@ describe("compileAutomationGraph", () => {
     }
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [indicator("ema"), closeWithTarget],
         edges: [
@@ -617,7 +616,6 @@ describe("compileAutomationGraph", () => {
     )
     const result = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: { nodes, edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
     })
 
@@ -630,7 +628,6 @@ describe("Automation schemas", () => {
   it("allows a structurally safe but incomplete draft to be saved", () => {
     const draft = automationDraftSchema.safeParse({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [indicator("ema")],
         edges: [],
@@ -649,7 +646,6 @@ describe("Automation schemas", () => {
     }
     const withSettings = automationDraftSchema.safeParse({
       interval: "15m",
-      protection: {},
       graph,
       backtest: {
         startingEquity: 25_000,
@@ -664,7 +660,6 @@ describe("Automation schemas", () => {
     // Drafts saved before backtest settings existed carry no key at all.
     const oldDraft = automationDraftSchema.safeParse({
       interval: "15m",
-      protection: {},
       graph,
     })
     expect(oldDraft.success).toBe(true)
@@ -676,7 +671,6 @@ describe("Automation schemas", () => {
     expect(
       automationDraftSchema.safeParse({
         interval: "15m",
-        protection: {},
         graph,
         backtest: {
           startingEquity: 25_000,
@@ -691,7 +685,6 @@ describe("Automation schemas", () => {
   it("accepts compiled output as a runnable strategy config", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [indicator("ema"), action("buy", "buy", 25)],
         edges: [edge("e1", "ema", "bullish", "buy")],
@@ -700,11 +693,11 @@ describe("Automation schemas", () => {
     })
 
     expect(
-      automationStrategyConfigSchema.safeParse(compiled.config).success
+      automationConfigSchema.safeParse(compiled.config).success
     ).toBe(true)
-    expect(strategyConfigSchema.safeParse(compiled.config).success).toBe(true)
-    expect(strategyTypeOf(compiled.config!)).toBe("automation")
-    expect(STRATEGY_TYPE_IDS).toContain("automation")
+    expect(automationConfigSchema.safeParse(compiled.config).success).toBe(true)
+    expect(automationTypeOf(compiled.config!)).toBe("automation")
+    expect(AUTOMATION_TYPE_IDS).toContain("automation")
   })
 
   it("rejects oversized draft graphs at the API boundary", () => {
@@ -714,34 +707,125 @@ describe("Automation schemas", () => {
     expect(
       automationDraftSchema.safeParse({
         interval: "15m",
-        protection: {},
         graph: { nodes, edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
       }).success
     ).toBe(false)
   })
 
-  it("saves invalid protection as a draft but will not compile it", () => {
-    const graph = {
-      nodes: [indicator("ema"), action("buy", "buy", 25)],
-      edges: [edge("e1", "ema", "bullish", "buy")],
-      viewport: { x: 0, y: 0, zoom: 1 },
-    }
-    expect(
-      automationDraftSchema.safeParse({
-        interval: "15m",
-        graph,
-        protection: { takeProfitPct: -1 },
-      }).success
-    ).toBe(true)
+  it("compiles Take Profit / Stop Loss nodes into per-side protection", () => {
     const result = compileAutomationGraph({
       interval: "15m",
-      graph,
-      protection: { takeProfitPct: -1 },
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("buy", "buy", 25),
+          action("short", "short", 25),
+          takeProfit("long-tp", 2),
+          stopLoss("long-sl", 1),
+          takeProfit("short-tp", 1.2),
+          stopLoss("short-sl", 0.8),
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "ema", "bearish", "short"),
+          edge("e3", "buy", "tp", "long-tp"),
+          edge("e4", "buy", "sl", "long-sl"),
+          edge("e5", "short", "tp", "short-tp"),
+          edge("e6", "short", "sl", "short-sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.config?.protection).toEqual({
+      long: { takeProfitPct: 2, stopLossPct: 1 },
+      short: { takeProfitPct: 1.2, stopLossPct: 0.8 },
+    })
+  })
+
+  it("rejects a Take Profit connected to the wrong (stop-loss) hook", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [indicator("ema"), action("buy", "buy", 25), takeProfit("tp")],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+  })
+
+  it("flags conflicting Take Profit values on one side", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("buy", "buy", 25),
+          takeProfit("tp-a", 2),
+          takeProfit("tp-b", 3),
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "tp", "tp-a"),
+          edge("e3", "buy", "tp", "tp-b"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
     })
     expect(result.config).toBeNull()
     expect(result.errors.map((error) => error.code)).toContain(
       "invalid_protection"
     )
+  })
+
+  it("rejects a Stop Loss with a non-positive percent", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [indicator("ema"), action("buy", "buy", 25), stopLoss("sl", -1)],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_protection"
+    )
+  })
+
+  it("reads a legacy flat protection pair as both sides", () => {
+    const parsed = automationConfigSchema.safeParse({
+      v: 2,
+      kind: "automation",
+      interval: "15m",
+      rules: [
+        {
+          id: "buy",
+          action: "buy",
+          targetEquityPct: 10,
+          condition: {
+            kind: "trigger",
+            nodeId: "ema",
+            indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
+            side: "buy",
+          },
+        },
+      ],
+      protection: { takeProfitPct: 2, stopLossPct: 1 },
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.protection).toEqual({
+      long: { takeProfitPct: 2, stopLossPct: 1 },
+      short: { takeProfitPct: 2, stopLossPct: 1 },
+    })
   })
 })
 
@@ -749,7 +833,6 @@ describe("resolveAutomationActions", () => {
   it("uses the largest target when same-side rules match together", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -775,7 +858,6 @@ describe("resolveAutomationActions", () => {
   it("gives Close priority over matching entries", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -801,7 +883,6 @@ describe("resolveAutomationActions", () => {
   it("gives Reverse priority over a matching entry but not Close", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -830,7 +911,6 @@ describe("resolveAutomationActions", () => {
   it("blocks simultaneous Buy and Short actions", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           indicator("ema"),
@@ -861,7 +941,6 @@ describe("evaluateAutomation", () => {
   it("runs registered indicators and prefixes merged paint ids by node", () => {
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           {
@@ -899,7 +978,6 @@ describe("evaluateAutomation", () => {
     const compute = vi.spyOn(INDICATORS.breakout, "compute")
     const compiled = compileAutomationGraph({
       interval: "15m",
-      protection: {},
       graph: {
         nodes: [
           {
@@ -973,7 +1051,6 @@ describe("evaluateAutomation", () => {
       v: 2 as const,
       kind: "automation" as const,
       interval: "15m" as const,
-      protection: {},
       rules: [
         {
           id: "buy",
@@ -996,6 +1073,7 @@ describe("evaluateAutomation", () => {
           },
         },
       ],
+      protection: {},
     }
     const candles = Array.from({ length: 7 }, (_, t) => ({
       t,
@@ -1046,7 +1124,6 @@ describe("evaluateAutomation", () => {
       v: 2 as const,
       kind: "automation" as const,
       interval: "15m" as const,
-      protection: {},
       rules: [
         {
           id: "buy",
@@ -1070,6 +1147,7 @@ describe("evaluateAutomation", () => {
           },
         },
       ],
+      protection: {},
     }
     const candles = Array.from({ length: 5 }, (_, t) => ({
       t,
@@ -1097,7 +1175,6 @@ describe("evaluateAutomation", () => {
       v: 2 as const,
       kind: "automation" as const,
       interval: "15m" as const,
-      protection: {},
       rules: [
         {
           id: "buy",
@@ -1123,6 +1200,7 @@ describe("evaluateAutomation", () => {
           },
         },
       ],
+      protection: {},
     }
 
     expect(automationWarmupBars(config)).toBe(

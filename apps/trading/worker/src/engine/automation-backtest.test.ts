@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import type { AutomationStrategyConfig } from "@/lib/automations/automation"
+import type { AutomationConfig } from "@/lib/automations/automation"
 import { DEFAULT_BACKTEST_COSTS } from "@/lib/backtest/types"
 import type { HistoryCandle } from "@/server/backtest/history"
 
 import { runBacktest } from "../backtest/runner"
 import { resolveStrategy } from "../strategies/registry"
 
-const config: AutomationStrategyConfig = {
+const config: AutomationConfig = {
   v: 2,
   kind: "automation",
   interval: "15m",
-  protection: { takeProfitPct: 5, stopLossPct: 2 },
+  protection: { long: { takeProfitPct: 5, stopLossPct: 2 } },
   rules: [
     {
       id: "buy",
@@ -36,7 +36,7 @@ const candles: HistoryCandle[] = [
   { t: STEP * 4, T: STEP * 5 - 1, o: 13, h: 14.5, l: 12.9, c: 14, v: 1, n: 1 },
 ]
 
-function run(configToRun: AutomationStrategyConfig, history: HistoryCandle[]) {
+function run(configToRun: AutomationConfig, history: HistoryCandle[]) {
   const strategy = resolveStrategy(configToRun)
   if (!strategy) throw new Error("Automation strategy did not resolve")
   return runBacktest({
@@ -92,7 +92,7 @@ describe("Automation through the real backtest runner", () => {
   })
 
   it("flips from its long target into a larger short target", () => {
-    const flipConfig: AutomationStrategyConfig = {
+    const flipConfig: AutomationConfig = {
       ...config,
       protection: {},
       rules: [
@@ -128,7 +128,7 @@ describe("Automation through the real backtest runner", () => {
   })
 
   it("reverses a long into a short in one step when a Reverse rule matches", () => {
-    const reverseConfig: AutomationStrategyConfig = {
+    const reverseConfig: AutomationConfig = {
       ...config,
       protection: {},
       rules: [
@@ -164,7 +164,7 @@ describe("Automation through the real backtest runner", () => {
   })
 
   it("does not reverse when flat — the first entry still needs its own signal", () => {
-    const reverseOnlyConfig: AutomationStrategyConfig = {
+    const reverseOnlyConfig: AutomationConfig = {
       ...config,
       protection: {},
       rules: [
@@ -187,7 +187,7 @@ describe("Automation through the real backtest runner", () => {
   })
 
   it("closes a position when a Close rule matches", () => {
-    const closeConfig: AutomationStrategyConfig = {
+    const closeConfig: AutomationConfig = {
       ...config,
       protection: {},
       rules: [
@@ -240,7 +240,7 @@ describe("Automation through the real backtest runner", () => {
   })
 
   it("places no order when Buy and Short conflict on one candle", () => {
-    const conflictConfig: AutomationStrategyConfig = {
+    const conflictConfig: AutomationConfig = {
       ...config,
       protection: {},
       rules: [

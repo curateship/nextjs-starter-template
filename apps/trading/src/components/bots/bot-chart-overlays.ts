@@ -1,16 +1,21 @@
 import { price as fmtPrice } from "@/components/backtest/backtest-format"
 import type { ChartMarker, ChartPriceLine } from "@/components/chart/price-chart"
+import { CHIP_COLORS } from "@/components/chart/trade-chips"
 import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { ProtectionSettings } from "@/lib/strategies/settings"
 
+/** Profit/loss colors for the draggable take-profit / stop-loss lines. */
 const GREEN = "#089981"
 const RED = "#f23645"
+const EPS = 1e-9
 
 /**
- * Price-pinned chips for a bot's fills, matching the backtest chart's O/C
- * style: green "O" for opening fills, red "C" for closing ones. Open vs close
- * uses the same heuristic as the trades table — a fill with realized P&L
- * closed something — so a rare zero-P&L closing fill reads as "O".
+ * Price-pinned chips for a bot's fills, matching the backtest chart. Color
+ * carries the side (green = long, red = short, yellow = flip); the letter says
+ * open ("O"), close ("C"), or flip ("F"). Fills are walked oldest → newest
+ * tracking the signed position, so we know which side each fill opens or closes
+ * and can render a reverse (close + reopen in one fill) as a single yellow "F"
+ * instead of a close and an open side by side.
  *
  * Live fills land mid-candle, but the chart can only place a chip on an exact
  * bar time, so each fill snaps to the candle bucket containing it
@@ -25,23 +30,71 @@ export function buildBotFillMarkers(
   trades: BotDetailResponse["trades"],
   intervalMs: number
 ): ChartMarker[] {
+  const fills = [...trades].sort(
+    (a, b) => Date.parse(a.fill_time) - Date.parse(b.fill_time)
+  )
   const seen = new Set<string>()
   const markers: ChartMarker[] = []
-  for (const trade of trades) {
-    const closes = Number(trade.closed_pnl ?? 0) !== 0
-    const fillMs = new Date(trade.fill_time).getTime()
-    const time = Math.floor(fillMs / intervalMs) * intervalMs
-    const letter = closes ? ("C" as const) : ("O" as const)
-    const key = `${time}:${letter}:${trade.px}`
-    if (seen.has(key)) continue
+  let pos = 0
+  const push = (
+    time: number,
+    side: "buy" | "sell",
+    price: number,
+    letter: "O" | "C" | "F",
+    color: string,
+    textColor?: string
+  ) => {
+    const key = `${time}:${letter}:${price}`
+    if (seen.has(key)) return
     seen.add(key)
-    markers.push({
-      time,
-      side: trade.side === "buy" ? ("buy" as const) : ("sell" as const),
-      price: Number(trade.px),
-      letter,
-      color: closes ? RED : GREEN,
-    })
+    markers.push(textColor ? { time, side, price, letter, color, textColor } : { time, side, price, letter, color })
+  }
+
+  for (const fill of fills) {
+    const qty = Number(fill.sz)
+    const px = Number(fill.px)
+    const fillPnl = Number(fill.closed_pnl ?? 0)
+    const dir = fill.side === "buy" ? 1 : -1
+    const side = fill.side === "buy" ? ("buy" as const) : ("sell" as const)
+    const fillMs = new Date(fill.fill_time).getTime()
+    const time = Math.floor(fillMs / intervalMs) * intervalMs
+    if (!(qty > EPS) || !(px > 0)) continue
+
+    if (Math.abs(pos) < EPS) {
+      if (fillPnl !== 0) {
+        // A closing fill for a position that opened before our fill history —
+        // still shown, colored by the side it closed (a sell closes a long).
+        push(time, side, px, "C", dir < 0 ? CHIP_COLORS.long : CHIP_COLORS.short)
+        continue
+      }
+      // Opening a fresh position.
+      push(time, side, px, "O", dir > 0 ? CHIP_COLORS.long : CHIP_COLORS.short)
+      pos = dir * qty
+      continue
+    }
+
+    const sameDir = dir > 0 === pos > 0
+    if (sameDir) {
+      // Scaling in (DCA safety orders, grid adds) — colored by the open side.
+      push(time, side, px, "O", pos > 0 ? CHIP_COLORS.long : CHIP_COLORS.short)
+      pos += dir * qty
+      continue
+    }
+
+    // Reducing — possibly through zero into a flip.
+    const reduce = Math.min(Math.abs(pos), qty)
+    const remainder = qty - reduce
+    const closedSideColor = pos > 0 ? CHIP_COLORS.long : CHIP_COLORS.short
+    pos += dir * reduce
+    if (Math.abs(pos) < EPS) pos = 0
+    if (remainder > EPS) {
+      // Flip: closed the old side and opened the opposite in one fill.
+      push(time, side, px, "F", CHIP_COLORS.flip, CHIP_COLORS.flipText)
+      pos = dir * remainder
+    } else {
+      // Pure close (or a partial scale-out), colored by the side being closed.
+      push(time, side, px, "C", closedSideColor)
+    }
   }
   return markers
 }

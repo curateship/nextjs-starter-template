@@ -4,7 +4,7 @@ import type {
   BacktestCosts,
   BacktestInterval,
 } from "@/lib/backtest/types"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import {
   claimNextPendingBacktest,
   failUserBacktest,
@@ -32,7 +32,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * throws, so one bad market can't stop the queue.
  */
 async function runOneBacktestRow(row: TradingBacktest): Promise<void> {
-  const params = row.params as StrategyConfig
+  const params = row.params as AutomationConfig
   const interval = row.interval as BacktestInterval
   try {
     const warmupBars = warmupBarsFor(row.params)

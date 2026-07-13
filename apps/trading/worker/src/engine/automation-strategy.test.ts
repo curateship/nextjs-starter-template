@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { AutomationStrategyConfig } from "@/lib/automations/automation"
+import type { AutomationConfig } from "@/lib/automations/automation"
 import type { StrategyCtx } from "../strategies/contract"
 import {
   automationTargetOrders,
@@ -167,11 +167,14 @@ describe("automationTargetOrders", () => {
 })
 
 describe("createAutomationStrategy", () => {
-  const config: AutomationStrategyConfig = {
+  const config: AutomationConfig = {
     v: 2,
     kind: "automation",
     interval: "15m",
-    protection: { takeProfitPct: 5, stopLossPct: 2 },
+    protection: {
+      long: { takeProfitPct: 5, stopLossPct: 2 },
+      short: { takeProfitPct: 4, stopLossPct: 3 },
+    },
     rules: [
       {
         id: "buy",
@@ -242,9 +245,17 @@ describe("createAutomationStrategy", () => {
     ).toHaveLength(1)
   })
 
-  it("uses shared take-profit and stop-loss levels", () => {
+  it("uses the long side's levels for a long position", () => {
     const strategy = createAutomationStrategy(config)
     const { ctx } = context({ szi: "1", entryPx: "100" })
+    // +5% TP = 105, -2% SL = 98.
     expect(strategy.exitTriggers?.(ctx, undefined as never)).toEqual([105, 98])
+  })
+
+  it("uses the short side's (different) levels for a short position", () => {
+    const strategy = createAutomationStrategy(config)
+    const { ctx } = context({ szi: "-1", entryPx: "100" })
+    // Short 4% TP = 96, 3% SL = 103 — distinct from the long side.
+    expect(strategy.exitTriggers?.(ctx, undefined as never)).toEqual([96, 103])
   })
 })

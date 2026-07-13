@@ -7,6 +7,8 @@ import {
   EMA_TOGGLES,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
+  QQE_MA_TYPES,
+  QQE_RSI_SOURCES,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
 import { isSessionKey, type SessionKey } from "@/lib/trading/sessions"
@@ -102,6 +104,39 @@ export async function upsertUserIndicator(
         (!Number.isFinite(value) || value < 2 || !Number.isInteger(value))
       ) {
         throw new Error(`Invalid EMA parameter: ${field.key}`)
+      }
+    }
+  }
+  if (def.type === "qqe") {
+    const inRange = (key: string, max: number) => {
+      const value = input.params[key]
+      return (
+        value === undefined ||
+        (Number.isInteger(value) && value >= 0 && value < max)
+      )
+    }
+    if (!inRange("maType", QQE_MA_TYPES.length)) {
+      throw new Error("Invalid QQE parameter: maType")
+    }
+    if (!inRange("rsiSource", QQE_RSI_SOURCES.length)) {
+      throw new Error("Invalid QQE parameter: rsiSource")
+    }
+    const flag = input.params.consolidationFilter
+    if (flag !== undefined && flag !== 0 && flag !== 1) {
+      throw new Error("Invalid QQE parameter: consolidationFilter")
+    }
+    for (const key of [
+      "rsiPeriod",
+      "rsiSmoothing",
+      "qqeFactor",
+      "threshold",
+      "loopbackPeriod",
+      "minConsolidationLen",
+      "swingLookback",
+    ]) {
+      const value = input.params[key]
+      if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+        throw new Error(`Invalid QQE parameter: ${key}`)
       }
     }
   }

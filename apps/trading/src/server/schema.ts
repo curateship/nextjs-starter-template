@@ -20,10 +20,9 @@ import {
 import type {
   AutomationBacktestSettings,
   AutomationGraph,
-  AutomationProtection,
-  AutomationStrategyConfig,
+  AutomationConfig,
 } from "@/lib/automations/automation"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 export const customShellUsers = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -296,7 +295,6 @@ export const tradingWalletNonces = pgTable(
 )
 
 export type TradingAutomationDraft = AutomationGraph & {
-  protection: AutomationProtection
   /** Absent on rows saved before per-automation backtest settings existed. */
   backtest?: AutomationBacktestSettings
 }
@@ -317,7 +315,7 @@ export const tradingAutomations = pgTable(
     /** Free-form trading-style category (e.g. "Day Trading"); see automation-types. */
     type: varchar("type", { length: 40 }).notNull().default("Uncategorized"),
     interval: varchar("interval", { length: 5 })
-      .$type<StrategyInterval>()
+      .$type<AutomationInterval>()
       .notNull()
       .default("15m"),
     graph: jsonb("graph")
@@ -326,7 +324,7 @@ export const tradingAutomations = pgTable(
       .default(
         sql`'{"nodes":[],"edges":[],"viewport":{"x":0,"y":0,"zoom":1},"protection":{}}'::jsonb`
       ),
-    compiledConfig: jsonb("compiled_config").$type<AutomationStrategyConfig>(),
+    compiledConfig: jsonb("compiled_config").$type<AutomationConfig>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

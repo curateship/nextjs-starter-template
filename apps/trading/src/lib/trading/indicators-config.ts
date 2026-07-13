@@ -14,6 +14,20 @@ export type IndicatorType =
   | "base"
   | "session"
   | "priceAction"
+  | "qqe"
+
+/**
+ * QQE's two enum params are stored as a numeric INDEX into these lists (chart
+ * params are all numbers, like the 0/1 booleans). {@link qqeChartToModuleParams}
+ * maps them back to the QQE module's string enums. Keep in sync with the module
+ * schema in src/lib/indicators/defs/qqe.ts.
+ */
+export const QQE_MA_TYPES = [
+  "ALMA", "EMA", "DEMA", "TEMA", "WMA", "VWMA", "SMA", "SMMA", "HMA", "LSMA", "PEMA",
+] as const
+export const QQE_RSI_SOURCES = [
+  "close", "open", "high", "low", "hl2", "hlc3", "ohlc4",
+] as const
 
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
@@ -110,7 +124,45 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
       swingLookback: 5,
     },
   },
+  {
+    id: "qqe",
+    type: "qqe",
+    enabled: false,
+    pinned: false,
+    // Mirrors qqeIndicator.defaultParams; enums stored as indices into
+    // QQE_MA_TYPES / QQE_RSI_SOURCES, booleans as 0/1.
+    params: {
+      rsiPeriod: 14,
+      rsiSmoothing: 5,
+      qqeFactor: 4.238,
+      threshold: 10,
+      maType: 1, // EMA
+      rsiSource: 0, // close
+      consolidationFilter: 1,
+      loopbackPeriod: 50,
+      minConsolidationLen: 5,
+      swingLookback: 50,
+    },
+  },
 ]
+
+/** Chart QQE params (numeric/index form) → the QQE module's typed params. */
+export function qqeChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string | boolean> {
+  return {
+    rsiPeriod: params.rsiPeriod,
+    rsiSmoothing: params.rsiSmoothing,
+    qqeFactor: params.qqeFactor,
+    threshold: params.threshold,
+    maType: QQE_MA_TYPES[params.maType] ?? "EMA",
+    rsiSource: QQE_RSI_SOURCES[params.rsiSource] ?? "close",
+    consolidationFilter: (params.consolidationFilter ?? 1) !== 0,
+    loopbackPeriod: params.loopbackPeriod,
+    minConsolidationLen: params.minConsolidationLen,
+    swingLookback: params.swingLookback,
+  }
+}
 
 /** The EMA indicator's per-line on/off switches (stored as 0/1). */
 export const EMA_TOGGLES = [
@@ -145,10 +197,23 @@ export const PRICE_ACTION_PATTERNS = [
   { side: "bear", key: "bearBos", label: "Break of structure" },
 ] as const
 
-/** Editable numeric params per indicator type, in display order. */
+/**
+ * Editable params per indicator type, in display order. Fields are numeric by
+ * default; `kind: "select"` renders a dropdown over `options` (stored as the
+ * option index) and `kind: "boolean"` a checkbox (stored as 0/1).
+ */
+export type IndicatorParamFieldDef = {
+  key: string
+  label: string
+  step?: number
+  description?: string
+  kind?: "number" | "select" | "boolean"
+  options?: readonly string[]
+}
+
 export const INDICATOR_PARAM_FIELDS: Record<
   IndicatorType,
-  { key: string; label: string; step?: number; description?: string }[]
+  IndicatorParamFieldDef[]
 > = {
   ema: [
     { key: "fast", label: "EMA 1 period" },
@@ -202,6 +267,29 @@ export const INDICATOR_PARAM_FIELDS: Record<
         "A swing high or low must stand out against this many candles on each side. Higher values find fewer, larger breaks of structure later.",
     },
   ],
+  qqe: [
+    { key: "rsiPeriod", label: "RSI period" },
+    { key: "rsiSmoothing", label: "RSI smoothing" },
+    { key: "qqeFactor", label: "QQE factor", step: 0.1 },
+    { key: "threshold", label: "Threshold", step: 0.5 },
+    { key: "maType", label: "MA type", kind: "select", options: QQE_MA_TYPES },
+    {
+      key: "rsiSource",
+      label: "RSI source",
+      kind: "select",
+      options: QQE_RSI_SOURCES,
+    },
+    {
+      key: "consolidationFilter",
+      label: "Consolidation filter",
+      kind: "boolean",
+      description:
+        "Ignore trend flips that happen inside a sideways chop zone.",
+    },
+    { key: "loopbackPeriod", label: "Consolidation lookback" },
+    { key: "minConsolidationLen", label: "Min consolidation bars" },
+    { key: "swingLookback", label: "Swing lookback" },
+  ],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -213,6 +301,7 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   base: "Base",
   session: "Sessions",
   priceAction: "Price Action",
+  qqe: "QQE",
 }
 
 /** The label shown for an indicator: user rename, or the default label. */
@@ -247,8 +336,20 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
     ).length
     return `${bullish} bullish · ${bearish} bearish`
   }
+  if (config.type === "qqe") {
+    const ma = QQE_MA_TYPES[config.params.maType] ?? "EMA"
+    const filtered = (config.params.consolidationFilter ?? 1) !== 0
+    return `RSI ${config.params.rsiPeriod} · ${ma} · ${filtered ? "filtered" : "raw"}`
+  }
   return INDICATOR_PARAM_FIELDS[config.type]
-    .map((field) => `${field.label} ${config.params[field.key]}`)
+    .map((field) => {
+      const value = config.params[field.key]
+      if (field.kind === "select" && field.options) {
+        return `${field.label} ${field.options[value] ?? value}`
+      }
+      if (field.kind === "boolean") return `${field.label} ${value ? "on" : "off"}`
+      return `${field.label} ${value}`
+    })
     .join(" · ")
 }
 
@@ -269,6 +370,8 @@ const PALETTE: Record<string, ThemeHex> = {
   "macd-line": { light: "#2563eb", dark: "#60a5fa" },
   "macd-signal": { light: "#ea580c", dark: "#fb923c" },
   base: { light: "#0d9488", dark: "#2dd4bf" },
+  // QQE paints its own green/red trend bars; this is just the dashboard swatch.
+  qqe: { light: "#7c3aed", dark: "#a78bfa" },
   // Session shading swatch; the chart applies its own translucency.
   session: { light: "#2962ff", dark: "#2962ff" },
   guide: { light: "rgba(100, 116, 139, 0.45)", dark: "rgba(148, 163, 184, 0.4)" },

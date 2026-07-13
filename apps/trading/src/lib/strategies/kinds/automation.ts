@@ -1,11 +1,8 @@
 import {
-  automationStrategyConfigSchema,
   type AutomationCondition,
-  type AutomationStrategyConfig,
+  type AutomationConfig,
 } from "@/lib/automations/automation"
 import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
-
-import { eraseKind, type StrategyKindModule } from "./contract"
 
 function triggersOf(
   condition: AutomationCondition
@@ -15,7 +12,7 @@ function triggersOf(
     : condition.children.flatMap(triggersOf)
 }
 
-export function automationWarmupBars(config: AutomationStrategyConfig) {
+export function automationWarmupBars(config: AutomationConfig) {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
   const bars = (selection: IndicatorSelection, extra = 0) =>
     INDICATORS[selection.type].warmupBars(selection.params as never) +
@@ -34,65 +31,50 @@ export function automationWarmupBars(config: AutomationStrategyConfig) {
   )
 }
 
-const automationKindModule: StrategyKindModule<AutomationStrategyConfig> = {
-  kind: "automation",
-  availableInStrategyEditor: false,
-  configSchema: automationStrategyConfigSchema,
-  typeIds: () => ["automation"],
-  typeOf: () => "automation",
-  typeLabel: () => "Automation",
-  typeDescription: () =>
-    "Chains indicator trend filters into signal triggers with percentage-sized trading actions.",
-  defaultConfig: (_typeId, interval) => ({
-    v: 2,
-    kind: "automation",
-    interval,
-    protection: {},
-    rules: [
-      {
-        id: "buy",
-        action: "buy",
-        targetEquityPct: 10,
-        condition: {
-          kind: "trigger",
-          nodeId: "ema-cross",
-          indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
-          side: "buy",
-        },
-      },
-    ],
-  }),
-  paramFields: [],
-  summary: (config) => {
-    const parts = [
-      `${config.rules.length} ${config.rules.length === 1 ? "action" : "actions"}`,
-    ]
-    if (config.protection.takeProfitPct) {
-      parts.push(`TP ${config.protection.takeProfitPct}%`)
-    }
-    if (config.protection.stopLossPct) {
-      parts.push(`SL ${config.protection.stopLossPct}%`)
-    }
-    return parts.join(" · ")
-  },
-  inputRows: (config) => [
-    { label: "Strategy", value: "Automation" },
-    { label: "Actions", value: String(config.rules.length) },
-    {
-      label: "Take profit",
-      value: config.protection.takeProfitPct
-        ? `${config.protection.takeProfitPct}%`
-        : "off",
-    },
-    {
-      label: "Stop loss",
-      value: config.protection.stopLossPct
-        ? `${config.protection.stopLossPct}%`
-        : "off",
-    },
-  ],
-  warmupBars: automationWarmupBars,
-  takeProfitPct: (config) => config.protection.takeProfitPct ?? null,
+/** One-line settings summary for automation cards and list rows. */
+export function automationSummary(config: AutomationConfig): string {
+  const parts = [
+    `${config.rules.length} ${config.rules.length === 1 ? "action" : "actions"}`,
+  ]
+  for (const side of ["long", "short"] as const) {
+    const levels = config.protection[side]
+    const tag = side === "long" ? "Long" : "Short"
+    if (levels?.takeProfitPct) parts.push(`${tag} TP ${levels.takeProfitPct}%`)
+    if (levels?.stopLossPct) parts.push(`${tag} SL ${levels.stopLossPct}%`)
+  }
+  return parts.join(" · ")
 }
 
-export const automationKind = eraseKind(automationKindModule)
+/** Read-only label/value rows for the backtest Inputs rail. */
+export function automationInputRows(
+  config: AutomationConfig
+): { label: string; value: string }[] {
+  const level = (
+    side: "long" | "short",
+    key: "takeProfitPct" | "stopLossPct"
+  ) => {
+    const value = config.protection[side]?.[key]
+    return value ? `${value}%` : "off"
+  }
+  return [
+    { label: "Type", value: "Automation" },
+    { label: "Actions", value: String(config.rules.length) },
+    { label: "Long take profit", value: level("long", "takeProfitPct") },
+    { label: "Long stop loss", value: level("long", "stopLossPct") },
+    { label: "Short take profit", value: level("short", "takeProfitPct") },
+    { label: "Short stop loss", value: level("short", "stopLossPct") },
+  ]
+}
+
+/**
+ * The hard take-profit bound (percent) a winning trade can never beat — the
+ * largest take-profit across both sides. Feeds the backtest credibility
+ * tripwire; null when no take-profit is set.
+ */
+export function automationTakeProfitPct(config: AutomationConfig): number | null {
+  const values = [
+    config.protection.long?.takeProfitPct,
+    config.protection.short?.takeProfitPct,
+  ].filter((value): value is number => value !== undefined)
+  return values.length > 0 ? Math.max(...values) : null
+}

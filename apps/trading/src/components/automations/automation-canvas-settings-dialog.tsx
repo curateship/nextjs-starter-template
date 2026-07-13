@@ -19,32 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type {
-  AutomationBacktestSettings,
-  AutomationProtection,
-} from "@/lib/automations/automation"
+import type { AutomationBacktestSettings } from "@/lib/automations/automation"
 import { normalizeAutomationType } from "@/lib/automations/automation-types"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import {
   backtestSettingsToValues,
   parseAutomationBacktestSettings,
-  parseAutomationProtection,
   type AutomationBacktestValues,
 } from "./automation-settings"
-import {
-  AutomationBacktestCard,
-  AutomationProtectionCard,
-} from "./automation-settings-fields"
+import { AutomationBacktestCard } from "./automation-settings-fields"
 import { AutomationTypeSelect } from "./automation-type-select"
 
-const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
+const INTERVALS: AutomationInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 export function AutomationCanvasSettingsDialog({
   open,
   type,
   interval,
-  protection,
   backtest,
   knownTypes = [],
   onOpenChange,
@@ -52,22 +44,18 @@ export function AutomationCanvasSettingsDialog({
 }: {
   open: boolean
   type: string
-  interval: StrategyInterval
-  protection: AutomationProtection
+  interval: AutomationInterval
   backtest: AutomationBacktestSettings
   knownTypes?: readonly string[]
   onOpenChange: (open: boolean) => void
   onApply: (settings: {
     type: string
-    interval: StrategyInterval
-    protection: AutomationProtection
+    interval: AutomationInterval
     backtest: AutomationBacktestSettings
   }) => void
 }) {
   const [draftType, setDraftType] = React.useState(type)
   const [draftInterval, setDraftInterval] = React.useState(interval)
-  const [takeProfit, setTakeProfit] = React.useState("")
-  const [stopLoss, setStopLoss] = React.useState("")
   const [backtestValues, setBacktestValues] =
     React.useState<AutomationBacktestValues>(() =>
       backtestSettingsToValues(backtest)
@@ -78,31 +66,17 @@ export function AutomationCanvasSettingsDialog({
     if (!open) return
     setDraftType(type)
     setDraftInterval(interval)
-    setTakeProfit(
-      protection.takeProfitPct === undefined
-        ? ""
-        : String(protection.takeProfitPct)
-    )
-    setStopLoss(
-      protection.stopLossPct === undefined ? "" : String(protection.stopLossPct)
-    )
     setBacktestValues(backtestSettingsToValues(backtest))
     setError(null)
-  }, [backtest, interval, open, protection, type])
+  }, [backtest, interval, open, type])
 
   const apply = () => {
-    const parsed = parseAutomationProtection({
-      takeProfitPct: takeProfit,
-      stopLossPct: stopLoss,
-    })
-    if (!parsed.protection) return setError(parsed.error)
     const parsedBacktest = parseAutomationBacktestSettings(backtestValues)
     if (!parsedBacktest.backtest) return setError(parsedBacktest.error)
 
     onApply({
       type: normalizeAutomationType(draftType),
       interval: draftInterval,
-      protection: parsed.protection,
       backtest: parsedBacktest.backtest,
     })
     onOpenChange(false)
@@ -114,7 +88,8 @@ export function AutomationCanvasSettingsDialog({
         <DialogHeader>
           <DialogTitle>Automation settings</DialogTitle>
           <DialogDescription>
-            Set when this Automation runs and how every action is protected.
+            Set when this Automation runs and its backtest defaults. Take Profit
+            and Stop Loss are canvas nodes now — hang them off a Long or Short.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -137,7 +112,7 @@ export function AutomationCanvasSettingsDialog({
                 <Select
                   value={draftInterval}
                   onValueChange={(value) =>
-                    setDraftInterval(value as StrategyInterval)
+                    setDraftInterval(value as AutomationInterval)
                   }
                 >
                   <SelectTrigger id="canvas-automation-timeframe" className="h-8">
@@ -154,15 +129,6 @@ export function AutomationCanvasSettingsDialog({
               </div>
             </CardContent>
           </Card>
-
-          <AutomationProtectionCard
-            idPrefix="canvas-automation"
-            values={{ takeProfitPct: takeProfit, stopLossPct: stopLoss }}
-            onChange={(next) => {
-              setTakeProfit(next.takeProfitPct)
-              setStopLoss(next.stopLossPct)
-            }}
-          />
 
           <AutomationBacktestCard
             idPrefix="canvas-automation"

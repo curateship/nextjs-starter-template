@@ -49,6 +49,7 @@
 }
 
 :root {
+    --dark-theme-brightness: 0%;
     --shell-primary: oklch(0.205 0 0);
     --shell-primary-foreground: oklch(0.985 0 0);
     --shell-ring: oklch(0.708 0 0);
@@ -97,22 +98,22 @@
     --shell-ring: oklch(0.556 0 0);
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
-    --shell-sidebar-accent: oklch(0.269 0 0);
+    --shell-sidebar-accent: color-mix(in oklch, oklch(0.269 0 0), oklch(0.41 0 0) var(--dark-theme-brightness));
     --shell-sidebar-accent-foreground: oklch(0.985 0 0);
     --shell-sidebar-ring: oklch(0.556 0 0);
-    --background: oklch(0.145 0 0);
+    --background: color-mix(in oklch, oklch(0.145 0 0), oklch(0.3 0 0) var(--dark-theme-brightness));
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    --card: color-mix(in oklch, oklch(0.205 0 0), oklch(0.34 0 0) var(--dark-theme-brightness));
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: color-mix(in oklch, oklch(0.205 0 0), oklch(0.34 0 0) var(--dark-theme-brightness));
     --popover-foreground: oklch(0.985 0 0);
     --primary: var(--shell-primary);
     --primary-foreground: var(--shell-primary-foreground);
-    --secondary: oklch(0.269 0 0);
+    --secondary: color-mix(in oklch, oklch(0.269 0 0), oklch(0.41 0 0) var(--dark-theme-brightness));
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
+    --muted: color-mix(in oklch, oklch(0.269 0 0), oklch(0.41 0 0) var(--dark-theme-brightness));
     --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --accent: color-mix(in oklch, oklch(0.269 0 0), oklch(0.41 0 0) var(--dark-theme-brightness));
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
@@ -123,7 +124,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: color-mix(in oklch, oklch(0.205 0 0), oklch(0.34 0 0) var(--dark-theme-brightness));
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -144,4 +145,17 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Animated trade chips on the price chart: a glowing dot that pulses, ringed by
+   radar waves that expand and fade. Color carries the meaning (green = long,
+   red = short, yellow = flip); see price-chart.tsx. */
+@keyframes chip-ring {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  70% { transform: scale(1.4); opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes chip-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.7); opacity: 0.7; }
 }

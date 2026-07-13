@@ -16,11 +16,11 @@ import {
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import {
-  automationStrategyConfigSchema,
-  normalizeStrategyConfig,
-  strategyTypeIdSchema,
-  type StrategyConfig,
-  type StrategyTypeId,
+  automationConfigSchema,
+  normalizeAutomationConfig,
+  automationTypeIdSchema,
+  type AutomationConfig,
+  type AutomationTypeId,
 } from "@/lib/strategies/strategy-config"
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
@@ -45,7 +45,7 @@ export type BacktestListItem = {
   groupId: string
   name: string
   /** The run's strategy identity: its indicator (registry id) or "automation". */
-  indicatorType: StrategyTypeId
+  indicatorType: AutomationTypeId
   market: string
   network: string
   interval: string
@@ -97,7 +97,7 @@ export type BacktestDetail = {
   createdAt: string
   startedAt: string | null
   completedAt: string | null
-  params: StrategyConfig
+  params: AutomationConfig
   costs: BacktestCosts
   result: BacktestResult | null
 }
@@ -157,7 +157,7 @@ export type ResolvedAutomationRun = {
   automationId: string
   automationName: string
   interval: BacktestInterval
-  params: StrategyConfig
+  params: AutomationConfig
   costs: BacktestCosts
   startingEquity: number
 }
@@ -176,7 +176,7 @@ export async function resolveAutomationRun(
   )
   const source = await getUserAutomation(userId, automationId)
   if (!source) throw new Error("Automation not found")
-  const compiled = automationStrategyConfigSchema.safeParse(
+  const compiled = automationConfigSchema.safeParse(
     source.compiledConfig
   )
   if (!compiled.success) {
@@ -291,7 +291,7 @@ function buildRunInput(args: {
 }
 
 const loadBacktestsSchema = z.object({
-  indicatorType: strategyTypeIdSchema.optional(),
+  indicatorType: automationTypeIdSchema.optional(),
   /** Restrict to one run group — the group page needs nothing else. */
   groupId: z.string().min(1).optional(),
   page: z.number().int().min(1).optional(),
@@ -465,7 +465,7 @@ const deleteBacktestsSchema = z
   .object({
     ids: z.array(z.string().min(1)).max(500).optional(),
     groupIds: z.array(z.string().min(1)).max(500).optional(),
-    indicatorTypes: z.array(strategyTypeIdSchema).max(9).optional(),
+    indicatorTypes: z.array(automationTypeIdSchema).max(9).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.ids?.length && !data.groupIds?.length && !data.indicatorTypes?.length) {
@@ -583,7 +583,7 @@ function serializeListItem(row: ListRow): BacktestListItem {
     id: row.id,
     groupId: row.groupId,
     name: row.name,
-    indicatorType: row.indicatorType as StrategyTypeId,
+    indicatorType: row.indicatorType as AutomationTypeId,
     market: row.market,
     network: row.network,
     interval: row.interval,
@@ -651,7 +651,7 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     completedAt: row.completedAt?.toISOString() ?? null,
     // Normalized so `params.kind` is always set (pre-kind rows lack it).
     params:
-      normalizeStrategyConfig(row.params) ?? (row.params as StrategyConfig),
+      normalizeAutomationConfig(row.params) ?? (row.params as AutomationConfig),
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

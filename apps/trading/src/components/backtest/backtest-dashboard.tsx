@@ -33,9 +33,9 @@ import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { configOverlays } from "@/components/chart/indicator-overlays"
 import {
-  strategyInputRows,
-  strategyTypeLabel,
-  strategyTypeOf,
+  automationInputRows,
+  automationTypeLabel,
+  automationTypeOf,
 } from "@/lib/strategies/strategy-config"
 import type { HistoryCandle } from "@/server/backtest/history"
 
@@ -478,7 +478,7 @@ export function BacktestDashboard({
       { label: "Maker fee", value: `${run.costs.makerFeeBps} bps` },
       { label: "Slippage", value: `${run.costs.slippageBps} bps` },
     ]
-    if (runConfig) rows.push(...strategyInputRows(runConfig))
+    if (runConfig) rows.push(...automationInputRows(runConfig))
     return rows
   }, [run, runConfig])
 
@@ -512,7 +512,7 @@ export function BacktestDashboard({
         dayChangePct={dayChangePct}
         runName={run?.name ?? null}
         strategyLabel={
-          runConfig ? strategyTypeLabel(strategyTypeOf(runConfig)) : null
+          runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
         }
         dateRangeText={describeWindow(windowNum)}
         runs={initialRuns}
@@ -561,7 +561,7 @@ export function BacktestDashboard({
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
               <StrategyInputs
                 title={
-                  runConfig ? strategyTypeLabel(strategyTypeOf(runConfig)) : null
+                  runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
                 }
                 rows={inputRows}
               />

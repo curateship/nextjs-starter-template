@@ -42,7 +42,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}",
+              "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var b=Number(localStorage.getItem('dark-theme-brightness'));document.documentElement.classList.add(d?'dark':'light');document.documentElement.style.setProperty('--dark-theme-brightness',(Number.isFinite(b)&&b>=0&&b<=100?b:0)+'%')}catch(e){}",
           }}
         />
         <HeadContent />

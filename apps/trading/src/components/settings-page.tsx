@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router"
+import { AppearanceSettings } from "@/components/appearance-settings"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
@@ -9,6 +10,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
+  { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
 ] as const
@@ -49,26 +51,32 @@ export function SettingsPage({
             Configure the shell defaults for this workspace.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {saveStatus === "saved" ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-              <CheckIcon className="h-4 w-4" />
-              Saved
-            </span>
-          ) : null}
-          <DashboardToolbarButton
-            type="button"
-            onClick={onSaveConfig}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
-              <SaveIcon className="h-4 w-4" />
-            )}
-            {isSaving ? "Saving" : "Save"}
-          </DashboardToolbarButton>
-        </div>
+        {activeTab === "appearance" ? (
+          <span className="text-sm text-muted-foreground">
+            Saved automatically in this browser
+          </span>
+        ) : (
+          <div className="flex items-center gap-3">
+            {saveStatus === "saved" ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                <CheckIcon className="h-4 w-4" />
+                Saved
+              </span>
+            ) : null}
+            <DashboardToolbarButton
+              type="button"
+              onClick={onSaveConfig}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
+              {isSaving ? "Saving" : "Save"}
+            </DashboardToolbarButton>
+          </div>
+        )}
       </div>
 
       {settingsError ? (
@@ -101,6 +109,7 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
             />
           ) : null}
+          {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}

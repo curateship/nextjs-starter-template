@@ -14,13 +14,15 @@ import type {
 import {
   configOverlays,
   EMPTY_STRATEGY_OVERLAYS,
+  outputToOverlays,
 } from "@/components/chart/indicator-overlays"
+import { INDICATORS } from "@/lib/indicators/registry"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
 import { loadOlderHlCandles } from "@/lib/api/hl-candles"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import {
   bollinger,
   ema,
@@ -33,6 +35,7 @@ import {
   emaLines,
   indicatorColor,
   OSCILLATORS,
+  qqeChartToModuleParams,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
 import { sessionsInRange } from "@/lib/trading/sessions"
@@ -86,16 +89,18 @@ export type ChartMarker = {
   /** Fill time, ms epoch. */
   time: number
   side: "buy" | "sell"
-  /** Override the default side color (e.g. pink for QQE trend re-entries). */
+  /** Chip color, carrying the meaning: green = long, red = short, yellow = flip. */
   color?: string
+  /** Letter color; defaults to white. Used to keep the flip "F" legible on yellow. */
+  textColor?: string
   /**
-   * Exact fill price: every marker is a price-pinned O/C/R chip sitting on
+   * Exact fill price: every marker is a price-pinned O/C/F chip sitting on
    * the candle at that price (see `letter`). Markers exist only for real
    * fills — indicator signal arrows were removed July 2026.
    */
   price: number
-  /** Chip letter: O = open, C = close, R = re-entry. */
-  letter?: "O" | "C" | "R"
+  /** Chip letter: O = open, C = close, F = flip (close + reopen in one step). */
+  letter?: "O" | "C" | "F"
 }
 
 /** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
@@ -301,15 +306,18 @@ export function PriceChartView({
   // One 2-point baseline series per zone: the baseline fill only spans the
   // series' data range, so each paints exactly one rectangle.
   const zoneSeriesRef = React.useRef<ISeriesApi<SeriesType>[]>([])
-  const lastBarColorsRef = React.useRef<ChartBarColor[]>([])
+  // The candle array from the previous data-effect run: lets us tell a real
+  // candle tick/backfill (new reference) from a params-only recolor (same
+  // candles, different bar colours).
+  const prevCandlesRef = React.useRef<ChartCandle[] | null>(null)
   const [ready, setReady] = React.useState(false)
   const [focusPixels, setFocusPixels] = React.useState<
     { x: number; y: number; label: string; placement: "above" | "below" }[]
   >([])
-  // Pixel positions of price-pinned open/close/re-entry chips, kept in sync with
+  // Pixel positions of price-pinned open/close/flip chips, kept in sync with
   // pan/zoom/resize the same way the focus ring is.
   const [markerPixels, setMarkerPixels] = React.useState<
-    { x: number; y: number; letter: string; color: string }[]
+    { x: number; y: number; letter: string; color: string; textColor?: string }[]
   >([])
   // Built-in right-click "Reset View" menu (viewport coords); only used when the
   // parent hasn't taken over the context menu with its own handler.
@@ -698,16 +706,16 @@ export function PriceChartView({
     const colorMap = barColors.length
       ? new Map(barColors.map((bar) => [Math.floor(bar.time / 1000), bar]))
       : undefined
-    // A new recoloring must repaint every bar, not just the last one.
-    const previousColors = lastBarColorsRef.current
-    const colorsChanged =
-      previousColors !== barColors &&
-      (previousColors.length > 0 || barColors.length > 0)
-    lastBarColorsRef.current = barColors
+    // A real candle tick/backfill hands us a NEW candle array; a params-only
+    // recolor keeps the same candles but different bar colours. Only the latter
+    // needs a full repaint — a tick (even one that flips the forming bar's
+    // colour) updates just the last bar and keeps the user's view.
+    const candlesChanged = prevCandlesRef.current !== candles
+    prevCandlesRef.current = candles
 
     const last = candles[candles.length - 1]
     const isIncremental =
-      !colorsChanged &&
+      candlesChanged &&
       dataKeyRef.current === dataKey &&
       lastTimeRef.current > 0 &&
       last.t >= lastTimeRef.current &&
@@ -716,9 +724,8 @@ export function PriceChartView({
       // A real tick adds at most a bar; a whole snapshot must re-set the data.
       candles.length <= prevLenRef.current + 2
 
-    // Progressive history: same series, older candles prepended on the left
-    // (bar colors recompute too, so this must win over `colorsChanged`). Reset
-    // the data — repainting every bar — but keep the user's current view.
+    // Progressive history: same series, older candles prepended on the left.
+    // Reset the data — repainting every bar — but keep the user's current view.
     const grewLeft =
       dataKeyRef.current === dataKey &&
       firstTimeRef.current > 0 &&
@@ -746,12 +753,16 @@ export function PriceChartView({
       candleSeries.setData(candles.map((candle) => toCandleData(candle, colorMap)))
       volumeSeries.setData(candles.map(toVolumeData))
       if (visibleStartMs && visibleStartMs < last.t) {
+        // Charts with an explicit window (backtest) frame to it.
         chartRef.current?.timeScale().setVisibleRange({
           from: (visibleStartMs / 1000) as UTCTimestamp,
           to: (last.t / 1000) as UTCTimestamp,
         })
       } else {
-        chartRef.current?.timeScale().fitContent()
+        // Live chart with no explicit window: frame to the default recent span
+        // (the same view Reset View gives) rather than the whole loaded range,
+        // which grows as older candles stream in on the background backfill.
+        chartRef.current?.timeScale().resetTimeScale()
       }
     }
     dataKeyRef.current = dataKey
@@ -852,15 +863,17 @@ export function PriceChartView({
     }
   }, [ready, focusPoints, overlayRevision])
 
-  // Pin each priced open/close/re-entry chip to its exact fill price on the
+  // Pin each priced open/close/flip chip to its exact fill price on the
   // candle, re-projecting on pan/zoom/resize and dropping any that scroll off
   // screen so the DOM only ever holds the chips currently visible.
   // Sorted by time so the chips inside any visible window are one contiguous
   // slice we can binary-search to, instead of scanning every trade each frame.
   const pricedMarkers = React.useMemo(
     () =>
+      // A letter is optional: fills carry O/C/F, indicator-signal dots (QQE)
+      // carry none and render as a plain pulsing dot.
       markers
-        .filter((m) => m.price != null && m.letter)
+        .filter((m) => m.price != null)
         .sort((a, b) => a.time - b.time),
     [markers]
   )
@@ -889,7 +902,13 @@ export function PriceChartView({
         return
       }
       const width = timeScale.width()
-      const next: { x: number; y: number; letter: string; color: string }[] = []
+      const next: {
+        x: number
+        y: number
+        letter: string
+        color: string
+        textColor?: string
+      }[] = []
       for (let i = start; i < end; i += 1) {
         const marker = pricedMarkers[i]
         const sec = Math.floor(marker.time / 1000)
@@ -905,15 +924,16 @@ export function PriceChartView({
           color:
             marker.color ??
             (marker.side === "buy" ? UP_COLOR : DOWN_COLOR),
+          textColor: marker.textColor,
         })
       }
-      // Declutter: chips landing on the same spot (e.g. a close and a re-open on
-      // one candle) would stack. Nudge each colliding chip right so they sit
-      // side by side; the y (fill price) stays exact, only the x drifts.
-      const STEP = 16 // chip width (14px) + a small gap
+      // Declutter: chips landing on the same spot (e.g. a scale-in landing on a
+      // close) would stack. Nudge each colliding chip right so they sit side by
+      // side; the y (fill price) stays exact, only the x drifts.
+      const STEP = 16 // chip width (12px) + a small gap
       // Break same-candle ties by what happened, not by price: the close (C)
-      // comes before the re-open (O/R). Otherwise the left-right order flips on
-      // tiny fill-price differences and a close-and-reopen looks like two closes.
+      // comes before any re-open (O). Otherwise the left-right order flips on
+      // tiny fill-price differences.
       const rank = (c: { letter: string }) => (c.letter === "C" ? 0 : 1)
       next.sort((a, b) => a.x - b.x || rank(a) - rank(b) || a.y - b.y)
       const placed: { x: number; y: number }[] = []
@@ -1354,21 +1374,64 @@ export function PriceChartView({
       ) : null}
       {markerPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-          {markerPixels.map((m, i) => (
-            <div
-              key={`${m.letter}-${m.x}-${m.y}-${i}`}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: m.x, top: m.y }}
-            >
-              {/* Solid chip: O = open, C = close, R = re-entry, pinned to fill price. */}
-              <span
-                className="flex h-[14px] w-[14px] items-center justify-center rounded-[4px] text-[9px] font-bold leading-none text-white shadow-sm"
-                style={{ backgroundColor: m.color }}
+          {markerPixels.map((m, i) => {
+            // Lettered chips are real fills (O/C/F); letterless ones are
+            // indicator-signal dots (QQE) drawn at half size.
+            const ring = m.letter ? 13 : 6.5
+            const dot = m.letter ? 12 : 6
+            return (
+              <div
+                key={`${m.letter}-${m.x}-${m.y}-${i}`}
+                className="absolute"
+                style={{ left: m.x, top: m.y, width: 0, height: 0 }}
               >
-                {m.letter}
-              </span>
-            </div>
-          ))}
+                {/* Animated chip: a glowing dot (O = open, C = close, F = flip)
+                    ringed by two radar waves, staggered by half a cycle. Color
+                    carries the side: green = long, red = short, yellow = flip. */}
+                <span
+                  className="absolute rounded-full border-2"
+                  style={{
+                    left: 0,
+                    top: 0,
+                    width: ring,
+                    height: ring,
+                    margin: `${-ring / 2}px 0 0 ${-ring / 2}px`,
+                    borderColor: m.color,
+                    animation: "chip-ring 1.3s ease-out infinite",
+                  }}
+                />
+                <span
+                  className="absolute rounded-full border-2"
+                  style={{
+                    left: 0,
+                    top: 0,
+                    width: ring,
+                    height: ring,
+                    margin: `${-ring / 2}px 0 0 ${-ring / 2}px`,
+                    borderColor: m.color,
+                    animation: "chip-ring 1.3s ease-out infinite 0.65s",
+                  }}
+                />
+                <span
+                  className="absolute flex items-center justify-center rounded-full font-bold leading-none"
+                  style={{
+                    left: 0,
+                    top: 0,
+                    width: dot,
+                    height: dot,
+                    margin: `${-dot / 2}px 0 0 ${-dot / 2}px`,
+                    fontSize: 8,
+                    backgroundColor: m.color,
+                    color: m.textColor ?? "#fff",
+                    boxShadow: `0 0 6px ${m.color}`,
+                    animation: "chip-dot 1.3s ease-in-out infinite",
+                  }}
+                >
+                  {m.letter}
+                </span>
+              </div>
+            )
+          })}
         </div>
       ) : null}
       {focusPixels.length > 0 ? (
@@ -1473,6 +1536,24 @@ export function PriceChartView({
 const SESSION_FILL_ALPHA = 0.2
 const SESSION_BORDER_ALPHA = 0.55
 const EMPTY_ZONES: ChartZone[] = []
+
+/**
+ * Keeps the SAME array reference while the content is unchanged, so downstream
+ * effects that compare props by reference (the candle series' `barColors`
+ * recolor check) don't fire on every render. An indicator recompute produces a
+ * fresh array each tick even when the bar colours are identical — this collapses
+ * that back to a stable reference.
+ */
+function useStableBarColors(next: ChartBarColor[]): ChartBarColor[] {
+  const ref = React.useRef(next)
+  const prev = ref.current
+  const same =
+    prev.length === next.length &&
+    next.every((bar, i) => bar.time === prev[i].time && bar.color === prev[i].color)
+  if (same) return prev
+  ref.current = next
+  return next
+}
 function hexToRgba(hex: string, alpha: number): string {
   const match = /^#([0-9a-f]{6})$/i.exec(hex)
   if (!match) return `rgba(41, 98, 255, ${alpha})`
@@ -1490,7 +1571,7 @@ export function PriceChart({
   priceLines = [],
   markers = [],
   indicators = [],
-  strategyConfig,
+  automationConfig,
   focusPoints,
   focusResult,
   onCrosshairOhlc,
@@ -1507,7 +1588,7 @@ export function PriceChart({
   /** Technical-indicator overlays and oscillator sub-panes. */
   indicators?: IndicatorConfig[]
   /** Full saved config paint (an Automation's connected-indicator lines). */
-  strategyConfig?: StrategyConfig | null
+  automationConfig?: AutomationConfig | null
   /** Pulse rings the chart pans to (e.g. a selected fill). */
   focusPoints?: ChartFocusPoint[]
   /** Entry → exit result box for a focused round trip. */
@@ -1601,11 +1682,46 @@ export function PriceChart({
 
   const strategy = React.useMemo(
     () =>
-      strategyConfig
-        ? configOverlays(strategyConfig, candles)
+      automationConfig
+        ? configOverlays(automationConfig, candles)
         : EMPTY_STRATEGY_OVERLAYS,
-    [candles, strategyConfig]
+    [candles, automationConfig]
   )
+
+  // QQE is the one pinned chart indicator that renders through the shared
+  // paint pipeline (bar-colors, chop zones, swing pivots) instead of a bespoke
+  // series. Its buy/sell signals become letterless pulsing dots (green/red by
+  // side) — the same animated chip the backtest chart uses for fills.
+  const qqe = React.useMemo(() => {
+    const cfg = indicators.find((ind) => ind.type === "qqe" && ind.enabled)
+    if (!cfg || candles.length === 0) {
+      return { overlayLines: [], zones: [], barColors: [], markers: [] }
+    }
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.qqe.compute(
+      numeric,
+      qqeChartToModuleParams(cfg.params) as never
+    )
+    const overlays = outputToOverlays(out)
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    const markers: ChartMarker[] = out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
+    return {
+      overlayLines: overlays.overlayLines,
+      zones: overlays.zones,
+      barColors: overlays.barColors,
+      markers,
+    }
+  }, [indicators, candles])
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
@@ -1687,11 +1803,16 @@ export function PriceChart({
     return next
   }, [sessionEnabled, sessionHex, sessionKey, interval, candles])
   const zones = React.useMemo(
-    () =>
-      sessionZones.length === 0
-        ? strategy.zones
-        : [...strategy.zones, ...sessionZones],
-    [strategy.zones, sessionZones]
+    () => [...strategy.zones, ...qqe.zones, ...sessionZones],
+    [strategy.zones, qqe.zones, sessionZones]
+  )
+  // Content-stable so a live tick that doesn't change any bar colour doesn't
+  // force the candle series to fully re-set (which would re-frame the chart).
+  const barColors = useStableBarColors(
+    React.useMemo(
+      () => [...strategy.barColors, ...qqe.barColors],
+      [strategy.barColors, qqe.barColors]
+    )
   )
 
   // Readout parity with the backtest chart: while the cursor isn't on the
@@ -1713,11 +1834,11 @@ export function PriceChart({
       coin={coin}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={markers}
+      markers={[...markers, ...qqe.markers]}
       indicators={[...indicators, ...strategy.indicators]}
-      overlayLines={strategy.overlayLines}
+      overlayLines={[...strategy.overlayLines, ...qqe.overlayLines]}
       zones={zones}
-      barColors={strategy.barColors}
+      barColors={barColors}
       focusPoints={focusPoints}
       focusResult={focusResult}
       onVisibleRangeChange={handleVisibleRange}

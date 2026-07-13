@@ -3,9 +3,9 @@ import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
 import {
-  normalizeStrategyConfig,
-  strategyConfigSchema,
-  type StrategyConfig,
+  normalizeAutomationConfig,
+  automationConfigSchema,
+  type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 
 export type BotListItem = {
@@ -46,7 +46,7 @@ export type BotMarketState = {
 
 export type BotDetailResponse = {
   bot: BotListItem & {
-    params: StrategyConfig
+    params: AutomationConfig
     paper_starting_equity: number | null
     source_name: string | null
     automation_id: string | null
@@ -112,7 +112,7 @@ const updateBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().min(1).max(255),
   markets: z.array(z.string().min(1).max(20)).min(1),
-  params: strategyConfigSchema,
+  params: automationConfigSchema,
 })
 
 const botCommandSchema = z.object({
@@ -161,8 +161,8 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         // Normalized so `params.kind` is always set (pre-kind configs lack
         // it in the DB); archived legacy params pass through untouched.
         params:
-          normalizeStrategyConfig(detail.bot.params) ??
-          (detail.bot.params as StrategyConfig),
+          normalizeAutomationConfig(detail.bot.params) ??
+          (detail.bot.params as AutomationConfig),
         paper_starting_equity: detail.bot.paperStartingEquity
           ? Number(detail.bot.paperStartingEquity)
           : null,

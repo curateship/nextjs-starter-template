@@ -28,20 +28,17 @@ import {
   type AutomationDetail,
   type AutomationListItem,
 } from "@/lib/api/automations"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import {
   backtestSettingsToValues,
   buildAutomationSettingsSave,
   type AutomationSettingsValues,
 } from "./automation-settings"
-import {
-  AutomationBacktestCard,
-  AutomationProtectionCard,
-} from "./automation-settings-fields"
+import { AutomationBacktestCard } from "./automation-settings-fields"
 import { AutomationTypeSelect } from "./automation-type-select"
 
-const INTERVALS: StrategyInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
+const INTERVALS: AutomationInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 export function AutomationSettingsDialog({
   target,
@@ -82,8 +79,6 @@ function AutomationSettingsDialogForm({
     name: target.name,
     type: target.type,
     interval: target.interval,
-    takeProfitPct: "",
-    stopLossPct: "",
     startingEquity: "",
     takerFeeBps: "",
     makerFeeBps: "",
@@ -103,14 +98,6 @@ function AutomationSettingsDialogForm({
           name: automation.name,
           type: automation.type,
           interval: automation.interval,
-          takeProfitPct:
-            automation.protection.takeProfitPct === undefined
-              ? ""
-              : String(automation.protection.takeProfitPct),
-          stopLossPct:
-            automation.protection.stopLossPct === undefined
-              ? ""
-              : String(automation.protection.stopLossPct),
           ...backtestSettingsToValues(automation.backtest),
         })
       })
@@ -196,7 +183,7 @@ function AutomationSettingsDialogForm({
                   value={values.interval}
                   disabled={loading || saving}
                   onValueChange={(value) =>
-                    update("interval", value as StrategyInterval)
+                    update("interval", value as AutomationInterval)
                   }
                 >
                   <SelectTrigger id="automation-settings-timeframe" className="h-8">
@@ -213,13 +200,6 @@ function AutomationSettingsDialogForm({
               </div>
             </CardContent>
           </Card>
-
-          <AutomationProtectionCard
-            idPrefix="automation-settings"
-            values={values}
-            disabled={loading || saving}
-            onChange={(next) => setValues((current) => ({ ...current, ...next }))}
-          />
 
           <AutomationBacktestCard
             idPrefix="automation-settings"

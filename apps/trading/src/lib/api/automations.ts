@@ -4,23 +4,22 @@ import { z } from "zod"
 import {
   automationBacktestSettingsSchema,
   automationGraphSchema,
-  automationDraftProtectionSchema,
   DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
   type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationProtection,
-  type AutomationStrategyConfig,
+  type AutomationConfig,
   type AutomationValidationError,
 } from "@/lib/automations/automation"
 import { automationTypeSchema } from "@/lib/automations/automation-types"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import type { TradingAutomation } from "@/server/schema"
 
 export type AutomationListItem = {
   id: string
   name: string
   type: string
-  interval: StrategyInterval
+  interval: AutomationInterval
   summary: string
   isValid: boolean
   updated_at: string
@@ -30,11 +29,11 @@ export type AutomationDetail = {
   id: string
   name: string
   type: string
-  interval: StrategyInterval
+  interval: AutomationInterval
   graph: AutomationGraph
   protection: AutomationProtection
   backtest: AutomationBacktestSettings
-  compiledConfig: AutomationStrategyConfig | null
+  compiledConfig: AutomationConfig | null
   errors: AutomationValidationError[]
   created_at: string
   updated_at: string
@@ -47,7 +46,6 @@ const createSchema = z.object({
   name: nameSchema,
   type: automationTypeSchema,
   interval: intervalSchema,
-  protection: automationDraftProtectionSchema.default({}),
   backtest: automationBacktestSettingsSchema.default(
     DEFAULT_AUTOMATION_BACKTEST_SETTINGS
   ),
@@ -57,7 +55,6 @@ const saveSchema = automationIdSchema.extend({
   type: automationTypeSchema,
   interval: intervalSchema,
   graph: automationGraphSchema,
-  protection: automationDraftProtectionSchema,
   backtest: automationBacktestSettingsSchema.default(
     DEFAULT_AUTOMATION_BACKTEST_SETTINGS
   ),

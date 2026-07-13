@@ -70,6 +70,34 @@ const VALID_GRAPH: AutomationGraph = {
   viewport: { x: 25, y: 40, zoom: 1.25 },
 }
 
+/** VALID_GRAPH plus a Take Profit + Stop Loss hung on the Long entry. */
+const PROTECTED_GRAPH: AutomationGraph = {
+  ...VALID_GRAPH,
+  nodes: [
+    ...VALID_GRAPH.nodes,
+    { id: "tp", kind: "takeProfit", pct: 4, x: 300, y: -140 },
+    { id: "sl", kind: "stopLoss", pct: 2, x: 300, y: 140 },
+  ],
+  edges: [
+    ...VALID_GRAPH.edges,
+    { id: "buy-tp", from: "buy", sourcePort: "tp", to: "tp" },
+    { id: "buy-sl", from: "buy", sourcePort: "sl", to: "sl" },
+  ],
+}
+
+/** VALID_GRAPH plus a Stop Loss node with a non-positive percent. */
+const INVALID_PROTECTION_GRAPH: AutomationGraph = {
+  ...VALID_GRAPH,
+  nodes: [
+    ...VALID_GRAPH.nodes,
+    { id: "sl", kind: "stopLoss", pct: -2, x: 300, y: 140 },
+  ],
+  edges: [
+    ...VALID_GRAPH.edges,
+    { id: "buy-sl", from: "buy", sourcePort: "sl", to: "sl" },
+  ],
+}
+
 let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
 
@@ -143,7 +171,7 @@ describe("Automation storage", () => {
     // Simulate a pre-change row: stored draft without a `backtest` key.
     await database
       .update(schema.tradingAutomations)
-      .set({ graph: { ...EMPTY_GRAPH, protection: {} } })
+      .set({ graph: EMPTY_GRAPH })
       .where(eq(schema.tradingAutomations.id, created.id))
 
     const row = await getUserAutomation(userId, created.id)
@@ -152,22 +180,20 @@ describe("Automation storage", () => {
     )
   })
 
-  it("compiles a valid draft and persists graph, viewport, and protection", async () => {
+  it("compiles Take Profit / Stop Loss nodes into per-side protection", async () => {
     const userId = await createTestUser()
     const created = await createUserAutomation(userId, {
       name: "EMA entry",
       interval: "15m",
     })
     const protection: AutomationProtection = {
-      takeProfitPct: 4,
-      stopLossPct: 2,
+      long: { takeProfitPct: 4, stopLossPct: 2 },
     }
 
     const saved = await saveUserAutomation(userId, created.id, {
       name: "EMA entry",
       interval: "1h",
-      graph: VALID_GRAPH,
-      protection,
+      graph: PROTECTED_GRAPH,
     })
 
     expect(saved).not.toBeNull()
@@ -177,7 +203,7 @@ describe("Automation storage", () => {
       interval: "1h",
       protection,
     })
-    expect(inspectAutomation(saved!).graph).toEqual(VALID_GRAPH)
+    expect(inspectAutomation(saved!).graph).toEqual(PROTECTED_GRAPH)
     expect(inspectAutomation(saved!).protection).toEqual(protection)
     expect(inspectAutomation(saved!).errors).toEqual([])
   })
@@ -192,7 +218,6 @@ describe("Automation storage", () => {
       name: "Draft",
       interval: "15m",
       graph: VALID_GRAPH,
-      protection: {},
     })
     expect(valid?.compiledConfig).not.toBeNull()
 
@@ -200,7 +225,6 @@ describe("Automation storage", () => {
       name: "Draft",
       interval: "15m",
       graph: EMPTY_GRAPH,
-      protection: {},
     })
 
     expect(invalid?.compiledConfig).toBeNull()
@@ -220,12 +244,10 @@ describe("Automation storage", () => {
     const saved = await saveUserAutomation(userId, created.id, {
       name: created.name,
       interval: "15m",
-      graph: VALID_GRAPH,
-      protection: { stopLossPct: -2 },
+      graph: INVALID_PROTECTION_GRAPH,
     })
     const inspected = inspectAutomation(saved!)
 
-    expect(inspected.protection).toEqual({ stopLossPct: -2 })
     expect(inspected.compiledConfig).toBeNull()
     expect(inspected.errors.map((error) => error.code)).toContain(
       "invalid_protection"
@@ -246,7 +268,6 @@ describe("Automation storage", () => {
         name: "Stolen",
         interval: "1h",
         graph: VALID_GRAPH,
-        protection: {},
       })
     ).toBeNull()
     expect(await duplicateUserAutomation(stranger, created.id)).toBeNull()
@@ -263,8 +284,7 @@ describe("Automation storage", () => {
     const saved = await saveUserAutomation(userId, created.id, {
       name: "Momentum",
       interval: "15m",
-      graph: VALID_GRAPH,
-      protection: { stopLossPct: 3 },
+      graph: PROTECTED_GRAPH,
     })
 
     const first = await duplicateUserAutomation(userId, saved!.id)
@@ -300,7 +320,6 @@ describe("Automation storage", () => {
       name: created.name,
       interval: "15m",
       graph: VALID_GRAPH,
-      protection: {},
     })
     const compiledConfig = saved?.compiledConfig
     expect(compiledConfig).not.toBeNull()
@@ -336,7 +355,6 @@ describe("Automation storage", () => {
       name: created.name,
       interval: "15m",
       graph: VALID_GRAPH,
-      protection: {},
       backtest: {
         startingEquity: 25_000,
         takerFeeBps: 10,

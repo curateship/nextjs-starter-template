@@ -1,5 +1,5 @@
 import type { ResolvedAutomationAction } from "@/lib/automations/automation"
-import type { AutomationStrategyConfig } from "@/lib/automations/automation"
+import type { AutomationConfig } from "@/lib/automations/automation"
 import { AUTOMATION_MAX_WINDOW_BARS } from "@/lib/automations/automation"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { evaluateAutomation } from "@/lib/automations/evaluate"
@@ -94,7 +94,7 @@ export function automationTargetOrders(input: {
 }
 
 export function createAutomationStrategy(
-  config: AutomationStrategyConfig
+  config: AutomationConfig
 ): Strategy<never, AutomationState> {
   const window = Math.min(automationWarmupBars(config), AUTOMATION_MAX_WINDOW_BARS)
   const initialState = (): AutomationState => ({
@@ -106,6 +106,10 @@ export function createAutomationStrategy(
     szi: Number(ctx.position?.szi ?? 0),
     entryPx: Number(ctx.position?.entryPx ?? 0),
   })
+  // Per-side protection: a long position exits on the long levels, a short on
+  // the short levels. The trade-manager math itself stays side-agnostic.
+  const protectionFor = (szi: number) =>
+    (szi > 0 ? config.protection.long : config.protection.short) ?? {}
 
   return {
     type: "automation",
@@ -159,9 +163,10 @@ export function createAutomationStrategy(
     },
     onTick: (ctx) => {
       if (ctx.state.exitRequested) return
+      const pos = position(ctx)
       const hit = tickExit(
-        config.protection,
-        position(ctx),
+        protectionFor(pos.szi),
+        pos,
         ctx.state,
         Number(ctx.mid)
       )
@@ -181,8 +186,10 @@ export function createAutomationStrategy(
         })
       }
     },
-    exitTriggers: (ctx) =>
-      exitLevels(config.protection, position(ctx), ctx.state),
+    exitTriggers: (ctx) => {
+      const pos = position(ctx)
+      return exitLevels(protectionFor(pos.szi), pos, ctx.state)
+    },
     desiredOrders: (ctx) => {
       const action = ctx.state.exitRequested
         ? ({ action: "close" } as const)

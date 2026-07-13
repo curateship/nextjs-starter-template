@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm"
 
-import type { StrategyConfig } from "@/lib/strategies/strategy-config"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import { db } from "@/server/db"
 import { buildCloid } from "@/server/hyperliquid/exchange"
 import { getAssetInfo, type AssetInfo } from "@/server/hyperliquid/info"
@@ -43,7 +43,7 @@ export class BotRunner {
   /** The single market this runner trades; a bot spawns one runner per market. */
   readonly market: string
   private readonly hub: MarketHub
-  private params!: StrategyConfig
+  private params!: AutomationConfig
   private strategy!: Strategy<never, unknown>
   private asset!: AssetInfo
   private broker: BotBroker | null = null
@@ -81,9 +81,9 @@ export class BotRunner {
     this.botNetwork = wallet.network as TradingNetwork
     await this.setStatus("starting")
     try {
-      // The engine validates the StrategyConfig itself; the runner treats
+      // The engine validates the AutomationConfig itself; the runner treats
       // params as opaque (hooks receive them typed `never`).
-      this.params = this.bot.params as StrategyConfig
+      this.params = this.bot.params as AutomationConfig
 
       const strategy = resolveStrategy(this.bot.params)
       if (!strategy) {

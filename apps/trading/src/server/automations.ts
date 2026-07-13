@@ -4,19 +4,18 @@ import { z } from "zod"
 import {
   automationBacktestSettingsSchema,
   automationDraftSchema,
-  automationDraftProtectionSchema,
   automationGraphSchema,
-  automationStrategyConfigSchema,
+  automationConfigSchema,
   compileAutomationGraph,
   DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
   type AutomationBacktestSettings,
   type AutomationGraph,
   type AutomationProtection,
-  type AutomationStrategyConfig,
+  type AutomationConfig,
   type AutomationValidationError,
 } from "@/lib/automations/automation"
 import { normalizeAutomationType } from "@/lib/automations/automation-types"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   tradingAutomations,
@@ -27,7 +26,6 @@ import { now, uuid } from "@/server/util"
 
 const nameSchema = z.string().trim().min(1).max(80)
 const storedDraftSchema = automationGraphSchema.extend({
-  protection: automationDraftProtectionSchema,
   // Rows saved before backtest settings existed have no key (default);
   // anything unreadable falls back to defaults instead of bricking the row.
   backtest: automationBacktestSettingsSchema
@@ -45,7 +43,7 @@ export type InspectedAutomation = {
   graph: AutomationGraph
   protection: AutomationProtection
   backtest: AutomationBacktestSettings
-  compiledConfig: AutomationStrategyConfig | null
+  compiledConfig: AutomationConfig | null
   errors: AutomationValidationError[]
 }
 
@@ -54,18 +52,14 @@ export function inspectAutomation(row: TradingAutomation): InspectedAutomation {
   if (!parsedDraft.success) {
     throw new Error("Automation draft could not be read")
   }
-  const { protection, backtest, ...graph } = parsedDraft.data
-  const compiled = compileAutomationGraph({
-    interval: row.interval,
-    graph,
-    protection,
-  })
-  const storedConfig = automationStrategyConfigSchema.safeParse(
-    row.compiledConfig
-  )
+  const { backtest, ...graph } = parsedDraft.data
+  const compiled = compileAutomationGraph({ interval: row.interval, graph })
+  const storedConfig = automationConfigSchema.safeParse(row.compiledConfig)
   return {
     graph,
-    protection,
+    // Protection lives in the graph's Take Profit / Stop Loss nodes — surface
+    // what it compiles to.
+    protection: compiled.config?.protection ?? {},
     backtest,
     compiledConfig: storedConfig.success ? storedConfig.data : null,
     errors: compiled.errors,
@@ -106,8 +100,7 @@ export async function createUserAutomation(
   input: {
     name: string
     type?: string
-    interval: StrategyInterval
-    protection?: AutomationProtection
+    interval: AutomationInterval
     backtest?: AutomationBacktestSettings
   },
   database: CustomShellDb = db
@@ -124,7 +117,6 @@ export async function createUserAutomation(
         interval: input.interval,
         graph: storedDraft(
           EMPTY_GRAPH,
-          input.protection ?? {},
           input.backtest ?? DEFAULT_AUTOMATION_BACKTEST_SETTINGS
         ),
         compiledConfig: null,
@@ -145,9 +137,8 @@ export async function saveUserAutomation(
   input: {
     name: string
     type?: string
-    interval: StrategyInterval
+    interval: AutomationInterval
     graph: AutomationGraph
-    protection: AutomationProtection
     backtest?: AutomationBacktestSettings
   },
   database: CustomShellDb = db
@@ -156,12 +147,11 @@ export async function saveUserAutomation(
   const draft = automationDraftSchema.parse({
     interval: input.interval,
     graph: input.graph,
-    protection: input.protection,
     backtest: input.backtest,
   })
   const compiled = compileAutomationGraph(draft)
   const compiledConfig = compiled.config
-    ? automationStrategyConfigSchema.parse(compiled.config)
+    ? automationConfigSchema.parse(compiled.config)
     : null
 
   try {
@@ -171,7 +161,7 @@ export async function saveUserAutomation(
         name,
         type: normalizeAutomationType(input.type),
         interval: draft.interval,
-        graph: storedDraft(draft.graph, draft.protection, draft.backtest),
+        graph: storedDraft(draft.graph, draft.backtest),
         compiledConfig,
         updatedAt: now(),
       })
@@ -242,10 +232,9 @@ export async function deleteUserAutomation(
 
 function storedDraft(
   graph: AutomationGraph,
-  protection: AutomationProtection,
   backtest: AutomationBacktestSettings
 ): TradingAutomationDraft {
-  return { ...graph, protection, backtest }
+  return { ...graph, backtest }
 }
 
 function copyName(sourceName: string, copyNumber: number): string {

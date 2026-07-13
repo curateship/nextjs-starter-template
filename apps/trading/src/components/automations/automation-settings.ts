@@ -3,24 +3,17 @@ import type {
 } from "@/lib/automations/automation"
 import { normalizeAutomationType } from "@/lib/automations/automation-types"
 import type { AutomationDetail } from "@/lib/api/automations"
-import type { StrategyInterval } from "@/lib/strategies/kinds/contract"
+import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 export type AutomationSettingsValues = {
   name: string
   type: string
-  interval: StrategyInterval
-  takeProfitPct: string
-  stopLossPct: string
+  interval: AutomationInterval
   startingEquity: string
   takerFeeBps: string
   makerFeeBps: string
   slippageBps: string
 }
-
-export type AutomationProtectionValues = Pick<
-  AutomationSettingsValues,
-  "takeProfitPct" | "stopLossPct"
->
 
 export type AutomationBacktestValues = Pick<
   AutomationSettingsValues,
@@ -78,33 +71,6 @@ export function parseAutomationBacktestSettings(
   return { backtest: { startingEquity, ...parsedFees }, error: null }
 }
 
-export function parseAutomationProtection(
-  values: AutomationProtectionValues
-):
-  | { protection: { takeProfitPct?: number; stopLossPct?: number }; error: null }
-  | { protection: null; error: string } {
-  const takeProfit = optionalPercent(
-    values.takeProfitPct,
-    "Take profit",
-    1000
-  )
-  if (takeProfit.error) return { protection: null, error: takeProfit.error }
-  const stopLoss = optionalPercent(values.stopLossPct, "Stop loss", 100)
-  if (stopLoss.error) return { protection: null, error: stopLoss.error }
-
-  return {
-    protection: {
-      ...(takeProfit.value === undefined
-        ? {}
-        : { takeProfitPct: takeProfit.value }),
-      ...(stopLoss.value === undefined
-        ? {}
-        : { stopLossPct: stopLoss.value }),
-    },
-    error: null,
-  }
-}
-
 export function buildAutomationSettingsSave(
   detail: AutomationDetail,
   values: AutomationSettingsValues
@@ -122,11 +88,6 @@ export function buildAutomationSettingsSave(
     }
   }
 
-  const parsedProtection = parseAutomationProtection(values)
-  if (!parsedProtection.protection) {
-    return { payload: null, error: parsedProtection.error }
-  }
-
   const parsedBacktest = parseAutomationBacktestSettings(values)
   if (!parsedBacktest.backtest) {
     return { payload: null, error: parsedBacktest.error }
@@ -139,21 +100,8 @@ export function buildAutomationSettingsSave(
       type: normalizeAutomationType(values.type),
       interval: values.interval,
       graph: detail.graph,
-      protection: parsedProtection.protection,
       backtest: parsedBacktest.backtest,
     },
     error: null,
   }
-}
-
-function optionalPercent(raw: string, label: string, max: number) {
-  if (!raw.trim()) return { value: undefined, error: null }
-  const value = Number(raw)
-  if (!Number.isFinite(value) || value <= 0 || value > max) {
-    return {
-      value: undefined,
-      error: `${label} must be greater than 0% and no more than ${max}%.`,
-    }
-  }
-  return { value, error: null }
 }

@@ -8,7 +8,7 @@ import { INDICATORS } from "@/lib/indicators/registry"
 import {
   resolveAutomationActions,
   type AutomationCondition,
-  type AutomationStrategyConfig,
+  type AutomationConfig,
   type ResolvedAutomationAction,
 } from "./automation"
 
@@ -74,7 +74,7 @@ function mergePaint(
 
 export function evaluateAutomation(
   candles: IndicatorCandle[],
-  config: AutomationStrategyConfig
+  config: AutomationConfig
 ): AutomationEvaluation {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
   const filters = triggers.flatMap((trigger) => trigger.filters ?? [])

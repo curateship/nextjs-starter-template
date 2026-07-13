@@ -84,6 +84,9 @@ export function AutomationInspector({
             <ActionFields node={selectedNode} onChange={onNodeChange} />
           ) : selectedNode.kind === "lookback" ? (
             <LookbackFields node={selectedNode} onChange={onNodeChange} />
+          ) : selectedNode.kind === "takeProfit" ||
+            selectedNode.kind === "stopLoss" ? (
+            <ProtectionNodeFields node={selectedNode} onChange={onNodeChange} />
           ) : (
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               {selectedNode.op.toUpperCase()} nodes are no longer supported.
@@ -238,6 +241,41 @@ function LookbackFields({
       <p className="text-[11px] text-muted-foreground">
         The incoming signal counts for this many candles after it fires, then
         goes stale and blocks everything downstream until a fresh signal.
+      </p>
+    </div>
+  )
+}
+
+function ProtectionNodeFields({
+  node,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "takeProfit" | "stopLoss" }>
+  onChange: (node: AutomationNode) => void
+}) {
+  const isTp = node.kind === "takeProfit"
+  const max = isTp ? 1000 : 100
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={`protection-${node.id}`} className="text-xs">
+        {isTp ? "Take profit %" : "Stop loss %"}
+      </Label>
+      <Input
+        id={`protection-${node.id}`}
+        type="number"
+        min={0}
+        max={max}
+        step={0.1}
+        value={node.pct}
+        className="h-8 text-xs"
+        onChange={(event) =>
+          onChange({ ...node, pct: Number(event.target.value) })
+        }
+      />
+      <p className="text-[11px] text-muted-foreground">
+        {isTp
+          ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
+          : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
       </p>
     </div>
   )
