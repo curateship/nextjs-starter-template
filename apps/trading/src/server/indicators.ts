@@ -150,6 +150,26 @@ export async function upsertUserIndicator(
       throw new Error("Invalid Fair Value Gap parameter: showFilled")
     }
   }
+  if (def.type === "trendline") {
+    const lookback = input.params.swingLookback
+    if (
+      lookback !== undefined &&
+      (!Number.isInteger(lookback) || lookback < 2 || lookback > 400)
+    ) {
+      throw new Error("Invalid Trendline Break parameter: swingLookback")
+    }
+    const buffer = input.params.breakBuffer
+    if (
+      buffer !== undefined &&
+      (!Number.isFinite(buffer) || buffer < 0 || buffer > 10)
+    ) {
+      throw new Error("Invalid Trendline Break parameter: breakBuffer")
+    }
+    const flag = input.params.requireCounterSlope
+    if (flag !== undefined && flag !== 0 && flag !== 1) {
+      throw new Error("Invalid Trendline Break parameter: requireCounterSlope")
+    }
+  }
   // Store only the params this indicator type defines — never arbitrary keys.
   const paramKeys = [
     ...INDICATOR_PARAM_FIELDS[def.type].map((field) => field.key),

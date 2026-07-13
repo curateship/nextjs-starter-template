@@ -59,6 +59,7 @@ import {
   indicatorColor,
   OSCILLATORS,
   qqeChartToModuleParams,
+  trendlineChartToModuleParams,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
 import { sessionsInRange } from "@/lib/trading/sessions"
@@ -2301,6 +2302,26 @@ export function PriceChart({
     return { zones: outputToOverlays(out).zones }
   }, [indicators, candles])
 
+  const trendline = React.useMemo(() => {
+    const cfg = indicators.find(
+      (ind) => ind.type === "trendline" && ind.enabled
+    )
+    if (!cfg || candles.length === 0) return { overlayLines: [] }
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.trendline.compute(
+      numeric,
+      trendlineChartToModuleParams(cfg.params) as never
+    )
+    return { overlayLines: outputToOverlays(out).overlayLines }
+  }, [indicators, candles])
+
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
   // bounded by that session's own high and low (like the measure tool's
@@ -2414,7 +2435,11 @@ export function PriceChart({
       priceLines={[...priceLines, ...strategy.priceLines]}
       markers={[...markers, ...qqe.markers]}
       indicators={[...indicators, ...strategy.indicators]}
-      overlayLines={[...strategy.overlayLines, ...qqe.overlayLines]}
+      overlayLines={[
+        ...strategy.overlayLines,
+        ...qqe.overlayLines,
+        ...trendline.overlayLines,
+      ]}
       zones={zones}
       barColors={barColors}
       focusPoints={focusPoints}

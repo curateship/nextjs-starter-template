@@ -10,6 +10,7 @@ import { macdCrossIndicator } from "./defs/macd-cross"
 import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
+import { trendlineIndicator } from "./defs/trendline"
 import { vwapCrossIndicator } from "./defs/vwap-cross"
 
 export const INDICATOR_IDS = [
@@ -22,6 +23,7 @@ export const INDICATOR_IDS = [
   "bollinger",
   "price_action",
   "fair_value_gap",
+  "trendline",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -46,6 +48,7 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   bollinger: erase(bollingerIndicator),
   price_action: erase(priceActionIndicator),
   fair_value_gap: erase(fairValueGapIndicator),
+  trendline: erase(trendlineIndicator),
 }
 
 /**
@@ -63,6 +66,7 @@ export const SIGNAL_FOR_CHART_TYPE: Partial<Record<IndicatorType, IndicatorId>> 
   priceAction: "price_action",
   qqe: "qqe",
   fairValueGap: "fair_value_gap",
+  trendline: "trendline",
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps
@@ -96,4 +100,3 @@ export const indicatorSelectionSchema = z
       }
     }
   })
-
