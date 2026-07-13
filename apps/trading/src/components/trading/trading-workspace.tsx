@@ -24,7 +24,7 @@ import {
 import { MarketWatchlist } from "@/components/trading/market-watchlist"
 import { OrderBook } from "@/components/trading/order-book"
 import { OrderTicket, type TicketPrefill } from "@/components/trading/order-ticket"
-import { OneClickPanel } from "@/components/trading/one-click-panel"
+import { OneClickMenuActions } from "@/components/trading/one-click-panel"
 import {
   PaperFillsTable,
   PaperOpenOrdersTable,
@@ -90,6 +90,7 @@ import { OverlaySettingsDialog } from "@/components/indicators/indicator-setting
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
+import { describeOpenOrder } from "@/lib/trading/open-order"
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
@@ -104,7 +105,8 @@ const BOTTOM_TAB_TRIGGER =
 // muted page canvas, separated by invisible resize handles. Per Tyler's call,
 // the terminal uses HALF the site gap (8px / 12px) so the dense layout keeps
 // its screen space — documented as an exception in workspace/docs/ui-ux.md.
-const PANEL_CARD = "h-full min-h-0 overflow-hidden rounded-xl border bg-card"
+const PANEL_CARD =
+  "h-full min-h-0 overflow-hidden rounded-xl border border-foreground/5 bg-card"
 const GAP_HANDLE =
   "w-2 bg-transparent after:hidden sm:w-3 aria-[orientation=horizontal]:h-2 sm:aria-[orientation=horizontal]:h-3"
 
@@ -268,11 +270,12 @@ export function TradingWorkspace({
     }
     for (const order of account?.openOrders ?? []) {
       if (order.coin !== market) continue
+      const description = describeOpenOrder(order)
       lines.push({
         id: `order-${order.oid}`,
-        price: Number(order.limitPx),
+        price: Number(description.price),
         color: order.side === "B" ? "#089981" : "#f23645",
-        title: `${order.side === "B" ? "Buy" : "Sell"} ${order.sz}`,
+        title: `${description.label} ${order.sz}`,
         draggable: true,
       })
     }
@@ -325,16 +328,11 @@ export function TradingWorkspace({
     if (id.startsWith("order-")) {
       if (!selectedWallet?.is_active) return
       const oid = Number(id.slice("order-".length))
-      const order = account?.openOrders?.find((entry) => entry.oid === oid)
-      if (!order) return
       void modifyOrder({
         walletId: selectedWallet.id,
         market,
         oid,
-        side: order.side === "B" ? "buy" : "sell",
         px,
-        sz: order.sz,
-        reduceOnly: order.reduceOnly ?? false,
       })
         .then((result) => notify(`Order #${oid} moved to ${result.px}.`, "ok"))
         .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
@@ -541,21 +539,6 @@ export function TradingWorkspace({
               <ResizablePanel id="ticket" defaultSize="20%" minSize="14%">
                 <div className={cn(PANEL_CARD, "flex flex-col")}>
                   <ScrollArea className="min-h-0 flex-1">
-                    <OneClickPanel
-                      walletId={
-                        selectedWallet?.is_active
-                          ? (selectedWallet?.id ?? null)
-                          : null
-                      }
-                      isPaper={isPaper}
-                      market={market}
-                      marketRow={marketRow}
-                      markPx={markPx}
-                      equity={equity}
-                      disabledReason={ticketDisabledReason}
-                      confirmationEnabled={orderConfirmation}
-                      onNotify={notify}
-                    />
                     <OrderTicket
                       walletId={
                         selectedWallet?.is_active
@@ -571,6 +554,7 @@ export function TradingWorkspace({
                       prefill={prefill}
                       disabledReason={ticketDisabledReason}
                       confirmationEnabled={orderConfirmation}
+                      onNotify={notify}
                     />
                   </ScrollArea>
                   <AccountSummaryPanel
@@ -609,6 +593,22 @@ export function TradingWorkspace({
       <ChartOrderMenu
         menu={chartMenu}
         market={market}
+        oneClickActions={
+          <OneClickMenuActions
+            walletId={
+              selectedWallet?.is_active ? (selectedWallet?.id ?? null) : null
+            }
+            isPaper={isPaper}
+            market={market}
+            marketRow={marketRow}
+            markPx={markPx}
+            equity={equity}
+            disabledReason={ticketDisabledReason}
+            confirmationEnabled={orderConfirmation}
+            onNotify={notify}
+            onComplete={() => setChartMenu(null)}
+          />
+        }
         onAction={(side, px) => {
           setPrefill({ px, side })
           setChartMenu(null)

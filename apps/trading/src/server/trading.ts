@@ -22,6 +22,10 @@ import {
 import { findUserWallet } from "@/server/wallets"
 import type { TradingWallet } from "@/server/schema"
 import { getOrderTemplate } from "@/server/order-templates"
+import {
+  assertMoveWithinMark,
+  buildModifiedOrder,
+} from "@/server/trading-order-modification"
 
 export type ManualOrderInput = {
   walletId: string
@@ -305,10 +309,7 @@ export type ModifyManualOrderInput = {
   walletId: string
   market: string
   oid: number
-  side: "buy" | "sell"
   px: string
-  sz: string
-  reduceOnly: boolean
 }
 
 /** Re-prices a resting order (used by chart line dragging). */
@@ -321,40 +322,38 @@ export async function modifyManualOrder(
   const network = wallet.network as TradingNetwork
   assertNetworkEnabled(network)
   const asset = await getAssetInfo(network, input.market)
+  const info = getInfoClient(network)
+  const accountAddress = (wallet.vaultAddress ??
+    wallet.accountAddress) as `0x${string}`
+
+  const [assetData, openOrders] = await Promise.all([
+    info.metaAndAssetCtxs(),
+    info.frontendOpenOrders({ user: accountAddress }),
+  ])
+  const order = openOrders.find(
+    (candidate) => candidate.oid === input.oid && candidate.coin === input.market
+  )
+  if (!order) throw new Error("Order is no longer open")
 
   const px = roundPrice(input.px, asset.szDecimals)
-  const sz = roundSize(input.sz, asset.szDecimals)
-  if (!(Number(px) > 0) || !(Number(sz) > 0)) {
+  if (!(Number(px) > 0) || !(Number(order.sz) > 0)) {
     throw new Error("Invalid price or size")
   }
 
   // Sanity-check the new price against mark before signing.
-  const [, assetCtxs] = await getInfoClient(network).metaAndAssetCtxs()
+  const [, assetCtxs] = assetData
   const ctx = assetCtxs[asset.assetId]
-  if (ctx) {
-    const mark = Number(ctx.markPx)
-    const deviationPct = (Math.abs(Number(px) - mark) / mark) * 100
-    if (deviationPct > 20) {
-      throw new Error(
-        `New price is ${deviationPct.toFixed(1)}% away from mark; refusing to move the order that far.`
-      )
-    }
-  }
+  const mark = Number(ctx?.markPx)
+  assertMoveWithinMark(px, mark)
+
+  const modifiedOrder = buildModifiedOrder(asset.assetId, order, px)
 
   await modifyOrder(
     wallet,
     { actor: "user", userId },
     {
       oid: input.oid,
-      order: {
-        assetId: asset.assetId,
-        coin: input.market,
-        isBuy: input.side === "buy",
-        px,
-        sz,
-        reduceOnly: input.reduceOnly,
-        tif: "Gtc",
-      },
+      order: modifiedOrder,
     },
     database
   )

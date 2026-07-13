@@ -31,6 +31,17 @@ export type PlaceOrderParams = {
   cloid?: `0x${string}`
 }
 
+export type ModifyOrderParams = Omit<PlaceOrderParams, "tif"> &
+  (
+    | { kind: "limit"; tif: "Gtc" | "Ioc" | "Alo" }
+    | {
+        kind: "trigger"
+        triggerPx: string
+        isMarket: boolean
+        tpsl: "sl" | "tp"
+      }
+  )
+
 export type OrderPlacementStatus =
   | { kind: "resting"; oid: number }
   | { kind: "filled"; oid: number; avgPx: string; totalSz: string }
@@ -319,7 +330,7 @@ export async function cancelOrderByCloid(
 export async function modifyOrder(
   wallet: TradingWallet,
   actor: ExchangeActor,
-  params: { oid: number | `0x${string}`; order: PlaceOrderParams },
+  params: { oid: number | `0x${string}`; order: ModifyOrderParams },
   database: CustomShellDb = db
 ): Promise<void> {
   const entry = getClientEntry(wallet)
@@ -328,7 +339,7 @@ export async function modifyOrder(
     coin: params.order.coin,
     px: params.order.px,
     sz: params.order.sz,
-    tif: params.order.tif,
+    kind: params.order.kind,
   }
 
   try {
@@ -340,7 +351,16 @@ export async function modifyOrder(
         p: params.order.px,
         s: params.order.sz,
         r: params.order.reduceOnly,
-        t: { limit: { tif: params.order.tif } },
+        t:
+          params.order.kind === "limit"
+            ? { limit: { tif: params.order.tif } }
+            : {
+                trigger: {
+                  isMarket: params.order.isMarket,
+                  triggerPx: params.order.triggerPx,
+                  tpsl: params.order.tpsl,
+                },
+              },
         ...(params.order.cloid ? { c: params.order.cloid } : {}),
       },
     })

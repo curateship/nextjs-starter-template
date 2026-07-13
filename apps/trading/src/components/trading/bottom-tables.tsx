@@ -26,6 +26,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { cancelOrder, getOrderErrorMessage, placeOrder } from "@/lib/api/orders"
 import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
+import { describeOpenOrder } from "@/lib/trading/open-order"
 
 type PositionAction = {
   kind: "close" | "reverse"
@@ -250,14 +251,15 @@ export function OpenOrdersTable({
     >
       {orders.map((order) => {
         const filled = Number(order.origSz) - Number(order.sz)
+        const description = describeOpenOrder(order)
         return (
           <TableRow key={order.oid}>
             <TimeCell time={order.timestamp} />
             <TableCell className="font-medium">{order.coin}</TableCell>
             <SideCell isBuy={order.side === "B"}>
-              {order.side === "B" ? "Buy" : "Sell"}
+              {description.label}
             </SideCell>
-            <MonoCell>{formatPriceDisplay(order.limitPx)}</MonoCell>
+            <MonoCell>{formatPriceDisplay(description.price)}</MonoCell>
             <MonoCell>{order.origSz}</MonoCell>
             <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
             <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>

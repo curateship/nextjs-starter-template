@@ -19,12 +19,14 @@ export type ChartMenuState = {
 export function ChartOrderMenu({
   menu,
   market,
+  oneClickActions,
   onAction,
   onResetView,
   onClose,
 }: {
   menu: ChartMenuState | null
   market: string
+  oneClickActions: React.ReactNode
   onAction: (side: "buy" | "sell", px: string) => void
   onResetView: () => void
   onClose: () => void
@@ -54,7 +56,7 @@ export function ChartOrderMenu({
         className="fixed z-50 min-w-44 rounded-md border bg-popover p-1 text-sm shadow-md"
         style={{
           left: Math.min(menu.x, window.innerWidth - 200),
-          top: Math.min(menu.y, window.innerHeight - 120),
+          top: Math.min(menu.y, window.innerHeight - 200),
         }}
       >
         {/* First row sits right under the cursor — keep Reset View there. */}
@@ -74,6 +76,8 @@ export function ChartOrderMenu({
         <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
           {market} @ {formatPriceDisplay(menu.px)}
         </div>
+        {oneClickActions}
+        <div className="my-1 border-t" />
         <Button
           type="button"
           variant="ghost"
