@@ -158,6 +158,15 @@ export async function upsertUserIndicator(
     ) {
       throw new Error("Invalid Trendline Break parameter: swingLookback")
     }
+    const confirmationBars = input.params.confirmationBars
+    if (
+      confirmationBars !== undefined &&
+      (!Number.isInteger(confirmationBars) ||
+        confirmationBars < 1 ||
+        confirmationBars > 20)
+    ) {
+      throw new Error("Invalid Trendline Break parameter: confirmationBars")
+    }
     const buffer = input.params.breakBuffer
     if (
       buffer !== undefined &&
