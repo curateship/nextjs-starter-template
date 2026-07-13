@@ -101,6 +101,28 @@ export function formatTimecode(ms: number) {
   return `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
 }
 
+// Whole-second "m:ss" form for chips and status readouts (33_700 -> "0:33").
+export function formatClock(ms: number) {
+  return formatTimecode(ms).replace(/\.\d+$/, "")
+}
+
+// A decorative audio waveform as a CSS background data-URL. `color` is a raw
+// CSS color (e.g. "#16a34a"); it's encoded once here — pre-encoded values would
+// be double-escaped and render as an invalid fill.
+export function waveformDataUrl(color: string) {
+  const width = 168
+  const height = 44
+  const mid = height / 2
+  let rects = ""
+  for (let x = 2; x < width; x += 4) {
+    const s = Math.sin(x * 0.42) * Math.cos(x * 0.17) + Math.sin(x * 0.11) * 0.4
+    const h = Math.max(3, (0.3 + Math.abs(s) * 0.62) * height * 0.92)
+    rects += `<rect x='${x}' y='${(mid - h / 2).toFixed(1)}' width='2' height='${h.toFixed(1)}' rx='1' fill='${color}'/>`
+  }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>${rects}</svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
 // Unique ids for clips/tracks created in the browser session.
 export function editorId() {
   return crypto.randomUUID()
