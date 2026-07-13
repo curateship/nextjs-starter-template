@@ -6,19 +6,14 @@ import {
   ImageIcon,
   Loader2Icon,
   MicIcon,
-  MusicIcon,
   PauseIcon,
   PenLineIcon,
   PlayIcon,
   RefreshCwIcon,
   ScissorsIcon,
-  ShapesIcon,
   SparklesIcon,
   SplitIcon,
-  Trash2Icon,
-  TypeIcon,
   VideoIcon,
-  Volume2Icon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -81,7 +76,6 @@ import {
   type VoiceModelId,
   type VoiceSettings,
 } from "@/lib/voice-settings"
-import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
   DEFAULT_TEXT_FONT_ID,
   requireTextFont,
@@ -133,7 +127,6 @@ import {
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
 import {
-  DEFAULT_TEXT_DURATION_MS,
   editorId,
   formatTimecode,
   loadMediaDurationMs,
@@ -141,40 +134,6 @@ import {
 import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
 
 // Right panel: a contextual inspector for the selected clip.
-export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
-  const { dispatch } = useEditor()
-
-  return (
-    <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <div className="space-y-4">
-          <div>
-            <h2 className="truncate text-sm font-semibold" title={clip.name}>
-              {clip.name}
-            </h2>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {formatTimecode(clip.startMs)} –{" "}
-              {formatTimecode(clip.startMs + clip.durationMs)}
-            </p>
-          </div>
-          <TextClipSettings clip={clip} />
-          {clip.soundEffectId ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => dispatch({ type: "DELETE_CLIP", clipId: clip.id })}
-            >
-              <Trash2Icon className="size-4" />
-              Remove Sound Effect
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 // Text clip controls shared by the standalone editor inspector and the
 // template slot inspector.
 export function TextClipSettings({ clip }: { clip: EditorClip }) {
@@ -358,32 +317,6 @@ function TextStyleFields({
   )
 }
 
-// Starting values for a brand-new text clip.
-type TextDraft = {
-  text: string
-  fontId: TextFontId
-  fontSize: number
-  color: string
-  highlightColor?: string
-}
-
-function brandColor(brandKit: BrandKitConfig, name: string, fallback: string) {
-  return (
-    brandKit.colors.find(
-      (color) => color.name.toLowerCase() === name.toLowerCase()
-    )?.value ?? fallback
-  )
-}
-
-function defaultTextDraft(brandKit: BrandKitConfig): TextDraft {
-  return {
-    text: "Your text here",
-    fontId: brandKit.fonts.body,
-    fontSize: 20,
-    color: brandColor(brandKit, "Primary", "#000000"),
-  }
-}
-
 function captionStyleFromBrandKit(brandKit: BrandKitConfig) {
   return {
     fontId: brandKit.captionStyle.fontId,
@@ -397,11 +330,9 @@ function captionStyleFromBrandKit(brandKit: BrandKitConfig) {
 // Building blocks the editor supports. Tiles with an `action` are wired up;
 // the rest are placeholders for future element kinds.
 type ElementTileAction =
-  | "text"
   | "captions"
   | "script"
   | "voice"
-  | "sound-effect"
   | "ai-video"
   | "brief"
   | "jump-cut"
@@ -421,15 +352,6 @@ type EditorTile = {
   action?: ElementTileAction
 }
 
-const ELEMENT_TILES: EditorTile[] = [
-  { label: "Text", icon: TypeIcon, action: "text" },
-  { label: "Sound Effect", icon: Volume2Icon, action: "sound-effect" },
-  { label: "Image", icon: ImageIcon },
-  { label: "Video", icon: VideoIcon },
-  { label: "Audio", icon: MusicIcon },
-  { label: "Shapes", icon: ShapesIcon },
-]
-
 const AI_TILES: EditorTile[] = [
   { label: "Captions", icon: CaptionsIcon, action: "captions" },
   { label: "Voice", icon: MicIcon, action: "voice" },
@@ -439,16 +361,6 @@ const AI_TILES: EditorTile[] = [
   { label: "AI Video", icon: SparklesIcon, action: "ai-video" },
   { label: "AI Script", icon: PenLineIcon, action: "script" },
 ]
-
-export function ElementsPanel() {
-  return (
-    <EditorToolTilesPanel
-      title="Elements"
-      description="Building blocks for your video."
-      tiles={ELEMENT_TILES}
-    />
-  )
-}
 
 export function AiPanel() {
   return (
@@ -471,23 +383,19 @@ function EditorToolTilesPanel({
   description: string
   tiles: EditorTile[]
 }) {
-  const [textOpen, setTextOpen] = React.useState(false)
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
   const [briefOpen, setBriefOpen] = React.useState(false)
-  const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
   const [aiVideoOpen, setAiVideoOpen] = React.useState(false)
   const [jumpCutOpen, setJumpCutOpen] = React.useState(false)
   const [hookOpen, setHookOpen] = React.useState(false)
 
   const actions: Record<ElementTileAction, () => void> = {
-    text: () => setTextOpen(true),
     captions: () => setCaptionsOpen(true),
     voice: () => setVoiceOpen(true),
     script: () => setScriptOpen(true),
     brief: () => setBriefOpen(true),
-    "sound-effect": () => setSoundEffectOpen(true),
     "ai-video": () => setAiVideoOpen(true),
     "jump-cut": () => setJumpCutOpen(true),
     hook: () => setHookOpen(true),
@@ -539,206 +447,14 @@ function EditorToolTilesPanel({
         })}
       </div>
 
-      <TextDialog open={textOpen} onOpenChange={setTextOpen} />
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
       <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
       <HookDialog open={hookOpen} onOpenChange={setHookOpen} />
       <BriefToReelDialog open={briefOpen} onOpenChange={setBriefOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
       <JumpCutDialog open={jumpCutOpen} onOpenChange={setJumpCutOpen} />
-      <SoundEffectDialog
-        open={soundEffectOpen}
-        onOpenChange={setSoundEffectOpen}
-      />
       <AiVideoDialog open={aiVideoOpen} onOpenChange={setAiVideoOpen} />
     </div>
-  )
-}
-
-// Composes a text clip's content/style, then adds it at the playhead. The
-// new clip is auto-selected, so closing this dialog drops the user into the
-// text settings inspector for further tweaks.
-function TextDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const { dispatch, clock } = useEditor()
-  const { config } = useShellRuntime()
-  const [draft, setDraft] = React.useState(() =>
-    defaultTextDraft(config.brandKit)
-  )
-
-  // Reset to defaults on close so the dialog starts fresh next open.
-  function handleOpenChange(next: boolean) {
-    if (!next) setDraft(defaultTextDraft(config.brandKit))
-    onOpenChange(next)
-  }
-
-  function handleAdd() {
-    dispatch({
-      type: "ADD_CLIP",
-      clip: {
-        id: editorId(),
-        kind: "text",
-        name: "Text",
-        text: draft.text.trim() || "Your text here",
-        fontId: draft.fontId,
-        fontSize: draft.fontSize,
-        color: draft.color,
-        highlightColor: draft.highlightColor,
-        // Lower-third by default, like captions (draggable afterwards).
-        y: 0.78,
-        trimStartMs: 0,
-        startMs: 0, // the reducer resolves the actual placement
-        durationMs: DEFAULT_TEXT_DURATION_MS,
-      },
-      atMs: clock.getTime(),
-    })
-    handleOpenChange(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Add Text</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="space-y-4">
-            <TextClipFields
-              idPrefix="text"
-              text={draft.text}
-              fontId={draft.fontId}
-              fontSize={draft.fontSize}
-              color={draft.color}
-              highlightColor={draft.highlightColor}
-              onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
-              swatches={config.brandKit.colors}
-            />
-          </div>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleAdd}>
-            <TypeIcon className="size-4" />
-            Add Text
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function SoundEffectDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const { dispatch, clock, kind } = useEditor()
-  const { previewingId, stopPreview, togglePreview } = useAudioPreview()
-
-  function handleOpenChange(next: boolean) {
-    if (!next) stopPreview()
-    onOpenChange(next)
-  }
-
-  function handlePreview(effect: (typeof SOUND_EFFECTS)[number]) {
-    togglePreview(effect.id, soundEffectUrl(effect.fileName))
-  }
-
-  function handleAdd(effect: (typeof SOUND_EFFECTS)[number]) {
-    stopPreview()
-    dispatch({
-      type: "ADD_CLIP",
-      clip: {
-        id: editorId(),
-        kind: "audio",
-        name: effect.label,
-        url: soundEffectUrl(effect.fileName),
-        soundEffectId: effect.id,
-        sourceDurationMs: effect.durationMs,
-        trimStartMs: 0,
-        startMs: 0,
-        durationMs: effect.durationMs,
-        replaceable: kind === "template" ? true : undefined,
-        segmentLabel: kind === "template" ? effect.label : undefined,
-      },
-      atMs: clock.getTime(),
-    })
-    handleOpenChange(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Add Sound Effect</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="space-y-2">
-            {SOUND_EFFECTS.map((effect) => {
-              const previewing = previewingId === effect.id
-              return (
-                <div
-                  key={effect.id}
-                  className="flex items-center gap-3 rounded-md border bg-background p-3"
-                >
-                  <Volume2Icon className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {effect.label}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {Math.round(effect.durationMs / 10) / 100}s
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePreview(effect)}
-                  >
-                    {previewing ? (
-                      <PauseIcon className="size-4" />
-                    ) : (
-                      <PlayIcon className="size-4" />
-                    )}
-                    {previewing ? "Stop" : "Preview"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => handleAdd(effect)}
-                  >
-                    Add
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleOpenChange(false)}
-          >
-            Cancel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

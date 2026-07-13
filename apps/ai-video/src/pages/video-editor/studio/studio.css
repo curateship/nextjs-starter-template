@@ -1,0 +1,205 @@
+/* Studio Editor design system — imported by studio-editor.tsx.
+   Everything is scoped under `.studio-root` so the editor's always-light
+   palette and helpers never leak into the surrounding admin shell (which has
+   its own dark-mode-aware tokens). Fonts (Bebas Neue / Anton) are already
+   @font-face'd in styles.css from /public/fonts. */
+
+.studio-root {
+  /* surfaces */
+  --paper: oklch(0.978 0 0);
+  --panel: #ffffff;
+  --panel2: oklch(0.985 0 0);
+  --elev: oklch(0.962 0 0);
+  --elev2: oklch(0.935 0 0);
+  --line: oklch(0.908 0 0);
+  --line2: oklch(0.845 0 0);
+  /* ink */
+  --ink: oklch(0.22 0 0);
+  --ink2: oklch(0.46 0 0);
+  --mut: oklch(0.62 0 0);
+  /* accent (default indigo — matches the design's #5b52e8 Theme prop) */
+  --acc: #5b52e8;
+  --acc2: color-mix(in oklch, #5b52e8, white 25%);
+  --acc-soft: color-mix(in oklch, #5b52e8, transparent 88%);
+  /* status hues */
+  --coral: oklch(0.63 0.22 25);
+  --good: oklch(0.6 0.14 155);
+  --warn: oklch(0.7 0.15 68);
+  --violet: oklch(0.56 0.19 305);
+  /* shadows */
+  --sh-sm: 0 1px 2px rgba(20, 20, 30, 0.05);
+  --sh: 0 8px 24px -12px rgba(20, 20, 30, 0.2);
+  --sh-lg: 0 30px 70px -26px rgba(20, 20, 30, 0.4);
+  /* timeline clip tints (theme-aware): light clips mix toward white, dark
+     clips toward a mid-dark so they sit above the lane; label flips with them */
+  --clip-fill-mix: white;
+  --clip-label-mix: black;
+  --clip-bevel: rgba(255, 255, 255, 0.7);
+  --clip-badge-bg: rgba(255, 255, 255, 0.72);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 13px;
+}
+
+/* Dark theme: the app toggles `.dark` on <html>; invert the surfaces/ink and
+   deepen the shadows. Accent + status hues inherit from the light block. */
+.dark .studio-root {
+  --paper: oklch(0.165 0 0);
+  --panel: oklch(0.205 0 0);
+  --panel2: oklch(0.19 0 0);
+  --elev: oklch(0.25 0 0);
+  --elev2: oklch(0.3 0 0);
+  --line: oklch(1 0 0 / 10%);
+  --line2: oklch(1 0 0 / 18%);
+  --ink: oklch(0.96 0 0);
+  --ink2: oklch(0.74 0 0);
+  --mut: oklch(0.58 0 0);
+  --acc-soft: color-mix(in oklch, var(--acc), transparent 82%);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --sh-lg: 0 30px 70px -26px rgba(0, 0, 0, 0.85);
+  --clip-fill-mix: oklch(0.32 0 0);
+  --clip-label-mix: oklch(0.96 0 0);
+  --clip-bevel: rgba(255, 255, 255, 0.14);
+  --clip-badge-bg: rgba(0, 0, 0, 0.4);
+}
+
+.studio-root *,
+.studio-root *::before,
+.studio-root *::after {
+  box-sizing: border-box;
+}
+
+.studio-root a {
+  color: var(--acc2);
+  text-decoration: none;
+}
+.studio-root a:hover {
+  color: var(--acc);
+}
+
+/* scrollbars */
+.studio-root ::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.studio-root ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  border: 2.5px solid transparent;
+  background-clip: content-box;
+}
+.studio-root ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+  background-clip: content-box;
+}
+
+.studio-root button {
+  font-family: inherit;
+  transition:
+    background 0.13s,
+    color 0.13s,
+    filter 0.13s,
+    box-shadow 0.13s,
+    border-color 0.13s;
+}
+
+/* range sliders — thin track + white thumb, matches the mock */
+.studio-root input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 4px;
+  outline: none;
+  background: transparent;
+}
+.studio-root input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid var(--line2);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.studio-root input[type="range"]::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid var(--line2);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* uppercase section labels */
+.studio-root .st-lbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+
+/* hover helpers (mirror the mock's data-hov* interactions) */
+.studio-root .st-hovbg:hover {
+  background: var(--elev);
+}
+.studio-root .st-hovbright:hover {
+  filter: brightness(1.07);
+}
+.studio-root .st-hovcard:hover {
+  background: var(--elev);
+}
+.studio-root .st-hovlift {
+  transition:
+    transform 0.14s,
+    box-shadow 0.14s,
+    border-color 0.14s;
+}
+.studio-root .st-hovlift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh);
+  border-color: var(--line2);
+}
+
+/* resize grips brighten on hover of their handle */
+.studio-root .st-resize:hover .st-grip {
+  background: var(--acc) !important;
+}
+
+/* The preview stage box (EditorPreview sizes it; we only restyle it to match
+   the mock — big soft shadow + larger radius). Two levels down: container → box. */
+.studio-root .studio-stage-preview > div > div {
+  border-radius: 18px;
+  box-shadow: var(--sh-lg), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* AI tab: force the shared tile grid to 2 columns (it ships as 3, too tight in
+   the narrow Studio panel). Scoped so the slot editor's grid is unaffected. */
+.studio-root .studio-ai-tiles .grid-cols-3 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.studio-root .st-spin {
+  animation: st-spin 0.8s linear infinite;
+}
+
+@keyframes st-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes st-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
