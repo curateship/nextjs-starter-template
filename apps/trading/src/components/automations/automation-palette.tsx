@@ -191,7 +191,7 @@ export function AutomationPalette({
                       key={item.key}
                       type="button"
                       onClick={() => onAdd(item.choice)}
-                      className="flex w-full items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                      className="flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                         <Icon className="size-3.5" />

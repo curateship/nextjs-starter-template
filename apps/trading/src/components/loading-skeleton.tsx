@@ -1,4 +1,7 @@
+import * as React from "react"
+
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 export function DashboardLoadingSkeleton() {
   return (
@@ -6,21 +9,12 @@ export function DashboardLoadingSkeleton() {
       role="status"
       aria-label="Loading dashboard"
       aria-busy="true"
-      className="w-full space-y-2 md:space-y-3"
+      className="w-full"
     >
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-7 w-40" />
-          <Skeleton className="h-4 w-64 max-w-full" />
-        </div>
-        <Skeleton className="h-8 w-24" />
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-24 w-full" />
-        ))}
-      </div>
-      <div className="overflow-hidden rounded-xl border border-foreground/5 bg-card">
+      <div
+        data-slot="dashboard-table-skeleton"
+        className="overflow-hidden rounded-xl border border-foreground/5 bg-card"
+      >
         <div className="flex items-center justify-between gap-4 bg-muted/50 p-4">
           <Skeleton className="h-6 w-36" />
           <Skeleton className="h-8 w-28" />
@@ -49,6 +43,67 @@ export function WorkspaceLoadingSkeleton() {
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
+    </div>
+  )
+}
+
+/**
+ * Keeps a page behind its supplied skeleton until fonts and browser layout
+ * have settled. The real page stays mounted invisibly so its final size is
+ * calculated before the user sees it.
+ */
+export function PageLoadBoundary({
+  children,
+  fallback,
+  readyToReveal = true,
+}: {
+  children: React.ReactNode
+  fallback: React.ReactNode
+  readyToReveal?: boolean
+}) {
+  const [ready, setReady] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!readyToReveal) return
+
+    let active = true
+    let firstFrame = 0
+    let secondFrame = 0
+
+    const revealAfterLayout = () => {
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+          if (active) setReady(true)
+        })
+      })
+    }
+
+    void document.fonts.ready.then(revealAfterLayout)
+
+    return () => {
+      active = false
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }, [readyToReveal])
+
+  return (
+    <div
+      data-slot="page-loading-boundary"
+      className="relative flex h-full min-h-0 min-w-0 flex-1"
+    >
+      <div
+        aria-hidden={!ready}
+        className={cn(
+          "flex h-full min-h-0 min-w-0 flex-1",
+          !ready && "invisible"
+        )}
+      >
+        {children}
+      </div>
+      {!ready ? (
+        <div className="absolute inset-0 flex bg-muted/60">{fallback}</div>
+      ) : null}
     </div>
   )
 }
@@ -99,7 +154,7 @@ export function MarketListLoadingSkeleton() {
 
 export function ShellLoadingSkeleton() {
   return (
-    <div className="flex min-h-screen bg-muted/40">
+    <div className="flex min-h-screen bg-muted/60">
       <aside className="hidden w-64 border-r p-4 md:block">
         <Skeleton className="mb-6 h-8 w-36" />
         <div className="space-y-2">
@@ -124,7 +179,7 @@ export function ShellLoadingSkeleton() {
 
 export function LoginLoadingSkeleton() {
   return (
-    <main className="grid min-h-screen place-items-center bg-muted/40 p-2 md:p-3">
+    <main className="grid min-h-screen place-items-center bg-muted/60 p-2 md:p-3">
       <div className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6">
         <Skeleton className="mb-3 h-7 w-48" />
         <Skeleton className="mb-6 h-4 w-40" />

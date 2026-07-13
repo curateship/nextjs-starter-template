@@ -1,6 +1,12 @@
 import * as React from "react"
 import { Outlet, useRouterState } from "@tanstack/react-router"
+import { toast } from "sonner"
 
+import {
+  DashboardLoadingSkeleton,
+  PageLoadBoundary,
+  WorkspaceLoadingSkeleton,
+} from "@/components/loading-skeleton"
 import { DashboardContent } from "@/components/ui/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -16,10 +22,12 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 import { clampMaxCandles } from "@/lib/backtest/types"
+import { isFullBleedLocation } from "@/lib/full-bleed-location"
 import type { AuthUser } from "@/lib/api/auth"
 import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
+  saveSidebarWidth,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
@@ -56,28 +64,20 @@ export function ShellLayout({
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
 }) {
-  const currentPath = useRouterState({
-    select: (state) => state.location.pathname,
-  })
+  const location = useRouterState({ select: (state) => state.location })
+  const isLoading = useRouterState({ select: (state) => state.isLoading })
+  const currentPath = location.pathname
   // Full-bleed workspaces manage their own height and scrolling, so they drop
   // the padded DashboardContent wrapper: the live trade terminal and the bot
   // workspace always, and the backtest chart workspace when opened with
   // ?run= / ?draft= (the strategies list at /backtest and the bot fleet list
-  // keep their padding). Base this on the location that is actually rendered in
-  // the Outlet. Once settled that is `location`; while a navigation is pending
-  // the previous route stays mounted (leaf routes have no pending component),
-  // so match the settled `resolvedLocation` instead of the pending target —
-  // otherwise padding is stripped from the outgoing page a frame early (a
-  // visible flash when leaving a padded table for the full-bleed chart).
-  const fullBleed = useRouterState({
-    select: (state) =>
-      isFullBleedLocation(
-        state.status === "pending"
-          ? (state.resolvedLocation ?? state.location)
-          : state.location
-      ),
-  })
+  // keep their padding). The shared loading boundary hides route transitions,
+  // so the visible URL can safely be the single source of truth for spacing.
+  const fullBleed = isFullBleedLocation(location)
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
+  const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
+  const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
+  const sidebarWidthSaveVersionRef = React.useRef(0)
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
@@ -95,7 +95,9 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    setConfig(normalizeConfig(settings))
+    const nextConfig = normalizeConfig(settings)
+    savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
   }, [settings])
@@ -148,6 +150,34 @@ export function ShellLayout({
     }
   }, [config])
 
+  const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
+    const version = sidebarWidthSaveVersionRef.current + 1
+    sidebarWidthSaveVersionRef.current = version
+    setConfig((current) => ({ ...current, sidebarWidth }))
+
+    const save = sidebarWidthSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveSidebarWidth(sidebarWidth))
+    sidebarWidthSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    void save
+      .then(() => {
+        savedSidebarWidthRef.current = sidebarWidth
+      })
+      .catch((error) => {
+        if (version === sidebarWidthSaveVersionRef.current) {
+          setConfig((current) => ({
+            ...current,
+            sidebarWidth: savedSidebarWidthRef.current,
+          }))
+          toast.error(getShellSettingsErrorMessage(error))
+        }
+      })
+  }, [])
+
   const openFeedback = React.useCallback((feedbackId?: string) => {
     setTargetFeedbackId(feedbackId ?? null)
     setFeedbackOpen(true)
@@ -189,8 +219,12 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/40">
-        <SidebarProvider className="h-screen">
+      <div className="min-h-screen bg-muted/60">
+        <SidebarProvider
+          className="h-screen"
+          sidebarWidth={config.sidebarWidth}
+          onSidebarWidthCommit={handleSidebarWidthCommit}
+        >
           <AppSidebar
             config={config}
             user={user}
@@ -204,15 +238,23 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent
-              className={
-                fullBleed
-                  ? "overflow-hidden p-0 space-y-0 sm:p-0 sm:space-y-0 md:p-0"
-                  : undefined
+            <PageLoadBoundary
+              key={`${location.pathname}:${fullBleed ? "workspace" : "dashboard"}`}
+              readyToReveal={!isLoading}
+              fallback={
+                <ShellPageContent fullBleed={fullBleed}>
+                  {fullBleed ? (
+                    <WorkspaceLoadingSkeleton />
+                  ) : (
+                    <DashboardLoadingSkeleton />
+                  )}
+                </ShellPageContent>
               }
             >
-              <Outlet />
-            </DashboardContent>
+              <ShellPageContent fullBleed={fullBleed}>
+                <Outlet />
+              </ShellPageContent>
+            </PageLoadBoundary>
           </SidebarInset>
         </SidebarProvider>
         <FeedbackModal
@@ -226,17 +268,23 @@ export function ShellLayout({
   )
 }
 
-/** Screens that drop the padded content frame and manage their own layout. */
-function isFullBleedLocation(location: {
-  pathname: string
-  search: unknown
-}): boolean {
-  const search = location.search as { run?: string; draft?: unknown }
+function ShellPageContent({
+  children,
+  fullBleed,
+}: {
+  children: React.ReactNode
+  fullBleed: boolean
+}) {
   return (
-    location.pathname === "/trade" ||
-    /^\/bots\/.+/.test(location.pathname) ||
-    /^\/automations\/.+/.test(location.pathname) ||
-    (location.pathname === "/backtest" && Boolean(search.run || search.draft))
+    <DashboardContent
+      className={
+        fullBleed
+          ? "overflow-hidden p-0 space-y-0 sm:p-0 sm:space-y-0 md:p-0"
+          : undefined
+      }
+    >
+      {children}
+    </DashboardContent>
   )
 }
 
@@ -250,6 +298,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    sidebarWidth: settings.sidebarWidth,
     dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )

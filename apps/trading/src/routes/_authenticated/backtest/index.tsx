@@ -3,7 +3,6 @@ import { z } from "zod"
 
 import { BacktestDashboard } from "@/components/backtest/backtest-dashboard"
 import { RunGroupsDashboard } from "@/components/backtest/strategies-dashboard"
-import { WorkspaceLoadingSkeleton } from "@/components/loading-skeleton"
 import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
 
 const backtestSearchSchema = z.object({
@@ -38,7 +37,7 @@ function BacktestRoute() {
   }
 
   return (
-    <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
+    <ClientOnly fallback={null}>
       <BacktestDashboard
         key={run}
         initialRuns={runs}

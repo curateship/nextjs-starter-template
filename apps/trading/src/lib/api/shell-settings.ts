@@ -5,6 +5,8 @@ import { z } from "zod"
 import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import {
@@ -52,6 +54,11 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  sidebarWidth: z
+    .number()
+    .int()
+    .min(MIN_SIDEBAR_WIDTH)
+    .max(MAX_SIDEBAR_WIDTH),
   dashboardRowsPerPage: z.number().int().refine((value) =>
     DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
@@ -114,6 +121,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       settings: {
         ...shellGlobals,
         workspaceName: workspace.name,
+        sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
         topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
@@ -147,6 +155,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
+            sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
             topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
@@ -203,6 +212,49 @@ export function configuredRouteTarget(
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
+}
+
+const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      sidebarWidth: z
+        .number()
+        .int()
+        .min(MIN_SIDEBAR_WIDTH)
+        .max(MAX_SIDEBAR_WIDTH),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(customShellWorkspaces)
+      .set({
+        settings: { ...settings, sidebarWidth: data.sidebarWidth },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellWorkspaces.id, workspace.id),
+          eq(customShellWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function saveSidebarWidth(sidebarWidth: number) {
+  return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
 async function requireUser() {

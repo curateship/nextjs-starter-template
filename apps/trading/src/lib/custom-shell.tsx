@@ -252,6 +252,7 @@ export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
+  sidebarWidth: number
   dashboardRowsPerPage: number
   /** Candles loaded per trading chart, and the backtest window ceiling. */
   maxCandles: number
@@ -266,6 +267,25 @@ export type ShellConfig = {
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
+export const DEFAULT_SIDEBAR_WIDTH = 218
+export const MIN_SIDEBAR_WIDTH = 144
+export const MAX_SIDEBAR_WIDTH = 420
+
+export function isSidebarWidth(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_SIDEBAR_WIDTH &&
+    value <= MAX_SIDEBAR_WIDTH
+  )
+}
+
+export function clampSidebarWidth(value: number) {
+  return Math.min(
+    MAX_SIDEBAR_WIDTH,
+    Math.max(MIN_SIDEBAR_WIDTH, Math.round(value))
+  )
+}
 
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
@@ -279,6 +299,7 @@ export function createDefaultShellConfig(): ShellConfig {
     appName: "",
     workspaceName: "",
     workspacePlan: "",
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     maxCandles: DEFAULT_MAX_CANDLES,
     adminRoute: "",
