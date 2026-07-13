@@ -23,6 +23,7 @@ import type {
   AutomationConfig,
 } from "@/lib/automations/automation"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import type { Trendline } from "@/lib/trading/trendlines"
 
 export const customShellUsers = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -403,6 +404,34 @@ export const tradingIndicatorSettings = pgTable(
       table.indicatorId
     ),
     index("ix_indicator_settings_user_id").on(table.userId),
+  ]
+)
+
+/** One saved trendline set per user/chart combination. */
+export const tradingChartTrendlines = pgTable(
+  "chart_trendlines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    network: varchar("network", { length: 10 }).notNull(),
+    market: varchar("market", { length: 30 }).notNull(),
+    trendlines: jsonb("trendlines").$type<Trendline[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("chart_trendlines_user_chart_unique").on(
+      table.userId,
+      table.network,
+      table.market
+    ),
+    index("ix_chart_trendlines_user_id").on(table.userId),
+    check(
+      "chart_trendlines_network_check",
+      sql`${table.network} in ('testnet', 'mainnet')`
+    ),
   ]
 )
 

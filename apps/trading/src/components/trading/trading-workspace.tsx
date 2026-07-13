@@ -58,6 +58,11 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { getOrderErrorMessage, modifyOrder } from "@/lib/api/orders"
 import {
   getPaperErrorMessage,
@@ -139,6 +144,7 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Imperative chart handle so the right-click menu can offer Reset View,
   // matching the bot and backtest charts.
   const chartApiRef = React.useRef<PriceChartHandle | null>(null)
@@ -282,6 +288,14 @@ export function TradingWorkspace({
       }
     },
     [paperWalletId, refreshPaper]
+  )
+  const handleTrendlinePersistenceError = React.useCallback(
+    (action: "load" | "save") =>
+      notify(
+        `${action === "load" ? "Loading" : "Saving"} chart trendlines failed.`,
+        "error"
+      ),
+    [notify]
   )
 
   function roundForMarket(price: number): string {
@@ -430,7 +444,36 @@ export function TradingWorkspace({
                         onUpdate={updateIndicator}
                       />
                     }
-                  />
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant={trendlineDrawing ? "secondary" : "ghost"}
+                          size="icon-sm"
+                          className="text-muted-foreground aria-pressed:text-foreground"
+                          aria-label="Trendline"
+                          aria-pressed={trendlineDrawing}
+                          onClick={() => setTrendlineDrawing((active) => !active)}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <line
+                              x1="5"
+                              y1="18"
+                              x2="19"
+                              y2="6"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                            />
+                            <circle cx="5" cy="18" r="1.75" fill="currentColor" />
+                            <circle cx="19" cy="6" r="1.75" fill="currentColor" />
+                          </svg>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Trendline</TooltipContent>
+                    </Tooltip>
+                  </ChartToolbar>
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={network}
@@ -441,6 +484,9 @@ export function TradingWorkspace({
                       onLineDragEnd={handleLineDragEnd}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
+                      trendlineDrawing={trendlineDrawing}
+                      onTrendlineDrawingChange={setTrendlineDrawing}
+                      onTrendlinePersistenceError={handleTrendlinePersistenceError}
                     />
                   </div>
                 </div>
