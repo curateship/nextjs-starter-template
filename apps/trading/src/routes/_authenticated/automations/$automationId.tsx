@@ -8,6 +8,7 @@ import { getAutomation } from "@/lib/api/automations"
 import { loadIndicators } from "@/lib/api/indicators"
 import { emaCrossParamsFromChart } from "@/lib/indicators/defs/ema-cross"
 import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
+import { trendlineParamsFromChart } from "@/lib/indicators/defs/trendline"
 import { SIGNAL_FOR_CHART_TYPE } from "@/lib/indicators/registry"
 import {
   fairValueGapChartToModuleParams,
@@ -46,6 +47,9 @@ export const Route = createFileRoute(
     const chartFvg = chartIndicators.find(
       (indicator) => indicator.type === "fairValueGap"
     )
+    const chartTrendline = chartIndicators.find(
+      (indicator) => indicator.type === "trendline"
+    )
     const indicatorParamSeeds = {
       ...(chartPriceAction
         ? { price_action: priceActionParamsFromChart(chartPriceAction.params) }
@@ -56,6 +60,9 @@ export const Route = createFileRoute(
       ...(chartQqe ? { qqe: qqeChartToModuleParams(chartQqe.params) } : {}),
       ...(chartFvg
         ? { fair_value_gap: fairValueGapChartToModuleParams(chartFvg.params) }
+        : {}),
+      ...(chartTrendline
+        ? { trendline: trendlineParamsFromChart(chartTrendline.params) }
         : {}),
     }
     return { automation, pinnedIndicators, indicatorParamSeeds }

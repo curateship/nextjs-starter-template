@@ -16,6 +16,7 @@ export type IndicatorType =
   | "priceAction"
   | "qqe"
   | "fairValueGap"
+  | "trendline"
 
 /**
  * QQE's two enum params are stored as a numeric INDEX into these lists (chart
@@ -153,6 +154,13 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     // Mirrors fairValueGapIndicator.defaultParams; showFilled stored as 0/1.
     params: { minGapSize: 1, showFilled: 1 },
   },
+  {
+    id: "trendline",
+    type: "trendline",
+    enabled: false,
+    pinned: false,
+    params: { swingLookback: 30, breakBuffer: 0.1, requireCounterSlope: 1 },
+  },
 ]
 
 /** Chart QQE params (numeric/index form) → the QQE module's typed params. */
@@ -180,6 +188,16 @@ export function fairValueGapChartToModuleParams(
   return {
     minGapSize: params.minGapSize ?? 1,
     showFilled: (params.showFilled ?? 1) !== 0,
+  }
+}
+
+export function trendlineChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | boolean> {
+  return {
+    swingLookback: params.swingLookback ?? 30,
+    breakBuffer: params.breakBuffer ?? 0.1,
+    requireCounterSlope: (params.requireCounterSlope ?? 1) !== 0,
   }
 }
 
@@ -325,6 +343,26 @@ export const INDICATOR_PARAM_FIELDS: Record<
         "Keep showing a gap (dimmed) after price fills it, or hide it once filled.",
     },
   ],
+  trendline: [
+    {
+      key: "swingLookback",
+      label: "Swing lookback",
+      description:
+        "How big a swing must be to anchor the line. Bigger values catch only major turns.",
+    },
+    {
+      key: "breakBuffer",
+      label: "Break buffer %",
+      step: 0.1,
+      description: "How far past the line a candle must close to count, in %.",
+    },
+    {
+      key: "requireCounterSlope",
+      label: "Require trend flip",
+      kind: "boolean",
+      description: "Only trade breaks that flip the recent trend.",
+    },
+  ],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -338,6 +376,7 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   priceAction: "Price Action",
   qqe: "QQE",
   fairValueGap: "Fair Value Gap",
+  trendline: "Trendline Break",
 }
 
 /** The label shown for an indicator: user rename, or the default label. */
@@ -380,6 +419,9 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
   if (config.type === "fairValueGap") {
     return `Min ${config.params.minGapSize ?? 1}%`
   }
+  if (config.type === "trendline") {
+    return `Swing ${config.params.swingLookback ?? 30} · Buffer ${config.params.breakBuffer ?? 0.1}%`
+  }
   return INDICATOR_PARAM_FIELDS[config.type]
     .map((field) => {
       const value = config.params[field.key]
@@ -413,6 +455,7 @@ const PALETTE: Record<string, ThemeHex> = {
   qqe: { light: "#7c3aed", dark: "#a78bfa" },
   // FVG paints its own green/red gap boxes; this is just the dashboard swatch.
   fairValueGap: { light: "#65a30d", dark: "#a3e635" },
+  trendline: { light: "#f23645", dark: "#f23645" },
   // Session shading swatch; the chart applies its own translucency.
   session: { light: "#2962ff", dark: "#2962ff" },
   guide: { light: "rgba(100, 116, 139, 0.45)", dark: "rgba(148, 163, 184, 0.4)" },
