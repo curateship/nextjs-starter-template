@@ -17,6 +17,11 @@ import {
   shellTopNavigationItemSchema,
   shellTopRightNavigationItemSchema,
 } from "@/lib/shell-config-schema"
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from "@/lib/sidebar-width"
 import { voiceDefaultsSchema, type VoiceDefaults } from "@/lib/voice-settings"
 import { db, type AiVideoDb } from "@/server/db"
 import { aiVideoWorkspaces, type AiVideoWorkspace } from "@/server/schema"
@@ -34,6 +39,8 @@ export type WorkspaceSettings = {
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Draggable sidebar width in px, saved per-workspace.
+  sidebarWidth: number
   // Saved ElevenLabs voiceover defaults; null until the user saves one.
   voiceDefaults: VoiceDefaults | null
 }
@@ -48,6 +55,13 @@ const workspaceSettingsSchema = z
     topNavigation: z.array(shellTopNavigationItemSchema),
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
+    // Default fills rows saved before this field existed.
+    sidebarWidth: z
+      .number()
+      .int()
+      .min(MIN_SIDEBAR_WIDTH)
+      .max(MAX_SIDEBAR_WIDTH)
+      .default(DEFAULT_SIDEBAR_WIDTH),
     // Default fills rows saved before voice defaults existed.
     voiceDefaults: voiceDefaultsSchema.nullable().default(null),
   })
