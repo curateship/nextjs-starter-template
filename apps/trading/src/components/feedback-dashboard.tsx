@@ -319,8 +319,9 @@ export function FeedbackDashboard({
               </TableRow>
             </TableHeader>
         }
-        isEmpty={loading || paginatedFeedback.length === 0}
-        emptyText={loading ? "Loading feedback..." : "No feedback found matching your filters."}
+        loading={loading}
+        isEmpty={paginatedFeedback.length === 0}
+        emptyText="No feedback found matching your filters."
         emptyColSpan={8}
         footer={{
           type: "pagination",

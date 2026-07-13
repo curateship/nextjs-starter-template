@@ -40,6 +40,12 @@ Read before building or changing any page. One rule above all: **reuse the exist
 
 - Any scrollable UI must use `ScrollArea` (+ `ScrollBar` for horizontal) from `src/components/ui/scroll-area.tsx` — never raw `overflow-auto`/`overflow-scroll` divs.
 
+## Loading
+
+- Dashboard data loads must show the shared skeletons from `src/components/loading-skeleton.tsx`; never leave a blank panel or centered “Loading…” sentence.
+- Route-backed dashboards use the router's default `DashboardLoadingSkeleton`. Full-screen workspaces, charts, tables, and market lists use their matching shared skeleton.
+- Small action states such as saving a form or submitting a button may still use a compact spinner and text.
+
 ## Components
 
 - Use the shadcn components in `src/components/ui/` and the shared chart/toolbar/card patterns from existing dashboards.

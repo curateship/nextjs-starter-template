@@ -16,6 +16,7 @@ import {
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -93,6 +94,7 @@ type DashboardTableBaseProps = {
   selectedCount?: number
   onClearSelection?: () => void
   footer: DashboardTableFooter
+  loading?: boolean
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -124,10 +126,11 @@ export function DashboardTable(props: DashboardTableProps) {
     selectedCount = 0,
     onClearSelection,
     footer,
+    loading = false,
   } = props
 
   return (
-    <TableSurface>
+    <TableSurface aria-busy={loading}>
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
@@ -165,7 +168,15 @@ export function DashboardTable(props: DashboardTableProps) {
           <Table>
             {props.header}
             <TableBody>
-              {props.isEmpty ? (
+              {loading ? (
+                Array.from({ length: 6 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell colSpan={props.emptyColSpan} className="py-3">
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : props.isEmpty ? (
                 <TableRow>
                   <TableCell
                     colSpan={props.emptyColSpan}

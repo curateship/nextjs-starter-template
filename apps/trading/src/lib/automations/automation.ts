@@ -314,7 +314,7 @@ export const DEFAULT_AUTOMATION_BACKTEST_SETTINGS: AutomationBacktestSettings =
     startingEquity: 10_000,
     takerFeeBps: 4.5,
     makerFeeBps: 1.5,
-    slippageBps: 0,
+    slippageBps: 8,
   }
 
 export const automationBacktestSettingsSchema = z.object({

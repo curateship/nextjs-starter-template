@@ -31,6 +31,7 @@ import {
 } from "@/lib/api/orders"
 import { placePaperOrder } from "@/lib/api/paper"
 import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
+import { usePersistedState } from "@/lib/use-persisted-state"
 import type { MarketRow } from "@/lib/hl/hooks"
 import { cn } from "@/lib/utils"
 
@@ -88,6 +89,11 @@ export function OrderTicket({
     leverage: Math.min(5, maxLeverage),
     isCross: true,
   })
+  // Manual-order confirmation preference (Settings › Trading), saved per-browser.
+  const [confirmEnabled] = usePersistedState<boolean>(
+    "trading:order-confirmation",
+    true
+  )
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [applyingLeverage, setApplyingLeverage] = React.useState(false)
@@ -452,7 +458,10 @@ export function OrderTicket({
               ? "bg-emerald-600 hover:bg-emerald-700"
               : "bg-red-600 hover:bg-red-700"
           )}
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            if (confirmEnabled) setConfirming(true)
+            else void submit()
+          }}
         >
           {disabledReason ??
             `${state.side === "buy" ? "Long" : "Short"} ${market}-PERP`}

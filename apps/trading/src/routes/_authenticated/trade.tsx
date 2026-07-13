@@ -5,6 +5,7 @@ import {
   PAPER_WALLET_PREFIX,
   TradingWorkspace,
 } from "@/components/trading/trading-workspace"
+import { WorkspaceLoadingSkeleton } from "@/components/loading-skeleton"
 import { loadIndicators } from "@/lib/api/indicators"
 import { loadTradingContext } from "@/lib/api/trading"
 
@@ -42,13 +43,7 @@ function TradeRoute() {
         (paperWallets[0] ? `${PAPER_WALLET_PREFIX}${paperWallets[0].id}` : null))
 
   return (
-    <ClientOnly
-      fallback={
-        <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-          Loading trading workspace…
-        </div>
-      }
-    >
+    <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
       <TradingWorkspace
         network={network}
         wallets={wallets}

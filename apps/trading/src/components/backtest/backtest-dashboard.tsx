@@ -587,7 +587,6 @@ export function BacktestDashboard({
                   <PriceChartView
                     candles={candles}
                     loading={chartLoading}
-                    coin={market}
                     dataKey={chartReq?.key ?? "pending"}
                     indicators={overlays.indicators}
                     overlayLines={overlays.overlayLines}
