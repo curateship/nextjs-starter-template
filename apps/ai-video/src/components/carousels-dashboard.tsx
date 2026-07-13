@@ -11,6 +11,8 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { toast } from "sonner"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -76,7 +78,6 @@ export function CarouselsDashboard() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   const [sortBy, setSortBy] = React.useState<CarouselSortBy>("updated_at")
@@ -198,8 +199,6 @@ export function CarouselsDashboard() {
     setName("")
     setSourceText("")
     setModalError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function openRenameModal(carousel: CarouselItem) {
@@ -207,8 +206,6 @@ export function CarouselsDashboard() {
     setName(carousel.name)
     setSourceText("")
     setModalError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function closeModal() {
@@ -240,7 +237,7 @@ export function CarouselsDashboard() {
     try {
       await renameCarousel(modalState.carousel.id, name)
       await loadCurrentPage()
-      setNotice("Carousel renamed.")
+      toast.success("Carousel renamed.")
       closeModal()
     } catch (renameError) {
       setModalError(getCarouselErrorMessage(renameError))
@@ -263,8 +260,6 @@ export function CarouselsDashboard() {
     deleteMany: bulkDeleteCarousels,
     reload: loadCurrentPage,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getCarouselErrorMessage,
   })
 
@@ -311,7 +306,7 @@ export function CarouselsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable

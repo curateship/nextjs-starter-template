@@ -8,6 +8,8 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { toast } from "sonner"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -86,7 +88,6 @@ export function ActorDashboard() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
   const [tagFilter, setTagFilter] = React.useState("all")
@@ -191,8 +192,6 @@ export function ActorDashboard() {
     setModel(DEFAULT_ACTOR_MODEL)
     clearReferenceMedia()
     setModalError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function openEditModal(actor: ActorItem) {
@@ -205,8 +204,6 @@ export function ActorDashboard() {
     setReferenceMediaId(actor.reference_media_id)
     setReferenceMediaUrl(actor.reference_media_url)
     setModalError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function closeModal() {
@@ -238,11 +235,10 @@ export function ActorDashboard() {
   async function handleCreateActor() {
     setSubmitAction("generate")
     setModalError(null)
-    setNotice(null)
     try {
       const created = await createActor(getPayload())
       setActors((current) => [created, ...current])
-      setNotice("Actor created.")
+      toast.success("Actor created.")
       closeModal()
     } catch (createError) {
       setModalError(getActorErrorMessage(createError))
@@ -256,11 +252,10 @@ export function ActorDashboard() {
 
     setSubmitAction("save")
     setModalError(null)
-    setNotice(null)
     try {
       const updated = await updateActor(modalState.actor.id, getPayload())
       replaceActor(updated)
-      setNotice("Actor updated.")
+      toast.success("Actor updated.")
       closeModal()
     } catch (saveError) {
       setModalError(getActorErrorMessage(saveError))
@@ -274,11 +269,10 @@ export function ActorDashboard() {
 
     setSubmitAction("regenerate")
     setModalError(null)
-    setNotice(null)
     try {
       const updated = await regenerateActor(modalState.actor.id, getPayload())
       replaceActor(updated)
-      setNotice("Actor image regenerated.")
+      toast.success("Actor image regenerated.")
       closeModal()
     } catch (regenerateError) {
       setModalError(getActorErrorMessage(regenerateError))
@@ -302,8 +296,6 @@ export function ActorDashboard() {
     deleteMany: bulkDeleteActors,
     setItems: setActors,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getActorErrorMessage,
   })
 
@@ -391,7 +383,7 @@ export function ActorDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable

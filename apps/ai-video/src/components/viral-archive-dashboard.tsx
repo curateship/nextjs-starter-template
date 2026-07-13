@@ -15,6 +15,7 @@ import {
   RotateCcwIcon,
   Trash2Icon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { CreatorChip } from "@/components/creator-chip"
 import { StructureTagList } from "@/components/structure-tag-list"
@@ -163,7 +164,6 @@ export function ViralArchiveDashboard({
   const [videos, setVideos] = React.useState<ViralVideoItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   // List-view sort — defaults to newest first (matches the server order).
@@ -285,12 +285,11 @@ export function ViralArchiveDashboard({
   function handleViewAnalysis(video: ViralVideoItem) { closeAddModal(); setViewTarget(video) }
 
   async function handleRetry(video: ViralVideoItem) {
-    setError(null); setNotice(null)
     try {
       const updated = await retryViralVideo(video.id)
       setVideos((current) => current.map((item) => (item.id === updated.id ? updated : item)))
     } catch (retryError) {
-      setError(getViralVideoErrorMessage(retryError))
+      toast.error(getViralVideoErrorMessage(retryError))
     }
   }
 
@@ -309,8 +308,6 @@ export function ViralArchiveDashboard({
     deleteMany: bulkDeleteViralVideos,
     setItems: setVideos,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getViralVideoErrorMessage,
   })
 
@@ -403,7 +400,7 @@ export function ViralArchiveDashboard({
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" || viewMode === "trend" ? (
         <DashboardTable

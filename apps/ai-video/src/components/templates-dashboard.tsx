@@ -10,6 +10,7 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { CreatorChip } from "@/components/creator-chip"
 import { StructureTagList } from "@/components/structure-tag-list"
@@ -101,7 +102,6 @@ export function TemplatesDashboard() {
   const [templates, setTemplates] = React.useState<TemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
   const [tagFilter, setTagFilter] = React.useState<TagFilter>("all")
@@ -255,8 +255,6 @@ export function TemplatesDashboard() {
     setUseTarget(template)
     setUseName(template.name)
     setUseError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function closeUseModal() {
@@ -300,8 +298,6 @@ export function TemplatesDashboard() {
     setCreateOpen(true)
     setCreateName("")
     setCreateError(null)
-    setError(null)
-    setNotice(null)
   }
 
   function openSourceCatalog() {
@@ -333,8 +329,6 @@ export function TemplatesDashboard() {
 
   function openSettingsModal(template: TemplateItem) {
     setSettingsTarget(template)
-    setError(null)
-    setNotice(null)
   }
 
   function closeSettingsModal() {
@@ -372,8 +366,6 @@ export function TemplatesDashboard() {
     deleteMany: bulkDeleteTemplates,
     setItems: setTemplates,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getTemplateErrorMessage,
   })
 
@@ -452,7 +444,7 @@ export function TemplatesDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable
@@ -614,7 +606,7 @@ export function TemplatesDashboard() {
         initialName={settingsTarget?.name ?? ""}
         thumbnailUrl={settingsTarget?.thumbnail_url ?? null}
         onTemplateUpdated={handleTemplateSettingsUpdated}
-        onSaved={() => setNotice("Template settings saved.")}
+        onSaved={() => toast.success("Template settings saved.")}
       />
 
       {/* "Use" naming dialog — name the new project before it's created. */}

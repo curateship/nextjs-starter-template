@@ -8,6 +8,7 @@ import {
   UploadIcon,
   VideoIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -136,7 +137,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const { config } = useShellRuntime()
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [debouncedSearch, setDebouncedSearch] = React.useState("")
   const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(
@@ -278,8 +278,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     },
     reload: loadCurrentPage,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getMediaErrorMessage,
   })
 
@@ -305,7 +303,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const allowedTypes = [...imageTypes, ...videoTypes, ...audioTypes]
     if (!allowedTypes.includes(file.type)) {
-      setError(
+      toast.error(
         "Invalid file type. Only images, SVGs, videos, and audio are allowed."
       )
       event.target.value = ""
@@ -314,7 +312,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const maxSize = config.mediaUploadMaxMb * 1024 * 1024
     if (file.size > maxSize) {
-      setError(
+      toast.error(
         `File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`
       )
       event.target.value = ""
@@ -322,14 +320,12 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     }
 
     setUploading(true)
-    setError(null)
-    setNotice(null)
     try {
       await uploadMedia(file)
-      setNotice("Media uploaded.")
+      toast.success("Media uploaded.")
       await loadCurrentPage()
     } catch (uploadError) {
-      setError(getMediaErrorMessage(uploadError))
+      toast.error(getMediaErrorMessage(uploadError))
     } finally {
       setUploading(false)
       event.target.value = ""
@@ -345,8 +341,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     if (!editingMedia) return
 
     setSavingEdit(true)
-    setError(null)
-    setNotice(null)
     try {
       const updated = await updateMedia(editingMedia.id, editAltText)
       setData((current) =>
@@ -360,9 +354,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           : current
       )
       setEditingMedia(null)
-      setNotice("Media updated.")
+      toast.success("Media updated.")
     } catch (saveError) {
-      setError(getMediaErrorMessage(saveError))
+      toast.error(getMediaErrorMessage(saveError))
     } finally {
       setSavingEdit(false)
     }
@@ -472,7 +466,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         onChange={handleUploadSelect}
       />
 
-      <DashboardNotices notice={notice} error={error ?? projectError} />
+      <DashboardNotices error={error ?? projectError} />
 
       {viewMode === "gallery" ? (
         <DashboardTable

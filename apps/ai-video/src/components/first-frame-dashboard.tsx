@@ -11,6 +11,8 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { toast } from "sonner"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -98,7 +100,6 @@ export function FirstFrameDashboard() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [actorFilter, setActorFilter] = React.useState<FilterValue | string>(
     "all"
@@ -253,8 +254,6 @@ export function FirstFrameDashboard() {
     deleteMany: bulkDeleteFirstFrames,
     setItems: setFirstFrames,
     clearSelection,
-    setNotice,
-    setError,
     formatError: getFirstFrameErrorMessage,
   })
 
@@ -266,8 +265,6 @@ export function FirstFrameDashboard() {
       },
     })
     setModalError(null)
-    setNotice(null)
-    setError(null)
   }
 
   function openEditModal(item: FirstFrameItem) {
@@ -281,8 +278,6 @@ export function FirstFrameDashboard() {
     setReferenceSource(item.reference_source)
     setReferenceMediaId(item.reference_media_id)
     setModalError(null)
-    setNotice(null)
-    setError(null)
   }
 
   function openRemixModal(item: FirstFrameItem) {
@@ -300,8 +295,6 @@ export function FirstFrameDashboard() {
       },
     })
     setModalError(null)
-    setNotice(null)
-    setError(null)
   }
 
   function closeModal() {
@@ -340,14 +333,13 @@ export function FirstFrameDashboard() {
     if (!modalState) return
     setSubmitAction("save")
     setModalError(null)
-    setNotice(null)
     try {
       const updated = await updateFirstFrame(modalState.item.id, {
         name,
         tags,
       })
       replaceFirstFrame(updated)
-      setNotice("First frame updated.")
+      toast.success("First frame updated.")
       closeModal()
     } catch (submitError) {
       setModalError(getFirstFrameErrorMessage(submitError))
@@ -360,7 +352,6 @@ export function FirstFrameDashboard() {
     if (modalState?.type !== "edit") return
     setSubmitAction("regenerate")
     setModalError(null)
-    setNotice(null)
     try {
       const updated = await regenerateFirstFrame(
         modalState.item.id,
@@ -372,7 +363,7 @@ export function FirstFrameDashboard() {
         }
       )
       replaceFirstFrame(updated)
-      setNotice("First frame regenerated.")
+      toast.success("First frame regenerated.")
       closeModal()
     } catch (regenerateError) {
       setModalError(getFirstFrameErrorMessage(regenerateError))
@@ -383,14 +374,12 @@ export function FirstFrameDashboard() {
 
   async function handleTogglePinned(item: FirstFrameItem) {
     setPinningId(item.id)
-    setError(null)
-    setNotice(null)
     try {
       const updated = await updateFirstFramePinned(item.id, !item.pinned)
       replaceFirstFrame(updated)
-      setNotice(updated.pinned ? "First frame pinned." : "First frame unpinned.")
+      toast.success(updated.pinned ? "First frame pinned." : "First frame unpinned.")
     } catch (pinError) {
-      setError(getFirstFrameErrorMessage(pinError))
+      toast.error(getFirstFrameErrorMessage(pinError))
     } finally {
       setPinningId(null)
     }
@@ -405,7 +394,7 @@ export function FirstFrameDashboard() {
   function handleFirstFrameCreated(created: FirstFrameItem) {
     setFirstFrames((current) => [created, ...current])
     setCreateDialogState(null)
-    setNotice("First frame created.")
+    toast.success("First frame created.")
   }
 
   function toggleSort(column: FirstFrameSortColumn) {
@@ -539,7 +528,7 @@ export function FirstFrameDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <DashboardNotices notice={notice} error={error} />
+      <DashboardNotices error={error} />
 
       {viewMode === "gallery" ? (
         <DashboardTable
