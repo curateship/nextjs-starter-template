@@ -14,10 +14,13 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme
   setTheme: (theme: Theme) => void
+  darkBrightness: number
+  setDarkBrightness: (brightness: number) => void
 }
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 const THEME_VALUES: Theme[] = ["dark", "light", "system"]
+const DARK_BRIGHTNESS_STORAGE_KEY = "dark-theme-brightness"
 
 const ThemeProviderContext = React.createContext<
   ThemeProviderState | undefined
@@ -37,6 +40,26 @@ function getSystemTheme(): ResolvedTheme {
   }
 
   return "light"
+}
+
+function getStoredDarkBrightness() {
+  const storedBrightness = Number(
+    localStorage.getItem(DARK_BRIGHTNESS_STORAGE_KEY)
+  )
+
+  return Number.isFinite(storedBrightness) &&
+    storedBrightness >= 0 &&
+    storedBrightness <= 100
+    ? storedBrightness
+    : 0
+}
+
+function subscribeToDarkBrightness(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange)
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange)
+  }
 }
 
 function disableTransitionsTemporarily() {
@@ -96,6 +119,11 @@ export function ThemeProvider({
 
     return defaultTheme
   })
+  const darkBrightness = React.useSyncExternalStore(
+    subscribeToDarkBrightness,
+    getStoredDarkBrightness,
+    () => 0
+  )
 
   const setTheme = React.useCallback(
     (nextTheme: Theme) => {
@@ -104,6 +132,11 @@ export function ThemeProvider({
     },
     [storageKey]
   )
+
+  const setDarkBrightness = React.useCallback((brightness: number) => {
+    localStorage.setItem(DARK_BRIGHTNESS_STORAGE_KEY, String(brightness))
+    window.dispatchEvent(new Event("storage"))
+  }, [])
 
   const applyTheme = React.useCallback(
     (nextTheme: Theme) => {
@@ -142,6 +175,13 @@ export function ThemeProvider({
       mediaQuery.removeEventListener("change", handleChange)
     }
   }, [theme, applyTheme])
+
+  React.useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--dark-theme-brightness",
+      `${darkBrightness}%`
+    )
+  }, [darkBrightness])
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -212,8 +252,10 @@ export function ThemeProvider({
     () => ({
       theme,
       setTheme,
+      darkBrightness,
+      setDarkBrightness,
     }),
-    [theme, setTheme]
+    [theme, setTheme, darkBrightness, setDarkBrightness]
   )
 
   return (
