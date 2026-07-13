@@ -262,7 +262,7 @@ export function PriceChartView({
   registerApi,
   trendlineDrawing = false,
   onTrendlineDrawingChange,
-  trendlines = [],
+  trendlines = EMPTY_TRENDLINES,
   onTrendlinesChange,
   onTrendlinesCommit,
 }: {

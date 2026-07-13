@@ -10,6 +10,7 @@ import { PAINT_COLORS } from "../contract"
 
 const paramsSchema = z.object({
   swingLookback: z.number().int().min(2).max(400).default(30),
+  confirmationBars: z.number().int().min(1).max(20).default(2),
   breakBuffer: z.number().min(0).max(10).default(0.1),
   requireCounterSlope: z.boolean().default(true),
 })
@@ -24,6 +25,7 @@ export const trendlineIndicator: IndicatorModule<TrendlineIndicatorParams> = {
   paramsSchema,
   defaultParams: {
     swingLookback: 30,
+    confirmationBars: 2,
     breakBuffer: 0.1,
     requireCounterSlope: true,
   },
@@ -31,6 +33,10 @@ export const trendlineIndicator: IndicatorModule<TrendlineIndicatorParams> = {
     {
       key: "swingLookback",
       label: "Swing lookback",
+    },
+    {
+      key: "confirmationBars",
+      label: "Confirmation bars",
     },
     {
       key: "breakBuffer",
@@ -108,6 +114,7 @@ export function trendlineParamsFromChart(
 ): TrendlineIndicatorParams {
   return paramsSchema.parse({
     swingLookback: params.swingLookback,
+    confirmationBars: params.confirmationBars,
     breakBuffer: params.breakBuffer,
     requireCounterSlope: (params.requireCounterSlope ?? 1) !== 0,
   })

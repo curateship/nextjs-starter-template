@@ -10,7 +10,7 @@ const bar = (h: number, l: number, c: number) => ({
   v: 1,
 })
 
-const fallingBreak = (close = 12.5) =>
+const fallingBreak = (close = 12.2) =>
   [
     [10, 8, 9],
     [11, 8, 10],
@@ -20,13 +20,14 @@ const fallingBreak = (close = 12.5) =>
     [11, 7, 9],
     [13, 8, 10],
     [10, 7, 9],
-    [12.6, 8, close],
-    [14, 9, 10],
+    [12.6, 8, 11.8],
+    [12.6, 9, close],
     [15, 10, 10],
   ].map(([h, l, c]) => bar(h, l, c))
 
 const inputs: TrendlineInputs = {
   swingLookback: 2,
+  confirmationBars: 2,
   breakBuffer: 0,
   requireCounterSlope: true,
 }
@@ -36,7 +37,7 @@ describe("computeTrendlines", () => {
     const result = computeTrendlines(fallingBreak(), inputs)
     expect(
       result.buy.map((hit, i) => (hit ? i : -1)).filter((i) => i >= 0)
-    ).toEqual([8])
+    ).toEqual([9])
   })
 
   it("fires one sell when a close breaks a rising swing-low line", () => {
@@ -49,19 +50,26 @@ describe("computeTrendlines", () => {
       bar(13, 9, 11),
       bar(12, 7, 10),
       bar(13, 9, 10),
-      bar(12, 7.4, 7.5),
-      bar(11, 8, 9),
+      bar(12, 7.4, 8.2),
+      bar(11, 7.4, 7.5),
     ]
     const result = computeTrendlines(candles, inputs)
     expect(
       result.sell.map((hit, i) => (hit ? i : -1)).filter((i) => i >= 0)
-    ).toEqual([8])
+    ).toEqual([9])
   })
 
   it("ignores a wick through the line when the candle closes below it", () => {
     expect(
-      computeTrendlines(fallingBreak(11.8), inputs).buy.some(Boolean)
+      computeTrendlines(fallingBreak(11.4), inputs).buy.some(Boolean)
     ).toBe(false)
+  })
+
+  it("does not report a break that happened before the line was confirmed", () => {
+    const candles = fallingBreak(12.2)
+    candles[8].c = 12.5
+    candles[9].c = 12.2
+    expect(computeTrendlines(candles, inputs).buy.some(Boolean)).toBe(false)
   })
 
   it("does not create a micro-line when the swing lookback is large", () => {
@@ -71,6 +79,30 @@ describe("computeTrendlines", () => {
     })
     expect(result.buy.some(Boolean)).toBe(false)
     expect(result.resistance.every(Number.isNaN)).toBe(true)
+  })
+
+  it("confirms a major swing without waiting the full swing lookback", () => {
+    const candles = [
+      bar(10, 8, 9),
+      bar(11, 8, 10),
+      bar(12, 9, 11),
+      bar(13, 9, 12),
+      bar(20, 10, 15),
+      bar(14, 9, 12),
+      bar(13, 8, 11),
+      bar(12, 8, 10),
+      bar(13, 9, 11),
+      bar(18, 10, 15),
+      bar(16, 9, 16),
+      bar(18.5, 10, 18),
+      bar(17, 10, 16),
+    ]
+    const result = computeTrendlines(candles, {
+      ...inputs,
+      swingLookback: 4,
+      confirmationBars: 1,
+    })
+    expect(result.buy[11]).toBe(true)
   })
 
   it("blocks a break above a rising, with-trend resistance line", () => {
@@ -100,7 +132,7 @@ describe("computeTrendlines", () => {
   })
 
   it("requires a close beyond the line, not exactly on it", () => {
-    expect(computeTrendlines(fallingBreak(12), inputs).buy.some(Boolean)).toBe(
+    expect(computeTrendlines(fallingBreak(11.5), inputs).buy.some(Boolean)).toBe(
       false
     )
   })

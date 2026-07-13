@@ -159,7 +159,12 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "trendline",
     enabled: false,
     pinned: false,
-    params: { swingLookback: 30, breakBuffer: 0.1, requireCounterSlope: 1 },
+    params: {
+      swingLookback: 30,
+      confirmationBars: 2,
+      breakBuffer: 0.1,
+      requireCounterSlope: 1,
+    },
   },
 ]
 
@@ -196,6 +201,7 @@ export function trendlineChartToModuleParams(
 ): Record<string, number | boolean> {
   return {
     swingLookback: params.swingLookback ?? 30,
+    confirmationBars: params.confirmationBars ?? 2,
     breakBuffer: params.breakBuffer ?? 0.1,
     requireCounterSlope: (params.requireCounterSlope ?? 1) !== 0,
   }
@@ -351,6 +357,12 @@ export const INDICATOR_PARAM_FIELDS: Record<
         "How big a swing must be to anchor the line. Bigger values catch only major turns.",
     },
     {
+      key: "confirmationBars",
+      label: "Confirmation bars",
+      description:
+        "How many candles must hold after a swing before its line can be traded. Smaller values react sooner.",
+    },
+    {
       key: "breakBuffer",
       label: "Break buffer %",
       step: 0.1,
@@ -420,7 +432,7 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
     return `Min ${config.params.minGapSize ?? 1}%`
   }
   if (config.type === "trendline") {
-    return `Swing ${config.params.swingLookback ?? 30} · Buffer ${config.params.breakBuffer ?? 0.1}%`
+    return `Swing ${config.params.swingLookback ?? 30} · Confirm ${config.params.confirmationBars ?? 2} · Buffer ${config.params.breakBuffer ?? 0.1}%`
   }
   return INDICATOR_PARAM_FIELDS[config.type]
     .map((field) => {
