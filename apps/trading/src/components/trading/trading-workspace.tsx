@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SettingsIcon } from "lucide-react"
+import { Loader2Icon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -39,6 +39,14 @@ import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -63,7 +71,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getOrderErrorMessage, modifyOrder } from "@/lib/api/orders"
+import {
+  cancelOrder,
+  getOrderErrorMessage,
+  modifyOrder,
+} from "@/lib/api/orders"
 import {
   getPaperErrorMessage,
   loadPaperAccount,
@@ -79,7 +91,10 @@ import {
   useAccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
-import type { TradingNetwork } from "@/lib/hl/network"
+import {
+  resolveTradingNetwork,
+  type TradingNetwork,
+} from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   indicatorDisplayName,
@@ -91,7 +106,10 @@ import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
-import { describeOpenOrder } from "@/lib/trading/open-order"
+import {
+  describeOpenOrder,
+  type FrontendOpenOrder,
+} from "@/lib/trading/open-order"
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
@@ -138,6 +156,7 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(null)
   const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Imperative chart handle so the right-click menu can offer Reset View,
   // matching the bot and backtest charts.
@@ -154,10 +173,14 @@ export function TradingWorkspace({
     : null
   const accountAddress =
     selectedWallet?.vault_address ?? selectedWallet?.account_address ?? null
+  const tradingNetwork = resolveTradingNetwork(network, selectedWallet?.network)
 
-  const account = useAccountSnapshot(network, isPaper ? null : accountAddress)
-  const marketRows = useMarketRows(network)
-  const mids = useAllMids(network)
+  const account = useAccountSnapshot(
+    tradingNetwork,
+    isPaper ? null : accountAddress
+  )
+  const marketRows = useMarketRows(tradingNetwork)
+  const mids = useAllMids(tradingNetwork)
 
   const { data: paperAccount, refresh: refreshPaper } =
     useIntervalLoader<PaperAccountResponse | null>(
@@ -191,9 +214,7 @@ export function TradingWorkspace({
       : null
     : account
       ? {
-          equity: Number(
-            account.clearinghouseState?.marginSummary?.accountValue ?? 0
-          ),
+          equity: Number(account.equity),
           unrealized: (account.clearinghouseState?.assetPositions ?? []).reduce(
             (sum, { position }) => sum + Number(position.unrealizedPnl ?? 0),
             0
@@ -201,7 +222,7 @@ export function TradingWorkspace({
           marginUsed: Number(
             account.clearinghouseState?.marginSummary?.totalMarginUsed ?? 0
           ),
-          withdrawable: Number(account.clearinghouseState?.withdrawable ?? 0),
+          withdrawable: Number(account.withdrawable),
         }
       : null
 
@@ -331,6 +352,12 @@ export function TradingWorkspace({
     }
   }
 
+  function handleLineClick(id: string) {
+    if (!id.startsWith("order-")) return
+    const oid = Number(id.slice("order-".length))
+    setEditOrder(account?.openOrders.find((order) => order.oid === oid) ?? null)
+  }
+
   const options: WalletOption[] = [
     ...paperWallets.map((wallet) => ({
       value: `${PAPER_WALLET_PREFIX}${wallet.id}`,
@@ -412,7 +439,7 @@ export function TradingWorkspace({
               <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
                 <WorkspacePanel>
                   <MarketWatchlist
-                    network={network}
+                    network={tradingNetwork}
                     selected={market}
                     onSelect={onMarketChange}
                   />
@@ -466,12 +493,13 @@ export function TradingWorkspace({
                   </ChartToolbar>
                   <div className="min-h-0 flex-1">
                     <PriceChart
-                      network={network}
+                      network={tradingNetwork}
                       coin={market}
                       interval={interval}
                       priceLines={priceLines}
                       indicators={pinnedIndicators}
                       onLineDragEnd={handleLineDragEnd}
+                      onLineClick={handleLineClick}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
                       trendlineDrawing={trendlineDrawing}
@@ -502,7 +530,7 @@ export function TradingWorkspace({
                         >
                           <WorkspacePanel>
                             <OrderBook
-                              network={network}
+                              network={tradingNetwork}
                               coin={market}
                               onPriceClick={(px) => setPrefill({ px })}
                             />
@@ -519,7 +547,7 @@ export function TradingWorkspace({
                           minSize="15%"
                         >
                           <WorkspacePanel>
-                            <TradesTape network={network} coin={market} />
+                            <TradesTape network={tradingNetwork} coin={market} />
                           </WorkspacePanel>
                         </ResizablePanel>
                       ) : null}
@@ -565,7 +593,7 @@ export function TradingWorkspace({
                 <PaperBottomTabs account={paperAccount} onNotify={notify} />
               ) : (
                 <SandboxBottomTabs
-                  network={network}
+                  network={tradingNetwork}
                   account={account}
                   walletId={
                     selectedWallet?.is_active
@@ -575,6 +603,8 @@ export function TradingWorkspace({
                   accountAddress={accountAddress}
                   mids={mids}
                   onNotify={notify}
+                  editOrder={editOrder}
+                  onEditOrderHandled={() => setEditOrder(null)}
                 />
               )}
             </WorkspacePanel>
@@ -597,17 +627,18 @@ export function TradingWorkspace({
             equity={equity}
             disabledReason={ticketDisabledReason}
             confirmationEnabled={orderConfirmation}
+            limitPx={chartMenu?.px}
             onNotify={notify}
+            onLimitPrefill={(side, px) => {
+              setPrefill({ px, side })
+              setChartMenu(null)
+              toast.success(
+                `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`
+              )
+            }}
             onComplete={() => setChartMenu(null)}
           />
         }
-        onAction={(side, px) => {
-          setPrefill({ px, side })
-          setChartMenu(null)
-          toast.success(
-            `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`
-          )
-        }}
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
@@ -659,6 +690,8 @@ function SandboxBottomTabs({
   accountAddress,
   mids,
   onNotify,
+  editOrder,
+  onEditOrderHandled,
 }: {
   network: TradingNetwork
   account: ReturnType<typeof useAccountSnapshot>
@@ -666,28 +699,82 @@ function SandboxBottomTabs({
   accountAddress: string | null
   mids: Record<string, string>
   onNotify: (message: string, tone: "ok" | "error") => void
+  editOrder: FrontendOpenOrder | null
+  onEditOrderHandled: () => void
 }) {
   const positionCount = (
     account?.clearinghouseState?.assetPositions ?? []
   ).filter(({ position }) => Number(position.szi) !== 0).length
   const orderCount = account?.openOrders?.length ?? 0
+  const activeOrderCount =
+    account?.openOrders?.filter((order) => !order.isTrigger).length ?? 0
+  const [activeTab, setActiveTab] = React.useState("positions")
+  const [confirmCancelAll, setConfirmCancelAll] = React.useState(false)
+  const [cancellingAll, setCancellingAll] = React.useState(false)
+
+  async function cancelAllOrders() {
+    if (!walletId) return
+    const orders = account?.openOrders ?? []
+    setCancellingAll(true)
+    const results = await Promise.allSettled(
+      orders.map((order) =>
+        cancelOrder({ walletId, market: order.coin, oid: order.oid })
+      )
+    )
+    const cancelled = results.filter(
+      (result) => result.status === "fulfilled"
+    ).length
+    onNotify(
+      cancelled === orders.length
+        ? `Cancelled all ${cancelled} orders.`
+        : `Cancelled ${cancelled} of ${orders.length} orders.`,
+      cancelled === orders.length ? "ok" : "error"
+    )
+    setCancellingAll(false)
+    setConfirmCancelAll(false)
+  }
 
   return (
     <Tabs
-      defaultValue="positions"
+      value={editOrder ? "orders" : activeTab}
+      onValueChange={setActiveTab}
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <TabsList variant="line" className={BOTTOM_TABS_LIST}>
-        <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
-          Positions{positionCount ? ` (${positionCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
-          Open Orders{orderCount ? ` (${orderCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
-          Fills
-        </TabsTrigger>
-      </TabsList>
+      <div className="flex items-center border-b">
+        <TabsList
+          variant="line"
+          className={cn(BOTTOM_TABS_LIST, "w-auto flex-1 border-b-0")}
+        >
+          <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
+            Positions{positionCount ? ` (${positionCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
+            Open Orders{orderCount ? ` (${orderCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
+            Fills
+          </TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-3 pr-3 text-xs text-muted-foreground">
+          <span>
+            Active orders: {" "}
+            <strong className="text-foreground">{activeOrderCount}</strong>
+          </span>
+          <span>
+            Open orders: {" "}
+            <strong className="text-foreground">{orderCount}</strong>
+          </span>
+          <Button
+            type="button"
+            variant="destructive"
+            size="xs"
+            disabled={!walletId || orderCount === 0}
+            onClick={() => setConfirmCancelAll(true)}
+          >
+            Cancel all orders
+          </Button>
+        </div>
+      </div>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PositionsTable
           account={account}
@@ -701,11 +788,46 @@ function SandboxBottomTabs({
           account={account}
           walletId={walletId}
           onDone={onNotify}
+          requestedEditOrder={editOrder}
+          onEditOrderHandled={onEditOrderHandled}
         />
       </TabsContent>
       <TabsContent value="fills" className="min-h-0 flex-1">
         <FillsTable network={network} address={accountAddress} />
       </TabsContent>
+
+      <Dialog open={confirmCancelAll} onOpenChange={setConfirmCancelAll}>
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Cancel all open orders?</DialogTitle>
+            <DialogDescription>
+              This cancels all {orderCount} orders, including stop-loss and
+              take-profit orders.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={cancellingAll}
+              onClick={() => setConfirmCancelAll(false)}
+            >
+              Keep orders
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cancellingAll}
+              onClick={() => void cancelAllOrders()}
+            >
+              {cancellingAll ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              Cancel all orders
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   )
 }

@@ -17,6 +17,7 @@ export type OrderTemplateValues = {
   leverage: number
   stopLossPct: number
   takeProfitPct: number
+  useLimitOrder: boolean
   isDefault: boolean
 }
 
@@ -184,6 +185,7 @@ export function serializeOrderTemplate(row: TradingOrderTemplate) {
     leverage: row.leverage,
     stopLossPct: Number(row.stopLossPct),
     takeProfitPct: Number(row.takeProfitPct),
+    useLimitOrder: row.useLimitOrder,
     isDefault: row.isDefault,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -197,5 +199,6 @@ function cleanValues(values: OrderTemplateValues) {
     leverage: values.leverage,
     stopLossPct: String(values.stopLossPct),
     takeProfitPct: String(values.takeProfitPct),
+    useLimitOrder: values.useLimitOrder,
   }
 }

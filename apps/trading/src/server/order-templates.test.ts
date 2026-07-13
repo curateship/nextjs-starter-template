@@ -27,6 +27,15 @@ beforeEach(async () => {
       "utf8"
     )
   )
+  await client.exec(
+    await readFile(
+      new URL(
+        "../../drizzle/0030_one_click_limit_entries.sql",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  )
   database = drizzle(client, { schema })
 })
 
@@ -35,6 +44,36 @@ afterEach(async () => {
 })
 
 describe("order template defaults", () => {
+  it("defaults existing templates to market entries", async () => {
+    const userId = uuid()
+    const createdAt = now()
+    await database.insert(schema.customShellUsers).values({
+      id: userId,
+      email: "limit-defaults@example.test",
+      name: "Template Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    const [template] = await database
+      .insert(schema.tradingOrderTemplates)
+      .values({
+        id: uuid(),
+        userId,
+        name: "Market",
+        orderSizePct: "10",
+        leverage: 5,
+        stopLossPct: "2",
+        takeProfitPct: "5",
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+
+    expect(template?.useLimitOrder).toBe(false)
+  })
+
   it("allows only one default template per user", async () => {
     const userId = uuid()
     const createdAt = now()

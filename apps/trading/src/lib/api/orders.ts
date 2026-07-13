@@ -28,6 +28,7 @@ const modifyOrderSchema = z.object({
   market: z.string().min(1).max(20),
   oid: z.number().int().positive(),
   px: decimalString,
+  sz: decimalString.optional(),
 }).strict()
 
 const updateLeverageSchema = z.object({
@@ -42,6 +43,7 @@ const oneClickOrderSchema = z.object({
   market: z.string().min(1).max(20),
   side: z.enum(["buy", "sell"]),
   templateId: z.string().min(1),
+  px: decimalString.optional(),
 })
 
 export type PlaceOrderResponse = {
@@ -54,6 +56,7 @@ export type PlaceOrderResponse = {
 }
 
 export type OneClickOrderResponse = PlaceOrderResponse & {
+  entryOrderType: "market" | "limit"
   stopLossPx: string
   takeProfitPx: string
 }
@@ -105,6 +108,7 @@ const oneClickOrderFn = createServerFn({ method: "POST" })
       oid: result.status.oid,
       px: result.px,
       sz: result.sz,
+      entryOrderType: result.entryOrderType,
       stopLossPx: result.stopLossPx,
       takeProfitPx: result.takeProfitPx,
       ...(result.status.kind === "filled"
@@ -115,7 +119,7 @@ const oneClickOrderFn = createServerFn({ method: "POST" })
 
 const modifyOrderFn = createServerFn({ method: "POST" })
   .inputValidator(modifyOrderSchema)
-  .handler(async ({ data }): Promise<{ px: string }> => {
+  .handler(async ({ data }): Promise<{ px: string; sz: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
     const { modifyManualOrder } = await import("@/server/trading")
     requireAppOrigin()

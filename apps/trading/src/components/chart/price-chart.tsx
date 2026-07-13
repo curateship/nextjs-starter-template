@@ -226,6 +226,7 @@ type Measurement = {
 }
 
 const DRAG_HIT_PX = 6
+const DRAG_START_PX = 3
 /** After a drop, hold the line at its new price until the backend confirms. */
 const DROP_HOLD_MS = 8_000
 /**
@@ -258,6 +259,7 @@ export function PriceChartView({
   focusResult = null,
   onCrosshairOhlc,
   onLineDragEnd,
+  onLineClick,
   onChartContextMenu,
   onVisibleRangeChange,
   registerApi,
@@ -293,6 +295,8 @@ export function PriceChartView({
   onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
   onLineDragEnd?: (id: string, price: number) => void
+  /** Fired when a draggable price line is clicked without moving it. */
+  onLineClick?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
   /**
@@ -333,7 +337,12 @@ export function PriceChartView({
   >(new Map())
   const priceLineRefs = React.useRef<Map<string, IPriceLine>>(new Map())
   const lineSpecsRef = React.useRef<Map<string, ChartPriceLine>>(new Map())
-  const draggingRef = React.useRef<{ id: string; price: number } | null>(null)
+  const draggingRef = React.useRef<{
+    id: string
+    price: number
+    startY: number
+    moved: boolean
+  } | null>(null)
   const recentDropsRef = React.useRef<
     Map<string, { price: number; until: number }>
   >(new Map())
@@ -424,6 +433,7 @@ export function PriceChartView({
   } | null>(null)
 
   const dragEndRef = React.useRef(onLineDragEnd)
+  const lineClickRef = React.useRef(onLineClick)
   const contextMenuRef = React.useRef(onChartContextMenu)
   const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
   const trendlineDrawingChangeRef = React.useRef(onTrendlineDrawingChange)
@@ -432,6 +442,7 @@ export function PriceChartView({
   const visibleRangeRef = React.useRef(onVisibleRangeChange)
   React.useEffect(() => {
     dragEndRef.current = onLineDragEnd
+    lineClickRef.current = onLineClick
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
     trendlineDrawingChangeRef.current = onTrendlineDrawingChange
@@ -440,6 +451,7 @@ export function PriceChartView({
     visibleRangeRef.current = onVisibleRangeChange
   }, [
     onLineDragEnd,
+    onLineClick,
     onChartContextMenu,
     onCrosshairOhlc,
     onTrendlineDrawingChange,
@@ -784,7 +796,12 @@ export function PriceChartView({
           if (!id) return
           const line = priceLineRefs.current.get(id)
           if (!line) return
-          draggingRef.current = { id, price: line.options().price }
+          draggingRef.current = {
+            id,
+            price: line.options().price,
+            startY: paneY(event),
+            moved: false,
+          }
           chart.applyOptions({ handleScroll: false, handleScale: false })
           event.preventDefault()
           event.stopPropagation()
@@ -848,6 +865,13 @@ export function PriceChartView({
           const y = paneY(event)
           const dragging = draggingRef.current
           if (dragging) {
+            if (!dragging.moved) {
+              dragging.moved = Math.abs(y - dragging.startY) >= DRAG_START_PX
+              if (!dragging.moved) {
+                event.preventDefault()
+                return
+              }
+            }
             const price = candleSeries.coordinateToPrice(y)
             if (price !== null && price > 0) {
               priceLineRefs.current.get(dragging.id)?.applyOptions({ price })
@@ -876,6 +900,10 @@ export function PriceChartView({
           if (!dragging) return
           draggingRef.current = null
           chart.applyOptions({ handleScroll: true, handleScale: true })
+          if (!dragging.moved) {
+            lineClickRef.current?.(dragging.id)
+            return
+          }
           recentDropsRef.current.set(dragging.id, {
             price: dragging.price,
             until: Date.now() + DROP_HOLD_MS,
@@ -2091,6 +2119,7 @@ export function PriceChart({
   focusResult,
   onCrosshairOhlc,
   onLineDragEnd,
+  onLineClick,
   onChartContextMenu,
   registerApi,
   trendlineDrawing,
@@ -2118,6 +2147,8 @@ export function PriceChart({
   onCrosshairOhlc?: (candle: ChartCandle | null) => void
   /** Fired when a draggable price line is dropped at a new price. */
   onLineDragEnd?: (id: string, price: number) => void
+  /** Fired when a draggable price line is clicked without moving it. */
+  onLineClick?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
   /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
@@ -2469,6 +2500,7 @@ export function PriceChart({
           : undefined
       }
       onLineDragEnd={onLineDragEnd}
+      onLineClick={onLineClick}
       onChartContextMenu={onChartContextMenu}
       registerApi={registerApi}
       trendlineDrawing={trendlineDrawing}

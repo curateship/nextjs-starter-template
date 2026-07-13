@@ -42,6 +42,7 @@ type SortColumn =
   | "leverage"
   | "stopLossPct"
   | "takeProfitPct"
+  | "useLimitOrder"
   | "isDefault"
 
 export function OneClickOrderSettings() {
@@ -162,6 +163,9 @@ export function OneClickOrderSettings() {
                 {sortHead("takeProfitPct", "Take profit")}
               </TableHead>
               <TableHead column="meta">
+                {sortHead("useLimitOrder", "Entry")}
+              </TableHead>
+              <TableHead column="meta">
                 {sortHead("isDefault", "Default")}
               </TableHead>
               <TableHead column="meta">Actions</TableHead>
@@ -170,7 +174,7 @@ export function OneClickOrderSettings() {
         }
         isEmpty={templates.length === 0}
         emptyText="No order templates yet. Create one to enable one-click orders."
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "summary",
           count: templates.length,
@@ -180,12 +184,21 @@ export function OneClickOrderSettings() {
         {sorted.map((template) => (
           <TableRow key={template.id}>
             <TableCell column="main">
-              <span className="font-medium">{template.name}</span>
+              <button
+                type="button"
+                className="font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => openEdit(template)}
+              >
+                {template.name}
+              </button>
             </TableCell>
             <TableCell column="meta">{template.orderSizePct}%</TableCell>
             <TableCell column="meta">{template.leverage}x</TableCell>
             <TableCell column="meta">{template.stopLossPct}%</TableCell>
             <TableCell column="meta">{template.takeProfitPct}%</TableCell>
+            <TableCell column="meta">
+              {template.useLimitOrder ? "Limit" : "Market"}
+            </TableCell>
             <TableCell column="meta">
               <Button
                 type="button"

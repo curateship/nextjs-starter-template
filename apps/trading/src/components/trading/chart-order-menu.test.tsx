@@ -6,7 +6,7 @@ import { ChartOrderMenu } from "@/components/trading/chart-order-menu"
 describe("chart order menu", () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it("shows one-click actions above manual limit orders", () => {
+  it("shows the supplied protected limit actions at the clicked price", () => {
     vi.stubGlobal("window", {
       innerWidth: 1_440,
       innerHeight: 900,
@@ -19,23 +19,21 @@ describe("chart order menu", () => {
         market="ETH"
         oneClickActions={
           <>
-            <button type="button">1-Click Long</button>
-            <button type="button">1-Click Short</button>
+            <button type="button">Buy limit - WS:10% SL:2% TP:5%</button>
+            <button type="button">Sell limit - WS:10% SL:2% TP:5%</button>
           </>
         }
-        onAction={vi.fn()}
         onResetView={vi.fn()}
         onClose={vi.fn()}
       />
     )
 
-    expect(markup).toContain("1-Click Long")
-    expect(markup).toContain("1-Click Short")
-    expect(markup.indexOf("1-Click Long")).toBeLessThan(
-      markup.indexOf("Buy limit")
-    )
-    expect(markup.indexOf("1-Click Short")).toBeLessThan(
-      markup.indexOf("Sell limit")
-    )
+    expect(markup).toContain("ETH @ 1,744.2")
+    expect(markup).toContain("Buy limit - WS:10% SL:2% TP:5%")
+    expect(markup).toContain("Sell limit - WS:10% SL:2% TP:5%")
+    expect(markup).not.toContain("1-Click Long")
+    expect(markup).not.toContain("1-Click Short")
+    expect(markup).toContain("w-max")
+    expect(markup).not.toContain("w-72")
   })
 })

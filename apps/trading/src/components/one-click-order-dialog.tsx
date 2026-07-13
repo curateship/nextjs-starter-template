@@ -28,6 +28,7 @@ type Form = {
   leverage: string
   stopLossPct: string
   takeProfitPct: string
+  useLimitOrder: boolean
   isDefault: boolean
 }
 
@@ -37,6 +38,7 @@ const emptyForm: Form = {
   leverage: "5",
   stopLossPct: "2",
   takeProfitPct: "5",
+  useLimitOrder: false,
   isDefault: false,
 }
 
@@ -59,6 +61,7 @@ export function OneClickOrderDialog({
           leverage: String(template.leverage),
           stopLossPct: String(template.stopLossPct),
           takeProfitPct: String(template.takeProfitPct),
+          useLimitOrder: template.useLimitOrder,
           isDefault: template.isDefault,
         }
       : emptyForm
@@ -73,6 +76,7 @@ export function OneClickOrderDialog({
       leverage: Number(form.leverage),
       stopLossPct: Number(form.stopLossPct),
       takeProfitPct: Number(form.takeProfitPct),
+      useLimitOrder: form.useLimitOrder,
       isDefault: form.isDefault,
     }
     if (!values.name) {
@@ -190,15 +194,21 @@ export function OneClickOrderDialog({
               </TemplateField>
               <div className="flex items-center gap-2 self-end pb-2">
                 <Checkbox
-                  id="template-default"
-                  checked={form.isDefault}
-                  disabled={busy || template?.isDefault}
+                  id="template-limit"
+                  checked={form.useLimitOrder}
+                  disabled={busy}
                   onCheckedChange={(checked) =>
-                    field("isDefault", checked === true)
+                    field("useLimitOrder", checked === true)
                   }
                 />
-                <Label htmlFor="template-default">Make default</Label>
+                <Label htmlFor="template-limit">Use limit entry</Label>
               </div>
+              {form.useLimitOrder ? (
+                <p className="self-end pb-2 text-xs text-muted-foreground">
+                  Right-click a chart price to place the complete order in one
+                  click.
+                </p>
+              ) : null}
               {error ? (
                 <p
                   role="alert"

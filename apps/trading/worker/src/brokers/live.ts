@@ -1,5 +1,6 @@
 import type { UserFillsWsEvent } from "@nktkas/hyperliquid"
 
+import { loadTradingAccountState } from "@/lib/hl/account-balance"
 import { db } from "@/server/db"
 import {
   cancelOrderByCloid,
@@ -287,10 +288,12 @@ export class LiveBroker implements BotBroker {
 
   private async refreshAccount() {
     try {
-      const state = await getInfoClient(this.network).clearinghouseState({
-        user: this.accountAddress,
-      })
-      this.accountValue = Number(state.marginSummary.accountValue)
+      const accountState = await loadTradingAccountState(
+        getInfoClient(this.network),
+        this.accountAddress
+      )
+      const state = accountState.clearinghouseState
+      this.accountValue = Number(accountState.equity)
       const position = state.assetPositions.find(
         ({ position }) => position.coin === this.market
       )?.position
