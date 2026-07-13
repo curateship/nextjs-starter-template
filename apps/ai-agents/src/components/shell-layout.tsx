@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Outlet, useRouterState } from "@tanstack/react-router"
+import { toast } from "sonner"
 
 import { DashboardContent } from "@/components/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
@@ -125,10 +126,7 @@ export function ShellLayout({
   // Persist the dragged sidebar width on its own (not through the admin-gated
   // full-config save). Updates local config immediately, then saves; on failure
   // rolls the width back to the last-confirmed value unless a newer drag has
-  // superseded this one. The app has no toast surface, so a failed save reverts
-  // silently — the visible width snapping back is the feedback. (settingsError
-  // only renders on the admin settings page, so surfacing it here would be a
-  // stale, misplaced error.)
+  // superseded this one, and surfaces the error as a toast.
   const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
     const version = sidebarWidthSaveVersionRef.current + 1
     sidebarWidthSaveVersionRef.current = version
@@ -146,12 +144,13 @@ export function ShellLayout({
       .then(() => {
         savedSidebarWidthRef.current = sidebarWidth
       })
-      .catch(() => {
+      .catch((error) => {
         if (version === sidebarWidthSaveVersionRef.current) {
           setConfig((current) => ({
             ...current,
             sidebarWidth: savedSidebarWidthRef.current,
           }))
+          toast.error(getShellSettingsErrorMessage(error))
         }
       })
   }, [])
