@@ -5,6 +5,7 @@ import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { TradingSettings } from "@/components/trading-settings"
+import { OneClickOrderSettings } from "@/components/one-click-order-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -12,6 +13,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "trading", label: "Trading" },
+  { id: "one-click-order", label: "One Click Order" },
   { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
@@ -40,7 +42,7 @@ export function SettingsPage({
   settingsError: string | null
   saveStatus: SaveStatus
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: () => Promise<boolean>
+  onSaveConfig: (config?: ShellConfig) => Promise<boolean>
 }) {
   const isSaving = saveStatus === "saving"
 
@@ -53,9 +55,17 @@ export function SettingsPage({
             Configure the shell defaults for this workspace.
           </p>
         </div>
-        {activeTab === "appearance" || activeTab === "trading" ? (
+        {activeTab === "appearance" ? (
           <span className="text-sm text-muted-foreground">
             Saved automatically in this browser
+          </span>
+        ) : activeTab === "trading" ? (
+          <span className="text-sm text-muted-foreground">
+            Saved automatically
+          </span>
+        ) : activeTab === "one-click-order" ? (
+          <span className="text-sm text-muted-foreground">
+            Templates save immediately
           </span>
         ) : (
           <div className="flex items-center gap-3">
@@ -67,7 +77,7 @@ export function SettingsPage({
             ) : null}
             <DashboardToolbarButton
               type="button"
-              onClick={onSaveConfig}
+              onClick={() => void onSaveConfig()}
               disabled={isSaving}
             >
               {isSaving ? (
@@ -111,7 +121,15 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
             />
           ) : null}
-          {activeTab === "trading" ? <TradingSettings /> : null}
+          {activeTab === "trading" ? (
+            <TradingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
+            />
+          ) : null}
+          {activeTab === "one-click-order" ? <OneClickOrderSettings /> : null}
           {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings

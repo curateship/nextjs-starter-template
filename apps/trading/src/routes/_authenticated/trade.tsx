@@ -5,9 +5,9 @@ import {
   PAPER_WALLET_PREFIX,
   TradingWorkspace,
 } from "@/components/trading/trading-workspace"
-import { WorkspaceLoadingSkeleton } from "@/components/loading-skeleton"
 import { loadIndicators } from "@/lib/api/indicators"
 import { loadTradingContext } from "@/lib/api/trading"
+import { useShellRuntime } from "@/components/shell-layout"
 
 const tradeSearchSchema = z.object({
   market: z.string().default("ETH"),
@@ -27,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/trade")({
 })
 
 function TradeRoute() {
+  const runtime = useShellRuntime()
   const { network, wallets, paperWallets, workerOnline, indicators } =
     Route.useLoaderData()
   const { market, wallet } = Route.useSearch()
@@ -43,7 +44,7 @@ function TradeRoute() {
         (paperWallets[0] ? `${PAPER_WALLET_PREFIX}${paperWallets[0].id}` : null))
 
   return (
-    <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
+    <ClientOnly fallback={null}>
       <TradingWorkspace
         network={network}
         wallets={wallets}
@@ -52,6 +53,7 @@ function TradeRoute() {
         selectedValue={selectedValue}
         workerOnline={workerOnline}
         initialIndicators={indicators}
+        orderConfirmation={runtime.config.orderConfirmation}
         onMarketChange={(coin) =>
           void navigate({
             search: (current) => ({ ...current, market: coin }),

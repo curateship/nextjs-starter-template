@@ -64,6 +64,7 @@ const shellConfigSchema = z.object({
     .max(MAX_CANDLES_LIMIT)
     .catch(MAX_CANDLES_LIMIT),
   adminRoute: z.string().catch(""),
+  orderConfirmation: z.boolean(),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -243,7 +244,15 @@ function parseShellGlobals(value: unknown) {
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
         : fallback.adminRoute,
+    orderConfirmation: requireOrderConfirmation(settings.orderConfirmation),
   }
+}
+
+function requireOrderConfirmation(value: unknown): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error("Saved settings are missing orderConfirmation")
+  }
+  return value
 }
 
 function pickShellGlobals(settings: ShellConfig) {
@@ -254,5 +263,6 @@ function pickShellGlobals(settings: ShellConfig) {
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     maxCandles: clampMaxCandles(settings.maxCandles),
     adminRoute: settings.adminRoute,
+    orderConfirmation: settings.orderConfirmation,
   }
 }

@@ -40,6 +40,13 @@ const updateLeverageSchema = z.object({
   isCross: z.boolean(),
 })
 
+const oneClickOrderSchema = z.object({
+  walletId: z.string().min(1),
+  market: z.string().min(1).max(20),
+  side: z.enum(["buy", "sell"]),
+  templateId: z.string().min(1),
+})
+
 export type PlaceOrderResponse = {
   kind: "resting" | "filled"
   oid: number
@@ -47,6 +54,11 @@ export type PlaceOrderResponse = {
   sz: string
   avgPx?: string
   totalSz?: string
+}
+
+export type OneClickOrderResponse = PlaceOrderResponse & {
+  stopLossPx: string
+  takeProfitPx: string
 }
 
 export function getOrderErrorMessage(error: unknown) {
@@ -83,6 +95,27 @@ const cancelOrderFn = createServerFn({ method: "POST" })
     return { ok: true }
   })
 
+const oneClickOrderFn = createServerFn({ method: "POST" })
+  .inputValidator(oneClickOrderSchema)
+  .handler(async ({ data }): Promise<OneClickOrderResponse> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { submitOneClickOrder } = await import("@/server/trading")
+    requireAppOrigin()
+    const user = await requireUser()
+    const result = await submitOneClickOrder(user.id, data)
+    return {
+      kind: result.status.kind,
+      oid: result.status.oid,
+      px: result.px,
+      sz: result.sz,
+      stopLossPx: result.stopLossPx,
+      takeProfitPx: result.takeProfitPx,
+      ...(result.status.kind === "filled"
+        ? { avgPx: result.status.avgPx, totalSz: result.status.totalSz }
+        : {}),
+    }
+  })
+
 const modifyOrderFn = createServerFn({ method: "POST" })
   .inputValidator(modifyOrderSchema)
   .handler(async ({ data }): Promise<{ px: string }> => {
@@ -106,6 +139,10 @@ const updateLeverageFn = createServerFn({ method: "POST" })
 
 export function placeOrder(input: z.infer<typeof placeOrderSchema>) {
   return placeOrderFn({ data: input })
+}
+
+export function placeOneClickOrder(input: z.infer<typeof oneClickOrderSchema>) {
+  return oneClickOrderFn({ data: input })
 }
 
 export function cancelOrder(input: z.infer<typeof cancelOrderSchema>) {

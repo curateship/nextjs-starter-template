@@ -69,7 +69,8 @@ export function checkOrderIntent(
   intent: OrderIntent,
   account: AccountRiskState,
   limits: RiskLimits,
-  ref: PriceRef
+  ref: PriceRef,
+  ordersToPlace = 1
 ): RiskCheckResult {
   const violations: RiskViolation[] = []
 
@@ -117,7 +118,7 @@ export function checkOrderIntent(
     })
   }
 
-  if (account.openOrderCount + 1 > limits.maxOpenOrders) {
+  if (account.openOrderCount + ordersToPlace > limits.maxOpenOrders) {
     violations.push({
       code: "max_open_orders",
       message: `Placing this order would exceed the ${limits.maxOpenOrders} open order limit.`,
