@@ -1,0 +1,29 @@
+/* The carousel builder reuses the Studio design system (studio.css) but swaps
+   the editor's indigo accent for muted neutral tones — every selected/active
+   state reads as a quiet grey rather than a colour pop. Scoped to
+   `.carousel-studio` (used together with `.studio-root`) so the video editor
+   keeps its indigo. The compound selectors out-specify studio.css's own
+   `.studio-root` / `.dark .studio-root` accent rules regardless of load order. */
+
+.studio-root.carousel-studio {
+  --acc: oklch(0.44 0 0);
+  --acc2: oklch(0.55 0 0);
+  --acc-soft: oklch(0.9 0 0);
+}
+
+.dark .studio-root.carousel-studio {
+  --acc: oklch(0.8 0 0);
+  --acc2: oklch(0.72 0 0);
+  --acc-soft: oklch(1 0 0 / 12%);
+}
+
+/* Grid-view slide cards keep a clean thumbnail — the duplicate/delete controls
+   fade in only on hover or keyboard focus. */
+.carousel-studio .cb-slide-actions {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.carousel-studio .cb-slide-card:hover .cb-slide-actions,
+.carousel-studio .cb-slide-card:focus-within .cb-slide-actions {
+  opacity: 1;
+}

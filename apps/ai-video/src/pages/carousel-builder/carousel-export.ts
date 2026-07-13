@@ -228,11 +228,46 @@ function drawGradientShadowItem(
 ) {
   const box = itemBox(item, width, height)
   const alpha = item.opacity / 100
-  const gradient = context.createLinearGradient(0, box.y + box.height, 0, box.y)
-  gradient.addColorStop(0, hexToRgba(item.color, alpha))
-  gradient.addColorStop(1, hexToRgba(item.color, 0))
+  const strong = hexToRgba(item.color, alpha)
+  const clear = hexToRgba(item.color, 0)
+  const direction = item.direction ?? "up"
 
   context.save()
+  if (direction === "solid") {
+    context.fillStyle = strong
+    context.fillRect(box.x, box.y, box.width, box.height)
+    context.restore()
+    return
+  }
+
+  let gradient: CanvasGradient
+  if (direction === "radial") {
+    const cx = box.x + box.width / 2
+    const cy = box.y + box.height / 2
+    gradient = context.createRadialGradient(
+      cx,
+      cy,
+      0,
+      cx,
+      cy,
+      Math.hypot(box.width, box.height) / 2
+    )
+    gradient.addColorStop(0, clear)
+    gradient.addColorStop(1, strong)
+  } else {
+    // Linear gradients run from the "strong" edge to the transparent edge.
+    const ends: Record<"up" | "down" | "left" | "right", [number, number, number, number]> = {
+      up: [0, box.y + box.height, 0, box.y],
+      down: [0, box.y, 0, box.y + box.height],
+      left: [box.x + box.width, 0, box.x, 0],
+      right: [box.x, 0, box.x + box.width, 0],
+    }
+    const [x0, y0, x1, y1] = ends[direction]
+    gradient = context.createLinearGradient(x0, y0, x1, y1)
+    gradient.addColorStop(0, strong)
+    gradient.addColorStop(1, clear)
+  }
+
   context.fillStyle = gradient
   context.fillRect(box.x, box.y, box.width, box.height)
   context.restore()
