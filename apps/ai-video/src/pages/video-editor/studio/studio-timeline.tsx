@@ -36,8 +36,9 @@ import {
 import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
 
 const GUTTER = 120
-const ROW_H = 52
-const RULER_H = 28
+export const ROW_H = 52
+export const RULER_H = 28
+export const TOOLBAR_H = 48
 // The Studio zoom slider works in a denser sub-range of the store's bounds so
 // clips read like the mock; still clamped to the store's hard limits.
 const ZOOM_MIN = Math.max(MIN_PX_PER_SECOND, 18)
@@ -914,7 +915,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
         display: "flex",
         alignItems: "center",
         gap: 5,
-        height: 48,
+        height: TOOLBAR_H,
         flex: "none",
         padding: "0 12px",
         borderBottom: "1px solid var(--line)",

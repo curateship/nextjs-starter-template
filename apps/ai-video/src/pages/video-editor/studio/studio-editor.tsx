@@ -37,14 +37,30 @@ import {
 import { StudioExportModal } from "@/pages/video-editor/studio/studio-export-modal"
 import { StudioInspector } from "@/pages/video-editor/studio/studio-inspector"
 import { StudioStage } from "@/pages/video-editor/studio/studio-stage"
-import { StudioTimeline } from "@/pages/video-editor/studio/studio-timeline"
+import {
+  ROW_H,
+  RULER_H,
+  StudioTimeline,
+  TOOLBAR_H,
+} from "@/pages/video-editor/studio/studio-timeline"
 import "@/pages/video-editor/studio/studio.css"
 
 type ResizeKey = "panelW" | "inspectorW" | "timelineH"
 const LIMITS: Record<ResizeKey, [number, number]> = {
   panelW: [210, 440],
   inspectorW: [240, 460],
-  timelineH: [150, 460],
+  timelineH: [150, 560],
+}
+
+// Height that shows every track row (toolbar + ruler + rows + a little slack)
+// without the timeline scrolling, clamped to the panel's drag range. Empty
+// projects keep the compact default.
+const DEFAULT_TIMELINE_H = 216
+function fitTimelineH(trackCount: number) {
+  if (trackCount === 0) return DEFAULT_TIMELINE_H
+  const [min, max] = LIMITS.timelineH
+  const needed = TOOLBAR_H + RULER_H + trackCount * ROW_H + 14
+  return Math.round(Math.max(min, Math.min(max, needed)))
 }
 
 type RailItem = { id: StudioPanel; label: string; Icon: typeof Film }
@@ -75,7 +91,16 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
   )
   const [panelW, setPanelW] = React.useState(268)
   const [inspectorW, setInspectorW] = React.useState(292)
-  const [timelineH, setTimelineH] = React.useState(216)
+  // Open with the timeline tall enough to show every track. Tracks may load
+  // after mount, so also fit once on their first appearance (a single time,
+  // so later manual resizes stick).
+  const [timelineH, setTimelineH] = React.useState(() => fitTimelineH(state.tracks.length))
+  const timelineFitRef = React.useRef(state.tracks.length > 0)
+  React.useEffect(() => {
+    if (timelineFitRef.current || state.tracks.length === 0) return
+    timelineFitRef.current = true
+    setTimelineH(fitTimelineH(state.tracks.length))
+  }, [state.tracks.length])
   const [exportOpen, setExportOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
 
