@@ -6,6 +6,7 @@ import type {
   IPriceLine,
   ISeriesApi,
   LineData,
+  Logical,
   SeriesDefinition,
   SeriesType,
   UTCTimestamp,
@@ -545,6 +546,7 @@ export function PriceChartView({
             borderVisible: false,
             timeVisible: true,
             secondsVisible: false,
+            rightOffset: 12,
           },
           crosshair: { mode: 0 },
         })
@@ -589,7 +591,17 @@ export function PriceChartView({
           event.clientX - container.getBoundingClientRect().left
         const priceFormatter = candleSeries.priceFormatter()
         const trendlinePoint = (event: MouseEvent): TrendlinePoint | null => {
-          const time = chart.timeScale().coordinateToTime(paneX(event))
+          const timeScale = chart.timeScale()
+          const x = paneX(event)
+          const logical = timeScale.coordinateToLogical(x)
+          let time = timeScale.coordinateToTime(x)
+          const data = candleSeries.data()
+          const last = data.length - 1
+          if (time === null && logical !== null && logical > last && last > 0) {
+            const lastTime = Number(data[last].time)
+            const interval = lastTime - Number(data[last - 1].time)
+            time = (lastTime + Math.round(logical - last) * interval) as UTCTimestamp
+          }
           const price = candleSeries.coordinateToPrice(paneY(event))
           if (time === null || price === null || price <= 0) return null
           return { time: Number(time), price }
@@ -1119,16 +1131,19 @@ export function PriceChartView({
         ...trendlines,
         ...(trendlineDraft ? [trendlineDraft] : []),
       ]) {
-        const startTime = nearestCandleTime(candleTimes, line.start.time)
-        const endTime = nearestCandleTime(candleTimes, line.end.time)
-        const startX =
-          startTime === null
+        const last = candleTimes.length - 1
+        const lastTime = candleTimes[last]
+        const interval = lastTime - candleTimes[last - 1]
+        const [startX, endX] = [line.start, line.end].map((point) => {
+          if (last > 0 && point.time > lastTime && interval > 0)
+            return timeScale.logicalToCoordinate(
+              (last + (point.time - lastTime) / interval) as Logical
+            )
+          const time = nearestCandleTime(candleTimes, point.time)
+          return time === null
             ? null
-            : timeScale.timeToCoordinate(startTime as UTCTimestamp)
-        const endX =
-          endTime === null
-            ? null
-            : timeScale.timeToCoordinate(endTime as UTCTimestamp)
+            : timeScale.timeToCoordinate(time as UTCTimestamp)
+        })
         const startY = series.priceToCoordinate(line.start.price)
         const endY = series.priceToCoordinate(line.end.price)
         if (
