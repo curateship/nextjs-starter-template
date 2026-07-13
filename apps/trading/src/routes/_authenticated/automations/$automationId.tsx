@@ -9,7 +9,10 @@ import { loadIndicators } from "@/lib/api/indicators"
 import { emaCrossParamsFromChart } from "@/lib/indicators/defs/ema-cross"
 import { priceActionParamsFromChart } from "@/lib/indicators/defs/price-action"
 import { SIGNAL_FOR_CHART_TYPE } from "@/lib/indicators/registry"
-import { qqeChartToModuleParams } from "@/lib/trading/indicators-config"
+import {
+  fairValueGapChartToModuleParams,
+  qqeChartToModuleParams,
+} from "@/lib/trading/indicators-config"
 
 export const Route = createFileRoute(
   "/_authenticated/automations/$automationId"
@@ -40,6 +43,9 @@ export const Route = createFileRoute(
     const chartQqe = chartIndicators.find(
       (indicator) => indicator.type === "qqe"
     )
+    const chartFvg = chartIndicators.find(
+      (indicator) => indicator.type === "fairValueGap"
+    )
     const indicatorParamSeeds = {
       ...(chartPriceAction
         ? { price_action: priceActionParamsFromChart(chartPriceAction.params) }
@@ -48,6 +54,9 @@ export const Route = createFileRoute(
         ? { ema_cross: emaCrossParamsFromChart(chartEma.params) }
         : {}),
       ...(chartQqe ? { qqe: qqeChartToModuleParams(chartQqe.params) } : {}),
+      ...(chartFvg
+        ? { fair_value_gap: fairValueGapChartToModuleParams(chartFvg.params) }
+        : {}),
     }
     return { automation, pinnedIndicators, indicatorParamSeeds }
   },
