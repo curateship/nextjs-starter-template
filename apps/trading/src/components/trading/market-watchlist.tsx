@@ -8,7 +8,10 @@ import {
 } from "lucide-react"
 
 import { formatCompactUsd } from "@/components/trading/format"
-import { pinFavoriteMarkets } from "@/components/trading/market-watchlist-order"
+import {
+  filterMarketsByCoins,
+  pinFavoriteMarkets,
+} from "@/components/trading/market-watchlist-order"
 import { MarketListLoadingSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -19,12 +22,13 @@ import { cn } from "@/lib/utils"
 
 const FAVORITES_KEY = "trading-favorite-markets"
 
-type WatchlistTab = "all" | "fav" | "gainers" | "losers"
+type WatchlistTab = "all" | "active" | "gainers" | "losers"
+type ActiveTab = "positions" | "orders"
 type SortKey = "vol" | "change"
 
 const TABS: { value: WatchlistTab; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "fav", label: "Fav" },
+  { value: "active", label: "Active" },
   { value: "gainers", label: "Gainers" },
   { value: "losers", label: "Losers" },
 ]
@@ -32,15 +36,20 @@ const TABS: { value: WatchlistTab; label: string }[] = [
 export function MarketWatchlist({
   network,
   selected,
+  positionMarkets,
+  openOrderMarkets,
   onSelect,
 }: {
   network: TradingNetwork
   selected: string
+  positionMarkets: ReadonlySet<string>
+  openOrderMarkets: ReadonlySet<string>
   onSelect: (coin: string) => void
 }) {
   const rows = useMarketRows(network)
   const [query, setQuery] = React.useState("")
   const [tab, setTab] = React.useState<WatchlistTab>("all")
+  const [activeTab, setActiveTab] = React.useState<ActiveTab>("orders")
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "vol",
     dir: "desc",
@@ -53,7 +62,12 @@ export function MarketWatchlist({
       .filter((row) => !trimmed || row.coin.toUpperCase().includes(trimmed))
       .map((row) => ({ row, change: dayChangePct(row.markPx, row.prevDayPx) }))
 
-    if (tab === "fav") list = list.filter((item) => favorites.has(item.row.coin))
+    if (tab === "active") {
+      list = filterMarketsByCoins(
+        list,
+        activeTab === "positions" ? positionMarkets : openOrderMarkets
+      )
+    }
     else if (tab === "gainers") list = list.filter((item) => item.change > 0)
     else if (tab === "losers") list = list.filter((item) => item.change < 0)
 
@@ -64,7 +78,16 @@ export function MarketWatchlist({
         : (Number(a.row.dayNtlVlm) - Number(b.row.dayNtlVlm)) * direction
     )
     return tab === "all" ? pinFavoriteMarkets(list, favorites) : list
-  }, [rows, query, tab, favorites, sort])
+  }, [
+    rows,
+    query,
+    tab,
+    activeTab,
+    positionMarkets,
+    openOrderMarkets,
+    favorites,
+    sort,
+  ])
 
   const toggleSort = (key: SortKey) =>
     setSort((current) =>
@@ -98,13 +121,28 @@ export function MarketWatchlist({
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              {item.value === "fav" ? (
-                <StarIcon className="size-3.5 fill-current" />
-              ) : null}
               {item.label}
             </button>
           ))}
         </div>
+        {tab === "active" ? (
+          <div
+            role="group"
+            aria-label="Active market type"
+            className="grid grid-cols-2 rounded-lg bg-muted p-1"
+          >
+            <ActiveMarketTab
+              active={activeTab === "orders"}
+              label="Open"
+              onClick={() => setActiveTab("orders")}
+            />
+            <ActiveMarketTab
+              active={activeTab === "positions"}
+              label="Active"
+              onClick={() => setActiveTab("positions")}
+            />
+          </div>
+        ) : null}
       </div>
       <div className="flex items-center justify-between border-b px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
         <SortHeader label="Market / 24h Vol" sortKey="vol" sort={sort} onSort={toggleSort} />
@@ -175,15 +213,46 @@ export function MarketWatchlist({
             <MarketListLoadingSkeleton />
           ) : visible.length === 0 ? (
             <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {tab === "fav"
-                ? "No favorites yet — tap a star to add one."
-                : "No matches."}
+              {emptyMarketText(tab, activeTab)}
             </div>
           ) : null}
         </div>
       </ScrollArea>
     </div>
   )
+}
+
+function ActiveMarketTab({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+        active
+          ? "bg-card text-foreground shadow-xs"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+function emptyMarketText(tab: WatchlistTab, activeTab: ActiveTab): string {
+  if (tab !== "active") return "No matches."
+  return activeTab === "positions"
+    ? "No active positions."
+    : "No open orders."
 }
 
 function SortHeader({

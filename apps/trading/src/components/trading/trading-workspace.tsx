@@ -198,6 +198,28 @@ export function TradingWorkspace({
 
   const marketRow = marketRows.find((row) => row.coin === market) ?? null
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
+  const positionMarkets = React.useMemo(
+    () =>
+      new Set(
+        isPaper
+          ? (paperAccount?.positions ?? [])
+              .filter((position) => Number(position.szi) !== 0)
+              .map((position) => position.coin)
+          : (account?.clearinghouseState?.assetPositions ?? [])
+              .filter(({ position }) => Number(position.szi) !== 0)
+              .map(({ position }) => position.coin)
+      ),
+    [isPaper, paperAccount?.positions, account?.clearinghouseState?.assetPositions]
+  )
+  const openOrderMarkets = React.useMemo(
+    () =>
+      new Set(
+        (isPaper ? paperAccount?.openOrders : account?.openOrders)?.map(
+          (order) => order.coin
+        ) ?? []
+      ),
+    [isPaper, paperAccount?.openOrders, account?.openOrders]
+  )
 
   const summary: AccountSummary | null = isPaper
     ? paperAccount
@@ -441,6 +463,8 @@ export function TradingWorkspace({
                   <MarketWatchlist
                     network={tradingNetwork}
                     selected={market}
+                    positionMarkets={positionMarkets}
+                    openOrderMarkets={openOrderMarkets}
                     onSelect={onMarketChange}
                   />
                 </WorkspacePanel>
