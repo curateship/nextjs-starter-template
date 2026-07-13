@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { formatCompactUsd } from "@/components/trading/format"
+import { MarketListLoadingSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useMarketRows } from "@/lib/hl/hooks"
@@ -169,13 +170,13 @@ export function MarketWatchlist({
               </div>
             )
           })}
-          {visible.length === 0 ? (
+          {rows.length === 0 ? (
+            <MarketListLoadingSkeleton />
+          ) : visible.length === 0 ? (
             <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {rows.length === 0
-                ? "Loading markets…"
-                : tab === "fav"
-                  ? "No favorites yet — tap a star to add one."
-                  : "No matches."}
+              {tab === "fav"
+                ? "No favorites yet — tap a star to add one."
+                : "No matches."}
             </div>
           ) : null}
         </div>

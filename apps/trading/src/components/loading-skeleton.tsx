@@ -1,5 +1,102 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
+export function DashboardLoadingSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading dashboard"
+      aria-busy="true"
+      className="w-full space-y-4 sm:space-y-6"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-24 w-full" />
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <div className="flex items-center justify-between gap-4 bg-muted/50 p-4">
+          <Skeleton className="h-6 w-36" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+        <div className="space-y-4 p-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-8 w-full" />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function WorkspaceLoadingSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading workspace"
+      aria-busy="true"
+      className="grid h-full min-h-96 grid-cols-1 gap-2 p-1.5 sm:gap-3 sm:p-2 md:p-3 lg:grid-cols-4"
+    >
+      <Skeleton className="min-h-80 w-full lg:col-span-3" />
+      <div className="space-y-2 sm:space-y-3">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    </div>
+  )
+}
+
+export function ChartLoadingSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading chart"
+      aria-busy="true"
+      className="absolute inset-0 flex flex-col gap-2 p-3"
+    >
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <Skeleton className="min-h-0 w-full flex-1" />
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-32" />
+      </div>
+    </div>
+  )
+}
+
+export function MarketListLoadingSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading markets"
+      aria-busy="true"
+      className="space-y-2 p-2"
+    >
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div key={index} className="flex items-center gap-2 rounded-md p-1">
+          <Skeleton className="size-4 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-5 w-14" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function ShellLoadingSkeleton() {
   return (
     <div className="flex min-h-screen bg-background">

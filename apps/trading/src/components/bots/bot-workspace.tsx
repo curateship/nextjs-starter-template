@@ -24,6 +24,7 @@ import {
   type BotCommand,
 } from "@/components/bots/bot-workspace-header"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
+import { WorkspaceLoadingSkeleton } from "@/components/loading-skeleton"
 import {
   PriceChart,
   type ChartCandle,
@@ -519,13 +520,7 @@ export function BotWorkspace({
         onCommand={(command) => void run(command)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <ClientOnly
-        fallback={
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Loading bot workspace…
-          </div>
-        }
-      >
+      <ClientOnly fallback={<WorkspaceLoadingSkeleton />}>
         <ResizablePanelGroup
           orientation="vertical"
           className="min-h-0 flex-1"

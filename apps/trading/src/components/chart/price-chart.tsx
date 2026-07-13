@@ -16,6 +16,7 @@ import {
   EMPTY_STRATEGY_OVERLAYS,
   outputToOverlays,
 } from "@/components/chart/indicator-overlays"
+import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
 import { INDICATORS } from "@/lib/indicators/registry"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
@@ -211,7 +212,6 @@ const MAX_VISIBLE_CHIPS = 300
 export function PriceChartView({
   candles,
   loading = false,
-  coin = "",
   dataKey = "static",
   priceLines = [],
   markers = [],
@@ -231,8 +231,6 @@ export function PriceChartView({
   /** Candles to render, ascending by open time. */
   candles: ChartCandle[]
   loading?: boolean
-  /** Coin label for the loading state. */
-  coin?: string
   /** Identity of the candle series; a change forces a full data reset. */
   dataKey?: string
   priceLines?: ChartPriceLine[]
@@ -1333,9 +1331,7 @@ export function PriceChartView({
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
       {loading && candles.length === 0 ? (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-          Loading {coin} candles…
-        </div>
+        <ChartLoadingSkeleton />
       ) : null}
       {measurement ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
@@ -1831,7 +1827,6 @@ export function PriceChart({
     <PriceChartView
       candles={candles}
       loading={loading}
-      coin={coin}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
       markers={[...markers, ...qqe.markers]}
