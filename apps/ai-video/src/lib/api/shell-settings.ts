@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
+import { z } from "zod"
 
 import { createDefaultShellConfig, type ShellConfig } from "@/lib/ai-video"
 import { API_USAGE_DEFAULT_COST_PER_CREDIT_USD } from "@/lib/api-usage-constants"
@@ -7,6 +8,7 @@ import {
   requireCanonicalShellGlobals,
   shellConfigSchema,
 } from "@/lib/shell-config-schema"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { db } from "@/server/db"
 import { mediaFileUrl } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
@@ -59,6 +61,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         apiUsageCostPerCreditUsd,
         workspaceName: workspace.name,
         defaultApiUsageMonthlyCredits,
+        sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topNavigation: workspaceSettings.topNavigation,
@@ -97,6 +100,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
+            sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
             brandKit,
             topNavigation: data.topNavigation,
@@ -144,6 +148,52 @@ export function loadShellSettings() {
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
+}
+
+// Lightweight, per-user save for the draggable sidebar width. Unlike the full
+// shell save this is not admin-gated — any signed-in user can persist their own
+// workspace's sidebar width by dragging the rail.
+const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      sidebarWidth: z
+        .number()
+        .int()
+        .min(MIN_SIDEBAR_WIDTH)
+        .max(MAX_SIDEBAR_WIDTH),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const { settings } = parseWorkspaceSettingsForReset(workspace.settings)
+
+    const [updated] = await db
+      .update(aiVideoWorkspaces)
+      .set({
+        settings: { ...settings, sidebarWidth: data.sidebarWidth },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiVideoWorkspaces.id, workspace.id),
+          eq(aiVideoWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: aiVideoWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function saveSidebarWidth(sidebarWidth: number) {
+  return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
 function parseShellGlobals(value: unknown) {

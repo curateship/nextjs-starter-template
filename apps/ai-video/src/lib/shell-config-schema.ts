@@ -10,6 +10,7 @@ import {
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
@@ -153,6 +154,13 @@ export const shellConfigSchema = shellGlobalsSchema
       .int()
       .min(API_USAGE_LIMIT_MIN)
       .max(API_USAGE_LIMIT_MAX),
+    // Per-workspace sidebar width. Always populated with a valid value by the
+    // loader (workspace settings default it), so a plain required field is fine.
+    sidebarWidth: z
+      .number()
+      .int()
+      .min(MIN_SIDEBAR_WIDTH)
+      .max(MAX_SIDEBAR_WIDTH),
     favicon: z.string(),
     brandKit: brandKitConfigSchema,
     topNavigation: z.array(shellTopNavigationItemSchema),

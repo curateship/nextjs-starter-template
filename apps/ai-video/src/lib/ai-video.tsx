@@ -3,6 +3,7 @@ import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
 } from "@/lib/api-usage-constants"
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -316,6 +317,8 @@ export type ShellConfig = {
   apiUsageCostPerCreditUsd: number
   dashboardRowsPerPage: number
   mediaUploadMaxMb: number
+  // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
+  sidebarWidth: number
   favicon: string
   brandKit: BrandKitConfig
   topNavigation: ShellTopNavigationItem[]
@@ -386,6 +389,7 @@ export function createDefaultShellConfig(): ShellConfig {
     apiUsageCostPerCreditUsd: API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     brandKit: createDefaultBrandKitConfig(),
     topNavigation: [],

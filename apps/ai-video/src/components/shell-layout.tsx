@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Outlet, useRouterState } from "@tanstack/react-router"
+import { toast } from "sonner"
 
 import { DashboardContent } from "@/components/demo/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
@@ -22,6 +23,7 @@ import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
+  saveSidebarWidth,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 import { requireCanonicalShellConfig } from "@/lib/shell-config-schema"
@@ -44,6 +46,12 @@ export function ShellLayout({
       state.resolvedLocation?.pathname ?? state.location.pathname,
   })
   const [config, setConfig] = React.useState(() => resolveConfig(settings))
+  // Last width the server confirmed, plus a serialized save queue + version
+  // counter so rapid drags persist in order and a failure rolls back to the
+  // last-saved width without clobbering a newer in-flight drag.
+  const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
+  const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
+  const sidebarWidthSaveVersionRef = React.useRef(0)
   const [settingsError, setSettingsError] = React.useState<string | null>(
     initialSettingsError
   )
@@ -63,7 +71,9 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    setConfig(resolveConfig(settings))
+    const nextConfig = resolveConfig(settings)
+    savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    setConfig(nextConfig)
     setSettingsError(initialSettingsError)
     setSaveStatus("idle")
   }, [initialSettingsError, settings])
@@ -98,6 +108,38 @@ export function ShellLayout({
     setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
+  }, [])
+
+  // Persist the dragged sidebar width on its own (not through the admin-gated
+  // full-config save). Updates local config immediately, then saves; on failure
+  // rolls the width back to the last-confirmed value unless a newer drag has
+  // superseded this one.
+  const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
+    const version = sidebarWidthSaveVersionRef.current + 1
+    sidebarWidthSaveVersionRef.current = version
+    setConfig((current) => ({ ...current, sidebarWidth }))
+
+    const save = sidebarWidthSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveSidebarWidth(sidebarWidth))
+    sidebarWidthSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    void save
+      .then(() => {
+        savedSidebarWidthRef.current = sidebarWidth
+      })
+      .catch((error) => {
+        if (version === sidebarWidthSaveVersionRef.current) {
+          setConfig((current) => ({
+            ...current,
+            sidebarWidth: savedSidebarWidthRef.current,
+          }))
+          toast.error(getShellSettingsErrorMessage(error))
+        }
+      })
   }, [])
 
   const handleSaveConfig = React.useCallback(async () => {
@@ -164,7 +206,11 @@ export function ShellLayout({
   return (
     <ShellRuntimeContext.Provider value={runtime}>
       <div className="min-h-screen bg-background">
-        <SidebarProvider className="h-screen">
+        <SidebarProvider
+          className="h-screen"
+          sidebarWidth={config.sidebarWidth}
+          onSidebarWidthCommit={handleSidebarWidthCommit}
+        >
           <AppSidebar
             config={config}
             user={user}
