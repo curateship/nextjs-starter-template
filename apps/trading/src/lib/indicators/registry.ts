@@ -5,6 +5,7 @@ import type { IndicatorModule } from "./contract"
 import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
 import { emaCrossIndicator } from "./defs/ema-cross"
+import { fairValueGapIndicator } from "./defs/fair-value-gap"
 import { macdCrossIndicator } from "./defs/macd-cross"
 import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
@@ -20,6 +21,7 @@ export const INDICATOR_IDS = [
   "breakout",
   "bollinger",
   "price_action",
+  "fair_value_gap",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -43,6 +45,7 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   breakout: erase(breakoutIndicator),
   bollinger: erase(bollingerIndicator),
   price_action: erase(priceActionIndicator),
+  fair_value_gap: erase(fairValueGapIndicator),
 }
 
 /**
@@ -59,6 +62,7 @@ export const SIGNAL_FOR_CHART_TYPE: Partial<Record<IndicatorType, IndicatorId>> 
   macd: "macd_cross",
   priceAction: "price_action",
   qqe: "qqe",
+  fairValueGap: "fair_value_gap",
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

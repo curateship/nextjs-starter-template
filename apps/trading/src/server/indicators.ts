@@ -140,6 +140,16 @@ export async function upsertUserIndicator(
       }
     }
   }
+  if (def.type === "fairValueGap") {
+    const size = input.params.minGapSize
+    if (size !== undefined && (!Number.isFinite(size) || size < 0)) {
+      throw new Error("Invalid Fair Value Gap parameter: minGapSize")
+    }
+    const flag = input.params.showFilled
+    if (flag !== undefined && flag !== 0 && flag !== 1) {
+      throw new Error("Invalid Fair Value Gap parameter: showFilled")
+    }
+  }
   // Store only the params this indicator type defines — never arbitrary keys.
   const paramKeys = [
     ...INDICATOR_PARAM_FIELDS[def.type].map((field) => field.key),

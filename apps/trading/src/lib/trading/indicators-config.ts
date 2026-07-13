@@ -15,6 +15,7 @@ export type IndicatorType =
   | "session"
   | "priceAction"
   | "qqe"
+  | "fairValueGap"
 
 /**
  * QQE's two enum params are stored as a numeric INDEX into these lists (chart
@@ -144,6 +145,14 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
       swingLookback: 50,
     },
   },
+  {
+    id: "fair-value-gap",
+    type: "fairValueGap",
+    enabled: false,
+    pinned: false,
+    // Mirrors fairValueGapIndicator.defaultParams; showFilled stored as 0/1.
+    params: { minGapSize: 1, showFilled: 1 },
+  },
 ]
 
 /** Chart QQE params (numeric/index form) → the QQE module's typed params. */
@@ -161,6 +170,16 @@ export function qqeChartToModuleParams(
     loopbackPeriod: params.loopbackPeriod,
     minConsolidationLen: params.minConsolidationLen,
     swingLookback: params.swingLookback,
+  }
+}
+
+/** Chart Fair Value Gap params (numeric form) → the FVG module's typed params. */
+export function fairValueGapChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string | boolean> {
+  return {
+    minGapSize: params.minGapSize ?? 1,
+    showFilled: (params.showFilled ?? 1) !== 0,
   }
 }
 
@@ -290,6 +309,22 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "minConsolidationLen", label: "Min consolidation bars" },
     { key: "swingLookback", label: "Swing lookback" },
   ],
+  fairValueGap: [
+    {
+      key: "minGapSize",
+      label: "Min gap size %",
+      step: 0.1,
+      description:
+        "Smallest imbalance to draw, as a % of price. Bigger keeps only the major gaps and ignores the tiny ones that just mean chop.",
+    },
+    {
+      key: "showFilled",
+      label: "Show filled gaps",
+      kind: "boolean",
+      description:
+        "Keep showing a gap (dimmed) after price fills it, or hide it once filled.",
+    },
+  ],
 }
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
@@ -302,6 +337,7 @@ export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   session: "Sessions",
   priceAction: "Price Action",
   qqe: "QQE",
+  fairValueGap: "Fair Value Gap",
 }
 
 /** The label shown for an indicator: user rename, or the default label. */
@@ -341,6 +377,9 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
     const filtered = (config.params.consolidationFilter ?? 1) !== 0
     return `RSI ${config.params.rsiPeriod} · ${ma} · ${filtered ? "filtered" : "raw"}`
   }
+  if (config.type === "fairValueGap") {
+    return `Min ${config.params.minGapSize ?? 1}%`
+  }
   return INDICATOR_PARAM_FIELDS[config.type]
     .map((field) => {
       const value = config.params[field.key]
@@ -372,6 +411,8 @@ const PALETTE: Record<string, ThemeHex> = {
   base: { light: "#0d9488", dark: "#2dd4bf" },
   // QQE paints its own green/red trend bars; this is just the dashboard swatch.
   qqe: { light: "#7c3aed", dark: "#a78bfa" },
+  // FVG paints its own green/red gap boxes; this is just the dashboard swatch.
+  fairValueGap: { light: "#65a30d", dark: "#a3e635" },
   // Session shading swatch; the chart applies its own translucency.
   session: { light: "#2962ff", dark: "#2962ff" },
   guide: { light: "rgba(100, 116, 139, 0.45)", dark: "rgba(148, 163, 184, 0.4)" },

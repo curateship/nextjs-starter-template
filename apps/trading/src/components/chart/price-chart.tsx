@@ -34,6 +34,7 @@ import {
 } from "@/lib/strategies/indicators"
 import {
   emaLines,
+  fairValueGapChartToModuleParams,
   indicatorColor,
   OSCILLATORS,
   qqeChartToModuleParams,
@@ -1719,6 +1720,29 @@ export function PriceChart({
     }
   }, [indicators, candles])
 
+  // Fair Value Gap draws its imbalance boxes through the same zone pipeline as
+  // QQE's chop zones. Per the "no signal arrows" rule its buy/sell aren't
+  // painted here — the boxes are the visual.
+  const fvg = React.useMemo(() => {
+    const cfg = indicators.find(
+      (ind) => ind.type === "fairValueGap" && ind.enabled
+    )
+    if (!cfg || candles.length === 0) return { zones: [] as ChartZone[] }
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.fair_value_gap.compute(
+      numeric,
+      fairValueGapChartToModuleParams(cfg.params) as never
+    )
+    return { zones: outputToOverlays(out).zones }
+  }, [indicators, candles])
+
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
   // bounded by that session's own high and low (like the measure tool's
@@ -1799,8 +1823,8 @@ export function PriceChart({
     return next
   }, [sessionEnabled, sessionHex, sessionKey, interval, candles])
   const zones = React.useMemo(
-    () => [...strategy.zones, ...qqe.zones, ...sessionZones],
-    [strategy.zones, qqe.zones, sessionZones]
+    () => [...strategy.zones, ...qqe.zones, ...fvg.zones, ...sessionZones],
+    [strategy.zones, qqe.zones, fvg.zones, sessionZones]
   )
   // Content-stable so a live tick that doesn't change any bar colour doesn't
   // force the candle series to fully re-set (which would re-frame the chart).
