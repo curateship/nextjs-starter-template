@@ -25,6 +25,10 @@ import {
 } from "@/lib/api/order-templates"
 import { getOrderErrorMessage, placeOneClickOrder } from "@/lib/api/orders"
 import type { MarketRow } from "@/lib/hl/hooks"
+import {
+  resolveOneClickEntryPrice,
+  resolveTakeProfitPrice,
+} from "@/lib/one-click-order"
 import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
 import { usePersistedState } from "@/lib/use-persisted-state"
 
@@ -37,6 +41,7 @@ type OneClickOrderOptions = {
   equity: number
   disabledReason: string | null
   confirmationEnabled: boolean
+  limitPx?: string
   onNotify: (message: string, tone: "ok" | "error") => void
 }
 
@@ -48,6 +53,7 @@ function useOneClickOrder({
   markPx,
   equity,
   disabledReason,
+  limitPx,
   onNotify,
 }: OneClickOrderOptions) {
   const [templates, setTemplates] = React.useState<OrderTemplateItem[]>([])
@@ -89,6 +95,8 @@ function useOneClickOrder({
           ? loadError
           : !selected
             ? "Create a template in Settings to use one-click orders."
+            : selected.useLimitOrder && !limitPx
+              ? "Right-click the chart to choose a limit price."
             : !(markPx > 0) || !(equity > 0)
               ? "A current price and positive wallet equity are required."
               : selected.leverage > (marketRow?.maxLeverage ?? 0)
@@ -104,11 +112,12 @@ function useOneClickOrder({
         market,
         side,
         templateId: selected.id,
+        ...(selected.useLimitOrder && limitPx ? { px: limitPx } : {}),
       })
       onNotify(
         result.kind === "filled"
           ? `Filled ${result.totalSz} ${market} @ ${result.avgPx}; stop ${result.stopLossPx}, take-profit ${result.takeProfitPx}.`
-          : `One-click order #${result.oid} submitted with stop and take-profit.`,
+          : `${result.entryOrderType === "limit" ? "Limit" : "One-click"} order #${result.oid} submitted with stop and take-profit.`,
         "ok"
       )
     } catch (error) {
@@ -180,6 +189,7 @@ export function OneClickPanel({
         side={confirmSide ?? "buy"}
         market={options.market}
         template={selected}
+        limitPx={options.limitPx}
         markPx={options.markPx}
         equity={options.equity}
         marketRow={options.marketRow}
@@ -196,10 +206,19 @@ export function OneClickPanel({
 }
 
 export function OneClickMenuActions({
+  limitPx,
+  onLimitPrefill,
   onComplete,
   ...options
-}: OneClickOrderOptions & { onComplete: () => void }) {
-  const { selected, reason, busy, submit } = useOneClickOrder(options)
+}: OneClickOrderOptions & {
+  limitPx?: string
+  onLimitPrefill: (side: "buy" | "sell", px: string) => void
+  onComplete: () => void
+}) {
+  const { selected, reason, busy, submit } = useOneClickOrder({
+    ...options,
+    limitPx,
+  })
   const [confirmSide, setConfirmSide] = React.useState<"buy" | "sell" | null>(
     null
   )
@@ -214,34 +233,65 @@ export function OneClickMenuActions({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="w-full justify-start text-emerald-600 hover:text-emerald-700"
-        disabled={Boolean(reason) || busy}
-        title={reason ?? undefined}
-        onClick={() => request("buy")}
-      >
-        1-Click Long
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="w-full justify-start text-red-500 hover:text-red-600"
-        disabled={Boolean(reason) || busy}
-        title={reason ?? undefined}
-        onClick={() => request("sell")}
-      >
-        1-Click Short
-      </Button>
+      {selected?.useLimitOrder ? (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="justify-start text-emerald-600 hover:text-emerald-700"
+            disabled={Boolean(reason) || busy}
+            title={reason ?? undefined}
+            onClick={() => request("buy")}
+          >
+            Buy limit - WS:{selected.orderSizePct}% SL:{selected.stopLossPct}%
+            TP:{selected.takeProfitPct}%
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="justify-start text-red-500 hover:text-red-600"
+            disabled={Boolean(reason) || busy}
+            title={reason ?? undefined}
+            onClick={() => request("sell")}
+          >
+            Sell limit - WS:{selected.orderSizePct}% SL:{selected.stopLossPct}%
+            TP:{selected.takeProfitPct}%
+          </Button>
+        </>
+      ) : null}
+
+      {!selected?.useLimitOrder && limitPx ? (
+        <>
+          <div className="my-1 border-t" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="justify-start text-emerald-600 hover:text-emerald-700"
+            onClick={() => onLimitPrefill("buy", limitPx)}
+          >
+            Buy limit
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="justify-start text-red-500 hover:text-red-600"
+            onClick={() => onLimitPrefill("sell", limitPx)}
+          >
+            Sell limit
+          </Button>
+        </>
+      ) : null}
 
       <OneClickConfirmDialog
         open={Boolean(confirmSide)}
         side={confirmSide ?? "buy"}
         market={options.market}
         template={selected}
+        limitPx={limitPx}
         markPx={options.markPx}
         equity={options.equity}
         marketRow={options.marketRow}
@@ -265,6 +315,7 @@ function OneClickConfirmDialog({
   side,
   market,
   template,
+  limitPx,
   markPx,
   equity,
   marketRow,
@@ -276,6 +327,7 @@ function OneClickConfirmDialog({
   side: "buy" | "sell"
   market: string
   template: OrderTemplateItem | null
+  limitPx?: string
   markPx: number
   equity: number
   marketRow: MarketRow | null
@@ -283,31 +335,38 @@ function OneClickConfirmDialog({
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }) {
-  if (!template) return null
+  if (!template || !open) return null
 
   const margin = equity * (template.orderSizePct / 100)
   const notional = margin * template.leverage
-  const sz = usdToBaseSize(notional, markPx)
+  const entryPrice = resolveOneClickEntryPrice({
+    markPrice: markPx,
+    useLimitOrder: template.useLimitOrder,
+    limitPrice: limitPx,
+  })
+  const sz = usdToBaseSize(notional, entryPrice)
   const preview = previewOrder({
     side,
-    px: markPx,
+    px: entryPrice,
     sz,
     leverage: template.leverage,
     maxLeverage: marketRow?.maxLeverage ?? template.leverage,
-    isTaker: true,
+    isTaker: !template.useLimitOrder,
   })
   const stop = formatTrigger(
-    markPx *
+    entryPrice *
       (side === "buy"
         ? 1 - template.stopLossPct / 100
         : 1 + template.stopLossPct / 100),
     marketRow?.szDecimals ?? 4
   )
   const takeProfit = formatTrigger(
-    markPx *
-      (side === "buy"
-        ? 1 + template.takeProfitPct / 100
-        : 1 - template.takeProfitPct / 100),
+    resolveTakeProfitPrice({
+      entryPrice,
+      currentPrice: markPx,
+      side,
+      takeProfitPct: template.takeProfitPct,
+    }),
     marketRow?.szDecimals ?? 4
   )
 
@@ -324,6 +383,14 @@ function OneClickConfirmDialog({
         </DialogHeader>
         <DialogBody className="grid gap-2 text-sm">
           <SummaryRow label="Template" value={template.name} />
+          <SummaryRow
+            label="Entry"
+            value={
+              template.useLimitOrder
+                ? `Limit · ${formatTrigger(entryPrice, marketRow?.szDecimals ?? 4)}`
+                : `Market · about ${formatTrigger(entryPrice, marketRow?.szDecimals ?? 4)}`
+            }
+          />
           <SummaryRow
             label="Wallet cash used"
             value={`${template.orderSizePct}% · $${margin.toFixed(2)}`}

@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm"
 import { privateKeyToAccount } from "viem/accounts"
 
 import { db, type CustomShellDb } from "@/server/db"
+import { loadTradingAccountState } from "@/lib/hl/account-balance"
 import { CURRENT_KEY_VERSION, encryptPrivateKey } from "@/server/hyperliquid/keys"
 import { assertNetworkEnabled } from "@/server/hyperliquid/transport"
 import {
@@ -213,9 +214,11 @@ export async function serializeWalletsWithEquity(rows: TradingWallet[]) {
   return Promise.all(
     rows.map(async (row) => {
       const address = (row.vaultAddress ?? row.accountAddress) as `0x${string}`
-      const equity = await getInfoClient(row.network as TradingNetwork)
-        .clearinghouseState({ user: address })
-        .then((state) => Number(state.marginSummary.accountValue))
+      const equity = await loadTradingAccountState(
+        getInfoClient(row.network as TradingNetwork),
+        address
+      )
+        .then((state) => Number(state.equity))
         .catch(() => null)
       return { ...serializeWallet(row), equity }
     })

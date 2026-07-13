@@ -1,4 +1,9 @@
 import { db, type CustomShellDb } from "@/server/db"
+import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import {
+  resolveOneClickEntryPrice,
+  resolveTakeProfitPrice,
+} from "@/lib/one-click-order"
 import {
   buildCloid,
   cancelOrder,
@@ -17,6 +22,7 @@ import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
   checkOrderIntent,
   describeViolations,
+  type OrderIntent,
   type RiskLimits,
 } from "@/server/risk/risk"
 import { findUserWallet } from "@/server/wallets"
@@ -53,9 +59,12 @@ export type OneClickOrderInput = {
   market: string
   side: "buy" | "sell"
   templateId: string
+  /** Exact chart price selected for a limit-entry template. */
+  px?: string
 }
 
 export type OneClickOrderResult = ManualOrderResult & {
+  entryOrderType: "market" | "limit"
   stopLossPx: string
   takeProfitPx: string
 }
@@ -91,11 +100,12 @@ export async function submitManualOrder(
   const accountAddress = (wallet.vaultAddress ??
     wallet.accountAddress) as `0x${string}`
 
-  const [assetData, clearinghouse, openOrders] = await Promise.all([
+  const [assetData, accountState, openOrders] = await Promise.all([
     info.metaAndAssetCtxs(),
-    info.clearinghouseState({ user: accountAddress }),
+    loadTradingAccountState(info, accountAddress),
     info.openOrders({ user: accountAddress }),
   ])
+  const clearinghouse = accountState.clearinghouseState
   const priceObservedAt = Date.now()
   const ctx = assetData[1][asset.assetId]
   if (!ctx) {
@@ -125,11 +135,11 @@ export async function submitManualOrder(
     sz,
     reduceOnly: input.reduceOnly,
     leverage: effectiveLeverage,
-  }
+  } satisfies OrderIntent
   const risk = checkOrderIntent(
     intent,
     {
-      equity: clearinghouse.marginSummary.accountValue,
+      equity: accountState.equity,
       positionSzi: position?.szi ?? "0",
       positionNotional: position?.positionValue ?? "0",
       openOrderCount: openOrders.length,
@@ -190,17 +200,18 @@ export async function submitOneClickOrder(
   const info = getInfoClient(network)
   const accountAddress = (wallet.vaultAddress ??
     wallet.accountAddress) as `0x${string}`
-  const [assetData, clearinghouse, openOrders] = await Promise.all([
+  const [assetData, accountState, openOrders] = await Promise.all([
     info.metaAndAssetCtxs(),
-    info.clearinghouseState({ user: accountAddress }),
+    loadTradingAccountState(info, accountAddress),
     info.openOrders({ user: accountAddress }),
   ])
+  const clearinghouse = accountState.clearinghouseState
   const priceObservedAt = Date.now()
   const ctx = assetData[1][asset.assetId]
   if (!ctx) throw new Error(`No market data for ${input.market}`)
 
   const mark = Number(ctx.markPx)
-  const equity = Number(clearinghouse.marginSummary.accountValue)
+  const equity = Number(accountState.equity)
   const orderSizePct = Number(template.orderSizePct)
   const stopLossPct = Number(template.stopLossPct)
   const takeProfitPct = Number(template.takeProfitPct)
@@ -213,16 +224,31 @@ export async function submitOneClickOrder(
     throw new Error("A current price and positive wallet equity are required")
   }
 
-  const notional = equity * (orderSizePct / 100) * template.leverage
-  const sz = roundSize(notional / mark, asset.szDecimals)
-  const px = roundPrice(applySlippage(ctx.markPx, input.side), asset.szDecimals)
   const isBuy = input.side === "buy"
+  const entryOrderType = template.useLimitOrder ? "limit" : "market"
+  const requestedEntryPrice = resolveOneClickEntryPrice({
+    markPrice: mark,
+    useLimitOrder: template.useLimitOrder,
+    limitPrice: input.px,
+  })
+  const executionPrice = template.useLimitOrder
+    ? requestedEntryPrice
+    : Number(applySlippage(ctx.markPx, input.side))
+  const px = roundPrice(executionPrice, asset.szDecimals)
+  const referencePrice = template.useLimitOrder ? Number(px) : mark
+  const notional = equity * (orderSizePct / 100) * template.leverage
+  const sz = roundSize(notional / referencePrice, asset.szDecimals)
   const stopLossPx = roundPrice(
-    mark * (isBuy ? 1 - stopLossPct / 100 : 1 + stopLossPct / 100),
+    referencePrice * (isBuy ? 1 - stopLossPct / 100 : 1 + stopLossPct / 100),
     asset.szDecimals
   )
   const takeProfitPx = roundPrice(
-    mark * (isBuy ? 1 + takeProfitPct / 100 : 1 - takeProfitPct / 100),
+    resolveTakeProfitPrice({
+      entryPrice: referencePrice,
+      currentPrice: mark,
+      side: input.side,
+      takeProfitPct,
+    }),
     asset.szDecimals
   )
 
@@ -232,16 +258,16 @@ export async function submitOneClickOrder(
   const intent = {
     market: input.market,
     side: input.side,
-    orderType: "market" as const,
-    px: null,
+    orderType: entryOrderType,
+    px: entryOrderType === "limit" ? px : null,
     sz,
     reduceOnly: false,
     leverage: template.leverage,
-  }
+  } satisfies OrderIntent
   const risk = checkOrderIntent(
     intent,
     {
-      equity: clearinghouse.marginSummary.accountValue,
+      equity: accountState.equity,
       positionSzi: position?.szi ?? "0",
       positionNotional: position?.positionValue ?? "0",
       openOrderCount: openOrders.length,
@@ -287,7 +313,7 @@ export async function submitOneClickOrder(
         px,
         sz,
         reduceOnly: false,
-        tif: "FrontendMarket",
+        tif: template.useLimitOrder ? "Gtc" : "FrontendMarket",
         cloid: buildCloid(MANUAL_CLOID_PREFIX),
       },
       takeProfit: {
@@ -300,9 +326,33 @@ export async function submitOneClickOrder(
       },
     },
     database
-  )
+  ).catch(async (error: unknown) => {
+    if (
+      !(error instanceof Error) ||
+      !error.message.includes("without full protection")
+    ) {
+      throw error
+    }
 
-  return { status, px, sz, stopLossPx, takeProfitPx }
+    let openPosition = false
+    for (let attempt = 0; attempt < 3 && !openPosition; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      const latestState = await info.clearinghouseState({
+        user: accountAddress,
+      })
+      openPosition = latestState.assetPositions.some(
+        ({ position }) =>
+          position.coin === input.market && Number(position.szi) !== 0
+      )
+    }
+    throw new Error(
+      openPosition
+        ? "Position is open, but its stop-loss or take-profit is missing."
+        : "No position is open."
+    )
+  })
+
+  return { status, px, sz, entryOrderType, stopLossPx, takeProfitPx }
 }
 
 export type ModifyManualOrderInput = {
@@ -310,6 +360,7 @@ export type ModifyManualOrderInput = {
   market: string
   oid: number
   px: string
+  sz?: string
 }
 
 /** Re-prices a resting order (used by chart line dragging). */
@@ -317,7 +368,7 @@ export async function modifyManualOrder(
   userId: string,
   input: ModifyManualOrderInput,
   database: CustomShellDb = db
-): Promise<{ px: string }> {
+): Promise<{ px: string; sz: string }> {
   const wallet = await requireActiveWallet(userId, input.walletId, database)
   const network = wallet.network as TradingNetwork
   assertNetworkEnabled(network)
@@ -336,7 +387,8 @@ export async function modifyManualOrder(
   if (!order) throw new Error("Order is no longer open")
 
   const px = roundPrice(input.px, asset.szDecimals)
-  if (!(Number(px) > 0) || !(Number(order.sz) > 0)) {
+  const sz = roundSize(input.sz ?? order.sz, asset.szDecimals)
+  if (!(Number(px) > 0) || !(Number(sz) > 0)) {
     throw new Error("Invalid price or size")
   }
 
@@ -346,7 +398,53 @@ export async function modifyManualOrder(
   const mark = Number(ctx?.markPx)
   assertMoveWithinMark(px, mark)
 
-  const modifiedOrder = buildModifiedOrder(asset.assetId, order, px)
+  if (input.sz) {
+    const accountState = await loadTradingAccountState(info, accountAddress)
+    const position = accountState.clearinghouseState.assetPositions.find(
+      ({ position }) => position.coin === input.market
+    )?.position
+    const intent = {
+      market: input.market,
+      side: order.side === "B" ? ("buy" as const) : ("sell" as const),
+      orderType: "limit" as const,
+      px,
+      sz,
+      reduceOnly: order.reduceOnly,
+      leverage: position?.leverage.value ?? 1,
+    } satisfies OrderIntent
+    const risk = checkOrderIntent(
+      intent,
+      {
+        equity: accountState.equity,
+        positionSzi: position?.szi ?? "0",
+        positionNotional: position?.positionValue ?? "0",
+        openOrderCount: openOrders.length,
+      },
+      getManualRiskLimits(asset.maxLeverage),
+      { markPx: String(mark), priceTimestamp: Date.now(), now: Date.now() },
+      0
+    )
+    if (!risk.ok) {
+      const reason = describeViolations(risk.violations)
+      await writeRiskRejection(
+        wallet,
+        { actor: "user", userId },
+        {
+          actionType: "order.modify",
+          market: input.market,
+          request: intent,
+          reason,
+        },
+        database
+      )
+      throw new Error(reason)
+    }
+  }
+
+  const modifiedOrder = {
+    ...buildModifiedOrder(asset.assetId, order, px),
+    sz,
+  }
 
   await modifyOrder(
     wallet,
@@ -357,7 +455,7 @@ export async function modifyManualOrder(
     },
     database
   )
-  return { px }
+  return { px, sz }
 }
 
 export async function cancelManualOrder(

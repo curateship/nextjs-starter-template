@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { loadTradingAccountState } from "@/lib/hl/account-balance"
 import { db } from "@/server/db"
 import { getInfoClient } from "@/server/hyperliquid/info"
 import { isMainnetEnabled } from "@/server/hyperliquid/transport"
@@ -43,9 +44,11 @@ export class SnapshotPoller {
         try {
           const address = (wallet.vaultAddress ??
             wallet.accountAddress) as `0x${string}`
-          const state = await getInfoClient(network).clearinghouseState({
-            user: address,
-          })
+          const accountState = await loadTradingAccountState(
+            getInfoClient(network),
+            address
+          )
+          const state = accountState.clearinghouseState
           const unrealized = state.assetPositions.reduce(
             (sum, { position }) => sum + Number(position.unrealizedPnl),
             0
@@ -54,10 +57,10 @@ export class SnapshotPoller {
             id: uuid(),
             walletId: wallet.id,
             capturedAt: now(),
-            equity: state.marginSummary.accountValue,
+            equity: accountState.equity,
             marginUsed: state.marginSummary.totalMarginUsed,
             unrealizedPnl: String(unrealized),
-            withdrawable: state.withdrawable,
+            withdrawable: accountState.withdrawable,
             positions: state.assetPositions.map(({ position }) => ({
               coin: position.coin,
               szi: position.szi,

@@ -307,6 +307,7 @@ export const tradingOrderTemplates = pgTable(
     leverage: integer("leverage").notNull().default(5),
     stopLossPct: numeric("stop_loss_pct").notNull(),
     takeProfitPct: numeric("take_profit_pct").notNull(),
+    useLimitOrder: boolean("use_limit_order").notNull().default(false),
     isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

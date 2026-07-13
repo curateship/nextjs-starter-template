@@ -8,6 +8,7 @@ export type OrderTemplateItem = {
   leverage: number
   stopLossPct: number
   takeProfitPct: number
+  useLimitOrder: boolean
   isDefault: boolean
   createdAt: string
   updatedAt: string
@@ -19,6 +20,7 @@ const valuesSchema = z.object({
   leverage: z.number().int().min(1).max(100),
   stopLossPct: z.number().positive().lt(100),
   takeProfitPct: z.number().positive().lt(100),
+  useLimitOrder: z.boolean(),
   isDefault: z.boolean(),
 })
 const idSchema = z.object({ templateId: z.string().min(1) })

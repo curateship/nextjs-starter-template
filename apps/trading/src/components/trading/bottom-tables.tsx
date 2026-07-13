@@ -13,6 +13,7 @@ import {
   TimeCell,
 } from "@/components/trading/table-bits"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -22,11 +23,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { cancelOrder, getOrderErrorMessage, placeOrder } from "@/lib/api/orders"
+import {
+  cancelOrder,
+  getOrderErrorMessage,
+  modifyOrder,
+  placeOrder,
+} from "@/lib/api/orders"
 import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
-import { describeOpenOrder } from "@/lib/trading/open-order"
+import {
+  describeOpenOrder,
+  type FrontendOpenOrder,
+} from "@/lib/trading/open-order"
 
 type PositionAction = {
   kind: "close" | "reverse"
@@ -211,13 +222,27 @@ export function OpenOrdersTable({
   account,
   walletId,
   onDone,
+  requestedEditOrder,
+  onEditOrderHandled,
 }: {
   account: AccountSnapshot | null
   walletId: string | null
   onDone: (message: string, tone: "ok" | "error") => void
+  requestedEditOrder?: FrontendOpenOrder | null
+  onEditOrderHandled?: () => void
 }) {
   const [cancelling, setCancelling] = React.useState<number | null>(null)
+  const [editing, setEditing] = React.useState<FrontendOpenOrder | null>(null)
+  const orderValueRef = React.useRef<HTMLInputElement>(null)
+  const [modifying, setModifying] = React.useState(false)
   const orders = account?.openOrders ?? []
+  const editOrder = editing ?? requestedEditOrder
+  const editDescription = editOrder ? describeOpenOrder(editOrder) : null
+
+  function closeSizeEdit() {
+    setEditing(null)
+    onEditOrderHandled?.()
+  }
 
   async function cancel(coin: string, oid: number) {
     if (!walletId) return
@@ -232,50 +257,151 @@ export function OpenOrdersTable({
     }
   }
 
-  if (orders.length === 0) {
-    return <EmptyState text="No open orders." />
+  async function saveSize() {
+    if (!walletId || !editOrder || !editDescription) return
+    const orderValueUsd = orderValueRef.current?.value ?? ""
+    setModifying(true)
+    try {
+      const sz = (
+        Number(orderValueUsd) / Number(editDescription.price)
+      ).toFixed(8)
+      const result = await modifyOrder({
+        walletId,
+        market: editOrder.coin,
+        oid: editOrder.oid,
+        px: editDescription.price,
+        sz,
+      })
+      onDone(
+        `Order #${editOrder.oid} size changed to ${orderValueUsd} USDC (${result.sz} ${editOrder.coin}).`,
+        "ok"
+      )
+      closeSizeEdit()
+    } catch (error) {
+      onDone(getOrderErrorMessage(error), "error")
+    } finally {
+      setModifying(false)
+    }
   }
 
   return (
-    <StickyTable
-      headers={[
-        "Time",
-        "Market",
-        "Side",
-        "Price",
-        "Size",
-        "Filled",
-        "Reduce",
-        "Actions",
-      ]}
-    >
-      {orders.map((order) => {
-        const filled = Number(order.origSz) - Number(order.sz)
-        const description = describeOpenOrder(order)
-        return (
-          <TableRow key={order.oid}>
-            <TimeCell time={order.timestamp} />
-            <TableCell className="font-medium">{order.coin}</TableCell>
-            <SideCell isBuy={order.side === "B"}>
-              {description.label}
-            </SideCell>
-            <MonoCell>{formatPriceDisplay(description.price)}</MonoCell>
-            <MonoCell>{order.origSz}</MonoCell>
-            <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
-            <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
-            <TableCell>
-              <RowActionButton
-                busy={cancelling === order.oid}
-                disabled={!walletId || cancelling === order.oid}
-                onClick={() => void cancel(order.coin, order.oid)}
+    <>
+      {orders.length === 0 ? (
+        <EmptyState text="No open orders." />
+      ) : (
+        <StickyTable
+          headers={[
+            "Time",
+            "Market",
+            "Side",
+            "Price",
+            "Size",
+            "Filled",
+            "Reduce",
+            "Actions",
+          ]}
+        >
+          {orders.map((order) => {
+            const filled = Number(order.origSz) - Number(order.sz)
+            const description = describeOpenOrder(order)
+            return (
+              <TableRow key={order.oid}>
+                <TimeCell time={order.timestamp} />
+                <TableCell className="font-medium">{order.coin}</TableCell>
+                <SideCell isBuy={order.side === "B"}>
+                  {description.label}
+                </SideCell>
+                <MonoCell>{formatPriceDisplay(description.price)}</MonoCell>
+                <MonoCell>{order.origSz}</MonoCell>
+                <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
+                <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <RowActionButton
+                      disabled={!walletId}
+                      onClick={() => setEditing(order)}
+                    >
+                      Edit size
+                    </RowActionButton>
+                    <RowActionButton
+                      busy={cancelling === order.oid}
+                      disabled={!walletId || cancelling === order.oid}
+                      onClick={() => void cancel(order.coin, order.oid)}
+                    >
+                      Cancel
+                    </RowActionButton>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </StickyTable>
+      )}
+
+      <Dialog
+        open={Boolean(editOrder)}
+        onOpenChange={(open) => {
+          if (!open && !modifying) closeSizeEdit()
+        }}
+      >
+        <DialogContent variant="admin">
+          <form
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveSize()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Edit {editOrder?.coin} order size</DialogTitle>
+              <DialogDescription>
+                Change the USDC value still waiting to be filled.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Order size</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  <Label htmlFor="edit-order-size">Order value (USDC)</Label>
+                  <Input
+                    key={editOrder?.oid}
+                    ref={orderValueRef}
+                    id="edit-order-size"
+                    autoFocus
+                    inputMode="decimal"
+                    defaultValue={
+                      editOrder && editDescription
+                        ? (
+                            Number(editOrder.sz) * Number(editDescription.price)
+                          ).toFixed(2)
+                        : ""
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter variant="plain">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={modifying}
+                onClick={closeSizeEdit}
               >
                 Cancel
-              </RowActionButton>
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </StickyTable>
+              </Button>
+              <Button type="submit" disabled={modifying}>
+                {modifying ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
+                Save size
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

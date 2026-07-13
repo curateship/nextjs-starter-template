@@ -6,6 +6,7 @@ import type {
 } from "@nktkas/hyperliquid"
 
 import type { TradingNetwork } from "@/lib/hl/network"
+import { loadTradingAccountState } from "@/lib/hl/account-balance"
 import {
   CANDLE_INTERVALS,
   getBrowserInfoClient,
@@ -233,6 +234,8 @@ export type AccountSnapshot = {
     ReturnType<BrowserInfoClient["clearinghouseState"]>
   >
   openOrders: Awaited<ReturnType<BrowserInfoClient["frontendOpenOrders"]>>
+  equity: string
+  withdrawable: string
 }
 
 const ACCOUNT_REFRESH_MS = 4_000
@@ -258,12 +261,20 @@ export function useAccountSnapshot(
 
     async function refresh() {
       try {
-        const [clearinghouseState, openOrders] = await Promise.all([
-          client.clearinghouseState({ user }),
+        const [accountState, openOrders] = await Promise.all([
+          loadTradingAccountState(client, user),
           client.frontendOpenOrders({ user }),
         ])
         if (!cancelled) {
-          setState({ key, data: { clearinghouseState, openOrders } })
+          setState({
+            key,
+            data: {
+              clearinghouseState: accountState.clearinghouseState,
+              openOrders,
+              equity: accountState.equity,
+              withdrawable: accountState.withdrawable,
+            },
+          })
         }
       } catch {
         // Transient fetch failure — keep showing the last snapshot.

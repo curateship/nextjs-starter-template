@@ -12,22 +12,19 @@ export type ChartMenuState = {
 }
 
 /**
- * Right-click menu on the price chart: prefills the ticket with a limit
- * order at the clicked price. Rendered fixed at the cursor; closes on
- * outside click or Escape.
+ * Right-click menu on the price chart: exposes actions for the clicked price.
+ * Rendered fixed at the cursor; closes on outside click or Escape.
  */
 export function ChartOrderMenu({
   menu,
   market,
   oneClickActions,
-  onAction,
   onResetView,
   onClose,
 }: {
   menu: ChartMenuState | null
   market: string
   oneClickActions: React.ReactNode
-  onAction: (side: "buy" | "sell", px: string) => void
   onResetView: () => void
   onClose: () => void
 }) {
@@ -53,7 +50,7 @@ export function ChartOrderMenu({
         }}
       />
       <div
-        className="fixed z-50 min-w-44 rounded-md border bg-popover p-1 text-sm shadow-md"
+        className="fixed z-50 grid w-max min-w-44 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-1 text-sm shadow-md"
         style={{
           left: Math.min(menu.x, window.innerWidth - 200),
           top: Math.min(menu.y, window.innerHeight - 200),
@@ -64,7 +61,7 @@ export function ChartOrderMenu({
           type="button"
           variant="ghost"
           size="sm"
-          className="w-full justify-start"
+          className="justify-start"
           onClick={() => {
             onResetView()
             onClose()
@@ -77,25 +74,6 @@ export function ChartOrderMenu({
           {market} @ {formatPriceDisplay(menu.px)}
         </div>
         {oneClickActions}
-        <div className="my-1 border-t" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-emerald-600 hover:text-emerald-700"
-          onClick={() => onAction("buy", menu.px)}
-        >
-          Buy limit @ {formatPriceDisplay(menu.px)}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-red-500 hover:text-red-600"
-          onClick={() => onAction("sell", menu.px)}
-        >
-          Sell limit @ {formatPriceDisplay(menu.px)}
-        </Button>
       </div>
     </>
   )
