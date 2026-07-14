@@ -463,7 +463,18 @@ function ExchangeWalletRow({
     <TableRow>
       <TableCell column="main">
         <div className="min-w-0">
-          <div className="truncate font-medium">{wallet.label}</div>
+          {wallet.status === "active" ? (
+            <button
+              type="button"
+              className="block max-w-full truncate text-left font-medium underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={onEdit}
+              aria-label={`Edit ${wallet.label}`}
+            >
+              {wallet.label}
+            </button>
+          ) : (
+            <div className="truncate font-medium">{wallet.label}</div>
+          )}
           <div className="font-mono text-xs text-muted-foreground">
             {shortAddress(wallet.account_address)}
             {wallet.vault_address

@@ -36,7 +36,7 @@ export function profitFactor(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "∞" : value.toFixed(2)
 }
 
-/** Tailwind text tone by sign, matching the portfolio dashboard. */
+/** Tailwind text tone by sign, matching the trading dashboards. */
 export function toneClass(value: number): string {
   if (value > 0) return "text-emerald-600"
   if (value < 0) return "text-red-500"
