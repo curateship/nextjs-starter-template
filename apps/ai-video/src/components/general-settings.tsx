@@ -28,6 +28,7 @@ import {
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
+import { DUCK_DB_MAX, DUCK_DB_MIN } from "@/lib/audio-ducking"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -176,6 +177,29 @@ export function GeneralSettings({
                 })
               }
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="ducking-db">Duck under voice (dB)</Label>
+            <Input
+              id="ducking-db"
+              type="number"
+              min={DUCK_DB_MIN}
+              max={DUCK_DB_MAX}
+              step={1}
+              value={config.duckingDb}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  duckingDb: Number(event.target.value),
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              How far a track marked “Duck under voice” drops beneath other audio
+              on export. −12 dB is typical; 0 turns ducking off.
+            </p>
           </div>
 
           <div className="grid gap-2">

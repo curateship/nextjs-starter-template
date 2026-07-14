@@ -12,6 +12,11 @@ import {
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-video"
 import {
+  DEFAULT_DUCK_DB,
+  DUCK_DB_MAX,
+  DUCK_DB_MIN,
+} from "@/lib/audio-ducking"
+import {
   brandKitConfigSchema,
   shellSectionSchema,
   shellTopNavigationItemSchema,
@@ -41,6 +46,9 @@ export type WorkspaceSettings = {
   sections: ShellSection[]
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
+  // How far a ducked ("music") track drops under voice on export, in dB
+  // (negative; 0 = off). Applied by the renderer.
+  duckingDb: number
   // Saved ElevenLabs voiceover defaults; null until the user saves one.
   voiceDefaults: VoiceDefaults | null
 }
@@ -62,6 +70,12 @@ const workspaceSettingsSchema = z
       .min(MIN_SIDEBAR_WIDTH)
       .max(MAX_SIDEBAR_WIDTH)
       .default(DEFAULT_SIDEBAR_WIDTH),
+    // Default fills rows saved before ducking existed.
+    duckingDb: z
+      .number()
+      .min(DUCK_DB_MIN)
+      .max(DUCK_DB_MAX)
+      .default(DEFAULT_DUCK_DB),
     // Default fills rows saved before voice defaults existed.
     voiceDefaults: voiceDefaultsSchema.nullable().default(null),
   })
@@ -130,6 +144,14 @@ export async function getCurrentWorkspaceBrandKit(
 ) {
   const workspace = await getOrCreateCurrentWorkspace(userId, database)
   return parseWorkspaceSettings(workspace.settings).brandKit
+}
+
+export async function getCurrentWorkspaceDuckingDb(
+  userId: string,
+  database: AiVideoDb = db
+) {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  return parseWorkspaceSettings(workspace.settings).duckingDb
 }
 
 export async function createUserWorkspace(

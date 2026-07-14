@@ -54,6 +54,9 @@ export const timelineSchema = z
           .object({
             id: z.string().min(1).max(64),
             muted: z.boolean(),
+            // When set, this track's audio is lowered under any overlapping
+            // audio on other tracks at export ("duck under voice").
+            duck: z.boolean().optional(),
             clips: z.array(clipSchema).max(500),
           })
           .strict()

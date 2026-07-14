@@ -60,6 +60,9 @@ export type EditorClip = {
 export type EditorTrack = {
   id: string
   muted: boolean
+  // Marks this as the "music" track: its audio is lowered under any overlapping
+  // audio on other tracks at export ("duck under voice"). Absent = off.
+  duck?: boolean
   clips: EditorClip[] // kept sorted by startMs
 }
 
@@ -136,6 +139,7 @@ export type EditorAction =
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
   | { type: "TOGGLE_TRACK_MUTE"; trackId: string }
+  | { type: "TOGGLE_TRACK_DUCK"; trackId: string }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "SET_CUT_MODE"; on: boolean }
   | { type: "SET_ZOOM"; pxPerSecond: number }
@@ -690,6 +694,15 @@ export function editorReducer(
         tracks: withTrack(state.tracks, action.trackId, (t) => ({
           ...t,
           muted: !t.muted,
+        })),
+      }
+
+    case "TOGGLE_TRACK_DUCK":
+      return {
+        ...state,
+        tracks: withTrack(state.tracks, action.trackId, (t) => ({
+          ...t,
+          duck: !t.duck,
         })),
       }
 

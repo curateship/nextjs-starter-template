@@ -3,6 +3,7 @@ import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
 } from "@/lib/api-usage-constants"
+import { DEFAULT_DUCK_DB } from "@/lib/audio-ducking"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import {
   AppWindowIcon,
@@ -319,6 +320,9 @@ export type ShellConfig = {
   mediaUploadMaxMb: number
   // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
   sidebarWidth: number
+  // Per-workspace "duck under voice" amount in dB (negative; 0 = off). Applied
+  // by the export renderer. See lib/audio-ducking.ts.
+  duckingDb: number
   favicon: string
   brandKit: BrandKitConfig
   topNavigation: ShellTopNavigationItem[]
@@ -390,6 +394,7 @@ export function createDefaultShellConfig(): ShellConfig {
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    duckingDb: DEFAULT_DUCK_DB,
     favicon: "",
     brandKit: createDefaultBrandKitConfig(),
     topNavigation: [],

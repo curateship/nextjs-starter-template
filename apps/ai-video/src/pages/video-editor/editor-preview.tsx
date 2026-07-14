@@ -1,8 +1,16 @@
 import * as React from "react"
 import { PlayIcon } from "lucide-react"
 
+import { useShellRuntime } from "@/components/shell-runtime"
+import {
+  computeDuckEnvelope,
+  dbToGain,
+  sampleEnvelope,
+  type Interval,
+} from "@/lib/audio-ducking"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
+  timelineDurationMs,
   useEditor,
   type EditorClip,
   type EditorTrack,
@@ -112,6 +120,7 @@ function nextInPointForSource(
 // clock-subscribed loop drives all per-frame work imperatively.
 export function EditorPreview() {
   const { state, clock, dispatch } = useEditor()
+  const { config } = useShellRuntime()
 
   const containerRef = React.useRef<HTMLDivElement>(null)
   const stageRef = React.useRef<HTMLDivElement>(null)
@@ -179,6 +188,42 @@ export function EditorPreview() {
     [media]
   )
 
+  // Live "duck under voice": a volume envelope for ducked tracks that mirrors
+  // the export renderer, so the toggle is audible while editing — not only on
+  // export. Best-effort: video counts as "voice" whether or not it actually
+  // carries sound (the browser can't cheaply probe that).
+  const duckingGain = React.useMemo(
+    () => dbToGain(config.duckingDb),
+    [config.duckingDb]
+  )
+  const duckEnvelope = React.useMemo(() => {
+    if (duckingGain >= 1) return [] // 0 dB = off
+    const voiceIntervals: Interval[] = []
+    let hasDuckSource = false
+    for (const track of state.tracks) {
+      if (track.muted) continue
+      const audible = track.clips.filter(
+        (clip) => (clip.kind === "audio" || clip.kind === "video") && !clip.muted
+      )
+      if (track.duck) {
+        if (audible.length) hasDuckSource = true
+        continue
+      }
+      for (const clip of audible) {
+        voiceIntervals.push({
+          startMs: clip.startMs,
+          endMs: clip.startMs + clip.durationMs,
+        })
+      }
+    }
+    if (!hasDuckSource || !voiceIntervals.length) return []
+    return computeDuckEnvelope({
+      voiceIntervals,
+      durationMs: timelineDurationMs(state.tracks),
+      duckGain: duckingGain,
+    })
+  }, [state.tracks, duckingGain])
+
   // Drive the clock from the element carrying the SOUND (an unmuted audio track
   // wins, since captions are timed to it; else the topmost active video). The
   // source is read even while momentarily paused — only seeked/undecodable
@@ -245,6 +290,7 @@ export function EditorPreview() {
           el.style.opacity = "1"
           el.style.zIndex = String(entry.zIndex)
           el.muted = entry.track.muted || !!entry.clip.muted
+          el.volume = entry.track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1
           const targetS =
             (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
           if (playing) {
@@ -277,6 +323,7 @@ export function EditorPreview() {
         const el = audioRefs.current.get(clip.id)
         if (!el) continue
         el.muted = track.muted || !!clip.muted
+        el.volume = track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1
         const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
         if (isActive(clip, timeMs)) {
           if (playing) {
@@ -318,7 +365,7 @@ export function EditorPreview() {
 
     syncFrame()
     return clock.subscribe(syncFrame)
-  }, [clock, media, videoSources, audioClips, images, texts])
+  }, [clock, media, videoSources, audioClips, images, texts, duckEnvelope])
 
   // --- Drag a text overlay to reposition it on the frame -------------------
   // Grab anywhere on the text; the offset between the pointer and the text's
