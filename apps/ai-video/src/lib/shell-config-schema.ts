@@ -102,16 +102,6 @@ const shellEntrySchema = z.discriminatedUnion("type", [
     .strict(),
 ])
 
-export const shellTopNavigationItemSchema = z
-  .object({
-    id: z.string().min(1),
-    label: z.string(),
-    href: z.string(),
-    icon: shellIconSchema.optional(),
-    visible: z.boolean(),
-  })
-  .strict()
-
 export const shellTopRightNavigationItemSchema = z
   .object({
     id: z.enum(["feedback", "theme", "notifications"]),
@@ -164,9 +154,10 @@ export const shellConfigSchema = shellGlobalsSchema
       .max(MAX_SIDEBAR_WIDTH),
     // Per-workspace "duck under voice" amount in dB; loader always populates it.
     duckingDb: z.number().min(DUCK_DB_MIN).max(DUCK_DB_MAX),
+    // Route the app opens to on the app root; loader always populates it.
+    defaultRoute: z.string().min(1).max(2048),
     favicon: z.string(),
     brandKit: brandKitConfigSchema,
-    topNavigation: z.array(shellTopNavigationItemSchema),
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
   })
