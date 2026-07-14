@@ -46,6 +46,17 @@ export type OrderPlacementStatus =
   | { kind: "resting"; oid: number }
   | { kind: "filled"; oid: number; avgPx: string; totalSz: string }
 
+type BracketEntryStatus = "accepted" | "rejected" | "unknown"
+
+export class BracketOrderError extends Error {
+  constructor(readonly entryStatus: BracketEntryStatus) {
+    super(
+      "The entry order did not receive complete stop-loss and take-profit protection."
+    )
+    this.name = "BracketOrderError"
+  }
+}
+
 export type BracketOrderParams = {
   entry: PlaceOrderParams
   takeProfit?: { triggerPx: string; cloid?: `0x${string}` }
@@ -453,19 +464,30 @@ export function parseBracketOrderStatuses(
     statuses.length !== expectedLegCount ||
     !statuses.every(isOrderStatusSuccess)
   ) {
-    throw new Error(
-      "The position may be open without full protection. Check open positions immediately."
-    )
+    throw new BracketOrderError(classifyBracketEntryStatus(statuses[0]))
   }
   return parseOrderStatus(statuses[0])
 }
 
 function isOrderStatusSuccess(status: unknown): boolean {
+  if (status === "waitingForFill" || status === "waitingForTrigger") {
+    return true
+  }
   return Boolean(
     status &&
       typeof status === "object" &&
       ("resting" in status || "filled" in status)
   )
+}
+
+function isOrderStatusRejected(status: unknown): boolean {
+  return Boolean(status && typeof status === "object" && "error" in status)
+}
+
+function classifyBracketEntryStatus(status: unknown): BracketEntryStatus {
+  if (isOrderStatusSuccess(status)) return "accepted"
+  if (isOrderStatusRejected(status)) return "rejected"
+  return "unknown"
 }
 
 function parseOrderStatus(status: unknown): OrderPlacementStatus {

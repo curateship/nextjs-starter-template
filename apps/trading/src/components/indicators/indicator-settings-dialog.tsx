@@ -62,6 +62,13 @@ export function OverlaySettingsDialog({
   const [color, setColor] = React.useState<string | undefined>(undefined)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const positionRef = React.useRef({ x: 0, y: 0 })
+  const dragRef = React.useRef<{
+    startX: number
+    startY: number
+    x: number
+    y: number
+  } | null>(null)
 
   // Seed the draft whenever the dialog (re)opens or targets another indicator.
   const [prevSeed, setPrevSeed] = React.useState<IndicatorConfig | null>(null)
@@ -150,11 +157,49 @@ export function OverlaySettingsDialog({
 
   return (
     <Dialog
+      modal={false}
       open={open}
       onOpenChange={(next) => (busy ? null : onOpenChange(next))}
     >
-      <DialogContent variant="admin" className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent
+        variant="admin"
+        showOverlay={false}
+        className="sm:max-w-md sm:will-change-transform"
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader
+          className="sm:cursor-move sm:touch-none sm:select-none"
+          onPointerDown={(event) => {
+            if (event.button !== 0 || window.innerWidth < 640) return
+            dragRef.current = {
+              startX: event.clientX,
+              startY: event.clientY,
+              ...positionRef.current,
+            }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event) => {
+            const drag = dragRef.current
+            if (!drag) return
+            positionRef.current = {
+              x: drag.x + event.clientX - drag.startX,
+              y: drag.y + event.clientY - drag.startY,
+            }
+            const dialog = event.currentTarget.closest<HTMLElement>(
+              '[data-slot="dialog-content"]'
+            )
+            if (dialog) {
+              dialog.style.transform = `translate3d(${positionRef.current.x}px, ${positionRef.current.y}px, 0)`
+            }
+          }}
+          onPointerUp={(event) => {
+            dragRef.current = null
+            event.currentTarget.releasePointerCapture(event.pointerId)
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null
+          }}
+        >
           <DialogTitle>{defaultLabel} settings</DialogTitle>
           <DialogDescription>
             Rename the indicator and tune its settings.

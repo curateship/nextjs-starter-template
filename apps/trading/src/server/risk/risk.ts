@@ -62,8 +62,16 @@ export type RiskCheckResult =
   | { ok: false; violations: RiskViolation[] }
 
 export const STALE_PRICE_MS = 5_000
-/** Limit prices further than this from mark are treated as fat-fingered. */
-export const PRICE_SANITY_PCT = 20
+/** Marketable limits further through mark than this are treated as unsafe. */
+export const MARKETABLE_LIMIT_SANITY_PCT = 20
+
+export function marketableLimitDeviationPct(
+  side: OrderIntent["side"],
+  price: number,
+  mark: number
+): number {
+  return ((side === "buy" ? price - mark : mark - price) / mark) * 100
+}
 
 export function checkOrderIntent(
   intent: OrderIntent,
@@ -102,11 +110,11 @@ export function checkOrderIntent(
     px > 0 &&
     mark > 0
   ) {
-    const deviationPct = (Math.abs(px - mark) / mark) * 100
-    if (deviationPct > PRICE_SANITY_PCT) {
+    const deviationPct = marketableLimitDeviationPct(intent.side, px, mark)
+    if (deviationPct > MARKETABLE_LIMIT_SANITY_PCT) {
       violations.push({
         code: "price_sanity",
-        message: `Limit price is ${deviationPct.toFixed(1)}% away from mark (${ref.markPx}); max allowed is ${PRICE_SANITY_PCT}%.`,
+        message: `${intent.side === "buy" ? "Buy" : "Sell"} limit price is ${deviationPct.toFixed(1)}% ${intent.side === "buy" ? "above" : "below"} mark (${ref.markPx}); max allowed is ${MARKETABLE_LIMIT_SANITY_PCT}%.`,
       })
     }
   }

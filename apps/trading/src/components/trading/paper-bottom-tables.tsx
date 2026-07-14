@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
 import {
@@ -10,6 +11,15 @@ import {
   StickyTable,
   TimeCell,
 } from "@/components/trading/table-bits"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { TableCell, TableRow } from "@/components/ui/table"
 import {
   cancelPaperOrder,
@@ -20,12 +30,18 @@ import {
 
 export function PaperPositionsTable({
   account,
+  confirmationEnabled,
   onDone,
 }: {
   account: PaperAccountResponse | null
+  confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
 }) {
   const [closing, setClosing] = React.useState<string | null>(null)
+  const [pending, setPending] = React.useState<{
+    coin: string
+    szi: number
+  } | null>(null)
   const positions = account?.positions ?? []
 
   async function closePosition(coin: string, szi: number) {
@@ -42,6 +58,7 @@ export function PaperPositionsTable({
         reduceOnly: true,
       })
       onDone(`Closing ${coin} paper position.`, "ok")
+      setPending(null)
     } catch (error) {
       onDone(getPaperErrorMessage(error), "error")
     } finally {
@@ -49,43 +66,96 @@ export function PaperPositionsTable({
     }
   }
 
+  function requestClose(coin: string, szi: number) {
+    if (confirmationEnabled) {
+      setPending({ coin, szi })
+      return
+    }
+    void closePosition(coin, szi)
+  }
+
   if (positions.length === 0) {
     return <EmptyState text="No open paper positions." />
   }
 
   return (
-    <StickyTable headers={["Market", "Size", "Entry", "Mark", "uPnL", "Actions"]}>
-      {positions.map((position) => {
-        const szi = Number(position.szi)
-        return (
-          <TableRow key={position.coin}>
-            <TableCell className="font-medium">{position.coin}</TableCell>
-            <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
-              {position.szi}
-            </MonoCell>
-            <MonoCell>{formatPriceDisplay(position.entry_px)}</MonoCell>
-            <MonoCell>{formatPriceDisplay(position.mark_px)}</MonoCell>
-            <MonoCell
-              className={
-                position.unrealized_pnl >= 0 ? "text-emerald-600" : "text-red-500"
+    <>
+      <StickyTable
+        headers={["Market", "Size", "Entry", "Mark", "uPnL", "Actions"]}
+      >
+        {positions.map((position) => {
+          const szi = Number(position.szi)
+          return (
+            <TableRow key={position.coin}>
+              <TableCell className="font-medium">{position.coin}</TableCell>
+              <MonoCell
+                className={szi > 0 ? "text-emerald-600" : "text-red-500"}
+              >
+                {position.szi}
+              </MonoCell>
+              <MonoCell>{formatPriceDisplay(position.entry_px)}</MonoCell>
+              <MonoCell>{formatPriceDisplay(position.mark_px)}</MonoCell>
+              <MonoCell
+                className={
+                  position.unrealized_pnl >= 0
+                    ? "text-emerald-600"
+                    : "text-red-500"
+                }
+              >
+                {position.unrealized_pnl >= 0 ? "+" : ""}
+                {position.unrealized_pnl.toFixed(2)}
+              </MonoCell>
+              <TableCell>
+                <RowActionButton
+                  busy={closing === position.coin}
+                  disabled={closing !== null}
+                  onClick={() => requestClose(position.coin, szi)}
+                >
+                  Close
+                </RowActionButton>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </StickyTable>
+
+      <Dialog
+        open={Boolean(pending)}
+        onOpenChange={(open) => {
+          if (!open) setPending(null)
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Close {pending?.coin} paper position?</DialogTitle>
+            <DialogDescription>
+              This sends a market order for the full position size.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={closing !== null}
+              onClick={() => setPending(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!pending || closing !== null}
+              onClick={() =>
+                pending && void closePosition(pending.coin, pending.szi)
               }
             >
-              {position.unrealized_pnl >= 0 ? "+" : ""}
-              {position.unrealized_pnl.toFixed(2)}
-            </MonoCell>
-            <TableCell>
-              <RowActionButton
-                busy={closing === position.coin}
-                disabled={closing === position.coin}
-                onClick={() => void closePosition(position.coin, szi)}
-              >
-                Close
-              </RowActionButton>
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </StickyTable>
+              {closing ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

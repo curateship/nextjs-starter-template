@@ -3,6 +3,10 @@ import {
   describeOpenOrder,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
+import {
+  marketableLimitDeviationPct,
+  MARKETABLE_LIMIT_SANITY_PCT,
+} from "@/server/risk/risk"
 
 export function buildModifiedOrder(
   assetId: number,
@@ -39,14 +43,23 @@ export function buildModifiedOrder(
   }
 }
 
-export function assertMoveWithinMark(nextPrice: string, mark: number): void {
+export function assertMoveWithinMark(
+  nextPrice: string,
+  mark: number,
+  isBuy: boolean
+): void {
   if (!Number.isFinite(mark) || mark <= 0) {
     throw new Error("Current market price is unavailable")
   }
-  const deviationPct = (Math.abs(Number(nextPrice) - mark) / mark) * 100
-  if (deviationPct > 20) {
+  const price = Number(nextPrice)
+  const deviationPct = marketableLimitDeviationPct(
+    isBuy ? "buy" : "sell",
+    price,
+    mark
+  )
+  if (deviationPct > MARKETABLE_LIMIT_SANITY_PCT) {
     throw new Error(
-      `New price is ${deviationPct.toFixed(1)}% away from mark; refusing to move the order that far.`
+      `New ${isBuy ? "buy" : "sell"} price is ${deviationPct.toFixed(1)}% ${isBuy ? "above" : "below"} mark; refusing to move the order that far.`
     )
   }
 }
