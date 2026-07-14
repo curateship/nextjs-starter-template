@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  ActivityIcon,
   ArrowRightLeftIcon,
   BellIcon,
   BookOpenIcon,
@@ -48,6 +49,15 @@ import {
   markTradingNotificationRead,
   type TradingNotificationItem,
 } from "@/lib/api/trading-notifications"
+import {
+  markAllMarketScannerAlertsRead,
+  markMarketScannerAlertRead,
+  pollMarketScannerAlerts,
+} from "@/lib/api/market-scanner"
+import {
+  marketScannerTradeTarget,
+  type MarketScannerAlertItem,
+} from "@/lib/market-scanner"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
@@ -77,6 +87,13 @@ type TrayItem =
       createdAt: string
       read: boolean
       trading: TradingNotificationItem
+    }
+  | {
+      kind: "market"
+      id: string
+      createdAt: string
+      read: boolean
+      market: MarketScannerAlertItem
     }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -240,6 +257,33 @@ function TradingRow({ item }: { item: TradingNotificationItem }) {
   )
 }
 
+function MarketAlertRow({ item }: { item: MarketScannerAlertItem }) {
+  return (
+    <>
+      <Avatar size="lg">
+        <AvatarFallback className="bg-emerald-100 text-emerald-800">
+          <ActivityIcon className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <p className="truncate text-sm leading-snug font-medium text-foreground">
+          {item.title}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            Market scanner
+          </Badge>
+          <span className="text-xs text-muted-foreground">{item.coin}</span>
+        </div>
+        {item.body ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p> : null}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {dateFormatter.format(new Date(item.occurredAt))}
+        </p>
+      </div>
+    </>
+  )
+}
+
 function TrayRow({ item }: { item: TrayItem }) {
   switch (item.kind) {
     case "feedback":
@@ -248,6 +292,8 @@ function TrayRow({ item }: { item: TrayItem }) {
       return <AlertRow item={item.alert} />
     case "trading":
       return <TradingRow item={item.trading} />
+    case "market":
+      return <MarketAlertRow item={item.market} />
   }
 }
 
@@ -301,16 +347,19 @@ export function NotificationCenter({
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
   const [trading, setTrading] = React.useState<TradingNotificationItem[]>([])
+  const [marketAlerts, setMarketAlerts] = React.useState<MarketScannerAlertItem[]>([])
   const [feedbackUnread, setFeedbackUnread] = React.useState(0)
   const [alertUnread, setAlertUnread] = React.useState(0)
   const [tradingUnread, setTradingUnread] = React.useState(0)
+  const [marketUnread, setMarketUnread] = React.useState(0)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
+  const seenMarketAlerts = React.useRef<Set<string> | null>(null)
 
-  const totalUnread = feedbackUnread + alertUnread + tradingUnread
+  const totalUnread = feedbackUnread + alertUnread + tradingUnread + marketUnread
 
   const items = React.useMemo<TrayItem[]>(() => {
     const merged: TrayItem[] = [
@@ -335,9 +384,16 @@ export function NotificationCenter({
         read: item.readAt !== null,
         trading: item,
       })),
+      ...marketAlerts.map((item) => ({
+        kind: "market" as const,
+        id: `m:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        market: item,
+      })),
     ]
     return merged.sort((x, y) => y.createdAt.localeCompare(x.createdAt))
-  }, [notifications, alerts, trading])
+  }, [notifications, alerts, trading, marketAlerts])
 
   const visibleItems =
     filter === "unread" ? items.filter((item) => !item.read) : items
@@ -388,21 +444,33 @@ export function NotificationCenter({
     }
   }, [])
 
+  const loadMarketRows = React.useCallback(async () => {
+    try {
+      const data = await pollMarketScannerAlerts()
+      setMarketAlerts(data.alerts)
+      setMarketUnread(data.unreadCount)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [])
+
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
     if (!nextOpen) return
     void loadNotificationRows()
     void loadAlertRows()
     void loadTradingRows()
+    void loadMarketRows()
   }
 
   // Keep the unread badge live even while the tray is closed.
   React.useEffect(() => {
     let cancelled = false
     async function tick() {
-      const [alertResult, tradingResult] = await Promise.allSettled([
+      const [alertResult, tradingResult, marketResult] = await Promise.allSettled([
         pollAlerts(),
         listTradingNotifications(),
+        pollMarketScannerAlerts(),
       ])
       if (cancelled) return
       if (alertResult.status === "fulfilled") {
@@ -412,6 +480,17 @@ export function NotificationCenter({
         setTrading(tradingResult.value.items)
         setTradingUnread(tradingResult.value.unreadCount)
       }
+      if (marketResult.status === "fulfilled") {
+        const next = marketResult.value.alerts
+        if (seenMarketAlerts.current) {
+          for (const alert of next) {
+            if (!seenMarketAlerts.current.has(alert.id)) showBrowserAlert(alert, navigate)
+          }
+        }
+        seenMarketAlerts.current = new Set(next.map((alert) => alert.id))
+        setMarketAlerts(next)
+        setMarketUnread(marketResult.value.unreadCount)
+      }
     }
     void tick()
     const timer = setInterval(() => void tick(), ALERT_POLL_MS)
@@ -419,7 +498,7 @@ export function NotificationCenter({
       cancelled = true
       clearInterval(timer)
     }
-  }, [])
+  }, [navigate])
 
   const loadMoreFromElement = React.useCallback(
     (element: HTMLDivElement) => {
@@ -450,13 +529,16 @@ export function NotificationCenter({
     if (totalUnread === 0) return
     setError(null)
     try {
-      const [feedbackResult, , tradingResult] = await Promise.all([
+      const [feedbackResult, , tradingResult, marketResult] = await Promise.all([
         feedbackUnread > 0
           ? markAllNotificationsRead()
           : Promise.resolve({ notificationIds: [] as string[], readAt: "" }),
         alertUnread > 0 ? markAlertsRead() : Promise.resolve({ ok: true }),
         tradingUnread > 0
           ? markAllTradingNotificationsRead()
+          : Promise.resolve({ ids: [] as string[], readAt: "" }),
+        marketUnread > 0
+          ? markAllMarketScannerAlertsRead()
           : Promise.resolve({ ids: [] as string[], readAt: "" }),
       ])
       const readIds = new Set(feedbackResult.notificationIds)
@@ -481,9 +563,18 @@ export function NotificationCenter({
             : item
         )
       )
+      const marketIds = new Set(marketResult.ids)
+      setMarketAlerts((current) =>
+        current.map((item) =>
+          marketIds.has(item.id)
+            ? { ...item, readAt: marketResult.readAt }
+            : item
+        )
+      )
       setFeedbackUnread(0)
       setAlertUnread(0)
       setTradingUnread(0)
+      setMarketUnread(0)
     } catch (readError) {
       setError(getNotificationErrorMessage(readError))
     }
@@ -504,7 +595,6 @@ export function NotificationCenter({
         setFeedbackUnread((current) => Math.max(0, current - 1))
       } catch (readError) {
         setError(getNotificationErrorMessage(readError))
-        return
       }
     }
     setOpen(false)
@@ -526,7 +616,6 @@ export function NotificationCenter({
         setAlertUnread((current) => Math.max(0, current - 1))
       } catch (readError) {
         setError(getNotificationErrorMessage(readError))
-        return
       }
     }
     setOpen(false)
@@ -548,7 +637,6 @@ export function NotificationCenter({
         setTradingUnread((current) => Math.max(0, current - 1))
       } catch (readError) {
         setError(getNotificationErrorMessage(readError))
-        return
       }
     }
     setOpen(false)
@@ -556,6 +644,27 @@ export function NotificationCenter({
       to: "/trade",
       search: { market: item.coin, wallet: item.walletId },
     })
+  }
+
+  async function openMarketAlert(item: MarketScannerAlertItem) {
+    setError(null)
+    if (!item.readAt) {
+      try {
+        const result = await markMarketScannerAlertRead(item.id)
+        setMarketAlerts((current) =>
+          current.map((currentItem) =>
+            currentItem.id === result.id
+              ? { ...currentItem, readAt: result.readAt }
+              : currentItem
+          )
+        )
+        setMarketUnread((current) => Math.max(0, current - 1))
+      } catch (readError) {
+        setError(getNotificationErrorMessage(readError))
+      }
+    }
+    setOpen(false)
+    void navigate(marketScannerTradeTarget(item.coin))
   }
 
   async function openTrayItem(item: TrayItem) {
@@ -566,6 +675,8 @@ export function NotificationCenter({
         return openAlert(item.alert)
       case "trading":
         return openTradingNotification(item.trading)
+      case "market":
+        return openMarketAlert(item.market)
     }
   }
 
@@ -655,4 +766,20 @@ export function NotificationCenter({
       </DropdownMenuContent>
     </DropdownMenu>
   )
+}
+
+function showBrowserAlert(
+  alert: MarketScannerAlertItem,
+  navigate: ReturnType<typeof useNavigate>
+) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return
+  const key = `market-scanner-browser-alert:${alert.id}`
+  if (window.localStorage.getItem(key)) return
+  window.localStorage.setItem(key, "1")
+  const notification = new Notification(alert.title, { body: alert.body ?? undefined, tag: key })
+  notification.onclick = () => {
+    window.focus()
+    void navigate(marketScannerTradeTarget(alert.coin))
+    notification.close()
+  }
 }

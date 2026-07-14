@@ -1103,6 +1103,110 @@ export const scannerAlerts = pgTable(
   ]
 )
 
+export const marketScannerRules = pgTable(
+  "market_scanner_rules",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    ruleSlot: integer("rule_slot").notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    direction: varchar("direction", { length: 4 }),
+    threshold: numeric("threshold").notNull(),
+    marketScope: varchar("market_scope", { length: 10 }).notNull(),
+    markets: jsonb("markets").notNull(),
+    window: varchar("time_window", { length: 4 }).notNull(),
+    cooldown: varchar("cooldown", { length: 4 }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
+    lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "market_scanner_rules_kind_check",
+      sql`${table.kind} in ('price_move', 'volume_spike')`
+    ),
+    check(
+      "market_scanner_rules_slot_check",
+      sql`${table.ruleSlot} between 1 and 100`
+    ),
+    unique("market_scanner_rules_user_slot_unique").on(
+      table.userId,
+      table.ruleSlot
+    ),
+    check(
+      "market_scanner_rules_direction_check",
+      sql`(${table.kind} = 'price_move' and ${table.direction} in ('up', 'down')) or (${table.kind} = 'volume_spike' and ${table.direction} is null)`
+    ),
+    check(
+      "market_scanner_rules_scope_check",
+      sql`${table.marketScope} in ('all', 'selected')`
+    ),
+    check(
+      "market_scanner_rules_window_check",
+      sql`${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h')`
+    ),
+    check(
+      "market_scanner_rules_cooldown_check",
+      sql`${table.cooldown} in ('5m', '15m', '1h', '4h', '24h')`
+    ),
+    index("ix_market_scanner_rules_user_updated").on(
+      table.userId,
+      table.updatedAt.desc()
+    ),
+    index("ix_market_scanner_rules_enabled").on(table.enabled),
+  ]
+)
+
+export const marketScannerAlerts = pgTable(
+  "market_scanner_alerts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    ruleId: varchar("rule_id", { length: 36 }).references(
+      () => marketScannerRules.id,
+      { onDelete: "set null" }
+    ),
+    eventKey: varchar("event_key", { length: 200 }).notNull(),
+    ruleName: varchar("rule_name", { length: 100 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    direction: varchar("direction", { length: 4 }),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    window: varchar("time_window", { length: 4 }).notNull(),
+    threshold: numeric("threshold").notNull(),
+    observed: numeric("observed").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    data: jsonb("data"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("market_scanner_alerts_user_event_unique").on(
+      table.userId,
+      table.eventKey
+    ),
+    index("ix_market_scanner_alerts_user_occurred").on(
+      table.userId,
+      table.occurredAt.desc(),
+      table.id.desc()
+    ),
+    index("ix_market_scanner_alerts_user_unread").on(
+      table.userId,
+      table.readAt
+    ),
+  ]
+)
+
 export const scannerCrowdSignals = pgTable(
   "scanner_crowd_signals",
   {

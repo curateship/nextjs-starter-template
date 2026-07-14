@@ -185,6 +185,18 @@ describe("custom shell workspaces", () => {
       { type: "item", label: "Audit Log", href: "/audit", visible: true },
     ])
     expect(defaultSettings.sections[1]?.entries).toMatchObject([
+      {
+        type: "item",
+        label: "Market Scanner",
+        href: "/scanner/market",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Market Alerts",
+        href: "/scanner/market-alerts",
+        visible: true,
+      },
       { type: "item", label: "Whales", href: "/scanner/whales", visible: true },
       {
         type: "item",

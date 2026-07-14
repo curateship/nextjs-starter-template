@@ -6,6 +6,7 @@ const UNIVERSE_CACHE_TTL_MS = 5 * 60_000
 
 let infoClient: InfoClient | null = null
 let universeCache: { fetchedAt: number; assets: ScannerAsset[] } | null = null
+let universeRequest: Promise<ScannerAsset[]> | null = null
 
 export type ScannerAsset = {
   coin: string
@@ -39,20 +40,35 @@ export async function getScannerUniverse(): Promise<ScannerAsset[]> {
     return universeCache.assets
   }
 
-  const [meta, ctxs] = await getScannerInfoClient().metaAndAssetCtxs()
-  const assets: ScannerAsset[] = []
-  meta.universe.forEach((asset, index) => {
-    if (asset.isDelisted) return
-    const ctx = ctxs[index]
-    assets.push({
-      coin: asset.name,
-      szDecimals: asset.szDecimals,
-      maxLeverage: asset.maxLeverage,
-      dayNotionalVolume: ctx ? Number(ctx.dayNtlVlm) : 0,
-      markPx: ctx ? Number(ctx.markPx) : 0,
-    })
-  })
-  assets.sort((a, b) => b.dayNotionalVolume - a.dayNotionalVolume)
-  universeCache = { fetchedAt: Date.now(), assets }
-  return assets
+  if (!universeRequest) {
+    universeRequest = getScannerInfoClient()
+      .metaAndAssetCtxs()
+      .then(([meta, ctxs]) => {
+        const assets: ScannerAsset[] = []
+        meta.universe.forEach((asset, index) => {
+          if (asset.isDelisted) return
+          const ctx = ctxs[index]
+          assets.push({
+            coin: asset.name,
+            szDecimals: asset.szDecimals,
+            maxLeverage: asset.maxLeverage,
+            dayNotionalVolume: ctx ? Number(ctx.dayNtlVlm) : 0,
+            markPx: ctx ? Number(ctx.markPx) : 0,
+          })
+        })
+        assets.sort((a, b) => b.dayNotionalVolume - a.dayNotionalVolume)
+        universeCache = { fetchedAt: Date.now(), assets }
+        return assets
+      })
+      .finally(() => {
+        universeRequest = null
+      })
+  }
+
+  try {
+    return await universeRequest
+  } catch (error) {
+    if (universeCache) return universeCache.assets
+    throw error
+  }
 }

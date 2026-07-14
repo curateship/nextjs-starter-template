@@ -431,6 +431,22 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       entries: [
         {
           type: "item",
+          id: "item-scanner-market",
+          label: "Market Scanner",
+          href: "/scanner/market",
+          icon: "radar",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-scanner-market-alerts",
+          label: "Market Alerts",
+          href: "/scanner/market-alerts",
+          icon: "bell",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-scanner-whales",
           label: "Whales",
           href: "/scanner/whales",
