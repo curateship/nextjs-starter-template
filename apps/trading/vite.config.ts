@@ -6,9 +6,18 @@ import { nitro } from "nitro/vite"
 import { defineConfig } from "vite"
 import tsconfigPaths from "vite-tsconfig-paths"
 
+import { requestNetworkErrorPlugin } from "./vite-request-error-handler"
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
+  plugins: [
+    tanstackStart(),
+    nitro(),
+    requestNetworkErrorPlugin(),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
   resolve: {
     alias: [
       {
