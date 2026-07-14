@@ -11,3 +11,11 @@ export function isFullBleedLocation(location: {
     (location.pathname === "/backtest" && Boolean(search.run || search.draft))
   )
 }
+
+/** The route mounted inside the shell, committed atomically with its content. */
+export function getMountedLocation<TLocation>(state: {
+  location: TLocation
+  matches: readonly TLocation[]
+}): TLocation {
+  return state.matches.at(-1) ?? state.location
+}

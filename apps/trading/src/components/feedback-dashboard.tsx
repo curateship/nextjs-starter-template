@@ -87,7 +87,6 @@ export function FeedbackDashboard({
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
     React.useState<FeedbackItem | null>(null)
@@ -99,7 +98,6 @@ export function FeedbackDashboard({
 
   React.useEffect(() => {
     let active = true
-    setLoading(true)
     setError(null)
 
     listFeedback()
@@ -110,10 +108,6 @@ export function FeedbackDashboard({
       .catch((loadError) => {
         if (!active) return
         setError(getFeedbackErrorMessage(loadError))
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
       })
 
     return () => {
@@ -319,7 +313,6 @@ export function FeedbackDashboard({
               </TableRow>
             </TableHeader>
         }
-        loading={loading}
         isEmpty={paginatedFeedback.length === 0}
         emptyText="No feedback found matching your filters."
         emptyColSpan={8}

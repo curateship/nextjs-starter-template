@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   getNotificationErrorMessage,
   listNotificationPage,
@@ -250,29 +249,6 @@ function TrayRow({ item }: { item: TrayItem }) {
     case "trading":
       return <TradingRow item={item.trading} />
   }
-}
-
-function NotificationTraySkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div
-          key={index}
-          className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2"
-        >
-          <div className="pt-5">
-            <Skeleton className="size-2 rounded-full" />
-          </div>
-          <Skeleton className="size-10 rounded-full" />
-          <div className="min-w-0 space-y-2">
-            <Skeleton className="h-4 w-3/5" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/5" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function NotificationTabs({
@@ -634,9 +610,7 @@ export function NotificationCenter({
         <div ref={scrollAreaRootRef}>
           <ScrollArea className="h-[28rem]">
             <div className="px-4 py-4">
-              {loading ? (
-                <NotificationTraySkeleton />
-              ) : visibleItems.length > 0 ? (
+              {visibleItems.length > 0 ? (
                 <div className="space-y-3">
                   {visibleItems.map((item) => (
                     <button
@@ -654,11 +628,11 @@ export function NotificationCenter({
                     </button>
                   ))}
                 </div>
-              ) : (
+              ) : !loading ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
                   No notifications
                 </div>
-              )}
+              ) : null}
               {error ? (
                 <p className="mt-4 text-sm text-destructive">{error}</p>
               ) : null}

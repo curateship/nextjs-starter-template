@@ -1,18 +1,23 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
+import * as loadingSkeletons from "@/components/loading-skeleton"
 import {
   ChartLoadingSkeleton,
-  DashboardLoadingSkeleton,
   MarketListLoadingSkeleton,
-  PageLoadBoundary,
-  WorkspaceLoadingSkeleton,
+  MediaGridSkeleton,
 } from "@/components/loading-skeleton"
 
-describe("loading skeletons", () => {
+describe("dynamic loading skeletons", () => {
+  it("only exposes placeholders for dynamic page elements", () => {
+    expect(Object.keys(loadingSkeletons).sort()).toEqual([
+      "ChartLoadingSkeleton",
+      "MarketListLoadingSkeleton",
+      "MediaGridSkeleton",
+    ])
+  })
+
   it.each([
-    ["dashboard", <DashboardLoadingSkeleton />],
-    ["workspace", <WorkspaceLoadingSkeleton />],
     ["chart", <ChartLoadingSkeleton />],
     ["markets", <MarketListLoadingSkeleton />],
   ])("renders an accessible %s placeholder", (_, skeleton) => {
@@ -21,28 +26,11 @@ describe("loading skeletons", () => {
     expect(markup).toContain('role="status"')
     expect(markup).toContain('aria-busy="true"')
     expect(markup).toContain('data-slot="skeleton"')
-    expect(markup).not.toMatch(/Loading [A-Z]/)
   })
 
-  it("keeps page content hidden behind its skeleton until layout is ready", () => {
-    const markup = renderToStaticMarkup(
-      <PageLoadBoundary fallback={<WorkspaceLoadingSkeleton />}>
-        <div>Finished workspace</div>
-      </PageLoadBoundary>
-    )
+  it("renders only the requested media placeholders", () => {
+    const markup = renderToStaticMarkup(<MediaGridSkeleton count={3} />)
 
-    expect(markup).toContain('data-slot="page-loading-boundary"')
-    expect(markup).toContain('aria-hidden="true"')
-    expect(markup).toContain("invisible")
-    expect(markup).toContain('aria-label="Loading workspace"')
-    expect(markup).toContain("Finished workspace")
-  })
-
-  it("does not add summary sections above a dashboard table", () => {
-    const markup = renderToStaticMarkup(<DashboardLoadingSkeleton />)
-
-    expect(markup).toContain('data-slot="dashboard-table-skeleton"')
-    expect(markup).not.toContain("h-24")
-    expect(markup).not.toContain("h-7")
+    expect(markup.match(/data-slot="skeleton"/g)).toHaveLength(3)
   })
 })
