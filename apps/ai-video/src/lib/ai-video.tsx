@@ -196,14 +196,6 @@ export type ShellSection = {
   entries: ShellEntry[]
 }
 
-export type ShellTopNavigationItem = {
-  id: string
-  label: string
-  href: string
-  icon?: ShellIcon
-  visible: boolean
-}
-
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
   "theme",
@@ -324,11 +316,16 @@ export type ShellConfig = {
   // by the export renderer. See lib/audio-ducking.ts.
   duckingDb: number
   favicon: string
+  // Route the app opens to when a signed-in user lands on the app root.
+  // Defaults to "/" (the home dashboard). See routes/_authenticated/index.tsx.
+  defaultRoute: string
   brandKit: BrandKitConfig
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
+
+// The app root. Also the default landing route when none is configured.
+export const DEFAULT_ADMIN_ROUTE = "/"
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
@@ -396,8 +393,8 @@ export function createDefaultShellConfig(): ShellConfig {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     duckingDb: DEFAULT_DUCK_DB,
     favicon: "",
+    defaultRoute: DEFAULT_ADMIN_ROUTE,
     brandKit: createDefaultBrandKitConfig(),
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }

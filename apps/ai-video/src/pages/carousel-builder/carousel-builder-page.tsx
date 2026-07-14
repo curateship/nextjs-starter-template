@@ -2539,18 +2539,24 @@ function MediaInspector({
 }) {
   return (
     <div>
+      {/* Preview shows the source image at its natural aspect ratio (full panel
+          width, height follows the image) rather than a fixed cropped box. */}
       <div
         style={{
-          height: 158,
           borderRadius: 13,
           marginBottom: 14,
           overflow: "hidden",
           boxShadow: "var(--sh-sm)",
           border: "1px solid var(--line)",
-          background: `center/cover no-repeat url("${item.url}")`,
           backgroundColor: "var(--elev)",
         }}
-      />
+      >
+        <img
+          src={item.url}
+          alt=""
+          style={{ display: "block", width: "100%" }}
+        />
+      </div>
       <button
         type="button"
         className="st-hovbg"
