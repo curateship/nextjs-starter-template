@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm"
 
 import { db, type Db } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/encryption"
+import { createAlert } from "@/server/notifications"
 import {
   testProxyConnection,
   type ProxyProtocol,
@@ -9,6 +10,15 @@ import {
 } from "@/server/proxy-test"
 import { proxies, type Proxy } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+
+// True only on the ok/untested -> dead transition, so repeated failing tests
+// (manual clicks or a periodic sweep) don't re-alert for an already-dead proxy.
+export function proxyBecameDead(
+  previous: ProxyTestResult | null | undefined,
+  current: ProxyTestResult
+) {
+  return !current.ok && previous?.ok !== false
+}
 
 export type ProxyType = "residential" | "mobile" | "datacenter"
 
@@ -172,6 +182,7 @@ export async function testUserProxy(
     .limit(1)
   if (!proxy) throw new Error("Proxy not found")
 
+  const previousResult = proxy.lastTestResult as ProxyTestResult | null
   const result = await testProxyConnection({
     protocol: (proxy.protocol as ProxyProtocol) ?? "http",
     host: proxy.host,
@@ -193,6 +204,20 @@ export async function testUserProxy(
         : {}),
     })
     .where(and(eq(proxies.id, proxyId), eq(proxies.userId, userId)))
+
+  if (proxyBecameDead(previousResult, result)) {
+    await createAlert({
+      recipientUserId: userId,
+      type: "proxy_dead",
+      severity: "warning",
+      title: `Proxy “${proxy.label}” is not responding`,
+      body: result.ok ? undefined : result.error,
+      entityType: "proxy",
+      entityId: proxyId,
+      metadata: { latencyMs: result.latencyMs },
+      database,
+    })
+  }
 
   return result
 }

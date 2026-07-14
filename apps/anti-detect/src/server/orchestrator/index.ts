@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 
 import { db, type Db } from "@/server/db"
 import { decryptSecret } from "@/server/encryption"
+import { createAlert } from "@/server/notifications"
 import {
   browserSessions,
   profiles,
@@ -264,7 +265,20 @@ export async function startSession(
       .update(profiles)
       .set({ status: "error", updatedAt: failedAt })
       .where(and(eq(profiles.id, profile.id), eq(profiles.userId, userId)))
-    throw publicDockerError(error, "start")
+    const publicError = publicDockerError(error, "start")
+    await createAlert({
+      recipientUserId: userId,
+      type: "session_launch_failed",
+      severity: "critical",
+      title: `Failed to launch “${profile.name}”`,
+      body:
+        publicError instanceof Error ? publicError.message : String(publicError),
+      entityType: "profile",
+      entityId: profile.id,
+      metadata: { sessionId: session.id },
+      database,
+    })
+    throw publicError
   }
 }
 
@@ -324,33 +338,21 @@ export async function stopSession(
       .update(profiles)
       .set({ status: "error", updatedAt: failedAt })
       .where(and(eq(profiles.id, session.profileId), eq(profiles.userId, userId)))
-    throw publicDockerError(error, "stop")
+    const publicError = publicDockerError(error, "stop")
+    await createAlert({
+      recipientUserId: userId,
+      type: "session_stop_failed",
+      severity: "warning",
+      title: "Failed to stop a browser session",
+      body:
+        publicError instanceof Error ? publicError.message : String(publicError),
+      entityType: "profile",
+      entityId: session.profileId,
+      metadata: { sessionId: session.id },
+      database,
+    })
+    throw publicError
   }
-}
-
-export async function reapIdleSessions(
-  idleMs = 30 * 60 * 1000,
-  options: OrchestratorOptions = {}
-) {
-  const database = options.db ?? db
-  const cutoff = new Date(now().getTime() - idleMs)
-  const idle = await database
-    .select()
-    .from(browserSessions)
-    .where(
-      and(
-        isNull(browserSessions.endedAt),
-        inArray(browserSessions.status, ACTIVE_SESSION_STATUSES)
-      )
-    )
-
-  let stopped = 0
-  for (const session of idle) {
-    if (session.lastActiveAt > cutoff) continue
-    await stopSession(session.userId, session.id, options)
-    stopped += 1
-  }
-  return { stopped }
 }
 
 export function serializeBrowserSession(

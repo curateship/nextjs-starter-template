@@ -21,7 +21,7 @@ import {
   type OrchestratorConfig,
 } from "@/server/orchestrator"
 import { createUserProfile, listUserProfiles } from "@/server/profiles"
-import { browserSessions, users } from "@/server/schema"
+import { browserSessions, notifications, users } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 import * as schema from "@/server/schema"
 
@@ -57,12 +57,17 @@ beforeEach(async () => {
     new URL("../../drizzle/0008_browser_sessions.sql", import.meta.url),
     "utf8"
   )
+  const operationalAlerts = await readFile(
+    new URL("../../drizzle/0011_operational_alerts.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(baseline)
   await client.exec(profilesProxies)
   await client.exec(proxyProtocol)
   await client.exec(organization)
   await client.exec(statusUnique)
   await client.exec(browserSession)
+  await client.exec(operationalAlerts)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as Db)
 })
@@ -287,6 +292,47 @@ describe("browser session orchestrator", () => {
       expect(message).not.toContain("private-image")
       expect(message).not.toContain("antidetect-session-secret")
     }
+  })
+
+  it("records a session_launch_failed alert when a launch fails", async () => {
+    const userId = await seedUser("launch-alert@test.dev")
+    const profile = await createUserProfile(
+      userId,
+      { name: "Launchy", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    const docker = fakeDocker()
+    vi.mocked(docker.createVolume).mockRejectedValue(
+      new DockerConnectionError(
+        "POST",
+        "/volumes/create",
+        "connect ENOENT /var/run/docker.sock"
+      )
+    )
+
+    await expect(
+      startSession(userId, profile.id, {
+        db: testDb(),
+        docker,
+        config: testConfig(),
+        waitForReady: async () => undefined,
+      })
+    ).rejects.toThrow()
+
+    const alerts = await database
+      .select()
+      .from(notifications)
+      .where(eq(notifications.recipientUserId, userId))
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0]).toMatchObject({
+      type: "session_launch_failed",
+      severity: "critical",
+      entityType: "profile",
+      entityId: profile.id,
+      actorUserId: null,
+      feedbackId: null,
+    })
+    expect(alerts[0]?.title).toContain("Launchy")
   })
 
   it("sanitizes Docker connection failures before returning them", async () => {

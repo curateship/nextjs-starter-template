@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import {
+  AlertTriangleIcon,
   BellIcon,
   CheckCheckIcon,
+  InfoIcon,
   Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
@@ -38,15 +40,54 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 })
 
+const ALERT_TYPES = new Set<NotificationItem["type"]>([
+  "session_launch_failed",
+  "session_stop_failed",
+  "proxy_dead",
+  "session_crashed",
+  "session_reaped",
+])
+
+function isAlert(item: NotificationItem) {
+  return ALERT_TYPES.has(item.type)
+}
+
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
 }
 
-function getFeedbackPreview(message: string) {
-  return message.length > 90 ? `${message.slice(0, 90)}...` : message
+function getNotificationPreview(item: NotificationItem) {
+  const text = isAlert(item) ? item.body : item.feedback_message
+  if (!text) return null
+  return text.length > 90 ? `${text.slice(0, 90)}...` : text
+}
+
+function severityAvatarClass(severity: NotificationItem["severity"]) {
+  switch (severity) {
+    case "critical":
+      return "bg-red-100 text-red-800"
+    case "warning":
+      return "bg-amber-100 text-amber-800"
+    default:
+      return "bg-slate-100 text-slate-800"
+  }
 }
 
 function NotificationAvatar({ item }: { item: NotificationItem }) {
+  if (isAlert(item)) {
+    return (
+      <Avatar size="lg">
+        <AvatarFallback className={severityAvatarClass(item.severity)}>
+          {item.severity === "info" ? (
+            <InfoIcon className="h-4 w-4" />
+          ) : (
+            <AlertTriangleIcon className="h-4 w-4" />
+          )}
+        </AvatarFallback>
+      </Avatar>
+    )
+  }
+
   const isVote = item.type === "feedback_vote"
 
   return (
@@ -58,7 +99,7 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             : "bg-blue-100 text-blue-800"
         }
       >
-        {getInitial(item.actor_name)}
+        {getInitial(item.actor_name ?? "?")}
       </AvatarFallback>
     </Avatar>
   )
@@ -73,18 +114,28 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
     )
   }
 
-  return (
-    <>
-      <strong>{item.actor_name}</strong> commented on your feedback
-    </>
-  )
+  if (item.type === "feedback_comment") {
+    return (
+      <>
+        <strong>{item.actor_name}</strong> commented on your feedback
+      </>
+    )
+  }
+
+  return <strong>{item.title ?? "Alert"}</strong>
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
-  return item.type === "feedback_vote" ? (
-    <ThumbsUpIcon className="h-3.5 w-3.5" />
+  if (item.type === "feedback_vote") {
+    return <ThumbsUpIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "feedback_comment") {
+    return <MessageSquareIcon className="h-3.5 w-3.5" />
+  }
+  return item.severity === "info" ? (
+    <InfoIcon className="h-3.5 w-3.5" />
   ) : (
-    <MessageSquareIcon className="h-3.5 w-3.5" />
+    <AlertTriangleIcon className="h-3.5 w-3.5" />
   )
 }
 
@@ -259,7 +310,9 @@ export function NotificationCenter({
     }
 
     setOpen(false)
-    onOpenFeedback?.(item.feedback_id)
+    if (item.feedback_id) {
+      onOpenFeedback?.(item.feedback_id)
+    }
   }
 
   return (
@@ -300,7 +353,9 @@ export function NotificationCenter({
                 <NotificationTraySkeleton />
               ) : visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
-                  {visibleNotifications.map((item) => (
+                  {visibleNotifications.map((item) => {
+                    const preview = getNotificationPreview(item)
+                    return (
                     <button
                       key={item.id}
                       type="button"
@@ -320,15 +375,18 @@ export function NotificationCenter({
                             <NotificationMessage item={item} />
                           </span>
                         </p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {getFeedbackPreview(item.feedback_message)}
-                        </p>
+                        {preview ? (
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {preview}
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {dateFormatter.format(new Date(item.created_at))}
                         </p>
                       </div>
                     </button>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="py-10 text-center text-sm text-muted-foreground">

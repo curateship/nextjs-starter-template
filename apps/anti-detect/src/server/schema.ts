@@ -160,12 +160,16 @@ export const notifications = pgTable(
     recipientUserId: varchar("recipient_user_id", { length: 36 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    actorUserId: varchar("actor_user_id", { length: 36 })
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    feedbackId: varchar("feedback_id", { length: 36 })
-      .notNull()
-      .references(() => feedback.id, { onDelete: "cascade" }),
+    // Nullable: operational alerts have no acting user.
+    actorUserId: varchar("actor_user_id", { length: 36 }).references(
+      () => users.id,
+      { onDelete: "cascade" }
+    ),
+    // Nullable: operational alerts are not tied to a feedback row.
+    feedbackId: varchar("feedback_id", { length: 36 }).references(
+      () => feedback.id,
+      { onDelete: "cascade" }
+    ),
     type: varchar("type", { length: 50 }).notNull(),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
       () => feedbackVotes.id,
@@ -176,13 +180,24 @@ export const notifications = pgTable(
     }).references(() => feedbackComments.id, {
       onDelete: "cascade",
     }),
+    // Operational-alert fields (null for feedback notifications).
+    severity: varchar("severity", { length: 20 }),
+    title: varchar("title", { length: 200 }),
+    body: text("body"),
+    entityType: varchar("entity_type", { length: 40 }),
+    entityId: varchar("entity_id", { length: 36 }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'session_launch_failed', 'session_stop_failed', 'proxy_dead', 'session_crashed', 'session_reaped')`
+    ),
+    check(
+      "notifications_severity_check",
+      sql`${table.severity} is null or ${table.severity} in ('info', 'warning', 'critical')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -193,6 +208,7 @@ export const notifications = pgTable(
     index("ix_notifications_comment_id").on(
       table.feedbackCommentId
     ),
+    index("ix_notifications_entity").on(table.entityType, table.entityId),
   ]
 )
 

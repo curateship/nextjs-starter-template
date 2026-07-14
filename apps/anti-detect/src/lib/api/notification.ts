@@ -1,15 +1,40 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-export type NotificationType = "feedback_vote" | "feedback_comment"
+export type FeedbackNotificationType = "feedback_vote" | "feedback_comment"
+
+export type AlertNotificationType =
+  | "session_launch_failed"
+  | "session_stop_failed"
+  | "proxy_dead"
+  | "session_crashed"
+  | "session_reaped"
+
+export type NotificationType = FeedbackNotificationType | AlertNotificationType
+
+export type NotificationSeverity = "info" | "warning" | "critical"
+
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
 
 export type NotificationItem = {
   id: string
   type: NotificationType
-  actor_name: string
+  actor_name: string | null
   recipient_name: string
-  feedback_id: string
-  feedback_message: string
+  feedback_id: string | null
+  feedback_message: string | null
+  severity: NotificationSeverity | null
+  title: string | null
+  body: string | null
+  entity_type: string | null
+  entity_id: string | null
+  metadata: Record<string, JsonValue> | null
   read_at: string | null
   created_at: string
 }
