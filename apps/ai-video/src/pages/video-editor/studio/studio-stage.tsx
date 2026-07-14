@@ -12,28 +12,6 @@ import { formatClock } from "@/pages/video-editor/timeline-utils"
 const FRAME_MS = 1000 / 30
 const RATES = [1, 1.5, 2, 0.5]
 
-// The topmost active video clip at `timeMs` (track 0 renders on top), used for
-// the "SCENE" chip. Returns null in gaps / before the first video.
-function activeVideoAt(
-  tracks: EditorTrack[],
-  timeMs: number
-): { index: number; z: number; name: string } | null {
-  let best: { index: number; z: number; name: string } | null = null
-  tracks.forEach((track, trackIndex) => {
-    const z = tracks.length - trackIndex
-    track.clips.forEach((clip, clipIndex) => {
-      if (clip.kind !== "video") return
-      if (timeMs < clip.startMs || timeMs >= clip.startMs + clip.durationMs) {
-        return
-      }
-      if (!best || z > best.z) {
-        best = { index: clipIndex, z, name: clip.name }
-      }
-    })
-  })
-  return best
-}
-
 // Center stage: the composed preview with a scene chip, a big play button when
 // paused, and the floating transport pill. Time-driven bits subscribe to the
 // clock individually so only they re-render per frame.
@@ -105,11 +83,52 @@ function SceneChip({
   tracks: EditorTrack[]
   clock: ReturnType<typeof useEditor>["clock"]
 }) {
-  // Re-derive only when the active scene actually changes (stable snapshot
-  // string → React bails between frames within the same clip).
+  const scenes = React.useMemo(() => {
+    type Scene = { id: string; index: number; z: number; name: string }
+    const events = new Map<number, { enter: Scene[]; leave: Scene[] }>()
+    tracks.forEach((track, trackIndex) => {
+      const z = tracks.length - trackIndex
+      track.clips.forEach((clip, index) => {
+        if (clip.kind !== "video") return
+        const scene = { id: clip.id, index, z, name: clip.name }
+        const start = events.get(clip.startMs) ?? { enter: [], leave: [] }
+        start.enter.push(scene)
+        events.set(clip.startMs, start)
+        const endMs = clip.startMs + clip.durationMs
+        const end = events.get(endMs) ?? { enter: [], leave: [] }
+        end.leave.push(scene)
+        events.set(endMs, end)
+      })
+    })
+    if (!events.has(0)) events.set(0, { enter: [], leave: [] })
+
+    const active = new Map<string, Scene>()
+    const index: { startMs: number; snapshot: string }[] = []
+    for (const startMs of [...events.keys()].sort((a, b) => a - b)) {
+      const event = events.get(startMs)!
+      for (const scene of event.leave) active.delete(scene.id)
+      for (const scene of event.enter) active.set(scene.id, scene)
+      let top: Scene | null = null
+      for (const scene of active.values()) {
+        if (!top || scene.z > top.z) top = scene
+      }
+      const snapshot = top ? `${top.index} ${top.name}` : ""
+      if (index.at(-1)?.snapshot !== snapshot) index.push({ startMs, snapshot })
+    }
+    return index
+  }, [tracks])
+
+  // Binary-search stable boundary snapshots; React bails between scene changes.
   const snapshot = React.useSyncExternalStore(clock.subscribe, () => {
-    const active = activeVideoAt(tracks, clock.getTime())
-    return active ? `${active.index} ${active.name}` : ""
+    const timeMs = clock.getTime()
+    let low = 0
+    let high = scenes.length
+    while (low < high) {
+      const middle = (low + high) >> 1
+      if (scenes[middle].startMs <= timeMs) low = middle + 1
+      else high = middle
+    }
+    return scenes[Math.max(0, low - 1)]?.snapshot ?? ""
   })
   if (!snapshot) return null
   const [indexStr, name] = snapshot.split(" ")
@@ -281,9 +300,18 @@ function Timecode({
   clock: ReturnType<typeof useEditor>["clock"]
 }) {
   const { durationMs } = useEditor()
-  const timeMs = React.useSyncExternalStore(clock.subscribe, () =>
-    clock.getTime()
-  )
+  const timeRef = React.useRef<HTMLSpanElement>(null)
+  React.useEffect(() => {
+    let previous = ""
+    const paint = () => {
+      const next = formatClock(clock.getTime())
+      if (next === previous) return
+      previous = next
+      if (timeRef.current) timeRef.current.textContent = next
+    }
+    paint()
+    return clock.subscribe(paint)
+  }, [clock])
   return (
     <span
       style={{
@@ -293,7 +321,7 @@ function Timecode({
         whiteSpace: "nowrap",
       }}
     >
-      {formatClock(timeMs)}
+      <span ref={timeRef}>{formatClock(clock.getTime())}</span>
       <span style={{ color: "var(--mut)", fontWeight: 500 }}>
         {" "}
         / {formatClock(durationMs)}
