@@ -830,28 +830,39 @@ function MediaPanel() {
           })}
         </div>
 
-        <div
-          className="st-hovcard"
-          onClick={() => fileRef.current?.click()}
-          style={{
-            border: "1.5px dashed var(--line2)",
-            borderRadius: 13,
-            padding: "20px 12px",
-            textAlign: "center",
-            marginBottom: 18,
-            background: "var(--panel2)",
-            cursor: "pointer",
-            transition: "background .13s",
-          }}
-        >
-          <div style={{ display: "grid", placeItems: "center", marginBottom: 8, color: "var(--mut)" }}>
-            <Upload size={22} />
+        {items.length === 0 ? (
+          <div
+            className="st-hovcard"
+            onClick={() => fileRef.current?.click()}
+            style={{
+              border: "1.5px dashed var(--line2)",
+              borderRadius: 13,
+              padding: "20px 12px",
+              textAlign: "center",
+              marginBottom: 18,
+              background: "var(--panel2)",
+              cursor: "pointer",
+              transition: "background .13s",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                placeItems: "center",
+                marginBottom: 8,
+                color: "var(--mut)",
+              }}
+            >
+              <Upload size={22} />
+            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+              {uploading ? "Uploading…" : "Drop or import media"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
+              MP4 · MOV · PNG · MP3
+            </div>
           </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-            {uploading ? "Uploading…" : "Drop or import media"}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>MP4 · MOV · PNG · MP3</div>
-        </div>
+        ) : null}
 
         {error ? (
           <div style={{ fontSize: 11.5, color: "var(--coral)", marginBottom: 12 }}>{error}</div>
@@ -1042,33 +1053,6 @@ function TextPanel() {
 function AiStudioPanel() {
   return (
     <div>
-      <div
-        style={{
-          background: "linear-gradient(155deg,var(--acc-soft),transparent)",
-          border: "1px solid color-mix(in oklch,var(--acc),transparent 78%)",
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: 16,
-          fontSize: 12,
-          color: "var(--ink2)",
-          lineHeight: 1.5,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12.5,
-            fontWeight: 700,
-            marginBottom: 6,
-            color: "var(--acc)",
-          }}
-        >
-          ✦ Generate
-        </div>
-        Captions, voiceover, hooks, jump cuts, AI video and scripts — pick a tool below.
-      </div>
       {/* studio-ai-tiles scopes the tile grid to 2 columns (studio.css) without
           touching the shared AiPanel used elsewhere. */}
       <div className="studio-ai-tiles">

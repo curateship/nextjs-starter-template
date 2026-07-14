@@ -20,6 +20,7 @@ import { DESIGN_HEIGHT } from "@/pages/video-editor/timeline-utils"
 // How far media elements may drift from the clock before being re-seeked.
 const PLAYING_DRIFT_S = 0.25
 const PAUSED_DRIFT_S = 0.04
+const MEDIA_LOOK_AHEAD_MS = 2000
 
 // Clock-synced video/audio elements need their track (mute state)...
 type MediaEntry = {
@@ -36,7 +37,8 @@ type PlaybackFrame = {
   audios: Map<string, MediaEntry>
   images: Map<string, VisualEntry>
   texts: Map<string, VisualEntry>
-  upcomingVideos: MediaEntry[]
+  preparedVideos: Map<string, MediaEntry>
+  preparedAudios: Map<string, MediaEntry>
 }
 type PlaybackEntry =
   | { kind: "media"; entry: MediaEntry }
@@ -111,11 +113,10 @@ function playbackFrameAt(frames: PlaybackFrame[], timeMs: number) {
   return frames[Math.max(0, low - 1)]
 }
 
-// Renders the composed timeline. ONE <video> per source URL (clips of the same
-// source share it, driven to whichever clip is active) — so contiguous splits
-// play straight through with no element handoff. Audio/image/text stay one
-// element per clip. The element tree only re-renders on edits; a single
-// clock-subscribed loop drives all per-frame work imperatively.
+// Renders the composed timeline. Prepared clips share one <video> per source,
+// so contiguous splits play through without an element handoff. Only active
+// and near-future video/audio elements are mounted; a single clock-subscribed
+// loop drives all per-frame work imperatively.
 export function EditorPreview() {
   const { state, clock, dispatch } = useEditor()
   const { config } = useShellRuntime()
@@ -126,6 +127,7 @@ export function EditorPreview() {
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
+  const syncFrameRef = React.useRef<() => void>(() => undefined)
   // Per-word spans for karaoke captions, keyed `${clipId}:${index}`.
   const wordRefs = React.useRef(new Map<string, HTMLSpanElement>())
   // Active text-overlay drag (preview positioning). Position is updated
@@ -169,56 +171,58 @@ export function EditorPreview() {
     () => flattenTracks(state.tracks),
     [state.tracks]
   )
-  // Unique video source URLs (one <video> each) and the per-clip audio list.
-  const videoSources = React.useMemo(() => {
-    const seen = new Set<string>()
-    const urls: string[] = []
-    for (const { clip } of media) {
-      if (clip.kind === "video" && clip.url && !seen.has(clip.url)) {
-        seen.add(clip.url)
-        urls.push(clip.url)
-      }
-    }
-    return urls
-  }, [media])
-  const audioClips = React.useMemo(
-    () => media.filter((m) => m.clip.kind === "audio"),
-    [media]
-  )
   // Clip activity changes only at start/end boundaries. Build immutable frame
   // snapshots on edits so playback can find the current active set by binary
   // search instead of scanning the whole timeline on every clock tick.
   const playbackFrames = React.useMemo(() => {
     const events = new Map<
       number,
-      { enter: PlaybackEntry[]; leave: PlaybackEntry[] }
+      {
+        enter: PlaybackEntry[]
+        leave: PlaybackEntry[]
+        prepare: MediaEntry[]
+        release: MediaEntry[]
+      }
     >()
+    const empty = () => ({ enter: [], leave: [], prepare: [], release: [] })
     const add = (item: PlaybackEntry) => {
       const { clip } = item.entry
-      const start = events.get(clip.startMs) ?? { enter: [], leave: [] }
+      const start = events.get(clip.startMs) ?? empty()
       start.enter.push(item)
       events.set(clip.startMs, start)
       const endMs = clip.startMs + clip.durationMs
-      const end = events.get(endMs) ?? { enter: [], leave: [] }
+      const end = events.get(endMs) ?? empty()
       end.leave.push(item)
+      if (item.kind === "media") {
+        const prepareMs = Math.max(0, clip.startMs - MEDIA_LOOK_AHEAD_MS)
+        const prepare = events.get(prepareMs) ?? empty()
+        prepare.prepare.push(item.entry)
+        events.set(prepareMs, prepare)
+        end.release.push(item.entry)
+      }
       events.set(endMs, end)
     }
     for (const entry of media) add({ kind: "media", entry })
     for (const entry of images) add({ kind: "image", entry })
     for (const entry of texts) add({ kind: "text", entry })
-    if (!events.has(0)) events.set(0, { enter: [], leave: [] })
+    if (!events.has(0)) {
+      events.set(0, { enter: [], leave: [], prepare: [], release: [] })
+    }
 
     const activeMedia = new Map<string, MediaEntry>()
+    const preparedMedia = new Map<string, MediaEntry>()
     const activeImages = new Map<string, VisualEntry>()
     const activeTexts = new Map<string, VisualEntry>()
     const frames: PlaybackFrame[] = []
     for (const startMs of [...events.keys()].sort((a, b) => a - b)) {
       const event = events.get(startMs)!
+      for (const entry of event.release) preparedMedia.delete(entry.clip.id)
       for (const item of event.leave) {
         if (item.kind === "media") activeMedia.delete(item.entry.clip.id)
         else if (item.kind === "image") activeImages.delete(item.entry.clip.id)
         else activeTexts.delete(item.entry.clip.id)
       }
+      for (const entry of event.prepare) preparedMedia.set(entry.clip.id, entry)
       for (const item of event.enter) {
         if (item.kind === "media") activeMedia.set(item.entry.clip.id, item.entry)
         else if (item.kind === "image") activeImages.set(item.entry.clip.id, item.entry)
@@ -240,28 +244,37 @@ export function EditorPreview() {
           }
         }
       }
+      const preparedVideos = new Map(videos)
+      const preparedAudios = new Map(audios)
+      for (const entry of preparedMedia.values()) {
+        const { clip } = entry
+        if (clip.kind === "audio") {
+          preparedAudios.set(clip.id, entry)
+        } else if (clip.kind === "video" && clip.url) {
+          const current = preparedVideos.get(clip.url)
+          if (!current || clip.startMs < current.clip.startMs) {
+            preparedVideos.set(clip.url, entry)
+          }
+        }
+      }
       frames.push({
         startMs,
         videos,
         audios,
         images: new Map(activeImages),
         texts: new Map(activeTexts),
-        upcomingVideos: [],
+        preparedVideos,
+        preparedAudios,
       })
-    }
-
-    // Each frame points at the nearest video entries that will become active.
-    // The sync loop uses this only at boundaries to pre-seek clean cut handoffs.
-    for (let i = frames.length - 2; i >= 0; i--) {
-      const entering = [...frames[i + 1].videos].flatMap(([url, entry]) =>
-        frames[i].videos.has(url) ? [] : [entry]
-      )
-      frames[i].upcomingVideos = entering.length
-        ? entering
-        : frames[i + 1].upcomingVideos
     }
     return frames
   }, [media, images, texts])
+  const preparedFrame = React.useSyncExternalStore(
+    clock.subscribe,
+    () => playbackFrameAt(playbackFrames, clock.getTime()),
+    () => playbackFrames[0]
+  )
+  React.useLayoutEffect(() => syncFrameRef.current(), [preparedFrame])
 
   // Live "duck under voice": a volume envelope for ducked tracks that mirrors
   // the export renderer, so the toggle is audible while editing — not only on
@@ -416,7 +429,7 @@ export function EditorPreview() {
             el.style.visibility = "visible"
           }
         }
-        for (const entry of frame.upcomingVideos) {
+        for (const entry of frame.preparedVideos.values()) {
           const url = entry.clip.url
           if (!url || frame.videos.has(url)) continue
           const el = videoRefs.current.get(url)
@@ -494,8 +507,15 @@ export function EditorPreview() {
       }
     }
 
+    syncFrameRef.current = syncFrame
     syncFrame()
-    return clock.subscribe(syncFrame)
+    const unsubscribe = clock.subscribe(syncFrame)
+    return () => {
+      if (syncFrameRef.current === syncFrame) {
+        syncFrameRef.current = () => undefined
+      }
+      unsubscribe()
+    }
   }, [clock, playbackFrames, duckEnvelope])
 
   // --- Drag a text overlay to reposition it on the frame -------------------
@@ -572,28 +592,32 @@ export function EditorPreview() {
         className="relative overflow-hidden rounded-md bg-black"
         style={{ width: stageWidth, height: stageHeight }}
       >
-        {/* One <video> per source; the sync loop sets its opacity/z and drives
-            it to whichever clip of that source is active. */}
-        {videoSources.map((url) => (
+        {/* One <video> per prepared source; the sync loop sets its opacity/z
+            and drives it to whichever clip of that source is active. */}
+        {[...preparedFrame.preparedVideos].map(([url]) => (
           <video
             key={url}
             ref={registerRef(videoRefs, url)}
             src={url}
             preload="auto"
+            onLoadedMetadata={() => syncFrameRef.current()}
+            onClick={() => {
+              if (clock.playing) clock.pause()
+            }}
             playsInline
             className="absolute inset-0 h-full w-full object-contain"
             style={{ opacity: 0 }}
           />
         ))}
 
-        {/* Audio: one element per clip (no visual; the soundtrack plays
-            continuously). */}
-        {audioClips.map(({ clip }) => (
+        {/* Audio: active and near-future clips only. */}
+        {[...preparedFrame.preparedAudios.values()].map(({ clip }) => (
           <audio
             key={clip.id}
             ref={registerRef(audioRefs, clip.id)}
             src={clip.url}
             preload="auto"
+            onLoadedMetadata={() => syncFrameRef.current()}
           />
         ))}
 
