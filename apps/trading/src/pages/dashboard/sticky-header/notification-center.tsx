@@ -6,10 +6,13 @@ import {
   ArrowRightLeftIcon,
   BellIcon,
   BookOpenIcon,
+  ChartNoAxesCombinedIcon,
   CheckCheckIcon,
   Loader2Icon,
   MessageSquareIcon,
   RadarIcon,
+  ShieldAlertIcon,
+  TargetIcon,
   ThumbsUpIcon,
   UsersIcon,
 } from "lucide-react"
@@ -40,6 +43,12 @@ import {
   pollAlerts,
   type ScannerAlertItem,
 } from "@/lib/api/scanner"
+import {
+  listTradingNotifications,
+  markAllTradingNotificationsRead,
+  markTradingNotificationRead,
+  type TradingNotificationItem,
+} from "@/lib/api/trading-notifications"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
@@ -47,10 +56,29 @@ const NOTIFICATION_PAGE_SIZE = 20
 const ALERT_TRAY_LIMIT = 50
 const ALERT_POLL_MS = 10_000
 
-// A row in the tray is either a feedback notification or a scanner alert.
+// The tray keeps each source's read behavior while presenting one time-sorted feed.
 type TrayItem =
-  | { kind: "feedback"; id: string; createdAt: string; read: boolean; feedback: NotificationItem }
-  | { kind: "alert"; id: string; createdAt: string; read: boolean; alert: ScannerAlertItem }
+  | {
+      kind: "feedback"
+      id: string
+      createdAt: string
+      read: boolean
+      feedback: NotificationItem
+    }
+  | {
+      kind: "alert"
+      id: string
+      createdAt: string
+      read: boolean
+      alert: ScannerAlertItem
+    }
+  | {
+      kind: "trading"
+      id: string
+      createdAt: string
+      read: boolean
+      trading: TradingNotificationItem
+    }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -89,7 +117,9 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
           )}
           <span>
             <strong>{item.actor_name}</strong>{" "}
-            {isVote ? "gave your feedback a thumbs up" : "commented on your feedback"}
+            {isVote
+              ? "gave your feedback a thumbs up"
+              : "commented on your feedback"}
           </span>
         </p>
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -107,7 +137,10 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
 function alertVisual(type: string) {
   switch (alertRoute(type)) {
     case "/scanner/positions":
-      return { Icon: ArrowRightLeftIcon, className: "bg-blue-100 text-blue-800" }
+      return {
+        Icon: ArrowRightLeftIcon,
+        className: "bg-blue-100 text-blue-800",
+      }
     case "/scanner/crowded":
       return { Icon: UsersIcon, className: "bg-amber-100 text-amber-800" }
     case "/scanner/book":
@@ -151,11 +184,82 @@ function AlertRow({ item }: { item: ScannerAlertItem }) {
   )
 }
 
+function tradingVisual(item: TradingNotificationItem) {
+  switch (item.kind) {
+    case "position_opened":
+      return {
+        Icon: ChartNoAxesCombinedIcon,
+        className: "bg-blue-100 text-blue-800",
+        title: `${item.coin} ${item.side} opened`,
+      }
+    case "take_profit":
+      return {
+        Icon: TargetIcon,
+        className: "bg-emerald-100 text-emerald-800",
+        title: `${item.coin} take profit filled`,
+      }
+    case "stop_loss":
+      return {
+        Icon: ShieldAlertIcon,
+        className: "bg-red-100 text-red-800",
+        title: `${item.coin} stop loss filled`,
+      }
+  }
+}
+
+function TradingRow({ item }: { item: TradingNotificationItem }) {
+  const visual = tradingVisual(item)
+  const { Icon } = visual
+
+  return (
+    <>
+      <Avatar size="lg">
+        <AvatarFallback className={visual.className}>
+          <Icon className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <p className="truncate text-sm leading-snug font-medium text-foreground">
+          {visual.title}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {item.size} {item.coin} at ${Number(item.price).toLocaleString()}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            {item.walletLabel}
+          </Badge>
+          <span className="text-xs text-muted-foreground capitalize">
+            {item.network}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {dateFormatter.format(new Date(item.occurredAt))}
+        </p>
+      </div>
+    </>
+  )
+}
+
+function TrayRow({ item }: { item: TrayItem }) {
+  switch (item.kind) {
+    case "feedback":
+      return <FeedbackRow item={item.feedback} />
+    case "alert":
+      return <AlertRow item={item.alert} />
+    case "trading":
+      return <TradingRow item={item.trading} />
+  }
+}
+
 function NotificationTraySkeleton() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2">
+        <div
+          key={index}
+          className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2"
+        >
           <div className="pt-5">
             <Skeleton className="size-2 rounded-full" />
           </div>
@@ -220,15 +324,17 @@ export function NotificationCenter({
     []
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
+  const [trading, setTrading] = React.useState<TradingNotificationItem[]>([])
   const [feedbackUnread, setFeedbackUnread] = React.useState(0)
   const [alertUnread, setAlertUnread] = React.useState(0)
+  const [tradingUnread, setTradingUnread] = React.useState(0)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
 
-  const totalUnread = feedbackUnread + alertUnread
+  const totalUnread = feedbackUnread + alertUnread + tradingUnread
 
   const items = React.useMemo<TrayItem[]>(() => {
     const merged: TrayItem[] = [
@@ -246,9 +352,16 @@ export function NotificationCenter({
         read: a.read_at !== null,
         alert: a,
       })),
+      ...trading.map((item) => ({
+        kind: "trading" as const,
+        id: `t:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        trading: item,
+      })),
     ]
     return merged.sort((x, y) => y.createdAt.localeCompare(x.createdAt))
-  }, [notifications, alerts])
+  }, [notifications, alerts, trading])
 
   const visibleItems =
     filter === "unread" ? items.filter((item) => !item.read) : items
@@ -289,21 +402,39 @@ export function NotificationCenter({
     }
   }, [])
 
-  React.useEffect(() => {
-    if (!open) return
+  const loadTradingRows = React.useCallback(async () => {
+    try {
+      const data = await listTradingNotifications()
+      setTrading(data.items)
+      setTradingUnread(data.unreadCount)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [])
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (!nextOpen) return
     void loadNotificationRows()
     void loadAlertRows()
-  }, [loadNotificationRows, loadAlertRows, open])
+    void loadTradingRows()
+  }
 
   // Keep the unread badge live even while the tray is closed.
   React.useEffect(() => {
     let cancelled = false
     async function tick() {
-      try {
-        const { unreadCount } = await pollAlerts()
-        if (!cancelled) setAlertUnread(unreadCount)
-      } catch {
-        // transient poll failure; next tick retries
+      const [alertResult, tradingResult] = await Promise.allSettled([
+        pollAlerts(),
+        listTradingNotifications(),
+      ])
+      if (cancelled) return
+      if (alertResult.status === "fulfilled") {
+        setAlertUnread(alertResult.value.unreadCount)
+      }
+      if (tradingResult.status === "fulfilled") {
+        setTrading(tradingResult.value.items)
+        setTradingUnread(tradingResult.value.unreadCount)
       }
     }
     void tick()
@@ -314,16 +445,19 @@ export function NotificationCenter({
     }
   }, [])
 
-  const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
-    const distanceFromBottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight
+  const loadMoreFromElement = React.useCallback(
+    (element: HTMLDivElement) => {
+      const distanceFromBottom =
+        element.scrollHeight - element.scrollTop - element.clientHeight
 
-    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
-      return
-    }
+      if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+        return
+      }
 
-    void loadNotificationRows(nextCursor)
-  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+      void loadNotificationRows(nextCursor)
+    },
+    [loadNotificationRows, loading, loadingMore, nextCursor]
+  )
 
   React.useEffect(() => {
     const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
@@ -340,11 +474,14 @@ export function NotificationCenter({
     if (totalUnread === 0) return
     setError(null)
     try {
-      const [feedbackResult] = await Promise.all([
+      const [feedbackResult, , tradingResult] = await Promise.all([
         feedbackUnread > 0
           ? markAllNotificationsRead()
           : Promise.resolve({ notificationIds: [] as string[], readAt: "" }),
         alertUnread > 0 ? markAlertsRead() : Promise.resolve({ ok: true }),
+        tradingUnread > 0
+          ? markAllTradingNotificationsRead()
+          : Promise.resolve({ ids: [] as string[], readAt: "" }),
       ])
       const readIds = new Set(feedbackResult.notificationIds)
       setNotifications((current) =>
@@ -360,8 +497,17 @@ export function NotificationCenter({
           item.read_at ? item : { ...item, read_at: readAt }
         )
       )
+      const tradingIds = new Set(tradingResult.ids)
+      setTrading((current) =>
+        current.map((item) =>
+          tradingIds.has(item.id)
+            ? { ...item, readAt: tradingResult.readAt }
+            : item
+        )
+      )
       setFeedbackUnread(0)
       setAlertUnread(0)
+      setTradingUnread(0)
     } catch (readError) {
       setError(getNotificationErrorMessage(readError))
     }
@@ -411,8 +557,44 @@ export function NotificationCenter({
     void navigate({ to: alertRoute(item.type) })
   }
 
+  async function openTradingNotification(item: TradingNotificationItem) {
+    setError(null)
+    if (!item.readAt) {
+      try {
+        const result = await markTradingNotificationRead(item.id)
+        setTrading((current) =>
+          current.map((currentItem) =>
+            currentItem.id === result.id
+              ? { ...currentItem, readAt: result.readAt }
+              : currentItem
+          )
+        )
+        setTradingUnread((current) => Math.max(0, current - 1))
+      } catch (readError) {
+        setError(getNotificationErrorMessage(readError))
+        return
+      }
+    }
+    setOpen(false)
+    void navigate({
+      to: "/trade",
+      search: { market: item.coin, wallet: item.walletId },
+    })
+  }
+
+  async function openTrayItem(item: TrayItem) {
+    switch (item.kind) {
+      case "feedback":
+        return openFeedbackNotification(item.feedback)
+      case "alert":
+        return openAlert(item.alert)
+      case "trading":
+        return openTradingNotification(item.trading)
+    }
+  }
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -422,7 +604,12 @@ export function NotificationCenter({
         >
           <BellIcon className="h-[1.15rem] w-[1.15rem]" />
           {totalUnread > 0 ? (
-            <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+            <span
+              className={cn(
+                "absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-background bg-red-500 text-[10px] leading-none font-semibold text-white",
+                totalUnread > 9 && "px-1"
+              )}
+            >
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           ) : null}
@@ -456,22 +643,14 @@ export function NotificationCenter({
                       key={item.id}
                       type="button"
                       className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
-                      onClick={() =>
-                        item.kind === "feedback"
-                          ? void openFeedbackNotification(item.feedback)
-                          : void openAlert(item.alert)
-                      }
+                      onClick={() => void openTrayItem(item)}
                     >
                       <div className="pt-5">
                         {!item.read ? (
                           <span className="block size-2 rounded-full bg-red-500" />
                         ) : null}
                       </div>
-                      {item.kind === "feedback" ? (
-                        <FeedbackRow item={item.feedback} />
-                      ) : (
-                        <AlertRow item={item.alert} />
-                      )}
+                      <TrayRow item={item} />
                     </button>
                   ))}
                 </div>
