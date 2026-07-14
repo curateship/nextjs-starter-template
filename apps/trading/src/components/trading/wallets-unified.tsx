@@ -62,6 +62,7 @@ import {
 import { shortAddress } from "@/components/scanner/format"
 import { ConnectWalletFlow } from "@/components/trading/connect-wallet-flow"
 import { NewWalletDialog } from "@/components/trading/new-wallet-dialog"
+import { RecoveryDialog } from "@/components/trading/recovery-dialog"
 
 type WalletRow =
   | { kind: "exchange"; id: string; wallet: WalletItem }
@@ -247,6 +248,13 @@ export function WalletsUnified({
                 ))}
               </SelectContent>
             </Select>
+            <RecoveryDialog
+              trigger={
+                <DashboardToolbarButton variant="outline">
+                  Recover funds
+                </DashboardToolbarButton>
+              }
+            />
             <DashboardToolbarButton
               type="button"
               onClick={() => {

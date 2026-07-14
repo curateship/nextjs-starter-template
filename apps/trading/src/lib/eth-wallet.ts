@@ -11,6 +11,18 @@ type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
 
+type TypedData = {
+  domain: {
+    name: string
+    version: string
+    chainId: number
+    verifyingContract: `0x${string}`
+  }
+  types: Record<string, readonly { name: string; type: string }[]>
+  primaryType: string
+  message: Record<string, unknown>
+}
+
 function getInjectedProvider(): Eip1193Provider | null {
   if (typeof window === "undefined") return null
   const provider = (window as { ethereum?: Eip1193Provider }).ethereum
@@ -56,6 +68,48 @@ export async function signApproveAgentTypedData(
   if (!provider) {
     throw new Error("No browser wallet found.")
   }
+  return requestTypedDataSignature(provider, address, typedData)
+}
+
+export function createInjectedWalletSigner(expectedAddress: `0x${string}`) {
+  const provider = getInjectedProvider()
+  if (!provider) throw new Error("No browser wallet found.")
+
+  return {
+    getAddresses: async () => {
+      const address = await readExpectedAddress(provider, expectedAddress)
+      return [address.toLowerCase() as `0x${string}`]
+    },
+    getChainId: async () => {
+      const chainId = (await provider.request({ method: "eth_chainId" })) as string
+      return Number.parseInt(chainId, 16)
+    },
+    signTypedData: async (typedData: TypedData) => {
+      const address = await readExpectedAddress(provider, expectedAddress)
+      return requestTypedDataSignature(provider, address, typedData)
+    },
+  }
+}
+
+async function readExpectedAddress(
+  provider: Eip1193Provider,
+  expectedAddress: string
+) {
+  const accounts = (await provider.request({ method: "eth_accounts" })) as string[]
+  const address = accounts?.[0]
+  if (!address || address.toLowerCase() !== expectedAddress.toLowerCase()) {
+    throw new Error(
+      "The connected wallet account changed. Reconnect the original account and try again."
+    )
+  }
+  return address
+}
+
+async function requestTypedDataSignature(
+  provider: Eip1193Provider,
+  address: string,
+  typedData: TypedData
+) {
   const payload = {
     domain: typedData.domain,
     primaryType: typedData.primaryType,
