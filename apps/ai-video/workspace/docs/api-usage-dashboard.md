@@ -17,6 +17,8 @@ cost-per-credit rate. Estimates are informational only.
   safe metadata, and creation time.
 - Blocked requests create `blocked` events but do not call the provider.
 - Provider attempts that fail after a provider call are marked `failed`.
+- AI export covers use `image_generation` (10 credits); covers selected from
+  rendered video frames do not call a provider and are free.
 
 ## Enforcement
 

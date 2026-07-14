@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   TableCell,
@@ -44,10 +46,16 @@ import {
 import {
   bulkDeleteExports,
   deleteExport,
+  generateExportCover,
   generateExportDescription,
+  getExportCoverFrame,
+  getExportCoverFrames,
   getExportErrorMessage,
   listExports,
+  saveExportFrameCover,
   updateExport,
+  type ExportCoverFrame,
+  type ExportCoverFramesResult,
   type ExportItem,
 } from "@/lib/api/exports"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
@@ -173,6 +181,7 @@ export function ExportDashboard() {
   const [selectedExport, setSelectedExport] = React.useState<ExportItem | null>(
     null
   )
+  const [coverExport, setCoverExport] = React.useState<ExportItem | null>(null)
 
   React.useEffect(() => {
     let active = true
@@ -272,6 +281,14 @@ export function ExportDashboard() {
     )
     setSelectedExport(updated)
     toast.success("Export saved.")
+  }
+
+  function handleCoverSaved(updated: ExportItem) {
+    setExports((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    )
+    setCoverExport(null)
+    toast.success("Cover saved.")
   }
 
   async function deleteSingleExport(projectId: string) {
@@ -392,6 +409,7 @@ export function ExportDashboard() {
             selected={selectedIds.has(item.id)}
             onToggle={() => toggleSelected(item.id)}
             onOpen={() => setSelectedExport(item)}
+            onCover={() => setCoverExport(item)}
             onDelete={() => setDeleteIds([item.id])}
           />
         ))}
@@ -401,6 +419,12 @@ export function ExportDashboard() {
         item={selectedExport}
         onSaved={handleExportSaved}
         onOpenChange={(open) => !open && setSelectedExport(null)}
+      />
+
+      <ExportCoverDialog
+        item={coverExport}
+        onSaved={handleCoverSaved}
+        onOpenChange={(open) => !open && setCoverExport(null)}
       />
 
       <DeleteConfirmDialog
@@ -424,12 +448,14 @@ function ExportTableRow({
   selected,
   onToggle,
   onOpen,
+  onCover,
   onDelete,
 }: {
   item: ExportItem
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onCover: () => void
   onDelete: () => void
 }) {
   function handleKeyDown(event: React.KeyboardEvent<HTMLTableRowElement>) {
@@ -491,6 +517,17 @@ function ExportTableRow({
             <PlayIcon className="size-4" />
             Preview
           </DashboardToolbarButton>
+          <DashboardToolbarButton
+            type="button"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation()
+              onCover()
+            }}
+          >
+            <ImageIcon className="size-4" />
+            Cover
+          </DashboardToolbarButton>
           <Button
             type="button"
             variant="ghost"
@@ -536,6 +573,309 @@ function ExportThumbnail({ item }: { item: ExportItem }) {
       className="aspect-video w-32 rounded-md border bg-muted object-cover"
       onError={() => setFailedUrl(item.thumbnail_url)}
     />
+  )
+}
+
+function formatCoverTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.floor(seconds % 60)
+  const tenths = Math.floor((seconds % 1) * 10)
+  return `${minutes}:${String(remainder).padStart(2, "0")}.${tenths}`
+}
+
+function ExportCoverDialog({
+  item,
+  onSaved,
+  onOpenChange,
+}: {
+  item: ExportItem | null
+  onSaved: (item: ExportItem) => void
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={!!item} onOpenChange={onOpenChange}>
+      {item ? (
+        <ExportCoverDialogContent
+          key={item.project_id}
+          item={item}
+          onSaved={onSaved}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function ExportCoverDialogContent({
+  item,
+  onSaved,
+}: {
+  item: ExportItem
+  onSaved: (item: ExportItem) => void
+}) {
+  const [frames, setFrames] = React.useState<ExportCoverFramesResult | null>(
+    null
+  )
+  const [selectedFrame, setSelectedFrame] =
+    React.useState<ExportCoverFrame | null>(null)
+  const [sliderTime, setSliderTime] = React.useState(0)
+  const [loadingFrames, setLoadingFrames] = React.useState(true)
+  const [loadingExactFrame, setLoadingExactFrame] = React.useState(false)
+  const [savingFrame, setSavingFrame] = React.useState(false)
+  const [generating, setGenerating] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [prompt, setPrompt] = React.useState(
+    [item.name, item.caption].filter(Boolean).join(". ")
+  )
+  const [titleText, setTitleText] = React.useState("")
+  const [useReference, setUseReference] = React.useState(false)
+  const frameRequest = React.useRef(0)
+
+  React.useEffect(() => {
+    let active = true
+    getExportCoverFrames(item.project_id)
+      .then((result) => {
+        if (!active) return
+        setFrames(result)
+        const firstFrame = result.frames[0] ?? null
+        setSelectedFrame(firstFrame)
+        setSliderTime(firstFrame?.time_seconds ?? 0)
+      })
+      .catch((loadError) => {
+        if (active) setError(getExportErrorMessage(loadError))
+      })
+      .finally(() => {
+        if (active) setLoadingFrames(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [item.project_id])
+
+  function selectFrame(frame: ExportCoverFrame) {
+    setSelectedFrame(frame)
+    setSliderTime(frame.time_seconds)
+    setError(null)
+  }
+
+  async function loadExactFrame(timeSeconds: number) {
+    const request = ++frameRequest.current
+    setLoadingExactFrame(true)
+    setError(null)
+    try {
+      const frame = await getExportCoverFrame(item.project_id, timeSeconds)
+      if (request !== frameRequest.current) return
+      setSelectedFrame(frame)
+      setSliderTime(frame.time_seconds)
+    } catch (loadError) {
+      if (request === frameRequest.current) {
+        setError(getExportErrorMessage(loadError))
+      }
+    } finally {
+      if (request === frameRequest.current) setLoadingExactFrame(false)
+    }
+  }
+
+  async function saveFrame() {
+    if (!selectedFrame) return
+    setSavingFrame(true)
+    setError(null)
+    try {
+      onSaved(
+        await saveExportFrameCover(item.project_id, selectedFrame.time_seconds)
+      )
+    } catch (saveError) {
+      setError(getExportErrorMessage(saveError))
+    } finally {
+      setSavingFrame(false)
+    }
+  }
+
+  async function generateCover() {
+    if (!prompt.trim()) return
+    setGenerating(true)
+    setError(null)
+    try {
+      onSaved(
+        await generateExportCover(item.project_id, {
+          prompt: prompt.trim(),
+          referenceTimeSeconds:
+            useReference && selectedFrame
+              ? selectedFrame.time_seconds
+              : undefined,
+          titleText: titleText.trim(),
+        })
+      )
+    } catch (generateError) {
+      setError(getExportErrorMessage(generateError))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <DialogContent variant="admin" className="sm:max-w-4xl">
+      <DialogHeader>
+        <DialogTitle>Choose a cover</DialogTitle>
+      </DialogHeader>
+      <DialogBody className="max-h-[75vh] overflow-y-auto">
+        <Tabs defaultValue="frame">
+          <TabsList>
+            <TabsTrigger value="frame">Video frame</TabsTrigger>
+            <TabsTrigger value="ai">
+              <SparklesIcon />
+              AI cover
+            </TabsTrigger>
+          </TabsList>
+
+          {error ? (
+            <div
+              role="alert"
+              className="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          <TabsContent value="frame" className="mt-3 space-y-4">
+            <div className="relative grid min-h-64 w-full place-items-center overflow-hidden rounded-lg border bg-black">
+              {selectedFrame ? (
+                <img
+                  src={selectedFrame.image_data_url}
+                  alt={`Video frame at ${formatCoverTime(selectedFrame.time_seconds)}`}
+                  className="max-h-[56vh] w-full object-contain"
+                />
+              ) : null}
+              {loadingFrames || loadingExactFrame ? (
+                <div className="absolute inset-0 grid place-items-center bg-black/60 text-sm text-white">
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Extracting frames
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {frames ? (
+              <>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <Label htmlFor="cover-frame-slider">Fine position</Label>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatCoverTime(sliderTime)}
+                    </span>
+                  </div>
+                  <Slider
+                    id="cover-frame-slider"
+                    min={0}
+                    max={frames.duration_seconds}
+                    step={0.1}
+                    value={[sliderTime]}
+                    disabled={loadingExactFrame}
+                    onValueChange={(value) => setSliderTime(value[0] ?? 0)}
+                    onValueCommit={(value) =>
+                      void loadExactFrame(value[0] ?? 0)
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+                  {frames.frames.map((frame) => (
+                    <button
+                      type="button"
+                      key={frame.time_seconds}
+                      className="overflow-hidden rounded-md border bg-muted transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => selectFrame(frame)}
+                      aria-label={`Select frame at ${formatCoverTime(frame.time_seconds)}`}
+                    >
+                      <img
+                        src={frame.image_data_url}
+                        alt=""
+                        className="w-full object-contain"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                disabled={!selectedFrame || savingFrame || loadingExactFrame}
+                onClick={saveFrame}
+              >
+                {savingFrame ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <ImageIcon className="size-4" />
+                )}
+                {savingFrame ? "Saving" : "Use this frame"}
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-3 space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="cover-prompt">Cover prompt</Label>
+              <Textarea
+                id="cover-prompt"
+                value={prompt}
+                maxLength={5000}
+                rows={5}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Describe the cover image"
+                className="resize-none bg-background"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="cover-title-text">Title text (optional)</Label>
+              <Input
+                id="cover-title-text"
+                value={titleText}
+                maxLength={EXPORT_TITLE_MAX_LENGTH}
+                onChange={(event) => setTitleText(event.target.value)}
+                placeholder={item.name}
+              />
+              <p className="text-xs text-muted-foreground">
+                Uses your brand heading font and caption color.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-md border bg-background p-3">
+              <Checkbox
+                id="cover-reference-frame"
+                checked={useReference}
+                disabled={!selectedFrame}
+                onCheckedChange={(checked) => setUseReference(checked === true)}
+              />
+              <Label htmlFor="cover-reference-frame">
+                Use the selected video frame as a reference
+              </Label>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                AI generation uses 10 credits.
+              </p>
+              <Button
+                type="button"
+                disabled={!prompt.trim() || generating}
+                onClick={generateCover}
+              >
+                {generating ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <SparklesIcon className="size-4" />
+                )}
+                {generating ? "Generating" : "Generate cover"}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </DialogBody>
+    </DialogContent>
   )
 }
 

@@ -38,3 +38,10 @@ export function projectRenderThumbnailUrl(
 ) {
   return `/api/v1/projects/${encodePathPart(projectId)}/render-thumbnail${cacheVersion(version)}`
 }
+
+export function projectRenderThumbnailVersion(
+  renderedAt: Date | null,
+  updatedAt: Date
+) {
+  return renderedAt && renderedAt > updatedAt ? renderedAt : updatedAt
+}

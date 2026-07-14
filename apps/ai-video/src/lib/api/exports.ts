@@ -6,17 +6,23 @@ import {
   EXPORT_TITLE_MAX_LENGTH,
 } from "@/lib/export-constraints"
 import type {
+  ExportCoverFrame,
+  ExportCoverFramesResult,
   ExportDescriptionResult,
   ExportItem,
   ExportListResponse,
   ExportUpdateInput,
+  GenerateExportCoverInput,
 } from "@/server/exports"
 
 export type {
+  ExportCoverFrame,
+  ExportCoverFramesResult,
   ExportDescriptionResult,
   ExportItem,
   ExportListResponse,
   ExportUpdateInput,
+  GenerateExportCoverInput,
 }
 
 const exportSafeErrorMessages = new Set([
@@ -27,6 +33,16 @@ const exportSafeErrorMessages = new Set([
   "Description generation returned no result",
   "Description generation returned invalid JSON",
   "Description generation returned an unexpected shape",
+  "Cover font is missing on the server",
+  "Cover frame extraction failed",
+  "Cover generation failed",
+  "Cover prompt is required",
+  "Image generation failed",
+  "Image generation did not return an image",
+  "Image generation is not configured",
+  "Image generation returned an empty image",
+  "Image generation returned an image that is too large",
+  "Image generation returned an invalid file type",
 ])
 
 export function getExportErrorMessage(error: unknown) {
@@ -39,6 +55,9 @@ export function getExportErrorMessage(error: unknown) {
 }
 
 const projectIdSchema = z.object({ projectId: z.string().min(1).max(36) })
+const coverTimeSchema = projectIdSchema.extend({
+  timeSeconds: z.number().finite().min(0).max(900),
+})
 
 const listExportsFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<ExportListResponse> => {
@@ -77,6 +96,48 @@ const updateExportFn = createServerFn({ method: "POST" })
     })
   })
 
+const getExportCoverFramesFn = createServerFn({ method: "GET" })
+  .inputValidator(projectIdSchema)
+  .handler(async ({ data }): Promise<ExportCoverFramesResult> => {
+    const { getExportCoverFramesForCurrentUser } =
+      await import("@/server/exports")
+    return getExportCoverFramesForCurrentUser(data.projectId)
+  })
+
+const getExportCoverFrameFn = createServerFn({ method: "GET" })
+  .inputValidator(coverTimeSchema)
+  .handler(async ({ data }): Promise<ExportCoverFrame> => {
+    const { getExportCoverFrameForCurrentUser } =
+      await import("@/server/exports")
+    return getExportCoverFrameForCurrentUser(data.projectId, data.timeSeconds)
+  })
+
+const saveExportFrameCoverFn = createServerFn({ method: "POST" })
+  .inputValidator(coverTimeSchema)
+  .handler(async ({ data }): Promise<ExportItem> => {
+    const { saveExportFrameCoverForCurrentUser } =
+      await import("@/server/exports")
+    return saveExportFrameCoverForCurrentUser(data.projectId, data.timeSeconds)
+  })
+
+const generateExportCoverFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    projectIdSchema.extend({
+      prompt: z.string().min(1).max(5000),
+      referenceTimeSeconds: z.number().finite().min(0).max(900).optional(),
+      titleText: z.string().max(EXPORT_TITLE_MAX_LENGTH),
+    })
+  )
+  .handler(async ({ data }): Promise<ExportItem> => {
+    const { generateExportCoverForCurrentUser } =
+      await import("@/server/exports")
+    return generateExportCoverForCurrentUser(data.projectId, {
+      prompt: data.prompt,
+      referenceTimeSeconds: data.referenceTimeSeconds,
+      titleText: data.titleText,
+    })
+  })
+
 const deleteExportFn = createServerFn({ method: "POST" })
   .inputValidator(projectIdSchema)
   .handler(async ({ data }): Promise<{ projectId: string }> => {
@@ -109,6 +170,32 @@ export function generateExportDescription(projectId: string) {
 
 export function updateExport(projectId: string, input: ExportUpdateInput) {
   return updateExportFn({ data: { projectId, ...input } })
+}
+
+export function getExportCoverFrames(projectId: string) {
+  return getExportCoverFramesFn({ data: { projectId } })
+}
+
+export function getExportCoverFrame(projectId: string, timeSeconds: number) {
+  return getExportCoverFrameFn({ data: { projectId, timeSeconds } })
+}
+
+export function saveExportFrameCover(projectId: string, timeSeconds: number) {
+  return saveExportFrameCoverFn({ data: { projectId, timeSeconds } })
+}
+
+export function generateExportCover(
+  projectId: string,
+  input: GenerateExportCoverInput
+) {
+  return generateExportCoverFn({
+    data: {
+      projectId,
+      prompt: input.prompt,
+      referenceTimeSeconds: input.referenceTimeSeconds,
+      titleText: input.titleText,
+    },
+  })
 }
 
 export function deleteExport(projectId: string) {
