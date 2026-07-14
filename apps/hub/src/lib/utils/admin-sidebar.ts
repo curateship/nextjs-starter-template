@@ -154,6 +154,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-structure-breadcrumbs", "Breadcrumbs", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/structure/breadcrumbs`), "arrow"),
           ], resolvedSiteId ? [`/admin/pages/${resolvedSiteId}`, `/admin/account-pages/builder/${resolvedSiteId}`] : undefined),
           item("item-sponsors", "Sponsors", "/admin/sponsors", "briefcase"),
+          item("item-campaigns", "Campaigns", "/admin/campaigns", "bell"),
           item(
             "item-categories",
             "Categories",

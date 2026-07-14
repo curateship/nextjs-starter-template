@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sites, sponsors } from '@/lib/db/schema'
+import { campaigns, sites, sponsors } from '@/lib/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
@@ -15,6 +15,7 @@ interface TrackEvent {
   sponsor_id?: string
   placement?: string
   post_id?: string
+  campaign_id?: string
 }
 
 const MAX_EVENTS_PER_REQUEST = 20
@@ -152,6 +153,34 @@ async function persistSponsorImpressions(siteId: string, groups: Map<string, Spo
   `)
 }
 
+type CampaignCounter = { views: number; dismissals: number; submissions: number }
+
+async function persistCampaignCounters(siteId: string, events: TrackEvent[]) {
+  const counters = new Map<string, CampaignCounter>()
+  for (const event of events) {
+    if (!event?.campaign_id || !UUID_REGEX.test(event.campaign_id)) continue
+    if (!['campaign_view', 'campaign_dismiss', 'campaign_submit'].includes(event.type)) continue
+    const count = counters.get(event.campaign_id) ?? { views: 0, dismissals: 0, submissions: 0 }
+    if (event.type === 'campaign_view') count.views += 1
+    if (event.type === 'campaign_dismiss') count.dismissals += 1
+    if (event.type === 'campaign_submit') count.submissions += 1
+    counters.set(event.campaign_id, count)
+  }
+  if (!counters.size) return
+
+  const ids = [...counters.keys()]
+  const valid = await db.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.siteId, siteId), inArray(campaigns.id, ids)))
+  for (const row of valid) {
+    const count = counters.get(row.id)!
+    await db.update(campaigns).set({
+      views: sql`${campaigns.views} + ${count.views}`,
+      dismissals: sql`${campaigns.dismissals} + ${count.dismissals}`,
+      submissions: sql`${campaigns.submissions} + ${count.submissions}`,
+      updatedAt: new Date(),
+    }).where(eq(campaigns.id, row.id))
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get('host') || ''
@@ -216,10 +245,11 @@ export async function POST(request: NextRequest) {
     }
 
     const sponsorGroups = collectSponsorImpressions(events)
+    const hasCampaignEvents = events.some((event) => event && ['campaign_view', 'campaign_dismiss', 'campaign_submit'].includes(event.type))
 
-    if (!groups.size && !sponsorGroups.size) return new NextResponse(null, { status: 204 })
+    if (!groups.size && !sponsorGroups.size && !hasCampaignEvents) return new NextResponse(null, { status: 204 })
 
-    await persistSponsorImpressions(site.id, sponsorGroups)
+    await Promise.all([persistSponsorImpressions(site.id, sponsorGroups), persistCampaignCounters(site.id, events)])
 
     if (!groups.size) return new NextResponse(null, { status: 204 })
 

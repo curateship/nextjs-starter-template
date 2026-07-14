@@ -822,7 +822,7 @@ export const NavBlock = memo(function NavBlock({
       data-block-type="navigation"
       className={cn(
         'z-50 w-full border-b',
-        isPreview ? 'sticky top-0' : 'fixed top-0',
+        isPreview ? 'sticky top-0' : 'fixed top-[var(--campaign-bar-height,0px)]',
         blurClass,
         !backgroundColor && 'bg-background/90'
       )}
