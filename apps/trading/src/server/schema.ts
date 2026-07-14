@@ -295,6 +295,62 @@ export const tradingWalletNonces = pgTable(
   ]
 )
 
+export const tradingNotifications = pgTable(
+  "trading_notifications",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 })
+      .notNull()
+      .references(() => tradingWallets.id, { onDelete: "cascade" }),
+    eventKey: varchar("event_key", { length: 200 }).notNull(),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    side: varchar("side", { length: 5 }).notNull(),
+    price: numeric("price").notNull(),
+    size: numeric("size").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "trading_notifications_kind_check",
+      sql`${table.kind} in ('position_opened', 'take_profit', 'stop_loss')`
+    ),
+    check(
+      "trading_notifications_side_check",
+      sql`${table.side} in ('long', 'short')`
+    ),
+    unique("trading_notifications_user_event_unique").on(
+      table.userId,
+      table.eventKey
+    ),
+    index("ix_trading_notifications_user_occurred").on(
+      table.userId,
+      table.occurredAt.desc(),
+      table.id.desc()
+    ),
+    index("ix_trading_notifications_user_unread").on(
+      table.userId,
+      table.readAt
+    ),
+  ]
+)
+
+export const tradingNotificationCursors = pgTable(
+  "trading_notification_cursors",
+  {
+    walletId: varchar("wallet_id", { length: 36 })
+      .primaryKey()
+      .references(() => tradingWallets.id, { onDelete: "cascade" }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  }
+)
+
 export const tradingOrderTemplates = pgTable(
   "order_templates",
   {
@@ -1084,6 +1140,7 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type TradingWallet = typeof tradingWallets.$inferSelect
+export type TradingNotification = typeof tradingNotifications.$inferSelect
 export type TradingOrderTemplate = typeof tradingOrderTemplates.$inferSelect
 export type TradingAutomation = typeof tradingAutomations.$inferSelect
 export type TradingBot = typeof tradingBots.$inferSelect
