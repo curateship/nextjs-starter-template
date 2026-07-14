@@ -1,6 +1,6 @@
 import type { PnlTrade } from "@/lib/api/pnl"
 
-// Trading polarity, consistent with the price chart and portfolio dashboard.
+// Trading polarity, consistent with the price chart.
 export const UP = "#089981"
 export const DOWN = "#f23645"
 export const UP_RGB = "8, 153, 129"

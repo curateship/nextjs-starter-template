@@ -401,14 +401,6 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
-          id: "item-portfolio",
-          label: "Portfolio",
-          href: "/portfolio",
-          icon: "heartPulse",
-          visible: true,
-        },
-        {
-          type: "item",
           id: "item-pnl",
           label: "PnL",
           href: "/pnl",

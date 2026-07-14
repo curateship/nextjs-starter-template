@@ -180,7 +180,6 @@ describe("custom shell workspaces", () => {
         visible: true,
         children: [{ label: "Backtest", href: "/backtest" }],
       },
-      { type: "item", label: "Portfolio", href: "/portfolio", visible: true },
       { type: "item", label: "PnL", href: "/pnl", visible: true },
       { type: "item", label: "Wallets", href: "/wallets", visible: true },
       { type: "item", label: "Audit Log", href: "/audit", visible: true },

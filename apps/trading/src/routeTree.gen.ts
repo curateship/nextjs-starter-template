@@ -15,7 +15,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
-import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
@@ -70,11 +69,6 @@ const AuthenticatedWalletsRoute = AuthenticatedWalletsRouteImport.update({
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
   id: '/trade',
   path: '/trade',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
-  id: '/portfolio',
-  path: '/portfolio',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
@@ -232,7 +226,6 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
-  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -265,7 +258,6 @@ export interface FileRoutesByTo {
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
-  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -300,7 +292,6 @@ export interface FileRoutesById {
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/indicators': typeof AuthenticatedIndicatorsRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
-  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -337,7 +328,6 @@ export interface FileRouteTypes {
     | '/audit'
     | '/indicators'
     | '/pnl'
-    | '/portfolio'
     | '/trade'
     | '/wallets'
     | '/workspaces'
@@ -370,7 +360,6 @@ export interface FileRouteTypes {
     | '/audit'
     | '/indicators'
     | '/pnl'
-    | '/portfolio'
     | '/trade'
     | '/wallets'
     | '/workspaces'
@@ -404,7 +393,6 @@ export interface FileRouteTypes {
     | '/_authenticated/audit'
     | '/_authenticated/indicators'
     | '/_authenticated/pnl'
-    | '/_authenticated/portfolio'
     | '/_authenticated/trade'
     | '/_authenticated/wallets'
     | '/_authenticated/workspaces'
@@ -482,13 +470,6 @@ declare module '@tanstack/react-router' {
       path: '/trade'
       fullPath: '/trade'
       preLoaderRoute: typeof AuthenticatedTradeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/portfolio': {
-      id: '/_authenticated/portfolio'
-      path: '/portfolio'
-      fullPath: '/portfolio'
-      preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/pnl': {
@@ -726,7 +707,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedIndicatorsRoute: typeof AuthenticatedIndicatorsRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
-  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
@@ -755,7 +735,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedIndicatorsRoute: AuthenticatedIndicatorsRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
-  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
