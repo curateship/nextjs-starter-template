@@ -61,6 +61,25 @@ so running bots and nonce state are untouched.
 - Go-live order: fund testnet → run the checklist below → set the flag →
   restart web + worker. Pause mainnet bots before ever flipping the flag off.
 
+## Emergency withdrawal
+
+The recovery modal on the authenticated Wallets screen lets a signed-in user
+withdraw available USDC from the master wallet. After the modal opens, it
+queries and submits directly to Hyperliquid from the browser, so the withdrawal
+does not use the app server or stored agent key. The destination is locked to
+the same master wallet that signs the request.
+
+This is an exit path when the stored trading key is unavailable, but app sign-in
+must still work to open it. It does not stop bots, cancel orders, close
+positions, withdraw vault funds, or release margin that Hyperliquid does not
+mark withdrawable. It also cannot bypass a stopped or rejecting HyperCore API,
+network, or bridge; funds remain recorded under the master address until
+processing resumes.
+
+Test the complete flow on testnet before using mainnet. Hyperliquid currently
+documents a 1 USDC withdrawal fee and about five minutes for delivery to the
+same address on Arbitrum.
+
 ## Testnet live E2E checklist (before mainnet)
 
 1. Fund a Hyperliquid testnet master account (faucet USDC); connect via
