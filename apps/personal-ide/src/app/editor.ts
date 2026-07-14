@@ -119,10 +119,6 @@ function lineRange(start: number, count: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
-export function changedLinesFromHunks(hunks: DiffHunk[]) {
-  return hunks.flatMap((hunk) => lineRange(hunk.currentStart, hunk.currentCount))
-}
-
 function spacerLine(start: number, count: number) {
   return count > 0 ? start + count : start + 1
 }

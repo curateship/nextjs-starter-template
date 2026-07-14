@@ -2,7 +2,6 @@ import type { Dispatch, SetStateAction } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { EMPTY_GIT_STATUS } from "@/app/constants"
-import { changedLinesFromHunks } from "@/app/editor"
 import { repoTabPath } from "@/app/editor-tabs"
 import {
   commitGitChanges,
@@ -38,6 +37,12 @@ type GitFileTarget = {
   editorPath: string
   filePath: string
   source: "app" | "repo"
+}
+
+function changedLinesFromHunks(hunks: DiffHunk[]) {
+  return hunks.flatMap((hunk) =>
+    Array.from({ length: hunk.currentCount }, (_, index) => hunk.currentStart + index)
+  )
 }
 
 function gitFileTarget(file: GitFile): GitFileTarget {
