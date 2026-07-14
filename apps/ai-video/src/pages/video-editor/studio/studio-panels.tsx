@@ -33,7 +33,8 @@ import {
 } from "@/lib/transcript-editing"
 import { AiPanel } from "@/pages/video-editor/editor-settings-panel"
 import {
-  useEditor,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
 import {
@@ -130,8 +131,10 @@ function Label({ children, style }: { children: React.ReactNode; style?: React.C
 // Template workflow: the replaceable clips, ordered by time. Click to jump the
 // playhead there; Replace swaps the media while the slot keeps its slot.
 function SlotsPanel() {
-  const { state, dispatch, clock, mode } = useEditor()
-  const slots = state.tracks
+  const tracks = useEditorSelector((state) => state.tracks)
+  const selectedClipId = useEditorSelector((state) => state.selectedClipId)
+  const { dispatch, clock, mode } = useEditorRuntime()
+  const slots = tracks
     .flatMap((t) => t.clips)
     .filter((c) => c.replaceable)
     .sort((a, b) => a.startMs - b.startMs)
@@ -164,7 +167,7 @@ function SlotsPanel() {
       <Label>Slots · {slots.length}</Label>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9 }}>
         {slots.map((slot) => {
-          const on = state.selectedClipId === slot.id
+          const on = selectedClipId === slot.id
           return (
             <div
               key={slot.id}
@@ -308,7 +311,8 @@ type TranscriptData = { source: TranscriptSource; words: TranscriptWord[] }
 // jump the playhead there, shift-click to select a range, then cut it (one
 // undoable jump-cut). Project-only (needs the caption backend).
 function TranscriptPanel() {
-  const { state, dispatch, clock, documentId, flushSave } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const { dispatch, clock, documentId, flushSave } = useEditorRuntime()
   const [transcript, setTranscript] = React.useState<TranscriptData | null>(null)
   const [selection, setSelection] = React.useState<{
     anchor: number
@@ -355,7 +359,7 @@ function TranscriptPanel() {
     const placement = getTranscriptWordPlacement(
       transcript.words[index],
       transcript.source,
-      state.tracks
+      tracks
     )
     if (!placement) return
     clock.seek(placement.timelineStartMs)
@@ -372,7 +376,7 @@ function TranscriptPanel() {
       range.start,
       range.end,
       transcript.source,
-      state.tracks
+      tracks
     )
     if (!action) {
       setError("Select an uncut word range within one clip segment.")
@@ -454,7 +458,7 @@ function TranscriptPanel() {
               >
                 {sentence.map((index) => {
                   const word = transcript.words[index]
-                  const removed = !getTranscriptWordPlacement(word, transcript.source, state.tracks)
+                  const removed = !getTranscriptWordPlacement(word, transcript.source, tracks)
                   const selected =
                     !removed && range !== null && index >= range.start && index <= range.end
                   return (
@@ -590,7 +594,7 @@ async function buildMediaClip(item: MediaItem): Promise<EditorClip> {
 }
 
 function MediaPanel() {
-  const { kind, documentId, dispatch, clock } = useEditor()
+  const { kind, documentId, dispatch, clock } = useEditorRuntime()
   const [filter, setFilter] = React.useState<"all" | MediaFileType>("all")
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
@@ -970,7 +974,7 @@ const TEXT_PRESETS: {
 const STICKERS = ["🔥", "✨", "👀", "☕", "💯", "➡️", "❤️", "⭐"]
 
 function TextPanel() {
-  const { dispatch, clock } = useEditor()
+  const { dispatch, clock } = useEditorRuntime()
 
   function addText(text: string, fontId: TextFontId, fontSize: number, y: number) {
     dispatch({
@@ -1066,9 +1070,10 @@ function AiStudioPanel() {
 // ---------------------------------------------------------------- Audio -----
 
 function AudioPanel() {
-  const { state, dispatch, clock } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const { dispatch, clock } = useEditorRuntime()
   const { previewingId, togglePreview } = useAudioPreview()
-  const projectAudio = state.tracks
+  const projectAudio = tracks
     .flatMap((t) => t.clips)
     .filter((c) => c.kind === "audio")
     .sort((a, b) => a.startMs - b.startMs)

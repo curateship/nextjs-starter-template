@@ -123,7 +123,8 @@ import {
 } from "@/components/ui/tooltip"
 import {
   findClip,
-  useEditor,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
 import {
@@ -137,7 +138,7 @@ import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
 // Text clip controls shared by the standalone editor inspector and the
 // template slot inspector.
 export function TextClipSettings({ clip }: { clip: EditorClip }) {
-  const { dispatch } = useEditor()
+  const { dispatch } = useEditorRuntime()
   const { config } = useShellRuntime()
 
   if (clip.kind !== "text") return null
@@ -403,7 +404,7 @@ function EditorToolTilesPanel({
 
   // Project-scoped generation tiles call project-only server fns, so hide them
   // when editing a template.
-  const { kind, mode } = useEditor()
+  const { kind, mode } = useEditorRuntime()
   const tiles =
     kind === "template"
       ? panelTiles.filter(
@@ -484,7 +485,12 @@ function JumpCutDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { state, dispatch, clock, documentId, flushSave } = useEditor()
+  const selectedClip = useEditorSelector((state) =>
+    state.selectedClipId !== null
+      ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
+      : null
+  )
+  const { dispatch, clock, documentId, flushSave } = useEditorRuntime()
   const [sensitivity, setSensitivity] =
     React.useState<JumpCutSensitivity>("balanced")
   const [applyMode, setApplyMode] = React.useState<JumpCutApplyMode>("review")
@@ -498,10 +504,6 @@ function JumpCutDialog({
     removedMs: number
   } | null>(null)
 
-  const selectedClip =
-    state.selectedClipId !== null
-      ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
-      : null
   const selectedSuggestions = suggestions.filter((suggestion) =>
     selectedIds.has(suggestion.id)
   )
@@ -795,8 +797,9 @@ function AiVideoDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { state, dispatch, clock, documentId } = useEditor()
-  const projectAspect = getAiVideoProjectAspect(state.aspect)
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { dispatch, clock, documentId } = useEditorRuntime()
+  const projectAspect = getAiVideoProjectAspect(aspect)
   const [step, setStep] = React.useState<AiVideoStep>("frame")
   const [firstFrames, setFirstFrames] = React.useState<FirstFrameItem[]>([])
   const [actors, setActors] = React.useState<ActorItem[]>([])
@@ -1560,7 +1563,7 @@ function CaptionsDialog({
   onOpenChange: (open: boolean) => void
 }) {
   // Captions are project-only, so this dialog only mounts in project mode.
-  const { dispatch, documentId: projectId, flushSave } = useEditor()
+  const { dispatch, documentId: projectId, flushSave } = useEditorRuntime()
   const captionStyle = useCaptionStyle()
   // Default to OpenAI: it returns per-word timestamps, which the karaoke
   // (two-color, word-by-word) captions need. Gemini is line-level only.
@@ -1769,7 +1772,7 @@ function VoiceDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { dispatch, clock } = useEditor()
+  const { dispatch, clock } = useEditorRuntime()
   // Voice list loaded from ElevenLabs when the dialog opens (null = loading).
   const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
@@ -2186,7 +2189,9 @@ function HookDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { state, dispatch } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { dispatch } = useEditorRuntime()
   const [voices, setVoices] = React.useState<ElevenLabsVoice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
   const [modelId, setModelId] = React.useState<VoiceModelId>(VOICE_MODELS[0].id)
@@ -2212,7 +2217,7 @@ function HookDialog({
     if (!open) return null
     try {
       return {
-        hook: detectHook({ tracks: state.tracks, aspect: state.aspect }),
+        hook: detectHook({ tracks, aspect }),
         error: null as string | null,
       }
     } catch (detectError) {
@@ -2224,7 +2229,7 @@ function HookDialog({
             : "No hook found in this timeline.",
       }
     }
-  }, [open, state.tracks, state.aspect])
+  }, [open, tracks, aspect])
   const hook = detection?.hook ?? null
 
   // Load voices + saved defaults on open (same prefill as the Voice dialog).
@@ -2272,7 +2277,7 @@ function HookDialog({
   function contextLines(detected: HookDetection): string[] {
     const hookIds = new Set(detected.textClips.map(({ clipId }) => clipId))
     const found: { startMs: number; text: string }[] = []
-    for (const track of state.tracks) {
+    for (const track of tracks) {
       for (const clip of track.clips) {
         if (clip.kind !== "text" || hookIds.has(clip.id)) continue
         const text = (clip.text ?? "").replace(/\s+/g, " ").trim()
@@ -2660,7 +2665,7 @@ function BriefToReelDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { dispatch, documentId: projectId } = useEditor()
+  const { dispatch, documentId: projectId } = useEditorRuntime()
   const captionStyle = useCaptionStyle()
   const [step, setStep] = React.useState<BriefStep>("topic")
   const [topic, setTopic] = React.useState("")
@@ -3179,7 +3184,7 @@ function ScriptDialog({
   onOpenChange: (open: boolean) => void
 }) {
   // AI Script is project-only, so this dialog only mounts in project mode.
-  const { dispatch, documentId: projectId } = useEditor()
+  const { dispatch, documentId: projectId } = useEditorRuntime()
   const { config } = useShellRuntime()
   const [topic, setTopic] = React.useState("")
   const [notes, setNotes] = React.useState("")

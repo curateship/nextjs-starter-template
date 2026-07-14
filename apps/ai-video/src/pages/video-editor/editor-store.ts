@@ -68,7 +68,7 @@ export type EditorTrack = {
 
 export type AspectRatio = "16:9" | "9:16" | "1:1" | "4:3"
 
-type EditorState = {
+export type EditorState = {
   tracks: EditorTrack[]
   selectedClipId: string | null
   pxPerSecond: number
@@ -752,23 +752,75 @@ export type SaveStatus = "saved" | "saving" | "error"
 export type EditorDocumentKind = "project" | "template"
 export type EditorMode = "regular" | "template-builder" | "fill-template"
 
-type EditorContextValue = {
+type EditorStoreSnapshot = {
   state: EditorState
-  dispatch: React.Dispatch<EditorAction>
-  clock: PlaybackClock
   durationMs: number
   saveStatus: SaveStatus
+  documentName: string
+  documentThumbnailUrl: string | null
+}
+
+export type EditorStore = {
+  getSnapshot: () => EditorStoreSnapshot
+  subscribe: (listener: () => void) => () => void
+  dispatch: React.Dispatch<EditorAction>
+  setSaveStatus: (status: SaveStatus) => void
+  setDocumentName: (name: string) => void
+  setDocumentThumbnailUrl: (url: string | null) => void
+}
+
+export function createEditorStore(
+  state: EditorState,
+  documentName: string,
+  documentThumbnailUrl: string | null
+): EditorStore {
+  let snapshot: EditorStoreSnapshot = {
+    state,
+    durationMs: timelineDurationMs(state.tracks),
+    saveStatus: "saved",
+    documentName,
+    documentThumbnailUrl,
+  }
+  const listeners = new Set<() => void>()
+  const update = (next: EditorStoreSnapshot) => {
+    snapshot = next
+    listeners.forEach((listener) => listener())
+  }
+
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    dispatch: (action) => {
+      const nextState = editorReducer(snapshot.state, action)
+      if (nextState === snapshot.state) return
+      update({
+        ...snapshot,
+        state: nextState,
+        durationMs:
+          nextState.tracks === snapshot.state.tracks
+            ? snapshot.durationMs
+            : timelineDurationMs(nextState.tracks),
+      })
+    },
+    setSaveStatus: (saveStatus) => update({ ...snapshot, saveStatus }),
+    setDocumentName: (documentName) => update({ ...snapshot, documentName }),
+    setDocumentThumbnailUrl: (documentThumbnailUrl) =>
+      update({ ...snapshot, documentThumbnailUrl }),
+  }
+}
+
+type EditorContextValue = {
+  store: EditorStore
+  dispatch: React.Dispatch<EditorAction>
+  clock: PlaybackClock
   kind: EditorDocumentKind
   mode: EditorMode
   documentId: string
-  documentName: string
-  // Updates the in-editor document name after a rename (settings modal) so the
-  // media-panel header reflects it without reloading.
   setDocumentName: (name: string) => void
-  documentThumbnailUrl: string | null
   setDocumentThumbnailUrl: (url: string | null) => void
-  // Persists any snapshot still inside the autosave debounce window — export
-  // must render what the user sees, not the last saved timeline.
   flushSave: () => Promise<void>
 }
 
@@ -778,8 +830,49 @@ export const EditorContext = React.createContext<EditorContextValue | null>(
   null
 )
 
-export function useEditor() {
+export function useEditorRuntime() {
   const context = React.useContext(EditorContext)
-  if (!context) throw new Error("useEditor must be used inside EditorProvider")
+  if (!context) {
+    throw new Error("Editor hooks must be used inside EditorProvider")
+  }
   return context
+}
+
+export function useEditorStoreSelector<T>(
+  store: EditorStore,
+  selector: (snapshot: EditorStoreSnapshot) => T
+) {
+  return React.useSyncExternalStore(
+    store.subscribe,
+    () => selector(store.getSnapshot()),
+    () => selector(store.getSnapshot())
+  )
+}
+
+export function useEditorSelector<T>(selector: (state: EditorState) => T) {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => selector(snapshot.state))
+}
+
+export function useEditorDurationMs() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => snapshot.durationMs)
+}
+
+export function useEditorSaveStatus() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => snapshot.saveStatus)
+}
+
+export function useEditorDocumentName() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => snapshot.documentName)
+}
+
+export function useEditorDocumentThumbnailUrl() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.documentThumbnailUrl
+  )
 }

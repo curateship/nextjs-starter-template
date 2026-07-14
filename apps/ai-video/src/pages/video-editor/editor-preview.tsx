@@ -11,7 +11,8 @@ import {
 import { requireTextFont } from "@/lib/text-fonts"
 import {
   timelineDurationMs,
-  useEditor,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
   type EditorTrack,
 } from "@/pages/video-editor/editor-store"
@@ -118,7 +119,9 @@ function playbackFrameAt(frames: PlaybackFrame[], timeMs: number) {
 // and near-future video/audio elements are mounted; a single clock-subscribed
 // loop drives all per-frame work imperatively.
 export function EditorPreview() {
-  const { state, clock, dispatch } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { clock, dispatch } = useEditorRuntime()
   const { config } = useShellRuntime()
 
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -156,9 +159,9 @@ export function EditorPreview() {
 
   // Largest stage that fits the container at the project aspect ratio.
   const ratio = React.useMemo(() => {
-    const [w, h] = state.aspect.split(":").map(Number)
+    const [w, h] = aspect.split(":").map(Number)
     return w / h
-  }, [state.aspect])
+  }, [aspect])
   let stageWidth = containerBox.w
   let stageHeight = stageWidth / ratio
   if (stageHeight > containerBox.h) {
@@ -168,8 +171,8 @@ export function EditorPreview() {
 
   // The clip lists only change on edits.
   const { media, images, texts } = React.useMemo(
-    () => flattenTracks(state.tracks),
-    [state.tracks]
+    () => flattenTracks(tracks),
+    [tracks]
   )
   // Clip activity changes only at start/end boundaries. Build immutable frame
   // snapshots on edits so playback can find the current active set by binary
@@ -288,7 +291,7 @@ export function EditorPreview() {
     if (duckingGain >= 1) return [] // 0 dB = off
     const voiceIntervals: Interval[] = []
     let hasDuckSource = false
-    for (const track of state.tracks) {
+    for (const track of tracks) {
       if (track.muted) continue
       const audible = track.clips.filter(
         (clip) => (clip.kind === "audio" || clip.kind === "video") && !clip.muted
@@ -307,10 +310,10 @@ export function EditorPreview() {
     if (!hasDuckSource || !voiceIntervals.length) return []
     return computeDuckEnvelope({
       voiceIntervals,
-      durationMs: timelineDurationMs(state.tracks),
+      durationMs: timelineDurationMs(tracks),
       duckGain: duckingGain,
     })
-  }, [state.tracks, duckingGain])
+  }, [tracks, duckingGain])
 
   // Drive the clock from the element carrying the SOUND (an unmuted audio track
   // wins, since captions are timed to it; else the topmost active video). The

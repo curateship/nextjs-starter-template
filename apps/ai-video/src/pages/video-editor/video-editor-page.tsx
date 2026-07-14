@@ -17,7 +17,8 @@ import {
 } from "@/pages/video-editor/editor-provider"
 import { StudioEditor } from "@/pages/video-editor/studio/studio-editor"
 import {
-  useEditor,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorDocumentKind,
   type EditorMode,
 } from "@/pages/video-editor/editor-store"
@@ -75,7 +76,9 @@ function TimelineResetBanner({
   message: string
   onResetSaved: () => void
 }) {
-  const { state, kind, documentId } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { kind, documentId } = useEditorRuntime()
   const [saving, setSaving] = React.useState(false)
   const [saveError, setSaveError] = React.useState<string | null>(null)
 
@@ -85,8 +88,8 @@ function TimelineResetBanner({
 
     try {
       const snapshot = createTimelineSnapshot({
-        tracks: state.tracks,
-        aspect: state.aspect,
+        tracks,
+        aspect,
       })
       if (kind === "template") {
         await saveTemplateTimeline(documentId, snapshot)

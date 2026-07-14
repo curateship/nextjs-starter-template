@@ -20,7 +20,13 @@ import {
   type RenderQuality,
 } from "@/lib/api/video-projects"
 import { EXPORT_TITLE_MAX_LENGTH } from "@/lib/export-constraints"
-import { useEditor } from "@/pages/video-editor/editor-store"
+import {
+  useEditorDocumentName,
+  useEditorDocumentThumbnailUrl,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSelector,
+} from "@/pages/video-editor/editor-store"
 import { formatClock } from "@/pages/video-editor/timeline-utils"
 import { Toggle } from "@/pages/video-editor/studio/studio-inspector"
 
@@ -38,14 +44,11 @@ export function StudioExportModal({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const {
-    documentId: projectId,
-    documentName: projectName,
-    documentThumbnailUrl,
-    durationMs,
-    state,
-    flushSave,
-  } = useEditor()
+  const projectName = useEditorDocumentName()
+  const documentThumbnailUrl = useEditorDocumentThumbnailUrl()
+  const durationMs = useEditorDurationMs()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { documentId: projectId, flushSave } = useEditorRuntime()
   const { config } = useShellRuntime()
   const defaultFilename = brandKitExportFilename(
     config.brandKit.exportNamingPattern,
@@ -280,7 +283,7 @@ export function StudioExportModal({
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 13.5 }}>{projectName}</div>
                       <div style={{ fontSize: 11.5, color: "var(--mut)", marginTop: 3 }}>
-                        {formatClock(durationMs)} · {state.aspect}
+                        {formatClock(durationMs)} · {aspect}
                       </div>
                     </div>
                   </div>

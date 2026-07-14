@@ -19,10 +19,13 @@ import {
 } from "lucide-react"
 
 import {
-  useEditor,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
   type EditorTrack,
 } from "@/pages/video-editor/editor-store"
+import type { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   clampRowDelta,
   CUT_CURSOR,
@@ -124,10 +127,12 @@ const iconBtn: React.CSSProperties = {
 }
 
 export function StudioTimeline() {
-  const { state, dispatch, clock, durationMs } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const pps = useEditorSelector((state) => state.pxPerSecond)
+  const durationMs = useEditorDurationMs()
+  const { dispatch, clock } = useEditorRuntime()
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const innerRef = React.useRef<HTMLDivElement>(null)
-  const pps = state.pxPerSecond
 
   // The scrub origin (x of t=0) sits one gutter in from the inner content edge.
   const timeOriginX = React.useCallback(() => {
@@ -241,7 +246,7 @@ export function StudioTimeline() {
             </div>
           </div>
 
-          {state.tracks.map((track, index) => (
+          {tracks.map((track, index) => (
             <TimelineRow
               key={track.id}
               track={track}
@@ -309,7 +314,7 @@ function TimelineRow({
   seekMove: (e: React.PointerEvent) => void
   seekUp: (e: React.PointerEvent) => void
 }) {
-  const { state, dispatch } = useEditor()
+  const { store, dispatch } = useEditorRuntime()
   const kind = trackKind(track)
   const accent = ACCENTS[kind]
   const rowRef = React.useRef<HTMLDivElement>(null)
@@ -332,7 +337,11 @@ function TimelineRow({
     const row = rowRef.current
     if (!r || !row) return
     const dy = e.clientY - r.startY
-    r.rowDelta = clampRowDelta(dy, index, state.tracks.length)
+    r.rowDelta = clampRowDelta(
+      dy,
+      index,
+      store.getSnapshot().state.tracks.length
+    )
     row.style.transform = `translateY(${dy}px)`
     row.style.position = "relative"
     row.style.zIndex = "35"
@@ -469,9 +478,12 @@ function ClipChip({
   trackIndex: number
   accent: string
 }) {
-  const { state, dispatch, mode } = useEditor()
-  const selected = state.selectedClipId === clip.id
-  const pps = state.pxPerSecond
+  const selected = useEditorSelector(
+    (state) => state.selectedClipId === clip.id
+  )
+  const pps = useEditorSelector((state) => state.pxPerSecond)
+  const cutMode = useEditorSelector((state) => state.cutMode)
+  const { store, dispatch, mode } = useEditorRuntime()
   const ref = React.useRef<HTMLDivElement>(null)
 
   // Real frame filmstrip for video clips (sampled across this clip's trim
@@ -568,7 +580,7 @@ function ClipChip({
     if (e.button !== 0) return
     e.stopPropagation()
     // Cut tool: a plain click splits instead of dragging.
-    if (state.cutMode && mode === "move") {
+    if (cutMode && mode === "move") {
       const rect = ref.current!.getBoundingClientRect()
       dispatch({
         type: "SPLIT_CLIP",
@@ -635,15 +647,16 @@ function ClipChip({
     if (!d.moved) return
     const dms = pxToMs(e.clientX - d.startX, pps)
     if (d.mode === "move") {
+      const tracks = store.getSnapshot().state.tracks
       const rows = Math.round((e.clientY - d.startY) / ROW_H)
       const toIndex = Math.min(
         Math.max(trackIndex + rows, 0),
-        state.tracks.length - 1
+        tracks.length - 1
       )
       dispatch({
         type: "MOVE_CLIP",
         clipId: clip.id,
-        toTrackId: state.tracks[toIndex].id,
+        toTrackId: tracks[toIndex].id,
         startMs: Math.max(0, d.origin.startMs + dms),
         // Template slots re-pack back-to-back instead of leaving gaps.
         placement:
@@ -708,7 +721,7 @@ function ClipChip({
         width,
         borderRadius: rL,
         overflow: "hidden",
-        cursor: state.cutMode ? CUT_CURSOR : "grab",
+        cursor: cutMode ? CUT_CURSOR : "grab",
         boxShadow: selected
           ? "0 0 0 2px var(--acc),0 8px 18px -6px color-mix(in oklch,var(--acc),transparent 50%)"
           : "var(--sh-sm)",
@@ -808,7 +821,7 @@ function ClockPlayhead({
   clock,
   pps,
 }: {
-  clock: ReturnType<typeof useEditor>["clock"]
+  clock: PlaybackClock
   pps: number
 }) {
   const lineRef = React.useRef<HTMLDivElement>(null)
@@ -899,8 +912,13 @@ function ClockPlayhead({
 }
 
 function TimelineToolbar({ fit }: { fit: () => void }) {
-  const { state, dispatch } = useEditor()
-  const pps = state.pxPerSecond
+  const pps = useEditorSelector((state) => state.pxPerSecond)
+  const canUndo = useEditorSelector((state) => state.past.length > 0)
+  const canRedo = useEditorSelector((state) => state.future.length > 0)
+  const cutMode = useEditorSelector((state) => state.cutMode)
+  const selectedClipId = useEditorSelector((state) => state.selectedClipId)
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { dispatch } = useEditorRuntime()
 
   function setZoom(value: number) {
     dispatch({
@@ -925,8 +943,8 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
         type="button"
         className="st-hovbg"
         onClick={() => dispatch({ type: "UNDO" })}
-        disabled={state.past.length === 0}
-        style={{ ...iconBtn, opacity: state.past.length === 0 ? 0.4 : 1 }}
+        disabled={!canUndo}
+        style={{ ...iconBtn, opacity: canUndo ? 1 : 0.4 }}
         title="Undo"
       >
         <Undo2 size={16} />
@@ -935,8 +953,8 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
         type="button"
         className="st-hovbg"
         onClick={() => dispatch({ type: "REDO" })}
-        disabled={state.future.length === 0}
-        style={{ ...iconBtn, opacity: state.future.length === 0 ? 0.4 : 1 }}
+        disabled={!canRedo}
+        style={{ ...iconBtn, opacity: canRedo ? 1 : 0.4 }}
         title="Redo"
       >
         <Redo2 size={16} />
@@ -944,7 +962,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
       <div style={{ width: 1, height: 20, background: "var(--line)", margin: "0 4px" }} />
       <button
         type="button"
-        onClick={() => dispatch({ type: "SET_CUT_MODE", on: !state.cutMode })}
+        onClick={() => dispatch({ type: "SET_CUT_MODE", on: !cutMode })}
         style={{
           height: 32,
           minWidth: 32,
@@ -953,8 +971,8 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
           border: "none",
           borderRadius: 9,
           cursor: "pointer",
-          background: state.cutMode ? "var(--acc-soft)" : "transparent",
-          color: state.cutMode ? "var(--acc)" : "var(--ink2)",
+          background: cutMode ? "var(--acc-soft)" : "transparent",
+          color: cutMode ? "var(--acc)" : "var(--ink2)",
         }}
         title="Split (cut tool)"
       >
@@ -964,10 +982,10 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
         type="button"
         className="st-hovbg"
         onClick={() =>
-          state.selectedClipId &&
-          dispatch({ type: "DELETE_CLIP", clipId: state.selectedClipId })
+          selectedClipId &&
+          dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
         }
-        style={{ ...iconBtn, opacity: state.selectedClipId ? 1 : 0.4 }}
+        style={{ ...iconBtn, opacity: selectedClipId ? 1 : 0.4 }}
         title="Delete selected"
       >
         <Trash2 size={16} />
@@ -986,7 +1004,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
         }}
       >
         {(["9:16", "1:1", "16:9"] as const).map((a) => {
-          const on = state.aspect === a
+          const on = aspect === a
           return (
             <button
               key={a}

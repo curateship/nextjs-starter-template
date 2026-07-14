@@ -3,10 +3,15 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react"
 
 import { EditorPreview } from "@/pages/video-editor/editor-preview"
 import {
-  useEditor,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSelector,
   type EditorTrack,
 } from "@/pages/video-editor/editor-store"
-import { usePlaybackPlaying } from "@/pages/video-editor/playback-clock"
+import {
+  usePlaybackPlaying,
+  type PlaybackClock,
+} from "@/pages/video-editor/playback-clock"
 import { formatClock } from "@/pages/video-editor/timeline-utils"
 
 const FRAME_MS = 1000 / 30
@@ -16,7 +21,8 @@ const RATES = [1, 1.5, 2, 0.5]
 // paused, and the floating transport pill. Time-driven bits subscribe to the
 // clock individually so only they re-render per frame.
 export function StudioStage() {
-  const { state, clock } = useEditor()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const { clock } = useEditorRuntime()
   const playing = usePlaybackPlaying(clock)
 
   return (
@@ -32,7 +38,7 @@ export function StudioStage() {
           "radial-gradient(130% 110% at 50% -5%,var(--panel),var(--paper) 70%)",
       }}
     >
-      <SceneChip tracks={state.tracks} clock={clock} />
+      <SceneChip tracks={tracks} clock={clock} />
 
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {/* EditorPreview self-measures its container to fit the frame at the
@@ -81,7 +87,7 @@ function SceneChip({
   clock,
 }: {
   tracks: EditorTrack[]
-  clock: ReturnType<typeof useEditor>["clock"]
+  clock: PlaybackClock
 }) {
   const scenes = React.useMemo(() => {
     type Scene = { id: string; index: number; z: number; name: string }
@@ -188,7 +194,7 @@ function TransportBar({
   clock,
   playing,
 }: {
-  clock: ReturnType<typeof useEditor>["clock"]
+  clock: PlaybackClock
   playing: boolean
 }) {
   const [rate, setRate] = React.useState(1)
@@ -297,9 +303,9 @@ function TransportBar({
 function Timecode({
   clock,
 }: {
-  clock: ReturnType<typeof useEditor>["clock"]
+  clock: PlaybackClock
 }) {
-  const { durationMs } = useEditor()
+  const durationMs = useEditorDurationMs()
   const timeRef = React.useRef<HTMLSpanElement>(null)
   React.useEffect(() => {
     let previous = ""
