@@ -1,3 +1,9 @@
+import {
+  DynamicIcon,
+  iconNames,
+  type IconName as DynamicLucideIconName,
+} from "lucide-react/dynamic"
+
 import { DEFAULT_TEXT_FONT_ID, type TextFontId } from "@/lib/text-fonts"
 import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
@@ -155,14 +161,49 @@ export const iconMeta = {
 export type IconKey = keyof typeof iconMeta
 export type ShellIcon = IconKey | string
 
+const dynamicLucideIconNames = new Set<string>(iconNames)
+
 export function isIconKey(value?: string): value is IconKey {
   return Boolean(value && Object.prototype.hasOwnProperty.call(iconMeta, value))
+}
+
+export function normalizeDynamicLucideIconName(
+  value: string
+): DynamicLucideIconName | undefined {
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/lucide\.dev\/icons\//i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/Icon$/, "")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .toLowerCase()
+
+  return dynamicLucideIconNames.has(cleaned)
+    ? (cleaned as DynamicLucideIconName)
+    : undefined
+}
+
+export function isDynamicLucideIconName(
+  value?: string
+): value is DynamicLucideIconName {
+  return Boolean(value && dynamicLucideIconNames.has(value))
 }
 
 export function getShellIconLabel(value?: ShellIcon) {
   if (!value) return "No icon"
   if (isIconKey(value)) return iconMeta[value].label
+  if (isDynamicLucideIconName(value)) return getDynamicLucideIconLabel(value)
   return "Custom icon"
+}
+
+function getDynamicLucideIconLabel(value: string) {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 export type ShellChildItem = {
@@ -411,6 +452,16 @@ export function renderShellIcon(
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
     return <Icon className={className} />
+  }
+
+  if (isDynamicLucideIconName(icon)) {
+    return (
+      <DynamicIcon
+        name={icon}
+        className={className}
+        fallback={() => <ImageIcon className={className} />}
+      />
+    )
   }
 
   const Icon = ImageIcon
