@@ -101,13 +101,13 @@ export async function submitManualOrder(
     wallet.accountAddress) as `0x${string}`
 
   const [assetData, accountState, openOrders] = await Promise.all([
-    info.metaAndAssetCtxs(),
-    loadTradingAccountState(info, accountAddress),
-    info.openOrders({ user: accountAddress }),
+    info.metaAndAssetCtxs({ dex: asset.dex }),
+    loadTradingAccountState(info, accountAddress, asset),
+    info.openOrders({ user: accountAddress, dex: asset.dex }),
   ])
   const clearinghouse = accountState.clearinghouseState
   const priceObservedAt = Date.now()
-  const ctx = assetData[1][asset.assetId]
+  const ctx = assetData[1][asset.assetIndex]
   if (!ctx) {
     throw new Error(`No market data for ${input.market}`)
   }
@@ -201,13 +201,13 @@ export async function submitOneClickOrder(
   const accountAddress = (wallet.vaultAddress ??
     wallet.accountAddress) as `0x${string}`
   const [assetData, accountState, openOrders] = await Promise.all([
-    info.metaAndAssetCtxs(),
-    loadTradingAccountState(info, accountAddress),
-    info.openOrders({ user: accountAddress }),
+    info.metaAndAssetCtxs({ dex: asset.dex }),
+    loadTradingAccountState(info, accountAddress, asset),
+    info.openOrders({ user: accountAddress, dex: asset.dex }),
   ])
   const clearinghouse = accountState.clearinghouseState
   const priceObservedAt = Date.now()
-  const ctx = assetData[1][asset.assetId]
+  const ctx = assetData[1][asset.assetIndex]
   if (!ctx) throw new Error(`No market data for ${input.market}`)
 
   const mark = Number(ctx.markPx)
@@ -298,7 +298,7 @@ export async function submitOneClickOrder(
       walletId: input.walletId,
       market: input.market,
       leverage: template.leverage,
-      isCross: true,
+      isCross: !asset.onlyIsolated,
     },
     database
   )
@@ -339,6 +339,7 @@ export async function submitOneClickOrder(
       await new Promise((resolve) => setTimeout(resolve, 1_000))
       const latestState = await info.clearinghouseState({
         user: accountAddress,
+        dex: asset.dex,
       })
       openPosition = latestState.assetPositions.some(
         ({ position }) =>
@@ -378,11 +379,12 @@ export async function modifyManualOrder(
     wallet.accountAddress) as `0x${string}`
 
   const [assetData, openOrders] = await Promise.all([
-    info.metaAndAssetCtxs(),
-    info.frontendOpenOrders({ user: accountAddress }),
+    info.metaAndAssetCtxs({ dex: asset.dex }),
+    info.frontendOpenOrders({ user: accountAddress, dex: asset.dex }),
   ])
   const order = openOrders.find(
-    (candidate) => candidate.oid === input.oid && candidate.coin === input.market
+    (candidate) =>
+      candidate.oid === input.oid && candidate.coin === input.market
   )
   if (!order) throw new Error("Order is no longer open")
 
@@ -394,12 +396,16 @@ export async function modifyManualOrder(
 
   // Sanity-check the new price against mark before signing.
   const [, assetCtxs] = assetData
-  const ctx = assetCtxs[asset.assetId]
+  const ctx = assetCtxs[asset.assetIndex]
   const mark = Number(ctx?.markPx)
   assertMoveWithinMark(px, mark)
 
   if (input.sz) {
-    const accountState = await loadTradingAccountState(info, accountAddress)
+    const accountState = await loadTradingAccountState(
+      info,
+      accountAddress,
+      asset
+    )
     const position = accountState.clearinghouseState.assetPositions.find(
       ({ position }) => position.coin === input.market
     )?.position
@@ -504,7 +510,7 @@ export async function updateManualLeverage(
       assetId: asset.assetId,
       coin: input.market,
       leverage: input.leverage,
-      isCross: input.isCross,
+      isCross: asset.onlyIsolated ? false : input.isCross,
     },
     database
   )
@@ -528,7 +534,9 @@ async function requireActiveWallet(
 function applySlippage(markPx: string, side: "buy" | "sell"): string {
   const mark = Number(markPx)
   const factor =
-    side === "buy" ? 1 + MARKET_SLIPPAGE_PCT / 100 : 1 - MARKET_SLIPPAGE_PCT / 100
+    side === "buy"
+      ? 1 + MARKET_SLIPPAGE_PCT / 100
+      : 1 - MARKET_SLIPPAGE_PCT / 100
   return String(mark * factor)
 }
 

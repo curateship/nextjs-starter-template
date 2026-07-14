@@ -1,13 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
+
 const decimalString = z
   .string()
   .regex(/^\d+(\.\d+)?$/, "Must be a positive decimal")
 
 const placeOrderSchema = z.object({
   walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
+  market: hyperliquidMarketSchema,
   side: z.enum(["buy", "sell"]),
   orderType: z.enum(["market", "limit"]),
   px: decimalString.optional(),
@@ -19,28 +21,30 @@ const placeOrderSchema = z.object({
 
 const cancelOrderSchema = z.object({
   walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
+  market: hyperliquidMarketSchema,
   oid: z.number().int().positive(),
 })
 
-const modifyOrderSchema = z.object({
-  walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
-  oid: z.number().int().positive(),
-  px: decimalString,
-  sz: decimalString.optional(),
-}).strict()
+const modifyOrderSchema = z
+  .object({
+    walletId: z.string().min(1),
+    market: hyperliquidMarketSchema,
+    oid: z.number().int().positive(),
+    px: decimalString,
+    sz: decimalString.optional(),
+  })
+  .strict()
 
 const updateLeverageSchema = z.object({
   walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
+  market: hyperliquidMarketSchema,
   leverage: z.number().int().min(1).max(100),
   isCross: z.boolean(),
 })
 
 const oneClickOrderSchema = z.object({
   walletId: z.string().min(1),
-  market: z.string().min(1).max(20),
+  market: hyperliquidMarketSchema,
   side: z.enum(["buy", "sell"]),
   templateId: z.string().min(1),
   px: decimalString.optional(),

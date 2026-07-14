@@ -17,7 +17,11 @@ const CANDLE_HISTORY = 1400
 
 type Listener<T> = (data: T) => void
 
-type Sub = { refCount: number; listeners: Set<Listener<unknown>>; promise: Promise<{ unsubscribe: () => Promise<void> } | null> }
+type Sub = {
+  refCount: number
+  listeners: Set<Listener<unknown>>
+  promise: Promise<{ unsubscribe: () => Promise<void> } | null>
+}
 
 const INTERVAL_MS: Record<CandleInterval, number> = {
   "1m": 60_000,
@@ -38,7 +42,7 @@ export class MarketHub {
   private readonly infoClients = new Map<TradingNetwork, InfoClient>()
   private readonly subs = new Map<string, Sub>()
   private readonly candles = new Map<string, CandleWsEvent[]>()
-  private readonly mids = new Map<TradingNetwork, Record<string, string>>()
+  private readonly mids = new Map<string, Record<string, string>>()
 
   subscriptionCount() {
     return this.subs.size
@@ -56,18 +60,19 @@ export class MarketHub {
     return client
   }
 
-  /** Latest mid for a coin, "0" until allMids has streamed. */
-  mid(network: TradingNetwork, coin: string): string {
-    return this.mids.get(network)?.[coin] ?? "0"
+  /** Latest mid for a coin on its DEX, "0" until allMids has streamed. */
+  mid(network: TradingNetwork, dex: string, coin: string): string {
+    return this.mids.get(`${network}:${dex}`)?.[coin] ?? "0"
   }
 
   subscribeMids(
     network: TradingNetwork,
+    dex: string,
     listener: Listener<Record<string, string>>
   ): () => void {
-    return this.acquire(`${network}:allMids`, listener, (client, emit) =>
-      client.allMids((event) => {
-        this.mids.set(network, event.mids)
+    return this.acquire(`${network}:allMids:${dex}`, listener, (client, emit) =>
+      client.allMids({ dex }, (event) => {
+        this.mids.set(`${network}:${dex}`, event.mids)
         emit(event.mids)
       })
     )
@@ -101,7 +106,8 @@ export class MarketHub {
     return this.acquire(
       `${network}:userFills:${address.toLowerCase()}`,
       listener,
-      (client, emit) => client.userFills({ user: address }, (event) => emit(event))
+      (client, emit) =>
+        client.userFills({ user: address }, (event) => emit(event))
     )
   }
 

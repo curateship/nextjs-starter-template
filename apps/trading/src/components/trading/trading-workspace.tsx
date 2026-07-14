@@ -20,9 +20,15 @@ import {
   ChartOrderMenu,
   type ChartMenuState,
 } from "@/components/trading/chart-order-menu"
-import { MarketWatchlist } from "@/components/trading/market-watchlist"
+import {
+  MarketPicker,
+  MarketWatchlist,
+} from "@/components/trading/market-watchlist"
 import { OrderBook } from "@/components/trading/order-book"
-import { OrderTicket, type TicketPrefill } from "@/components/trading/order-ticket"
+import {
+  OrderTicket,
+  type TicketPrefill,
+} from "@/components/trading/order-ticket"
 import { OneClickMenuActions } from "@/components/trading/one-click-panel"
 import {
   PaperFillsTable,
@@ -84,17 +90,16 @@ import {
 } from "@/lib/api/paper"
 import type { PaperWalletItem } from "@/lib/api/paper"
 import type { WalletItem } from "@/lib/api/wallets"
-import { formatCompactUsd, formatPriceDisplay } from "@/components/trading/format"
 import {
-  useAllMids,
+  formatCompactUsd,
+  formatPriceDisplay,
+} from "@/components/trading/format"
+import {
   useMarketRows,
   useAccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
-import {
-  resolveTradingNetwork,
-  type TradingNetwork,
-} from "@/lib/hl/network"
+import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import {
   indicatorDisplayName,
@@ -119,6 +124,8 @@ const BOTTOM_TABS_LIST =
   "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
 const BOTTOM_TAB_TRIGGER =
   "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
+const MARKET_FAVORITES_KEY = "trading-favorite-markets"
+const EMPTY_MARKET_FAVORITES: string[] = []
 
 export function TradingWorkspace({
   network,
@@ -156,7 +163,9 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
-  const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(null)
+  const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(
+    null
+  )
   const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Imperative chart handle so the right-click menu can offer Reset View,
   // matching the bot and backtest charts.
@@ -175,18 +184,40 @@ export function TradingWorkspace({
     selectedWallet?.vault_address ?? selectedWallet?.account_address ?? null
   const tradingNetwork = resolveTradingNetwork(network, selectedWallet?.network)
 
+  const marketRows = useMarketRows(tradingNetwork)
+  const { favorites, toggleFavorite } = useMarketFavorites()
+  const mids = React.useMemo(
+    () => Object.fromEntries(marketRows.map((row) => [row.coin, row.markPx])),
+    [marketRows]
+  )
+  const marketRow = marketRows.find((row) => row.coin === market) ?? null
+  const marketDexes = React.useMemo(
+    () => [...new Set(marketRows.map((row) => row.dex))].sort(),
+    [marketRows]
+  )
+  React.useEffect(() => {
+    if (marketRows.length === 0 || marketRow) return
+    const fallback =
+      marketRows.find((row) => row.coin === "BTC") ??
+      marketRows.reduce((best, row) =>
+        Number(row.dayNtlVlm) > Number(best.dayNtlVlm) ? row : best
+      )
+    onMarketChange(fallback.coin)
+  }, [market, marketRow, marketRows, onMarketChange])
   const account = useAccountSnapshot(
     tradingNetwork,
-    isPaper ? null : accountAddress
+    isPaper ? null : accountAddress,
+    marketRow,
+    marketDexes
   )
-  const marketRows = useMarketRows(tradingNetwork)
-  const mids = useAllMids(tradingNetwork)
 
   const { data: paperAccount, refresh: refreshPaper } =
     useIntervalLoader<PaperAccountResponse | null>(
       React.useCallback(
         () =>
-          paperWalletId ? loadPaperAccount(paperWalletId) : Promise.resolve(null),
+          paperWalletId
+            ? loadPaperAccount(paperWalletId)
+            : Promise.resolve(null),
         [paperWalletId]
       ),
       null,
@@ -196,7 +227,6 @@ export function TradingWorkspace({
     if (paperWalletId) void refreshPaper()
   }, [paperWalletId, refreshPaper])
 
-  const marketRow = marketRows.find((row) => row.coin === market) ?? null
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
   const positionMarkets = React.useMemo(
     () =>
@@ -209,7 +239,11 @@ export function TradingWorkspace({
               .filter(({ position }) => Number(position.szi) !== 0)
               .map(({ position }) => position.coin)
       ),
-    [isPaper, paperAccount?.positions, account?.clearinghouseState?.assetPositions]
+    [
+      isPaper,
+      paperAccount?.positions,
+      account?.clearinghouseState?.assetPositions,
+    ]
   )
   const openOrderMarkets = React.useMemo(
     () =>
@@ -219,6 +253,10 @@ export function TradingWorkspace({
         ) ?? []
       ),
     [isPaper, paperAccount?.openOrders, account?.openOrders]
+  )
+  const protectedMarkets = React.useMemo(
+    () => new Set([...positionMarkets, ...openOrderMarkets]),
+    [positionMarkets, openOrderMarkets]
   )
 
   const summary: AccountSummary | null = isPaper
@@ -315,7 +353,14 @@ export function TradingWorkspace({
       })
     }
     return lines
-  }, [isPaper, paperPosition, paperAccount?.openOrders, sandboxPosition, account?.openOrders, market])
+  }, [
+    isPaper,
+    paperPosition,
+    paperAccount?.openOrders,
+    sandboxPosition,
+    account?.openOrders,
+    market,
+  ])
 
   const notify = React.useCallback(
     (text: string, tone: "ok" | "error") => {
@@ -391,7 +436,10 @@ export function TradingWorkspace({
       .map((wallet) => ({
         value: wallet.id,
         label: wallet.label,
-        kind: wallet.network === "mainnet" ? ("mainnet" as const) : ("sandbox" as const),
+        kind:
+          wallet.network === "mainnet"
+            ? ("mainnet" as const)
+            : ("sandbox" as const),
       })),
   ]
 
@@ -442,7 +490,18 @@ export function TradingWorkspace({
         options={options}
         selectedValue={selectedValue}
         onWalletChange={onWalletChange}
-        left={<MarketInfoBar marketRow={marketRow} price={markPx} />}
+        left={
+          <MarketInfoBar
+            marketRow={marketRow}
+            marketRows={marketRows}
+            price={markPx}
+            selected={market}
+            protectedMarkets={protectedMarkets}
+            favorites={favorites}
+            onToggleFavorite={toggleFavorite}
+            onSelect={onMarketChange}
+          />
+        }
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
 
@@ -465,6 +524,8 @@ export function TradingWorkspace({
                     selected={market}
                     positionMarkets={positionMarkets}
                     openOrderMarkets={openOrderMarkets}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
                     onSelect={onMarketChange}
                   />
                 </WorkspacePanel>
@@ -495,7 +556,9 @@ export function TradingWorkspace({
                           className="text-muted-foreground aria-pressed:text-foreground"
                           aria-label="Trendline"
                           aria-pressed={trendlineDrawing}
-                          onClick={() => setTrendlineDrawing((active) => !active)}
+                          onClick={() =>
+                            setTrendlineDrawing((active) => !active)
+                          }
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <line
@@ -507,8 +570,18 @@ export function TradingWorkspace({
                               stroke="currentColor"
                               strokeWidth="1.75"
                             />
-                            <circle cx="5" cy="18" r="1.75" fill="currentColor" />
-                            <circle cx="19" cy="6" r="1.75" fill="currentColor" />
+                            <circle
+                              cx="5"
+                              cy="18"
+                              r="1.75"
+                              fill="currentColor"
+                            />
+                            <circle
+                              cx="19"
+                              cy="6"
+                              r="1.75"
+                              fill="currentColor"
+                            />
                           </svg>
                         </Button>
                       </TooltipTrigger>
@@ -528,7 +601,9 @@ export function TradingWorkspace({
                       registerApi={registerChartApi}
                       trendlineDrawing={trendlineDrawing}
                       onTrendlineDrawingChange={setTrendlineDrawing}
-                      onTrendlinePersistenceError={handleTrendlinePersistenceError}
+                      onTrendlinePersistenceError={
+                        handleTrendlinePersistenceError
+                      }
                     />
                   </div>
                 </WorkspacePanel>
@@ -571,7 +646,10 @@ export function TradingWorkspace({
                           minSize="15%"
                         >
                           <WorkspacePanel>
-                            <TradesTape network={tradingNetwork} coin={market} />
+                            <TradesTape
+                              network={tradingNetwork}
+                              coin={market}
+                            />
                           </WorkspacePanel>
                         </ResizablePanel>
                       ) : null}
@@ -666,7 +744,6 @@ export function TradingWorkspace({
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
-
     </div>
   )
 }
@@ -682,7 +759,10 @@ function PaperBottomTabs({
   const orderCount = account?.openOrders.length ?? 0
 
   return (
-    <Tabs defaultValue="positions" className="flex h-full min-h-0 flex-col gap-0">
+    <Tabs
+      defaultValue="positions"
+      className="flex h-full min-h-0 flex-col gap-0"
+    >
       <TabsList variant="line" className={BOTTOM_TABS_LIST}>
         <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
           Positions{positionCount ? ` (${positionCount})` : ""}
@@ -781,11 +861,11 @@ function SandboxBottomTabs({
         </TabsList>
         <div className="flex items-center gap-3 pr-3 text-xs text-muted-foreground">
           <span>
-            Active orders: {" "}
+            Active orders:{" "}
             <strong className="text-foreground">{activeOrderCount}</strong>
           </span>
           <span>
-            Open orders: {" "}
+            Open orders:{" "}
             <strong className="text-foreground">{orderCount}</strong>
           </span>
           <Button
@@ -917,20 +997,56 @@ function usePersistedPanels() {
   return usePersistedState<PanelVisibility>(
     PANELS_STORAGE_KEY,
     DEFAULT_PANELS,
-    (raw) => ({ ...DEFAULT_PANELS, ...(JSON.parse(raw) as Partial<PanelVisibility>) })
+    (raw) => ({
+      ...DEFAULT_PANELS,
+      ...(JSON.parse(raw) as Partial<PanelVisibility>),
+    })
   )
+}
+
+function useMarketFavorites() {
+  const [list, setList] = usePersistedState<string[]>(
+    MARKET_FAVORITES_KEY,
+    EMPTY_MARKET_FAVORITES
+  )
+  const favorites = React.useMemo(() => new Set(list), [list])
+  const toggleFavorite = React.useCallback(
+    (coin: string) => {
+      setList((current) =>
+        current.includes(coin)
+          ? current.filter((item) => item !== coin)
+          : [...current, coin]
+      )
+    },
+    [setList]
+  )
+  return { favorites, toggleFavorite }
 }
 
 /** Selected-market summary shown on the left of the account bar. */
 function MarketInfoBar({
   marketRow,
+  marketRows,
   price,
+  selected,
+  protectedMarkets,
+  favorites,
+  onToggleFavorite,
+  onSelect,
 }: {
   marketRow: MarketRow | null
+  marketRows: MarketRow[]
   price: number
+  selected: string
+  protectedMarkets: ReadonlySet<string>
+  favorites: ReadonlySet<string>
+  onToggleFavorite: (coin: string) => void
+  onSelect: (coin: string) => void
 }) {
   if (!marketRow) {
-    return <span className="text-sm font-semibold text-muted-foreground">—</span>
+    return (
+      <span className="text-sm font-semibold text-muted-foreground">—</span>
+    )
   }
   const prev = Number(marketRow.prevDayPx)
   const change = prev > 0 ? ((price - prev) / prev) * 100 : 0
@@ -941,13 +1057,22 @@ function MarketInfoBar({
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
       <div className="flex items-baseline gap-2">
-        <span className="text-[15px] font-bold">{marketRow.coin}-PERP</span>
+        <MarketPicker
+          rows={marketRows}
+          selected={selected}
+          protectedMarkets={protectedMarkets}
+          favorites={favorites}
+          onToggleFavorite={onToggleFavorite}
+          onSelect={onSelect}
+        />
         <span className="text-[10px] text-muted-foreground">
           {marketRow.maxLeverage}x
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className={cn("font-mono text-lg font-semibold tabular-nums", tone)}>
+        <span
+          className={cn("font-mono text-lg font-semibold tabular-nums", tone)}
+        >
           {price > 0 ? formatPriceDisplay(String(price)) : "—"}
         </span>
         <span className={cn("font-mono text-[11px] tabular-nums", tone)}>
@@ -957,9 +1082,15 @@ function MarketInfoBar({
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
-        <MarketStat label="Index" value={formatPriceDisplay(marketRow.oraclePx)} />
+        <MarketStat
+          label="Index"
+          value={formatPriceDisplay(marketRow.oraclePx)}
+        />
         <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />
-        <MarketStat label="24h Vol" value={formatCompactUsd(Number(marketRow.dayNtlVlm))} />
+        <MarketStat
+          label="24h Vol"
+          value={formatCompactUsd(Number(marketRow.dayNtlVlm))}
+        />
         <MarketStat label="OI" value={formatCompactUsd(openInterestUsd)} />
       </div>
     </div>

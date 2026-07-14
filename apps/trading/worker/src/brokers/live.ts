@@ -9,7 +9,11 @@ import {
 } from "@/server/hyperliquid/exchange"
 import { getInfoClient, type AssetInfo } from "@/server/hyperliquid/info"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
-import { tradingBotTrades, type TradingBot, type TradingWallet } from "@/server/schema"
+import {
+  tradingBotTrades,
+  type TradingBot,
+  type TradingWallet,
+} from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
 import type { MarketHub } from "../market-hub"
@@ -72,12 +76,16 @@ export class LiveBroker implements BotBroker {
     await this.refreshAccount()
 
     this.unsubscribers.push(
-      this.hub.subscribeUserFills(this.network, this.accountAddress, (event) => {
-        if (event.isSnapshot) return
-        for (const fill of event.fills) {
-          void this.handleStreamFill(fill)
+      this.hub.subscribeUserFills(
+        this.network,
+        this.accountAddress,
+        (event) => {
+          if (event.isSnapshot) return
+          for (const fill of event.fills) {
+            void this.handleStreamFill(fill)
+          }
         }
-      })
+      )
     )
 
     await this.reconcile()
@@ -98,7 +106,9 @@ export class LiveBroker implements BotBroker {
     let px = order.px
     if (!px) {
       // Market order: marketable IOC limit at mid ± 3%.
-      const mid = Number(this.hub.mid(this.network, this.market))
+      const mid = Number(
+        this.hub.mid(this.network, this.asset.dex, this.market)
+      )
       if (!(mid > 0)) {
         return { kind: "rejected", reason: "no mid price for market order" }
       }
@@ -157,7 +167,7 @@ export class LiveBroker implements BotBroker {
     if (!this.position) return
     const szi = Number(this.position.szi)
     if (szi === 0) return
-    const mid = Number(this.hub.mid(this.network, this.market))
+    const mid = Number(this.hub.mid(this.network, this.asset.dex, this.market))
     const slip = szi > 0 ? 0.97 : 1.03
     const px = (mid > 0 ? mid : Number(this.position.entryPx)) * slip
     await placeOrder(
@@ -197,6 +207,7 @@ export class LiveBroker implements BotBroker {
       // 1. Which of our orders still rest on the exchange?
       const openOrders = await info.frontendOpenOrders({
         user: this.accountAddress,
+        dex: this.asset.dex,
       })
       const liveCloids = new Set(
         openOrders
@@ -290,7 +301,8 @@ export class LiveBroker implements BotBroker {
     try {
       const accountState = await loadTradingAccountState(
         getInfoClient(this.network),
-        this.accountAddress
+        this.accountAddress,
+        this.asset
       )
       const state = accountState.clearinghouseState
       this.accountValue = Number(accountState.equity)

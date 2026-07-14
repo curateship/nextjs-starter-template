@@ -22,6 +22,7 @@ import type {
   AutomationGraph,
   AutomationConfig,
 } from "@/lib/automations/automation"
+import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import type { Trendline } from "@/lib/trading/trendlines"
 
@@ -307,7 +308,9 @@ export const tradingNotifications = pgTable(
       .references(() => tradingWallets.id, { onDelete: "cascade" }),
     eventKey: varchar("event_key", { length: 200 }).notNull(),
     kind: varchar("kind", { length: 30 }).notNull(),
-    coin: varchar("coin", { length: 20 }).notNull(),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     side: varchar("side", { length: 5 }).notNull(),
     price: numeric("price").notNull(),
     size: numeric("size").notNull(),
@@ -473,7 +476,9 @@ export const tradingChartTrendlines = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     network: varchar("network", { length: 10 }).notNull(),
-    market: varchar("market", { length: 30 }).notNull(),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     trendlines: jsonb("trendlines").$type<Trendline[]>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -552,7 +557,9 @@ export const tradingBotState = pgTable(
     botId: varchar("bot_id", { length: 36 })
       .notNull()
       .references(() => tradingBots.id, { onDelete: "cascade" }),
-    market: varchar("market", { length: 20 }).notNull(),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     strategyState: jsonb("strategy_state").notNull().default({}),
     paperPosition: jsonb("paper_position"),
     paperCash: numeric("paper_cash"),
@@ -584,7 +591,9 @@ export const tradingBotOrders = pgTable(
       .references(() => tradingBots.id, { onDelete: "cascade" }),
     cloid: varchar("cloid", { length: 66 }).notNull().unique(),
     oid: bigint("oid", { mode: "number" }),
-    market: varchar("market", { length: 20 }).notNull(),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     side: varchar("side", { length: 4 }).notNull(),
     px: numeric("px"),
     sz: numeric("sz").notNull(),
@@ -624,7 +633,9 @@ export const tradingBotTrades = pgTable(
       { onDelete: "set null" }
     ),
     mode: varchar("mode", { length: 10 }).notNull(),
-    market: varchar("market", { length: 20 }).notNull(),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     side: varchar("side", { length: 4 }).notNull(),
     px: numeric("px").notNull(),
     sz: numeric("sz").notNull(),
@@ -780,7 +791,9 @@ export const tradingAuditLog = pgTable(
     actor: varchar("actor", { length: 10 }).notNull(),
     actionType: varchar("action_type", { length: 40 }).notNull(),
     network: varchar("network", { length: 10 }).notNull(),
-    market: varchar("market", { length: 20 }),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }),
     nonce: bigint("nonce", { mode: "number" }),
     cloid: varchar("cloid", { length: 66 }),
     request: jsonb("request").notNull(),
@@ -851,7 +864,9 @@ export const tradingPaperPositions = pgTable(
     paperWalletId: varchar("paper_wallet_id", { length: 36 })
       .notNull()
       .references(() => tradingPaperWallets.id, { onDelete: "cascade" }),
-    coin: varchar("coin", { length: 20 }).notNull(),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     szi: numeric("szi").notNull(),
     entryPx: numeric("entry_px").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -871,7 +886,9 @@ export const tradingPaperOrders = pgTable(
     paperWalletId: varchar("paper_wallet_id", { length: 36 })
       .notNull()
       .references(() => tradingPaperWallets.id, { onDelete: "cascade" }),
-    coin: varchar("coin", { length: 20 }).notNull(),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     side: varchar("side", { length: 4 }).notNull(),
     orderType: varchar("order_type", { length: 10 }).notNull(),
     px: numeric("px"),
@@ -909,7 +926,9 @@ export const tradingPaperFills = pgTable(
     paperWalletId: varchar("paper_wallet_id", { length: 36 })
       .notNull()
       .references(() => tradingPaperWallets.id, { onDelete: "cascade" }),
-    coin: varchar("coin", { length: 20 }).notNull(),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
     side: varchar("side", { length: 4 }).notNull(),
     px: numeric("px").notNull(),
     sz: numeric("sz").notNull(),

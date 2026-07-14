@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
 import type { Trendline } from "@/lib/trading/trendlines"
 
 const pointSchema = z
@@ -22,7 +23,7 @@ const trendlineSchema = z
 export const chartTrendlineScopeSchema = z
   .object({
     network: z.enum(["testnet", "mainnet"]),
-    market: z.string().regex(/^[A-Za-z0-9@._:-]{1,30}$/),
+    market: hyperliquidMarketSchema,
   })
   .strict()
 

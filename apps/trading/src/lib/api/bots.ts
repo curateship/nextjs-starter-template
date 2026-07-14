@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
+import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
 import {
   normalizeAutomationConfig,
   automationConfigSchema,
@@ -91,7 +92,7 @@ const createBotSchema = z
   .object({
     name: z.string().min(1).max(255),
     walletId: z.string().min(1),
-    markets: z.array(z.string().min(1).max(20)).min(1),
+    markets: z.array(hyperliquidMarketSchema).min(1),
     exchange: z.string().min(1).max(20).default("hyperliquid"),
     mode: z.enum(["paper", "live"]),
     /** The bot's config is the Automation's server-compiled snapshot. */
@@ -111,7 +112,7 @@ const createBotSchema = z
 const updateBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().min(1).max(255),
-  markets: z.array(z.string().min(1).max(20)).min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1),
   params: automationConfigSchema,
 })
 

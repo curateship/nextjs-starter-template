@@ -106,8 +106,24 @@ export function OrderTicket({
   const [prevMarket, setPrevMarket] = React.useState(market)
   if (prevMarket !== market) {
     setPrevMarket(market)
-    setState((current) => ({ ...current, px: "", szInput: "" }))
+    setState((current) => ({
+      ...current,
+      px: "",
+      szInput: "",
+      leverage: Math.min(current.leverage, maxLeverage),
+      isCross: !marketRow?.onlyIsolated,
+    }))
     setStatus(null)
+  }
+  if (
+    state.leverage > maxLeverage ||
+    (marketRow?.onlyIsolated && state.isCross)
+  ) {
+    setState((current) => ({
+      ...current,
+      leverage: Math.min(current.leverage, maxLeverage),
+      isCross: marketRow?.onlyIsolated ? false : current.isCross,
+    }))
   }
   const [prevPrefill, setPrevPrefill] = React.useState(prefill)
   if (prevPrefill !== prefill) {
@@ -389,6 +405,7 @@ export function OrderTicket({
           <div className="mt-1 flex items-center gap-1">
             <Select
               value={state.isCross ? "cross" : "isolated"}
+              disabled={marketRow?.onlyIsolated}
               onValueChange={(value) =>
                 setState({ ...state, isCross: value === "cross" })
               }
@@ -397,7 +414,9 @@ export function OrderTicket({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cross">Cross</SelectItem>
+                {marketRow?.onlyIsolated ? null : (
+                  <SelectItem value="cross">Cross</SelectItem>
+                )}
                 <SelectItem value="isolated">Isolated</SelectItem>
               </SelectContent>
             </Select>
