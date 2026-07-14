@@ -43,7 +43,7 @@ import {
   uploadMedia,
   type MediaItem,
 } from "@/lib/api/media"
-import { useEditor } from "@/pages/video-editor/editor-store"
+import { useEditorRuntime } from "@/pages/video-editor/editor-store"
 import { loadMediaDurationMs } from "@/pages/video-editor/timeline-utils"
 
 // Payload handed back to the timeline's REPLACE_CLIP_MEDIA action.
@@ -70,7 +70,7 @@ export function ReplaceMediaDialog({
   onOpenChange: (open: boolean) => void
   onReplace: (media: ReplacementMedia) => void
 }) {
-  const { kind, documentId } = useEditor()
+  const { kind, documentId } = useEditorRuntime()
   const projectId = kind === "project" ? documentId : undefined
   const isAudioSlot = clipKind === "audio"
   const [items, setItems] = React.useState<MediaItem[] | null>(null)

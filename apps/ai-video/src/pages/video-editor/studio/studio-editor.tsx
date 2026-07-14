@@ -26,7 +26,13 @@ import {
   getTemplateErrorMessage,
   renameTemplate,
 } from "@/lib/api/video-templates"
-import { useEditor } from "@/pages/video-editor/editor-store"
+import {
+  useEditorDocumentName,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSaveStatus,
+  useEditorSelector,
+} from "@/pages/video-editor/editor-store"
 import type { EditorDocument } from "@/pages/video-editor/editor-provider"
 import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
 import { formatClock } from "@/pages/video-editor/timeline-utils"
@@ -76,9 +82,10 @@ const RAIL: RailItem[] = [
 
 // Full-screen Studio editor. Regular projects open on Media; template-builder
 // and fill-template documents get a leading Slots panel and template CTAs, all
-// wired to the shared editor store via useEditor().
+// wired to the shared editor store via selective editor hooks.
 export function StudioEditor({ document }: { document: EditorDocument }) {
-  const { state, dispatch, clock, mode, kind } = useEditor()
+  const trackCount = useEditorSelector((state) => state.tracks.length)
+  const { store, dispatch, clock, mode, kind } = useEditorRuntime()
   const isTemplateMode = mode !== "regular"
   // Transcript editing needs the caption backend, which is project-only.
   const railItems = [
@@ -94,15 +101,18 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
   // Open with the timeline tall enough to show every track. Tracks may load
   // after mount, so also fit once on their first appearance (a single time,
   // so later manual resizes stick).
-  const [timelineH, setTimelineH] = React.useState(() => fitTimelineH(state.tracks.length))
-  const timelineFitRef = React.useRef(state.tracks.length > 0)
+  const [timelineH, setTimelineH] = React.useState(() => fitTimelineH(trackCount))
+  const timelineFitRef = React.useRef(trackCount > 0)
   React.useEffect(() => {
-    if (timelineFitRef.current || state.tracks.length === 0) return
+    if (timelineFitRef.current || trackCount === 0) return
     timelineFitRef.current = true
-    setTimelineH(fitTimelineH(state.tracks.length))
-  }, [state.tracks.length])
+    setTimelineH(fitTimelineH(trackCount))
+  }, [trackCount])
   const [exportOpen, setExportOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const panelRef = React.useRef<HTMLElement>(null)
+  const inspectorRef = React.useRef<HTMLElement>(null)
+  const timelineRef = React.useRef<HTMLElement>(null)
 
   const sizeSetters: Record<ResizeKey, (v: number) => void> = {
     panelW: setPanelW,
@@ -114,32 +124,39 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
     inspectorW,
     timelineH,
   }
-
-  function startResize(key: ResizeKey, dir: "x" | "y") {
-    return (e: React.PointerEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const startPos = dir === "x" ? e.clientX : e.clientY
-      const startVal = sizeValues[key]
-      const [min, max] = LIMITS[key]
-      // Inspector/timeline grow as their leading edge is dragged toward the
-      // content, i.e. opposite the pointer delta.
-      const sign = key === "inspectorW" || key === "timelineH" ? -1 : 1
-      const onMove = (ev: PointerEvent) => {
-        const delta = ((dir === "x" ? ev.clientX : ev.clientY) - startPos) * sign
-        sizeSetters[key](Math.max(min, Math.min(max, startVal + delta)))
+  function startResize(
+    key: ResizeKey,
+    dir: "x" | "y",
+    element: HTMLElement | null,
+    e: React.PointerEvent
+  ) {
+    e.preventDefault()
+    e.stopPropagation()
+    const startPos = dir === "x" ? e.clientX : e.clientY
+    const startVal = sizeValues[key]
+    const [min, max] = LIMITS[key]
+    let nextValue = startVal
+    // Inspector/timeline grow as their leading edge is dragged toward the
+    // content, i.e. opposite the pointer delta.
+    const sign = key === "inspectorW" || key === "timelineH" ? -1 : 1
+    const onMove = (ev: PointerEvent) => {
+      const delta = ((dir === "x" ? ev.clientX : ev.clientY) - startPos) * sign
+      nextValue = Math.max(min, Math.min(max, startVal + delta))
+      if (element) {
+        element.style[dir === "x" ? "width" : "height"] = `${nextValue}px`
       }
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove)
-        window.removeEventListener("pointerup", onUp)
-        window.document.body.style.cursor = ""
-        window.document.body.style.userSelect = ""
-      }
-      window.addEventListener("pointermove", onMove)
-      window.addEventListener("pointerup", onUp)
-      window.document.body.style.cursor = dir === "x" ? "col-resize" : "row-resize"
-      window.document.body.style.userSelect = "none"
     }
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+      window.document.body.style.cursor = ""
+      window.document.body.style.userSelect = ""
+      sizeSetters[key](nextValue)
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    window.document.body.style.cursor = dir === "x" ? "col-resize" : "row-resize"
+    window.document.body.style.userSelect = "none"
   }
 
   // Editor-wide keyboard shortcuts (space / delete / escape).
@@ -158,11 +175,14 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
         e.preventDefault()
         clock.toggle()
       } else if (
-        (e.key === "Delete" || e.key === "Backspace") &&
-        state.selectedClipId
+        e.key === "Delete" ||
+        e.key === "Backspace"
       ) {
-        e.preventDefault()
-        dispatch({ type: "DELETE_CLIP", clipId: state.selectedClipId })
+        const selectedClipId = store.getSnapshot().state.selectedClipId
+        if (selectedClipId) {
+          e.preventDefault()
+          dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
+        }
       } else if (e.key === "Escape") {
         dispatch({ type: "SELECT_CLIP", clipId: null })
         dispatch({ type: "SET_CUT_MODE", on: false })
@@ -170,7 +190,7 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [clock, dispatch, state.selectedClipId])
+  }, [clock, dispatch, store])
 
   return (
     <div
@@ -250,6 +270,7 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
         </nav>
 
         <aside
+          ref={panelRef}
           data-screen-label="Panel"
           style={{
             width: panelW,
@@ -261,21 +282,35 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
           }}
         >
           <StudioContextPanel panel={panel} />
-          <ResizeHandle dir="x" side="right" onPointerDown={startResize("panelW", "x")} />
+          <ResizeHandle
+            dir="x"
+            side="right"
+            onPointerDown={(event) =>
+              startResize("panelW", "x", panelRef.current, event)
+            }
+          />
         </aside>
 
         <StudioStage />
 
         <aside
+          ref={inspectorRef}
           data-screen-label="Inspector"
           style={{ width: inspectorW, flex: "none", position: "relative", minHeight: 0 }}
         >
-          <ResizeHandle dir="x" side="left" onPointerDown={startResize("inspectorW", "x")} />
+          <ResizeHandle
+            dir="x"
+            side="left"
+            onPointerDown={(event) =>
+              startResize("inspectorW", "x", inspectorRef.current, event)
+            }
+          />
           <StudioInspector />
         </aside>
       </div>
 
       <section
+        ref={timelineRef}
         style={{
           height: timelineH,
           flex: "none",
@@ -285,7 +320,13 @@ export function StudioEditor({ document }: { document: EditorDocument }) {
           zIndex: 15,
         }}
       >
-        <ResizeHandle dir="y" side="top" onPointerDown={startResize("timelineH", "y")} />
+        <ResizeHandle
+          dir="y"
+          side="top"
+          onPointerDown={(event) =>
+            startResize("timelineH", "y", timelineRef.current, event)
+          }
+        />
         <StudioTimeline />
       </section>
 
@@ -350,7 +391,8 @@ function TopBar({
   document: EditorDocument
   onExport: () => void
 }) {
-  const { documentName, setDocumentName, documentId, kind, mode } = useEditor()
+  const documentName = useEditorDocumentName()
+  const { setDocumentName, documentId, kind, mode } = useEditorRuntime()
   const navigate = useNavigate()
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(documentName)
@@ -600,7 +642,9 @@ const primaryTopBtn: React.CSSProperties = {
 // left, save state on the right (moved out of the top bar). Values are labelled
 // plain text (no pills) so their meaning is obvious.
 function StatusBar() {
-  const { state, durationMs, saveStatus } = useEditor()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const durationMs = useEditorDurationMs()
+  const saveStatus = useEditorSaveStatus()
   const saveDot =
     saveStatus === "error"
       ? "var(--coral)"
@@ -630,7 +674,7 @@ function StatusBar() {
         zIndex: 16,
       }}
     >
-      <StatItem label="Aspect ratio" value={state.aspect} />
+      <StatItem label="Aspect ratio" value={aspect} />
       <StatItem
         label="Duration"
         value={formatClock(durationMs)}

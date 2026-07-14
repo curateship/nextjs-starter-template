@@ -6,13 +6,12 @@ import {
 } from "@/lib/api/video-projects"
 import { saveTemplateTimeline } from "@/lib/api/video-templates"
 import {
+  createEditorStore,
   createInitialEditorState,
   EditorContext,
-  editorReducer,
-  timelineDurationMs,
   type EditorDocumentKind,
   type EditorMode,
-  type SaveStatus,
+  useEditorStoreSelector,
 } from "@/pages/video-editor/editor-store"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 
@@ -44,10 +43,20 @@ export function EditorProvider({
   mode: EditorMode
   children: React.ReactNode
 }) {
-  const [state, dispatch] = React.useReducer(
-    editorReducer,
-    document.timeline,
-    createInitialEditorState
+  const [store] = React.useState(() =>
+    createEditorStore(
+      createInitialEditorState(document.timeline),
+      document.name,
+      document.thumbnail_url ?? null
+    )
+  )
+  const tracks = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.state.tracks
+  )
+  const aspect = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.state.aspect
   )
   // Route a timeline snapshot to the right persistence fn for this document.
   const saveTimeline = React.useCallback(
@@ -60,22 +69,14 @@ export function EditorProvider({
   // One playback clock per editor mount; lives outside React so per-frame
   // ticks don't re-render the tree.
   const [clock] = React.useState(() => new PlaybackClock())
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("saved")
-  // The document name lives in state so a rename (settings modal) updates the
-  // header live. Initialized once from the prop, like the timeline reducer —
-  // the editor remounts per document, so it never needs to re-sync the prop.
-  const [documentName, setDocumentName] = React.useState(document.name)
-  const [documentThumbnailUrl, setDocumentThumbnailUrl] = React.useState(
-    document.thumbnail_url ?? null
-  )
   // Latest unsaved snapshot; cleared once persisted. Lets the unmount flush
   // catch edits made inside the debounce window when navigating away.
   const pendingRef = React.useRef<ProjectTimeline | null>(null)
   const hydratedRef = React.useRef(false)
 
-  const durationMs = React.useMemo(
-    () => timelineDurationMs(state.tracks),
-    [state.tracks]
+  const durationMs = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.durationMs
   )
 
   // Keep the clock clamped to the current timeline length.
@@ -96,25 +97,25 @@ export function EditorProvider({
     }
 
     const snapshot: ProjectTimeline = {
-      tracks: state.tracks,
-      aspect: state.aspect,
+      tracks,
+      aspect,
     }
     pendingRef.current = snapshot
 
     const timer = setTimeout(() => {
       pendingRef.current = null
-      setSaveStatus("saving")
+      store.setSaveStatus("saving")
       saveTimeline(snapshot)
-        .then(() => setSaveStatus("saved"))
+        .then(() => store.setSaveStatus("saved"))
         .catch(() => {
-          setSaveStatus("error")
+          store.setSaveStatus("error")
           // Keep the snapshot flushable on unmount unless an edit superseded it.
           pendingRef.current ??= snapshot
         })
     }, AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveTimeline, state.tracks, state.aspect])
+  }, [saveTimeline, tracks, aspect, store])
 
   // Fire-and-forget flush for edits still inside the debounce window when
   // the editor unmounts (e.g. navigating back to the dashboard).
@@ -133,45 +134,30 @@ export function EditorProvider({
     const snapshot = pendingRef.current
     if (!snapshot) return
     pendingRef.current = null
-    setSaveStatus("saving")
+    store.setSaveStatus("saving")
     try {
       await saveTimeline(snapshot)
-      setSaveStatus("saved")
+      store.setSaveStatus("saved")
     } catch (error) {
-      setSaveStatus("error")
+      store.setSaveStatus("error")
       pendingRef.current ??= snapshot
       throw error
     }
-  }, [saveTimeline])
+  }, [saveTimeline, store])
 
   const value = React.useMemo(
     () => ({
-      state,
-      dispatch,
+      store,
+      dispatch: store.dispatch,
       clock,
-      durationMs,
-      saveStatus,
       kind,
       mode,
       documentId: document.id,
-      documentName,
-      setDocumentName,
-      documentThumbnailUrl,
-      setDocumentThumbnailUrl,
+      setDocumentName: store.setDocumentName,
+      setDocumentThumbnailUrl: store.setDocumentThumbnailUrl,
       flushSave,
     }),
-    [
-      state,
-      clock,
-      durationMs,
-      saveStatus,
-      kind,
-      mode,
-      document.id,
-      documentName,
-      documentThumbnailUrl,
-      flushSave,
-    ]
+    [store, clock, kind, mode, document.id, flushSave]
   )
 
   return (

@@ -17,7 +17,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getProjectErrorMessage, renameProject } from "@/lib/api/video-projects"
-import { useEditor } from "@/pages/video-editor/editor-store"
+import {
+  useEditorDocumentName,
+  useEditorDocumentThumbnailUrl,
+  useEditorRuntime,
+} from "@/pages/video-editor/editor-store"
 
 // Editor settings modal, opened from the editor header. Project settings rename
 // the project; template settings also manage the catalog cover image.
@@ -28,7 +32,7 @@ export function EditorSettingsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { kind } = useEditor()
+  const { kind } = useEditorRuntime()
 
   if (kind === "template") {
     return (
@@ -58,13 +62,10 @@ function EditorTemplateSettingsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const {
-    documentId,
-    documentName,
-    setDocumentName,
-    documentThumbnailUrl,
-    setDocumentThumbnailUrl,
-  } = useEditor()
+  const documentName = useEditorDocumentName()
+  const documentThumbnailUrl = useEditorDocumentThumbnailUrl()
+  const { documentId, setDocumentName, setDocumentThumbnailUrl } =
+    useEditorRuntime()
 
   function handleTemplateUpdated(update: TemplateSettingsUpdate) {
     if (update.name !== undefined) {
@@ -88,11 +89,8 @@ function EditorTemplateSettingsDialog({
 }
 
 function ProjectSettingsForm({ onClose }: { onClose: () => void }) {
-  const {
-    documentId,
-    documentName,
-    setDocumentName,
-  } = useEditor()
+  const documentName = useEditorDocumentName()
+  const { documentId, setDocumentName } = useEditorRuntime()
   const [name, setName] = React.useState(documentName)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)

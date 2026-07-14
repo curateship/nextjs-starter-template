@@ -4,7 +4,9 @@ import { Pause, Play, Replace, Film, Trash2 } from "lucide-react"
 import { requireTextFont, type TextFontId } from "@/lib/text-fonts"
 import {
   findClip,
-  useEditor,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSelector,
   type AspectRatio,
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
@@ -29,11 +31,12 @@ const card: React.CSSProperties = {
 }
 
 export function StudioInspector() {
-  const { state, mode } = useEditor()
-  const found = state.selectedClipId
-    ? findClip(state.tracks, state.selectedClipId)
-    : null
-  const clip = found?.clip ?? null
+  const clip = useEditorSelector((state) =>
+    state.selectedClipId
+      ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
+      : null
+  )
+  const { mode } = useEditorRuntime()
   const isTemplateMode = mode !== "regular"
 
   const title = !clip
@@ -122,7 +125,7 @@ export function StudioInspector() {
 
 // Template-only controls: define/replace this clip as a template slot.
 function SlotSection({ clip }: { clip: EditorClip }) {
-  const { mode, dispatch } = useEditor()
+  const { mode, dispatch } = useEditorRuntime()
   const { previewingId, togglePreview, stopPreview } = useAudioPreview()
   const isBuilder = mode === "template-builder"
 
@@ -260,10 +263,11 @@ function Label({ children, style }: { children: React.ReactNode; style?: React.C
 }
 
 function ProjectProps() {
-  const { state, durationMs } = useEditor()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const durationMs = useEditorDurationMs()
   const rows: [string, string][] = [
-    ["Aspect", state.aspect],
-    ["Resolution", RESOLUTION[state.aspect]],
+    ["Aspect", aspect],
+    ["Resolution", RESOLUTION[aspect]],
     ["Frame rate", "30 fps"],
     ["Duration", formatClock(durationMs)],
   ]
@@ -310,7 +314,7 @@ const FONT_CHOICES: { id: TextFontId; label: string }[] = [
 const SWATCHES = ["#ffffff", "#ffe27a", "#1c1c1c", "var(--acc)", "#ff5a5a", "#5ad18a"]
 
 function TextInspector({ clip }: { clip: EditorClip }) {
-  const { dispatch } = useEditor()
+  const { dispatch } = useEditorRuntime()
   const font = requireTextFont(clip.fontId ?? "inter")
   const size = clip.fontSize ?? 78
   const value = clip.text ?? clip.words?.map((w) => w.text).join(" ") ?? ""
@@ -452,10 +456,12 @@ function TextInspector({ clip }: { clip: EditorClip }) {
 }
 
 function MediaInspector({ clip }: { clip: EditorClip }) {
-  const { state, dispatch } = useEditor()
+  const track = useEditorSelector(
+    (state) => findClip(state.tracks, clip.id)?.track
+  )
+  const { dispatch } = useEditorRuntime()
   const [replaceOpen, setReplaceOpen] = React.useState(false)
   // Ducking is a track-level flag; surface it on the audio clip's inspector.
-  const track = findClip(state.tracks, clip.id)?.track
 
   function handleReplace(media: ReplacementMedia) {
     dispatch({ type: "REPLACE_CLIP_MEDIA", clipId: clip.id, media })
