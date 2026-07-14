@@ -151,7 +151,7 @@ export function OneClickOrderSettings() {
             <TableRow>
               <TableHead column="main">{sortHead("name", "Name")}</TableHead>
               <TableHead column="meta">
-                {sortHead("orderSizePct", "Size")}
+                {sortHead("orderSizePct", "Sizing")}
               </TableHead>
               <TableHead column="meta">
                 {sortHead("leverage", "Leverage")}
@@ -192,7 +192,10 @@ export function OneClickOrderSettings() {
                 {template.name}
               </button>
             </TableCell>
-            <TableCell column="meta">{template.orderSizePct}%</TableCell>
+            <TableCell column="meta">
+              {template.sizingMode === "risk" ? "Risk" : "Wallet"}{" "}
+              {template.orderSizePct}%
+            </TableCell>
             <TableCell column="meta">{template.leverage}x</TableCell>
             <TableCell column="meta">{template.stopLossPct}%</TableCell>
             <TableCell column="meta">{template.takeProfitPct}%</TableCell>

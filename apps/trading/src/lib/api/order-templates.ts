@@ -5,6 +5,7 @@ export type OrderTemplateItem = {
   id: string
   name: string
   orderSizePct: number
+  sizingMode: "wallet" | "risk"
   leverage: number
   stopLossPct: number
   takeProfitPct: number
@@ -17,6 +18,7 @@ export type OrderTemplateItem = {
 const valuesSchema = z.object({
   name: z.string().trim().min(1).max(80),
   orderSizePct: z.number().positive().max(100),
+  sizingMode: z.enum(["wallet", "risk"]),
   leverage: z.number().int().min(1).max(100),
   stopLossPct: z.number().positive().lt(100),
   takeProfitPct: z.number().positive().lt(100),

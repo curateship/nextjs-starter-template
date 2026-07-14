@@ -244,8 +244,9 @@ export function OneClickMenuActions({
             title={reason ?? undefined}
             onClick={() => request("buy")}
           >
-            Buy limit - WS:{selected.orderSizePct}% SL:{selected.stopLossPct}%
-            TP:{selected.takeProfitPct}%
+            Buy limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
+            {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
+            {selected.takeProfitPct}%
           </Button>
           <Button
             type="button"
@@ -256,8 +257,9 @@ export function OneClickMenuActions({
             title={reason ?? undefined}
             onClick={() => request("sell")}
           >
-            Sell limit - WS:{selected.orderSizePct}% SL:{selected.stopLossPct}%
-            TP:{selected.takeProfitPct}%
+            Sell limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
+            {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
+            {selected.takeProfitPct}%
           </Button>
         </>
       ) : null}
@@ -337,8 +339,12 @@ function OneClickConfirmDialog({
 }) {
   if (!template || !open) return null
 
-  const margin = equity * (template.orderSizePct / 100)
-  const notional = margin * template.leverage
+  const sizingAmount = equity * (template.orderSizePct / 100)
+  const notional =
+    template.sizingMode === "risk"
+      ? sizingAmount / (template.stopLossPct / 100)
+      : sizingAmount * template.leverage
+  const margin = notional / template.leverage
   const entryPrice = resolveOneClickEntryPrice({
     markPrice: markPx,
     useLimitOrder: template.useLimitOrder,
@@ -392,9 +398,19 @@ function OneClickConfirmDialog({
             }
           />
           <SummaryRow
-            label="Wallet cash used"
-            value={`${template.orderSizePct}% · $${margin.toFixed(2)}`}
+            label={
+              template.sizingMode === "risk"
+                ? "Risk per wallet"
+                : "Wallet cash used"
+            }
+            value={`${template.orderSizePct}% · $${sizingAmount.toFixed(2)}`}
           />
+          {template.sizingMode === "risk" ? (
+            <SummaryRow
+              label="Wallet cash used"
+              value={`About $${margin.toFixed(2)}`}
+            />
+          ) : null}
           <SummaryRow
             label="Position size"
             value={`${sz.toFixed(6)} ${market} · $${preview.notionalUsd.toFixed(2)}`}

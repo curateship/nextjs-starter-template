@@ -36,6 +36,12 @@ beforeEach(async () => {
       "utf8"
     )
   )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0034_one_click_risk_sizing.sql", import.meta.url),
+      "utf8"
+    )
+  )
   database = drizzle(client, { schema })
 })
 

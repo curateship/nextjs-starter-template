@@ -7,8 +7,8 @@
 export type OrderIntent = {
   market: string
   side: "buy" | "sell"
-  orderType: "market" | "limit"
-  /** Limit price; null for market orders (mark price is used for notional). */
+  orderType: "market" | "limit" | "trigger"
+  /** Limit or trigger price; null for market orders. */
   px: string | null
   /** Size in base currency units. */
   sz: string
@@ -62,16 +62,6 @@ export type RiskCheckResult =
   | { ok: false; violations: RiskViolation[] }
 
 export const STALE_PRICE_MS = 5_000
-/** Marketable limits further through mark than this are treated as unsafe. */
-export const MARKETABLE_LIMIT_SANITY_PCT = 20
-
-export function marketableLimitDeviationPct(
-  side: OrderIntent["side"],
-  price: number,
-  mark: number
-): number {
-  return ((side === "buy" ? price - mark : mark - price) / mark) * 100
-}
 
 export function checkOrderIntent(
   intent: OrderIntent,
@@ -108,15 +98,13 @@ export function checkOrderIntent(
     intent.px !== null &&
     Number.isFinite(px) &&
     px > 0 &&
-    mark > 0
+    mark > 0 &&
+    (intent.side === "buy" ? px > mark : px < mark)
   ) {
-    const deviationPct = marketableLimitDeviationPct(intent.side, px, mark)
-    if (deviationPct > MARKETABLE_LIMIT_SANITY_PCT) {
-      violations.push({
-        code: "price_sanity",
-        message: `${intent.side === "buy" ? "Buy" : "Sell"} limit price is ${deviationPct.toFixed(1)}% ${intent.side === "buy" ? "above" : "below"} mark (${ref.markPx}); max allowed is ${MARKETABLE_LIMIT_SANITY_PCT}%.`,
-      })
-    }
+    violations.push({
+      code: "price_sanity",
+      message: `${intent.side === "buy" ? "Buy" : "Sell"} limit price must be at or ${intent.side === "buy" ? "below" : "above"} mark (${ref.markPx}).`,
+    })
   }
 
   if (intent.leverage > limits.maxLeverage) {

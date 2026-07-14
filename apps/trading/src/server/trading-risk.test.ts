@@ -4,14 +4,15 @@ import {
   BracketOrderError,
   buildCloid,
   cloidPrefixOf,
+  cloidPurposeOf,
   MANUAL_CLOID_PREFIX,
   parseBracketOrderStatuses,
+  RISK_SIZING_CLOID_PURPOSE,
   scrubErrorMessage,
 } from "@/server/hyperliquid/exchange"
 import {
   checkOrderIntent,
   describeViolations,
-  MARKETABLE_LIMIT_SANITY_PCT,
   STALE_PRICE_MS,
   type AccountRiskState,
   type OrderIntent,
@@ -171,18 +172,15 @@ describe("risk engine", () => {
     expect(sell).toEqual({ ok: true })
   })
 
-  it("rejects marketable limit prices far through the mark", () => {
+  it("rejects any limit price that crosses the current price", () => {
     const buy = checkOrderIntent(
-      {
-        ...baseIntent,
-        px: String(2000 * (1 + (MARKETABLE_LIMIT_SANITY_PCT + 5) / 100)),
-      },
+      { ...baseIntent, px: "2000.01" },
       baseAccount,
       baseLimits,
       freshRef()
     )
     const sell = checkOrderIntent(
-      { ...baseIntent, side: "sell", px: "1500" },
+      { ...baseIntent, side: "sell", px: "1999.99" },
       baseAccount,
       baseLimits,
       freshRef()
@@ -193,9 +191,27 @@ describe("risk engine", () => {
     if (!buy.ok && !sell.ok) {
       expect(buy.violations[0].code).toBe("price_sanity")
       expect(sell.violations[0].code).toBe("price_sanity")
-      expect(describeViolations(buy.violations)).toContain("above mark")
-      expect(describeViolations(sell.violations)).toContain("below mark")
+      expect(describeViolations(buy.violations)).toContain("at or below mark")
+      expect(describeViolations(sell.violations)).toContain("at or above mark")
     }
+  })
+
+  it("does not apply the limit-price rule to trigger orders", () => {
+    const stopLoss = checkOrderIntent(
+      { ...baseIntent, orderType: "trigger", side: "sell", px: "1000" },
+      baseAccount,
+      baseLimits,
+      freshRef()
+    )
+    const takeProfit = checkOrderIntent(
+      { ...baseIntent, orderType: "trigger", px: "3000" },
+      baseAccount,
+      baseLimits,
+      freshRef()
+    )
+
+    expect(stopLoss).toEqual({ ok: true })
+    expect(takeProfit).toEqual({ ok: true })
   })
 
   it("rejects non-positive size", () => {
@@ -250,6 +266,17 @@ describe("cloid scheme", () => {
     const cloid = buildCloid(MANUAL_CLOID_PREFIX)
     expect(cloid).toMatch(/^0x[0-9a-f]{32}$/)
     expect(cloidPrefixOf(cloid)).toBe(MANUAL_CLOID_PREFIX)
+  })
+
+  it("marks Risk-sized one-click orders", () => {
+    const cloid = buildCloid(MANUAL_CLOID_PREFIX, RISK_SIZING_CLOID_PURPOSE)
+    expect(cloidPurposeOf(cloid)).toBe(RISK_SIZING_CLOID_PURPOSE)
+  })
+
+  it("rejects non-canonical client order IDs", () => {
+    expect(() => cloidPurposeOf("ffffffff000100000000000000000000")).toThrow(
+      "Invalid client order ID"
+    )
   })
 
   it("generates unique cloids", () => {

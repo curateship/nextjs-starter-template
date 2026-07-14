@@ -13,6 +13,8 @@ import { now, uuid } from "@/server/util"
 
 /** Reserved cloid prefix for manual (non-bot) orders. */
 export const MANUAL_CLOID_PREFIX = "ffffffff"
+/** Marks one-click brackets whose size is tied to stop-loss risk. */
+export const RISK_SIZING_CLOID_PURPOSE = "0001"
 
 export type ExchangeActor = {
   actor: "user" | "bot" | "system"
@@ -99,13 +101,23 @@ function getClientEntry(wallet: TradingWallet): ClientEntry {
 }
 
 /** 128-bit client order id: 0x + prefix(8) + purpose(4) + random(20) hex. */
-export function buildCloid(prefix: string, purposeHash = "0000"): `0x${string}` {
+export function buildCloid(
+  prefix: string,
+  purposeHash = "0000"
+): `0x${string}` {
   const random = randomBytes(10).toString("hex")
   return `0x${prefix}${purposeHash}${random}` as `0x${string}`
 }
 
 export function cloidPrefixOf(cloid: string): string {
   return cloid.startsWith("0x") ? cloid.slice(2, 10) : cloid.slice(0, 8)
+}
+
+export function cloidPurposeOf(cloid: string): string {
+  if (!/^0x[0-9a-f]{32}$/i.test(cloid)) {
+    throw new Error("Invalid client order ID")
+  }
+  return cloid.slice(10, 14)
 }
 
 export async function placeOrder(
@@ -356,24 +368,7 @@ export async function modifyOrder(
   try {
     await entry.client.modify({
       oid: params.oid,
-      order: {
-        a: params.order.assetId,
-        b: params.order.isBuy,
-        p: params.order.px,
-        s: params.order.sz,
-        r: params.order.reduceOnly,
-        t:
-          params.order.kind === "limit"
-            ? { limit: { tif: params.order.tif } }
-            : {
-                trigger: {
-                  isMarket: params.order.isMarket,
-                  triggerPx: params.order.triggerPx,
-                  tpsl: params.order.tpsl,
-                },
-              },
-        ...(params.order.cloid ? { c: params.order.cloid } : {}),
-      },
+      order: toWireModifyOrder(params.order),
     })
     await writeAudit(database, wallet, actor, {
       actionType: "order.modify",
@@ -394,6 +389,100 @@ export async function modifyOrder(
       errorMessage: scrubErrorMessage(error),
     })
     throw new Error(scrubErrorMessage(error))
+  }
+}
+
+export async function modifyOrders(
+  wallet: TradingWallet,
+  actor: ExchangeActor,
+  modifications: Array<{
+    oid: number | `0x${string}`
+    order: ModifyOrderParams
+  }>,
+  database: CustomShellDb = db
+): Promise<void> {
+  if (modifications.length < 2) {
+    throw new Error("Grouped order changes require at least two orders")
+  }
+  const entry = getClientEntry(wallet)
+  const requests = modifications.map(({ oid, order }) => ({
+    oid,
+    coin: order.coin,
+    px: order.px,
+    sz: order.sz,
+    kind: order.kind,
+  }))
+
+  let statuses: unknown[]
+  try {
+    const response = await entry.client.batchModify({
+      modifies: modifications.map(({ oid, order }) => ({
+        oid,
+        order: toWireModifyOrder(order),
+      })),
+    })
+    statuses = response.response.data.statuses
+  } catch (error) {
+    const errorMessage = scrubErrorMessage(error)
+    await Promise.all(
+      modifications.map(({ order }, index) =>
+        writeAudit(database, wallet, actor, {
+          actionType: "order.modify",
+          market: order.coin,
+          nonce: entry.nonceRef.last,
+          cloid: order.cloid ?? null,
+          request: requests[index]!,
+          status: "error",
+          errorMessage,
+        })
+      )
+    )
+    throw new Error(errorMessage)
+  }
+
+  const complete =
+    statuses.length === modifications.length &&
+    statuses.every(isOrderStatusSuccess)
+  await Promise.all(
+    modifications.map(({ order }, index) => {
+      const succeeded = isOrderStatusSuccess(statuses[index])
+      return writeAudit(database, wallet, actor, {
+        actionType: "order.modify",
+        market: order.coin,
+        nonce: entry.nonceRef.last,
+        cloid: order.cloid ?? null,
+        request: requests[index]!,
+        response: { status: statuses[index] ?? null },
+        status: succeeded ? "ok" : "error",
+        errorMessage: succeeded ? null : "Exchange rejected this order change",
+      })
+    })
+  )
+  if (!complete) {
+    throw new Error(
+      "The grouped order change was not fully accepted. Check open orders before retrying."
+    )
+  }
+}
+
+function toWireModifyOrder(order: ModifyOrderParams) {
+  return {
+    a: order.assetId,
+    b: order.isBuy,
+    p: order.px,
+    s: order.sz,
+    r: order.reduceOnly,
+    t:
+      order.kind === "limit"
+        ? { limit: { tif: order.tif } }
+        : {
+            trigger: {
+              isMarket: order.isMarket,
+              triggerPx: order.triggerPx,
+              tpsl: order.tpsl,
+            },
+          },
+    ...(order.cloid ? { c: order.cloid } : {}),
   }
 }
 
@@ -475,8 +564,8 @@ function isOrderStatusSuccess(status: unknown): boolean {
   }
   return Boolean(
     status &&
-      typeof status === "object" &&
-      ("resting" in status || "filled" in status)
+    typeof status === "object" &&
+    ("resting" in status || "filled" in status)
   )
 }
 

@@ -1,5 +1,11 @@
+import { and, eq, inArray } from "drizzle-orm"
+
 import { db, type CustomShellDb } from "@/server/db"
 import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import {
+  describeOpenOrder,
+  type FrontendOpenOrder,
+} from "@/lib/trading/open-order"
 import {
   resolveOneClickEntryPrice,
   resolveTakeProfitPrice,
@@ -8,10 +14,14 @@ import {
   BracketOrderError,
   buildCloid,
   cancelOrder,
+  cloidPrefixOf,
+  cloidPurposeOf,
   MANUAL_CLOID_PREFIX,
   modifyOrder,
+  modifyOrders,
   placeBracketOrder,
   placeOrder,
+  RISK_SIZING_CLOID_PURPOSE,
   updateLeverage,
   writeRiskRejection,
   type OrderPlacementStatus,
@@ -27,11 +37,13 @@ import {
   type RiskLimits,
 } from "@/server/risk/risk"
 import { findUserWallet } from "@/server/wallets"
-import type { TradingWallet } from "@/server/schema"
-import { getOrderTemplate } from "@/server/order-templates"
+import { tradingAuditLog, type TradingWallet } from "@/server/schema"
+import { getOrderTemplate, listOrderTemplates } from "@/server/order-templates"
 import {
-  assertMoveWithinMark,
+  assertPassiveLimitPrice,
   buildModifiedOrder,
+  buildRiskBracketModifications,
+  inferPreMarkerRiskUsd,
 } from "@/server/trading-order-modification"
 
 export type ManualOrderInput = {
@@ -237,7 +249,10 @@ export async function submitOneClickOrder(
     : Number(applySlippage(ctx.markPx, input.side))
   const px = roundPrice(executionPrice, asset.szDecimals)
   const referencePrice = template.useLimitOrder ? Number(px) : mark
-  const notional = equity * (orderSizePct / 100) * template.leverage
+  const notional =
+    template.sizingMode === "risk"
+      ? (equity * orderSizePct) / stopLossPct
+      : equity * (orderSizePct / 100) * template.leverage
   const sz = roundSize(notional / referencePrice, asset.szDecimals)
   const stopLossPx = roundPrice(
     referencePrice * (isBuy ? 1 - stopLossPct / 100 : 1 + stopLossPct / 100),
@@ -303,6 +318,8 @@ export async function submitOneClickOrder(
     },
     database
   )
+  const cloidPurpose =
+    template.sizingMode === "risk" ? RISK_SIZING_CLOID_PURPOSE : undefined
   const status = await placeBracketOrder(
     wallet,
     { actor: "user", userId },
@@ -315,15 +332,15 @@ export async function submitOneClickOrder(
         sz,
         reduceOnly: false,
         tif: template.useLimitOrder ? "Gtc" : "FrontendMarket",
-        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+        cloid: buildCloid(MANUAL_CLOID_PREFIX, cloidPurpose),
       },
       takeProfit: {
         triggerPx: takeProfitPx,
-        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+        cloid: buildCloid(MANUAL_CLOID_PREFIX, cloidPurpose),
       },
       stopLoss: {
         triggerPx: stopLossPx,
-        cloid: buildCloid(MANUAL_CLOID_PREFIX),
+        cloid: buildCloid(MANUAL_CLOID_PREFIX, cloidPurpose),
       },
     },
     database
@@ -386,13 +403,50 @@ export async function modifyManualOrder(
     throw new Error("Invalid price or size")
   }
 
-  // Sanity-check the new price against mark before signing.
   const [, assetCtxs] = assetData
   const ctx = assetCtxs[asset.assetIndex]
   const mark = Number(ctx?.markPx)
-  assertMoveWithinMark(px, mark, order.side === "B")
+  if (!order.isTrigger) {
+    assertPassiveLimitPrice(px, mark, order.side === "B")
+  }
 
-  if (input.sz) {
+  const entry = openOrders.find(
+    (candidate) =>
+      !candidate.isTrigger &&
+      candidate.coin === input.market &&
+      candidate.children.some((child) => child.oid === order.oid)
+  )
+  const orderDescription = describeOpenOrder(order)
+  const isLinkedStop =
+    input.sz === undefined &&
+    entry !== undefined &&
+    orderDescription.modification.kind === "trigger" &&
+    orderDescription.modification.tpsl === "sl"
+  let riskPlan: ReturnType<typeof buildRiskBracketModifications> | null = null
+  if (isLinkedStop) {
+    const markedAsRisk = hasManualCloidPurpose(
+      [entry, ...entry.children],
+      RISK_SIZING_CLOID_PURPOSE
+    )
+    const legacyRiskUsd = markedAsRisk
+      ? undefined
+      : await resolveLegacyRiskAmount(userId, wallet, entry, order, database)
+    if (markedAsRisk || legacyRiskUsd !== null) {
+      riskPlan = buildRiskBracketModifications({
+        assetId: asset.assetId,
+        entry,
+        stopOid: order.oid,
+        nextStopPrice: px,
+        szDecimals: asset.szDecimals,
+        riskUsd: legacyRiskUsd ?? undefined,
+      })
+    }
+  }
+
+  const checkedOrder = riskPlan && entry ? entry : order
+  const checkedPx = riskPlan && entry ? entry.limitPx : px
+  const checkedSz = riskPlan?.sz ?? sz
+  if (input.sz || riskPlan) {
     const accountState = await loadTradingAccountState(
       info,
       accountAddress,
@@ -403,11 +457,13 @@ export async function modifyManualOrder(
     )?.position
     const intent = {
       market: input.market,
-      side: order.side === "B" ? ("buy" as const) : ("sell" as const),
-      orderType: "limit" as const,
-      px,
-      sz,
-      reduceOnly: order.reduceOnly,
+      side: checkedOrder.side === "B" ? ("buy" as const) : ("sell" as const),
+      orderType: checkedOrder.isTrigger
+        ? ("trigger" as const)
+        : ("limit" as const),
+      px: checkedPx,
+      sz: checkedSz,
+      reduceOnly: checkedOrder.reduceOnly,
       leverage: position?.leverage.value ?? 1,
     } satisfies OrderIntent
     const risk = checkOrderIntent(
@@ -439,6 +495,16 @@ export async function modifyManualOrder(
     }
   }
 
+  if (riskPlan) {
+    await modifyOrders(
+      wallet,
+      { actor: "user", userId },
+      riskPlan.modifications,
+      database
+    )
+    return { px, sz: riskPlan.sz }
+  }
+
   const modifiedOrder = {
     ...buildModifiedOrder(asset.assetId, order, px),
     sz,
@@ -454,6 +520,83 @@ export async function modifyManualOrder(
     database
   )
   return { px, sz }
+}
+
+async function resolveLegacyRiskAmount(
+  userId: string,
+  wallet: TradingWallet,
+  entry: FrontendOpenOrder,
+  stop: FrontendOpenOrder,
+  database: CustomShellDb
+): Promise<number | null> {
+  // Temporary compatibility tracked in one-click-order-templates.md.
+  if (
+    !hasManualCloidPurpose([entry, ...entry.children], "0000") ||
+    !entry.cloid ||
+    !stop.cloid
+  ) {
+    return null
+  }
+
+  const [auditRows, templates] = await Promise.all([
+    database
+      .select({
+        cloid: tradingAuditLog.cloid,
+        request: tradingAuditLog.request,
+        createdAt: tradingAuditLog.createdAt,
+      })
+      .from(tradingAuditLog)
+      .where(
+        and(
+          eq(tradingAuditLog.userId, userId),
+          eq(tradingAuditLog.walletId, wallet.id),
+          eq(tradingAuditLog.market, entry.coin),
+          eq(tradingAuditLog.actionType, "order.place"),
+          eq(tradingAuditLog.status, "ok"),
+          inArray(tradingAuditLog.cloid, [entry.cloid, stop.cloid])
+        )
+      ),
+    listOrderTemplates(userId, database),
+  ])
+  const entryAudit = auditRows.find((row) => row.cloid === entry.cloid)
+  const stopAudit = auditRows.find((row) => row.cloid === stop.cloid)
+  const originalEntry = readOrderAuditRequest(entryAudit?.request)
+  const originalStop = readOrderAuditRequest(stopAudit?.request)
+  if (
+    !originalEntry ||
+    !originalStop ||
+    !entryAudit ||
+    !stopAudit ||
+    Math.abs(entryAudit.createdAt.getTime() - stopAudit.createdAt.getTime()) >
+      5_000
+  ) {
+    return null
+  }
+  return inferPreMarkerRiskUsd(originalEntry, originalStop, templates)
+}
+
+function hasManualCloidPurpose(
+  orders: readonly FrontendOpenOrder[],
+  purpose: string
+): boolean {
+  return orders.every(
+    (order) =>
+      order.cloid !== null &&
+      cloidPrefixOf(order.cloid) === MANUAL_CLOID_PREFIX &&
+      cloidPurposeOf(order.cloid) === purpose
+  )
+}
+
+function readOrderAuditRequest(
+  value: unknown
+): { px: number; sz: number } | null {
+  if (!value || typeof value !== "object") return null
+  const request = value as Record<string, unknown>
+  const px = Number(request.px)
+  const sz = Number(request.sz)
+  return Number.isFinite(px) && px > 0 && Number.isFinite(sz) && sz > 0
+    ? { px, sz }
+    : null
 }
 
 export async function cancelManualOrder(
