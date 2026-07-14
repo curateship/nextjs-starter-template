@@ -16,6 +16,7 @@ import {
   ALLOWED_TYPES,
   AUDIO_TYPES,
   IMAGE_TYPES,
+  MEDIA_FILMSTRIP_PROFILE,
   MEDIA_PROXY_PROFILE,
   mediaExtensionForMimeType,
 } from "@/server/media-types"
@@ -319,11 +320,12 @@ export async function deleteOwnedProjectMedia(
     .returning({
       storagePath: aiVideoMedia.storagePath,
       proxyStoragePath: aiVideoMedia.proxyStoragePath,
+      filmstripStoragePath: aiVideoMedia.filmstripStoragePath,
     })
 
   await Promise.all(
     rows.flatMap((row) =>
-      [row.storagePath, row.proxyStoragePath]
+      [row.storagePath, row.proxyStoragePath, row.filmstripStoragePath]
         .filter((storagePath): storagePath is string => !!storagePath)
         .map((storagePath) => deleteFromR2(storagePath).catch(() => undefined))
     )
@@ -405,6 +407,8 @@ export async function saveGeneratedVideoToProjectMedia(
     source: "generated" as const,
     proxyStatus: "queued",
     proxyProfile: MEDIA_PROXY_PROFILE,
+    filmstripStatus: "queued",
+    filmstripProfile: MEDIA_FILMSTRIP_PROFILE,
     createdAt,
     updatedAt: createdAt,
   }

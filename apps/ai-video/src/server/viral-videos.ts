@@ -20,7 +20,10 @@ import {
   mediaFileUrl,
   viralVideoThumbnailUrl,
 } from "@/server/media-urls"
-import { MEDIA_PROXY_PROFILE } from "@/server/media-types"
+import {
+  MEDIA_FILMSTRIP_PROFILE,
+  MEDIA_PROXY_PROFILE,
+} from "@/server/media-types"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoCreators,
@@ -328,9 +331,13 @@ export async function destroyViralVideo(
     if (media) {
       await db.delete(aiVideoMedia).where(eq(aiVideoMedia.id, media.id))
       await deleteFromR2(media.storagePath)
-      if (media.proxyStoragePath) {
-        await deleteFromR2(media.proxyStoragePath).catch(() => undefined)
-      }
+      await Promise.all(
+        [media.proxyStoragePath, media.filmstripStoragePath]
+          .filter((storagePath): storagePath is string => !!storagePath)
+          .map((storagePath) =>
+            deleteFromR2(storagePath).catch(() => undefined)
+          )
+      )
     }
   }
 
@@ -489,6 +496,8 @@ async function processViralVideo(
         source: "viral",
         proxyStatus: "queued",
         proxyProfile: MEDIA_PROXY_PROFILE,
+        filmstripStatus: "queued",
+        filmstripProfile: MEDIA_FILMSTRIP_PROFILE,
         createdAt: mediaCreatedAt,
         updatedAt: mediaCreatedAt,
       })

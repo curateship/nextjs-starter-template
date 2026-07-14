@@ -51,7 +51,11 @@ import {
   type ReplacementMedia,
 } from "@/pages/video-editor/replace-media-dialog"
 import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
-import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
+import {
+  filmstripFrameStyle,
+  getVideoFilmstrip,
+  type FilmstripFrame,
+} from "@/pages/video-editor/video-thumbnails"
 
 export type StudioPanel =
   | "slots"
@@ -259,23 +263,34 @@ function SlotThumb({ slot }: { slot: EditorClip }) {
     slot.kind === "video" && slot.mediaId
       ? `${slot.mediaId}:${slot.trimStartMs}:${slot.durationMs}`
       : null
-  const [frame, setFrame] = React.useState<{ key: string; src: string | null } | null>(null)
+  const [frame, setFrame] = React.useState<{
+    key: string
+    value: FilmstripFrame | null
+  } | null>(null)
 
   React.useEffect(() => {
     if (!frameKey || !slot.mediaId) return
-    let active = true
+    const controller = new AbortController()
     getVideoFilmstrip(slot.mediaId, {
       startMs: slot.trimStartMs,
       durationMs: slot.durationMs,
-    })
-      .then((frames) => active && setFrame({ key: frameKey, src: frames[0] ?? null }))
-      .catch(() => active && setFrame({ key: frameKey, src: null }))
+    }, controller.signal)
+      .then((frames) => {
+        if (!controller.signal.aborted) {
+          setFrame({ key: frameKey, value: frames[0] ?? null })
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFrame({ key: frameKey, value: null })
+        }
+      })
     return () => {
-      active = false
+      controller.abort()
     }
   }, [frameKey, slot.mediaId, slot.trimStartMs, slot.durationMs])
 
-  const frameSrc = frame?.key === frameKey ? frame.src : null
+  const frameValue = frame?.key === frameKey ? frame.value : null
   const box: React.CSSProperties = {
     height: 46,
     width: 34,
@@ -293,8 +308,15 @@ function SlotThumb({ slot }: { slot: EditorClip }) {
   if (slot.kind === "image" && slot.url) {
     return <div style={box}><img src={slot.url} alt="" draggable={false} style={img} /></div>
   }
-  if (slot.kind === "video" && frameSrc) {
-    return <div style={box}><img src={frameSrc} alt="" draggable={false} style={img} /></div>
+  if (slot.kind === "video" && frameValue) {
+    return (
+      <div
+        style={{
+          ...box,
+          ...filmstripFrameStyle(frameValue, 34 / 46),
+        }}
+      />
+    )
   }
   return (
     <div style={box}>
