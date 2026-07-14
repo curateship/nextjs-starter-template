@@ -1,18 +1,19 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     io::{Read, Write},
     path::{Component, Path, PathBuf},
     process::Command,
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc, LazyLock, Mutex},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
     ipc::{Channel, InvokeResponseBody, JavaScriptChannelId},
-    AppHandle, Manager, State, Webview,
+    AppHandle, Emitter, Manager, State, Webview,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -20,6 +21,10 @@ const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 const MAX_TASK_TEMPLATE_SIZE: usize = 64 * 1024;
 const TERMINAL_OUTPUT_BUFFER_SIZE: usize = 16 * 1024;
+const TERMINAL_HIDDEN_OUTPUT_BUFFER_SIZE: usize = 1024 * 1024;
+const TERMINAL_OUTPUT_TRUNCATED_MESSAGE: &[u8] = b"\r\n[output truncated while hidden]\r\n";
+const TERMINAL_AGENT_ACTIVITY_EVENT: &str = "terminal-agent-activity";
+const TERMINAL_AGENT_IDLE_TIMEOUT: Duration = Duration::from_millis(2500);
 // Coalesce PTY output so fast-streaming agents cost at most ~60 IPC messages
 // per second instead of one per read().
 const TERMINAL_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
@@ -30,6 +35,16 @@ const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
     "Use lowercase letters, numbers, hyphens, or underscores for the app name.";
+static ANSI_ESCAPE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").expect("valid ANSI regex"));
+static AGENT_OUTPUT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^\s*(?:•|Ran |Edited |Updated |Thinking|Checking|Applying|Codex\b)|⏺|esc to interrupt",
+    )
+    .expect("valid agent output regex")
+});
+static CODEX_OUTPUT_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^\s*Codex\b").expect("valid Codex output regex"));
 
 #[derive(Default)]
 struct WorkspaceState {
@@ -77,15 +92,76 @@ struct WorkspaceRecord {
     app_relative_path: String,
 }
 
+enum TerminalOutputMessage {
+    Data(Vec<u8>),
+    Attach(Channel<InvokeResponseBody>),
+    Detach,
+    ResetAgentActivity,
+}
+
+#[derive(Default)]
+struct HiddenTerminalOutput {
+    bytes: VecDeque<u8>,
+    truncated: bool,
+}
+
+impl HiddenTerminalOutput {
+    fn append(&mut self, mut output: Vec<u8>) {
+        let overflow = self
+            .bytes
+            .len()
+            .saturating_add(output.len())
+            .saturating_sub(TERMINAL_HIDDEN_OUTPUT_BUFFER_SIZE);
+        if overflow > 0 {
+            if overflow >= self.bytes.len() {
+                let output_overflow = overflow - self.bytes.len();
+                self.bytes.clear();
+                output.drain(..output_overflow);
+            } else {
+                self.bytes.drain(..overflow);
+            }
+            self.truncated = true;
+        }
+        self.bytes.extend(output);
+    }
+
+    fn replay_to(&mut self, channel: &Channel<InvokeResponseBody>) -> bool {
+        if self.bytes.is_empty() && !self.truncated {
+            return true;
+        }
+
+        let mut replay = Vec::with_capacity(
+            self.bytes.len()
+                + usize::from(self.truncated) * TERMINAL_OUTPUT_TRUNCATED_MESSAGE.len(),
+        );
+        if self.truncated {
+            replay.extend_from_slice(TERMINAL_OUTPUT_TRUNCATED_MESSAGE);
+        }
+        replay.extend(self.bytes.iter().copied());
+        if channel.send(InvokeResponseBody::Raw(replay)).is_err() {
+            return false;
+        }
+
+        self.bytes.clear();
+        self.truncated = false;
+        true
+    }
+}
+
 struct TerminalSession {
     workspace_id: String,
     master: Box<dyn MasterPty + Send>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send>>,
-    // Swapped out when the pane remounts and calls start_terminal again.
-    // None until a pane attaches; output produced before then is dropped,
-    // matching the old emit-with-no-listener behavior.
-    output: Arc<Mutex<Option<Channel<InvokeResponseBody>>>>,
+    output: mpsc::Sender<TerminalOutputMessage>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerminalAgentActivity {
+    workspace_id: String,
+    terminal_id: String,
+    agent: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1417,8 +1493,8 @@ fn start_terminal(
 
     // Callers that only ensure the terminal is running pass no channel;
     // only panes do, and a pane's channel always becomes the output target.
-    let on_output: Option<Channel<InvokeResponseBody>> =
-        on_output.map(|id| id.channel_on(webview));
+    let app = webview.app_handle().clone();
+    let on_output: Option<Channel<InvokeResponseBody>> = on_output.map(|id| id.channel_on(webview));
 
     if let Some(session) = state
         .terminals
@@ -1427,10 +1503,10 @@ fn start_terminal(
         .get(&terminal_id)
     {
         if let Some(channel) = on_output {
-            *session
+            session
                 .output
-                .lock()
-                .map_err(|_| "Terminal output is unavailable".to_string())? = Some(channel);
+                .send(TerminalOutputMessage::Attach(channel))
+                .map_err(|_| "Terminal output is unavailable".to_string())?;
         }
         return Ok(());
     }
@@ -1464,16 +1540,20 @@ fn start_terminal(
         .spawn_command(command)
         .map_err(|error| error.to_string())?;
 
-    let output = Arc::new(Mutex::new(on_output));
-    let flush_output = output.clone();
-    let (chunk_sender, chunk_receiver) = mpsc::channel::<Vec<u8>>();
+    let output_workspace_id = workspace_id.clone();
+    let output_terminal_id = terminal_id.clone();
+    let (output_sender, output_receiver) = mpsc::channel::<TerminalOutputMessage>();
+    let reader_output_sender = output_sender.clone();
     thread::spawn(move || {
         let mut buffer = [0_u8; TERMINAL_OUTPUT_BUFFER_SIZE];
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) | Err(_) => break,
                 Ok(size) => {
-                    if chunk_sender.send(buffer[..size].to_vec()).is_err() {
+                    if reader_output_sender
+                        .send(TerminalOutputMessage::Data(buffer[..size].to_vec()))
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -1481,27 +1561,110 @@ fn start_terminal(
         }
     });
     thread::spawn(move || {
+        let mut output = on_output;
+        let mut hidden_output = HiddenTerminalOutput::default();
+        let mut deferred_message = None;
+        let mut agent_running = false;
+        let mut agent = None;
+        let mut last_agent_activity = None;
+        let mut last_agent_event = None;
         let mut last_flush = Instant::now() - TERMINAL_OUTPUT_FLUSH_INTERVAL;
-        while let Ok(mut pending) = chunk_receiver.recv() {
-            // Idle terminals flush immediately (the deadline is already past);
-            // streaming ones keep collecting until the frame deadline or the
-            // buffer fills, so keystroke echo stays instant.
-            let deadline = last_flush + TERMINAL_OUTPUT_FLUSH_INTERVAL;
-            while pending.len() < TERMINAL_OUTPUT_BUFFER_SIZE {
-                let now = Instant::now();
-                if now >= deadline {
-                    break;
+        loop {
+            let message = match deferred_message.take() {
+                Some(message) => Ok(message),
+                None => output_receiver.recv(),
+            };
+            match message {
+                Ok(TerminalOutputMessage::Data(mut pending)) => {
+                    // Idle terminals flush immediately (the deadline is already past);
+                    // streaming ones keep collecting until the frame deadline or the
+                    // buffer fills, so keystroke echo stays instant.
+                    let deadline = last_flush + TERMINAL_OUTPUT_FLUSH_INTERVAL;
+                    while pending.len() < TERMINAL_OUTPUT_BUFFER_SIZE {
+                        let now = Instant::now();
+                        if now >= deadline {
+                            break;
+                        }
+                        match output_receiver.recv_timeout(deadline - now) {
+                            Ok(TerminalOutputMessage::Data(chunk)) => {
+                                pending.extend_from_slice(&chunk)
+                            }
+                            Ok(control) => {
+                                deferred_message = Some(control);
+                                break;
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => break,
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                    last_flush = Instant::now();
+
+                    if !output_terminal_id.ends_with("-server") {
+                        if last_agent_activity.is_some_and(|last: Instant| {
+                            last.elapsed() >= TERMINAL_AGENT_IDLE_TIMEOUT
+                        }) {
+                            agent_running = false;
+                        }
+                        let decoded = String::from_utf8_lossy(&pending);
+                        let clean = ANSI_ESCAPE_PATTERN.replace_all(&decoded, "");
+                        if AGENT_OUTPUT_PATTERN.is_match(&clean) {
+                            agent_running = true;
+                            if agent.is_none() {
+                                agent = if clean.contains('⏺') || clean.contains("esc to interrupt")
+                                {
+                                    Some("claude")
+                                } else if CODEX_OUTPUT_PATTERN.is_match(&clean) {
+                                    Some("codex")
+                                } else {
+                                    None
+                                };
+                            }
+                        }
+                        if agent_running {
+                            let now = Instant::now();
+                            last_agent_activity = Some(now);
+                            if last_agent_event.is_none_or(|last: Instant| {
+                                now.duration_since(last) >= TERMINAL_OUTPUT_FLUSH_INTERVAL
+                            }) {
+                                last_agent_event = Some(now);
+                                if let Err(error) = app.emit(
+                                    TERMINAL_AGENT_ACTIVITY_EVENT,
+                                    TerminalAgentActivity {
+                                        workspace_id: output_workspace_id.clone(),
+                                        terminal_id: output_terminal_id.clone(),
+                                        agent: agent.map(str::to_owned),
+                                    },
+                                ) {
+                                    eprintln!("Failed to emit terminal agent activity: {error}");
+                                }
+                            }
+                        }
+                    }
+
+                    let delivered = output.as_ref().is_some_and(|channel| {
+                        channel
+                            .send(InvokeResponseBody::Raw(pending.clone()))
+                            .is_ok()
+                    });
+                    if !delivered {
+                        output = None;
+                        hidden_output.append(pending);
+                    }
                 }
-                match chunk_receiver.recv_timeout(deadline - now) {
-                    Ok(chunk) => pending.extend_from_slice(&chunk),
-                    Err(_) => break,
+                Ok(TerminalOutputMessage::Attach(channel)) => {
+                    if hidden_output.replay_to(&channel) {
+                        output = Some(channel);
+                    } else {
+                        output = None;
+                    }
                 }
-            }
-            last_flush = Instant::now();
-            if let Ok(channel) = flush_output.lock() {
-                if let Some(channel) = channel.as_ref() {
-                    let _ = channel.send(InvokeResponseBody::Raw(pending));
+                Ok(TerminalOutputMessage::Detach) => output = None,
+                Ok(TerminalOutputMessage::ResetAgentActivity) => {
+                    agent_running = false;
+                    last_agent_activity = None;
+                    last_agent_event = None;
                 }
+                Err(_) => break,
             }
         }
     });
@@ -1517,10 +1680,29 @@ fn start_terminal(
                 master: pair.master,
                 writer: Mutex::new(writer),
                 child: Mutex::new(child),
-                output,
+                output: output_sender,
             },
         );
 
+    Ok(())
+}
+
+#[tauri::command]
+fn detach_terminal_output(
+    terminal_id: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    if let Some(session) = state
+        .terminals
+        .lock()
+        .map_err(|_| "Terminal state is unavailable".to_string())?
+        .get(&terminal_id)
+    {
+        session
+            .output
+            .send(TerminalOutputMessage::Detach)
+            .map_err(|_| "Terminal output is unavailable".to_string())?;
+    }
     Ok(())
 }
 
@@ -1537,6 +1719,13 @@ fn write_terminal(
     let session = terminals
         .get(&terminal_id)
         .ok_or_else(|| "Terminal is not running".to_string())?;
+
+    if data.contains('\r') || data.contains('\n') {
+        session
+            .output
+            .send(TerminalOutputMessage::ResetAgentActivity)
+            .map_err(|_| "Terminal output is unavailable".to_string())?;
+    }
 
     let result = session
         .writer
@@ -3934,6 +4123,7 @@ pub fn run() {
             git_discard_changes,
             git_discard_file,
             start_terminal,
+            detach_terminal_output,
             write_terminal,
             resize_terminal,
             kill_terminal

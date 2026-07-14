@@ -151,7 +151,6 @@ function App() {
     focusTerminal,
     getTerminalSize,
     handleTerminalInput,
-    handleTerminalOutput,
     handleTerminalSizeChange,
     pruneWorkspaceTerminals,
     removeWorkspaceTerminals,
@@ -792,7 +791,6 @@ function App() {
                       onError={setFileError}
                       onPasteImage={pasteTerminalImage}
                       onTerminalInput={handleTerminalInput}
-                      onTerminalOutput={handleTerminalOutput}
                       onTabChange={setTerminalTab}
                     />
 

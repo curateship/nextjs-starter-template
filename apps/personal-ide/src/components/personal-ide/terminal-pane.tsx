@@ -3,10 +3,11 @@ import { WebglAddon } from "@xterm/addon-webgl"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import type { RefObject } from "react"
 
 import {
+  detachNativeTerminalOutput,
   resizeNativeTerminal,
   startNativeTerminal,
   writeNativeTerminal,
@@ -108,7 +109,6 @@ export function TerminalPane({
   onError,
   onPasteImage,
   onTerminalInput,
-  onTerminalOutput,
   terminalId,
   startupCommand,
   workspaceId,
@@ -120,7 +120,6 @@ export function TerminalPane({
   onError: (value: string) => void
   onPasteImage: (event: ClipboardEvent) => void
   onTerminalInput: (workspaceId: string, terminalId: string) => void
-  onTerminalOutput: (workspaceId: string, terminalId: string, data: Uint8Array) => void
   startupCommand?: string
   terminalId: string
   workspaceId: string
@@ -132,7 +131,15 @@ export function TerminalPane({
   const frameRef = useRef<number | null>(null)
   const isDarkThemeRef = useRef(isDarkTheme)
   const activeRef = useRef(active)
+  const startRef = useRef<Promise<unknown> | null>(null)
   const startupCommandSentRef = useRef(false)
+
+  const handleOutput = useCallback((data: Uint8Array) => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    // xterm's render service already repaints changed rows on the next frame.
+    terminal.write(data)
+  }, [])
 
   useEffect(() => {
     activeRef.current = active
@@ -237,17 +244,6 @@ export function TerminalPane({
       })
     }
 
-    const handleOutput = (data: Uint8Array) => {
-      if (cancelled) return
-      onTerminalOutput(workspaceId, terminalId, data)
-      // Just write. xterm's render service already repaints the changed rows on
-      // the next frame; forcing a full-viewport refresh() on every chunk (as we
-      // did before) redrew every cell on the GPU for each burst of streamed
-      // output, which is what made the IDE crawl while agents were working.
-      // Scroll state is kept in sync by the onWriteParsed handler below.
-      terminal.write(data)
-    }
-
     const startAfterFit = () => {
       try {
         fit.fit()
@@ -256,7 +252,14 @@ export function TerminalPane({
         const cols = terminal.cols || 80
         const rows = terminal.rows || 24
         onSizeChange(cols, rows)
-        void startNativeTerminal(workspaceId, terminalId, cols, rows, handleOutput)
+        const started = startNativeTerminal(workspaceId, terminalId, cols, rows)
+        startRef.current = started
+        void started
+          .then(() =>
+            activeRef.current
+              ? startNativeTerminal(workspaceId, terminalId, cols, rows, handleOutput)
+              : undefined
+          )
           .then(() => resizeNativeTerminal(terminalId, cols, rows))
           .then(() => {
             if (!startupCommand || startupCommandSentRef.current) return undefined
@@ -304,6 +307,10 @@ export function TerminalPane({
       scrollbackGuard.dispose()
       alternateScreenSetGuard.dispose()
       alternateScreenResetGuard.dispose()
+      void startRef.current
+        ?.then(() => detachNativeTerminalOutput(terminalId))
+        .catch((error) => onError(readableError(error)))
+      startRef.current = null
       webglRef.current?.dispose()
       webglRef.current = null
       terminal.dispose()
@@ -311,10 +318,10 @@ export function TerminalPane({
       fitRef.current = null
     }
   }, [
+    handleOutput,
     onError,
     onSizeChange,
     onTerminalInput,
-    onTerminalOutput,
     startupCommand,
     terminalId,
     workspaceId,
@@ -330,6 +337,9 @@ export function TerminalPane({
       // renderer, which is fine for a pane that isn't being drawn.
       webglRef.current?.dispose()
       webglRef.current = null
+      void startRef.current
+        ?.then(() => detachNativeTerminalOutput(terminalId))
+        .catch((error) => onError(readableError(error)))
       return
     }
 
@@ -342,12 +352,13 @@ export function TerminalPane({
 
       try {
         fit.fit()
-        onSizeChange(terminal.cols || 80, terminal.rows || 24)
-        void resizeNativeTerminal(
-          terminalId,
-          terminal.cols || 80,
-          terminal.rows || 24
-        ).catch(() => undefined)
+        const cols = terminal.cols || 80
+        const rows = terminal.rows || 24
+        onSizeChange(cols, rows)
+        void startRef.current
+          ?.then(() => startNativeTerminal(workspaceId, terminalId, cols, rows, handleOutput))
+          .then(() => resizeNativeTerminal(terminalId, cols, rows))
+          .catch((error) => onError(readableError(error)))
         window.requestAnimationFrame(() => {
           if (terminal.rows < 1) return
           try {
@@ -363,7 +374,7 @@ export function TerminalPane({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [active, onSizeChange, terminalId])
+  }, [active, handleOutput, onError, onSizeChange, terminalId, workspaceId])
 
   return (
     <div className="h-full min-h-0 p-2">
