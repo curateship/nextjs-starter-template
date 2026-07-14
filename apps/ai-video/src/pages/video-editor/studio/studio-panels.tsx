@@ -71,8 +71,18 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   transcript: "Transcript",
 }
 
+const PANEL_TITLE_STYLE: React.CSSProperties = {
+  fontFamily: "'Bebas Neue'",
+  fontSize: 22,
+  letterSpacing: ".02em",
+  lineHeight: 1,
+}
+
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
-  const [mediaCount, setMediaCount] = React.useState<number | null>(null)
+  // Media owns its own header row so the search/add controls can sit up top.
+  if (panel === "media") {
+    return <MediaPanel />
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -85,26 +95,12 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
           flex: "none",
         }}
       >
-        <div
-          style={{
-            fontFamily: "'Bebas Neue'",
-            fontSize: 22,
-            letterSpacing: ".02em",
-            lineHeight: 1,
-          }}
-        >
-          {PANEL_TITLE[panel]}
-        </div>
-        <span style={{ fontSize: 11, color: "var(--mut)" }}>
-          {panel === "media" && mediaCount != null ? `${mediaCount} items` : ""}
-        </span>
+        <div style={PANEL_TITLE_STYLE}>{PANEL_TITLE[panel]}</div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 16px 18px" }}>
         {panel === "slots" ? (
           <SlotsPanel />
-        ) : panel === "media" ? (
-          <MediaPanel onCount={setMediaCount} />
         ) : panel === "text" ? (
           <TextPanel />
         ) : panel === "ai" ? (
@@ -592,11 +588,12 @@ async function buildMediaClip(item: MediaItem): Promise<EditorClip> {
   }
 }
 
-function MediaPanel({ onCount }: { onCount: (n: number | null) => void }) {
+function MediaPanel() {
   const { kind, documentId, dispatch, clock } = useEditor()
   const [filter, setFilter] = React.useState<"all" | MediaFileType>("all")
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const [items, setItems] = React.useState<MediaItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const [refresh, setRefresh] = React.useState(0)
@@ -621,17 +618,15 @@ function MediaPanel({ onCount }: { onCount: (n: number | null) => void }) {
         if (!active) return
         setItems(data.media)
         setError(null)
-        onCount(data.media.length)
       })
       .catch((caught) => {
         if (!active) return
         setError(getMediaErrorMessage(caught))
-        onCount(null)
       })
     return () => {
       active = false
     }
-  }, [filter, debounced, projectId, refresh, onCount])
+  }, [filter, debounced, projectId, refresh])
 
   async function addItem(item: MediaItem) {
     try {
@@ -659,207 +654,286 @@ function MediaPanel({ onCount }: { onCount: (n: number | null) => void }) {
     }
   }
 
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 11 }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            height: 34,
-            padding: "0 11px",
-            background: "var(--elev)",
-            borderRadius: 9,
-          }}
-        >
-          <Search size={14} style={{ color: "var(--mut)" }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              fontSize: 12,
-              color: "var(--ink)",
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={() => fileRef.current?.click()}
-          style={{
-            height: 34,
-            width: 34,
-            display: "grid",
-            placeItems: "center",
-            background: "var(--elev)",
-            border: "none",
-            borderRadius: 9,
-            color: "var(--ink)",
-            cursor: "pointer",
-          }}
-          title="Upload media"
-        >
-          <Plus size={15} />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="video/*,image/*,audio/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            void handleUpload(e.target.files)
-            e.target.value = ""
-          }}
-        />
-      </div>
+  const iconBtn: React.CSSProperties = {
+    height: 34,
+    width: 34,
+    display: "grid",
+    placeItems: "center",
+    background: "var(--elev)",
+    border: "none",
+    borderRadius: 9,
+    color: "var(--ink)",
+    cursor: "pointer",
+    flex: "none",
+  }
 
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <div
         style={{
           display: "flex",
-          gap: 2,
-          padding: 3,
-          background: "var(--elev)",
-          borderRadius: 9,
-          marginBottom: 15,
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          padding: "16px 16px 12px",
+          flex: "none",
         }}
       >
-        {MEDIA_FILTERS.map((f) => {
-          const on = filter === f.id
-          return (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+          <div style={PANEL_TITLE_STYLE}>Media</div>
+          <span style={{ fontSize: 11, color: "var(--mut)", whiteSpace: "nowrap" }}>
+            {items.length} items
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
+          <div style={{ position: "relative" }}>
             <button
-              key={f.id}
               type="button"
-              onClick={() => setFilter(f.id)}
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                border: "none",
-                borderRadius: 8,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-                background: on ? "var(--panel)" : "transparent",
-                color: on ? "var(--ink)" : "var(--ink2)",
-                boxShadow: on ? "var(--sh-sm)" : "none",
-              }}
+              className="st-hovbg"
+              onClick={() => setSearchOpen((o) => !o)}
+              style={{ ...iconBtn, color: search ? "var(--acc)" : "var(--ink)" }}
+              title="Search media"
             >
-              {f.label}
+              <Search size={15} />
             </button>
-          )
-        })}
-      </div>
-
-      <div
-        className="st-hovcard"
-        onClick={() => fileRef.current?.click()}
-        style={{
-          border: "1.5px dashed var(--line2)",
-          borderRadius: 13,
-          padding: "20px 12px",
-          textAlign: "center",
-          marginBottom: 18,
-          background: "var(--panel2)",
-          cursor: "pointer",
-          transition: "background .13s",
-        }}
-      >
-        <div style={{ display: "grid", placeItems: "center", marginBottom: 8, color: "var(--mut)" }}>
-          <Upload size={22} />
-        </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-          {uploading ? "Uploading…" : "Drop or import media"}
-        </div>
-        <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>MP4 · MOV · PNG · MP3</div>
-      </div>
-
-      {error ? (
-        <div style={{ fontSize: 11.5, color: "var(--coral)", marginBottom: 12 }}>{error}</div>
-      ) : null}
-
-      <Label>Clips · {items.length}</Label>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className="st-hovlift"
-            onClick={() => void addItem(item)}
-            style={{
-              position: "relative",
-              borderRadius: 11,
-              overflow: "hidden",
-              border: "1px solid var(--line)",
-              cursor: "pointer",
-              background: "var(--panel)",
-              padding: 0,
-              textAlign: "left",
-            }}
-          >
-            <div
-              style={{
-                height: 82,
-                background:
-                  item.file_type === "image" || item.file_type === "video"
-                    ? `center/cover no-repeat url("${item.url}")`
-                    : "linear-gradient(135deg,#274b3a,#3f7a5c)",
-              }}
-            >
-              {item.file_type === "video" ? (
-                <video
-                  src={item.url}
-                  muted
-                  playsInline
-                  preload="metadata"
-                  style={{ height: "100%", width: "100%", objectFit: "cover" }}
+            {searchOpen ? (
+              <>
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                  onClick={() => setSearchOpen(false)}
                 />
-              ) : null}
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                left: 6,
-                top: 6,
-                height: 22,
-                width: 22,
-                display: "grid",
-                placeItems: "center",
-                background: "rgba(0,0,0,.5)",
-                borderRadius: 7,
-                color: "#fff",
-                fontSize: 11,
-              }}
-            >
-              {item.file_type === "audio" ? "♪" : item.file_type === "image" ? "▣" : "▶"}
-            </div>
-            <div style={{ padding: "7px 8px" }}>
-              <div
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 6px)",
+                    right: 0,
+                    zIndex: 41,
+                    width: 232,
+                    padding: 8,
+                    background: "var(--panel)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 11,
+                    boxShadow: "var(--sh-lg)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      height: 32,
+                      padding: "0 10px",
+                      background: "var(--elev)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Search size={13} style={{ color: "var(--mut)" }} />
+                    <input
+                      autoFocus
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setSearchOpen(false)
+                      }}
+                      placeholder="Search media"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        background: "transparent",
+                        border: "none",
+                        outline: "none",
+                        fontSize: 12,
+                        color: "var(--ink)",
+                      }}
+                    />
+                    {search ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearch("")}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: "var(--mut)",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                        title="Clear search"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="st-hovbg"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={{ ...iconBtn, opacity: uploading ? 0.6 : 1 }}
+            title="Upload media"
+          >
+            {uploading ? <Loader2 size={15} className="st-spin" /> : <Plus size={15} />}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/*,image/*,audio/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              void handleUpload(e.target.files)
+              e.target.value = ""
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 16px 18px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            padding: 3,
+            background: "var(--elev)",
+            borderRadius: 9,
+            marginBottom: 15,
+          }}
+        >
+          {MEDIA_FILTERS.map((f) => {
+            const on = filter === f.id
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilter(f.id)}
                 style={{
+                  flex: 1,
+                  padding: "6px 8px",
+                  border: "none",
+                  borderRadius: 8,
                   fontSize: 11,
-                  fontWeight: 500,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: on ? "var(--panel)" : "transparent",
+                  color: on ? "var(--ink)" : "var(--ink2)",
+                  boxShadow: on ? "var(--sh-sm)" : "none",
                 }}
               >
-                {item.original_name}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-      {!items.length && !error ? (
-        <div style={{ fontSize: 12, color: "var(--mut)", padding: "8px 2px" }}>
-          No media yet — import a clip to get started.
+                {f.label}
+              </button>
+            )
+          })}
         </div>
-      ) : null}
+
+        <div
+          className="st-hovcard"
+          onClick={() => fileRef.current?.click()}
+          style={{
+            border: "1.5px dashed var(--line2)",
+            borderRadius: 13,
+            padding: "20px 12px",
+            textAlign: "center",
+            marginBottom: 18,
+            background: "var(--panel2)",
+            cursor: "pointer",
+            transition: "background .13s",
+          }}
+        >
+          <div style={{ display: "grid", placeItems: "center", marginBottom: 8, color: "var(--mut)" }}>
+            <Upload size={22} />
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+            {uploading ? "Uploading…" : "Drop or import media"}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>MP4 · MOV · PNG · MP3</div>
+        </div>
+
+        {error ? (
+          <div style={{ fontSize: 11.5, color: "var(--coral)", marginBottom: 12 }}>{error}</div>
+        ) : null}
+
+        <Label>Clips · {items.length}</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="st-hovlift"
+              onClick={() => void addItem(item)}
+              style={{
+                position: "relative",
+                borderRadius: 11,
+                overflow: "hidden",
+                border: "1px solid var(--line)",
+                cursor: "pointer",
+                background: "var(--panel)",
+                padding: 0,
+                textAlign: "left",
+              }}
+            >
+              <div
+                style={{
+                  height: 82,
+                  background:
+                    item.file_type === "image" || item.file_type === "video"
+                      ? `center/cover no-repeat url("${item.url}")`
+                      : "linear-gradient(135deg,#274b3a,#3f7a5c)",
+                }}
+              >
+                {item.file_type === "video" ? (
+                  <video
+                    src={item.url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    style={{ height: "100%", width: "100%", objectFit: "cover" }}
+                  />
+                ) : null}
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 6,
+                  top: 6,
+                  height: 22,
+                  width: 22,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(0,0,0,.5)",
+                  borderRadius: 7,
+                  color: "#fff",
+                  fontSize: 11,
+                }}
+              >
+                {item.file_type === "audio" ? "♪" : item.file_type === "image" ? "▣" : "▶"}
+              </div>
+              <div style={{ padding: "7px 8px" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {item.original_name}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {!items.length && !error ? (
+          <div style={{ fontSize: 12, color: "var(--mut)", padding: "8px 2px" }}>
+            No media yet — import a clip to get started.
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
