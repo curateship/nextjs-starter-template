@@ -30,6 +30,7 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
 
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
+      <div style={!isPreview ? { paddingTop: "var(--campaign-bar-height, 0px)" } : undefined}>
       {/* Navigation - only render if navigation data exists */}
       {!hideChrome && navigation && (
         <NavBlock
@@ -47,6 +48,7 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
 
       {/* Footer - only render if footer data exists */}
       {!hideChrome && footer && <FooterBlock {...footer} site={site} />}
+      </div>
     </SiteThemeProvider>
   )
 }

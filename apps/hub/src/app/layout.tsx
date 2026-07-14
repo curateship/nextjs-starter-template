@@ -8,6 +8,8 @@ import { toCdnUrl } from "@/lib/utils/cdn";
 import { SiteAuthProvider } from "@/components/frontend/layout/site-auth-provider";
 import { headers } from "next/headers";
 import { isHubPlatformHost } from "@/lib/utils/platform-host";
+import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-actions";
+import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -81,6 +83,7 @@ export default async function RootLayout({
   const fontConfigKey = success && site?.settings
     ? `${site.settings.font_family || 'playfair-display'}:${site.settings.secondary_font_family || 'urbanist'}`
     : 'default'
+  const campaigns = success && site?.id ? await getPublicCampaignsForSite(site.id) : []
 
   return (
     <html
@@ -126,6 +129,7 @@ export default async function RootLayout({
         <SiteAuthProvider>
           <HeaderScripts scripts={site?.settings?.tracking_scripts} />
           {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
+          {campaigns.length > 0 && <CampaignGate campaigns={campaigns} />}
           {children}
           <DeferredScripts />
         </SiteAuthProvider>
