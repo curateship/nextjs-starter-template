@@ -858,43 +858,53 @@ function MediaPanel() {
         ) : null}
 
         <Label>Clips · {items.length}</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+        {/* Masonry: each thumbnail keeps the media's natural aspect ratio so
+            portrait and landscape clips read at their true shape. */}
+        <div style={{ columnCount: 2, columnGap: 9 }}>
           {items.map((item) => (
             <button
               key={item.id}
               type="button"
               className="st-hovlift"
               onClick={() => void addItem(item)}
+              title={item.original_name}
               style={{
                 position: "relative",
+                display: "block",
+                width: "100%",
+                marginBottom: 9,
+                breakInside: "avoid",
                 borderRadius: 11,
                 overflow: "hidden",
                 border: "1px solid var(--line)",
                 cursor: "pointer",
                 background: "var(--panel)",
                 padding: 0,
-                textAlign: "left",
               }}
             >
-              <div
-                style={{
-                  height: 82,
-                  background:
-                    item.file_type === "image" || item.file_type === "video"
-                      ? `center/cover no-repeat url("${item.url}")`
-                      : "linear-gradient(135deg,#274b3a,#3f7a5c)",
-                }}
-              >
-                {item.file_type === "video" ? (
-                  <video
-                    src={item.url}
-                    muted
-                    playsInline
-                    preload="metadata"
-                    style={{ height: "100%", width: "100%", objectFit: "cover" }}
-                  />
-                ) : null}
-              </div>
+              {item.file_type === "image" ? (
+                <img
+                  src={item.url}
+                  alt=""
+                  loading="lazy"
+                  style={{ display: "block", width: "100%" }}
+                />
+              ) : item.file_type === "video" ? (
+                <video
+                  src={item.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  style={{ display: "block", width: "100%" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 54,
+                    background: "linear-gradient(135deg,#274b3a,#3f7a5c)",
+                  }}
+                />
+              )}
               <div
                 style={{
                   position: "absolute",
@@ -911,19 +921,6 @@ function MediaPanel() {
                 }}
               >
                 {item.file_type === "audio" ? "♪" : item.file_type === "image" ? "▣" : "▶"}
-              </div>
-              <div style={{ padding: "7px 8px" }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {item.original_name}
-                </div>
               </div>
             </button>
           ))}

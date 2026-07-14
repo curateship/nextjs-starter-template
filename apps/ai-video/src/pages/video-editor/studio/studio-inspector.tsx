@@ -452,8 +452,10 @@ function TextInspector({ clip }: { clip: EditorClip }) {
 }
 
 function MediaInspector({ clip }: { clip: EditorClip }) {
-  const { dispatch } = useEditor()
+  const { state, dispatch } = useEditor()
   const [replaceOpen, setReplaceOpen] = React.useState(false)
+  // Ducking is a track-level flag; surface it on the audio clip's inspector.
+  const track = findClip(state.tracks, clip.id)?.track
 
   function handleReplace(media: ReplacementMedia) {
     dispatch({ type: "REPLACE_CLIP_MEDIA", clipId: clip.id, media })
@@ -545,6 +547,32 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           }
         />
       </div>
+
+      {clip.kind === "audio" && track ? (
+        <div
+          style={{
+            ...card,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 13px",
+            marginBottom: 18,
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 12.5 }}>Duck under voice</div>
+            <div style={{ fontSize: 10.5, color: "var(--mut)", marginTop: 1 }}>
+              Lower this track under other clips' audio
+            </div>
+          </div>
+          <Toggle
+            on={!!track.duck}
+            onToggle={() =>
+              dispatch({ type: "TOGGLE_TRACK_DUCK", trackId: track.id })
+            }
+          />
+        </div>
+      ) : null}
 
       <Timing clip={clip} />
 

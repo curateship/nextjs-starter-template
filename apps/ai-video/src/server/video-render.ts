@@ -14,6 +14,12 @@ import {
   getFromR2,
   uploadToR2,
 } from "@/server/media-storage"
+import {
+  computeDuckEnvelope,
+  dbToGain,
+  duckEnvelopeToVolumeExpr,
+  type Interval,
+} from "@/lib/audio-ducking"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
@@ -24,7 +30,10 @@ import type { BrandKitConfig } from "@/lib/ai-video"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
-import { getCurrentWorkspaceBrandKit } from "@/server/workspaces"
+import {
+  getCurrentWorkspaceBrandKit,
+  getCurrentWorkspaceDuckingDb,
+} from "@/server/workspaces"
 import type {
   AspectRatio,
   ClipWord,
@@ -134,9 +143,10 @@ export function timelineEndMs(tracks: EditorTrack[]) {
   return max
 }
 
-// A clip flattened with its track's mute state; visual order is bottom-first
-// (the preview stacks track 0 on top, so later overlays must win).
-type RenderClip = { clip: EditorClip; muted: boolean }
+// A clip flattened with its track's mute + duck state; visual order is
+// bottom-first (the preview stacks track 0 on top, so later overlays must win).
+// `duck` marks audio that should be lowered under other tracks' audio.
+type RenderClip = { clip: EditorClip; muted: boolean; duck: boolean }
 type RenderWatermark = {
   file: string
   position: BrandKitConfig["watermark"]["position"]
@@ -159,14 +169,15 @@ function flattenForRender(tracks: EditorTrack[]) {
   // the top track, matching the preview's z-index stacking.
   for (let i = tracks.length - 1; i >= 0; i--) {
     const track = tracks[i]
+    const duck = !!track.duck
     for (const clip of track.clips ?? []) {
       if (!clip.durationMs || clip.durationMs <= 0) continue
       if (clip.kind === "audio") {
-        audio.push({ clip, muted: track.muted || !!clip.muted })
+        audio.push({ clip, muted: track.muted || !!clip.muted, duck })
       } else if (clip.kind === "text") {
-        if (clip.text?.trim()) visuals.push({ clip, muted: true })
+        if (clip.text?.trim()) visuals.push({ clip, muted: true, duck: false })
       } else if (clip.mediaId) {
-        visuals.push({ clip, muted: track.muted || !!clip.muted })
+        visuals.push({ clip, muted: track.muted || !!clip.muted, duck })
       }
     }
   }
@@ -242,6 +253,7 @@ export async function renderProject(
       }
     }
     const brandKit = await getCurrentWorkspaceBrandKit(userId)
+    const duckingGain = dbToGain(await getCurrentWorkspaceDuckingDb(userId))
     const logoFile =
       brandKit.watermark.enabled || includeEndCard
         ? await resolveBrandLogo({ userId, dir, brandKit })
@@ -277,6 +289,7 @@ export async function renderProject(
       watermark,
       endCard,
       crf: QUALITY_PRESETS[quality].crf,
+      duckingGain,
     })
 
     const outFile = path.join(dir, "out.mp4")
@@ -372,6 +385,7 @@ async function buildFfmpegCommand(options: {
   watermark: RenderWatermark | null
   endCard: RenderEndCard | null
   crf: number
+  duckingGain: number
 }) {
   const {
     dir,
@@ -384,6 +398,7 @@ async function buildFfmpegCommand(options: {
     watermark,
     endCard,
     crf,
+    duckingGain,
   } = options
   const durationS = durationMs / 1000
   const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
@@ -395,7 +410,53 @@ async function buildFfmpegCommand(options: {
   let inputIndex = 0
   let visualStep = 0
 
-  for (const { clip, muted } of visuals) {
+  // Ducking: a "voice" interval is any audio on a non-ducked, non-muted track
+  // (audio clips, sound effects, and video with sound). Ducked tracks get a
+  // single volume envelope, in absolute timeline time, lowering them under it.
+  const sourceInterval = (clip: EditorClip): Interval => ({
+    startMs: clip.startMs,
+    endMs: clip.startMs + clip.durationMs,
+  })
+  const voiceIntervals: Interval[] = []
+  for (const { clip, muted, duck } of audio) {
+    if (muted || duck) continue
+    if (clip.soundEffectId || clip.mediaId) voiceIntervals.push(sourceInterval(clip))
+  }
+  for (const { clip, muted, duck } of visuals) {
+    if (muted || duck) continue
+    if (clip.kind === "video" && clip.mediaId && audioPresence.get(clip.mediaId)) {
+      voiceIntervals.push(sourceInterval(clip))
+    }
+  }
+  const hasDuckSource =
+    audio.some((a) => a.duck && !a.muted && (a.clip.soundEffectId || a.clip.mediaId)) ||
+    visuals.some(
+      (v) =>
+        v.duck &&
+        !v.muted &&
+        v.clip.kind === "video" &&
+        !!v.clip.mediaId &&
+        !!audioPresence.get(v.clip.mediaId)
+    )
+  const duckExpr =
+    // duckingGain < 1 skips the filter entirely at 0 dB ("ducking off").
+    hasDuckSource && voiceIntervals.length && duckingGain < 1
+      ? duckEnvelopeToVolumeExpr(
+          computeDuckEnvelope({ voiceIntervals, durationMs, duckGain: duckingGain })
+        )
+      : null
+
+  // Place an audio source at its start time; ducked sources get the envelope
+  // chained on before they join the mix.
+  const pushAudio = (inputIdx: number, startMs: number, duck: boolean) => {
+    const label = `[a${audioLabels.length}]`
+    const stages = [`[${inputIdx}:a]adelay=${Math.round(startMs)}:all=1`]
+    if (duck && duckExpr) stages.push(`volume=eval=frame:volume='${duckExpr}'`)
+    filters.push(`${stages.join(",")}${label}`)
+    audioLabels.push(label)
+  }
+
+  for (const { clip, muted, duck } of visuals) {
     const startS = clip.startMs / 1000
     const endS = (clip.startMs + clip.durationMs) / 1000
     const durS = clip.durationMs / 1000
@@ -463,17 +524,14 @@ async function buildFfmpegCommand(options: {
         `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
       )
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
-        filters.push(
-          `[${inputIndex}:a]adelay=${Math.round(clip.startMs)}:all=1[a${audioLabels.length}]`
-        )
-        audioLabels.push(`[a${audioLabels.length}]`)
+        pushAudio(inputIndex, clip.startMs, duck)
       }
     }
     inputIndex += 1
     visualStep += 1
   }
 
-  for (const { clip, muted } of audio) {
+  for (const { clip, muted, duck } of audio) {
     if (muted) continue
     let file: string | undefined
     if (clip.soundEffectId) {
@@ -493,10 +551,7 @@ async function buildFfmpegCommand(options: {
       "-i",
       file
     )
-    filters.push(
-      `[${inputIndex}:a]adelay=${Math.round(clip.startMs)}:all=1[a${audioLabels.length}]`
-    )
-    audioLabels.push(`[a${audioLabels.length}]`)
+    pushAudio(inputIndex, clip.startMs, duck)
     inputIndex += 1
   }
 

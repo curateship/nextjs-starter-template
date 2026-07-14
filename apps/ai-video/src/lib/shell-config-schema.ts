@@ -10,6 +10,7 @@ import {
   API_USAGE_LIMIT_MAX,
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
+import { DUCK_DB_MAX, DUCK_DB_MIN } from "@/lib/audio-ducking"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
 
@@ -161,6 +162,8 @@ export const shellConfigSchema = shellGlobalsSchema
       .int()
       .min(MIN_SIDEBAR_WIDTH)
       .max(MAX_SIDEBAR_WIDTH),
+    // Per-workspace "duck under voice" amount in dB; loader always populates it.
+    duckingDb: z.number().min(DUCK_DB_MIN).max(DUCK_DB_MAX),
     favicon: z.string(),
     brandKit: brandKitConfigSchema,
     topNavigation: z.array(shellTopNavigationItemSchema),

@@ -62,6 +62,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         workspaceName: workspace.name,
         defaultApiUsageMonthlyCredits,
         sidebarWidth: workspaceSettings.sidebarWidth,
+        duckingDb: workspaceSettings.duckingDb,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topNavigation: workspaceSettings.topNavigation,
@@ -101,6 +102,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           settings: {
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
+            duckingDb: data.duckingDb,
             favicon: data.favicon,
             brandKit,
             topNavigation: data.topNavigation,
