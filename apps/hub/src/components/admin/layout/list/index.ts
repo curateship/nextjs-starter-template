@@ -1,7 +1,6 @@
 export {
   AdminTableShell,
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -10,6 +9,7 @@ export {
   AdminTableSummaryFooter,
   formatRelativeDate,
 } from "./components"
+export { ConfirmDestructive } from "../ConfirmDestructive"
 export { useAdminBulkSelection, useAdminSort } from "./hooks"
 export type { AdminSortDirection } from "./hooks"
 

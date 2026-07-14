@@ -18,7 +18,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -170,16 +170,16 @@ export default function NewsletterContactTagsPage() {
         Array.from(tagSelection.selectedIds)
       )
       if (deleteError) {
-        showError(deleteError)
+        setErrorMessage(deleteError)
         return
       }
       tagSelection.clearSelection()
       loadTags()
+      setDeleteConfirmOpen(false)
     } catch {
-      showError("Failed to delete tags")
+      setErrorMessage("Failed to delete tags")
     } finally {
       setDeleting(false)
-      setDeleteConfirmOpen(false)
     }
   }
 
@@ -414,13 +414,15 @@ export default function NewsletterContactTagsPage() {
         </form>
       </Dialog>
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-tag"
         open={deleteConfirmOpen}
         title={`Delete ${tagSelection.selectedCount} Tag${tagSelection.selectedCount !== 1 ? "s" : ""}`}
         description={`Delete ${tagSelection.selectedCount} tag${tagSelection.selectedCount !== 1 ? "s" : ""} and remove them from matching contacts. Contacts will not be deleted.`}
         confirmLabel={deleting ? "Deleting..." : "Delete"}
         disabled={deleting}
-        onCancel={() => setDeleteConfirmOpen(false)}
+        error={errorMessage || null}
+        onCancel={() => { setDeleteConfirmOpen(false); setErrorMessage("") }}
         onConfirm={handleDeleteSelected}
       />
 

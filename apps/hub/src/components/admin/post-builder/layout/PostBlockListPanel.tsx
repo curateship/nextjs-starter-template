@@ -2,9 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup } from "@/components/ui/card"
-import { Dialog } from "@/components/ui/dialog"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getPostLayoutColumn,
@@ -530,29 +528,19 @@ export function PostBlockListPanel({
       </div>
 
       {canEditStructure && (
-        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-          <DashboardModalContent
-            title="Delete block"
-            description={
-              blockToDelete
-                ? `Are you sure you want to delete the ${getBlockName(blockToDelete.type)} block? It will be removed when you save.`
-                : undefined
-            }
-            className="sm:max-w-[425px]"
-            footer={
-              <>
-                <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-                <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
-              </>
-            }
-          >
-            <CardGroup className="grid">
-              <Card>
-                <CardContent />
-              </Card>
-            </CardGroup>
-          </DashboardModalContent>
-        </Dialog>
+        <ConfirmDestructive
+          action="delete-block"
+          open={deleteConfirmOpen}
+          title="Delete block?"
+          description={blockToDelete
+            ? `The ${getBlockName(blockToDelete.type)} block will be removed when you save.`
+            : "The block will be removed when you save."}
+          onCancel={() => {
+            setDeleteConfirmOpen(false)
+            setBlockToDelete(null)
+          }}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </>
   )

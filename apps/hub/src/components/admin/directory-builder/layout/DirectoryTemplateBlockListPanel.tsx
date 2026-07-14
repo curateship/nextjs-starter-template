@@ -2,13 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getDirectoryLayoutColumn,
@@ -407,22 +401,19 @@ export function DirectoryTemplateBlockListPanel({
         </div>
       </div>
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete block</DialogTitle>
-            <DialogDescription>
-              {blockToDelete && (
-                <>Are you sure you want to delete the {getBlockName(blockToDelete.type)} block? It will be removed when you save.</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDestructive
+        action="delete-block"
+        open={deleteConfirmOpen}
+        title="Delete block?"
+        description={blockToDelete
+          ? `The ${getBlockName(blockToDelete.type)} block will be removed when you save.`
+          : "The block will be removed when you save."}
+        onCancel={() => {
+          setDeleteConfirmOpen(false)
+          setBlockToDelete(null)
+        }}
+        onConfirm={handleConfirmDelete}
+      />
     </>
   )
 }

@@ -15,7 +15,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -225,45 +225,44 @@ export default function NewslettersPage() {
   }, [hasSendingNewsletter, loadNewsletters])
 
   const handleDelete = (id: string) => {
+    setErrorMessage("")
     setPendingDeleteId(id)
   }
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
     const newsletterId = pendingDeleteId
-    setPendingDeleteId(null)
 
     const { success, error } = await deleteNewsletters([newsletterId])
     if (error) {
       setErrorMessage(error)
-      setErrorDialogOpen(true)
     }
     if (success) {
+      setPendingDeleteId(null)
       loadNewsletters()
     }
   }
 
   const cancelDelete = () => {
     setPendingDeleteId(null)
+    setErrorMessage("")
   }
 
   const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
       const { success, error } = await deleteNewsletters(Array.from(newsletterSelection.selectedIds))
       if (error) {
         setErrorMessage(error)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
         newsletterSelection.clearSelection()
+        setMassDeleteConfirmOpen(false)
         loadNewsletters()
       }
     } catch {
       setErrorMessage("Failed to delete newsletters")
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -665,21 +664,25 @@ export default function NewslettersPage() {
             }}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-newsletter"
             open={pendingDeleteId !== null}
             title="Delete Newsletter"
             description="Are you sure you want to delete this newsletter? This action cannot be undone."
+            error={errorMessage || null}
             onCancel={cancelDelete}
             onConfirm={confirmDelete}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-newsletter"
             open={massDeleteConfirmOpen}
             title={`Delete ${newsletterSelection.selectedCount} Newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}`}
             description={`Are you sure you want to delete ${newsletterSelection.selectedCount} newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
             confirmLabel={`Delete ${newsletterSelection.selectedCount} Newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}`}
             disabled={massDeleting}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
+            error={errorMessage || null}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
 

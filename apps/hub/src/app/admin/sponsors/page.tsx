@@ -14,7 +14,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListSkeleton,
   AdminSortButton,
   AdminTableShell,
@@ -441,23 +441,33 @@ export default function SponsorsPage() {
         />
       )}
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-sponsor"
         open={Boolean(deleteSponsor)}
         title="Delete Sponsor"
         description="This removes the sponsor from the library. Existing post embeds for this sponsor will render nothing."
         disabled={deleting}
+        error={error}
+        impactRequest={deleteSponsor && currentSite?.id
+          ? { ids: [deleteSponsor.id], siteId: currentSite.id, target: "sponsor" }
+          : undefined}
         confirmLabel={deleting ? "Deleting..." : "Delete"}
-        onCancel={() => setDeleteSponsor(null)}
+        onCancel={() => { setDeleteSponsor(null); setError(null) }}
         onConfirm={handleConfirmDelete}
       />
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-sponsor"
         open={massDeleteConfirmOpen}
         title={`Delete ${sponsorSelection.selectedCount} Sponsor${sponsorSelection.selectedCount === 1 ? "" : "s"}`}
         description="This removes the selected sponsors from the library. Existing post embeds for these sponsors will render nothing."
         disabled={massDeleting}
+        error={error}
+        impactRequest={currentSite?.id
+          ? { ids: Array.from(sponsorSelection.selectedIds), siteId: currentSite.id, target: "sponsor" }
+          : undefined}
         confirmLabel={massDeleting ? "Deleting..." : "Delete"}
-        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onCancel={() => { setMassDeleteConfirmOpen(false); setError(null) }}
         onConfirm={handleConfirmMassDelete}
       />
     </>

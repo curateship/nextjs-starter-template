@@ -8,7 +8,7 @@ import { FileText, Plus, Settings, Star, Trash2 } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSelectionBanner,
@@ -183,10 +183,10 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
       reportError(deleteError)
     } else {
       templateSelection.clearSelection()
+      setMassDeleteConfirmOpen(false)
+      loadTemplates()
     }
     setMassDeleting(false)
-    setMassDeleteConfirmOpen(false)
-    loadTemplates()
   }
 
   const deletableTemplates = templates.filter((template) => !template.is_default)
@@ -480,11 +480,13 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
         />
       ) : null}
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-template"
         open={massDeleteConfirmOpen}
-        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onCancel={() => { setMassDeleteConfirmOpen(false); setError(null) }}
         onConfirm={handleMassDelete}
         disabled={massDeleting}
+        error={error}
         title="Delete Templates"
         description={`Are you sure you want to delete ${templateSelection.selectedCount} template${
           templateSelection.selectedCount !== 1 ? "s" : ""

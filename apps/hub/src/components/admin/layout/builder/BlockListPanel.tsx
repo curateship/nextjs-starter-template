@@ -2,13 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { Trash2, GripVertical, ExternalLink, Plus } from "lucide-react"
 import type { BlockTypeDefinition } from "@/lib/utils/block-types"
 import { getBlockIcon, getBlockName } from "@/lib/utils/block-types"
@@ -297,23 +291,20 @@ export function BlockListPanel({
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete {itemNameSingular}</DialogTitle>
-            <DialogDescription>
-              {blockToDelete && (
-                <>Are you sure you want to delete the {getBlockName(blockTypes, blockToDelete.type)} {itemNameSingular}? It will be removed when you save.</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>Delete {itemNameSingular}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDestructive
+        action="delete-block"
+        open={deleteConfirmOpen}
+        title={`Delete ${itemNameSingular}?`}
+        description={blockToDelete
+          ? `The ${getBlockName(blockTypes, blockToDelete.type)} ${itemNameSingular} will be removed when you save.`
+          : "The block will be removed when you save."}
+        confirmLabel={`Delete ${itemNameSingular}`}
+        onCancel={() => {
+          setDeleteConfirmOpen(false)
+          setBlockToDelete(null)
+        }}
+        onConfirm={handleConfirmDelete}
+      />
     </>
   )
 }

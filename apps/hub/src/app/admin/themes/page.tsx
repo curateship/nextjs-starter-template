@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
 import {
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListSkeleton,
   AdminTableShell,
   AdminTableSummaryFooter,
@@ -487,11 +487,14 @@ export default function ThemesPage() {
             </DialogContent>
           </Dialog>
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-theme"
             open={deleteDialog.open}
-            onCancel={() =>
+            error={error}
+            onCancel={() => {
               setDeleteDialog((prev) => ({ ...prev, open: false }))
-            }
+              setError(null)
+            }}
             onConfirm={handleDeleteConfirm}
             disabled={deleting === deleteDialog.templateId}
             title="Delete Theme"

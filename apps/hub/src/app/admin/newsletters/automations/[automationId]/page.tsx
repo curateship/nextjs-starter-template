@@ -6,7 +6,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
-import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -130,6 +130,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
   const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
   const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
+  const [deleteNodeError, setDeleteNodeError] = useState<string | null>(null)
+  const [pendingDeleteTriggerIndex, setPendingDeleteTriggerIndex] = useState<number | null>(null)
   const siteId = automation?.site_id ?? null
   const segmentTriggerAnchor = useComboboxAnchor()
 
@@ -458,20 +460,23 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const handleDeleteNode = async (nodeId: string) => {
-    const { success } = await deleteStep(nodeId)
-    if (!success) return
+    const { success, error: deleteError } = await deleteStep(nodeId)
+    if (!success) {
+      setDeleteNodeError(deleteError || "Failed to delete node")
+      return false
+    }
 
     setNodes((prev) => prev.filter((node) => node.id !== nodeId))
     void loadJourneyIndicators()
     if (editingDelay?.id === nodeId) setEditingDelay(null)
     if (editingEndRules?.id === nodeId) setEditingEndRules(null)
+    return true
   }
 
   const confirmDeleteNode = async () => {
     if (!pendingDeleteNodeId) return
     const nodeId = pendingDeleteNodeId
-    setPendingDeleteNodeId(null)
-    await handleDeleteNode(nodeId)
+    if (await handleDeleteNode(nodeId)) setPendingDeleteNodeId(null)
   }
 
   const openTriggerEditor = (index: number) => {
@@ -563,10 +568,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSavingTrigger(false)
   }
 
-  const removeTrigger = async () => {
+  const removeTrigger = () => {
     if (editingTriggerIndex === null || editingTriggerIndex >= triggerNodes.length) return
-
-    await removeTriggerAtIndex(editingTriggerIndex)
+    setPendingDeleteTriggerIndex(editingTriggerIndex)
   }
 
   const removeTriggerAtIndex = async (index: number) => {
@@ -582,6 +586,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       setEditingTriggerIndex(null)
       setTriggerEditorOpen(false)
       flash("Trigger removed")
+      setPendingDeleteTriggerIndex(null)
     }
 
     setSavingTrigger(false)
@@ -1045,7 +1050,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             className="h-8 w-8 shrink-0 p-0 text-foreground hover:text-foreground"
                             onClick={(event) => {
                               event.stopPropagation()
-                              void removeTriggerAtIndex(index)
+                              setPendingDeleteTriggerIndex(index)
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1276,12 +1281,25 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         />
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action="delete-automation-node"
           open={pendingDeleteNodeId !== null}
           title="Delete Node"
           description="Are you sure you want to delete this node? This action cannot be undone."
-          onCancel={() => setPendingDeleteNodeId(null)}
+          error={deleteNodeError}
+          onCancel={() => { setPendingDeleteNodeId(null); setDeleteNodeError(null) }}
           onConfirm={confirmDeleteNode}
+        />
+        <ConfirmDestructive
+          action="delete-automation-trigger"
+          open={pendingDeleteTriggerIndex !== null}
+          title="Remove trigger?"
+          error={error}
+          disabled={savingTrigger}
+          onCancel={() => setPendingDeleteTriggerIndex(null)}
+          onConfirm={() => pendingDeleteTriggerIndex !== null
+            ? removeTriggerAtIndex(pendingDeleteTriggerIndex)
+            : undefined}
         />
 
         <Dialog

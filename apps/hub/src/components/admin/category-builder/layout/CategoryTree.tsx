@@ -15,14 +15,7 @@ import {
   ChevronRight
 } from "lucide-react"
 import Link from "next/link"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -56,10 +49,12 @@ export function CategoryTree({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null)
 
   const handleDeleteClick = (category: Category) => {
+    setDeleteError(null)
     setCategoryToDelete(category)
     setDeleteDialogOpen(true)
   }
@@ -75,7 +70,9 @@ export function CategoryTree({
       setDeleteDialogOpen(false)
       setCategoryToDelete(null)
     } else {
-      showActionError(error || 'Failed to delete category')
+      const message = error || 'Failed to delete category'
+      setDeleteError(message)
+      showActionError(message)
     }
     setIsDeleting(false)
   }
@@ -236,44 +233,21 @@ export function CategoryTree({
         onSuccess={handleSettingsSuccess}
       />
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Delete Category?</DialogTitle>
-            <DialogDescription asChild>
-              <div>
-                Are you sure you want to delete &quot;{categoryToDelete?.title}&quot;?
-                {(() => {
-                  if (!categoryToDelete) return null
-                  const count = childCounts[categoryToDelete.id] || 0
-                  if (count === 0) return null
-                  return (
-                    <span className="block mt-2 text-red-600 font-medium">
-                      Deleting this will also delete {count} child {count === 1 ? 'category' : 'categories'} and anything nested under them.
-                    </span>
-                  )
-                })()}
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDestructive
+        action="delete-category"
+        open={deleteDialogOpen}
+        title={`Delete “${categoryToDelete?.title ?? "category"}”?`}
+        description="This permanently deletes the category and every category nested beneath it."
+        disabled={isDeleting}
+        error={deleteError}
+        impactRequest={categoryToDelete ? { ids: [categoryToDelete.id], siteId, target: "category" } : undefined}
+        onCancel={() => {
+          setDeleteDialogOpen(false)
+          setCategoryToDelete(null)
+          setDeleteError(null)
+        }}
+        onConfirm={handleDeleteConfirm}
+      />
     </>
   )
 }

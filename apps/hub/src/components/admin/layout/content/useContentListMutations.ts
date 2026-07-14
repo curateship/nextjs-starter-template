@@ -74,7 +74,6 @@ export function useContentListMutations<TItem extends ContentListItem>({
     if (!pendingDeleteId) return
 
     const itemIdToDelete = pendingDeleteId
-    setPendingDeleteId(null)
     setDeletingItemId(itemIdToDelete)
 
     try {
@@ -90,6 +89,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
       } else {
         removeItem(itemIdToDelete)
       }
+      setPendingDeleteId(null)
     } catch {
       reportError(`Failed to delete ${itemLabel.toLowerCase()}`)
     } finally {
@@ -98,7 +98,6 @@ export function useContentListMutations<TItem extends ContentListItem>({
   }
 
   async function confirmMassDelete() {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
 
     try {
@@ -116,6 +115,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
       } else {
         removeItems(idsToDelete)
       }
+      setMassDeleteConfirmOpen(false)
     } catch {
       reportError(`Failed to delete ${itemLabelPlural.toLowerCase()}`)
     } finally {

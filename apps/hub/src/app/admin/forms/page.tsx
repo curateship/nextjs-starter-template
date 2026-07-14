@@ -22,7 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -749,7 +749,9 @@ export default function AdminGuidedFormsPage() {
   const [settingsForm, setSettingsForm] = useState<GuidedForm | null>(null)
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null)
   const [archiving, setArchiving] = useState(false)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
   const [bulkArchiving, setBulkArchiving] = useState(false)
+  const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false)
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<FormStatusFilter>("all")
@@ -840,16 +842,17 @@ export default function AdminGuidedFormsPage() {
 
   async function confirmArchive() {
     if (!pendingArchiveId) return
+    const formId = pendingArchiveId
     setArchiving(true)
-    const result = await archiveGuidedForms([pendingArchiveId])
+    const result = await archiveGuidedForms([formId])
     setArchiving(false)
-    setPendingArchiveId(null)
     if (result.error) {
-      showError(result.error)
+      setArchiveError(result.error)
       return
     }
-    setForms((current) => current.map((form) => form.id === pendingArchiveId ? { ...form, status: "archived" } : form))
-    formSelection.remove(pendingArchiveId)
+    setForms((current) => current.map((form) => form.id === formId ? { ...form, status: "archived" } : form))
+    formSelection.remove(formId)
+    setPendingArchiveId(null)
   }
 
   async function handleBulkArchive() {
@@ -860,11 +863,12 @@ export default function AdminGuidedFormsPage() {
     const result = await archiveGuidedForms(ids)
     setBulkArchiving(false)
     if (result.error) {
-      showError(result.error)
+      setArchiveError(result.error)
       return
     }
     setForms((current) => current.map((form) => ids.includes(form.id) ? { ...form, status: "archived" } : form))
     formSelection.clearSelection()
+    setBulkArchiveConfirmOpen(false)
   }
 
   function renderSortHeader(column: FormsSortColumn, label: string) {
@@ -897,7 +901,7 @@ export default function AdminGuidedFormsPage() {
               variant="outline"
               size="sm"
               className="h-8 gap-2"
-              onClick={handleBulkArchive}
+              onClick={() => { setArchiveError(null); setBulkArchiveConfirmOpen(true) }}
               disabled={bulkArchiving}
             >
               <Archive className="size-4" />
@@ -1047,7 +1051,7 @@ export default function AdminGuidedFormsPage() {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          onClick={() => setPendingArchiveId(form.id)}
+                          onClick={() => { setArchiveError(null); setPendingArchiveId(form.id) }}
                           disabled={form.status === "archived"}
                           title="Archive"
                         >
@@ -1087,15 +1091,33 @@ export default function AdminGuidedFormsPage() {
           onSuccess={handleFormUpdated}
         />
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action="archive-form"
           open={pendingArchiveId !== null}
           title="Archive Form"
           description="Archive this form? Archived forms cannot receive public submissions."
           disabled={archiving}
+          error={archiveError}
           confirmLabel={archiving ? "Archiving..." : "Archive"}
-          confirmVariant="default"
-          onCancel={() => setPendingArchiveId(null)}
+          impactRequest={currentSite?.id && pendingArchiveId
+            ? { ids: [pendingArchiveId], siteId: currentSite.id, target: "form" }
+            : undefined}
+          onCancel={() => { setPendingArchiveId(null); setArchiveError(null) }}
           onConfirm={confirmArchive}
+        />
+
+        <ConfirmDestructive
+          action="archive-form"
+          open={bulkArchiveConfirmOpen}
+          title={`Archive ${formSelection.selectedCount} form${formSelection.selectedCount === 1 ? "" : "s"}?`}
+          disabled={bulkArchiving}
+          error={archiveError}
+          confirmLabel={bulkArchiving ? "Archiving..." : "Archive"}
+          impactRequest={currentSite?.id && formSelection.selectedCount
+            ? { ids: Array.from(formSelection.selectedIds), siteId: currentSite.id, target: "form" }
+            : undefined}
+          onCancel={() => { setBulkArchiveConfirmOpen(false); setArchiveError(null) }}
+          onConfirm={handleBulkArchive}
         />
 
         <AdminErrorDialog

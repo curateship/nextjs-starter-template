@@ -23,7 +23,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
@@ -667,7 +667,8 @@ export default function ImagesPage() {
             )}
           </AdminTableShell>
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-media"
             open={massDeleteConfirmOpen}
             title={`Delete ${mediaSelection.selectedCount} ${mediaSelection.selectedCount === 1 ? "item" : "items"}?`}
             description="This removes the selected media from the image library. This action cannot be undone."
@@ -676,7 +677,8 @@ export default function ImagesPage() {
             onCancel={() => setMassDeleteConfirmOpen(false)}
             onConfirm={handleBulkDelete}
           />
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-media"
             open={!!deleteTarget}
             title={`Delete ${deleteTarget?.original_name ?? "media"}?`}
             description="This removes the media from the image library. This action cannot be undone."

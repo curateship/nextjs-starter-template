@@ -7,7 +7,6 @@ import { AlertCircle, Copy, Eye, Plus, Settings, Trash2 } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -17,6 +16,7 @@ import {
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -61,8 +61,10 @@ export function ContentListPage<TItem extends ContentListItem>({
   canSelectItem,
   columnCount = 6,
   createButtonLabel,
+  deletionImpactTarget,
   deleteItem,
   deleteItems,
+  destructiveAction,
   duplicateItem,
   duplicateTitle,
   emptyButtonLabel,
@@ -247,6 +249,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   }
 
   const visibleItemIds = sortedItems.filter(isSelectable).map((item) => item.id)
+  const pendingDeleteItem = items.find((item) => item.id === pendingDeleteId) ?? null
 
   function renderSortHeader(column: ContentSortColumn, label: string) {
     if (!canSort[column]) return <div>{label}</div>
@@ -556,22 +559,31 @@ export function ContentListPage<TItem extends ContentListItem>({
           open: settingsItem !== null,
         })}
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action={destructiveAction}
           open={pendingDeleteId !== null}
-          title={`Delete ${itemLabel}`}
-          description={`Are you sure you want to delete this ${itemLabel.toLowerCase()}? This action cannot be undone.`}
+          title={`Delete ${pendingDeleteItem?.title || itemLabel}?`}
           disabled={deletingItemId !== null}
           confirmLabel={deletingItemId ? "Deleting..." : "Delete"}
-          onCancel={() => setPendingDeleteId(null)}
+          error={errorMessage}
+          impactRequest={deletionImpactTarget && effectiveSiteId && pendingDeleteId
+            ? { ids: [pendingDeleteId], siteId: effectiveSiteId, target: deletionImpactTarget }
+            : undefined}
+          onCancel={() => { setPendingDeleteId(null); setErrorMessage(null) }}
           onConfirm={confirmDeleteItem}
         />
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action={destructiveAction}
           open={massDeleteConfirmOpen}
           title={`Delete ${itemSelection.selectedCount} ${itemLabel}${itemSelection.selectedCount !== 1 ? "s" : ""}`}
-          description={`Are you sure you want to delete ${itemSelection.selectedCount} ${itemLabel.toLowerCase()}${itemSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
           confirmLabel={`Delete ${itemSelection.selectedCount} ${itemLabel}${itemSelection.selectedCount !== 1 ? "s" : ""}`}
-          onCancel={() => setMassDeleteConfirmOpen(false)}
+          disabled={massDeleting}
+          error={errorMessage}
+          impactRequest={deletionImpactTarget && effectiveSiteId && itemSelection.selectedCount
+            ? { ids: Array.from(itemSelection.selectedIds), siteId: effectiveSiteId, target: deletionImpactTarget }
+            : undefined}
+          onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage(null) }}
           onConfirm={confirmMassDelete}
         />
 

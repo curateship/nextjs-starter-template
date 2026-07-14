@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { Filter, Trash2, Plus, X, Search, Settings } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
@@ -98,6 +99,10 @@ export default function SegmentDashboardPage() {
   const [segmentOptions, setSegmentOptions] = useState<Segment[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [contactToRemove, setContactToRemove] = useState<{ id: string; email: string } | null>(null)
+  const [removeContactError, setRemoveContactError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Search contacts state
@@ -243,13 +248,12 @@ export default function SegmentDashboardPage() {
   /** Delete segment and redirect back to segments list */
   async function handleDelete() {
     if (!segment || deleting) return
-    if (!confirm("Are you sure you want to delete this segment? This cannot be undone.")) return
     setDeleting(true)
     const { success, error } = await deleteSegments([segment.id])
     if (success) {
       router.push("/admin/newsletters/segments")
     } else {
-      setError(error || "Failed to delete segment")
+      setDeleteError(error || "Failed to delete segment")
       setDeleting(false)
     }
   }
@@ -258,9 +262,10 @@ export default function SegmentDashboardPage() {
   async function handleRemoveContact(contactId: string) {
     const { error } = await removeContactsFromSegment([contactId], segmentId)
     if (error) {
-      setError(error)
+      setRemoveContactError(error)
       return
     }
+    setContactToRemove(null)
     await refreshContactsAndStats()
   }
 
@@ -342,7 +347,15 @@ export default function SegmentDashboardPage() {
                   <Settings className="h-4 w-4 mr-1" />
                   Settings
                 </Button>
-                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || loading}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteError(null)
+                    setDeleteConfirmOpen(true)
+                  }}
+                  disabled={deleting || loading}
+                >
                   <Trash2 className="h-4 w-4 mr-1" />
                   {deleting ? "Deleting..." : "Delete"}
                 </Button>
@@ -579,7 +592,10 @@ export default function SegmentDashboardPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                                  onClick={() => handleRemoveContact(contact.id)}
+                                  onClick={() => {
+                                    setRemoveContactError(null)
+                                    setContactToRemove({ id: contact.id, email: contact.email })
+                                  }}
                                   title="Remove from segment"
                                 >
                                   <X className="h-4 w-4" />
@@ -747,6 +763,30 @@ export default function SegmentDashboardPage() {
           </DashboardModalContent>
         </form>
       </Dialog>
+      <ConfirmDestructive
+        action="delete-segment"
+        open={deleteConfirmOpen}
+        title={`Delete “${segment?.name ?? "segment"}”?`}
+        disabled={deleting}
+        error={deleteError}
+        impactRequest={segment ? { ids: [segment.id], siteId: segment.site_id, target: "segment" } : undefined}
+        onCancel={() => {
+          setDeleteConfirmOpen(false)
+          setDeleteError(null)
+        }}
+        onConfirm={handleDelete}
+      />
+      <ConfirmDestructive
+        action="remove-segment-contact"
+        open={contactToRemove !== null}
+        title={`Remove “${contactToRemove?.email ?? "contact"}” from segment?`}
+        error={removeContactError}
+        onCancel={() => {
+          setContactToRemove(null)
+          setRemoveContactError(null)
+        }}
+        onConfirm={() => contactToRemove ? handleRemoveContact(contactToRemove.id) : undefined}
+      />
     </>
   )
 }

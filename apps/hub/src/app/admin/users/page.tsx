@@ -6,7 +6,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListSkeleton,
   AdminSortButton,
   AdminTableShell,
@@ -230,7 +230,6 @@ export default function UsersPage() {
     if (!result.success) {
       setError(result.error || "Failed to delete users")
       setMassDeleting(false)
-      setMassDeleteConfirmOpen(false)
       return
     }
 
@@ -450,7 +449,7 @@ export default function UsersPage() {
             titleActions={
               <AdminBulkDeleteButton
                 deleting={massDeleting}
-                onClick={() => setMassDeleteConfirmOpen(true)}
+                onClick={() => { setError(null); setMassDeleteConfirmOpen(true) }}
                 selectedCount={userSelection.selectedCount}
               />
             }
@@ -622,7 +621,7 @@ export default function UsersPage() {
                               size="sm"
                               className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                               disabled={deletingUserId === user.id}
-                              onClick={() => setPendingDeleteUser(user)}
+                              onClick={() => { setError(null); setPendingDeleteUser(user) }}
                               aria-label={`Delete ${user.display_name || user.email}`}
                               title={`Delete ${user.display_name || user.email}`}
                             >
@@ -856,10 +855,14 @@ export default function UsersPage() {
             </DialogContent>
           </Dialog>
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-user"
             open={Boolean(pendingDeleteUser)}
-            onCancel={() => setPendingDeleteUser(null)}
-            onConfirm={() => void handleDeleteUser()}
+            confirmationName={pendingDeleteUser?.display_name || pendingDeleteUser?.email}
+            error={error}
+            impactRequest={pendingDeleteUser ? { ids: [pendingDeleteUser.id], target: "user" } : undefined}
+            onCancel={() => { setPendingDeleteUser(null); setError(null) }}
+            onConfirm={handleDeleteUser}
             disabled={Boolean(pendingDeleteUser && deletingUserId === pendingDeleteUser.id)}
             title="Delete user?"
             description={
@@ -870,10 +873,14 @@ export default function UsersPage() {
             confirmLabel={pendingDeleteUser && deletingUserId === pendingDeleteUser.id ? "Deleting..." : "Delete"}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-user"
             open={massDeleteConfirmOpen}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
-            onConfirm={() => void handleMassDelete()}
+            confirmationName={`DELETE ${userSelection.selectedCount} USERS`}
+            error={error}
+            impactRequest={{ ids: Array.from(userSelection.selectedIds), target: "user" }}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setError(null) }}
+            onConfirm={handleMassDelete}
             disabled={massDeleting}
             title="Delete selected users?"
             description={`Delete ${userSelection.selectedCount} selected user${userSelection.selectedCount === 1 ? "" : "s"}. This also removes their auth records and any sites or media they own through cascading deletes. This cannot be undone.`}

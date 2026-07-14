@@ -18,7 +18,6 @@ import {
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import {
-  AdminConfirmDialog,
   AdminListSkeleton,
   AdminSortButton,
   AdminTableShell,
@@ -26,6 +25,7 @@ import {
   formatRelativeDate as formatDate,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import {
   TableRightActions,
   TableRightActionsButton,
@@ -156,12 +156,12 @@ export default function SitesPage() {
       if (success) {
         setSites((prev) => prev.filter((site) => site.id !== siteId))
         await refreshSites()
+        setDeleteConfirm(null)
       }
     } catch (err) {
       reportError("Failed to delete site")
     } finally {
       setDeleting(null)
-      setDeleteConfirm(null)
     }
   }
 
@@ -450,7 +450,7 @@ export default function SitesPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              onClick={() => setDeleteConfirm({ id: site.id, name: site.name })}
+                              onClick={() => { setError(null); setDeleteConfirm({ id: site.id, name: site.name }) }}
                               disabled={deleting === site.id}
                               title="Delete"
                             >
@@ -469,19 +469,17 @@ export default function SitesPage() {
           </AdminTableShell>
         </div>
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action="delete-site"
           open={Boolean(deleteConfirm)}
-          title="Delete Site"
-          description={
-            <>
-              Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>? This will permanently remove the
-              site and all its pages. This action cannot be undone.
-            </>
-          }
+          title={`Delete site ${deleteConfirm?.name || ""}?`}
+          confirmationName={deleteConfirm?.name}
           disabled={!!deleting}
+          error={error}
           confirmLabel={deleting ? "Deleting..." : "Delete"}
-          onCancel={() => setDeleteConfirm(null)}
-          onConfirm={() => deleteConfirm && handleDelete(deleteConfirm.id)}
+          impactRequest={deleteConfirm ? { ids: [deleteConfirm.id], siteId: deleteConfirm.id, target: "site" } : undefined}
+          onCancel={() => { setDeleteConfirm(null); setError(null) }}
+          onConfirm={() => { if (deleteConfirm) return handleDelete(deleteConfirm.id) }}
         />
 
         {showCreateModal && (

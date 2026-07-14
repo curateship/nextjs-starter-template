@@ -17,7 +17,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
@@ -136,10 +136,10 @@ export default function TemplatesPage() {
       setError(deleteError)
     } else {
       templateSelection.clearSelection()
+      setMassDeleteConfirmOpen(false)
+      loadTemplates()
     }
     setMassDeleting(false)
-    setMassDeleteConfirmOpen(false)
-    loadTemplates()
   }
 
   const getBlockCount = (template: NewsletterTemplate) => {
@@ -433,13 +433,15 @@ export default function TemplatesPage() {
         </form>
       </Dialog>
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-template"
         open={massDeleteConfirmOpen}
         title="Delete Templates"
         description={`Are you sure you want to delete ${templateSelection.selectedCount} template${templateSelection.selectedCount !== 1 ? "s" : ""}? This cannot be undone.`}
         confirmLabel={massDeleting ? "Deleting..." : "Delete"}
         disabled={massDeleting}
-        onCancel={() => setMassDeleteConfirmOpen(false)}
+        error={error}
+        onCancel={() => { setMassDeleteConfirmOpen(false); setError(null) }}
         onConfirm={handleMassDelete}
       />
     </>

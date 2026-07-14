@@ -452,51 +452,6 @@ export function AdminTableSummaryFooter({
   );
 }
 
-export function AdminConfirmDialog({
-  cancelLabel = "Cancel",
-  confirmLabel = "Delete",
-  confirmVariant = "destructive",
-  description,
-  disabled = false,
-  onCancel,
-  onConfirm,
-  open,
-  title,
-}: {
-  cancelLabel?: string;
-  confirmLabel?: string;
-  confirmVariant?: "default" | "destructive";
-  description: ReactNode;
-  disabled?: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-  open: boolean;
-  title: ReactNode;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button onClick={onCancel} variant="outline" disabled={disabled}>
-            {cancelLabel}
-          </Button>
-          <Button
-            onClick={onConfirm}
-            variant={confirmVariant}
-            disabled={disabled}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function AdminErrorDialog({
   message,
   onOpenChange,
