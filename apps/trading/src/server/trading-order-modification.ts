@@ -1,12 +1,9 @@
 import type { ModifyOrderParams } from "@/server/hyperliquid/exchange"
+import { roundSize } from "@/server/hyperliquid/rounding"
 import {
   describeOpenOrder,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
-import {
-  marketableLimitDeviationPct,
-  MARKETABLE_LIMIT_SANITY_PCT,
-} from "@/server/risk/risk"
 
 export function buildModifiedOrder(
   assetId: number,
@@ -43,7 +40,117 @@ export function buildModifiedOrder(
   }
 }
 
-export function assertMoveWithinMark(
+export function buildRiskBracketModifications({
+  assetId,
+  entry,
+  stopOid,
+  nextStopPrice,
+  szDecimals,
+  riskUsd,
+}: {
+  assetId: number
+  entry: FrontendOpenOrder
+  stopOid: number
+  nextStopPrice: string
+  szDecimals: number
+  riskUsd?: number
+}): {
+  sz: string
+  modifications: Array<{ oid: number; order: ModifyOrderParams }>
+} {
+  if (entry.isTrigger || entry.reduceOnly) {
+    throw new Error("Risk sizing requires a pending entry order")
+  }
+
+  const stop = entry.children.find((child) => child.oid === stopOid)
+  if (!stop) {
+    throw new Error("Stop loss is no longer linked to its entry order")
+  }
+  const stopDescription = describeOpenOrder(stop).modification
+  if (stopDescription.kind !== "trigger" || stopDescription.tpsl !== "sl") {
+    throw new Error("Only a linked stop loss can resize a Risk order")
+  }
+  if (
+    entry.children.some(
+      (child) =>
+        child.coin !== entry.coin ||
+        !child.reduceOnly ||
+        child.side === entry.side
+    )
+  ) {
+    throw new Error("Linked order details do not match the entry order")
+  }
+
+  const entryPrice = Number(entry.limitPx)
+  const currentStopPrice = Number(stop.triggerPx)
+  const nextStop = Number(nextStopPrice)
+  const currentSize = Number(entry.sz)
+  const amountAtRisk =
+    riskUsd ?? currentSize * Math.abs(entryPrice - currentStopPrice)
+  const nextDistance = Math.abs(entryPrice - nextStop)
+  if (
+    !Number.isFinite(entryPrice) ||
+    entryPrice <= 0 ||
+    !Number.isFinite(nextStop) ||
+    nextStop <= 0 ||
+    !Number.isFinite(amountAtRisk) ||
+    amountAtRisk <= 0
+  ) {
+    throw new Error("Risk order details are invalid")
+  }
+  if (nextDistance === 0) {
+    throw new Error("Stop loss cannot equal the entry price")
+  }
+
+  const sz = roundSize(amountAtRisk / nextDistance, szDecimals)
+  if (!(Number(sz) > 0)) {
+    throw new Error("The new stop loss makes the order size too small")
+  }
+
+  return {
+    sz,
+    modifications: [entry, ...entry.children].map((order) => ({
+      oid: order.oid,
+      order: {
+        ...buildModifiedOrder(
+          assetId,
+          order,
+          order.oid === stopOid ? nextStopPrice : describeOpenOrder(order).price
+        ),
+        sz,
+      },
+    })),
+  }
+}
+
+export function inferPreMarkerRiskUsd(
+  originalEntry: { px: number; sz: number },
+  originalStop: { px: number; sz: number },
+  templates: ReadonlyArray<{
+    sizingMode: "wallet" | "risk"
+    stopLossPct: number | string
+  }>
+): number | null {
+  if (originalEntry.sz !== originalStop.sz) return null
+
+  const stopLossPct =
+    (Math.abs(originalEntry.px - originalStop.px) / originalEntry.px) * 100
+  const matchingTemplates = templates.filter(
+    (template) => Math.abs(Number(template.stopLossPct) - stopLossPct) <= 0.05
+  )
+  if (
+    matchingTemplates.length !== 1 ||
+    matchingTemplates[0]?.sizingMode !== "risk"
+  ) {
+    return null
+  }
+
+  const riskUsd =
+    originalEntry.sz * Math.abs(originalEntry.px - originalStop.px)
+  return Number.isFinite(riskUsd) && riskUsd > 0 ? riskUsd : null
+}
+
+export function assertPassiveLimitPrice(
   nextPrice: string,
   mark: number,
   isBuy: boolean
@@ -52,14 +159,9 @@ export function assertMoveWithinMark(
     throw new Error("Current market price is unavailable")
   }
   const price = Number(nextPrice)
-  const deviationPct = marketableLimitDeviationPct(
-    isBuy ? "buy" : "sell",
-    price,
-    mark
-  )
-  if (deviationPct > MARKETABLE_LIMIT_SANITY_PCT) {
+  if (isBuy ? price > mark : price < mark) {
     throw new Error(
-      `New ${isBuy ? "buy" : "sell"} price is ${deviationPct.toFixed(1)}% ${isBuy ? "above" : "below"} mark; refusing to move the order that far.`
+      `${isBuy ? "Buy" : "Sell"} limit price must be at or ${isBuy ? "below" : "above"} mark (${mark}).`
     )
   }
 }

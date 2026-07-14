@@ -24,7 +24,9 @@ import {
 
 type Form = {
   name: string
-  orderSizePct: string
+  walletSizePct: string
+  riskPct: string
+  sizingMode: "wallet" | "risk"
   leverage: string
   stopLossPct: string
   takeProfitPct: string
@@ -34,7 +36,9 @@ type Form = {
 
 const emptyForm: Form = {
   name: "",
-  orderSizePct: "10",
+  walletSizePct: "10",
+  riskPct: "1",
+  sizingMode: "wallet",
   leverage: "5",
   stopLossPct: "2",
   takeProfitPct: "5",
@@ -57,7 +61,15 @@ export function OneClickOrderDialog({
     template
       ? {
           name: template.name,
-          orderSizePct: String(template.orderSizePct),
+          walletSizePct:
+            template.sizingMode === "wallet"
+              ? String(template.orderSizePct)
+              : "10",
+          riskPct:
+            template.sizingMode === "risk"
+              ? String(template.orderSizePct)
+              : "1",
+          sizingMode: template.sizingMode,
           leverage: String(template.leverage),
           stopLossPct: String(template.stopLossPct),
           takeProfitPct: String(template.takeProfitPct),
@@ -72,7 +84,10 @@ export function OneClickOrderDialog({
   async function save() {
     const values = {
       name: form.name.trim(),
-      orderSizePct: Number(form.orderSizePct),
+      orderSizePct: Number(
+        form.sizingMode === "risk" ? form.riskPct : form.walletSizePct
+      ),
+      sizingMode: form.sizingMode,
       leverage: Number(form.leverage),
       stopLossPct: Number(form.stopLossPct),
       takeProfitPct: Number(form.takeProfitPct),
@@ -120,8 +135,7 @@ export function OneClickOrderDialog({
             {template ? "Edit order template" : "New order template"}
           </DialogTitle>
           <DialogDescription>
-            Set the wallet share, leverage, and protection used by one-click
-            orders.
+            Set the sizing, leverage, and protection used by one-click orders.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -140,20 +154,6 @@ export function OneClickOrderDialog({
                   onChange={(event) => field("name", event.target.value)}
                 />
               </TemplateField>
-              <TemplateField label="Wallet size (%)" id="template-size">
-                <Input
-                  id="template-size"
-                  type="number"
-                  min="0.01"
-                  max="100"
-                  step="0.01"
-                  value={form.orderSizePct}
-                  disabled={busy}
-                  onChange={(event) =>
-                    field("orderSizePct", event.target.value)
-                  }
-                />
-              </TemplateField>
               <TemplateField label="Leverage" id="template-leverage">
                 <Input
                   id="template-leverage"
@@ -166,7 +166,14 @@ export function OneClickOrderDialog({
                   onChange={(event) => field("leverage", event.target.value)}
                 />
               </TemplateField>
-              <TemplateField label="Stop loss (%)" id="template-stop">
+              <TemplateField
+                label={
+                  form.sizingMode === "risk"
+                    ? "Stop loss (%) — required"
+                    : "Stop loss (%)"
+                }
+                id="template-stop"
+              >
                 <Input
                   id="template-stop"
                   type="number"
@@ -215,6 +222,75 @@ export function OneClickOrderDialog({
                   className="text-sm text-destructive sm:col-span-2"
                 >
                   {error}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Sizing</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div
+                className="flex items-center gap-4 sm:col-span-2"
+                role="group"
+                aria-label="Sizing method"
+              >
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="template-sizing-wallet"
+                    checked={form.sizingMode === "wallet"}
+                    disabled={busy}
+                    onCheckedChange={(checked) => {
+                      if (checked === true) field("sizingMode", "wallet")
+                    }}
+                  />
+                  <Label htmlFor="template-sizing-wallet">Wallet size</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="template-sizing-risk"
+                    checked={form.sizingMode === "risk"}
+                    disabled={busy}
+                    onCheckedChange={(checked) => {
+                      if (checked === true) field("sizingMode", "risk")
+                    }}
+                  />
+                  <Label htmlFor="template-sizing-risk">Risk</Label>
+                </div>
+              </div>
+              <TemplateField
+                label={
+                  form.sizingMode === "risk"
+                    ? "Risk per wallet (%)"
+                    : "Wallet size (%)"
+                }
+                id="template-size"
+              >
+                <Input
+                  id="template-size"
+                  type="number"
+                  min="0.01"
+                  max="100"
+                  step="0.01"
+                  value={
+                    form.sizingMode === "risk"
+                      ? form.riskPct
+                      : form.walletSizePct
+                  }
+                  disabled={busy}
+                  onChange={(event) =>
+                    field(
+                      form.sizingMode === "risk" ? "riskPct" : "walletSizePct",
+                      event.target.value
+                    )
+                  }
+                />
+              </TemplateField>
+              {form.sizingMode === "risk" ? (
+                <p className="self-end pb-2 text-xs text-muted-foreground">
+                  Position size is recalculated from this amount and the stop
+                  loss each time an order is placed.
                 </p>
               ) : null}
             </CardContent>

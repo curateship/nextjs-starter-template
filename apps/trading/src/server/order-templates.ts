@@ -14,6 +14,7 @@ type OrderTemplateDb =
 export type OrderTemplateValues = {
   name: string
   orderSizePct: number
+  sizingMode: "wallet" | "risk"
   leverage: number
   stopLossPct: number
   takeProfitPct: number
@@ -182,6 +183,7 @@ export function serializeOrderTemplate(row: TradingOrderTemplate) {
     id: row.id,
     name: row.name,
     orderSizePct: Number(row.orderSizePct),
+    sizingMode: row.sizingMode,
     leverage: row.leverage,
     stopLossPct: Number(row.stopLossPct),
     takeProfitPct: Number(row.takeProfitPct),
@@ -196,6 +198,7 @@ function cleanValues(values: OrderTemplateValues) {
   return {
     name: values.name.trim(),
     orderSizePct: String(values.orderSizePct),
+    sizingMode: values.sizingMode,
     leverage: values.leverage,
     stopLossPct: String(values.stopLossPct),
     takeProfitPct: String(values.takeProfitPct),

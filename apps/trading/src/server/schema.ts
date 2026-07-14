@@ -363,6 +363,10 @@ export const tradingOrderTemplates = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 80 }).notNull(),
     orderSizePct: numeric("order_size_pct").notNull(),
+    sizingMode: varchar("sizing_mode", { length: 10 })
+      .$type<"wallet" | "risk">()
+      .notNull()
+      .default("wallet"),
     leverage: integer("leverage").notNull().default(5),
     stopLossPct: numeric("stop_loss_pct").notNull(),
     takeProfitPct: numeric("take_profit_pct").notNull(),
@@ -372,6 +376,10 @@ export const tradingOrderTemplates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    check(
+      "order_templates_sizing_mode_check",
+      sql`${table.sizingMode} in ('wallet', 'risk')`
+    ),
     unique("order_templates_user_id_name_unique").on(table.userId, table.name),
     uniqueIndex("ux_order_templates_user_default")
       .on(table.userId)
