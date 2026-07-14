@@ -37,6 +37,7 @@ export function buildMediaListWhere({
   fileTypes,
   mimeType,
   projectId,
+  proxyStatus,
   search,
   source,
 }: {
@@ -44,6 +45,7 @@ export function buildMediaListWhere({
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
+  proxyStatus?: "ready"
   search?: string
   source?: MediaSource
 }) {
@@ -57,6 +59,7 @@ export function buildMediaListWhere({
       : undefined,
     mimeType ? eq(aiVideoMedia.mimeType, mimeType) : undefined,
     mediaProjectFilter(projectId),
+    proxyStatus ? eq(aiVideoMedia.proxyStatus, proxyStatus) : undefined,
     source ? eq(aiVideoMedia.source, source) : undefined,
     mediaSearchFilter(pattern)
   )

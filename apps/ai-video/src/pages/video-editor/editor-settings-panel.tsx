@@ -965,10 +965,8 @@ function AiVideoDialog({
     setInserting(true)
     setGenerationError(null)
     try {
-      const durationMs = await loadMediaDurationMs(
-        generation.media.url,
-        "video"
-      )
+      const mediaUrl = generation.media.proxy_url ?? generation.media.url
+      const durationMs = await loadMediaDurationMs(mediaUrl, "video")
       dispatch({
         type: "ADD_CLIP",
         clip: {
@@ -976,7 +974,7 @@ function AiVideoDialog({
           kind: "video",
           name: generation.media.original_name,
           mediaId: generation.media.id,
-          url: generation.media.url,
+          url: mediaUrl,
           muted: true,
           sourceDurationMs: durationMs,
           trimStartMs: 0,
@@ -1238,7 +1236,7 @@ function AiVideoDialog({
                   {generation?.status === "ready" && generation.media ? (
                     <>
                       <video
-                        src={generation.media.url}
+                        src={generation.media.proxy_url ?? generation.media.url}
                         controls
                         muted
                         className="max-h-[420px] w-full rounded-md border bg-black"

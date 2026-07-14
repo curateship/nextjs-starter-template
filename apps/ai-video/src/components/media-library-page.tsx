@@ -101,6 +101,7 @@ export type MediaTabId = "all" | "images" | "videos"
 
 type ViewMode = "list" | "gallery"
 type MediaTypeFilter = "all" | MediaFileType | "svg"
+type ProxyFilter = "all" | "ready"
 type SourceFilter = "all" | MediaSource
 type ProjectFilter = "all" | "unassigned" | string
 
@@ -142,6 +143,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(
     () => activeTabToFileType(activeTab) ?? "all"
   )
+  const [proxyFilter, setProxyFilter] = React.useState<ProxyFilter>("all")
   const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
   const [projectFilter, setProjectFilter] = React.useState<ProjectFilter>("all")
   const [projects, setProjects] = React.useState<ProjectItem[]>([])
@@ -196,6 +198,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     [mediaTypeFilter]
   )
   const mimeType = mediaTypeFilter === "svg" ? "image/svg+xml" : undefined
+  const proxyStatus = proxyFilter === "ready" ? "ready" : undefined
   const source = sourceFilter === "all" ? undefined : sourceFilter
   const projectId =
     projectFilter === "all"
@@ -219,6 +222,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         fileTypes,
         mimeType,
         projectId,
+        proxyStatus,
         search: debouncedSearch || undefined,
         source,
         sortBy,
@@ -237,6 +241,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     mimeType,
     pageSize,
     projectId,
+    proxyStatus,
     source,
     sortBy,
     sortDirection,
@@ -249,6 +254,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const visibleMedia = data?.media ?? []
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
+    proxyFilter !== "all" ||
     sourceFilter !== "all" ||
     projectFilter !== "all" ||
     mediaTypeFilter !== "all"
@@ -400,6 +406,21 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           <SelectItem value="video">Videos</SelectItem>
           <SelectItem value="audio">Audio</SelectItem>
           <SelectItem value="svg">SVG</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={proxyFilter}
+        onValueChange={(value) => {
+          setProxyFilter(value as ProxyFilter)
+          setCurrentPage(1)
+        }}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Proxy status filter">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Any proxy status</SelectItem>
+          <SelectItem value="ready">Proxied videos</SelectItem>
         </SelectContent>
       </Select>
       <Select
@@ -603,7 +624,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               <div className="space-y-4">
                 {editingMedia.file_type === "video" ? (
                   <video
-                    src={editingMedia.url}
+                    src={editingMedia.proxy_url ?? editingMedia.url}
                     className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
                     controls
                     muted
@@ -880,7 +901,7 @@ function MediaPreview({
       {item.file_type === "video" ? (
         <>
           <video
-            src={item.url}
+            src={item.proxy_url ?? item.url}
             className="h-full w-full object-contain"
             muted
             preload="metadata"

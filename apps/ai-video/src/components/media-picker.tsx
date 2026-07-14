@@ -391,7 +391,7 @@ export function MediaPicker({
                       {item.file_type === "video" ? (
                         <div className="relative h-full w-full bg-black">
                           <video
-                            src={item.url}
+                            src={item.proxy_url ?? item.url}
                             className="h-full w-full object-contain"
                             muted
                             preload="metadata"

@@ -134,11 +134,12 @@ export function ReplaceMediaDialog({
           : item.file_type === "audio"
             ? "audio"
             : "video"
+      const mediaUrl = item.proxy_url ?? item.url
       const sourceDurationMs =
-        fileType === "image" ? 0 : await loadMediaDurationMs(item.url, fileType)
+        fileType === "image" ? 0 : await loadMediaDurationMs(mediaUrl, fileType)
       onReplace({
         mediaId: item.id,
-        url: item.url,
+        url: mediaUrl,
         name: item.original_name,
         fileType,
         sourceDurationMs,
@@ -387,7 +388,7 @@ function ReplaceMediaTile({
           </div>
         ) : (
           <video
-            src={item.url}
+            src={item.proxy_url ?? item.url}
             className="block w-full"
             muted
             preload="metadata"

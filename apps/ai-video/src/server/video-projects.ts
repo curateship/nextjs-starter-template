@@ -4,11 +4,16 @@ import { db } from "@/server/db"
 import { deleteOwnedProjectMedia } from "@/server/media"
 import {
   mediaFileUrl,
+  mediaProxyUrl,
   projectRenderThumbnailUrl,
   projectRenderThumbnailVersion,
 } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
-import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
+import {
+  aiVideoMedia,
+  aiVideoProjects,
+  type AiVideoProject,
+} from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import {
   createEmptyTimeline,
@@ -116,26 +121,72 @@ function serializeProject(row: AiVideoProject): ProjectItem {
   return serializeProjectFromTimeline(row, timeline, error)
 }
 
-function serializeProjectDetail(row: AiVideoProject): ProjectDetail {
+async function serializeProjectDetail(
+  row: AiVideoProject,
+  userId: string
+): Promise<ProjectDetail> {
   const { timeline, error } = parseTimelineForReset(row.timeline)
   return {
     ...serializeProjectFromTimeline(row, timeline, error),
-    timeline: secureTimelineMediaUrls(timeline),
+    timeline: await secureTimelineMediaUrlsForEditing(userId, timeline),
   }
 }
 
 export function secureTimelineMediaUrls(
-  timeline: ProjectTimeline
+  timeline: ProjectTimeline,
+  proxyUrls: ReadonlyMap<string, string> = new Map()
 ): ProjectTimeline {
   return {
     ...timeline,
     tracks: timeline.tracks.map((track) => ({
       ...track,
       clips: track.clips.map((clip) =>
-        clip.mediaId ? { ...clip, url: mediaFileUrl(clip.mediaId) } : clip
+        clip.mediaId
+          ? {
+              ...clip,
+              url: proxyUrls.get(clip.mediaId) ?? mediaFileUrl(clip.mediaId),
+            }
+          : clip
       ),
     })),
   }
+}
+
+export async function secureTimelineMediaUrlsForEditing(
+  userId: string,
+  timeline: ProjectTimeline
+) {
+  const mediaIds = Array.from(
+    new Set(
+      timeline.tracks.flatMap((track) =>
+        track.clips.flatMap((clip) => (clip.mediaId ? [clip.mediaId] : []))
+      )
+    )
+  )
+  const rows = mediaIds.length
+    ? await db
+        .select({
+          id: aiVideoMedia.id,
+          proxyStatus: aiVideoMedia.proxyStatus,
+          proxyStoragePath: aiVideoMedia.proxyStoragePath,
+          proxyGeneratedAt: aiVideoMedia.proxyGeneratedAt,
+        })
+        .from(aiVideoMedia)
+        .where(
+          and(
+            eq(aiVideoMedia.userId, userId),
+            inArray(aiVideoMedia.id, mediaIds)
+          )
+        )
+    : []
+  const proxyUrls = new Map(
+    rows.flatMap((row) =>
+      row.proxyStatus === "ready" && row.proxyStoragePath
+        ? [[row.id, mediaProxyUrl(row.id, row.proxyGeneratedAt)] as const]
+        : []
+    )
+  )
+  return secureTimelineMediaUrls(timeline, proxyUrls)
 }
 
 export async function listProjectsForCurrentUser(): Promise<ProjectListResponse> {
@@ -154,7 +205,7 @@ export async function getProjectForCurrentUser(
 ): Promise<ProjectDetail> {
   const user = await requireUser()
   const row = await getOwnedProject(user.id, projectId)
-  return serializeProjectDetail(row)
+  return serializeProjectDetail(row, user.id)
 }
 
 export async function createProjectForCurrentUser(data: {
@@ -181,7 +232,7 @@ export async function createProjectForCurrentUser(data: {
     throw new Error("Project was not created")
   }
 
-  return serializeProjectDetail(created)
+  return serializeProjectDetail(created, user.id)
 }
 
 export async function renameProjectForCurrentUser(

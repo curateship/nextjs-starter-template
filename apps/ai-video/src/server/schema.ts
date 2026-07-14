@@ -318,6 +318,18 @@ export const aiVideoMedia = pgTable(
       { onDelete: "cascade" }
     ),
     source: varchar("source", { length: 20 }).notNull().default("upload"),
+    proxyStatus: varchar("proxy_status", { length: 20 }),
+    proxyProfile: varchar("proxy_profile", { length: 20 }),
+    proxyStoragePath: text("proxy_storage_path").unique(),
+    proxyFileSize: bigint("proxy_file_size", { mode: "number" }),
+    proxyError: text("proxy_error"),
+    proxyAttempts: integer("proxy_attempts").notNull().default(0),
+    proxyLeaseToken: varchar("proxy_lease_token", { length: 36 }),
+    proxyLeaseExpiresAt: timestamp("proxy_lease_expires_at", {
+      withTimezone: true,
+    }),
+    proxyStartedAt: timestamp("proxy_started_at", { withTimezone: true }),
+    proxyGeneratedAt: timestamp("proxy_generated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -330,6 +342,23 @@ export const aiVideoMedia = pgTable(
       "media_source_check",
       sql`${table.source} in ('upload', 'generated', 'template', 'viral')`
     ),
+    check(
+      "media_proxy_status_check",
+      sql`${table.proxyStatus} is null or ${table.proxyStatus} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "media_proxy_profile_check",
+      sql`(${table.proxyStatus} is null and ${table.proxyProfile} is null) or (${table.proxyStatus} is not null and ${table.proxyProfile} = 'h264-720p')`
+    ),
+    check(
+      "media_proxy_video_check",
+      sql`${table.proxyStatus} is null or ${table.fileType} = 'video'`
+    ),
+    check(
+      "media_proxy_ready_path_check",
+      sql`${table.proxyStatus} <> 'ready' or ${table.proxyStoragePath} is not null`
+    ),
+    check("media_proxy_attempts_check", sql`${table.proxyAttempts} >= 0`),
     index("ix_media_user_id").on(table.userId),
     index("ix_media_project_id").on(table.projectId),
     index("ix_media_source").on(table.source),
@@ -344,6 +373,10 @@ export const aiVideoMedia = pgTable(
       table.projectId,
       table.source,
       table.fileType,
+      table.createdAt
+    ),
+    index("ix_media_proxy_status_created").on(
+      table.proxyStatus,
       table.createdAt
     ),
   ]

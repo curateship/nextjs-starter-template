@@ -574,13 +574,14 @@ async function buildMediaClip(item: MediaItem): Promise<EditorClip> {
     }
   }
   const kind = item.file_type === "video" ? "video" : "audio"
-  const sourceDurationMs = await loadMediaDurationMs(item.url, kind)
+  const mediaUrl = item.proxy_url ?? item.url
+  const sourceDurationMs = await loadMediaDurationMs(mediaUrl, kind)
   return {
     id: editorId(),
     kind,
     name: item.original_name,
     mediaId: item.id,
-    url: item.url,
+    url: mediaUrl,
     sourceDurationMs,
     trimStartMs: 0,
     startMs: 0,
@@ -902,7 +903,7 @@ function MediaPanel() {
                 />
               ) : item.file_type === "video" ? (
                 <video
-                  src={item.url}
+                  src={item.proxy_url ?? item.url}
                   muted
                   playsInline
                   preload="metadata"

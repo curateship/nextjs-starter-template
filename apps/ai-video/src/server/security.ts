@@ -28,6 +28,13 @@ void import("@/server/render-queue")
   .then((module) => module.registerRenderWorker())
   .catch(() => undefined)
 
+// Video proxies use the same durable lease/recovery model as exports.
+void import("@/server/media-proxy")
+  .then((module) => module.registerMediaProxyWorker())
+  .catch((error) => {
+    console.error("Media proxy worker registration failed", error)
+  })
+
 export const SESSION_COOKIE_NAME = "ai_video_session"
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7
 const SESSION_TTL_HOURS = Number.parseInt(
