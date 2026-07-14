@@ -29,6 +29,7 @@ import {
   R2StorageNotConfiguredError,
   uploadToR2,
 } from "@/server/media-storage"
+import { MEDIA_PROXY_PROFILE } from "@/server/media-types"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects, aiVideoSettings } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -47,6 +48,7 @@ const listMediaSchema = z
       .optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
     projectId: z.string().min(1).max(36).nullable().optional(),
+    proxyStatus: z.literal("ready").optional(),
     search: z.string().max(200).optional(),
     source: z.enum(["upload", "generated", "template", "viral"]).optional(),
     sortBy: z
@@ -131,6 +133,7 @@ const listMediaFn = createServerFn({ method: "GET" })
       fileTypes: data?.fileTypes,
       mimeType: data?.mimeType,
       projectId,
+      proxyStatus: data?.proxyStatus,
       search: data?.search,
       source: data?.source,
       sortBy: data?.sortBy,
@@ -196,6 +199,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
       }
 
       const createdAt = now()
+      const fileType = getMediaFileType(mimeType)
       const row = {
         id: uuid(),
         userId: user.id,
@@ -204,16 +208,23 @@ const uploadMediaFn = createServerFn({ method: "POST" })
         altText: cleanAltText(data.altText),
         fileSize: fileData.byteLength,
         mimeType,
-        fileType: getMediaFileType(mimeType),
+        fileType,
         storagePath,
         projectId: projectId ?? null,
         source: "upload" as const,
+        proxyStatus: fileType === "video" ? "queued" : null,
+        proxyProfile: fileType === "video" ? MEDIA_PROXY_PROFILE : null,
         createdAt,
         updatedAt: createdAt,
       }
 
       try {
         await db.insert(aiVideoMedia).values(row)
+        if (fileType === "video") {
+          void import("@/server/media-proxy").then((module) =>
+            module.kickMediaProxyWorker()
+          )
+        }
       } catch (error) {
         await deleteFromR2(storagePath).catch(() => undefined)
         throw error
@@ -254,13 +265,19 @@ const deleteMediaFn = createServerFn({ method: "POST" })
       .where(
         and(eq(aiVideoMedia.id, data.mediaId), eq(aiVideoMedia.userId, user.id))
       )
-      .returning({ storagePath: aiVideoMedia.storagePath })
+      .returning({
+        storagePath: aiVideoMedia.storagePath,
+        proxyStoragePath: aiVideoMedia.proxyStoragePath,
+      })
 
     if (!row) {
       throw new Error("Media not found")
     }
 
     await deleteFromR2(row.storagePath).catch(() => undefined)
+    if (row.proxyStoragePath) {
+      await deleteFromR2(row.proxyStoragePath).catch(() => undefined)
+    }
   })
 
 const bulkDeleteMediaFn = createServerFn({ method: "POST" })
@@ -277,10 +294,19 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
           inArray(aiVideoMedia.id, uniqueIds)
         )
       )
-      .returning({ storagePath: aiVideoMedia.storagePath })
+      .returning({
+        storagePath: aiVideoMedia.storagePath,
+        proxyStoragePath: aiVideoMedia.proxyStoragePath,
+      })
 
     await Promise.all(
-      rows.map((row) => deleteFromR2(row.storagePath).catch(() => undefined))
+      rows.flatMap((row) =>
+        [row.storagePath, row.proxyStoragePath]
+          .filter((storagePath): storagePath is string => !!storagePath)
+          .map((storagePath) =>
+            deleteFromR2(storagePath).catch(() => undefined)
+          )
+      )
     )
 
     return { deleted_count: rows.length }
@@ -292,6 +318,7 @@ export function listMedia({
   fileTypes,
   mimeType,
   projectId,
+  proxyStatus,
   search,
   source,
   sortBy,
@@ -302,6 +329,7 @@ export function listMedia({
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
+  proxyStatus?: "ready"
   search?: string
   source?: MediaSource
   sortBy?: MediaSortBy
@@ -314,6 +342,7 @@ export function listMedia({
       fileTypes,
       mimeType,
       projectId,
+      proxyStatus,
       search,
       source,
       sortBy,

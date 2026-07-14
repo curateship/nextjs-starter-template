@@ -8,6 +8,7 @@ import {
   templateThumbnailUrl,
 } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
+import { MEDIA_PROXY_PROFILE } from "@/server/media-types"
 import {
   aiVideoCreators,
   aiVideoMedia,
@@ -28,6 +29,7 @@ import {
 import {
   cleanProjectName,
   secureTimelineMediaUrls,
+  secureTimelineMediaUrlsForEditing,
   summarizeTimeline,
 } from "@/server/video-projects"
 import type { ViralVideoAnalysis } from "@/server/video-analysis"
@@ -236,7 +238,7 @@ export async function getTemplateForEditingForCurrentUser(
       ? templateThumbnailUrl(row.id, row.updatedAt)
       : null,
     timeline_error: error,
-    timeline: secureTimelineMediaUrls(timeline),
+    timeline: await secureTimelineMediaUrlsForEditing(user.id, timeline),
   }
 }
 
@@ -367,10 +369,15 @@ async function copyMediaForTemplate(
       storagePath,
       projectId: null,
       source: "template",
+      proxyStatus: "queued",
+      proxyProfile: MEDIA_PROXY_PROFILE,
       createdAt: ts,
       updatedAt: ts,
     })
     .returning()
+  void import("@/server/media-proxy").then((module) =>
+    module.kickMediaProxyWorker()
+  )
   return row
 }
 
@@ -394,6 +401,9 @@ async function rollbackTemplateCopies(
   thumbnailPath: string | null
 ) {
   await deleteFromR2(media.storagePath).catch(() => undefined)
+  if (media.proxyStoragePath) {
+    await deleteFromR2(media.proxyStoragePath).catch(() => undefined)
+  }
   if (thumbnailPath) {
     await deleteFromR2(thumbnailPath).catch(() => undefined)
   }

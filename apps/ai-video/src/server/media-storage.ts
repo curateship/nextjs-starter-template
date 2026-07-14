@@ -1,3 +1,8 @@
+import { createReadStream, createWriteStream } from "node:fs"
+import { stat } from "node:fs/promises"
+import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
+
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
@@ -46,6 +51,25 @@ export async function uploadToR2(
       CacheControl: "public, max-age=31536000, immutable",
     })
   )
+}
+
+export async function uploadFileToR2(
+  storagePath: string,
+  filePath: string,
+  contentType: string
+) {
+  const { size } = await stat(filePath)
+  await getR2Client().send(
+    new PutObjectCommand({
+      Bucket: getBucketName(),
+      Key: storagePath,
+      Body: createReadStream(filePath),
+      ContentLength: size,
+      ContentType: contentType,
+      CacheControl: "public, max-age=31536000, immutable",
+    })
+  )
+  return size
 }
 
 // Server-side copy within the bucket (no download/re-upload). Used to give a
@@ -122,4 +146,39 @@ export async function bodyToBytes(body: unknown): Promise<Uint8Array> {
   }
 
   throw new Error("Failed to read stored file")
+}
+
+function bodyToReadable(body: unknown) {
+  if (body instanceof Uint8Array) {
+    return Readable.from([body])
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    Symbol.asyncIterator in body &&
+    typeof body[Symbol.asyncIterator] === "function"
+  ) {
+    return Readable.from(body as AsyncIterable<Uint8Array>)
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    "transformToWebStream" in body &&
+    typeof body.transformToWebStream === "function"
+  ) {
+    return Readable.from(
+      body.transformToWebStream() as AsyncIterable<Uint8Array>
+    )
+  }
+
+  throw new Error("Failed to read stored file")
+}
+
+export async function writeBodyToFile(body: unknown, filePath: string) {
+  await pipeline(
+    bodyToReadable(body),
+    createWriteStream(filePath, { flags: "wx" })
+  )
 }

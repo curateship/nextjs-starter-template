@@ -31,6 +31,8 @@ export const ALLOWED_TYPES = new Set([
   ...AUDIO_TYPES,
 ])
 
+export const MEDIA_PROXY_PROFILE = "h264-720p"
+
 export function mediaExtensionForMimeType(mimeType: string) {
   if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
   if (mimeType === "image/png") return "png"

@@ -16,9 +16,10 @@ import {
   ALLOWED_TYPES,
   AUDIO_TYPES,
   IMAGE_TYPES,
+  MEDIA_PROXY_PROFILE,
   mediaExtensionForMimeType,
 } from "@/server/media-types"
-import { mediaFileUrl } from "@/server/media-urls"
+import { mediaFileUrl, mediaProxyUrl } from "@/server/media-urls"
 import { aiVideoMedia, type AiVideoMedia } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 
@@ -26,6 +27,7 @@ const MEDIA_MAX_BYTES = 500 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
 export type { MediaFileType, MediaSortBy, MediaSortDirection, MediaSource }
+export type MediaProxyStatus = "queued" | "generating" | "ready" | "error"
 
 export type MediaItem = {
   id: string
@@ -38,6 +40,8 @@ export type MediaItem = {
   source: MediaSource
   project_id: string | null
   url: string
+  proxy_status: MediaProxyStatus | null
+  proxy_url: string | null
   created_at: string
   updated_at: string
 }
@@ -213,6 +217,7 @@ export async function listOwnedMedia({
   fileTypes,
   mimeType,
   projectId,
+  proxyStatus,
   search,
   source,
   sortBy = "created_at",
@@ -224,6 +229,7 @@ export async function listOwnedMedia({
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
+  proxyStatus?: "ready"
   search?: string
   source?: MediaSource
   sortBy?: MediaSortBy
@@ -238,6 +244,7 @@ export async function listOwnedMedia({
     fileTypes,
     mimeType,
     projectId,
+    proxyStatus,
     search,
     source,
   })
@@ -309,10 +316,17 @@ export async function deleteOwnedProjectMedia(
         inArray(aiVideoMedia.projectId, uniqueIds)
       )
     )
-    .returning({ storagePath: aiVideoMedia.storagePath })
+    .returning({
+      storagePath: aiVideoMedia.storagePath,
+      proxyStoragePath: aiVideoMedia.proxyStoragePath,
+    })
 
   await Promise.all(
-    rows.map((row) => deleteFromR2(row.storagePath).catch(() => undefined))
+    rows.flatMap((row) =>
+      [row.storagePath, row.proxyStoragePath]
+        .filter((storagePath): storagePath is string => !!storagePath)
+        .map((storagePath) => deleteFromR2(storagePath).catch(() => undefined))
+    )
   )
 
   return rows.length
@@ -389,12 +403,17 @@ export async function saveGeneratedVideoToProjectMedia(
     storagePath,
     projectId,
     source: "generated" as const,
+    proxyStatus: "queued",
+    proxyProfile: MEDIA_PROXY_PROFILE,
     createdAt,
     updatedAt: createdAt,
   }
 
   try {
     await db.insert(aiVideoMedia).values(row)
+    void import("@/server/media-proxy").then((module) =>
+      module.kickMediaProxyWorker()
+    )
   } catch (error) {
     await deleteFromR2(storagePath).catch(() => undefined)
     throw error
@@ -415,6 +434,11 @@ export function serializeMedia(row: AiVideoMedia): MediaItem {
     source: row.source as MediaSource,
     project_id: row.projectId,
     url: mediaFileUrl(row.id),
+    proxy_status: row.proxyStatus as MediaProxyStatus | null,
+    proxy_url:
+      row.proxyStatus === "ready" && row.proxyStoragePath
+        ? mediaProxyUrl(row.id, row.proxyGeneratedAt)
+        : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

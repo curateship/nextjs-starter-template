@@ -10,6 +10,10 @@ export function mediaFileUrl(mediaId: string) {
   return `/api/v1/media/${encodePathPart(mediaId)}/file`
 }
 
+export function mediaProxyUrl(mediaId: string, generatedAt?: Date | null) {
+  return `/api/v1/media/${encodePathPart(mediaId)}/proxy${cacheVersion(generatedAt)}`
+}
+
 export function actorImageUrl(actorId: string, updatedAt?: Date | null) {
   return `/api/v1/actors/${encodePathPart(actorId)}/image${cacheVersion(updatedAt)}`
 }

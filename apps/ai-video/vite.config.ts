@@ -71,6 +71,7 @@ export default defineConfig({
 function isApiAssetRoute(pathname: string) {
   return [
     /^\/api\/v1\/media\/[^/]+\/file$/,
+    /^\/api\/v1\/media\/[^/]+\/proxy$/,
     /^\/api\/v1\/actors\/[^/]+\/image$/,
     /^\/api\/v1\/creators\/[^/]+\/avatar$/,
     /^\/api\/v1\/projects\/[^/]+\/render-thumbnail$/,
