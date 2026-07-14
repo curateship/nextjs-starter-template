@@ -1915,7 +1915,8 @@ export function PriceChartView({
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
           {markerPixels.map((m, i) => {
             // Lettered chips are real fills (O/C/F); letterless ones are
-            // indicator-signal dots (QQE) drawn at half size.
+            // indicator-signal dots (QQE) drawn at half size with a static
+            // white center so they stay visible against dark candles and zones.
             const ring = m.letter ? 13 : 6.5
             const dot = m.letter ? 12 : 6
             return (
@@ -1968,6 +1969,12 @@ export function PriceChartView({
                 >
                   {m.letter}
                 </span>
+                {!m.letter ? (
+                  <span
+                    className="absolute z-10 size-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+                    style={{ left: 0, top: 0 }}
+                  />
+                ) : null}
               </div>
             )
           })}
