@@ -20,7 +20,8 @@ export function resolveTradingBalance(
       token?: number
     }>
     tokenToAvailableAfterMaintenance?: Array<[number, string]>
-  }
+  },
+  collateralToken = 0
 ) {
   if (accountMode !== "unifiedAccount" && accountMode !== "portfolioMargin") {
     return {
@@ -32,33 +33,37 @@ export function resolveTradingBalance(
   // Unified accounts keep collateral in the spot state; individual perp
   // balance summaries are not meaningful in this mode.
   // Source: https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes
-  const usdc = spotState.balances.find((balance) => balance.coin === "USDC")
-  if (!usdc || usdc.token === undefined) {
+  const collateral = spotState.balances.find(
+    (balance) => balance.token === collateralToken
+  )
+  if (!collateral) {
     return { equity: "0", withdrawable: "0" }
   }
 
   const available = spotState.tokenToAvailableAfterMaintenance?.find(
-    ([token]) => token === usdc.token
+    ([token]) => token === collateralToken
   )?.[1]
   return {
-    equity: usdc.total,
+    equity: collateral.total,
     withdrawable: available ?? "0",
   }
 }
 
 export async function loadTradingAccountState(
   client: TradingInfoClient,
-  user: `0x${string}`
+  user: `0x${string}`,
+  options: { dex?: string; collateralToken?: number } = {}
 ) {
   const [accountMode, clearinghouseState, spotState] = await Promise.all([
     client.userAbstraction({ user }),
-    client.clearinghouseState({ user }),
+    client.clearinghouseState({ user, dex: options.dex }),
     client.spotClearinghouseState({ user }),
   ])
   const balance = resolveTradingBalance(
     accountMode,
     clearinghouseState,
-    spotState
+    spotState,
+    options.collateralToken
   )
 
   return { accountMode, clearinghouseState, spotState, ...balance }

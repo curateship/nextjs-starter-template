@@ -149,13 +149,19 @@ export class BotRunner {
       }
 
       this.unsubscribers.push(
-        this.hub.subscribeMids(this.botNetwork, () => this.onTick())
+        this.hub.subscribeMids(this.botNetwork, this.asset.dex, () =>
+          this.onTick()
+        )
       )
 
       this.stopped = false
       this.paused = this.bot.desiredState === "paused"
       await this.setStatus(this.paused ? "paused" : "running")
-      await this.event("info", "started", `Bot started in ${this.bot.mode} mode.`)
+      await this.event(
+        "info",
+        "started",
+        `Bot started in ${this.bot.mode} mode.`
+      )
       this.scheduleEvaluate()
     } catch (error) {
       const message = error instanceof Error ? error.message : "start failed"
@@ -262,24 +268,27 @@ export class BotRunner {
       .where(eq(tradingBotOrders.cloid, cloid))
       .catch(() => {})
 
-    await db.insert(tradingBotTrades).values({
-      id: uuid(),
-      botId: this.bot.id,
-      walletId: this.bot.walletId,
-      mode: this.bot.mode,
-      market: this.market,
-      side: fill.side,
-      px: fill.px,
-      sz: fill.sz,
-      notional: String(Number(fill.px) * Number(fill.sz)),
-      fee: fill.fee,
-      closedPnl: fill.closedPnl,
-      cloid: fill.cloid,
-      oid: fill.oid,
-      hlTid: fill.hlTid,
-      fillTime: new Date(fill.time),
-      createdAt: now(),
-    }).onConflictDoNothing()
+    await db
+      .insert(tradingBotTrades)
+      .values({
+        id: uuid(),
+        botId: this.bot.id,
+        walletId: this.bot.walletId,
+        mode: this.bot.mode,
+        market: this.market,
+        side: fill.side,
+        px: fill.px,
+        sz: fill.sz,
+        notional: String(Number(fill.px) * Number(fill.sz)),
+        fee: fill.fee,
+        closedPnl: fill.closedPnl,
+        cloid: fill.cloid,
+        oid: fill.oid,
+        hlTid: fill.hlTid,
+        fillTime: new Date(fill.time),
+        createdAt: now(),
+      })
+      .onConflictDoNothing()
 
     // Daily PnL and loss-streak accounting on realized pnl.
     const realized = Number(fill.closedPnl) - Number(fill.fee)
@@ -305,7 +314,9 @@ export class BotRunner {
     // Peak-equity bookkeeping stays (it's displayed); the automated risk
     // stops (drawdown-kill, daily-loss pause, cooldowns) are retired — the
     // manual Pause/Flatten/kill commands are the operator's controls now.
-    const mid = Number(this.hub.mid(this.botNetwork, this.market))
+    const mid = Number(
+      this.hub.mid(this.botNetwork, this.asset.dex, this.market)
+    )
     const equity = this.broker?.equity(mid) ?? 0
     if (equity > this.runtime.peakEquity) {
       this.runtime.peakEquity = equity
@@ -434,7 +445,7 @@ export class BotRunner {
   }
 
   private ctx(): StrategyCtx<unknown> {
-    const mid = this.hub.mid(this.botNetwork, this.market)
+    const mid = this.hub.mid(this.botNetwork, this.asset.dex, this.market)
     return {
       market: this.market,
       mid,

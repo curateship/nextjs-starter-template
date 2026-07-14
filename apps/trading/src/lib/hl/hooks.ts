@@ -6,23 +6,28 @@ import type {
 } from "@nktkas/hyperliquid"
 
 import type { TradingNetwork } from "@/lib/hl/network"
-import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import {
+  buildPerpMarkets,
+  type PerpMarketDefinition,
+} from "@/lib/hl/perp-markets"
+import { resolveTradingBalance } from "@/lib/hl/account-balance"
 import {
   CANDLE_INTERVALS,
   getBrowserInfoClient,
-  subscribeAllMids,
+  subscribeAllDexsAssetCtxs,
+  subscribeAllDexsClearinghouseState,
   subscribeCandle,
   subscribeL2Book,
+  subscribeOpenOrders,
   subscribeTrades,
   type CandleInterval,
 } from "@/lib/hl/ws"
 
-const META_REFRESH_MS = 30_000
 const TAPE_LENGTH = 60
 
-const EMPTY_MIDS: Record<string, string> = {}
 const EMPTY_CANDLES: CandleWsEvent[] = []
 const EMPTY_TRADES: TapeTrade[] = []
+const EMPTY_MARKET_ROWS: MarketRow[] = []
 
 export type Candle = CandleWsEvent
 export type TapeTrade = TradesWsEvent[number]
@@ -34,22 +39,6 @@ export type TapeTrade = TradesWsEvent[number]
  */
 
 type Keyed<T> = { key: string; data: T }
-
-export function useAllMids(network: TradingNetwork) {
-  const [state, setState] = React.useState<Keyed<Record<string, string>> | null>(
-    null
-  )
-
-  React.useEffect(
-    () =>
-      subscribeAllMids(network, (event) => {
-        setState({ key: network, data: event.mids })
-      }),
-    [network]
-  )
-
-  return state?.key === network ? state.data : EMPTY_MIDS
-}
 
 /**
  * Last-known candles per network:coin:interval, so a timeframe/market switch
@@ -238,64 +227,93 @@ export type AccountSnapshot = {
   withdrawable: string
 }
 
-const ACCOUNT_REFRESH_MS = 4_000
-
 /**
- * Live account state (equity, positions, open orders) for a real wallet.
- * Hyperliquid retired the webData2 websocket feed this used to ride on (its
- * webData3 replacement no longer carries clearinghouse state), so this now
- * polls the stable HTTP info endpoints — same ~5s freshness the old feed had.
+ * Live positions and orders across every perpetual DEX for a real wallet.
  */
 export function useAccountSnapshot(
   network: TradingNetwork,
-  address: string | null | undefined
+  address: string | null | undefined,
+  market: Pick<MarketRow, "dex" | "collateralToken"> | null,
+  dexes: readonly string[]
 ) {
-  const key = `${network}:${address ?? ""}`
+  const key = `${network}:${address ?? ""}:${market?.dex ?? ""}`
+  const dexKey = JSON.stringify(dexes)
   const [state, setState] = React.useState<Keyed<AccountSnapshot> | null>(null)
 
   React.useEffect(() => {
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
     let cancelled = false
-    const client = getBrowserInfoClient(network)
     const user = address as `0x${string}`
+    const unsubscribers: Array<() => void> = []
 
-    async function refresh() {
+    async function connect() {
       try {
-        const [accountState, openOrders] = await Promise.all([
-          loadTradingAccountState(client, user),
-          client.frontendOpenOrders({ user }),
+        const client = getBrowserInfoClient(network)
+        const [accountMode, spotState] = await Promise.all([
+          client.userAbstraction({ user }),
+          client.spotClearinghouseState({ user }),
         ])
-        if (!cancelled) {
+        if (cancelled) return
+        const states = new Map<string, AccountSnapshot["clearinghouseState"]>()
+        const ordersByDex = new Map<string, AccountSnapshot["openOrders"]>()
+
+        const publish = () => {
+          const selected = states.get(market?.dex ?? "") ?? states.get("")
+          if (!selected || cancelled) return
+          const balance = resolveTradingBalance(
+            accountMode,
+            selected,
+            spotState,
+            market?.collateralToken
+          )
           setState({
             key,
             data: {
-              clearinghouseState: accountState.clearinghouseState,
-              openOrders,
-              equity: accountState.equity,
-              withdrawable: accountState.withdrawable,
+              clearinghouseState: {
+                ...selected,
+                assetPositions: [...states.values()].flatMap(
+                  (item) => item.assetPositions
+                ),
+              },
+              openOrders: [...ordersByDex.values()].flat(),
+              ...balance,
             },
           })
         }
+
+        unsubscribers.push(
+          subscribeAllDexsClearinghouseState(network, user, (event) => {
+            for (const [dex, clearinghouse] of event.clearinghouseStates) {
+              states.set(dex, clearinghouse)
+            }
+            publish()
+          })
+        )
+        const subscribedDexes = JSON.parse(dexKey) as string[]
+        for (const dex of subscribedDexes) {
+          unsubscribers.push(
+            subscribeOpenOrders(network, user, dex, (event) => {
+              ordersByDex.set(dex, event.orders)
+              publish()
+            })
+          )
+        }
       } catch {
-        // Transient fetch failure — keep showing the last snapshot.
+        // A future remount or wallet switch retries the complete account feed.
       }
     }
 
-    void refresh()
-    const timer = setInterval(() => void refresh(), ACCOUNT_REFRESH_MS)
+    void connect()
     return () => {
       cancelled = true
-      clearInterval(timer)
+      for (const unsubscribe of unsubscribers) unsubscribe()
     }
-  }, [network, address, key])
+  }, [network, address, market?.dex, market?.collateralToken, dexKey, key])
 
   return state?.key === key ? state.data : null
 }
 
-export type MarketRow = {
-  coin: string
-  szDecimals: number
-  maxLeverage: number
+export type MarketRow = PerpMarketDefinition & {
   markPx: string
   oraclePx: string
   prevDayPx: string
@@ -304,49 +322,62 @@ export type MarketRow = {
   dayNtlVlm: string
 }
 
-/** Watchlist metadata: metaAndAssetCtxs polled over HTTP. */
+/** All active perpetual markets, kept live by Hyperliquid's all-DEX stream. */
 export function useMarketRows(network: TradingNetwork) {
-  const [rows, setRows] = React.useState<MarketRow[]>([])
+  const [state, setState] = React.useState<Keyed<MarketRow[]> | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
 
-    async function refresh() {
+    let unsubscribe: (() => void) | null = null
+
+    async function connect() {
       try {
-        const [meta, assetCtxs] =
-          await getBrowserInfoClient(network).metaAndAssetCtxs()
+        const info = getBrowserInfoClient(network)
+        const [dexs, metas, categories, spotMeta] = await Promise.all([
+          info.perpDexs(),
+          info.allPerpMetas(),
+          info.perpCategories(),
+          info.spotMeta(),
+        ])
         if (cancelled) return
-        const next: MarketRow[] = []
-        meta.universe.forEach((asset, index) => {
-          const ctx = assetCtxs[index]
-          if (!ctx || asset.isDelisted) return
-          next.push({
-            coin: asset.name,
-            szDecimals: asset.szDecimals,
-            maxLeverage: asset.maxLeverage,
-            markPx: ctx.markPx,
-            oraclePx: ctx.oraclePx,
-            prevDayPx: ctx.prevDayPx,
-            funding: ctx.funding,
-            openInterest: ctx.openInterest,
-            dayNtlVlm: ctx.dayNtlVlm,
-          })
+        const markets = buildPerpMarkets(
+          dexs,
+          metas,
+          categories,
+          spotMeta.tokens
+        )
+        unsubscribe = subscribeAllDexsAssetCtxs(network, (event) => {
+          const contexts = new Map(event.ctxs)
+          const next: MarketRow[] = []
+          for (const market of markets) {
+            const ctx = contexts.get(market.dex)?.[market.assetIndex]
+            if (!ctx) continue
+            next.push({
+              ...market,
+              markPx: ctx.markPx,
+              oraclePx: ctx.oraclePx,
+              prevDayPx: ctx.prevDayPx,
+              funding: ctx.funding,
+              openInterest: ctx.openInterest,
+              dayNtlVlm: ctx.dayNtlVlm,
+            })
+          }
+          if (!cancelled) setState({ key: network, data: next })
         })
-        setRows(next)
       } catch {
-        // transient; next poll retries
+        // A future remount or network switch retries the complete catalog.
       }
     }
 
-    void refresh()
-    const timer = setInterval(() => void refresh(), META_REFRESH_MS)
+    void connect()
     return () => {
       cancelled = true
-      clearInterval(timer)
+      unsubscribe?.()
     }
   }, [network])
 
-  return rows
+  return state?.key === network ? state.data : EMPTY_MARKET_ROWS
 }
 
 function mergeSnapshot(snapshot: Candle[], streamed: Candle[]): Candle[] {

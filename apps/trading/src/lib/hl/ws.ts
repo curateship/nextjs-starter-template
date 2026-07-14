@@ -3,9 +3,11 @@ import {
   HttpTransport,
   SubscriptionClient,
   WebSocketTransport,
-  type AllMidsWsEvent,
+  type AllDexsAssetCtxsWsEvent,
+  type AllDexsClearinghouseStateWsEvent,
   type CandleWsEvent,
   type L2BookWsEvent,
+  type OpenOrdersWsEvent,
   type TradesWsEvent,
   type UserFillsWsEvent,
 } from "@nktkas/hyperliquid"
@@ -94,12 +96,44 @@ function acquire<T>(
   }
 }
 
-export function subscribeAllMids(
+export function subscribeAllDexsAssetCtxs(
   network: TradingNetwork,
-  listener: (data: AllMidsWsEvent) => void
+  listener: (data: AllDexsAssetCtxsWsEvent) => void
 ) {
-  return acquire(`${network}:allMids`, listener, (emit) =>
-    getSubscriptionClient(network).allMids((data) => emit(data))
+  return acquire(`${network}:allDexsAssetCtxs`, listener, (emit) =>
+    getSubscriptionClient(network).allDexsAssetCtxs((data) => emit(data))
+  )
+}
+
+export function subscribeAllDexsClearinghouseState(
+  network: TradingNetwork,
+  user: `0x${string}`,
+  listener: (data: AllDexsClearinghouseStateWsEvent) => void
+) {
+  return acquire(
+    `${network}:allDexsClearinghouseState:${user.toLowerCase()}`,
+    listener,
+    (emit) =>
+      getSubscriptionClient(network).allDexsClearinghouseState(
+        { user },
+        (data) => emit(data)
+      )
+  )
+}
+
+export function subscribeOpenOrders(
+  network: TradingNetwork,
+  user: `0x${string}`,
+  dex: string,
+  listener: (data: OpenOrdersWsEvent) => void
+) {
+  return acquire(
+    `${network}:openOrders:${user.toLowerCase()}:${dex}`,
+    listener,
+    (emit) =>
+      getSubscriptionClient(network).openOrders({ user, dex }, (data) =>
+        emit(data)
+      )
   )
 }
 

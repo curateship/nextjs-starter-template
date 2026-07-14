@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
+
 const olderCandlesSchema = z.object({
   network: z.enum(["mainnet", "testnet"]),
-  coin: z.string().min(1).max(20),
+  coin: hyperliquidMarketSchema,
   interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
   /** Fetch candles strictly BEFORE this open time (ms). */
   beforeMs: z.number().int().positive(),
@@ -11,7 +13,10 @@ const olderCandlesSchema = z.object({
   bars: z.number().int().min(1).max(1000),
 })
 
-const INTERVAL_MS: Record<z.infer<typeof olderCandlesSchema>["interval"], number> = {
+const INTERVAL_MS: Record<
+  z.infer<typeof olderCandlesSchema>["interval"],
+  number
+> = {
   "1m": 60_000,
   "5m": 300_000,
   "15m": 900_000,
@@ -40,7 +45,8 @@ const loadOlderHlCandlesFn = createServerFn({ method: "POST" })
   .inputValidator(olderCandlesSchema)
   .handler(async ({ data }): Promise<{ candles: OlderCandle[] }> => {
     const { findCurrentUser } = await import("@/server/security")
-    if (!(await findCurrentUser())) throw new Error("Missing Custom Shell session")
+    if (!(await findCurrentUser()))
+      throw new Error("Missing Custom Shell session")
     const { getInfoClient } = await import("@/server/hyperliquid/info")
 
     const step = INTERVAL_MS[data.interval]

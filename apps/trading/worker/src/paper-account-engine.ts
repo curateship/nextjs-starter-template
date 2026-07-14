@@ -3,6 +3,7 @@ import pg from "pg"
 
 import { MAKER_FEE_RATE, TAKER_FEE_RATE } from "@/lib/order-preview"
 import { db, getDatabaseUrl } from "@/server/db"
+import { getAssetInfo } from "@/server/hyperliquid/info"
 import { getDefaultNetwork } from "@/server/hyperliquid/transport"
 import {
   tradingPaperFills,
@@ -28,6 +29,7 @@ const BOOK_WAIT_MS = 8_000
 
 type CoinFeed = {
   refCount: number
+  dex: string
   book: { px: string; sz: string }[][] | null
   unsubscribers: (() => void)[]
 }
@@ -47,7 +49,6 @@ export class PaperAccountEngine {
   private readonly feeds = new Map<string, CoinFeed>()
   /** Resting orders in memory, keyed by order id. */
   private readonly resting = new Map<string, TradingPaperOrder>()
-  private unsubscribeMids: (() => void) | null = null
 
   constructor(hub: MarketHub = marketHub) {
     this.hub = hub
@@ -59,19 +60,15 @@ export class PaperAccountEngine {
 
   async start() {
     this.stopped = false
-    // Keep the mids cache warm for the mid-price market-fill fallback.
-    this.unsubscribeMids = this.hub.subscribeMids(this.network, () => {})
     const restingRows = await db
       .select()
       .from(tradingPaperOrders)
       .where(eq(tradingPaperOrders.status, "resting"))
     for (const order of restingRows) {
       this.resting.set(order.id, order)
-      this.retainFeed(order.coin)
+      await this.retainFeed(order.coin)
     }
-    console.log(
-      `paper engine: restored ${restingRows.length} resting order(s)`
-    )
+    console.log(`paper engine: restored ${restingRows.length} resting order(s)`)
 
     await this.connect()
     this.timer = setInterval(() => void this.drain(), POLL_INTERVAL_MS)
@@ -82,8 +79,6 @@ export class PaperAccountEngine {
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
     this.timer = null
-    this.unsubscribeMids?.()
-    this.unsubscribeMids = null
     await this.client?.end().catch(() => {})
     this.client = null
     for (const feed of this.feeds.values()) {
@@ -146,7 +141,7 @@ export class PaperAccountEngine {
     const sz = Number(order.sz)
     const px = order.px ? Number(order.px) : null
 
-    this.retainFeed(order.coin)
+    await this.retainFeed(order.coin)
     const book = await this.waitForBook(order.coin)
 
     if (order.orderType === "market" || order.tif === "Ioc") {
@@ -197,7 +192,10 @@ export class PaperAccountEngine {
     let avgPx = walkBookDepth(opposing, sz)
     if (avgPx === null) {
       // Book stream hasn't pushed yet — fall back to the mid price.
-      const mid = Number(this.hub.mid(this.network, order.coin))
+      const feed = this.feeds.get(order.coin)
+      const mid = feed
+        ? Number(this.hub.mid(this.network, feed.dex, order.coin))
+        : 0
       if (mid > 0) {
         avgPx = mid
       } else {
@@ -351,17 +349,24 @@ export class PaperAccountEngine {
       )
   }
 
-  private retainFeed(coin: string) {
+  private async retainFeed(coin: string) {
     let feed = this.feeds.get(coin)
     if (!feed) {
-      const created: CoinFeed = { refCount: 0, book: null, unsubscribers: [] }
+      const asset = await getAssetInfo(this.network, coin)
+      const created: CoinFeed = {
+        refCount: 0,
+        dex: asset.dex,
+        book: null,
+        unsubscribers: [],
+      }
       created.unsubscribers.push(
         this.hub.subscribeBook(this.network, coin, (event) => {
           created.book = event.levels
         }),
         this.hub.subscribeTrades(this.network, coin, (trades) => {
           this.onTrades(coin, trades)
-        })
+        }),
+        this.hub.subscribeMids(this.network, asset.dex, () => {})
       )
       feed = created
       this.feeds.set(coin, feed)

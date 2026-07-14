@@ -1,5 +1,6 @@
 import { InfoClient } from "@nktkas/hyperliquid"
 
+import { buildPerpMarkets } from "@/lib/hl/perp-markets"
 import { createHttpTransport } from "@/server/hyperliquid/transport"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 
@@ -14,7 +15,12 @@ const metaCache = new Map<
 export type AssetInfo = {
   /** Asset index used in order actions. */
   assetId: number
+  assetIndex: number
   coin: string
+  dex: string
+  dexName: string
+  collateralToken: number
+  collateralSymbol: string
   szDecimals: number
   maxLeverage: number
   onlyIsolated: boolean
@@ -54,18 +60,22 @@ async function getAssetMap(
     return cached.assets
   }
 
-  const meta = await getInfoClient(network).meta()
+  const info = getInfoClient(network)
+  const [dexs, metas, categories, spotMeta] = await Promise.all([
+    info.perpDexs(),
+    info.allPerpMetas(),
+    info.perpCategories(),
+    info.spotMeta(),
+  ])
   const assets = new Map<string, AssetInfo>()
-  meta.universe.forEach((asset, assetId) => {
-    if (asset.isDelisted) return
-    assets.set(asset.name, {
-      assetId,
-      coin: asset.name,
-      szDecimals: asset.szDecimals,
-      maxLeverage: asset.maxLeverage,
-      onlyIsolated: asset.onlyIsolated ?? false,
-    })
-  })
+  for (const market of buildPerpMarkets(
+    dexs,
+    metas,
+    categories,
+    spotMeta.tokens
+  )) {
+    assets.set(market.coin, market)
+  }
   metaCache.set(network, { fetchedAt: Date.now(), assets })
   return assets
 }

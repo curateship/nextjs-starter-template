@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
+
 export type PaperWalletItem = {
   id: string
   label: string
@@ -61,7 +63,7 @@ const walletIdSchema = z.object({ paperWalletId: z.string().min(1) })
 
 const placeSchema = z.object({
   paperWalletId: z.string().min(1),
-  coin: z.string().min(1).max(20),
+  coin: hyperliquidMarketSchema,
   side: z.enum(["buy", "sell"]),
   orderType: z.enum(["market", "limit"]),
   px: decimalString.optional(),

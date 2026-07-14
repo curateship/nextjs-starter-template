@@ -36,6 +36,7 @@ import {
   type TradingContextResponse,
 } from "@/lib/api/trading"
 import { useMarketRows } from "@/lib/hl/hooks"
+import { hasMarketActivity } from "@/lib/hl/market-visibility"
 import { automationSummary } from "@/lib/strategies/strategy-config"
 
 /** Exchanges the bot can trade on. Only Hyperliquid exists today. */
@@ -123,15 +124,19 @@ function NewBotDialogForm({
     }
   }, [open])
 
-  const network = context?.network ?? "testnet"
+  // Pending (unapproved) wallets are never valid bot targets.
+  const wallets = (context?.wallets ?? []).filter(
+    (wallet) => wallet.status === "active"
+  )
+  const selectedWallet = wallets.find((wallet) => wallet.id === walletId)
+  const network = selectedWallet?.network ?? context?.network ?? "testnet"
   const marketRows = useMarketRows(network)
 
   const validAutomations = React.useMemo(
     () => automations?.filter((row) => row.isValid) ?? null,
     [automations]
   )
-  const selectedAutomationId =
-    automationId ?? validAutomations?.[0]?.id ?? null
+  const selectedAutomationId = automationId ?? validAutomations?.[0]?.id ?? null
 
   React.useEffect(() => {
     if (!open || !selectedAutomationId) return
@@ -166,7 +171,8 @@ function NewBotDialogForm({
   const showMarkets = sourceChosen && exchange !== ""
 
   const availableMarkets = marketRows.filter(
-    (row) => !selectedMarkets.includes(row.coin)
+    (row) =>
+      hasMarketActivity(row) && !selectedMarkets.includes(row.coin)
   )
 
   async function submit() {
@@ -204,11 +210,6 @@ function NewBotDialogForm({
     }
   }
 
-  // Pending (unapproved) wallets are never valid bot targets.
-  const wallets = (context?.wallets ?? []).filter(
-    (wallet) => wallet.status === "active"
-  )
-  const selectedWallet = wallets.find((wallet) => wallet.id === walletId)
   const isLiveMainnet = mode === "live" && selectedWallet?.network === "mainnet"
   const mainnetConfirmed = !isLiveMainnet || mainnetConfirm.trim() === "MAINNET"
 
@@ -245,7 +246,13 @@ function NewBotDialogForm({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label>Wallet</Label>
-                  <Select value={walletId} onValueChange={setWalletId}>
+                  <Select
+                    value={walletId}
+                    onValueChange={(value) => {
+                      setWalletId(value)
+                      setSelectedMarkets([])
+                    }}
+                  >
                     <SelectTrigger className="h-8 w-full">
                       <SelectValue
                         placeholder={
