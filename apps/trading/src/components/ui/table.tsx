@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
  * fill. Pair with {@link STICKY_SCROLL_OVERRIDES} on the enclosing ScrollArea.
  */
 export const STICKY_TABLE_HEADER =
-  "sticky top-0 z-20 bg-[#fcfcfc] dark:bg-neutral-900 [&_tr]:border-b [&_th]:bg-[#fcfcfc] dark:[&_th]:bg-neutral-900"
+  "sticky top-0 z-20 bg-[#fcfcfc] dark:bg-muted [&_tr]:border-b [&_th]:bg-[#fcfcfc] dark:[&_th]:bg-muted"
 
 /**
  * ScrollArea class overrides that let a sticky `<TableHeader>` pin to the
