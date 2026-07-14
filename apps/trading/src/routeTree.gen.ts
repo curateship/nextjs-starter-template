@@ -25,6 +25,8 @@ import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedScannerWhaleTradesRouteImport } from './routes/_authenticated/scanner/whale-trades'
 import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_authenticated/scanner/positions'
+import { Route as AuthenticatedScannerMarketAlertsRouteImport } from './routes/_authenticated/scanner/market-alerts'
+import { Route as AuthenticatedScannerMarketRouteImport } from './routes/_authenticated/scanner/market'
 import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_authenticated/scanner/leaderboard'
 import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
 import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
@@ -124,6 +126,18 @@ const AuthenticatedScannerPositionsRoute =
   AuthenticatedScannerPositionsRouteImport.update({
     id: '/scanner/positions',
     path: '/scanner/positions',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerMarketAlertsRoute =
+  AuthenticatedScannerMarketAlertsRouteImport.update({
+    id: '/scanner/market-alerts',
+    path: '/scanner/market-alerts',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerMarketRoute =
+  AuthenticatedScannerMarketRouteImport.update({
+    id: '/scanner/market',
+    path: '/scanner/market',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedScannerLeaderboardRoute =
@@ -240,6 +254,8 @@ export interface FileRoutesByFullPath {
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
+  '/scanner/market': typeof AuthenticatedScannerMarketRoute
+  '/scanner/market-alerts': typeof AuthenticatedScannerMarketAlertsRoute
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -272,6 +288,8 @@ export interface FileRoutesByTo {
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
+  '/scanner/market': typeof AuthenticatedScannerMarketRoute
+  '/scanner/market-alerts': typeof AuthenticatedScannerMarketAlertsRoute
   '/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -307,6 +325,8 @@ export interface FileRoutesById {
   '/_authenticated/scanner/book': typeof AuthenticatedScannerBookRoute
   '/_authenticated/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
   '/_authenticated/scanner/leaderboard': typeof AuthenticatedScannerLeaderboardRoute
+  '/_authenticated/scanner/market': typeof AuthenticatedScannerMarketRoute
+  '/_authenticated/scanner/market-alerts': typeof AuthenticatedScannerMarketAlertsRoute
   '/_authenticated/scanner/positions': typeof AuthenticatedScannerPositionsRoute
   '/_authenticated/scanner/whale-trades': typeof AuthenticatedScannerWhaleTradesRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -342,6 +362,8 @@ export interface FileRouteTypes {
     | '/scanner/book'
     | '/scanner/crowded'
     | '/scanner/leaderboard'
+    | '/scanner/market'
+    | '/scanner/market-alerts'
     | '/scanner/positions'
     | '/scanner/whale-trades'
     | '/admin/'
@@ -374,6 +396,8 @@ export interface FileRouteTypes {
     | '/scanner/book'
     | '/scanner/crowded'
     | '/scanner/leaderboard'
+    | '/scanner/market'
+    | '/scanner/market-alerts'
     | '/scanner/positions'
     | '/scanner/whale-trades'
     | '/admin'
@@ -408,6 +432,8 @@ export interface FileRouteTypes {
     | '/_authenticated/scanner/book'
     | '/_authenticated/scanner/crowded'
     | '/_authenticated/scanner/leaderboard'
+    | '/_authenticated/scanner/market'
+    | '/_authenticated/scanner/market-alerts'
     | '/_authenticated/scanner/positions'
     | '/_authenticated/scanner/whale-trades'
     | '/_authenticated/admin/'
@@ -540,6 +566,20 @@ declare module '@tanstack/react-router' {
       path: '/scanner/positions'
       fullPath: '/scanner/positions'
       preLoaderRoute: typeof AuthenticatedScannerPositionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/market-alerts': {
+      id: '/_authenticated/scanner/market-alerts'
+      path: '/scanner/market-alerts'
+      fullPath: '/scanner/market-alerts'
+      preLoaderRoute: typeof AuthenticatedScannerMarketAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/market': {
+      id: '/_authenticated/scanner/market'
+      path: '/scanner/market'
+      fullPath: '/scanner/market'
+      preLoaderRoute: typeof AuthenticatedScannerMarketRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scanner/leaderboard': {
@@ -722,6 +762,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedScannerBookRoute: typeof AuthenticatedScannerBookRoute
   AuthenticatedScannerCrowdedRoute: typeof AuthenticatedScannerCrowdedRoute
   AuthenticatedScannerLeaderboardRoute: typeof AuthenticatedScannerLeaderboardRoute
+  AuthenticatedScannerMarketRoute: typeof AuthenticatedScannerMarketRoute
+  AuthenticatedScannerMarketAlertsRoute: typeof AuthenticatedScannerMarketAlertsRoute
   AuthenticatedScannerPositionsRoute: typeof AuthenticatedScannerPositionsRoute
   AuthenticatedScannerWhaleTradesRoute: typeof AuthenticatedScannerWhaleTradesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -752,6 +794,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedScannerBookRoute: AuthenticatedScannerBookRoute,
   AuthenticatedScannerCrowdedRoute: AuthenticatedScannerCrowdedRoute,
   AuthenticatedScannerLeaderboardRoute: AuthenticatedScannerLeaderboardRoute,
+  AuthenticatedScannerMarketRoute: AuthenticatedScannerMarketRoute,
+  AuthenticatedScannerMarketAlertsRoute: AuthenticatedScannerMarketAlertsRoute,
   AuthenticatedScannerPositionsRoute: AuthenticatedScannerPositionsRoute,
   AuthenticatedScannerWhaleTradesRoute: AuthenticatedScannerWhaleTradesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,

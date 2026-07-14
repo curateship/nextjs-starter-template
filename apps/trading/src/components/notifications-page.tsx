@@ -43,6 +43,14 @@ import {
   markAlertRead,
   type ScannerAlertItem,
 } from "@/lib/api/scanner"
+import {
+  markMarketScannerAlertRead,
+  pollMarketScannerAlerts,
+} from "@/lib/api/market-scanner"
+import {
+  marketScannerTradeTarget,
+  type MarketScannerAlertItem,
+} from "@/lib/market-scanner"
 import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
@@ -60,6 +68,7 @@ type NotificationSortColumn =
 type UnifiedRow =
   | { kind: "feedback"; id: string; createdAt: string; read: boolean; feedback: NotificationItem }
   | { kind: "alert"; id: string; createdAt: string; read: boolean; alert: ScannerAlertItem }
+  | { kind: "market"; id: string; createdAt: string; read: boolean; market: MarketScannerAlertItem }
 
 const ALERT_TRAY_LIMIT = 100
 
@@ -77,25 +86,24 @@ const feedbackTypeLabels: Record<NotificationType, string> = {
 }
 
 function rowTypeLabel(row: UnifiedRow): string {
-  return row.kind === "feedback"
-    ? feedbackTypeLabels[row.feedback.type]
-    : (ALERT_TYPE_LABELS[row.alert.type] ?? row.alert.type)
+  if (row.kind === "feedback") return feedbackTypeLabels[row.feedback.type]
+  if (row.kind === "market") return "Market scanner"
+  return ALERT_TYPE_LABELS[row.alert.type] ?? row.alert.type
 }
 
 function rowActivity(row: UnifiedRow): string {
-  return row.kind === "feedback" ? row.feedback.actor_name : row.alert.title
+  if (row.kind === "feedback") return row.feedback.actor_name
+  return row.kind === "market" ? row.market.title : row.alert.title
 }
 
 function rowDetail(row: UnifiedRow): string {
-  return row.kind === "feedback"
-    ? row.feedback.feedback_message
-    : (row.alert.body ?? "")
+  if (row.kind === "feedback") return row.feedback.feedback_message
+  return (row.kind === "market" ? row.market.body : row.alert.body) ?? ""
 }
 
 function rowSource(row: UnifiedRow): string {
-  return row.kind === "feedback"
-    ? row.feedback.recipient_name
-    : (row.alert.coin ?? "")
+  if (row.kind === "feedback") return row.feedback.recipient_name
+  return row.kind === "market" ? row.market.coin : (row.alert.coin ?? "")
 }
 
 function AlertGlyph({ type }: { type: string }) {
@@ -126,6 +134,7 @@ export function NotificationsPage({
     []
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
+  const [marketAlerts, setMarketAlerts] = React.useState<MarketScannerAlertItem[]>([])
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -168,10 +177,21 @@ export function NotificationsPage({
     }
   }, [])
 
+  const loadMarketAlerts = React.useCallback(async () => {
+    try {
+      setMarketAlerts((await pollMarketScannerAlerts()).alerts)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [])
+
   React.useEffect(() => {
-    void loadNotifications()
-    void loadAlerts()
-  }, [loadNotifications, loadAlerts])
+    queueMicrotask(() => {
+      void loadNotifications()
+      void loadAlerts()
+      void loadMarketAlerts()
+    })
+  }, [loadNotifications, loadAlerts, loadMarketAlerts])
 
   const rows = React.useMemo<UnifiedRow[]>(() => {
     return [
@@ -189,8 +209,15 @@ export function NotificationsPage({
         read: a.read_at !== null,
         alert: a,
       })),
+      ...marketAlerts.map((item) => ({
+        kind: "market" as const,
+        id: `m:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        market: item,
+      })),
     ]
-  }, [notifications, alerts])
+  }, [notifications, alerts, marketAlerts])
 
   const filteredRows = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -213,7 +240,7 @@ export function NotificationsPage({
           (readFilter === "read" && row.read)
         const matchesType =
           typeFilter === "all" ||
-          (typeFilter === "alert" && row.kind === "alert") ||
+          (typeFilter === "alert" && (row.kind === "alert" || row.kind === "market")) ||
           (row.kind === "feedback" && row.feedback.type === typeFilter)
 
         return matchesSearch && matchesRead && matchesType
@@ -253,6 +280,18 @@ export function NotificationsPage({
   async function openRow(row: UnifiedRow) {
     if (row.kind === "feedback") {
       onOpenFeedbackThread(row.feedback.feedback_id)
+      return
+    }
+    if (row.kind === "market") {
+      if (!row.market.readAt) {
+        try {
+          const result = await markMarketScannerAlertRead(row.market.id)
+          setMarketAlerts((current) => current.map((item) => item.id === result.id ? { ...item, readAt: result.readAt } : item))
+        } catch {
+          // navigate anyway; the read state will reconcile on next load
+        }
+      }
+      void navigate(marketScannerTradeTarget(row.market.coin))
       return
     }
     if (!row.alert.read_at) {
@@ -428,6 +467,8 @@ export function NotificationsPage({
                   ) : (
                     <MessageSquareIcon className="size-4 text-muted-foreground" />
                   )
+                ) : row.kind === "market" ? (
+                  <RadarIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <AlertGlyph type={row.alert.type} />
                 )}
@@ -435,12 +476,12 @@ export function NotificationsPage({
                   <p className="line-clamp-1 text-sm font-medium">
                     {row.kind === "feedback"
                       ? feedbackTypeLabels[row.feedback.type]
-                      : row.alert.title}
+                      : row.kind === "market" ? row.market.title : row.alert.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {row.kind === "feedback"
                       ? row.feedback.actor_name
-                      : "Research scanner"}
+                      : row.kind === "market" ? "Market scanner" : "Research scanner"}
                   </p>
                 </div>
               </div>
