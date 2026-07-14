@@ -769,7 +769,10 @@ function ProjectTableRow({
             onClick={onOpen}
             aria-label={`Open ${project.name}`}
           >
-            <ClapperboardIcon className="size-5 text-muted-foreground" />
+            <ProjectThumbnail
+              project={project}
+              iconClassName="size-5 text-muted-foreground"
+            />
           </button>
           <div className="min-w-0">
             <button
@@ -866,7 +869,10 @@ function ProjectGalleryItem({
         onClick={onOpen}
         aria-label={`Open ${project.name}`}
       >
-        <ClapperboardIcon className="size-8 text-muted-foreground" />
+        <ProjectThumbnail
+          project={project}
+          iconClassName="size-8 text-muted-foreground"
+        />
         <span className="absolute top-2 left-2">
           <RenderStatusBadge status={project.render_status} />
         </span>
@@ -921,6 +927,27 @@ function ProjectGalleryItem({
       </div>
     </div>
   )
+}
+
+function ProjectThumbnail({
+  project,
+  iconClassName,
+}: {
+  project: ProjectItem
+  iconClassName: string
+}) {
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
+  if (project.thumbnail_url && failedUrl !== project.thumbnail_url) {
+    return (
+      <img
+        src={project.thumbnail_url}
+        alt=""
+        className="size-full object-cover"
+        onError={() => setFailedUrl(project.thumbnail_url)}
+      />
+    )
+  }
+  return <ClapperboardIcon className={iconClassName} />
 }
 
 function EmptyProjects({ loading }: { loading: boolean }) {

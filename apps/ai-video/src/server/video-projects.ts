@@ -2,7 +2,11 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { deleteOwnedProjectMedia } from "@/server/media"
-import { mediaFileUrl } from "@/server/media-urls"
+import {
+  mediaFileUrl,
+  projectRenderThumbnailUrl,
+  projectRenderThumbnailVersion,
+} from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -24,6 +28,7 @@ export type ProjectItem = {
   timeline_error: string | null
   // Latest-render mirror (render-queue.ts) for the dashboard status badge.
   render_status: "idle" | "queued" | "rendering" | "ready" | "error"
+  thumbnail_url: string | null
   created_at: string
   updated_at: string
 }
@@ -94,6 +99,13 @@ function serializeProjectFromTimeline(
     timeline_error: timelineError,
     render_status:
       (row.renderStatus as ProjectItem["render_status"]) ?? "idle",
+    thumbnail_url:
+      row.renderStatus === "ready" && row.renderThumbnailStoragePath
+        ? projectRenderThumbnailUrl(
+            row.id,
+            projectRenderThumbnailVersion(row.renderedAt, row.updatedAt)
+          )
+        : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
