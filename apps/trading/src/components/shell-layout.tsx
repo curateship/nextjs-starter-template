@@ -2,11 +2,6 @@ import * as React from "react"
 import { Outlet, useRouterState } from "@tanstack/react-router"
 import { toast } from "sonner"
 
-import {
-  DashboardLoadingSkeleton,
-  PageLoadBoundary,
-  WorkspaceLoadingSkeleton,
-} from "@/components/loading-skeleton"
 import { DashboardContent } from "@/components/ui/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -22,7 +17,10 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 import { clampMaxCandles } from "@/lib/backtest/types"
-import { isFullBleedLocation } from "@/lib/full-bleed-location"
+import {
+  getMountedLocation,
+  isFullBleedLocation,
+} from "@/lib/full-bleed-location"
 import type { AuthUser } from "@/lib/api/auth"
 import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
@@ -64,15 +62,14 @@ export function ShellLayout({
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
 }) {
-  const location = useRouterState({ select: (state) => state.location })
-  const isLoading = useRouterState({ select: (state) => state.isLoading })
+  const location = useRouterState({ select: getMountedLocation })
   const currentPath = location.pathname
   // Full-bleed workspaces manage their own height and scrolling, so they drop
   // the padded DashboardContent wrapper: the live trade terminal and the bot
   // workspace always, and the backtest chart workspace when opened with
   // ?run= / ?draft= (the strategies list at /backtest and the bot fleet list
-  // keep their padding). The shared loading boundary hides route transitions,
-  // so the visible URL can safely be the single source of truth for spacing.
+  // keep their padding). Read the mounted route match, which changes in the
+  // same render as Outlet, so the wrapper and page cannot disagree.
   const fullBleed = isFullBleedLocation(location)
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
@@ -238,23 +235,9 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <PageLoadBoundary
-              key={`${location.pathname}:${fullBleed ? "workspace" : "dashboard"}`}
-              readyToReveal={!isLoading}
-              fallback={
-                <ShellPageContent fullBleed={fullBleed}>
-                  {fullBleed ? (
-                    <WorkspaceLoadingSkeleton />
-                  ) : (
-                    <DashboardLoadingSkeleton />
-                  )}
-                </ShellPageContent>
-              }
-            >
-              <ShellPageContent fullBleed={fullBleed}>
-                <Outlet />
-              </ShellPageContent>
-            </PageLoadBoundary>
+            <ShellPageContent fullBleed={fullBleed}>
+              <Outlet />
+            </ShellPageContent>
           </SidebarInset>
         </SidebarProvider>
         <FeedbackModal

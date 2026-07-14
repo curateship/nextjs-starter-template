@@ -85,7 +85,6 @@ export function FeedbackCommentsDashboard() {
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingComment, setEditingComment] =
     React.useState<FeedbackCommentItem | null>(null)
@@ -97,7 +96,6 @@ export function FeedbackCommentsDashboard() {
 
   React.useEffect(() => {
     let active = true
-    setLoading(true)
     setError(null)
 
     listFeedbackCommentDashboard()
@@ -108,10 +106,6 @@ export function FeedbackCommentsDashboard() {
       .catch((loadError) => {
         if (!active) return
         setError(getFeedbackErrorMessage(loadError))
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
       })
 
     return () => {
@@ -310,7 +304,6 @@ export function FeedbackCommentsDashboard() {
               </TableRow>
             </TableHeader>
         }
-        loading={loading}
         isEmpty={paginatedComments.length === 0}
         emptyText="No comments found matching your filters."
         emptyColSpan={7}

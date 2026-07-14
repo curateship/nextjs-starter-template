@@ -13,7 +13,7 @@ Read before building or changing any page. One rule above all: **reuse the exist
 ## Full-bleed pages (padding on navigation)
 
 - A few pages drop the `DashboardContent` gutter and manage their own edges: the live Trade terminal, the bot workspace, an automation editor, and the backtest chart. This opt-out is decided in ONE place — `isFullBleedLocation` in `src/lib/full-bleed-location.ts`. Add a page there; don't wrap or unwrap padding per route.
-- `PageLoadBoundary` hides route transitions, so `shell-layout` uses the current URL as the one source of truth for padding. Do not add a second settled-location path.
+- `shell-layout` uses the mounted route match as the one source of truth for padding. The match and page content change together, so spacing never carries across dashboards. Do not use the destination or delayed resolved URL for page spacing.
 
 ## Sidebar
 
@@ -45,10 +45,9 @@ Read before building or changing any page. One rule above all: **reuse the exist
 
 ## Loading
 
-- Dashboard data loads must show the shared skeletons from `src/components/loading-skeleton.tsx`; never leave a blank panel or centered “Loading…” sentence.
-- The shared dashboard skeleton contains only the table placeholder. Do not add fake summary cards or title blocks above it because pages have different headers.
-- Route-backed dashboards use the router's default `DashboardLoadingSkeleton`. Full-screen workspaces, charts, tables, and market lists use their matching shared skeleton.
-- `ShellLayout` wraps every page in `PageLoadBoundary`. It mounts the page invisibly behind the correct dashboard or workspace skeleton and reveals it only after fonts and layout have settled. Do not add route-level loading boundaries.
+- Do not show a skeleton for the first page load or while changing routes. Render the page when its route data is ready.
+- Skeletons belong only inside elements that load or refresh independently, such as tables, charts, market lists, and media grids.
+- Keep each dynamic skeleton inside the same panel as the content it replaces. Do not cover the shell or the whole page.
 - Small action states such as saving a form or submitting a button may still use a compact spinner and text.
 
 ## Components
