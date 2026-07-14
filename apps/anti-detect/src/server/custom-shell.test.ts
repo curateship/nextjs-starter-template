@@ -33,8 +33,10 @@ import {
 } from "@/lib/api/feedback"
 import {
   canViewAllNotifications,
+  createAlert,
   getNotificationPage,
 } from "@/server/notifications"
+import { proxyBecameDead } from "@/server/proxies"
 import {
   createSessionExpiresAt,
   findUserBySessionToken,
@@ -74,8 +76,13 @@ beforeEach(async () => {
     new URL("../../drizzle/0003_workspaces.sql", import.meta.url),
     "utf8"
   )
+  const operationalAlerts = await readFile(
+    new URL("../../drizzle/0011_operational_alerts.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(migration)
   await client.exec(workspaceMigration)
+  await client.exec(operationalAlerts)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as Db)
 })
@@ -638,6 +645,94 @@ describe("custom shell feedback notifications", () => {
       .from(notifications)
       .where(eq(notifications.id, notificationId))
     expect(notification.readAt).toBeNull()
+  })
+})
+
+describe("operational alerts", () => {
+  it("records an actor-less, feedback-less alert and serializes it", async () => {
+    const createdAt = now()
+    const recipientId = uuid()
+    await database.insert(users).values({
+      id: recipientId,
+      email: "alert-recipient@internal.dev",
+      name: "Operator",
+      role: "user",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await createAlert({
+      recipientUserId: recipientId,
+      type: "proxy_dead",
+      severity: "warning",
+      title: "Proxy “US-Residential” is not responding",
+      body: "Connection timed out",
+      entityType: "proxy",
+      entityId: "proxy-123",
+      metadata: { latencyMs: 4000 },
+      database: database as unknown as Db,
+    })
+
+    const [row] = await database.select().from(notifications)
+    expect(row).toMatchObject({
+      recipientUserId: recipientId,
+      actorUserId: null,
+      feedbackId: null,
+      type: "proxy_dead",
+      severity: "warning",
+      entityType: "proxy",
+      entityId: "proxy-123",
+    })
+
+    const page = await getNotificationPage({
+      currentUser: { id: recipientId, role: "user" },
+      database: database as unknown as Db,
+    })
+    expect(page.unread_count).toBe(1)
+    expect(page.notifications[0]).toMatchObject({
+      type: "proxy_dead",
+      severity: "warning",
+      title: "Proxy “US-Residential” is not responding",
+      body: "Connection timed out",
+      entity_type: "proxy",
+      entity_id: "proxy-123",
+      actor_name: null,
+      feedback_id: null,
+      feedback_message: null,
+    })
+    expect(page.notifications[0]?.metadata).toEqual({ latencyMs: 4000 })
+  })
+
+  it("only flags a proxy as newly dead on the ok/untested -> dead transition", () => {
+    const dead = { ok: false, error: "timeout", testedAt: "t" }
+    const alive = { ok: true, testedAt: "t" }
+    // untested -> dead: alert
+    expect(proxyBecameDead(null, dead)).toBe(true)
+    // ok -> dead: alert
+    expect(proxyBecameDead(alive, dead)).toBe(true)
+    // dead -> dead: no repeat alert
+    expect(proxyBecameDead(dead, dead)).toBe(false)
+    // anything -> ok: no alert
+    expect(proxyBecameDead(dead, alive)).toBe(false)
+  })
+
+  it("swallows a failed alert insert instead of throwing", async () => {
+    const throwingDb = {
+      insert: () => {
+        throw new Error("db unavailable")
+      },
+    } as unknown as Db
+
+    await expect(
+      createAlert({
+        recipientUserId: uuid(),
+        type: "session_crashed",
+        severity: "critical",
+        title: "boom",
+        database: throwingDb,
+      })
+    ).resolves.toBeUndefined()
   })
 })
 

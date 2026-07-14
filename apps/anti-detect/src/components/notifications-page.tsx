@@ -1,7 +1,9 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
+  AlertTriangleIcon,
   BellIcon,
+  InfoIcon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
@@ -49,6 +51,61 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+  session_launch_failed: "Launch failed",
+  session_stop_failed: "Stop failed",
+  proxy_dead: "Proxy dead",
+  session_crashed: "Session crashed",
+  session_reaped: "Session reaped",
+}
+
+const ALERT_TYPES = new Set<NotificationType>([
+  "session_launch_failed",
+  "session_stop_failed",
+  "proxy_dead",
+  "session_crashed",
+  "session_reaped",
+])
+
+function isAlertType(type: NotificationType) {
+  return ALERT_TYPES.has(type)
+}
+
+// Primary label shown in the Activity cell / used for the activity sort.
+function notificationPrimaryText(item: NotificationItem) {
+  return isAlertType(item.type)
+    ? item.title ?? notificationTypeLabels[item.type]
+    : item.actor_name ?? "Unknown"
+}
+
+// Secondary preview text (feedback message, or the alert body).
+function notificationPreviewText(item: NotificationItem) {
+  return (isAlertType(item.type) ? item.body : item.feedback_message) ?? ""
+}
+
+function notificationBadgeVariant(item: NotificationItem) {
+  return isAlertType(item.type) && item.severity === "critical"
+    ? "destructive"
+    : "secondary"
+}
+
+function NotificationActivityIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "feedback_vote") {
+    return <ThumbsUpIcon className="size-4 text-muted-foreground" />
+  }
+  if (item.type === "feedback_comment") {
+    return <MessageSquareIcon className="size-4 text-muted-foreground" />
+  }
+  if (item.severity === "info") {
+    return <InfoIcon className="size-4 text-muted-foreground" />
+  }
+  return (
+    <AlertTriangleIcon
+      className={cn(
+        "size-4",
+        item.severity === "critical" ? "text-destructive" : "text-amber-600"
+      )}
+    />
+  )
 }
 
 type NotificationsPageProps = {
@@ -103,11 +160,17 @@ export function NotificationsPage({
     const direction = sortDirection === "asc" ? 1 : -1
 
     return notifications.filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.actor_name.toLowerCase().includes(query) ||
-        item.recipient_name.toLowerCase().includes(query) ||
-        item.feedback_message.toLowerCase().includes(query)
+      const haystack = [
+        item.actor_name,
+        item.recipient_name,
+        item.feedback_message,
+        item.title,
+        item.body,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      const matchesSearch = !query || haystack.includes(query)
       const matchesRead =
         readFilter === "all" ||
         (readFilter === "unread" && !item.read_at) ||
@@ -116,8 +179,8 @@ export function NotificationsPage({
 
       return matchesSearch && matchesRead && matchesType
     }).sort((a, b) => {
-      if (sortColumn === "activity") return a.actor_name.localeCompare(b.actor_name) * direction
-      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
+      if (sortColumn === "activity") return notificationPrimaryText(a).localeCompare(notificationPrimaryText(b)) * direction
+      if (sortColumn === "feedback") return notificationPreviewText(a).localeCompare(notificationPreviewText(b)) * direction
       if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
       if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
       if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
@@ -182,14 +245,28 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={["All types", "Thumbs up", "Comments"]}
+                labels={[
+                  "All types",
+                  "Thumbs up",
+                  "Comment",
+                  "Launch failed",
+                  "Stop failed",
+                  "Proxy dead",
+                  "Session crashed",
+                  "Session reaped",
+                ]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
-                <SelectItem value="feedback_comment">Comments</SelectItem>
+                <SelectItem value="feedback_comment">Comment</SelectItem>
+                <SelectItem value="session_launch_failed">Launch failed</SelectItem>
+                <SelectItem value="session_stop_failed">Stop failed</SelectItem>
+                <SelectItem value="proxy_dead">Proxy dead</SelectItem>
+                <SelectItem value="session_crashed">Session crashed</SelectItem>
+                <SelectItem value="session_reaped">Session reaped</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -247,12 +324,17 @@ export function NotificationsPage({
         {filteredNotifications.map((item) => (
           <TableRow
             key={item.id}
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer"
-            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            role={item.feedback_id ? "button" : undefined}
+            tabIndex={item.feedback_id ? 0 : undefined}
+            className={cn(item.feedback_id && "cursor-pointer")}
+            onClick={() => {
+              if (item.feedback_id) onOpenFeedbackThread(item.feedback_id)
+            }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
+              if (
+                item.feedback_id &&
+                (event.key === "Enter" || event.key === " ")
+              ) {
                 event.preventDefault()
                 onOpenFeedbackThread(item.feedback_id)
               }
@@ -260,31 +342,29 @@ export function NotificationsPage({
           >
             <TableCell column="main">
               <div className="flex items-center gap-2">
-                {item.type === "feedback_vote" ? (
-                  <ThumbsUpIcon className="size-4 text-muted-foreground" />
-                ) : (
-                  <MessageSquareIcon className="size-4 text-muted-foreground" />
-                )}
+                <NotificationActivityIcon item={item} />
                 <div>
                   <p className="text-sm font-medium">
-                    {notificationTypeLabels[item.type]}
+                    {notificationPrimaryText(item)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.actor_name}
+                    {isAlertType(item.type)
+                      ? notificationTypeLabels[item.type]
+                      : item.actor_name}
                   </p>
                 </div>
               </div>
             </TableCell>
             <TableCell column="preview">
               <span className="line-clamp-1 max-w-44">
-                {item.feedback_message}
+                {notificationPreviewText(item)}
               </span>
             </TableCell>
             <TableCell column="mutedMeta">
               {item.recipient_name}
             </TableCell>
             <TableCell column="meta">
-              <Badge variant="secondary">
+              <Badge variant={notificationBadgeVariant(item)}>
                 {notificationTypeLabels[item.type]}
               </Badge>
             </TableCell>

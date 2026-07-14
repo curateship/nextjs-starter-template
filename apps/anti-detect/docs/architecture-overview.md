@@ -91,6 +91,22 @@ ip / country / isp / timezone / latency. A successful test back-fills the proxy'
 country (when blank), which then feeds the fingerprint timezone. Bulk import parses
 `host:port:user:pass` lines.
 
+**Operational alerts — `server/notifications.ts` + `server/scheduler.ts`.** The
+`notifications` table is generalized to carry both feedback social notifications and
+operational alerts (nullable `actor_user_id`/`feedback_id`, plus `severity` / `title` /
+`body` / `entity_type` / `entity_id` / `metadata`). `createAlert(...)` records an alert
+and never throws (a failed insert only logs), so emission cannot break the operation it
+observes. Event-driven alerts fire synchronously at their failure sites: `session_launch_failed`
+/ `session_stop_failed` in the orchestrator catch blocks, and `proxy_dead` in `testUserProxy`
+on the ok/untested→dead transition (`proxyBecameDead`). Passive alerts come from
+`server/scheduler.ts`, a boot-time background scheduler registered as a Nitro plugin
+(`server/plugins/scheduler.ts`, wired via the `nitro` plugin in `vite.config.ts`). It is a
+no-op unless `ANTIDETECT_SCHEDULER_ENABLED=true`, and then runs three `setInterval` loops:
+a proxy-health sweep (`ANTIDETECT_PROXY_SWEEP_MS`), session crash detection
+(`ANTIDETECT_SESSION_POLL_MS`; flips a `running`→`error` session and alerts `session_crashed`
+once), and idle reaping (`ANTIDETECT_IDLE_REAP_MS`; alerts `session_reaped`). Alerts render in
+the existing bell dropdown and admin notifications feed.
+
 **Organization.** Folders, customizable statuses, and tags, with bulk actions
 (move / set-status / add-tag / delete) implemented as single `inArray + userId`-scoped
 statements, plus duplicate (clones config with a fresh fingerprint = a new identity)
@@ -100,8 +116,8 @@ and client-side search / filter over the loaded list.
 
 Plain SQL files in `drizzle/`, applied via `psql` — there is no drizzle journal; the
 test suite (`server/profiles.test.ts`, pglite) reads the files directly. Current:
-`0000` baseline → `0008` (browser sessions). Column/constraint additions are
-written idempotently (`ADD COLUMN IF NOT EXISTS`, `DO $$ … duplicate_object …$$`).
+`0000` baseline → `0011` (operational alerts — generalizes `notifications`). Column/constraint
+additions are written idempotently (`ADD COLUMN IF NOT EXISTS`, `DO $$ … duplicate_object …$$`).
 
 ## Built vs. planned
 

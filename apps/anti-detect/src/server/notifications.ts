@@ -19,8 +19,64 @@ import {
   type Notification,
   type User,
 } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
-import type { NotificationItem } from "@/lib/api/notification"
+import { findCurrentUser, now, uuid } from "@/server/security"
+import type {
+  AlertNotificationType,
+  NotificationItem,
+  NotificationSeverity,
+} from "@/lib/api/notification"
+
+type CreateAlertInput = {
+  recipientUserId: string
+  type: AlertNotificationType
+  severity: NotificationSeverity
+  title: string
+  body?: string
+  entityType?: string
+  entityId?: string
+  metadata?: Record<string, unknown>
+  database?: Db
+}
+
+/**
+ * Record an operational alert in the shared notifications table. Alerts have no
+ * actor and no feedback link. Emission must never break the operation that
+ * triggered it, so a failed insert is logged, not thrown.
+ */
+export async function createAlert({
+  recipientUserId,
+  type,
+  severity,
+  title,
+  body,
+  entityType,
+  entityId,
+  metadata,
+  database = db,
+}: CreateAlertInput) {
+  try {
+    await database.insert(notifications).values({
+      id: uuid(),
+      recipientUserId,
+      actorUserId: null,
+      feedbackId: null,
+      type,
+      severity,
+      title,
+      body: body ?? null,
+      entityType: entityType ?? null,
+      entityId: entityId ?? null,
+      metadata: metadata ?? null,
+      createdAt: now(),
+    })
+  } catch (error) {
+    console.error("[alerts] failed to record alert", {
+      type,
+      entityId,
+      error,
+    })
+  }
+}
 
 type NotificationListResponse = {
   notifications: NotificationItem[]
@@ -227,16 +283,22 @@ async function serializeNotificationRows(
 
   const userIds = Array.from(
     new Set(rows.flatMap((row) => [row.actorUserId, row.recipientUserId]))
-  )
-  const feedbackIds = Array.from(new Set(rows.map((row) => row.feedbackId)))
-  const userRows = await database
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .where(inArray(users.id, userIds))
-  const feedbackRows = await database
-    .select({ id: feedback.id, message: feedback.message })
-    .from(feedback)
-    .where(inArray(feedback.id, feedbackIds))
+  ).filter((id): id is string => Boolean(id))
+  const feedbackIds = Array.from(
+    new Set(rows.map((row) => row.feedbackId))
+  ).filter((id): id is string => Boolean(id))
+  const userRows = userIds.length
+    ? await database
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(inArray(users.id, userIds))
+    : []
+  const feedbackRows = feedbackIds.length
+    ? await database
+        .select({ id: feedback.id, message: feedback.message })
+        .from(feedback)
+        .where(inArray(feedback.id, feedbackIds))
+    : []
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const feedbackMessages = new Map(
@@ -246,10 +308,20 @@ async function serializeNotificationRows(
   return rows.map((row) => ({
     id: row.id,
     type: row.type as NotificationItem["type"],
-    actor_name: userNames.get(row.actorUserId) ?? "Unknown",
+    actor_name: row.actorUserId
+      ? userNames.get(row.actorUserId) ?? "Unknown"
+      : null,
     recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
-    feedback_id: row.feedbackId,
-    feedback_message: feedbackMessages.get(row.feedbackId) ?? "Deleted feedback",
+    feedback_id: row.feedbackId ?? null,
+    feedback_message: row.feedbackId
+      ? feedbackMessages.get(row.feedbackId) ?? "Deleted feedback"
+      : null,
+    severity: (row.severity as NotificationItem["severity"]) ?? null,
+    title: row.title ?? null,
+    body: row.body ?? null,
+    entity_type: row.entityType ?? null,
+    entity_id: row.entityId ?? null,
+    metadata: (row.metadata as NotificationItem["metadata"]) ?? null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))

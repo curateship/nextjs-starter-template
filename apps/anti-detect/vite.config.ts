@@ -9,7 +9,17 @@ import localAppPorts from "../../local-apps.json"
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
+  plugins: [
+    tanstackStart(),
+    nitro({
+      // Boot the background scheduler (proxy-health sweep, session crash
+      // detection, idle reaping). No-op unless ANTIDETECT_SCHEDULER_ENABLED.
+      plugins: [path.resolve(__dirname, "src/server/plugins/scheduler.ts")],
+    }),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
   resolve: {
     alias: [
       {
