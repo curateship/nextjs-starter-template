@@ -36,6 +36,7 @@ import { Route as ApiV1TemplatesTemplateIdThumbnailRouteImport } from './routes/
 import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
 import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
 import { Route as ApiV1MediaMediaIdProxyRouteImport } from './routes/api/v1/media/$mediaId/proxy'
+import { Route as ApiV1MediaMediaIdFilmstripRouteImport } from './routes/api/v1/media/$mediaId/filmstrip'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1CreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/creators/$creatorId/avatar'
 import { Route as ApiV1ActorsActorIdImageRouteImport } from './routes/api/v1/actors/$actorId/image'
@@ -195,6 +196,12 @@ const ApiV1MediaMediaIdProxyRoute = ApiV1MediaMediaIdProxyRouteImport.update({
   path: '/api/v1/media/$mediaId/proxy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1MediaMediaIdFilmstripRoute =
+  ApiV1MediaMediaIdFilmstripRouteImport.update({
+    id: '/api/v1/media/$mediaId/filmstrip',
+    path: '/api/v1/media/$mediaId/filmstrip',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -244,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
   '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/media/$mediaId/filmstrip': typeof ApiV1MediaMediaIdFilmstripRoute
   '/api/v1/media/$mediaId/proxy': typeof ApiV1MediaMediaIdProxyRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
@@ -276,6 +284,7 @@ export interface FileRoutesByTo {
   '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
   '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/media/$mediaId/filmstrip': typeof ApiV1MediaMediaIdFilmstripRoute
   '/api/v1/media/$mediaId/proxy': typeof ApiV1MediaMediaIdProxyRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
@@ -310,6 +319,7 @@ export interface FileRoutesById {
   '/api/v1/actors/$actorId/image': typeof ApiV1ActorsActorIdImageRoute
   '/api/v1/creators/$creatorId/avatar': typeof ApiV1CreatorsCreatorIdAvatarRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/media/$mediaId/filmstrip': typeof ApiV1MediaMediaIdFilmstripRoute
   '/api/v1/media/$mediaId/proxy': typeof ApiV1MediaMediaIdProxyRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
   '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/api/v1/actors/$actorId/image'
     | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/media/$mediaId/filmstrip'
     | '/api/v1/media/$mediaId/proxy'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
@@ -376,6 +387,7 @@ export interface FileRouteTypes {
     | '/api/v1/actors/$actorId/image'
     | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/media/$mediaId/filmstrip'
     | '/api/v1/media/$mediaId/proxy'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
@@ -409,6 +421,7 @@ export interface FileRouteTypes {
     | '/api/v1/actors/$actorId/image'
     | '/api/v1/creators/$creatorId/avatar'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/media/$mediaId/filmstrip'
     | '/api/v1/media/$mediaId/proxy'
     | '/api/v1/projects/$projectId/render'
     | '/api/v1/projects/$projectId/render-thumbnail'
@@ -422,6 +435,7 @@ export interface RootRouteChildren {
   ApiV1ActorsActorIdImageRoute: typeof ApiV1ActorsActorIdImageRoute
   ApiV1CreatorsCreatorIdAvatarRoute: typeof ApiV1CreatorsCreatorIdAvatarRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1MediaMediaIdFilmstripRoute: typeof ApiV1MediaMediaIdFilmstripRoute
   ApiV1MediaMediaIdProxyRoute: typeof ApiV1MediaMediaIdProxyRoute
   ApiV1ProjectsProjectIdRenderRoute: typeof ApiV1ProjectsProjectIdRenderRoute
   ApiV1ProjectsProjectIdRenderThumbnailRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
@@ -620,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdProxyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/media/$mediaId/filmstrip': {
+      id: '/api/v1/media/$mediaId/filmstrip'
+      path: '/api/v1/media/$mediaId/filmstrip'
+      fullPath: '/api/v1/media/$mediaId/filmstrip'
+      preLoaderRoute: typeof ApiV1MediaMediaIdFilmstripRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
       path: '/api/v1/media/$mediaId/file'
@@ -740,6 +761,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ActorsActorIdImageRoute: ApiV1ActorsActorIdImageRoute,
   ApiV1CreatorsCreatorIdAvatarRoute: ApiV1CreatorsCreatorIdAvatarRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1MediaMediaIdFilmstripRoute: ApiV1MediaMediaIdFilmstripRoute,
   ApiV1MediaMediaIdProxyRoute: ApiV1MediaMediaIdProxyRoute,
   ApiV1ProjectsProjectIdRenderRoute: ApiV1ProjectsProjectIdRenderRoute,
   ApiV1ProjectsProjectIdRenderThumbnailRoute:

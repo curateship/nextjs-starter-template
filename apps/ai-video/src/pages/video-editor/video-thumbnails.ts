@@ -1,160 +1,206 @@
-// Extracts frames from a video and caches them per media id; timeline clips
-// lay the frames out side-by-side as a filmstrip preview. Sources go through
-// the same-origin media proxy route because the public R2 bucket sends no CORS
-// headers, which would taint the extraction canvas.
-
-// Captured frame height. Kept well above the on-screen clip height (~52px,
-// double that on retina) so frames stay crisp when the filmstrip downscales
-// them — capturing small and upscaling is what made the strip blurry.
-const FRAME_HEIGHT_PX = 160
-
-// One sample every ~2 seconds of source, so longer clips get more frames and
-// the strip density is constant in time rather than stretched to a fixed count.
 const SECONDS_PER_FRAME = 2
+const MAX_VISIBLE_FRAMES = 30
+const MAX_STATUS_POLLS = 60
+const MAX_CACHED_FILMSTRIPS = 50
 
-// Upper bound on frames per clip so a long source can't trigger dozens of
-// sequential seeks.
-const MAX_FRAMES = 30
-
-// The slice of source video a clip shows on the timeline. Template slots and
-// split clips share one mediaId but display different windows, so the window
-// is part of the cache key.
 export type ClipWindow = { startMs: number; durationMs: number }
 
-// `${mediaId}:${startMs}:${durationMs}` -> in-flight/resolved filmstrip frames.
-const filmstripCache = new Map<string, Promise<string[]>>()
+export type FilmstripFrame = {
+  index: number
+  backgroundImage: string
+  column: number
+  columns: number
+  frameAspect: number
+  row: number
+  rows: number
+}
 
-// Returns one frame per ~2 seconds across a clip's visible trim window, so a
-// short template slot samples only its own scene rather than the whole reel.
-export function getVideoFilmstrip(
+type FilmstripAsset = {
+  url: string
+  frameCount: number
+  frameWidth: number
+  frameHeight: number
+  columns: number
+  durationMs: number
+}
+
+type FilmstripCacheEntry = {
+  promise: Promise<FilmstripAsset>
+  references: number
+}
+
+const globals = globalThis as typeof globalThis & {
+  __aiVideoFilmstripCache?: Map<string, FilmstripCacheEntry>
+}
+const filmstripCache =
+  (globals.__aiVideoFilmstripCache ??= new Map<string, FilmstripCacheEntry>())
+
+// Polls only the small readiness headers. Once ready, every clip that uses the
+// same media id points at one browser-cached sprite and paints only the cells
+// inside its visible trim window.
+export async function getVideoFilmstrip(
   mediaId: string,
-  window: ClipWindow
-): Promise<string[]> {
-  const key = `${mediaId}:${window.startMs}:${window.durationMs}`
-  let pending = filmstripCache.get(key)
-  if (!pending) {
-    pending = withRetry(() => extractFrames(mediaUrl(mediaId), window))
-    filmstripCache.set(key, pending)
-    pending.catch(() => filmstripCache.delete(key)) // allow a retry next mount
+  window: ClipWindow,
+  signal: AbortSignal
+): Promise<FilmstripFrame[]> {
+  const entry = acquireFilmstrip(mediaId)
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    entry.references -= 1
+    trimFilmstripCache()
   }
-  return pending
-}
+  signal.addEventListener("abort", release, { once: true })
 
-function mediaUrl(mediaId: string) {
-  return `/api/v1/media/${mediaId}/file`
-}
-
-// One delayed retry — covers transient dev-server/network hiccups.
-function withRetry<T>(run: () => Promise<T>): Promise<T> {
-  return run().catch(() => sleep(800).then(run))
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
-}
-
-// Fetch the file once through the authenticated proxy and extract from a
-// blob URL: a single plain request (media elements fire multi-range request
-// sequences that the dev proxy handles unreliably) and a same-origin source,
-// so the canvas never taints.
-async function extractFrames(
-  src: string,
-  window: ClipWindow
-): Promise<string[]> {
-  const response = await fetch(src)
-  if (!response.ok) {
-    throw new Error(`Thumbnail fetch failed (${response.status})`)
-  }
-  const blobUrl = URL.createObjectURL(await response.blob())
   try {
-    return await drawFramesFromVideo(blobUrl, window)
-  } finally {
-    URL.revokeObjectURL(blobUrl)
+    const asset = await entry.promise
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError")
+    return framesForWindow(asset, window)
+  } catch (error) {
+    release()
+    throw error
   }
 }
 
-// Picks the sample times (in source seconds): one per ~2s across the clip's
-// visible slice, centered in each.
-function sampleTimes(totalDuration: number, window: ClipWindow) {
-  // Clamp the requested window to what the file actually contains.
-  const startSec = Math.max(0, window.startMs / 1000)
-  const endSec = Math.min(totalDuration, (window.startMs + window.durationMs) / 1000)
-  const span = Math.max(0, endSec - startSec)
-  const count = Math.min(
-    MAX_FRAMES,
-    Math.max(1, Math.round(span / SECONDS_PER_FRAME))
-  )
-  return Array.from({ length: count }, (_, i) =>
-    Math.min(
-      totalDuration - 0.01,
-      Math.max(0.05, startSec + (span * (i + 0.5)) / count)
-    )
-  )
+function acquireFilmstrip(mediaId: string) {
+  let entry = filmstripCache.get(mediaId)
+  if (entry) {
+    filmstripCache.delete(mediaId)
+    filmstripCache.set(mediaId, entry)
+  } else {
+    const promise = loadFilmstrip(mediaId)
+    entry = { promise, references: 0 }
+    entry.promise = promise.catch((error) => {
+      if (filmstripCache.get(mediaId) === entry) {
+        filmstripCache.delete(mediaId)
+      }
+      throw error
+    })
+    filmstripCache.set(mediaId, entry)
+  }
+  entry.references += 1
+  trimFilmstripCache()
+  return entry
 }
 
-// Load the video once, then seek to each sample point in turn, drawing a
-// frame to a canvas at every `seeked` event. Returns compact JPEG data-URLs.
-function drawFramesFromVideo(
-  src: string,
-  window: ClipWindow
-): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video")
-    video.muted = true
-    video.playsInline = true
-    video.preload = "auto"
+async function loadFilmstrip(mediaId: string): Promise<FilmstripAsset> {
+  const endpoint = `/api/v1/media/${encodeURIComponent(mediaId)}/filmstrip`
+  let response: Response | null = null
 
-    const results: string[] = []
-    let times: number[] = []
-    let index = 0
+  for (let attempt = 0; attempt < MAX_STATUS_POLLS; attempt += 1) {
+    response = await fetch(endpoint)
+    if (response.status !== 202) break
+    const retrySeconds = Number(response.headers.get("Retry-After")) || 2
+    await new Promise((resolve) => setTimeout(resolve, retrySeconds * 1000))
+  }
 
-    function cleanup() {
-      video.removeAttribute("src")
-      video.load()
+  if (!response?.ok) {
+    throw new Error(`Filmstrip unavailable (${response?.status ?? 0})`)
+  }
+
+  const frameCount = positiveHeader(response, "X-Filmstrip-Frame-Count")
+  const frameWidth = positiveHeader(response, "X-Filmstrip-Frame-Width")
+  const frameHeight = positiveHeader(response, "X-Filmstrip-Frame-Height")
+  const columns = positiveHeader(response, "X-Filmstrip-Columns")
+  const durationMs = positiveHeader(response, "X-Filmstrip-Duration-Ms")
+  return {
+    url: URL.createObjectURL(await response.blob()),
+    frameCount,
+    frameWidth,
+    frameHeight,
+    columns,
+    durationMs,
+  }
+}
+
+function framesForWindow(asset: FilmstripAsset, window: ClipWindow) {
+  const { url, frameCount, frameWidth, frameHeight, columns, durationMs } = asset
+  const rows = Math.ceil(frameCount / columns)
+  const startMs = Math.min(durationMs, Math.max(0, window.startMs))
+  const endMs = Math.min(
+    durationMs,
+    Math.max(startMs, window.startMs + window.durationMs)
+  )
+  const spanMs = Math.max(0, endMs - startMs)
+  const visibleCount = Math.min(
+    MAX_VISIBLE_FRAMES,
+    Math.max(1, Math.round(spanMs / (SECONDS_PER_FRAME * 1000)))
+  )
+  const indices = new Set<number>()
+  for (let index = 0; index < visibleCount; index += 1) {
+    const sampleMs = startMs + (spanMs * (index + 0.5)) / visibleCount
+    indices.add(
+      Math.min(frameCount - 1, Math.floor((sampleMs / durationMs) * frameCount))
+    )
+  }
+
+  return Array.from(indices, (index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    return {
+      index,
+      backgroundImage: `url("${url}")`,
+      column,
+      columns,
+      frameAspect: frameWidth / frameHeight,
+      row,
+      rows,
     }
-
-    video.onerror = () => {
-      cleanup()
-      reject(new Error("Could not load video for thumbnail"))
-    }
-
-    video.onloadedmetadata = () => {
-      const duration =
-        Number.isFinite(video.duration) && video.duration > 0
-          ? video.duration
-          : 1
-      times = sampleTimes(duration, window)
-      video.currentTime = times[0]
-    }
-
-    video.onseeked = () => {
-      try {
-        const ratio =
-          video.videoWidth && video.videoHeight
-            ? video.videoWidth / video.videoHeight
-            : 9 / 16
-        const canvas = document.createElement("canvas")
-        canvas.height = FRAME_HEIGHT_PX
-        canvas.width = Math.max(1, Math.round(FRAME_HEIGHT_PX * ratio))
-        const context = canvas.getContext("2d")
-        if (!context) throw new Error("Canvas 2d context unavailable")
-        context.drawImage(video, 0, 0, canvas.width, canvas.height)
-        results.push(canvas.toDataURL("image/jpeg", 0.72))
-
-        // Advance to the next sample, or finish once every frame is captured.
-        index += 1
-        if (index >= times.length) {
-          cleanup()
-          resolve(results)
-          return
-        }
-        video.currentTime = times[index]
-      } catch (error) {
-        cleanup()
-        reject(error instanceof Error ? error : new Error("Thumbnail failed"))
-      }
-    }
-
-    video.src = src
   })
+}
+
+export function filmstripFrameStyle(
+  frame: FilmstripFrame,
+  cellAspect: number
+) {
+  const scaleByWidth = cellAspect >= frame.frameAspect
+  const x = scaleByWidth
+    ? gridPosition(frame.column, frame.columns)
+    : coverPosition(
+        frame.column,
+        frame.columns,
+        frame.frameAspect / cellAspect
+      )
+  const y = scaleByWidth
+    ? coverPosition(frame.row, frame.rows, cellAspect / frame.frameAspect)
+    : gridPosition(frame.row, frame.rows)
+  return {
+    backgroundImage: frame.backgroundImage,
+    backgroundPosition: `${x}% ${y}%`,
+    backgroundRepeat: "no-repeat",
+    backgroundSize: scaleByWidth
+      ? `${frame.columns * 100}% auto`
+      : `auto ${frame.rows * 100}%`,
+  }
+}
+
+function gridPosition(index: number, count: number) {
+  return count === 1 ? 0 : (index / (count - 1)) * 100
+}
+
+function coverPosition(index: number, count: number, scale: number) {
+  if (Math.abs(scale - 1) < 0.000001) return gridPosition(index, count)
+  return ((index * scale + (scale - 1) / 2) / (count * scale - 1)) * 100
+}
+
+function trimFilmstripCache() {
+  if (filmstripCache.size <= MAX_CACHED_FILMSTRIPS) return
+  for (const [mediaId, entry] of filmstripCache) {
+    if (filmstripCache.size <= MAX_CACHED_FILMSTRIPS) return
+    if (entry.references > 0) continue
+    filmstripCache.delete(mediaId)
+    entry.promise.then(
+      (asset) => URL.revokeObjectURL(asset.url),
+      () => undefined
+    )
+  }
+}
+
+function positiveHeader(response: Response, name: string) {
+  const value = Number(response.headers.get(name))
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid filmstrip metadata: ${name}`)
+  }
+  return value
 }

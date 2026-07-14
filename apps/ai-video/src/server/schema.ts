@@ -330,6 +330,23 @@ export const aiVideoMedia = pgTable(
     }),
     proxyStartedAt: timestamp("proxy_started_at", { withTimezone: true }),
     proxyGeneratedAt: timestamp("proxy_generated_at", { withTimezone: true }),
+    filmstripStatus: varchar("filmstrip_status", { length: 20 }),
+    filmstripProfile: varchar("filmstrip_profile", { length: 20 }),
+    filmstripStoragePath: text("filmstrip_storage_path").unique(),
+    filmstripFrameCount: integer("filmstrip_frame_count"),
+    filmstripFrameWidth: integer("filmstrip_frame_width"),
+    filmstripFrameHeight: integer("filmstrip_frame_height"),
+    filmstripColumns: integer("filmstrip_columns"),
+    filmstripDurationMs: integer("filmstrip_duration_ms"),
+    filmstripError: text("filmstrip_error"),
+    filmstripAttempts: integer("filmstrip_attempts").notNull().default(0),
+    filmstripLeaseToken: varchar("filmstrip_lease_token", { length: 36 }),
+    filmstripLeaseExpiresAt: timestamp("filmstrip_lease_expires_at", {
+      withTimezone: true,
+    }),
+    filmstripGeneratedAt: timestamp("filmstrip_generated_at", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -359,6 +376,26 @@ export const aiVideoMedia = pgTable(
       sql`${table.proxyStatus} <> 'ready' or ${table.proxyStoragePath} is not null`
     ),
     check("media_proxy_attempts_check", sql`${table.proxyAttempts} >= 0`),
+    check(
+      "media_filmstrip_status_check",
+      sql`${table.filmstripStatus} is null or ${table.filmstripStatus} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "media_filmstrip_profile_check",
+      sql`(${table.filmstripStatus} is null and ${table.filmstripProfile} is null) or (${table.filmstripStatus} is not null and ${table.filmstripProfile} = 'jpeg-160h-v1')`
+    ),
+    check(
+      "media_filmstrip_video_check",
+      sql`${table.filmstripStatus} is null or ${table.fileType} = 'video'`
+    ),
+    check(
+      "media_filmstrip_ready_check",
+      sql`${table.filmstripStatus} <> 'ready' or (${table.filmstripStoragePath} is not null and ${table.filmstripFrameCount} > 0 and ${table.filmstripFrameWidth} > 0 and ${table.filmstripFrameHeight} > 0 and ${table.filmstripColumns} > 0 and ${table.filmstripDurationMs} > 0)`
+    ),
+    check(
+      "media_filmstrip_attempts_check",
+      sql`${table.filmstripAttempts} >= 0`
+    ),
     index("ix_media_user_id").on(table.userId),
     index("ix_media_project_id").on(table.projectId),
     index("ix_media_source").on(table.source),
@@ -377,6 +414,10 @@ export const aiVideoMedia = pgTable(
     ),
     index("ix_media_proxy_status_created").on(
       table.proxyStatus,
+      table.createdAt
+    ),
+    index("ix_media_filmstrip_status_created").on(
+      table.filmstripStatus,
       table.createdAt
     ),
   ]

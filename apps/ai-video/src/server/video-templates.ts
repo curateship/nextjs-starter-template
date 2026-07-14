@@ -8,7 +8,10 @@ import {
   templateThumbnailUrl,
 } from "@/server/media-urls"
 import { requireAppOrigin } from "@/server/origin"
-import { MEDIA_PROXY_PROFILE } from "@/server/media-types"
+import {
+  MEDIA_FILMSTRIP_PROFILE,
+  MEDIA_PROXY_PROFILE,
+} from "@/server/media-types"
 import {
   aiVideoCreators,
   aiVideoMedia,
@@ -371,6 +374,8 @@ async function copyMediaForTemplate(
       source: "template",
       proxyStatus: "queued",
       proxyProfile: MEDIA_PROXY_PROFILE,
+      filmstripStatus: "queued",
+      filmstripProfile: MEDIA_FILMSTRIP_PROFILE,
       createdAt: ts,
       updatedAt: ts,
     })
@@ -403,6 +408,9 @@ async function rollbackTemplateCopies(
   await deleteFromR2(media.storagePath).catch(() => undefined)
   if (media.proxyStoragePath) {
     await deleteFromR2(media.proxyStoragePath).catch(() => undefined)
+  }
+  if (media.filmstripStoragePath) {
+    await deleteFromR2(media.filmstripStoragePath).catch(() => undefined)
   }
   if (thumbnailPath) {
     await deleteFromR2(thumbnailPath).catch(() => undefined)

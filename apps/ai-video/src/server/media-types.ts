@@ -32,6 +32,7 @@ export const ALLOWED_TYPES = new Set([
 ])
 
 export const MEDIA_PROXY_PROFILE = "h264-720p"
+export const MEDIA_FILMSTRIP_PROFILE = "jpeg-160h-v1"
 
 export function mediaExtensionForMimeType(mimeType: string) {
   if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"

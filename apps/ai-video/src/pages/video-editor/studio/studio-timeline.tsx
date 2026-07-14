@@ -36,7 +36,11 @@ import {
   pxToMs,
   waveformDataUrl,
 } from "@/pages/video-editor/timeline-utils"
-import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
+import {
+  filmstripFrameStyle,
+  getVideoFilmstrip,
+  type FilmstripFrame,
+} from "@/pages/video-editor/video-thumbnails"
 
 const GUTTER = 120
 export const ROW_H = 52
@@ -488,20 +492,20 @@ function ClipChip({
 
   // Real frame filmstrip for video clips (sampled across this clip's trim
   // window); until it resolves, the dark placeholder fill shows through.
-  const [frames, setFrames] = React.useState<string[]>([])
+  const [frames, setFrames] = React.useState<FilmstripFrame[]>([])
   React.useEffect(() => {
     if (clip.kind !== "video" || !clip.mediaId) return
-    let active = true
+    const controller = new AbortController()
     getVideoFilmstrip(clip.mediaId, {
       startMs: clip.trimStartMs,
       durationMs: clip.durationMs,
-    })
+    }, controller.signal)
       .then((urls) => {
-        if (active) setFrames(urls)
+        if (!controller.signal.aborted) setFrames(urls)
       })
       .catch(() => undefined)
     return () => {
-      active = false
+      controller.abort()
     }
   }, [clip.kind, clip.mediaId, clip.trimStartMs, clip.durationMs])
   const drag = React.useRef<null | {
@@ -734,13 +738,16 @@ function ClipChip({
       <div style={fill} />
       {clip.kind === "video" && frames.length > 0 ? (
         <div style={{ position: "absolute", inset: 0, display: "flex", pointerEvents: "none" }}>
-          {frames.map((frame, index) => (
+          {frames.map((frame) => (
             <div
-              key={index}
+              key={frame.index}
               style={{
                 flex: 1,
                 height: "100%",
-                background: `center/cover no-repeat url("${frame}")`,
+                ...filmstripFrameStyle(
+                  frame,
+                  width / frames.length / (ROW_H - 12)
+                ),
               }}
             />
           ))}

@@ -29,7 +29,10 @@ import {
   R2StorageNotConfiguredError,
   uploadToR2,
 } from "@/server/media-storage"
-import { MEDIA_PROXY_PROFILE } from "@/server/media-types"
+import {
+  MEDIA_FILMSTRIP_PROFILE,
+  MEDIA_PROXY_PROFILE,
+} from "@/server/media-types"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects, aiVideoSettings } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -214,6 +217,9 @@ const uploadMediaFn = createServerFn({ method: "POST" })
         source: "upload" as const,
         proxyStatus: fileType === "video" ? "queued" : null,
         proxyProfile: fileType === "video" ? MEDIA_PROXY_PROFILE : null,
+        filmstripStatus: fileType === "video" ? "queued" : null,
+        filmstripProfile:
+          fileType === "video" ? MEDIA_FILMSTRIP_PROFILE : null,
         createdAt,
         updatedAt: createdAt,
       }
@@ -268,6 +274,7 @@ const deleteMediaFn = createServerFn({ method: "POST" })
       .returning({
         storagePath: aiVideoMedia.storagePath,
         proxyStoragePath: aiVideoMedia.proxyStoragePath,
+        filmstripStoragePath: aiVideoMedia.filmstripStoragePath,
       })
 
     if (!row) {
@@ -277,6 +284,9 @@ const deleteMediaFn = createServerFn({ method: "POST" })
     await deleteFromR2(row.storagePath).catch(() => undefined)
     if (row.proxyStoragePath) {
       await deleteFromR2(row.proxyStoragePath).catch(() => undefined)
+    }
+    if (row.filmstripStoragePath) {
+      await deleteFromR2(row.filmstripStoragePath).catch(() => undefined)
     }
   })
 
@@ -297,11 +307,12 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
       .returning({
         storagePath: aiVideoMedia.storagePath,
         proxyStoragePath: aiVideoMedia.proxyStoragePath,
+        filmstripStoragePath: aiVideoMedia.filmstripStoragePath,
       })
 
     await Promise.all(
       rows.flatMap((row) =>
-        [row.storagePath, row.proxyStoragePath]
+        [row.storagePath, row.proxyStoragePath, row.filmstripStoragePath]
           .filter((storagePath): storagePath is string => !!storagePath)
           .map((storagePath) =>
             deleteFromR2(storagePath).catch(() => undefined)

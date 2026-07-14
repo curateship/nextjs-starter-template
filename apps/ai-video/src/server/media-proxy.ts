@@ -27,6 +27,7 @@ const INTERRUPTED_MESSAGE = "Proxy generation was interrupted"
 const WORKER_STATE_KEY = "__aiVideoProxyWorkerState"
 
 type ClaimedProxy = {
+  kind: "proxy"
   id: string
   user_id: string
   storage_path: string
@@ -34,7 +35,21 @@ type ClaimedProxy = {
   proxy_lease_token: string
 }
 
-type WorkerState = { registered: boolean; pumping: boolean; active: number }
+type ClaimedFilmstrip = {
+  kind: "filmstrip"
+  id: string
+  user_id: string
+  storage_path: string
+  filmstrip_attempts: number
+  filmstrip_lease_token: string
+}
+
+type WorkerState = {
+  registered: boolean
+  pumping: boolean
+  active: number
+  nextKind: "proxy" | "filmstrip"
+}
 
 function workerState(): WorkerState {
   const globals = globalThis as Record<string, unknown>
@@ -43,6 +58,7 @@ function workerState(): WorkerState {
       registered: false,
       pumping: false,
       active: 0,
+      nextKind: "filmstrip",
     } satisfies WorkerState
   }
   return globals[WORKER_STATE_KEY] as WorkerState
@@ -66,6 +82,9 @@ async function tick() {
   await reclaimStaleProxies().catch((error) => {
     console.error("Media proxy reclaim failed", error)
   })
+  await reclaimStaleFilmstrips().catch((error) => {
+    console.error("Media filmstrip reclaim failed", error)
+  })
   await pumpProxyQueue().catch((error) => {
     console.error("Media proxy queue pump failed", error)
   })
@@ -77,12 +96,16 @@ async function pumpProxyQueue() {
   state.pumping = true
   try {
     while (state.active < PROXY_CONCURRENCY) {
-      const proxy = await claimNextProxy()
-      if (!proxy) return
+      const job =
+        state.nextKind === "filmstrip"
+          ? ((await claimNextFilmstrip()) ?? (await claimNextProxy()))
+          : ((await claimNextProxy()) ?? (await claimNextFilmstrip()))
+      if (!job) return
+      state.nextKind = job.kind === "filmstrip" ? "proxy" : "filmstrip"
       state.active += 1
-      void generateProxy(proxy)
+      void (job.kind === "proxy" ? generateProxy(job) : generateFilmstrip(job))
         .catch((error) => {
-          console.error("Media proxy job crashed", proxy.id, error)
+          console.error(`Media ${job.kind} job crashed`, job.id, error)
         })
         .finally(() => {
           state.active -= 1
@@ -113,7 +136,30 @@ async function claimNextProxy(): Promise<ClaimedProxy | null> {
     )
     returning id, user_id, storage_path, proxy_attempts, proxy_lease_token
   `)
-  return (result.rows[0] as ClaimedProxy | undefined) ?? null
+  const row = result.rows[0] as Omit<ClaimedProxy, "kind"> | undefined
+  return row ? { kind: "proxy", ...row } : null
+}
+
+async function claimNextFilmstrip(): Promise<ClaimedFilmstrip | null> {
+  const result = await db.execute(sql`
+    update media set
+      filmstrip_status = 'generating',
+      filmstrip_attempts = filmstrip_attempts + 1,
+      filmstrip_error = null,
+      filmstrip_lease_token = ${uuid()},
+      filmstrip_lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS}),
+      updated_at = now()
+    where id = (
+      select id from media
+      where file_type = 'video' and filmstrip_status = 'queued'
+      order by created_at, id
+      limit 1
+      for update skip locked
+    )
+    returning id, user_id, storage_path, filmstrip_attempts, filmstrip_lease_token
+  `)
+  const row = result.rows[0] as Omit<ClaimedFilmstrip, "kind"> | undefined
+  return row ? { kind: "filmstrip", ...row } : null
 }
 
 async function generateProxy(proxy: ClaimedProxy) {
@@ -214,6 +260,300 @@ async function reclaimStaleProxies() {
       updated_at = now()
     where proxy_status = 'generating' and proxy_lease_expires_at < now()
   `)
+}
+
+async function generateFilmstrip(filmstrip: ClaimedFilmstrip) {
+  const dir = await mkdtemp(path.join(tmpdir(), "media-filmstrip-"))
+  const heartbeat = setInterval(() => {
+    void db
+      .execute(
+        sql`
+        update media set
+          filmstrip_lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS}),
+          updated_at = now()
+        where id = ${filmstrip.id}
+          and filmstrip_lease_token = ${filmstrip.filmstrip_lease_token}
+          and filmstrip_status = 'generating'
+      `
+      )
+      .catch((error) => {
+        console.error("Media filmstrip heartbeat failed", filmstrip.id, error)
+      })
+  }, HEARTBEAT_MS)
+  heartbeat.unref()
+
+  const filmstripStoragePath = `filmstrips/${filmstrip.user_id}/${filmstrip.id}/${filmstrip.filmstrip_lease_token}.jpg`
+  let uploaded = false
+  try {
+    const source = await getFromR2(filmstrip.storage_path)
+    const input = path.join(
+      dir,
+      `source${path.extname(filmstrip.storage_path) || ".bin"}`
+    )
+    const output = path.join(dir, "filmstrip.jpg")
+    await writeBodyToFile(source.Body, input)
+    const metadata = await createFilmstrip(input, output)
+    await uploadFileToR2(filmstripStoragePath, output, "image/jpeg")
+    uploaded = true
+
+    const updated = await db
+      .update(aiVideoMedia)
+      .set({
+        filmstripStatus: "ready",
+        filmstripStoragePath,
+        filmstripFrameCount: metadata.frameCount,
+        filmstripFrameWidth: metadata.frameWidth,
+        filmstripFrameHeight: metadata.frameHeight,
+        filmstripColumns: metadata.columns,
+        filmstripDurationMs: metadata.durationMs,
+        filmstripError: null,
+        filmstripLeaseToken: null,
+        filmstripLeaseExpiresAt: null,
+        filmstripGeneratedAt: now(),
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiVideoMedia.id, filmstrip.id),
+          eq(
+            aiVideoMedia.filmstripLeaseToken,
+            filmstrip.filmstrip_lease_token
+          ),
+          eq(aiVideoMedia.filmstripStatus, "generating")
+        )
+      )
+      .returning({ id: aiVideoMedia.id })
+
+    if (!updated.length) {
+      await deleteFromR2(filmstripStoragePath).catch(() => undefined)
+    }
+  } catch (error) {
+    if (uploaded) {
+      await deleteFromR2(filmstripStoragePath).catch(() => undefined)
+    }
+    const message =
+      error instanceof Error &&
+      (error.message === "ffmpeg is not installed" ||
+        error.message === "ffprobe is not installed")
+        ? error.message
+        : "Filmstrip generation failed"
+    const retry = filmstrip.filmstrip_attempts < MAX_ATTEMPTS
+    await db
+      .update(aiVideoMedia)
+      .set({
+        filmstripStatus: retry ? "queued" : "error",
+        filmstripError: message,
+        filmstripLeaseToken: null,
+        filmstripLeaseExpiresAt: null,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiVideoMedia.id, filmstrip.id),
+          eq(
+            aiVideoMedia.filmstripLeaseToken,
+            filmstrip.filmstrip_lease_token
+          ),
+          eq(aiVideoMedia.filmstripStatus, "generating")
+        )
+      )
+  } finally {
+    clearInterval(heartbeat)
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+async function reclaimStaleFilmstrips() {
+  await db.execute(sql`
+    update media set
+      filmstrip_status = case when filmstrip_attempts < ${MAX_ATTEMPTS} then 'queued' else 'error' end,
+      filmstrip_error = case when filmstrip_attempts < ${MAX_ATTEMPTS} then filmstrip_error else 'Filmstrip generation was interrupted' end,
+      filmstrip_lease_token = null,
+      filmstrip_lease_expires_at = null,
+      updated_at = now()
+    where filmstrip_status = 'generating' and filmstrip_lease_expires_at < now()
+  `)
+}
+
+async function createFilmstrip(input: string, output: string) {
+  const metadata = await probeVideo(input)
+  const frameHeight = 160
+  const frameWidth = Math.max(
+    2,
+    Math.min(
+      320,
+      Math.round((frameHeight * metadata.width) / metadata.height / 2) * 2
+    )
+  )
+  const frameCount = Math.min(
+    120,
+    Math.max(1, Math.round(metadata.durationSeconds / 2))
+  )
+  const columns = Math.min(10, frameCount)
+  const rows = Math.ceil(frameCount / columns)
+  await runFilmstripFfmpeg(input, output, {
+    frameCount,
+    frameWidth,
+    frameHeight,
+    columns,
+    rows,
+    durationSeconds: metadata.durationSeconds,
+  })
+  return {
+    frameCount,
+    frameWidth,
+    frameHeight,
+    columns,
+    durationMs: Math.max(1, Math.round(metadata.durationSeconds * 1000)),
+  }
+}
+
+function probeVideo(input: string) {
+  return new Promise<{
+    width: number
+    height: number
+    durationSeconds: number
+  }>((resolve, reject) => {
+    let stdout = ""
+    const child = spawn(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height,sample_aspect_ratio:stream_tags=rotate:stream_side_data=rotation:format=duration",
+        "-of",
+        "json",
+        input,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 60_000 }
+    )
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString()
+    })
+    child.on("error", (error) => {
+      reject(
+        new Error(
+          error.code === "ENOENT"
+            ? "ffprobe is not installed"
+            : "Filmstrip probe failed"
+        )
+      )
+    })
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error("Filmstrip probe failed"))
+        return
+      }
+      try {
+        const result = JSON.parse(stdout) as {
+          streams?: {
+            width?: unknown
+            height?: unknown
+            sample_aspect_ratio?: unknown
+            tags?: { rotate?: unknown }
+            side_data_list?: { rotation?: unknown }[]
+          }[]
+          format?: { duration?: unknown }
+        }
+        const stream = result.streams?.[0]
+        let width = Number(stream?.width)
+        let height = Number(stream?.height)
+        const rotation = Number(
+          stream?.side_data_list?.find((item) => item.rotation !== undefined)
+            ?.rotation ?? stream?.tags?.rotate
+        )
+        if (Number.isFinite(rotation) && Math.abs(rotation) % 180 === 90) {
+          ;[width, height] = [height, width]
+        }
+        const [sarWidth, sarHeight] = String(
+          stream?.sample_aspect_ratio ?? "1:1"
+        )
+          .split(":")
+          .map(Number)
+        if (sarWidth > 0 && sarHeight > 0) {
+          width *= sarWidth / sarHeight
+        }
+        const durationSeconds = Number(result.format?.duration)
+        if (
+          !Number.isFinite(width) ||
+          width <= 0 ||
+          !Number.isFinite(height) ||
+          height <= 0 ||
+          !Number.isFinite(durationSeconds) ||
+          durationSeconds <= 0
+        ) {
+          throw new Error("Invalid video metadata")
+        }
+        resolve({ width, height, durationSeconds })
+      } catch {
+        reject(new Error("Filmstrip probe failed"))
+      }
+    })
+  })
+}
+
+function runFilmstripFfmpeg(
+  input: string,
+  output: string,
+  options: {
+    frameCount: number
+    frameWidth: number
+    frameHeight: number
+    columns: number
+    rows: number
+    durationSeconds: number
+  }
+) {
+  return new Promise<void>((resolve, reject) => {
+    let stderr = ""
+    const filter = [
+      `fps=${options.frameCount}/${options.durationSeconds}`,
+      `scale=${options.frameWidth}:${options.frameHeight}`,
+      `tile=${options.columns}x${options.rows}:nb_frames=${options.frameCount}:padding=0:margin=0`,
+    ].join(",")
+    const child = spawn(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        input,
+        "-map",
+        "0:v:0",
+        "-vf",
+        filter,
+        "-frames:v",
+        "1",
+        "-c:v",
+        "mjpeg",
+        "-q:v",
+        "6",
+        output,
+      ],
+      { stdio: ["ignore", "ignore", "pipe"], timeout: 15 * 60_000 }
+    )
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString()).slice(-4_000)
+    })
+    child.on("error", (error) => {
+      reject(
+        new Error(
+          error.code === "ENOENT"
+            ? "ffmpeg is not installed"
+            : "Filmstrip generation failed"
+        )
+      )
+    })
+    child.on("close", (code) => {
+      if (code === 0) resolve()
+      else {
+        console.error("Media filmstrip ffmpeg stderr tail:", stderr)
+        reject(new Error("Filmstrip generation failed"))
+      }
+    })
+  })
 }
 
 function runFfmpeg(input: string, output: string) {
