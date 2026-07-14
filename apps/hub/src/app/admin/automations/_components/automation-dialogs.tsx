@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { ExternalLink, FileText, Globe, Loader2, Trash2 } from "lucide-react"
 
 import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -251,6 +252,8 @@ export function AutomationSettingsDialog({
   const [addingUrl, setAddingUrl] = useState(false)
   const [addingFile, setAddingFile] = useState(false)
   const [deletingReferenceId, setDeletingReferenceId] = useState<string | null>(null)
+  const [pendingDeleteReferenceId, setPendingDeleteReferenceId] = useState<string | null>(null)
+  const [deleteReferenceError, setDeleteReferenceError] = useState<string | null>(null)
 
   const applyForm = (item: AiAgentAutomation) => {
     setName(item.name)
@@ -385,10 +388,15 @@ export function AutomationSettingsDialog({
 
     setDeletingReferenceId(referenceId)
     const { success, error } = await deleteAiAutomationReference(referenceId)
-    if (error) showError(error)
+    if (error) {
+      setDeleteReferenceError(error)
+      setDeletingReferenceId(null)
+      return
+    }
     if (success) {
       setReferences((current) => current.filter((reference) => reference.id !== referenceId))
       onReferenceCountChange(selectedAutomation.id, -1)
+      setPendingDeleteReferenceId(null)
     }
     setDeletingReferenceId(null)
   }
@@ -471,12 +479,27 @@ export function AutomationSettingsDialog({
           loading={loading}
           onAddFile={handleAddFile}
           onAddUrl={handleAddUrl}
-          onDeleteReference={handleDeleteReference}
+          onDeleteReference={(referenceId) => {
+            setDeleteReferenceError(null)
+            setPendingDeleteReferenceId(referenceId)
+          }}
           referenceFile={referenceFile}
           references={references}
           referenceUrl={referenceUrl}
           setReferenceFile={setReferenceFile}
           setReferenceUrl={setReferenceUrl}
+        />
+        <ConfirmDestructive
+          action="delete-ai-reference"
+          open={pendingDeleteReferenceId !== null}
+          title="Delete reference?"
+          error={deleteReferenceError}
+          disabled={deletingReferenceId !== null}
+          onCancel={() => {
+            setPendingDeleteReferenceId(null)
+            setDeleteReferenceError(null)
+          }}
+          onConfirm={() => pendingDeleteReferenceId ? handleDeleteReference(pendingDeleteReferenceId) : undefined}
         />
       </DashboardModalContent>
     </Dialog>

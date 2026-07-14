@@ -51,6 +51,7 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       canSelectItem={(page) => !page.is_default}
       columnCount={5}
       createButtonLabel="Create Account Page"
+      destructiveAction="delete-account-page"
       deleteItem={deleteAccountPageAction}
       deleteItems={deleteAccountPagesAction}
       duplicateItem={duplicateAccountPageAction}

@@ -3,6 +3,8 @@ import type { LucideIcon } from "lucide-react"
 
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { SiteDeletionImpactTarget } from "@/lib/actions/deletion-impact-contract"
+import type { DestructiveAction } from "@/components/admin/layout/destructive-confirm-policy"
 
 export type ContentSortColumn = "title" | "category" | "status" | "modified"
 export type ContentStatusFilter = "all" | "published" | "draft"
@@ -46,6 +48,8 @@ export interface ContentListPageProps<TItem extends ContentListItem> {
   canSelectItem?: (item: TItem) => boolean
   columnCount?: 5 | 6
   createButtonLabel: string
+  deletionImpactTarget?: SiteDeletionImpactTarget
+  destructiveAction: DestructiveAction
   duplicateTitle: (item: TItem) => string
   emptyButtonLabel: string
   emptyDescription?: (items: TItem[], filterStatus: ContentStatusFilter) => string

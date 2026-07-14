@@ -22,7 +22,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
@@ -395,7 +395,6 @@ export default function SiteUsersPage() {
   const confirmDelete = async () => {
     if (!currentSite?.id || !pendingDeleteId) return
 
-    setConfirmDeleteOpen(false)
     setMassDeleting(true)
     setErrorMessage(null)
 
@@ -412,8 +411,9 @@ export default function SiteUsersPage() {
 
       userSelection.remove(pendingDeleteId)
       await loadUsers()
-    } finally {
+      setConfirmDeleteOpen(false)
       setPendingDeleteId(null)
+    } finally {
       setMassDeleting(false)
     }
   }
@@ -421,7 +421,6 @@ export default function SiteUsersPage() {
   const confirmMassDelete = async () => {
     if (!currentSite?.id || !userSelection.selectedCount) return
 
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     setErrorMessage(null)
 
@@ -438,6 +437,7 @@ export default function SiteUsersPage() {
 
       clearUserSelection()
       await loadUsers()
+      setMassDeleteConfirmOpen(false)
     } finally {
       setMassDeleting(false)
     }
@@ -1156,24 +1156,29 @@ export default function SiteUsersPage() {
           </DialogContent>
         </Dialog>
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action="delete-site-user"
           open={confirmDeleteOpen}
           title="Delete site user?"
           description="This removes the user from the current site only. Their platform account will stay intact."
+          error={errorMessage}
           onCancel={() => {
             setConfirmDeleteOpen(false)
             setPendingDeleteId(null)
+            setErrorMessage(null)
           }}
           onConfirm={confirmDelete}
         />
 
-        <AdminConfirmDialog
+        <ConfirmDestructive
+          action="delete-site-user"
           open={massDeleteConfirmOpen}
           title="Delete selected site users?"
           description={`This removes ${userSelection.selectedCount} user${userSelection.selectedCount === 1 ? "" : "s"} from the current site only. Their platform accounts will stay intact.`}
           confirmLabel="Delete selected"
           disabled={massDeleting}
-          onCancel={() => setMassDeleteConfirmOpen(false)}
+          error={errorMessage}
+          onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage(null) }}
           onConfirm={confirmMassDelete}
         />
       </AdminLayout>

@@ -23,7 +23,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -205,19 +205,24 @@ export default function AutomationsPage() {
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
     const automationId = pendingDeleteId
-    setPendingDeleteId(null)
     const { success, error } = await deleteAiAutomations([automationId])
-    if (error) showError(error)
-    if (success) loadAutomations()
+    if (error) {
+      setErrorMessage(error)
+      return
+    }
+    if (success) {
+      setPendingDeleteId(null)
+      loadAutomations()
+    }
   }
 
   const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     const { success, error } = await deleteAiAutomations(Array.from(automationSelection.selectedIds))
-    if (error) showError(error)
+    if (error) setErrorMessage(error)
     if (success) {
       automationSelection.clearSelection()
+      setMassDeleteConfirmOpen(false)
       loadAutomations()
     }
     setMassDeleting(false)
@@ -270,7 +275,7 @@ export default function AutomationsPage() {
             titleActions={
               <AdminBulkDeleteButton
                 deleting={massDeleting}
-                onClick={() => setMassDeleteConfirmOpen(true)}
+                onClick={() => { setErrorMessage(""); setMassDeleteConfirmOpen(true) }}
                 selectedCount={automationSelection.selectedCount}
               />
             }
@@ -487,7 +492,7 @@ export default function AutomationsPage() {
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => setPendingDeleteId(automation.id)}
+                              onClick={() => { setErrorMessage(""); setPendingDeleteId(automation.id) }}
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -523,20 +528,30 @@ export default function AutomationsPage() {
             showError={showError}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-ai-automation"
             open={pendingDeleteId !== null}
             title="Delete Automation"
             description="This will delete the automation, its references, and its run history. This cannot be undone."
-            onCancel={() => setPendingDeleteId(null)}
+            error={errorMessage || null}
+            impactRequest={pendingDeleteId && currentSite?.id
+              ? { ids: [pendingDeleteId], siteId: currentSite.id, target: "ai-automation" }
+              : undefined}
+            onCancel={() => { setPendingDeleteId(null); setErrorMessage("") }}
             onConfirm={confirmDelete}
           />
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-ai-automation"
             open={massDeleteConfirmOpen}
             title={`Delete ${automationSelection.selectedCount} Automation${automationSelection.selectedCount !== 1 ? "s" : ""}`}
             description="This will delete selected automations, references, and run history. This cannot be undone."
             confirmLabel={`Delete ${automationSelection.selectedCount}`}
             disabled={massDeleting}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
+            error={errorMessage || null}
+            impactRequest={currentSite?.id
+              ? { ids: Array.from(automationSelection.selectedIds), siteId: currentSite.id, target: "ai-automation" }
+              : undefined}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
           <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />

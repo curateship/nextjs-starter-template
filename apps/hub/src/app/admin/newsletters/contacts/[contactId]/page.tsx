@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, ExternalLink } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -79,6 +80,8 @@ export default function ContactDashboardPage() {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Load all data on mount
   useEffect(() => {
@@ -174,13 +177,12 @@ export default function ContactDashboardPage() {
   // Delete contact and redirect back to contacts list
   async function handleDelete() {
     if (!contact || deleting) return
-    if (!confirm("Are you sure you want to delete this contact? This cannot be undone.")) return
     setDeleting(true)
     const { success, error } = await deleteContacts([contact.id])
     if (success) {
       router.push("/admin/newsletters/contacts")
     } else {
-      setError(error || "Failed to delete contact")
+      setDeleteError(error || "Failed to delete contact")
       setDeleting(false)
     }
   }
@@ -438,7 +440,15 @@ export default function ContactDashboardPage() {
                     </form>
                   )}
                 </Dialog>
-                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || loading}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteError(null)
+                    setDeleteConfirmOpen(true)
+                  }}
+                  disabled={deleting || loading}
+                >
                   <Trash2 className="h-4 w-4 mr-1" />
                   {deleting ? "Deleting..." : "Delete"}
                 </Button>
@@ -667,6 +677,18 @@ export default function ContactDashboardPage() {
           </CardGroup>
         </div>
       </AdminLayout>
+      <ConfirmDestructive
+        action="delete-contact"
+        open={deleteConfirmOpen}
+        title={`Delete “${contact?.email ?? "contact"}”?`}
+        disabled={deleting}
+        error={deleteError}
+        onCancel={() => {
+          setDeleteConfirmOpen(false)
+          setDeleteError(null)
+        }}
+        onConfirm={handleDelete}
+      />
     </>
   )
 }

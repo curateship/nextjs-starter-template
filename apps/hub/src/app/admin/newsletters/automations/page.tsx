@@ -20,7 +20,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -116,25 +116,26 @@ export default function EmailAutomationsPage() {
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
     const automationId = pendingDeleteId
-    setPendingDeleteId(null)
     const { success, error } = await deleteAutomations([automationId])
     if (error) {
       setErrorMessage(error)
-      setErrorDialogOpen(true)
+      return
     }
-    if (success) loadAutomations()
+    if (success) {
+      setPendingDeleteId(null)
+      loadAutomations()
+    }
   }
 
   const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     const { success, error } = await deleteAutomations(Array.from(automationSelection.selectedIds))
     if (error) {
       setErrorMessage(error)
-      setErrorDialogOpen(true)
     }
     if (success) {
       automationSelection.clearSelection()
+      setMassDeleteConfirmOpen(false)
       loadAutomations()
     }
     setMassDeleting(false)
@@ -520,20 +521,30 @@ export default function EmailAutomationsPage() {
             </form>
           </Dialog>
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-newsletter-automation"
             open={pendingDeleteId !== null}
             title="Delete Automation"
             description="This will delete the automation and all its steps and enrollments. This cannot be undone."
-            onCancel={() => setPendingDeleteId(null)}
+            error={errorMessage || null}
+            impactRequest={pendingDeleteId && currentSite?.id
+              ? { ids: [pendingDeleteId], siteId: currentSite.id, target: "newsletter-automation" }
+              : undefined}
+            onCancel={() => { setPendingDeleteId(null); setErrorMessage("") }}
             onConfirm={confirmDelete}
           />
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-newsletter-automation"
             open={massDeleteConfirmOpen}
             title={`Delete ${automationSelection.selectedCount} Automation${automationSelection.selectedCount !== 1 ? "s" : ""}`}
             description="This cannot be undone."
             confirmLabel={`Delete ${automationSelection.selectedCount}`}
             disabled={massDeleting}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
+            error={errorMessage || null}
+            impactRequest={currentSite?.id
+              ? { ids: Array.from(automationSelection.selectedIds), siteId: currentSite.id, target: "newsletter-automation" }
+              : undefined}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
           <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />

@@ -14,7 +14,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -322,7 +322,8 @@ export default function DirectorySavedFolderPage({
         </DialogContent>
       </Dialog>
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="remove-saved-listing"
         open={removeIds.length > 0}
         title={`Remove ${removeIds.length === 1 ? "Saved Listing" : "Saved Listings"}`}
         description="Remove the selected listings from this folder."

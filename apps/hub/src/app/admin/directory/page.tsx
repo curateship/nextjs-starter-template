@@ -122,8 +122,10 @@ export default function DirectoriesPage() {
       builderPath="/admin/directory/builder"
       builderQueryParam="directory"
       createButtonLabel="Add Listing"
+      deletionImpactTarget="listing"
       deleteItem={deleteDirectoryAction}
       deleteItems={deleteDirectoriesAction}
+      destructiveAction="delete-listing"
       duplicateItem={duplicateDirectorySummaryAction}
       duplicateTitle={(directory) => `${directory.title || "Listing"} Copy`}
       emptyButtonLabel="Add Your First Listing"

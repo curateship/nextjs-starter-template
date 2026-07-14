@@ -30,6 +30,7 @@ export default function PostsPage() {
     <ContentListPage<Post>
       builderPath="/admin/posts/builder"
       createButtonLabel="Create Post"
+      destructiveAction="delete-post"
       deleteItem={deletePostAction}
       deleteItems={deletePostsAction}
       duplicateItem={duplicatePostAction}

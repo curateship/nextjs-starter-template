@@ -15,7 +15,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
@@ -119,10 +119,10 @@ export default function SegmentsPage() {
       setError(deleteError)
     } else {
       segmentSelection.clearSelection()
+      setMassDeleteConfirmOpen(false)
+      await loadSegments()
     }
     setMassDeleting(false)
-    setMassDeleteConfirmOpen(false)
-    loadSegments()
   }
 
   async function handleRefreshSegments() {
@@ -379,13 +379,17 @@ export default function SegmentsPage() {
         siteId={currentSite?.id}
       />
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-segment"
         open={massDeleteConfirmOpen}
         title="Delete Segments"
-        description={`Are you sure you want to delete ${segmentSelection.selectedCount} segment${segmentSelection.selectedCount !== 1 ? "s" : ""}? This cannot be undone.`}
         confirmLabel={massDeleting ? "Deleting..." : "Delete"}
         disabled={massDeleting}
-        onCancel={() => setMassDeleteConfirmOpen(false)}
+        error={error}
+        impactRequest={currentSite?.id && segmentSelection.selectedCount
+          ? { ids: Array.from(segmentSelection.selectedIds), siteId: currentSite.id, target: "segment" }
+          : undefined}
+        onCancel={() => { setMassDeleteConfirmOpen(false); setError(null) }}
         onConfirm={handleMassDelete}
       />
     </>

@@ -37,8 +37,10 @@ export default function ProductsPage() {
     <ContentListPage<Product>
       builderPath="/admin/products/builder"
       createButtonLabel="Create Product"
+      deletionImpactTarget="product"
       deleteItem={deleteProductAction}
       deleteItems={deleteProductsAction}
+      destructiveAction="delete-product"
       duplicateItem={duplicateProductAction}
       duplicateTitle={(product) => `${product.title || "Product"} Copy`}
       emptyButtonLabel="Create Your First Product"

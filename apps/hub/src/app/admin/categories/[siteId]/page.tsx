@@ -28,7 +28,7 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -183,7 +183,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   }
 
   const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
       const ids = Array.from(categorySelection.selectedIds)
@@ -209,6 +208,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
         setAllCategories((prev) => prev.filter((c) => !removedIds.has(c.id)))
         setTotal((prev) => Math.max(0, prev - ids.length))
         categorySelection.clearSelection()
+        setMassDeleteConfirmOpen(false)
       }
     } catch (err) {
       setErrorMessage("Failed to delete categories")
@@ -479,13 +479,17 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
             />
           )}
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-category"
             open={massDeleteConfirmOpen}
             title={`Delete ${categorySelection.selectedCount} Categor${categorySelection.selectedCount !== 1 ? "ies" : "y"}`}
-            description={`Are you sure you want to delete ${categorySelection.selectedCount} categor${categorySelection.selectedCount !== 1 ? "ies" : "y"}? Child categories will also be deleted. This action cannot be undone.`}
             disabled={massDeleting}
+            error={errorMessage}
             confirmLabel={`Delete ${categorySelection.selectedCount} Categor${categorySelection.selectedCount !== 1 ? "ies" : "y"}`}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
+            impactRequest={categorySelection.selectedCount
+              ? { ids: Array.from(categorySelection.selectedIds), siteId, target: "category" }
+              : undefined}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
 

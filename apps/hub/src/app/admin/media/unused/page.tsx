@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListSkeleton,
   AdminSortButton,
   AdminTableShell,
@@ -49,6 +49,8 @@ export default function UnusedMediaPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [mediaToDelete, setMediaToDelete] = useState<MediaData | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [scannedAt, setScannedAt] = useState<string | null>(null)
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
@@ -89,24 +91,23 @@ export default function UnusedMediaPage() {
     try {
       const { success, deletedCount, error } = await deleteMediaItemsAction(ids, currentSiteId)
       if (!success || error) {
-        showActionError(`Delete failed: ${error ?? "Unknown error"}`)
+        const message = `Delete failed: ${error ?? "Unknown error"}`
+        setDeleteError(message)
+        showActionError(message)
         return
       }
 
       setMediaItems((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? null)
       ids.forEach((id) => mediaSelection.remove(id))
       showActionSuccess(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
+      setDeleteConfirmOpen(false)
+      setMediaToDelete(null)
     } catch {
+      setDeleteError("Delete failed")
       showActionError("Delete failed")
     } finally {
       setIsDeleting(false)
-      setDeleteConfirmOpen(false)
     }
-  }
-
-  async function handleDeleteOne(media: MediaData) {
-    if (!confirm(`Delete "${media.original_name}"? This action cannot be undone.`)) return
-    await handleDelete([media.id])
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
@@ -314,7 +315,10 @@ export default function UnusedMediaPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                                onClick={() => handleDeleteOne(media)}
+                                onClick={() => {
+                                  setDeleteError(null)
+                                  setMediaToDelete(media)
+                                }}
                                 disabled={isDeleting}
                                 title="Delete"
                               >
@@ -333,14 +337,22 @@ export default function UnusedMediaPage() {
             </ScrollArea>
           </AdminTableShell>
 
-          <AdminConfirmDialog
-            open={deleteConfirmOpen}
-            title={`Delete ${mediaSelection.selectedCount} ${mediaSelection.selectedCount === 1 ? "item" : "items"}?`}
+          <ConfirmDestructive
+            action="delete-media"
+            open={deleteConfirmOpen || mediaToDelete !== null}
+            title={mediaToDelete
+              ? `Delete “${mediaToDelete.original_name}”?`
+              : `Delete ${mediaSelection.selectedCount} ${mediaSelection.selectedCount === 1 ? "item" : "items"}?`}
             description="This removes the selected unused media from the library. This action cannot be undone."
             disabled={isDeleting}
+            error={deleteError}
             confirmLabel={isDeleting ? "Deleting..." : "Delete"}
-            onCancel={() => setDeleteConfirmOpen(false)}
-            onConfirm={() => handleDelete(Array.from(mediaSelection.selectedIds))}
+            onCancel={() => {
+              setDeleteConfirmOpen(false)
+              setMediaToDelete(null)
+              setDeleteError(null)
+            }}
+            onConfirm={() => handleDelete(mediaToDelete ? [mediaToDelete.id] : Array.from(mediaSelection.selectedIds))}
           />
         </div>
       </AdminLayout>

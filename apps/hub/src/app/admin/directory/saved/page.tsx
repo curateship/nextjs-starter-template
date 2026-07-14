@@ -15,7 +15,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -466,13 +466,18 @@ export default function DirectorySavedPage() {
         </DialogContent>
       </Dialog>
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-saved-collection"
         open={removeIds.length > 0}
         title={`Remove ${removeIds.length === 1 ? "Folder" : "Folders"}`}
         description={removeDescription}
         disabled={removing}
+        error={errorMessage || null}
+        impactRequest={currentSite?.id
+          ? { ids: removeIds, siteId: currentSite.id, target: "saved-collection" }
+          : undefined}
         confirmLabel={removing ? "Removing..." : "Remove"}
-        onCancel={() => setRemoveIds([])}
+        onCancel={() => { setRemoveIds([]); setErrorMessage("") }}
         onConfirm={confirmRemove}
       />
 

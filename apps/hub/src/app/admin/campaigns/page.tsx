@@ -8,7 +8,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminConfirmDialog, AdminListSkeleton, AdminSortButton, AdminTableShell, AdminTableSummaryFooter, useAdminSort } from "@/components/admin/layout/list"
+import { ConfirmDestructive, AdminListSkeleton, AdminSortButton, AdminTableShell, AdminTableSummaryFooter, useAdminSort } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsButton, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ export default function CampaignsPage() {
   const [editing, setEditing] = useState<CampaignRecord | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CampaignRecord | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const campaignSort = useAdminSort<CampaignSortColumn>()
 
   useEffect(() => {
@@ -69,7 +70,9 @@ export default function CampaignsPage() {
 
   const toggleStatus = async (campaign: CampaignRecord) => {
     const result = await setCampaignStatusAction(campaign.id, campaign.status === "active" ? "draft" : "active")
-    if (!result.ok) return showActionError(result.message)
+    if (!result.ok) {
+      return showActionError(result.message)
+    }
     onSaved(result.data)
     showActionSuccess(result.data.status === "active" ? "Campaign activated" : "Campaign paused")
   }
@@ -79,7 +82,10 @@ export default function CampaignsPage() {
     setDeleting(true)
     const result = await deleteCampaignAction(deleteTarget.id)
     setDeleting(false)
-    if (!result.ok) return showActionError(result.message)
+    if (!result.ok) {
+      setDeleteError(result.message)
+      return showActionError(result.message)
+    }
     setCampaigns((current) => current.filter((item) => item.id !== deleteTarget.id))
     setDeleteTarget(null)
     showActionSuccess("Campaign deleted")
@@ -127,7 +133,7 @@ export default function CampaignsPage() {
                     <TableCell column="meta"><div className="flex gap-1">
                       <Button variant="ghost" size="icon" title={campaign.status === "active" ? "Pause campaign" : "Activate campaign"} onClick={() => toggleStatus(campaign)}><Power className="size-4" /><span className="sr-only">Toggle status</span></Button>
                       <Button variant="ghost" size="icon" title="Edit campaign" onClick={() => { setEditing(campaign); setEditorOpen(true) }}><Pencil className="size-4" /><span className="sr-only">Edit</span></Button>
-                      <Button variant="ghost" size="icon" title="Delete campaign" onClick={() => setDeleteTarget(campaign)}><Trash2 className="size-4" /><span className="sr-only">Delete</span></Button>
+                      <Button variant="ghost" size="icon" title="Delete campaign" onClick={() => { setDeleteError(null); setDeleteTarget(campaign) }}><Trash2 className="size-4" /><span className="sr-only">Delete</span></Button>
                     </div></TableCell>
                   </TableRow>
                 ))}
@@ -138,13 +144,15 @@ export default function CampaignsPage() {
         </AdminTableShell>
       </AdminLayout>
       {currentSite?.id && <CampaignEditorDialog open={editorOpen} onOpenChange={setEditorOpen} siteId={currentSite.id} campaign={editing} onSaved={onSaved} />}
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-campaign"
         open={Boolean(deleteTarget)}
         title={`Delete ${deleteTarget?.name ?? "campaign"}?`}
         description="This permanently removes the campaign and its counters."
         disabled={deleting}
+        error={deleteError}
         confirmLabel={deleting ? "Deleting…" : "Delete"}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => { setDeleteTarget(null); setDeleteError(null) }}
         onConfirm={remove}
       />
     </>

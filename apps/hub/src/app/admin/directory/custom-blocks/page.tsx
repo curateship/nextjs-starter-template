@@ -14,7 +14,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter } from "@/components/admin/layout/list"
+import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter, ConfirmDestructive } from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -35,6 +35,8 @@ export default function DirectoryCustomBlocksPage() {
   const [templates, setTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [templateToDelete, setTemplateToDelete] = useState<DirectoryCustomBlockTemplate | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
@@ -78,13 +80,14 @@ export default function DirectoryCustomBlocksPage() {
     const { success, error: deleteError } = await deleteDirectoryCustomBlock(template.id)
 
     if (!success) {
-      setError(deleteError || "Failed to delete custom block")
+      setDeleteError(deleteError || "Failed to delete custom block")
       setDeletingId(null)
       return
     }
 
     setTemplates((prev) => prev.filter((item) => item.id !== template.id))
     setDeletingId(null)
+    setTemplateToDelete(null)
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
@@ -178,7 +181,10 @@ export default function DirectoryCustomBlocksPage() {
                               size="sm"
                               className="h-8 w-8 p-0"
                               disabled={deletingId === template.id || (template.used_in_count || 0) > 0}
-                              onClick={() => handleDelete(template)}
+                              onClick={() => {
+                                setDeleteError(null)
+                                setTemplateToDelete(template)
+                              }}
                               aria-label={`Delete ${template.name}`}
                               title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
                             >
@@ -196,6 +202,19 @@ export default function DirectoryCustomBlocksPage() {
           </AdminTableShell>
 
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+          <ConfirmDestructive
+            action="delete-directory-custom-block"
+            open={templateToDelete !== null}
+            title={`Delete “${templateToDelete?.name ?? "custom block"}”?`}
+            description="This permanently removes the custom block template. Blocks currently in use cannot be deleted."
+            disabled={deletingId !== null}
+            error={deleteError}
+            onCancel={() => {
+              setTemplateToDelete(null)
+              setDeleteError(null)
+            }}
+            onConfirm={() => templateToDelete ? handleDelete(templateToDelete) : undefined}
+          />
         </div>
       </AdminLayout>
     </>

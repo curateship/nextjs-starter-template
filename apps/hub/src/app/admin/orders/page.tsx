@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminListFooter,
   AdminListSkeleton,
   AdminSelectionBanner,
@@ -85,6 +85,7 @@ function OrdersContent() {
   const [deleting, setDeleting] = useState(false)
   const [deleteIds, setDeleteIds] = useState<string[]>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const orderSelection = useAdminBulkSelection()
   const clearOrderSelection = orderSelection.clearSelection
   const orderSort = useAdminSort<OrderSortColumn>("created_at", "desc")
@@ -133,6 +134,7 @@ function OrdersContent() {
   }, [currentSite?.id, currentPage, pageSize])
 
   const promptDelete = useCallback((ids: string[]) => {
+    setDeleteError(null)
     setDeleteIds(ids)
     setShowDeleteDialog(true)
   }, [])
@@ -143,12 +145,13 @@ function OrdersContent() {
       await deleteOrders(deleteIds)
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
       clearOrderSelection()
-    } catch (error) {
-      console.error("Error deleting orders:", error)
-    } finally {
-      setDeleting(false)
       setShowDeleteDialog(false)
       setDeleteIds([])
+    } catch (error) {
+      console.error("Error deleting orders:", error)
+      setDeleteError("Failed to delete orders")
+    } finally {
+      setDeleting(false)
     }
   }, [clearOrderSelection, deleteIds])
 
@@ -448,7 +451,8 @@ function OrdersContent() {
         </div>
       </AdminLayout>
 
-      <AdminConfirmDialog
+      <ConfirmDestructive
+        action="delete-order"
         open={showDeleteDialog}
         title={`Delete ${deleteIds.length === 1 ? "Order" : `${deleteIds.length} Orders`}`}
         description={
@@ -457,8 +461,9 @@ function OrdersContent() {
             : `Are you sure you want to delete these ${deleteIds.length} orders? This action cannot be undone.`
         }
         disabled={deleting}
+        error={deleteError}
         confirmLabel={deleting ? "Deleting..." : "Delete"}
-        onCancel={() => setShowDeleteDialog(false)}
+        onCancel={() => { setShowDeleteDialog(false); setDeleteIds([]); setDeleteError(null) }}
         onConfirm={confirmDelete}
       />
     </>

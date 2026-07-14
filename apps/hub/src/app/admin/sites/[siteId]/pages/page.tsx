@@ -44,6 +44,7 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
       canSelectItem={(page) => !page.is_homepage}
       columnCount={5}
       createButtonLabel="Create Page"
+      destructiveAction="delete-page"
       deleteItem={deletePageAction}
       deleteItems={deletePagesAction}
       duplicateItem={duplicatePageAction}

@@ -31,6 +31,7 @@ export default function EventsPage() {
     <ContentListPage<Event>
       builderPath="/admin/events/builder"
       createButtonLabel="Create Event Item"
+      destructiveAction="delete-event"
       deleteItem={deleteEventAction}
       deleteItems={deleteEventsAction}
       duplicateItem={duplicateEventAction}

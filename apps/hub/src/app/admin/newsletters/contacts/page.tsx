@@ -15,7 +15,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  AdminConfirmDialog,
+  ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
@@ -175,49 +175,44 @@ export default function ContactsPage() {
   const contactIds = sortedContacts.map((contact) => contact.id)
 
   const handleDelete = (id: string) => {
+    setErrorMessage("")
     setPendingDeleteId(id)
   }
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
     const contactId = pendingDeleteId
-    setPendingDeleteId(null)
     try {
       const { success, error } = await deleteContacts([contactId])
       if (error) {
         setErrorMessage(error)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
+        setPendingDeleteId(null)
         loadContacts()
       }
     } catch {
       setErrorMessage("Failed to delete contact")
-      setErrorDialogOpen(true)
-    } finally {
-      setPendingDeleteId(null)
     }
   }
 
   const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
       const ids = Array.from(contactSelection.selectedIds)
       const { success, error } = await deleteContacts(ids)
       if (error) {
         setErrorMessage(error)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
         contactSelection.clearSelection()
+        setMassDeleteConfirmOpen(false)
         loadContacts()
       }
     } catch {
       setErrorMessage("Failed to delete contacts")
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -714,21 +709,25 @@ export default function ContactsPage() {
             siteId={currentSite?.id}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-contact"
             open={pendingDeleteId !== null}
             title="Delete Contact"
             description="Are you sure? This action cannot be undone."
-            onCancel={() => setPendingDeleteId(null)}
+            error={errorMessage || null}
+            onCancel={() => { setPendingDeleteId(null); setErrorMessage("") }}
             onConfirm={confirmDelete}
           />
 
-          <AdminConfirmDialog
+          <ConfirmDestructive
+            action="delete-contact"
             open={massDeleteConfirmOpen}
             title={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
             description={`Are you sure you want to delete ${contactSelection.selectedCount} contact${contactSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
             confirmLabel={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
             disabled={massDeleting}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
+            error={errorMessage || null}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
 
