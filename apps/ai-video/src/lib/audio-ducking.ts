@@ -117,14 +117,16 @@ export function sampleEnvelope(keyframes: GainKeyframe[], tMs: number): number {
   const last = keyframes[keyframes.length - 1]
   if (tMs <= first.tMs) return first.gain
   if (tMs >= last.tMs) return last.gain
-  for (let i = 0; i < keyframes.length - 1; i++) {
-    const a = keyframes[i]
-    const b = keyframes[i + 1]
-    if (tMs >= a.tMs && tMs <= b.tMs) {
-      return a.gain + (b.gain - a.gain) * ((tMs - a.tMs) / (b.tMs - a.tMs))
-    }
+  let low = 0
+  let high = keyframes.length - 1
+  while (low + 1 < high) {
+    const middle = (low + high) >> 1
+    if (keyframes[middle].tMs <= tMs) low = middle
+    else high = middle
   }
-  return last.gain
+  const a = keyframes[low]
+  const b = keyframes[high]
+  return a.gain + (b.gain - a.gain) * ((tMs - a.tMs) / (b.tMs - a.tMs))
 }
 
 // Format the envelope as an ffmpeg `volume` expression in terms of `t`
