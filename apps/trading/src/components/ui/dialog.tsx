@@ -58,15 +58,17 @@ function DialogContent({
   children,
   style,
   variant = "default",
+  showOverlay = true,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   variant?: DialogContentVariant
+  showOverlay?: boolean
   showCloseButton?: boolean
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {showOverlay ? <DialogOverlay /> : null}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}

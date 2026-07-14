@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BracketOrderError,
   buildCloid,
   cloidPrefixOf,
   MANUAL_CLOID_PREFIX,
@@ -10,7 +11,7 @@ import {
 import {
   checkOrderIntent,
   describeViolations,
-  PRICE_SANITY_PCT,
+  MARKETABLE_LIMIT_SANITY_PCT,
   STALE_PRICE_MS,
   type AccountRiskState,
   type OrderIntent,
@@ -152,17 +153,48 @@ describe("risk engine", () => {
     }
   })
 
-  it("rejects limit prices far from mark", () => {
-    const result = checkOrderIntent(
-      { ...baseIntent, px: String(2000 * (1 + (PRICE_SANITY_PCT + 5) / 100)) },
+  it("allows passive limit prices far from mark", () => {
+    const buy = checkOrderIntent(
+      { ...baseIntent, side: "buy", px: "1000" },
       baseAccount,
       baseLimits,
       freshRef()
     )
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.violations[0].code).toBe("price_sanity")
-      expect(describeViolations(result.violations)).toContain("away from mark")
+    const sell = checkOrderIntent(
+      { ...baseIntent, side: "sell", px: "3000" },
+      baseAccount,
+      baseLimits,
+      freshRef()
+    )
+
+    expect(buy).toEqual({ ok: true })
+    expect(sell).toEqual({ ok: true })
+  })
+
+  it("rejects marketable limit prices far through the mark", () => {
+    const buy = checkOrderIntent(
+      {
+        ...baseIntent,
+        px: String(2000 * (1 + (MARKETABLE_LIMIT_SANITY_PCT + 5) / 100)),
+      },
+      baseAccount,
+      baseLimits,
+      freshRef()
+    )
+    const sell = checkOrderIntent(
+      { ...baseIntent, side: "sell", px: "1500" },
+      baseAccount,
+      baseLimits,
+      freshRef()
+    )
+
+    expect(buy.ok).toBe(false)
+    expect(sell.ok).toBe(false)
+    if (!buy.ok && !sell.ok) {
+      expect(buy.violations[0].code).toBe("price_sanity")
+      expect(sell.violations[0].code).toBe("price_sanity")
+      expect(describeViolations(buy.violations)).toContain("above mark")
+      expect(describeViolations(sell.violations)).toContain("below mark")
     }
   })
 
@@ -246,14 +278,18 @@ describe("error scrubbing", () => {
 })
 
 describe("bracket order responses", () => {
-  it("rejects a bracket when either protection order fails", () => {
-    expect(() =>
+  it("reports an accepted entry when a protection order fails", () => {
+    try {
       parseBracketOrderStatuses([
         { filled: { oid: 1, avgPx: "2000", totalSz: "1" } },
         { error: "Take-profit rejected" },
         { resting: { oid: 3 } },
       ])
-    ).toThrow(/position may be open without full protection/i)
+      throw new Error("Expected bracket parsing to fail")
+    } catch (error) {
+      expect(error).toBeInstanceOf(BracketOrderError)
+      expect((error as BracketOrderError).entryStatus).toBe("accepted")
+    }
   })
 
   it("returns the entry status only when every bracket leg succeeds", () => {
@@ -262,6 +298,21 @@ describe("bracket order responses", () => {
         { filled: { oid: 1, avgPx: "2000", totalSz: "1" } },
         { resting: { oid: 2 } },
         { resting: { oid: 3 } },
+      ])
+    ).toEqual({
+      kind: "filled",
+      oid: 1,
+      avgPx: "2000",
+      totalSz: "1",
+    })
+  })
+
+  it("accepts protective orders waiting for their trigger", () => {
+    expect(
+      parseBracketOrderStatuses([
+        { filled: { oid: 1, avgPx: "2000", totalSz: "1" } },
+        "waitingForTrigger",
+        "waitingForTrigger",
       ])
     ).toEqual({
       kind: "filled",

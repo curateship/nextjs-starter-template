@@ -2,6 +2,24 @@ import type { FrontendOpenOrdersResponse } from "@nktkas/hyperliquid/api/info"
 
 export type FrontendOpenOrder = FrontendOpenOrdersResponse[number]
 
+type CancellableOpenOrder = Pick<FrontendOpenOrder, "coin" | "oid">
+
+export async function cancelOpenOrders(
+  orders: readonly CancellableOpenOrder[],
+  cancel: (order: CancellableOpenOrder) => Promise<unknown>
+): Promise<number> {
+  let cancelled = 0
+  for (const order of orders) {
+    try {
+      await cancel(order)
+      cancelled += 1
+    } catch {
+      // Continue so one rejected cancellation does not leave later orders open.
+    }
+  }
+  return cancelled
+}
+
 export type OpenOrderDescription = {
   price: string
   label: "Buy" | "Sell" | "Stop Loss" | "Take Profit"

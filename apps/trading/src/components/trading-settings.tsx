@@ -27,9 +27,9 @@ export function TradingSettings({
         <CardHeader>
           <CardTitle>Order confirmation</CardTitle>
           <CardDescription>
-            When on, placing a manual order opens a confirmation box first so you
-            can review it before it goes through. Turn it off to send orders
-            straight away.
+            When on, entering, exiting, or cancelling all orders opens a
+            confirmation box first. Turn it off to send those actions straight
+            away.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -48,7 +48,7 @@ export function TradingSettings({
               }}
             />
             <Label htmlFor="order-confirmation" className="font-normal">
-              Ask me to confirm before placing an order
+              Ask me to confirm before entering, exiting, or cancelling all orders
             </Label>
           </div>
         </CardContent>

@@ -58,18 +58,27 @@ describe("buildModifiedOrder", () => {
 
 describe("assertMoveWithinMark", () => {
   it("rejects missing or invalid market prices", () => {
-    expect(() => assertMoveWithinMark("1720", Number.NaN)).toThrow(
+    expect(() => assertMoveWithinMark("1720", Number.NaN, true)).toThrow(
       "Current market price is unavailable"
     )
   })
 
-  it("rejects order moves more than twenty percent from market", () => {
-    expect(() => assertMoveWithinMark("130", 100)).toThrow(
-      "30.0% away from mark"
+  it("allows passive order moves far from market", () => {
+    expect(() => assertMoveWithinMark("50", 100, true)).not.toThrow()
+    expect(() => assertMoveWithinMark("150", 100, false)).not.toThrow()
+  })
+
+  it("rejects marketable order moves more than twenty percent through market", () => {
+    expect(() => assertMoveWithinMark("130", 100, true)).toThrow(
+      "30.0% above mark"
+    )
+    expect(() => assertMoveWithinMark("70", 100, false)).toThrow(
+      "30.0% below mark"
     )
   })
 
   it("accepts order moves within twenty percent of market", () => {
-    expect(() => assertMoveWithinMark("115", 100)).not.toThrow()
+    expect(() => assertMoveWithinMark("115", 100, true)).not.toThrow()
+    expect(() => assertMoveWithinMark("85", 100, false)).not.toThrow()
   })
 })

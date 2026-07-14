@@ -112,6 +112,7 @@ import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 import {
+  cancelOpenOrders,
   describeOpenOrder,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
@@ -692,7 +693,11 @@ export function TradingWorkspace({
           <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
             <WorkspacePanel>
               {isPaper ? (
-                <PaperBottomTabs account={paperAccount} onNotify={notify} />
+                <PaperBottomTabs
+                  account={paperAccount}
+                  confirmationEnabled={orderConfirmation}
+                  onNotify={notify}
+                />
               ) : (
                 <SandboxBottomTabs
                   network={tradingNetwork}
@@ -704,6 +709,7 @@ export function TradingWorkspace({
                   }
                   accountAddress={accountAddress}
                   mids={mids}
+                  confirmationEnabled={orderConfirmation}
                   onNotify={notify}
                   editOrder={editOrder}
                   onEditOrderHandled={() => setEditOrder(null)}
@@ -750,9 +756,11 @@ export function TradingWorkspace({
 
 function PaperBottomTabs({
   account,
+  confirmationEnabled,
   onNotify,
 }: {
   account: PaperAccountResponse | null
+  confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
 }) {
   const positionCount = account?.positions.length ?? 0
@@ -775,7 +783,11 @@ function PaperBottomTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="positions" className="min-h-0 flex-1">
-        <PaperPositionsTable account={account} onDone={onNotify} />
+        <PaperPositionsTable
+          account={account}
+          confirmationEnabled={confirmationEnabled}
+          onDone={onNotify}
+        />
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">
         <PaperOpenOrdersTable account={account} onDone={onNotify} />
@@ -793,6 +805,7 @@ function SandboxBottomTabs({
   walletId,
   accountAddress,
   mids,
+  confirmationEnabled,
   onNotify,
   editOrder,
   onEditOrderHandled,
@@ -802,6 +815,7 @@ function SandboxBottomTabs({
   walletId: string | null
   accountAddress: string | null
   mids: Record<string, string>
+  confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
   editOrder: FrontendOpenOrder | null
   onEditOrderHandled: () => void
@@ -810,8 +824,6 @@ function SandboxBottomTabs({
     account?.clearinghouseState?.assetPositions ?? []
   ).filter(({ position }) => Number(position.szi) !== 0).length
   const orderCount = account?.openOrders?.length ?? 0
-  const activeOrderCount =
-    account?.openOrders?.filter((order) => !order.isTrigger).length ?? 0
   const [activeTab, setActiveTab] = React.useState("positions")
   const [confirmCancelAll, setConfirmCancelAll] = React.useState(false)
   const [cancellingAll, setCancellingAll] = React.useState(false)
@@ -820,14 +832,9 @@ function SandboxBottomTabs({
     if (!walletId) return
     const orders = account?.openOrders ?? []
     setCancellingAll(true)
-    const results = await Promise.allSettled(
-      orders.map((order) =>
-        cancelOrder({ walletId, market: order.coin, oid: order.oid })
-      )
+    const cancelled = await cancelOpenOrders(orders, (order) =>
+      cancelOrder({ walletId, market: order.coin, oid: order.oid })
     )
-    const cancelled = results.filter(
-      (result) => result.status === "fulfilled"
-    ).length
     onNotify(
       cancelled === orders.length
         ? `Cancelled all ${cancelled} orders.`
@@ -861,10 +868,6 @@ function SandboxBottomTabs({
         </TabsList>
         <div className="flex items-center gap-3 pr-3 text-xs text-muted-foreground">
           <span>
-            Active orders:{" "}
-            <strong className="text-foreground">{activeOrderCount}</strong>
-          </span>
-          <span>
             Open orders:{" "}
             <strong className="text-foreground">{orderCount}</strong>
           </span>
@@ -872,8 +875,14 @@ function SandboxBottomTabs({
             type="button"
             variant="destructive"
             size="xs"
-            disabled={!walletId || orderCount === 0}
-            onClick={() => setConfirmCancelAll(true)}
+            disabled={!walletId || orderCount === 0 || cancellingAll}
+            onClick={() => {
+              if (confirmationEnabled) {
+                setConfirmCancelAll(true)
+                return
+              }
+              void cancelAllOrders()
+            }}
           >
             Cancel all orders
           </Button>
@@ -884,6 +893,7 @@ function SandboxBottomTabs({
           account={account}
           walletId={walletId}
           mids={mids}
+          confirmationEnabled={confirmationEnabled}
           onDone={onNotify}
         />
       </TabsContent>

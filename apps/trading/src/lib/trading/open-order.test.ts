@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { describeOpenOrder } from "@/lib/trading/open-order"
+import {
+  cancelOpenOrders,
+  describeOpenOrder,
+} from "@/lib/trading/open-order"
 
 const baseOrder = {
   coin: "ETH",
@@ -17,6 +20,45 @@ const baseOrder = {
   tif: null,
   cloid: null,
 }
+
+describe("cancel open orders", () => {
+  it("cancels orders one at a time", async () => {
+    let inFlight = 0
+    let peakInFlight = 0
+    const orders = [
+      { coin: "ETH", oid: 1 },
+      { coin: "ETH", oid: 2 },
+      { coin: "ETH", oid: 3 },
+    ]
+
+    const cancelled = await cancelOpenOrders(orders, async () => {
+      inFlight += 1
+      peakInFlight = Math.max(peakInFlight, inFlight)
+      await Promise.resolve()
+      inFlight -= 1
+    })
+
+    expect(cancelled).toBe(3)
+    expect(peakInFlight).toBe(1)
+  })
+
+  it("continues cancelling after one order fails", async () => {
+    const attempted: number[] = []
+    const orders = [
+      { coin: "ETH", oid: 1 },
+      { coin: "ETH", oid: 2 },
+      { coin: "ETH", oid: 3 },
+    ]
+
+    const cancelled = await cancelOpenOrders(orders, async (order) => {
+      attempted.push(order.oid)
+      if (order.oid === 2) throw new Error("Order is already gone")
+    })
+
+    expect(cancelled).toBe(2)
+    expect(attempted).toEqual([1, 2, 3])
+  })
+})
 
 describe("open order display and modification", () => {
   it("identifies a stop-loss trigger and uses its trigger price", () => {

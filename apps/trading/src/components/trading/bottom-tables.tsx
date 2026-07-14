@@ -49,11 +49,13 @@ export function PositionsTable({
   account,
   walletId,
   mids,
+  confirmationEnabled,
   onDone,
 }: {
   account: AccountSnapshot | null
   walletId: string | null
   mids: Record<string, string>
+  confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
 }) {
   const [pending, setPending] = React.useState<PositionAction | null>(null)
@@ -63,29 +65,29 @@ export function PositionsTable({
     ({ position }) => Number(position.szi) !== 0
   )
 
-  async function confirmAction() {
-    if (!pending || !walletId) return
+  async function submitAction(action: PositionAction) {
+    if (!walletId) return
     setBusy(true)
     try {
-      const closeSide = pending.szi > 0 ? "sell" : "buy"
+      const closeSide = action.szi > 0 ? "sell" : "buy"
       const sz =
-        pending.kind === "close"
-          ? Math.abs(pending.szi)
-          : Math.abs(pending.szi) * 2
+        action.kind === "close"
+          ? Math.abs(action.szi)
+          : Math.abs(action.szi) * 2
       await placeOrder({
         walletId,
-        market: pending.coin,
+        market: action.coin,
         side: closeSide,
         orderType: "market",
         sz: sz.toFixed(8),
-        reduceOnly: pending.kind === "close",
+        reduceOnly: action.kind === "close",
         tif: "Ioc",
         leverage: 1,
       })
       onDone(
-        pending.kind === "close"
-          ? `Closed ${pending.coin} position.`
-          : `Reversed ${pending.coin} position.`,
+        action.kind === "close"
+          ? `Closed ${action.coin} position.`
+          : `Reversed ${action.coin} position.`,
         "ok"
       )
       setPending(null)
@@ -95,6 +97,14 @@ export function PositionsTable({
     } finally {
       setBusy(false)
     }
+  }
+
+  function requestAction(action: PositionAction) {
+    if (confirmationEnabled) {
+      setPending(action)
+      return
+    }
+    void submitAction(action)
   }
 
   if (positions.length === 0) {
@@ -145,17 +155,17 @@ export function PositionsTable({
               <TableCell>
                 <div className="flex gap-1">
                   <RowActionButton
-                    disabled={!walletId}
+                    disabled={!walletId || busy}
                     onClick={() =>
-                      setPending({ kind: "close", coin: position.coin, szi })
+                      requestAction({ kind: "close", coin: position.coin, szi })
                     }
                   >
                     Close
                   </RowActionButton>
                   <RowActionButton
-                    disabled={!walletId}
+                    disabled={!walletId || busy}
                     onClick={() =>
-                      setPending({ kind: "reverse", coin: position.coin, szi })
+                      requestAction({ kind: "reverse", coin: position.coin, szi })
                     }
                   >
                     Reverse
@@ -205,7 +215,7 @@ export function PositionsTable({
                 type="button"
                 variant="destructive"
                 disabled={busy}
-                onClick={() => void confirmAction()}
+                onClick={() => pending && void submitAction(pending)}
               >
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
                 Confirm

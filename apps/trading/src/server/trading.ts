@@ -5,6 +5,7 @@ import {
   resolveTakeProfitPrice,
 } from "@/lib/one-click-order"
 import {
+  BracketOrderError,
   buildCloid,
   cancelOrder,
   MANUAL_CLOID_PREFIX,
@@ -326,30 +327,21 @@ export async function submitOneClickOrder(
       },
     },
     database
-  ).catch(async (error: unknown) => {
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("without full protection")
-    ) {
+  ).catch((error: unknown) => {
+    if (!(error instanceof BracketOrderError)) {
       throw error
     }
 
-    let openPosition = false
-    for (let attempt = 0; attempt < 3 && !openPosition; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 1_000))
-      const latestState = await info.clearinghouseState({
-        user: accountAddress,
-        dex: asset.dex,
-      })
-      openPosition = latestState.assetPositions.some(
-        ({ position }) =>
-          position.coin === input.market && Number(position.szi) !== 0
+    if (error.entryStatus === "accepted") {
+      throw new Error(
+        "Entry order was accepted, but its stop-loss or take-profit was rejected. Check positions and open orders before retrying."
       )
     }
+    if (error.entryStatus === "rejected") {
+      throw new Error("Entry order was rejected. No position was opened.")
+    }
     throw new Error(
-      openPosition
-        ? "Position is open, but its stop-loss or take-profit is missing."
-        : "No position is open."
+      "Order status could not be confirmed. Check positions and open orders before retrying."
     )
   })
 
@@ -398,7 +390,7 @@ export async function modifyManualOrder(
   const [, assetCtxs] = assetData
   const ctx = assetCtxs[asset.assetIndex]
   const mark = Number(ctx?.markPx)
-  assertMoveWithinMark(px, mark)
+  assertMoveWithinMark(px, mark, order.side === "B")
 
   if (input.sz) {
     const accountState = await loadTradingAccountState(
