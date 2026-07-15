@@ -104,7 +104,11 @@ export class PaperBroker extends SimulatedBroker {
   private onTrades(trades: TradesWsEvent) {
     if (this.orders.size === 0) return
     for (const trade of trades) {
-      this.fillCrossedOrders(Number(trade.px))
+      this.fillFromTrade(
+        trade.side === "B" ? "buy" : "sell",
+        Number(trade.px),
+        Number(trade.sz)
+      )
     }
   }
 

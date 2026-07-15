@@ -7,17 +7,15 @@ import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
 function triggersOf(
   condition: AutomationCondition
 ): Extract<AutomationCondition, { kind: "trigger" }>[] {
-  return condition.kind === "trigger"
-    ? [condition]
-    : condition.children.flatMap(triggersOf)
+  if (condition.kind === "trigger") return [condition]
+  if (condition.kind === "liveWall") return []
+  return condition.children.flatMap(triggersOf)
 }
 
 export function automationWarmupBars(config: AutomationConfig) {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
   const bars = (selection: IndicatorSelection, extra = 0) =>
-    INDICATORS[selection.type].warmupBars(selection.params as never) +
-    extra +
-    5
+    INDICATORS[selection.type].warmupBars(selection.params as never) + extra + 5
   return Math.max(
     5,
     ...triggers.flatMap((trigger) => [
@@ -71,7 +69,9 @@ export function automationInputRows(
  * largest take-profit across both sides. Feeds the backtest credibility
  * tripwire; null when no take-profit is set.
  */
-export function automationTakeProfitPct(config: AutomationConfig): number | null {
+export function automationTakeProfitPct(
+  config: AutomationConfig
+): number | null {
   const values = [
     config.protection.long?.takeProfitPct,
     config.protection.short?.takeProfitPct,

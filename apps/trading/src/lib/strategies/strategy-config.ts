@@ -1,9 +1,17 @@
 import { z } from "zod"
 
-import { automationConfigSchema, type AutomationConfig } from "@/lib/automations/automation"
+import {
+  automationConfigSchema,
+  type AutomationConfig,
+} from "@/lib/automations/automation"
 import type { IndicatorId } from "@/lib/indicators/registry"
 
-export { automationConfigSchema, type AutomationConfig }
+export {
+  automationCapabilities,
+  automationConfigSchema,
+  LIVE_BOOK_BACKTEST_UNAVAILABLE,
+  type AutomationConfig,
+} from "@/lib/automations/automation"
 export {
   automationSummary,
   automationInputRows,
@@ -18,7 +26,9 @@ export {
  */
 
 /** Cheap shape guard for jsonb params that may be legacy or new-model. */
-export function isAutomationConfig(params: unknown): params is AutomationConfig {
+export function isAutomationConfig(
+  params: unknown
+): params is AutomationConfig {
   return (
     typeof params === "object" &&
     params !== null &&
@@ -32,7 +42,9 @@ export function isAutomationConfig(params: unknown): params is AutomationConfig 
  * stored config through this before it reaches the client. Null = not a
  * new-model config (e.g. archived legacy params).
  */
-export function normalizeAutomationConfig(params: unknown): AutomationConfig | null {
+export function normalizeAutomationConfig(
+  params: unknown
+): AutomationConfig | null {
   const parsed = automationConfigSchema.safeParse(params)
   return parsed.success ? parsed.data : null
 }

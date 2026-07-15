@@ -95,7 +95,13 @@ export abstract class SimulatedBroker {
     if (!(sz > 0)) return { kind: "rejected", reason: "size must be positive" }
 
     if (order.orderType === "market" || order.tif === "Ioc") {
-      return this.fillTaker(cloid, order.purpose, order.side, sz, order.reduceOnly)
+      return this.fillTaker(
+        cloid,
+        order.purpose,
+        order.side,
+        sz,
+        order.reduceOnly
+      )
     }
 
     if (px === null || !(px > 0)) {
@@ -108,7 +114,13 @@ export abstract class SimulatedBroker {
       if (order.tif === "Alo") {
         return { kind: "rejected", reason: "post-only order would cross" }
       }
-      return this.fillTaker(cloid, order.purpose, order.side, sz, order.reduceOnly)
+      return this.fillTaker(
+        cloid,
+        order.purpose,
+        order.side,
+        sz,
+        order.reduceOnly
+      )
     }
 
     this.orders.set(cloid, {
@@ -119,7 +131,7 @@ export abstract class SimulatedBroker {
       remainingSz: sz,
       reduceOnly: order.reduceOnly,
     })
-    return { kind: "resting" }
+    return { kind: "resting", oid: null, remainingSz: order.sz }
   }
 
   /** Closes the whole position at market (taker, reduce-only). */
@@ -150,7 +162,10 @@ export abstract class SimulatedBroker {
   ): Placement {
     const capped = reduceOnly ? capReduceOnly(this.position, side, sz) : sz
     if (capped === null) {
-      return { kind: "rejected", reason: "reduce-only does not reduce position" }
+      return {
+        kind: "rejected",
+        reason: "reduce-only does not reduce position",
+      }
     }
     if (capped <= 0) return { kind: "rejected", reason: "nothing to reduce" }
     const px = pxFor(capped)
@@ -158,7 +173,7 @@ export abstract class SimulatedBroker {
       return { kind: "rejected", reason: "no book depth for market fill" }
     }
     this.applyFill(cloid, purpose, side, px, capped, feeRate)
-    return { kind: "filled" }
+    return { kind: "filled", oid: null, remainingSz: "0" }
   }
 
   /** Fills every resting order the given price has crossed, at its limit price (maker). */
@@ -177,9 +192,51 @@ export abstract class SimulatedBroker {
           order.side,
           order.px,
           sz,
-          this.makerFeeRate
+          this.makerFeeRate,
+          0,
+          "filled"
         )
       }
+    }
+  }
+
+  /** Applies one printed trade only to resting orders on its passive side. */
+  protected fillFromTrade(
+    aggressor: "buy" | "sell",
+    px: number,
+    printedSz: number
+  ) {
+    let available = printedSz
+    if (!(available > 0) || !(px > 0)) return
+    for (const order of [...this.orders.values()]) {
+      if (available <= 0) break
+      const directed =
+        (order.side === "buy" && aggressor === "sell") ||
+        (order.side === "sell" && aggressor === "buy")
+      const crossed = order.side === "buy" ? px <= order.px : px >= order.px
+      if (!directed || !crossed) continue
+      const requested = Math.min(order.remainingSz, available)
+      const filled = order.reduceOnly
+        ? (capReduceOnly(this.position, order.side, requested) ?? 0)
+        : requested
+      if (!(filled > 0)) {
+        this.orders.delete(order.cloid)
+        continue
+      }
+      order.remainingSz = Math.max(0, order.remainingSz - filled)
+      available -= filled
+      const complete = order.remainingSz <= 1e-12
+      if (complete) this.orders.delete(order.cloid)
+      this.applyFill(
+        order.cloid,
+        order.purpose,
+        order.side,
+        order.px,
+        filled,
+        this.makerFeeRate,
+        complete ? 0 : order.remainingSz,
+        complete ? "filled" : "partially_filled"
+      )
     }
   }
 
@@ -189,9 +246,18 @@ export abstract class SimulatedBroker {
     side: "buy" | "sell",
     px: number,
     sz: number,
-    feeRate: number
+    feeRate: number,
+    remainingSz = 0,
+    orderStatus: "partially_filled" | "filled" = "filled"
   ) {
-    const result = applyPaperFill(this.position, this.cash, side, px, sz, feeRate)
+    const result = applyPaperFill(
+      this.position,
+      this.cash,
+      side,
+      px,
+      sz,
+      feeRate
+    )
     this.position = result.position
     this.cash = result.cash
 
@@ -206,6 +272,8 @@ export abstract class SimulatedBroker {
         cloid,
         oid: null,
         hlTid: null,
+        remainingSz: String(remainingSz),
+        orderStatus,
       },
       purpose,
       cloid

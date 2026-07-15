@@ -1,7 +1,6 @@
-import type { CandleWsEvent } from "@nktkas/hyperliquid"
+import type { CandleWsEvent, L2BookWsEvent } from "@nktkas/hyperliquid"
 
 export type CandleInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d"
-
 
 export type DesiredOrder = {
   /** Stable identity for diffing, e.g. "grid:7:buy". Max 40 chars. */
@@ -14,6 +13,8 @@ export type DesiredOrder = {
   sz: string
   tif: "Gtc" | "Ioc" | "Alo"
   reduceOnly: boolean
+  /** Compare this target with the exchange's remaining size after partial fills. */
+  sizeIsRemaining?: boolean
 }
 
 export type BrokerFill = {
@@ -28,7 +29,17 @@ export type BrokerFill = {
   hlTid: number | null
   /** Purpose of the order that filled; resolved by the runner. */
   purpose?: string
+  /** Unfilled base size left on the same order after this fill. */
+  remainingSz: string
+  orderStatus: "partially_filled" | "filled"
 }
+
+export type StrategyOrderStatus =
+  | "resting"
+  | "partially_filled"
+  | "filled"
+  | "cancelled"
+  | "rejected"
 
 export type PositionState = {
   /** Signed size; positive = long. */
@@ -55,6 +66,7 @@ export type StrategyCtx<S> = {
 
 export type WarmupSpec = {
   candleIntervals: CandleInterval[]
+  requiresLiveBook?: boolean
 }
 
 /**
@@ -133,12 +145,45 @@ export interface Strategy<P, S> {
   type: string
   warmup: (params: P) => WarmupSpec
   init: (params: P) => S
+  onStart?: (ctx: StrategyCtx<S>, params: P) => void
+  onBook?: (
+    ctx: StrategyCtx<S>,
+    params: P,
+    book: L2BookWsEvent,
+    precision: { szDecimals: number }
+  ) => void
   onCandleClose?: (
     ctx: StrategyCtx<S>,
     params: P,
     candle: CandleWsEvent
   ) => void
   onFill?: (ctx: StrategyCtx<S>, params: P, fill: BrokerFill) => void
+  onOrderPlaced?: (
+    ctx: StrategyCtx<S>,
+    params: P,
+    order: DesiredOrder,
+    status: "resting" | "filled",
+    remainingSz: string
+  ) => void
+  onOrderRejected?: (
+    ctx: StrategyCtx<S>,
+    params: P,
+    order: DesiredOrder,
+    reason: string
+  ) => void
+  onOrderCancelled?: (
+    ctx: StrategyCtx<S>,
+    params: P,
+    order: DesiredOrder,
+    cancelled: boolean
+  ) => void
+  onOrderUpdate?: (
+    ctx: StrategyCtx<S>,
+    params: P,
+    order: DesiredOrder,
+    status: StrategyOrderStatus,
+    remainingSz: string
+  ) => void
   onTick?: (ctx: StrategyCtx<S>, params: P) => void
   /**
    * Price levels at which onTick would request an exit right now (TP / SL /

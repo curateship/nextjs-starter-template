@@ -16,7 +16,9 @@ import {
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import {
+  automationCapabilities,
   automationConfigSchema,
+  LIVE_BOOK_BACKTEST_UNAVAILABLE,
   normalizeAutomationConfig,
   automationTypeIdSchema,
   type AutomationConfig,
@@ -137,7 +139,10 @@ const runBacktestSchema = z
      * market). The background queue drains them one at a time, so this bounds a
      * run group's total upstream cost.
      */
-    extraMarkets: z.array(z.string().min(1).max(20)).max(MAX_EXTRA_MARKETS).optional(),
+    extraMarkets: z
+      .array(z.string().min(1).max(20))
+      .max(MAX_EXTRA_MARKETS)
+      .optional(),
     windowDays: z.number().int().min(1).max(MAX_RUN_BARS),
   })
   .superRefine((data, ctx) => {
@@ -171,16 +176,16 @@ export async function resolveAutomationRun(
   userId: string,
   automationId: string
 ): Promise<ResolvedAutomationRun> {
-  const { getUserAutomation, inspectAutomation } = await import(
-    "@/server/automations"
-  )
+  const { getUserAutomation, inspectAutomation } =
+    await import("@/server/automations")
   const source = await getUserAutomation(userId, automationId)
   if (!source) throw new Error("Automation not found")
-  const compiled = automationConfigSchema.safeParse(
-    source.compiledConfig
-  )
+  const compiled = automationConfigSchema.safeParse(source.compiledConfig)
   if (!compiled.success) {
     throw new Error("Fix this Automation before running a backtest.")
+  }
+  if (!automationCapabilities(compiled.data).supportsHistoricalBacktest) {
+    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
   }
   const inspected = inspectAutomation(source)
   return {
@@ -258,7 +263,14 @@ async function enqueueRun(
   for (const market of markets) {
     const backtest = await createUserBacktest(
       userId,
-      buildRunInput({ name, groupId: mainId ?? undefined, market, run, startTime, endTime })
+      buildRunInput({
+        name,
+        groupId: mainId ?? undefined,
+        market,
+        run,
+        startTime,
+        endTime,
+      })
     )
     mainId = mainId ?? backtest.id
   }
@@ -334,24 +346,20 @@ const groupMetricsSchema = z.object({
 
 const loadGroupMetricsFn = createServerFn({ method: "GET" })
   .inputValidator(groupMetricsSchema)
-  .handler(
-    async ({ data }): Promise<Record<string, GroupPortfolioMetrics>> => {
-      const { loadGroupPortfolioMetrics } = await import(
-        "@/server/backtest/portfolio-metrics"
-      )
-      const user = await requireUser()
-      return loadGroupPortfolioMetrics(user.id, data.groupIds)
-    }
-  )
+  .handler(async ({ data }): Promise<Record<string, GroupPortfolioMetrics>> => {
+    const { loadGroupPortfolioMetrics } =
+      await import("@/server/backtest/portfolio-metrics")
+    const user = await requireUser()
+    return loadGroupPortfolioMetrics(user.id, data.groupIds)
+  })
 
 const groupCurveSchema = z.object({ groupId: z.string().min(1) })
 
 const loadGroupCurveFn = createServerFn({ method: "GET" })
   .inputValidator(groupCurveSchema)
   .handler(async ({ data }): Promise<GroupCombinedCurve | null> => {
-    const { loadGroupCombinedCurve } = await import(
-      "@/server/backtest/portfolio-metrics"
-    )
+    const { loadGroupCombinedCurve } =
+      await import("@/server/backtest/portfolio-metrics")
     const user = await requireUser()
     return loadGroupCombinedCurve(user.id, data.groupId)
   })
@@ -359,9 +367,8 @@ const loadGroupCurveFn = createServerFn({ method: "GET" })
 const loadBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(backtestIdSchema)
   .handler(async ({ data }): Promise<BacktestDetailResponse> => {
-    const { getUserBacktest, listGroupRuns } = await import(
-      "@/server/backtests"
-    )
+    const { getUserBacktest, listGroupRuns } =
+      await import("@/server/backtests")
     const { kickBacktestQueue } = await import("@/server/backtest/queue")
     const user = await requireUser()
     // The progress modal polls this while runs are pending — kicking here
@@ -425,7 +432,12 @@ const loadBacktestCandlesFn = createServerFn({ method: "POST" })
     const maxSpanMs = MAX_CHART_BARS * stepMs
     if (toMs - fetchStart > maxSpanMs) fetchStart = toMs - maxSpanMs
 
-    const candles = await fetchCandleHistory(row.market, interval, fetchStart, toMs)
+    const candles = await fetchCandleHistory(
+      row.market,
+      interval,
+      fetchStart,
+      toMs
+    )
     return { candles, simStartMs: visibleStartMs }
   })
 
@@ -468,7 +480,11 @@ const deleteBacktestsSchema = z
     indicatorTypes: z.array(automationTypeIdSchema).max(9).optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.ids?.length && !data.groupIds?.length && !data.indicatorTypes?.length) {
+    if (
+      !data.ids?.length &&
+      !data.groupIds?.length &&
+      !data.indicatorTypes?.length
+    ) {
       ctx.addIssue({ code: "custom", message: "Nothing selected to delete." })
     }
   })

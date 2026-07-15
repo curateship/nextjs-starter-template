@@ -1,13 +1,14 @@
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
 import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
-import type { AutomationConfig } from "@/lib/strategies/strategy-config"
+import {
+  automationCapabilities,
+  LIVE_BOOK_BACKTEST_UNAVAILABLE,
+  type AutomationConfig,
+} from "@/lib/strategies/strategy-config"
 import { db, type CustomShellDb } from "@/server/db"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
-import {
-  tradingBacktests,
-  type TradingBacktest,
-} from "@/server/schema"
+import { tradingBacktests, type TradingBacktest } from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
 export type CreateBacktestInput = {
@@ -51,6 +52,9 @@ export async function createUserBacktest(
   input: CreateBacktestInput,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
+  if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
+    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
+  }
   const id = uuid()
   const [row] = await database
     .insert(tradingBacktests)
@@ -80,6 +84,9 @@ export async function resetUserBacktest(
   input: CreateBacktestInput,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
+  if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
+    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
+  }
   const [row] = await database
     .update(tradingBacktests)
     .set({
@@ -330,7 +337,11 @@ export async function deleteUserBacktests(
  */
 export async function setUserBacktestStatus(
   userId: string,
-  input: { groupIds: string[]; reviewStatus?: "review" | "archived"; pinned?: boolean },
+  input: {
+    groupIds: string[]
+    reviewStatus?: "review" | "archived"
+    pinned?: boolean
+  },
   database: CustomShellDb = db
 ): Promise<number> {
   if (input.groupIds.length === 0) return 0

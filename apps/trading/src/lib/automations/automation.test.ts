@@ -9,6 +9,7 @@ import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
 
 import {
   automationDraftSchema,
+  automationCapabilities,
   automationConfigSchema,
   compileAutomationGraph,
   DEFAULT_AUTOMATION_BACKTEST_SETTINGS,
@@ -70,14 +71,185 @@ const stopLoss = (id: string, pct = 1): AutomationNode => ({
   y: 0,
 })
 
+const whaleWall = (
+  id: string,
+  overrides: Partial<Extract<AutomationNode, { kind: "whaleWall" }>> = {}
+): AutomationNode => ({
+  id,
+  kind: "whaleWall",
+  minUsd: 500_000,
+  relativeSize: 5,
+  maxDistancePct: 0.5,
+  confirmationMs: 2_000,
+  x: 0,
+  y: 0,
+  ...overrides,
+})
+
 const edge = (
   id: string,
   from: string,
-  sourcePort: "bullish" | "bearish" | "trend" | "then" | "match" | "tp" | "sl",
+  sourcePort:
+    | "bullish"
+    | "bearish"
+    | "trend"
+    | "then"
+    | "match"
+    | "tp"
+    | "sl"
+    | "bidWall"
+    | "askWall",
   to: string
 ): AutomationEdge => ({ id, from, sourcePort, to })
 
 describe("compileAutomationGraph", () => {
+  it("compiles Whale Wall bid and ask outputs into live wall conditions", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          whaleWall("wall"),
+          action("long", "buy", 20),
+          action("short", "short", 15),
+        ],
+        edges: [
+          edge("bid", "wall", "bidWall", "long"),
+          edge("ask", "wall", "askWall", "short"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.config?.rules).toEqual([
+      {
+        id: "long",
+        action: "buy",
+        targetEquityPct: 20,
+        condition: {
+          kind: "liveWall",
+          nodeId: "wall",
+          side: "bid",
+          minUsd: 500_000,
+          relativeSize: 5,
+          maxDistancePct: 0.5,
+          confirmationMs: 2_000,
+        },
+      },
+      {
+        id: "short",
+        action: "short",
+        targetEquityPct: 15,
+        condition: {
+          kind: "liveWall",
+          nodeId: "wall",
+          side: "ask",
+          minUsd: 500_000,
+          relativeSize: 5,
+          maxDistancePct: 0.5,
+          confirmationMs: 2_000,
+        },
+      },
+    ])
+    expect(automationCapabilities(result.config!)).toEqual({
+      requiresLiveBook: true,
+      supportsHistoricalBacktest: false,
+    })
+  })
+
+  it("rejects a stored config that mixes live and candle entries", () => {
+    const live = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [whaleWall("wall"), action("long", "buy")],
+        edges: [edge("bid", "wall", "bidWall", "long")],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    }).config!
+    const mixed = {
+      ...live,
+      rules: [
+        ...live.rules,
+        {
+          id: "short",
+          action: "short" as const,
+          targetEquityPct: 10,
+          condition: {
+            kind: "trigger" as const,
+            nodeId: "ema",
+            indicator: {
+              type: "ema_cross" as const,
+              params: { fast: 9, slow: 21 },
+            },
+            side: "sell" as const,
+          },
+        },
+      ],
+    }
+
+    expect(automationConfigSchema.safeParse(mixed).success).toBe(false)
+  })
+
+  it("rejects invalid Whale Wall targets, settings, and mixed entry sources", () => {
+    const invalidTarget = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [whaleWall("wall"), action("short", "short")],
+        edges: [edge("bid", "wall", "bidWall", "short")],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    const invalidSettings = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          whaleWall("wall", { minUsd: 0, confirmationMs: 0 }),
+          action("long", "buy"),
+        ],
+        edges: [edge("bid", "wall", "bidWall", "long")],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    const mixed = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [whaleWall("wall"), indicator("ema"), action("long", "buy")],
+        edges: [
+          edge("bid", "wall", "bidWall", "long"),
+          edge("candle", "ema", "bullish", "long"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    const separateEntries = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          whaleWall("wall"),
+          indicator("ema"),
+          action("long", "buy"),
+          action("reverse", "reverse"),
+        ],
+        edges: [
+          edge("bid", "wall", "bidWall", "long"),
+          edge("candle", "ema", "bullish", "reverse"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(invalidTarget.errors.map((error) => error.code)).toContain(
+      "invalid_edge"
+    )
+    expect(invalidSettings.errors.map((error) => error.code)).toContain(
+      "invalid_scanner"
+    )
+    expect(mixed.errors.map((error) => error.code)).toContain("action_input")
+    expect(separateEntries.errors.map((error) => error.code)).toContain(
+      "action_input"
+    )
+  })
+
   it("compiles a direct indicator output into an action rule", () => {
     const result = compileAutomationGraph({
       interval: "15m",
@@ -468,8 +640,9 @@ describe("compileAutomationGraph", () => {
       },
     ]
 
-    expect(resolveAutomationActions(rules, new Set(["ema:buy"])).action)
-      .toBeNull()
+    expect(
+      resolveAutomationActions(rules, new Set(["ema:buy"])).action
+    ).toBeNull()
     expect(
       resolveAutomationActions(rules, new Set(["ema:buy", "rsi:buy"])).action
     ).toEqual({ action: "buy", targetEquityPct: 20 })
@@ -485,10 +658,7 @@ describe("compileAutomationGraph", () => {
           indicator("b", "rsi_levels"),
           action("buy", "buy", 10),
         ],
-        edges: [
-          edge("e1", "a", "trend", "b"),
-          edge("e2", "b", "trend", "a"),
-        ],
+        edges: [edge("e1", "a", "trend", "b"), edge("e2", "b", "trend", "a")],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
     })
@@ -692,9 +862,7 @@ describe("Automation schemas", () => {
       },
     })
 
-    expect(
-      automationConfigSchema.safeParse(compiled.config).success
-    ).toBe(true)
+    expect(automationConfigSchema.safeParse(compiled.config).success).toBe(true)
     expect(automationConfigSchema.safeParse(compiled.config).success).toBe(true)
     expect(automationTypeOf(compiled.config!)).toBe("automation")
     expect(AUTOMATION_TYPE_IDS).toContain("automation")
@@ -852,7 +1020,10 @@ describe("resolveAutomationActions", () => {
         compiled.config?.rules ?? [],
         new Set(["ema:buy"])
       )
-    ).toEqual({ action: { action: "buy", targetEquityPct: 40 }, warning: null })
+    ).toEqual({
+      action: { action: "buy", targetEquityPct: 40 },
+      warning: null,
+    })
   })
 
   it("gives Close priority over matching entries", () => {
@@ -932,7 +1103,8 @@ describe("resolveAutomationActions", () => {
       )
     ).toEqual({
       action: null,
-      warning: "Long and Short matched on the same candle; no entry was placed.",
+      warning:
+        "Long and Short matched on the same candle; no entry was placed.",
     })
   })
 })

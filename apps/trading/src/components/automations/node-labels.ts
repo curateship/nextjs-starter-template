@@ -5,6 +5,7 @@ export function automationNodeName(node: AutomationNode) {
   if (node.kind === "indicator") return INDICATORS[node.indicator.type].label
   if (node.kind === "logic") return node.op.toUpperCase()
   if (node.kind === "lookback") return "Look Back"
+  if (node.kind === "whaleWall") return "Whale Wall"
   if (node.kind === "takeProfit") return "Take Profit"
   if (node.kind === "stopLoss") return "Stop Loss"
   if (node.action === "buy") return "Long"
@@ -22,6 +23,9 @@ export function automationNodeDescription(node: AutomationNode) {
   }
   if (node.kind === "lookback") {
     return `The incoming signal only counts for ${node.bars} candles after it fires.`
+  }
+  if (node.kind === "whaleWall") {
+    return `At least $${Math.round(node.minUsd).toLocaleString()}, ${node.relativeSize}× nearby size, within ${node.maxDistancePct}%.`
   }
   if (node.kind === "takeProfit") {
     return `Banks profit ${node.pct}% from the entry on the side it's attached to.`

@@ -34,7 +34,7 @@ describe("BacktestBroker", () => {
       "c1",
       order({ orderType: "market", tif: "Ioc", sz: "2" })
     )
-    expect(placement).toEqual({ kind: "filled" })
+    expect(placement).toEqual({ kind: "filled", oid: null, remainingSz: "0" })
     expect(fills).toHaveLength(1)
     expect(fills[0].fill.px).toBe("100")
     expect(Number(fills[0].fill.fee)).toBeCloseTo(100 * 2 * 0.00045, 10)
@@ -45,7 +45,7 @@ describe("BacktestBroker", () => {
     const { broker, fills } = makeBroker()
     broker.setPrice(110)
     const placement = broker.place("c1", order({ side: "buy", px: "100", sz: "1" }))
-    expect(placement).toEqual({ kind: "resting" })
+    expect(placement).toEqual({ kind: "resting", oid: null, remainingSz: "1" })
     expect(fills).toHaveLength(0)
 
     broker.matchBar(99) // bar low dips to/below the buy limit

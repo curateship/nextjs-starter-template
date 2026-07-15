@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 export function AutomationToolbar({
   name,
   runnable,
+  backtestDisabledReason,
   dirty,
   saving,
   onNameChange,
@@ -33,6 +34,7 @@ export function AutomationToolbar({
 }: {
   name: string
   runnable: boolean
+  backtestDisabledReason?: string
   dirty: boolean
   saving: boolean
   onNameChange: (name: string) => void
@@ -75,12 +77,23 @@ export function AutomationToolbar({
         variant="outline"
         size="sm"
         className="hidden h-8 xl:inline-flex"
-        disabled={!runnable}
+        disabled={!runnable || Boolean(backtestDisabledReason)}
+        title={backtestDisabledReason}
+        aria-label={
+          backtestDisabledReason
+            ? `Backtest unavailable: ${backtestDisabledReason}`
+            : "Backtest"
+        }
         onClick={onBacktest}
       >
         <FlaskConicalIcon className="size-3.5" />
         Backtest
       </Button>
+      {backtestDisabledReason ? (
+        <span className="hidden max-w-48 text-[10px] leading-3 text-muted-foreground 2xl:inline">
+          Backtest unavailable: live order-book data has no historical replay.
+        </span>
+      ) : null}
       <Button
         type="button"
         variant="outline"
@@ -105,9 +118,13 @@ export function AutomationToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem disabled={!runnable} onSelect={onBacktest}>
+          <DropdownMenuItem
+            disabled={!runnable || Boolean(backtestDisabledReason)}
+            onSelect={onBacktest}
+            title={backtestDisabledReason}
+          >
             <FlaskConicalIcon className="size-4" />
-            Backtest
+            {backtestDisabledReason ? "Backtest unavailable" : "Backtest"}
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!runnable} onSelect={onCreateBot}>
             <BotIcon className="size-4" />

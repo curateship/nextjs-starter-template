@@ -20,6 +20,11 @@ the live worker and the backtester.
   feeds through it; nested Look Backs keep the strictest cap. It cannot wire
   directly into an action (that would re-fire the action on every candle in
   the window).
+- **Whale Wall** (scanner) — reads the live order book and follows the closest
+  qualifying wall on each side. **Bid Wall** connects to Long and **Ask Wall**
+  connects to Short. Its minimum dollar size, size compared with nearby
+  levels, maximum market distance, and confirmation time are editable. A wall
+  can represent several anonymous orders; it does not identify a wallet.
 - **Action (Long / Short / Close Position)** — targets a % of account equity
   (Close is full reduce-only). Multiple wires into one action mean "any of
   them fires it". The **Then** output is visual-flow only: it chains an
@@ -32,6 +37,9 @@ the live worker and the backtester.
 
 - Trend → indicator or Look Back. Look Back → indicator only.
 - Bullish/Bearish → action only. Then → indicator only.
+- Bid Wall → Long only. Ask Wall → Short only. A Whale Wall automation cannot
+  also contain a candle-driven Long, Short, or Reverse entry. Candle-driven
+  Close actions and attached Take Profit / Stop Loss nodes remain available.
 - Look Back needs a Trend input and whole-number bars 1–1400. The cap plus
   its indicator's warm-up must also fit the engine's 1400-candle evaluation
   window (`AUTOMATION_MAX_WINDOW_BARS`) — compile rejects it otherwise, so a
@@ -55,6 +63,10 @@ the live worker and the backtester.
   (`/backtest?run=<group>`). Re-running = pressing Backtest again (each run
   is a fresh immutable group).
 - Bots are created from Automations only (the template source was removed).
+- Whale Wall automations cannot use historical Backtest because candles do not
+  contain past order books. The editor explains this beside the disabled
+  Backtest action, and the server rejects direct attempts too. Paper and live
+  bots remain available.
 
 ## Runtime behavior worth knowing
 
@@ -64,3 +76,16 @@ the live worker and the backtester.
   the same candle places nothing and emits a warning.
 - The backtester and the live worker run the same `evaluateAutomation`, so a
   backtest of an automation is the real logic, not a reimplementation.
+- Whale Wall must see the same price level continuously for its confirmation
+  time before resting a post-only order one valid price step toward the spread.
+  It never crosses the spread. Two qualifying connected sides block a new
+  entry until only one remains.
+- If the wall weakens, moves, disappears, or book data goes stale, the resting
+  entry is cancelled. Any partial fill is treated as an owned position; the
+  remainder is cancelled and the position is closed reduce-only if its wall
+  becomes invalid. An owned position is also closed after five seconds without
+  fresh book data.
+- A wall bot starts only when that market is flat. On restart it cancels its
+  own stale orders and either revalidates its saved wall or closes its owned
+  position. After a completed trade, the exact wall must disappear or change
+  before another trade can start.

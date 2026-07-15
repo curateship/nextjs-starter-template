@@ -28,14 +28,8 @@ export function nextNodePosition(
   const column = nodeCount % columns
   const row = Math.floor(nodeCount / columns)
   return {
-    x:
-      -viewport.x / viewport.zoom +
-      padding +
-      column * (NODE_WIDTH + gap),
-    y:
-      -viewport.y / viewport.zoom +
-      padding +
-      row * (NODE_HEIGHT + gap),
+    x: -viewport.x / viewport.zoom + padding + column * (NODE_WIDTH + gap),
+    y: -viewport.y / viewport.zoom + padding + row * (NODE_HEIGHT + gap),
   }
 }
 
@@ -50,6 +44,12 @@ export function nodeOutputPorts(node: AutomationNode): NodePort[] {
   if (node.kind === "logic") return [{ id: "match", label: "Match" }]
   // Look Back forwards the (time-limited) trend to the next indicator.
   if (node.kind === "lookback") return [{ id: "trend", label: "Trend" }]
+  if (node.kind === "whaleWall") {
+    return [
+      { id: "bidWall", label: "Bid Wall" },
+      { id: "askWall", label: "Ask Wall" },
+    ]
+  }
   // Take Profit / Stop Loss are leaf targets — they emit nothing.
   if (node.kind === "takeProfit" || node.kind === "stopLoss") return []
   // Actions chain onward to their exit watchers (e.g. Long → EMA → Close).
@@ -76,7 +76,9 @@ export function attachmentPortEdge(
 }
 
 /** The two protective hooks a Long/Short entry exposes (none for other nodes). */
-export function nodeAttachmentPorts(node: AutomationNode): NodeAttachmentPort[] {
+export function nodeAttachmentPorts(
+  node: AutomationNode
+): NodeAttachmentPort[] {
   if (
     node.kind !== "action" ||
     (node.action !== "buy" && node.action !== "short")
@@ -131,17 +133,16 @@ export function protectionPortIn(
   target: AutomationNode
 ): CanvasPoint {
   const topCenter = { x: target.x + NODE_WIDTH / 2, y: target.y }
-  const bottomCenter = { x: target.x + NODE_WIDTH / 2, y: target.y + NODE_HEIGHT }
+  const bottomCenter = {
+    x: target.x + NODE_WIDTH / 2,
+    y: target.y + NODE_HEIGHT,
+  }
   return Math.abs(topCenter.y - from.y) <= Math.abs(bottomCenter.y - from.y)
     ? topCenter
     : bottomCenter
 }
 
-export function edgePath(
-  from: CanvasPoint,
-  to: CanvasPoint,
-  vertical = false
-) {
+export function edgePath(from: CanvasPoint, to: CanvasPoint, vertical = false) {
   if (vertical) {
     const dir = Math.sign(to.y - from.y) || 1
     const offset = Math.max(40, Math.abs(to.y - from.y) * 0.5)

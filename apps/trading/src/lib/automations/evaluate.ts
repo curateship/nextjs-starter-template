@@ -30,9 +30,9 @@ const emptyPaint = (): IndicatorPaint => ({
 function triggersOf(
   condition: AutomationCondition
 ): Extract<AutomationCondition, { kind: "trigger" }>[] {
-  return condition.kind === "trigger"
-    ? [condition]
-    : condition.children.flatMap(triggersOf)
+  if (condition.kind === "trigger") return [condition]
+  if (condition.kind === "liveWall") return []
+  return condition.children.flatMap(triggersOf)
 }
 
 function selectionKey(condition: {
@@ -108,14 +108,15 @@ export function evaluateAutomation(
   // Trend filters latch: a filter counts as bullish/bearish from its most
   // recent signal (same candle included) until the opposite signal — subject
   // to any Look Back cap, which the resolver checks against the latch age.
-  const filterCursors = [...new Set(filters.map((filter) => filter.nodeId))]
-    .map((nodeId) => ({
-      nodeId,
-      signals: [...(outputByNode.get(nodeId)?.signals ?? [])].sort(
-        (a, b) => a.time - b.time
-      ),
-      index: 0,
-    }))
+  const filterCursors = [
+    ...new Set(filters.map((filter) => filter.nodeId)),
+  ].map((nodeId) => ({
+    nodeId,
+    signals: [...(outputByNode.get(nodeId)?.signals ?? [])].sort(
+      (a, b) => a.time - b.time
+    ),
+    index: 0,
+  }))
   const latched = new Map<string, { side: "buy" | "sell"; barIndex: number }>()
 
   const actions: AutomationActionEvent[] = []
@@ -134,10 +135,7 @@ export function evaluateAutomation(
         cursor.index++
       }
     }
-    const filterState = new Map<
-      string,
-      { side: "buy" | "sell"; age: number }
-    >()
+    const filterState = new Map<string, { side: "buy" | "sell"; age: number }>()
     for (const [nodeId, latch] of latched) {
       filterState.set(nodeId, { side: latch.side, age: i - latch.barIndex })
     }

@@ -25,6 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
+  automationCapabilities,
   compileAutomationGraph,
   type AutomationBacktestSettings,
   type AutomationGraph,
@@ -97,7 +98,9 @@ export function AutomationEditor({
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useAutomationLayout("automation-editor-horizontal-v2")
+  const horizontalLayout = useAutomationLayout(
+    "automation-editor-horizontal-v2"
+  )
   const verticalLayout = useAutomationLayout("automation-editor-vertical")
 
   const togglePalette = React.useCallback(() => {
@@ -241,6 +244,17 @@ export function AutomationEditor({
         }
       } else if (choice.kind === "lookback") {
         node = { id, kind: "lookback", bars: 48, x, y }
+      } else if (choice.kind === "whaleWall") {
+        node = {
+          id,
+          kind: "whaleWall",
+          minUsd: 500_000,
+          relativeSize: 5,
+          maxDistancePct: 0.5,
+          confirmationMs: 2_000,
+          x,
+          y,
+        }
       } else if (choice.kind === "takeProfit") {
         node = { id, kind: "takeProfit", pct: 2, x, y }
       } else if (choice.kind === "stopLoss") {
@@ -465,6 +479,12 @@ export function AutomationEditor({
       <AutomationToolbar
         name={name}
         runnable={compiled.config !== null && !dirty && !saving}
+        backtestDisabledReason={
+          compiled.config &&
+          !automationCapabilities(compiled.config).supportsHistoricalBacktest
+            ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
+            : undefined
+        }
         dirty={dirty}
         saving={saving}
         onNameChange={setName}
@@ -490,9 +510,7 @@ export function AutomationEditor({
           orientation="vertical"
           className="min-h-0 flex-1"
           defaultLayout={logOpen ? verticalLayout.defaultLayout : undefined}
-          onLayoutChanged={
-            logOpen ? verticalLayout.onLayoutChanged : undefined
-          }
+          onLayoutChanged={logOpen ? verticalLayout.onLayoutChanged : undefined}
         >
           <ResizablePanel id="workspace" defaultSize="78%" minSize="40%">
             <div className="flex h-full min-h-0">{workspace}</div>
@@ -521,31 +539,31 @@ export function AutomationEditor({
         </ResizablePanelGroup>
         {!logOpen ? (
           <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
-          <span className="text-xs font-semibold tracking-wide uppercase">
-            Activity log
-          </span>
-          <span className="ml-2 text-xs text-muted-foreground">
-            {logEntries.length} {logEntries.length === 1 ? "event" : "events"}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            {desktop ? (
-              <AutomationPanelToggles
-                paletteCollapsed={paletteCollapsed}
-                inspectorCollapsed={inspectorCollapsed}
-                onTogglePalette={togglePalette}
-                onToggleInspector={toggleInspector}
-              />
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Expand activity log"
-              onClick={() => setLogOpen(true)}
-            >
-              <ChevronsUpIcon className="size-4" />
-            </Button>
-          </div>
+            <span className="text-xs font-semibold tracking-wide uppercase">
+              Activity log
+            </span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {logEntries.length} {logEntries.length === 1 ? "event" : "events"}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {desktop ? (
+                <AutomationPanelToggles
+                  paletteCollapsed={paletteCollapsed}
+                  inspectorCollapsed={inspectorCollapsed}
+                  onTogglePalette={togglePalette}
+                  onToggleInspector={toggleInspector}
+                />
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Expand activity log"
+                onClick={() => setLogOpen(true)}
+              >
+                <ChevronsUpIcon className="size-4" />
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>

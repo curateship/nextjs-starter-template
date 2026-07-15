@@ -1,10 +1,17 @@
-import type { DesiredOrder } from "../strategies/contract"
+import type { DesiredOrder, StrategyOrderStatus } from "../strategies/contract"
 import type { PaperSnapshot } from "./paper"
 
 export type Placement =
-  | { kind: "resting" }
-  | { kind: "filled" }
+  | { kind: "resting"; oid: number | null; remainingSz: string }
+  | { kind: "filled"; oid: number | null; remainingSz: string }
   | { kind: "rejected"; reason: string }
+
+export type BrokerOrderUpdate = {
+  cloid: string
+  oid: number | null
+  remainingSz: string
+  status: StrategyOrderStatus
+}
 
 /**
  * What a BotRunner needs from an execution venue. PaperBroker simulates it
@@ -24,4 +31,6 @@ export interface BotBroker {
   snapshot?(): PaperSnapshot
   /** Live only: converge local order/fill state with the exchange. */
   reconcile?(): Promise<void>
+  /** Live restart safety: cancel this bot's stale orders on its market. */
+  cancelOwnedOrders?(): Promise<void>
 }
