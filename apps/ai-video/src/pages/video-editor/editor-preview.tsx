@@ -16,6 +16,7 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/pages/video-editor/editor-store"
+import type { PlaybackSeekMode } from "@/pages/video-editor/playback-clock"
 import { DESIGN_HEIGHT } from "@/pages/video-editor/timeline-utils"
 
 // How far media elements may drift from the clock before being re-seeked.
@@ -45,6 +46,47 @@ type PlaybackEntry =
   | { kind: "media"; entry: MediaEntry }
   | { kind: "image"; entry: VisualEntry }
   | { kind: "text"; entry: VisualEntry }
+type FastSeekMediaElement = HTMLMediaElement & {
+  fastSeek?: (time: number) => void
+}
+type MediaSeekRequest = { mode: PlaybackSeekMode; targetS: number }
+
+function seekPreviewMedia(
+  el: HTMLMediaElement,
+  targetS: number,
+  mode: PlaybackSeekMode,
+  toleranceS: number,
+  requests: WeakMap<HTMLMediaElement, MediaSeekRequest>
+) {
+  if (!Number.isFinite(targetS) || Math.abs(el.currentTime - targetS) <= toleranceS) {
+    return
+  }
+  const previous = requests.get(el)
+  if (
+    previous?.mode === mode &&
+    Math.abs(previous.targetS - targetS) < 0.001
+  ) {
+    return
+  }
+  // A metadata event re-runs synchronization once seeking becomes valid.
+  if (el.readyState === 0) return
+
+  if (mode === "fast") {
+    const fastSeek = (el as FastSeekMediaElement).fastSeek
+    if (typeof fastSeek === "function") {
+      try {
+        fastSeek.call(el, targetS)
+        requests.set(el, { mode, targetS })
+        return
+      } catch {
+        // Metadata may not be ready yet; exact currentTime is the safe fallback.
+      }
+    }
+  }
+
+  el.currentTime = targetS
+  requests.set(el, { mode, targetS })
+}
 
 // Flatten clips with their stacking order (track 0 on top).
 function flattenTracks(tracks: EditorTrack[]) {
@@ -317,48 +359,52 @@ export function EditorPreview() {
 
   // Drive the clock from the element carrying the SOUND (an unmuted audio track
   // wins, since captions are timed to it; else the topmost active video). The
-  // source is read even while momentarily paused — only seeked/undecodable
-  // elements are skipped — so the clock HOLDS at a cut rather than running
-  // ahead on wall time and snapping back.
+  // clock holds while that source seeks or buffers, and advances an ended
+  // source to its clip boundary instead of running ahead on wall time.
   React.useEffect(() => {
     clock.setTimeSource(() => {
       const t = clock.getTime()
       const frame = playbackFrameAt(playbackFrames, t)
-      let audioTime: number | null = null
+      let hasAudioSource = false
+      let endedAudioTime: number | null = null
       for (const { clip, track } of frame.audios.values()) {
         if (track.muted || clip.muted) continue
+        hasAudioSource = true
         const el = audioRefs.current.get(clip.id)
-        if (el && !el.paused && !el.ended && !el.seeking && el.readyState >= 2) {
-          const timelineTime =
-            clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
-          if (timelineTime > t) {
-            audioTime = timelineTime
-            break
-          }
+        if (!el) continue
+        if (el.ended) {
+          endedAudioTime = Math.max(
+            endedAudioTime ?? 0,
+            clip.startMs + clip.durationMs
+          )
+          continue
         }
+        if (el.seeking || el.readyState < 2 || el.paused) continue
+        const timelineTime =
+          clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
+        if (timelineTime > t) return timelineTime
       }
+      if (endedAudioTime != null) return Math.max(t, endedAudioTime)
+      if (hasAudioSource) return t
 
-      let videoTime: number | null = null
-      let bestVideoZ = -Infinity
-      for (const [url, entry] of frame.videos) {
-        const el = videoRefs.current.get(url)
-        if (
-          el &&
-          !el.paused &&
-          !el.ended &&
-          !el.seeking &&
-          el.readyState >= 2 &&
-          entry.zIndex > bestVideoZ
-        ) {
-          const timelineTime =
-            entry.clip.startMs + (el.currentTime * 1000 - entry.clip.trimStartMs)
-          if (timelineTime > t) {
-            bestVideoZ = entry.zIndex
-            videoTime = timelineTime
-          }
+      let source: [string, MediaEntry] | null = null
+      for (const entry of frame.videos) {
+        if (!source || entry[1].zIndex > source[1].zIndex) {
+          source = entry
         }
       }
-      return audioTime ?? videoTime
+      if (!source) return null // Gaps continue on wall time.
+
+      const [url, entry] = source
+      const el = videoRefs.current.get(url)
+      if (!el) return t
+      if (el.ended) return entry.clip.startMs + entry.clip.durationMs
+      if (el.seeking || el.readyState < 2 || el.paused) return t
+      return Math.max(
+        t,
+        entry.clip.startMs +
+          (el.currentTime * 1000 - entry.clip.trimStartMs)
+      )
     })
     return () => clock.setTimeSource(null)
   }, [clock, playbackFrames])
@@ -368,6 +414,10 @@ export function EditorPreview() {
   React.useEffect(() => {
     let previousFrame: PlaybackFrame | null = null
     const activeWords = new Map<string, number>()
+    const mediaSeekRequests = new WeakMap<
+      HTMLMediaElement,
+      MediaSeekRequest
+    >()
     // Reset imperative state once when the index changes. Per-frame work below
     // then touches only active entries and clips crossing a boundary.
     for (const el of videoRefs.current.values()) {
@@ -432,17 +482,16 @@ export function EditorPreview() {
             el.style.visibility = "visible"
           }
         }
-        for (const entry of frame.preparedVideos.values()) {
-          const url = entry.clip.url
-          if (!url || frame.videos.has(url)) continue
-          const el = videoRefs.current.get(url)
-          const nextInPointS = entry.clip.trimStartMs / 1000
-          if (el && Math.abs(el.currentTime - nextInPointS) > 0.1) {
-            el.currentTime = nextInPointS
-          }
-        }
         previousFrame = frame
       }
+
+      const seekMode = clock.seekMode ?? "precise"
+      const seekToleranceS =
+        clock.seekMode === "precise"
+          ? 0.001
+          : playing
+            ? PLAYING_DRIFT_S
+            : PAUSED_DRIFT_S
 
       for (const [url, entry] of frame.videos) {
         const el = videoRefs.current.get(url)
@@ -458,17 +507,15 @@ export function EditorPreview() {
         if (el.volume !== volume) el.volume = volume
         const targetS =
           (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
-        if (playing) {
-          if (Math.abs(el.currentTime - targetS) > PLAYING_DRIFT_S) {
-            el.currentTime = targetS
-          }
-          if (el.paused) void el.play().catch(() => undefined)
-        } else {
-          if (!el.paused) el.pause()
-          if (Math.abs(el.currentTime - targetS) > PAUSED_DRIFT_S) {
-            el.currentTime = targetS
-          }
-        }
+        if (!playing && !el.paused) el.pause()
+        seekPreviewMedia(
+          el,
+          targetS,
+          seekMode,
+          seekToleranceS,
+          mediaSeekRequests
+        )
+        if (playing && el.paused) void el.play().catch(() => undefined)
       }
 
       // Audio: only active clips are visited on each tick.
@@ -480,17 +527,15 @@ export function EditorPreview() {
         const volume = track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1
         if (el.volume !== volume) el.volume = volume
         const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
-        if (playing) {
-          if (Math.abs(el.currentTime - targetS) > PLAYING_DRIFT_S) {
-            el.currentTime = targetS
-          }
-          if (el.paused) void el.play().catch(() => undefined)
-        } else {
-          if (!el.paused) el.pause()
-          if (Math.abs(el.currentTime - targetS) > PAUSED_DRIFT_S) {
-            el.currentTime = targetS
-          }
-        }
+        if (!playing && !el.paused) el.pause()
+        seekPreviewMedia(
+          el,
+          targetS,
+          seekMode,
+          seekToleranceS,
+          mediaSeekRequests
+        )
+        if (playing && el.paused) void el.play().catch(() => undefined)
       }
 
       // Karaoke: binary-search the active word and update only the two spans
