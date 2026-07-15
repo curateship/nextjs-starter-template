@@ -1,4 +1,4 @@
 interface:
   display_name: "Polish App Suggestions"
-  short_description: "Find and confirm ten app polish ideas"
-  default_prompt: "Use $polish-app-suggestions to inspect this app, propose ten polish improvements, and review them with me one by one."
+  short_description: "Find and select app polish ideas in batches"
+  default_prompt: "Use $polish-app-suggestions to inspect this app, propose ten polish improvements, summarize every option in chat, and let me select them together in Plan mode."
