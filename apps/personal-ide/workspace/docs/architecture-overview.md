@@ -260,6 +260,7 @@ Commit:
 
 - Stages all changes.
 - Creates a local commit on the workspace branch.
+- The sparkle button creates an editable, single-line, past-tense message from the local Git diff, paths, and statuses. It does not use AI, the network, or staging.
 
 Sync:
 

@@ -91,6 +91,11 @@ export type GitFile = {
   appPath?: string | null
 }
 
+export type GeneratedGitCommitMessage = {
+  message: string
+  files: GitFile[]
+}
+
 export type GitCommit = {
   hash: string
   subject: string
