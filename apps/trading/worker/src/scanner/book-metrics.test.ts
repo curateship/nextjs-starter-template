@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { bookMetrics, type BookLevel } from "./book-metrics"
+import { bookMetrics, closestBookWalls, type BookLevel } from "./book-metrics"
 
 function levels(
   startPx: number,
@@ -17,6 +17,15 @@ function levels(
 describe("bookMetrics", () => {
   it("returns null for an empty book", () => {
     expect(bookMetrics([], [])).toBeNull()
+  })
+
+  it("rejects invalid or crossed top-of-book prices", () => {
+    expect(
+      bookMetrics([{ px: "100", sz: "1" }], [{ px: "99", sz: "1" }])
+    ).toBeNull()
+    expect(
+      bookMetrics([{ px: "100", sz: "1" }], [{ px: "not-a-price", sz: "1" }])
+    ).toBeNull()
   })
 
   it("computes mid, spread, and band liquidity", () => {
@@ -57,5 +66,24 @@ describe("bookMetrics", () => {
     const asks = levels(100.1, 0.1, 20, 1)
     const result = bookMetrics(bids, asks)
     expect(result!.walls).toHaveLength(0)
+  })
+
+  it("returns the closest qualifying wall on each exact side", () => {
+    const bids = levels(99.9, -0.1, 20, 100)
+    const asks = levels(100.1, 0.1, 20, 100)
+    bids[1] = { px: bids[1].px, sz: "6000" }
+    bids[4] = { px: bids[4].px, sz: "7000" }
+    asks[2] = { px: asks[2].px, sz: "6000" }
+
+    const result = closestBookWalls(bids, asks, {
+      wallMinUsd: 500_000,
+      wallMultiple: 5,
+      wallMaxDistance: 0.005,
+    })
+
+    expect(result?.bid?.px).toBe(Number(bids[1].px))
+    expect(result?.ask?.px).toBe(Number(asks[2].px))
+    expect(result?.bid?.side).toBe("bid")
+    expect(result?.ask?.side).toBe("ask")
   })
 })

@@ -45,6 +45,29 @@ const AUTOMATION_CONFIG: AutomationConfig = {
   ],
 }
 
+const WALL_CONFIG: AutomationConfig = {
+  v: 2,
+  kind: "automation",
+  interval: "15m",
+  protection: {},
+  rules: [
+    {
+      id: "long",
+      action: "buy",
+      targetEquityPct: 10,
+      condition: {
+        kind: "liveWall",
+        nodeId: "wall",
+        side: "bid",
+        minUsd: 500_000,
+        relativeSize: 5,
+        maxDistancePct: 0.5,
+        confirmationMs: 2_000,
+      },
+    },
+  ],
+}
+
 async function applyMigration(target: PGlite, file: string) {
   const migration = await readFile(new URL(file, import.meta.url), "utf8")
   await target.exec(migration)
@@ -163,6 +186,24 @@ describe("Automation bot creation", () => {
     expect((await getBotDetail(userId, bot.id)).sourceName).toBe(
       "Authoritative Automation"
     )
+  })
+
+  it("allows Whale Wall bots in paper and live modes", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId, WALL_CONFIG, "Wall")
+
+    const paper = await createUserBot(userId, botInput(walletId, automationId))
+    const live = await createUserBot(userId, {
+      ...botInput(walletId, automationId),
+      name: "Live wall",
+      mode: "live",
+    })
+
+    expect(paper.params).toEqual(WALL_CONFIG)
+    expect(paper.mode).toBe("paper")
+    expect(live.params).toEqual(WALL_CONFIG)
+    expect(live.mode).toBe("live")
   })
 
   it("does not reveal or use another user's Automation", async () => {

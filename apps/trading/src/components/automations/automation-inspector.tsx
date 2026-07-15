@@ -47,9 +47,7 @@ export function AutomationInspector({
     >
       <div className="border-b px-4 py-3">
         <h2 className="text-sm font-semibold">
-          {selectedNode
-            ? automationNodeName(selectedNode)
-            : "Automation"}
+          {selectedNode ? automationNodeName(selectedNode) : "Automation"}
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {selectedNode
@@ -86,6 +84,8 @@ export function AutomationInspector({
             <ActionFields node={selectedNode} onChange={onNodeChange} />
           ) : selectedNode.kind === "lookback" ? (
             <LookbackFields node={selectedNode} onChange={onNodeChange} />
+          ) : selectedNode.kind === "whaleWall" ? (
+            <WhaleWallFields node={selectedNode} onChange={onNodeChange} />
           ) : selectedNode.kind === "takeProfit" ||
             selectedNode.kind === "stopLoss" ? (
             <ProtectionNodeFields node={selectedNode} onChange={onNodeChange} />
@@ -93,9 +93,9 @@ export function AutomationInspector({
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               {selectedNode.op.toUpperCase()} nodes are no longer supported.
               Delete this node and connect indicators directly — chain an
-              indicator&apos;s Trend output into another indicator to filter
-              it, and connect several signals into one action to fire on any
-              of them.
+              indicator&apos;s Trend output into another indicator to filter it,
+              and connect several signals into one action to fire on any of
+              them.
             </div>
           )}
 
@@ -123,6 +123,85 @@ export function AutomationInspector({
           ) : null}
         </div>
       </ScrollArea>
+    </div>
+  )
+}
+
+function WhaleWallFields({
+  node,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "whaleWall" }>
+  onChange: (node: AutomationNode) => void
+}) {
+  const fields = [
+    {
+      key: "minUsd" as const,
+      label: "Minimum wall size ($)",
+      value: node.minUsd,
+      min: 1,
+      max: 1_000_000_000_000,
+      step: 50_000,
+    },
+    {
+      key: "relativeSize" as const,
+      label: "Relative nearby size (×)",
+      value: node.relativeSize,
+      min: 1,
+      max: 1_000,
+      step: 0.5,
+    },
+    {
+      key: "maxDistancePct" as const,
+      label: "Maximum distance (%)",
+      value: node.maxDistancePct,
+      min: 0.01,
+      max: 10,
+      step: 0.1,
+    },
+    {
+      key: "confirmationMs" as const,
+      label: "Confirmation time (seconds)",
+      value: node.confirmationMs / 1_000,
+      min: 0.1,
+      max: 60,
+      step: 0.1,
+    },
+  ]
+
+  return (
+    <div className="grid gap-4">
+      {fields.map((field) => (
+        <div key={field.key} className="grid gap-1.5">
+          <Label
+            htmlFor={`whale-wall-${node.id}-${field.key}`}
+            className="text-xs"
+          >
+            {field.label}
+          </Label>
+          <Input
+            id={`whale-wall-${node.id}-${field.key}`}
+            type="number"
+            min={field.min}
+            max={field.max}
+            step={field.step}
+            value={field.value}
+            className="h-8 text-xs"
+            onChange={(event) => {
+              const value = Number(event.target.value)
+              onChange({
+                ...node,
+                [field.key]:
+                  field.key === "confirmationMs" ? value * 1_000 : value,
+              })
+            }}
+          />
+        </div>
+      ))}
+      <p className="text-[11px] text-muted-foreground">
+        Uses the live order book. Bid Wall connects only to Long; Ask Wall
+        connects only to Short. Historical backtesting is unavailable.
+      </p>
     </div>
   )
 }

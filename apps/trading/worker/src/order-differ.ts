@@ -49,7 +49,7 @@ export function diffOrders(
       have.side !== want.side ||
       have.reduceOnly !== want.reduceOnly ||
       !nearlyEqual(have.px, want.px ?? null) ||
-      !nearlyEqual(have.sz, want.sz)
+      !nearlyEqual(want.sizeIsRemaining ? have.remainingSz : have.sz, want.sz)
     ) {
       actions.push({ kind: "replace", existing: have, desired: want })
     }

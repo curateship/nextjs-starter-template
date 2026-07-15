@@ -13,6 +13,7 @@ import {
   addDecimal,
   cmpDecimal,
   mulDecimal,
+  onePriceStep,
   roundPrice,
   roundSize,
 } from "@/server/hyperliquid/rounding"
@@ -104,7 +105,9 @@ describe("private key encryption", () => {
 
   it("produces unique ciphertexts for the same key (random IV)", () => {
     const privateKey = generatePrivateKey()
-    expect(encryptPrivateKey(privateKey)).not.toBe(encryptPrivateKey(privateKey))
+    expect(encryptPrivateKey(privateKey)).not.toBe(
+      encryptPrivateKey(privateKey)
+    )
   })
 
   it("rejects tampered ciphertext", () => {
@@ -127,16 +130,17 @@ describe("private key encryption", () => {
   it("rejects a malformed master key", () => {
     process.env.TRADING_MASTER_KEY = "too-short"
 
-    expect(() => encryptPrivateKey(generatePrivateKey())).toThrow(
-      /32 bytes/
-    )
+    expect(() => encryptPrivateKey(generatePrivateKey())).toThrow(/32 bytes/)
   })
 })
 
 describe("nonce allocation", () => {
   it("allocates nonces at or above the current timestamp", async () => {
     const before = Date.now()
-    const nonce = await allocateNonce("0xabc0000000000000000000000000000000000001", "testnet")
+    const nonce = await allocateNonce(
+      "0xabc0000000000000000000000000000000000001",
+      "testnet"
+    )
     expect(nonce).toBeGreaterThanOrEqual(before)
   })
 
@@ -186,6 +190,13 @@ describe("price and size rounding", () => {
     expect(roundPrice("4521.7", 4)).toBe("4521.7")
   })
 
+  it("moves exactly one valid price step toward the spread", () => {
+    expect(onePriceStep("100", 2, 1)).toBe("100.01")
+    expect(onePriceStep("100", 2, -1)).toBe("99.999")
+    expect(onePriceStep("65000", 5, 1)).toBe("65001")
+    expect(onePriceStep("0.1", 5, 1)).toBe("0.2")
+  })
+
   it("rounds sizes down to szDecimals", () => {
     expect(roundSize("1.23456789", 3)).toBe("1.234")
     expect(roundSize("0.0019", 3)).toBe("0.001")
@@ -205,7 +216,9 @@ describe("price and size rounding", () => {
 
 describe("address and key validation", () => {
   it("validates EVM addresses", () => {
-    expect(isEvmAddress("0x1111111111111111111111111111111111111111")).toBe(true)
+    expect(isEvmAddress("0x1111111111111111111111111111111111111111")).toBe(
+      true
+    )
     expect(isEvmAddress("0x111")).toBe(false)
     expect(isEvmAddress("1111111111111111111111111111111111111111")).toBe(false)
     expect(
@@ -298,9 +311,9 @@ describe("wallet CRUD", () => {
     await expect(
       updateUserWallet(otherUserId, wallet.id, { label: "Hijack" })
     ).rejects.toThrow(/not found/)
-    await expect(
-      deleteUserWallet(otherUserId, wallet.id)
-    ).rejects.toThrow(/not found/)
+    await expect(deleteUserWallet(otherUserId, wallet.id)).rejects.toThrow(
+      /not found/
+    )
 
     await deleteUserWallet(userId, wallet.id)
     expect(await listUserWallets(userId)).toHaveLength(0)

@@ -10,6 +10,27 @@ export function roundPrice(px: string | number, szDecimals: number): string {
   return formatPrice(px, szDecimals, "perp")
 }
 
+/** Moves a perp price one exchange-valid tick up or down. */
+export function onePriceStep(
+  px: string | number,
+  szDecimals: number,
+  direction: -1 | 1
+): string {
+  const value = Number(px)
+  if (!(value > 0)) throw new Error("Price must be positive")
+  // Immediately below a power of ten, one more decimal place becomes valid
+  // (100 -> 99.999). Nudge downward before choosing the five-significant-digit
+  // grid so we return the closest valid neighbour instead of skipping ticks.
+  const neighbourMagnitude =
+    direction === -1 ? value * (1 - Number.EPSILON) : value
+  const significantStep = 10 ** (Math.floor(Math.log10(neighbourMagnitude)) - 4)
+  const decimalStep = 10 ** -(6 - szDecimals)
+  return roundPrice(
+    value + direction * Math.max(significantStep, decimalStep),
+    szDecimals
+  )
+}
+
 /** Rounds an order size down to the market's szDecimals. */
 export function roundSize(sz: string | number, szDecimals: number): string {
   return formatSize(sz, szDecimals)

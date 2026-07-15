@@ -66,6 +66,19 @@ export type AutomationStopLossNode = {
   y: number
 }
 
+/** Live order-book source that follows the closest qualifying wall per side. */
+export type AutomationWhaleWallNode = {
+  id: string
+  kind: "whaleWall"
+  minUsd: number
+  relativeSize: number
+  /** Maximum distance from mid, in percentage points (0.5 = 0.5%). */
+  maxDistancePct: number
+  confirmationMs: number
+  x: number
+  y: number
+}
+
 export type AutomationNode =
   | AutomationIndicatorNode
   | AutomationLogicNode
@@ -73,6 +86,7 @@ export type AutomationNode =
   | AutomationLookbackNode
   | AutomationTakeProfitNode
   | AutomationStopLossNode
+  | AutomationWhaleWallNode
 
 /**
  * Ceiling on the engine's per-candle evaluation window (candles). A Look Back
@@ -141,6 +155,15 @@ export type AutomationCondition =
       filters?: AutomationFilter[]
     }
   | {
+      kind: "liveWall"
+      nodeId: string
+      side: "bid" | "ask"
+      minUsd: number
+      relativeSize: number
+      maxDistancePct: number
+      confirmationMs: number
+    }
+  | {
       // "and" survives only in configs compiled before chaining replaced
       // logic nodes; new compiles emit "or" solely for multi-input actions.
       kind: "and" | "or"
@@ -178,6 +201,7 @@ export type AutomationValidationError = {
     | "action_input"
     | "invalid_lookback"
     | "lookback_input"
+    | "invalid_scanner"
     | "empty"
     | "limit"
   nodeId?: string
@@ -190,6 +214,9 @@ export type AutomationCompileResult = {
   errors: AutomationValidationError[]
 }
 
+export const LIVE_BOOK_BACKTEST_UNAVAILABLE =
+  "Backtesting is unavailable because Whale Wall needs live order-book data."
+
 function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
   switch (node.kind) {
     case "indicator":
@@ -198,6 +225,8 @@ function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
       return port === "match"
     case "lookback":
       return port === "trend"
+    case "whaleWall":
+      return port === "bidWall" || port === "askWall"
     case "action":
       // Long/Short also expose the Take Profit / Stop Loss attachment hooks.
       return (
@@ -269,6 +298,16 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("stopLoss"),
     pct: z.number().finite(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("whaleWall"),
+    minUsd: z.number().finite(),
+    relativeSize: z.number().finite(),
+    maxDistancePct: z.number().finite(),
+    confirmationMs: z.number().finite(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -351,6 +390,13 @@ export const automationDraftSchema = z.object({
   ),
 })
 
+const whaleWallSettingsSchema = z.object({
+  minUsd: z.number().positive().max(1_000_000_000_000),
+  relativeSize: z.number().min(1).max(1_000),
+  maxDistancePct: z.number().positive().max(10),
+  confirmationMs: z.number().int().min(100).max(60_000),
+})
+
 const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
   z.union([
     z.object({
@@ -373,6 +419,12 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
         )
         .max(100)
         .optional(),
+    }),
+    z.object({
+      kind: z.literal("liveWall"),
+      nodeId: idSchema,
+      side: z.enum(["bid", "ask"]),
+      ...whaleWallSettingsSchema.shape,
     }),
     z.object({
       kind: z.enum(["and", "or"]),
@@ -406,13 +458,39 @@ const automationRuleSchema = z
     }
   })
 
-export const automationConfigSchema: z.ZodType<AutomationConfig> =
-  z.object({
+function conditionHasLiveWall(condition: AutomationCondition): boolean {
+  if (condition.kind === "liveWall") return true
+  if (condition.kind === "trigger") return false
+  return condition.children.some(conditionHasLiveWall)
+}
+
+function conditionHasCandleTrigger(condition: AutomationCondition): boolean {
+  if (condition.kind === "trigger") return true
+  if (condition.kind === "liveWall") return false
+  return condition.children.some(conditionHasCandleTrigger)
+}
+
+export const automationConfigSchema: z.ZodType<AutomationConfig> = z
+  .object({
     v: z.literal(2),
     kind: z.literal("automation"),
     interval: intervalSchema,
     rules: z.array(automationRuleSchema).min(1).max(100),
     protection: automationProtectionSchema,
+  })
+  .superRefine((config, ctx) => {
+    const entryRules = config.rules.filter((rule) => rule.action !== "close")
+    if (
+      entryRules.some((rule) => conditionHasLiveWall(rule.condition)) &&
+      entryRules.some((rule) => conditionHasCandleTrigger(rule.condition))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message:
+          "A Whale Wall automation cannot also contain a candle-driven entry.",
+      })
+    }
   }) as z.ZodType<AutomationConfig>
 
 export function compileAutomationGraph(input: {
@@ -463,6 +541,21 @@ export function compileAutomationGraph(input: {
           node.action === "close"
             ? "Close Position does not use a target percentage."
             : "Target must be from 1% to 100%.",
+      })
+    }
+    if (
+      node.kind === "whaleWall" &&
+      !whaleWallSettingsSchema.safeParse({
+        minUsd: node.minUsd,
+        relativeSize: node.relativeSize,
+        maxDistancePct: node.maxDistancePct,
+        confirmationMs: node.confirmationMs,
+      }).success
+    ) {
+      addError({
+        code: "invalid_scanner",
+        nodeId: node.id,
+        message: "Whale Wall settings are outside their allowed ranges.",
       })
     }
   }
@@ -525,6 +618,24 @@ export function compileAutomationGraph(input: {
         message:
           "The Trend output can only connect to an indicator or a Look Back node.",
       })
+    } else if (
+      edge.sourcePort === "bidWall" &&
+      (target.kind !== "action" || target.action !== "buy")
+    ) {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: "Bid Wall can only connect to Long.",
+      })
+    } else if (
+      edge.sourcePort === "askWall" &&
+      (target.kind !== "action" || target.action !== "short")
+    ) {
+      addError({
+        code: "invalid_edge",
+        edgeId: edge.id,
+        message: "Ask Wall can only connect to Short.",
+      })
     } else if (edge.sourcePort === "then" && target.kind !== "indicator") {
       addError({
         code: "invalid_edge",
@@ -548,6 +659,8 @@ export function compileAutomationGraph(input: {
       edge.sourcePort !== "then" &&
       edge.sourcePort !== "tp" &&
       edge.sourcePort !== "sl" &&
+      edge.sourcePort !== "bidWall" &&
+      edge.sourcePort !== "askWall" &&
       target.kind !== "action"
     ) {
       addError({
@@ -660,6 +773,33 @@ export function compileAutomationGraph(input: {
     }
   }
 
+  const hasWallEntry = edges.some((edge) => {
+    const target = nodeById.get(edge.to)
+    return (
+      (edge.sourcePort === "bidWall" || edge.sourcePort === "askWall") &&
+      target?.kind === "action" &&
+      (target.action === "buy" || target.action === "short")
+    )
+  })
+  const candleEntry = edges.find((edge) => {
+    const source = nodeById.get(edge.from)
+    const target = nodeById.get(edge.to)
+    return (
+      source?.kind === "indicator" &&
+      (edge.sourcePort === "bullish" || edge.sourcePort === "bearish") &&
+      target?.kind === "action" &&
+      target.action !== "close"
+    )
+  })
+  if (hasWallEntry && candleEntry) {
+    addError({
+      code: "action_input",
+      nodeId: candleEntry.to,
+      message:
+        "A Whale Wall automation cannot also contain a candle-driven entry.",
+    })
+  }
+
   const connected = new Set<string>(actions.map((node) => node.id))
   const markAncestors = (id: string) => {
     for (const edge of incoming.get(id) ?? []) {
@@ -704,9 +844,7 @@ export function compileAutomationGraph(input: {
         const upstream = nodeById.get(edge.from)
         if (!upstream || upstream.id === triggerId) continue
         const nextCap =
-          upstream.kind === "lookback"
-            ? Math.min(cap, upstream.bars)
-            : cap
+          upstream.kind === "lookback" ? Math.min(cap, upstream.bars) : cap
         if (upstream.kind !== "lookback" && upstream.kind !== "indicator") {
           continue
         }
@@ -734,6 +872,17 @@ export function compileAutomationGraph(input: {
 
   const compileEdge = (edge: AutomationEdge): AutomationCondition => {
     const source = nodeById.get(edge.from)
+    if (source?.kind === "whaleWall") {
+      return {
+        kind: "liveWall",
+        nodeId: source.id,
+        side: edge.sourcePort === "bidWall" ? "bid" : "ask",
+        minUsd: source.minUsd,
+        relativeSize: source.relativeSize,
+        maxDistancePct: source.maxDistancePct,
+        confirmationMs: source.confirmationMs,
+      }
+    }
     if (!source || source.kind !== "indicator")
       throw new Error("Invalid compiled graph")
     const filters = collectFilters(source.id)
@@ -797,6 +946,7 @@ export function compileAutomationGraph(input: {
   // the automation would silently never trade.
   const checkedCaps = new Set<string>()
   const triggersOf = (condition: AutomationCondition): void => {
+    if (condition.kind === "liveWall") return
     if (condition.kind !== "trigger") {
       condition.children.forEach(triggersOf)
       return
@@ -835,6 +985,20 @@ export function compileAutomationGraph(input: {
   }
 }
 
+/** Runtime capabilities are derived from rules, not stored as another version. */
+export function automationCapabilities(config: AutomationConfig): {
+  requiresLiveBook: boolean
+  supportsHistoricalBacktest: boolean
+} {
+  const requiresLiveBook = config.rules.some((rule) =>
+    conditionHasLiveWall(rule.condition)
+  )
+  return {
+    requiresLiveBook,
+    supportsHistoricalBacktest: !requiresLiveBook,
+  }
+}
+
 /**
  * Latched trend per filter node id: the side of its most recent signal and
  * how many candles ago it fired (0 = this candle).
@@ -849,6 +1013,7 @@ function conditionMatches(
   fired: ReadonlySet<string>,
   filterState: AutomationFilterState
 ): boolean {
+  if (condition.kind === "liveWall") return false
   if (condition.kind === "trigger") {
     return (
       fired.has(`${condition.nodeId}:${condition.side}`) &&
@@ -907,7 +1072,8 @@ export function resolveAutomationActions(
   if (buys.length > 0 && shorts.length > 0) {
     return {
       action: null,
-      warning: "Long and Short matched on the same candle; no entry was placed.",
+      warning:
+        "Long and Short matched on the same candle; no entry was placed.",
     }
   }
   const candidates = buys.length > 0 ? buys : shorts

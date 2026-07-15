@@ -70,6 +70,38 @@ const VALID_GRAPH: AutomationGraph = {
   viewport: { x: 25, y: 40, zoom: 1.25 },
 }
 
+const WHALE_WALL_GRAPH: AutomationGraph = {
+  nodes: [
+    {
+      id: "wall",
+      kind: "whaleWall",
+      minUsd: 500_000,
+      relativeSize: 5,
+      maxDistancePct: 0.5,
+      confirmationMs: 2_000,
+      x: 0,
+      y: 0,
+    },
+    {
+      id: "buy",
+      kind: "action",
+      action: "buy",
+      targetEquityPct: 25,
+      x: 300,
+      y: 0,
+    },
+  ],
+  edges: [
+    {
+      id: "wall-buy",
+      from: "wall",
+      sourcePort: "bidWall",
+      to: "buy",
+    },
+  ],
+  viewport: { x: 0, y: 0, zoom: 1 },
+}
+
 /** VALID_GRAPH plus a Take Profit + Stop Loss hung on the Long entry. */
 const PROTECTED_GRAPH: AutomationGraph = {
   ...VALID_GRAPH,
@@ -388,6 +420,38 @@ describe("Automation storage", () => {
       "Fix this Automation"
     )
   })
+
+  it("rejects historical backtests for a live Whale Wall automation", async () => {
+    const userId = await createTestUser()
+    const created = await createUserAutomation(userId, {
+      name: "Live wall",
+      interval: "15m",
+    })
+    const saved = await saveUserAutomation(userId, created.id, {
+      name: created.name,
+      interval: "15m",
+      graph: WHALE_WALL_GRAPH,
+    })
+    expect(saved?.compiledConfig).not.toBeNull()
+
+    await expect(resolveAutomationRun(userId, saved!.id)).rejects.toThrow(
+      "Whale Wall needs live order-book data"
+    )
+    await expect(
+      createUserBacktest(userId, {
+        name: "Unavailable replay",
+        automationId: saved!.id,
+        market: "BTC",
+        network: "mainnet",
+        interval: "15m",
+        params: saved!.compiledConfig!,
+        costs: DEFAULT_BACKTEST_COSTS,
+        startTime: new Date("2026-01-01T00:00:00Z"),
+        endTime: new Date("2026-01-02T00:00:00Z"),
+        startingEquity: 10_000,
+      })
+    ).rejects.toThrow("Whale Wall needs live order-book data")
+  })
 })
 
 describe("0020 trading Automations migration", () => {
@@ -419,7 +483,9 @@ describe("0020 trading Automations migration", () => {
       `select column_default from information_schema.columns
        where table_name = 'trading_automations' and column_name = 'type'`
     )
-    expect(result.rows).toEqual([{ column_default: "'Uncategorized'::character varying" }])
+    expect(result.rows).toEqual([
+      { column_default: "'Uncategorized'::character varying" },
+    ])
     await fresh.close()
   })
 

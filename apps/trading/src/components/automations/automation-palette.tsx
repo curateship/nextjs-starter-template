@@ -3,6 +3,7 @@ import {
   ActivityIcon,
   OctagonXIcon,
   PlusIcon,
+  RadarIcon,
   RepeatIcon,
   SearchIcon,
   ShieldXIcon,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils"
 
 export type AutomationPaletteChoice =
   | { kind: "indicator"; indicatorType: IndicatorId }
+  | { kind: "whaleWall" }
   | { kind: "lookback" }
   | { kind: "action"; action: "buy" | "short" | "close" | "reverse" }
   | { kind: "takeProfit" }
@@ -43,6 +45,16 @@ const filterItems: PaletteItem[] = [
     description: "Incoming signal only counts for a set number of candles",
     icon: TimerIcon,
     choice: { kind: "lookback" },
+  },
+]
+
+const scannerItems: PaletteItem[] = [
+  {
+    key: "scanner-whale-wall",
+    name: "Whale Wall",
+    description: "Watch large nearby bid and ask levels in the live order book",
+    icon: RadarIcon,
+    choice: { kind: "whaleWall" },
   },
 ]
 
@@ -81,14 +93,16 @@ const exitItems: PaletteItem[] = [
   {
     key: "exit-take-profit",
     name: "Take Profit",
-    description: "Bank profit at a set % from entry — hang it on a Long or Short",
+    description:
+      "Bank profit at a set % from entry — hang it on a Long or Short",
     icon: TargetIcon,
     choice: { kind: "takeProfit" },
   },
   {
     key: "exit-stop-loss",
     name: "Stop Loss",
-    description: "Cap the loss at a set % from entry — hang it on a Long or Short",
+    description:
+      "Cap the loss at a set % from entry — hang it on a Long or Short",
     icon: OctagonXIcon,
     choice: { kind: "stopLoss" },
   },
@@ -123,6 +137,7 @@ export function AutomationPalette({
   }))
   const groups = [
     { label: "Indicators", items: indicatorItems },
+    { label: "Scanners", items: scannerItems },
     { label: "Filters", items: filterItems },
     { label: "Actions", items: actionItems },
     { label: "Exits", items: exitItems },

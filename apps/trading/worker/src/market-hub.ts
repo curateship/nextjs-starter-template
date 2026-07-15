@@ -5,6 +5,7 @@ import {
   WebSocketTransport,
   type CandleWsEvent,
   type L2BookWsEvent,
+  type OrderUpdatesWsEvent,
   type TradesWsEvent,
   type UserFillsWsEvent,
 } from "@nktkas/hyperliquid"
@@ -81,10 +82,14 @@ export class MarketHub {
   subscribeBook(
     network: TradingNetwork,
     coin: string,
-    listener: Listener<L2BookWsEvent>
+    listener: Listener<L2BookWsEvent>,
+    options: { fast?: boolean } = {}
   ): () => void {
-    return this.acquire(`${network}:l2Book:${coin}`, listener, (client, emit) =>
-      client.l2Book({ coin }, (event) => emit(event))
+    const fast = options.fast === true
+    return this.acquire(
+      `${network}:l2Book:${coin}:${fast}`,
+      listener,
+      (client, emit) => client.l2Book({ coin, fast }, (event) => emit(event))
     )
   }
 
@@ -108,6 +113,19 @@ export class MarketHub {
       listener,
       (client, emit) =>
         client.userFills({ user: address }, (event) => emit(event))
+    )
+  }
+
+  subscribeOrderUpdates(
+    network: TradingNetwork,
+    address: `0x${string}`,
+    listener: Listener<OrderUpdatesWsEvent>
+  ): () => void {
+    return this.acquire(
+      `${network}:orderUpdates:${address.toLowerCase()}`,
+      listener,
+      (client, emit) =>
+        client.orderUpdates({ user: address }, (event) => emit(event))
     )
   }
 

@@ -48,13 +48,26 @@ describe("order differ", () => {
   it("replaces orders whose price or size changed", () => {
     const actions = diffOrders([desired({ px: "1990" })], [existing()])
     expect(actions).toEqual([
-      { kind: "replace", existing: existing(), desired: desired({ px: "1990" }) },
+      {
+        kind: "replace",
+        existing: existing(),
+        desired: desired({ px: "1990" }),
+      },
     ])
   })
 
   it("treats equal decimals with different formatting as unchanged", () => {
     expect(
       diffOrders([desired({ px: "2000.0", sz: "0.50" })], [existing()])
+    ).toEqual([])
+  })
+
+  it("can compare a partial order by its remaining size", () => {
+    expect(
+      diffOrders(
+        [desired({ sz: "0.3", sizeIsRemaining: true })],
+        [existing({ remainingSz: "0.3" })]
+      )
     ).toEqual([])
   })
 

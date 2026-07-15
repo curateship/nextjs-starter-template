@@ -30,6 +30,14 @@ export type BookMetricsOptions = {
   wallMinUsd: number
 }
 
+export type ClosestBookWalls = {
+  mid: number
+  bestBid: number
+  bestAsk: number
+  bid: BookWall | null
+  ask: BookWall | null
+}
+
 export const DEFAULT_BOOK_OPTIONS: BookMetricsOptions = {
   wallMultiple: 5,
   wallMaxDistance: 0.02,
@@ -45,7 +53,12 @@ export function bookMetrics(
 ): BookMetricsResult | null {
   const bestBid = Number(bids[0]?.px)
   const bestAsk = Number(asks[0]?.px)
-  if (!Number.isFinite(bestBid) || !Number.isFinite(bestAsk) || bestBid <= 0) {
+  if (
+    !Number.isFinite(bestBid) ||
+    !Number.isFinite(bestAsk) ||
+    bestBid <= 0 ||
+    bestAsk <= bestBid
+  ) {
     return null
   }
   const mid = (bestBid + bestAsk) / 2
@@ -58,8 +71,7 @@ export function bookMetrics(
   }))
 
   const onePct = bands[1]
-  const imbalance =
-    onePct.askUsd > 0 ? onePct.bidUsd / onePct.askUsd : null
+  const imbalance = onePct.askUsd > 0 ? onePct.bidUsd / onePct.askUsd : null
 
   const walls = [
     ...findWalls(bids, mid, "bid", opts),
@@ -67,6 +79,23 @@ export function bookMetrics(
   ].sort((a, b) => a.distance - b.distance)
 
   return { mid, spreadBps, bands, imbalance, walls }
+}
+
+/** The closest qualifying wall on each side, using the scanner's one detector. */
+export function closestBookWalls(
+  bids: BookLevel[],
+  asks: BookLevel[],
+  opts: BookMetricsOptions
+): ClosestBookWalls | null {
+  const metrics = bookMetrics(bids, asks, opts)
+  if (!metrics) return null
+  return {
+    mid: metrics.mid,
+    bestBid: Number(bids[0].px),
+    bestAsk: Number(asks[0].px),
+    bid: metrics.walls.find((wall) => wall.side === "bid") ?? null,
+    ask: metrics.walls.find((wall) => wall.side === "ask") ?? null,
+  }
 }
 
 function bandUsd(
@@ -78,10 +107,14 @@ function bandUsd(
   let usd = 0
   for (const level of levels) {
     const px = Number(level.px)
+    const sz = Number(level.sz)
+    if (!Number.isFinite(px) || !Number.isFinite(sz) || px <= 0 || sz <= 0) {
+      continue
+    }
     const inBand =
       side === "bid" ? px >= mid * (1 - pct) : px <= mid * (1 + pct)
     if (!inBand) break
-    usd += px * Number(level.sz)
+    usd += px * sz
   }
   return usd
 }
@@ -94,7 +127,14 @@ function findWalls(
 ): BookWall[] {
   const inRange = levels.filter((level) => {
     const px = Number(level.px)
-    return Math.abs(px - mid) / mid <= opts.wallMaxDistance
+    const sz = Number(level.sz)
+    return (
+      Number.isFinite(px) &&
+      Number.isFinite(sz) &&
+      px > 0 &&
+      sz > 0 &&
+      Math.abs(px - mid) / mid <= opts.wallMaxDistance
+    )
   })
   if (inRange.length < 4) return []
 

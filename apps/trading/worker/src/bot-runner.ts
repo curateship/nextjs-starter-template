@@ -20,7 +20,7 @@ import { now, uuid } from "@/server/util"
 
 import { LiveBroker } from "./brokers/live"
 import { PaperBroker } from "./brokers/paper"
-import type { BotBroker } from "./brokers/types"
+import type { BotBroker, BrokerOrderUpdate } from "./brokers/types"
 import { marketHub, type MarketHub } from "./market-hub"
 import { diffOrders, type ExistingOrder } from "./order-differ"
 import { resolveStrategy } from "./strategies/registry"
@@ -117,6 +117,7 @@ export class BotRunner {
           hub: this.hub,
           onFill: (fill, purpose, cloid) =>
             void this.onFill(fill, purpose, cloid),
+          onOrderUpdate: (update) => void this.onOrderUpdate(update),
         })
         this.broker = broker
         // Live restarts: local resting rows are stale until reconciled. Scope to
@@ -135,6 +136,10 @@ export class BotRunner {
       }
 
       const warmup = this.strategy.warmup(this.params as never)
+      if (warmup.requiresLiveBook) {
+        await this.broker.cancelOwnedOrders?.()
+      }
+      this.strategy.onStart?.(this.ctx(), this.params as never)
       for (const interval of warmup.candleIntervals) {
         const unsubscribe = await this.hub.subscribeCandles(
           this.botNetwork,
@@ -146,6 +151,25 @@ export class BotRunner {
           }
         )
         this.unsubscribers.push(unsubscribe)
+      }
+
+      if (warmup.requiresLiveBook) {
+        this.unsubscribers.push(
+          this.hub.subscribeBook(
+            this.botNetwork,
+            this.market,
+            (book) => {
+              if (this.stopped || this.paused) return
+              this.strategy.onBook?.(this.ctx(), this.params as never, book, {
+                szDecimals: this.asset.szDecimals,
+              })
+              this.scheduleEvaluate()
+            },
+            { fast: true }
+          )
+        )
+        const heartbeat = setInterval(() => this.onTick(), TICK_THROTTLE_MS)
+        this.unsubscribers.push(() => clearInterval(heartbeat))
       }
 
       this.unsubscribers.push(
@@ -245,9 +269,12 @@ export class BotRunner {
 
   private async onFill(fill: BrokerFill, purpose: string, cloid: string) {
     // Order bookkeeping — live fills carry only a cloid, so match on it.
+    const remainingSz = fill.remainingSz
+    const orderStatus = fill.orderStatus
     for (const [key, order] of this.openOrders) {
       if (order.cloid === cloid) {
-        this.openOrders.delete(key)
+        if (orderStatus === "filled") this.openOrders.delete(key)
+        else order.remainingSz = remainingSz
         purpose = order.purpose
         break
       }
@@ -264,7 +291,7 @@ export class BotRunner {
 
     await db
       .update(tradingBotOrders)
-      .set({ status: "filled", remainingSz: "0", updatedAt: now() })
+      .set({ status: orderStatus, remainingSz, updatedAt: now() })
       .where(eq(tradingBotOrders.cloid, cloid))
       .catch(() => {})
 
@@ -322,7 +349,52 @@ export class BotRunner {
       this.runtime.peakEquity = equity
     }
 
-    await this.persistState()
+    await this.persistState(true)
+    this.scheduleEvaluate()
+  }
+
+  private async onOrderUpdate(update: BrokerOrderUpdate) {
+    let matched: ExistingOrder | null = null
+    for (const [purpose, order] of this.openOrders) {
+      if (order.cloid !== update.cloid) continue
+      matched = order
+      if (update.status === "resting" || update.status === "partially_filled") {
+        order.remainingSz = update.remainingSz
+      } else {
+        this.openOrders.delete(purpose)
+      }
+      break
+    }
+    if (matched) {
+      this.strategy.onOrderUpdate?.(
+        this.ctx(),
+        this.params as never,
+        {
+          purpose: matched.purpose,
+          side: matched.side,
+          orderType: "limit",
+          px: matched.px ?? undefined,
+          sz: matched.sz,
+          tif: matched.tif as DesiredOrder["tif"],
+          reduceOnly: matched.reduceOnly,
+        },
+        update.status,
+        update.remainingSz
+      )
+    }
+    await db
+      .update(tradingBotOrders)
+      .set({
+        oid: update.oid,
+        remainingSz: update.remainingSz,
+        status: update.status,
+        updatedAt: now(),
+      })
+      .where(eq(tradingBotOrders.cloid, update.cloid))
+      .catch((error: unknown) =>
+        console.error("order update persistence failed", error)
+      )
+    if (matched) await this.persistState(true)
     this.scheduleEvaluate()
   }
 
@@ -351,8 +423,10 @@ export class BotRunner {
 
       for (const action of actions) {
         if (action.kind === "cancel" || action.kind === "replace") {
-          await this.cancelOrder(action.existing)
+          await this.cancelOrder(action.existing, action.kind === "cancel")
         }
+      }
+      for (const action of actions) {
         if (action.kind === "place" || action.kind === "replace") {
           await this.placeOrder(action.desired)
         }
@@ -389,7 +463,30 @@ export class BotRunner {
     const placement = await this.broker.place(cloid, rounded)
 
     if (placement.kind === "rejected") {
-      // Common benign case (e.g. post-only would cross); log at info level.
+      await db.insert(tradingBotOrders).values({
+        id: uuid(),
+        botId: this.bot.id,
+        cloid,
+        oid: null,
+        market: this.market,
+        side: rounded.side,
+        px: rounded.px ?? null,
+        sz: rounded.sz,
+        remainingSz: rounded.sz,
+        orderType: rounded.orderType,
+        tif: rounded.tif,
+        reduceOnly: rounded.reduceOnly,
+        purpose: rounded.purpose,
+        status: "rejected",
+        createdAt: now(),
+        updatedAt: now(),
+      })
+      this.strategy.onOrderRejected?.(
+        this.ctx(),
+        this.params as never,
+        rounded,
+        placement.reason
+      )
       return
     }
 
@@ -399,7 +496,7 @@ export class BotRunner {
       side: rounded.side,
       px: rounded.px ?? null,
       sz: rounded.sz,
-      remainingSz: placement.kind === "filled" ? "0" : rounded.sz,
+      remainingSz: placement.remainingSz,
       tif: rounded.tif,
       reduceOnly: rounded.reduceOnly,
     }
@@ -411,7 +508,7 @@ export class BotRunner {
       id: uuid(),
       botId: this.bot.id,
       cloid,
-      oid: null,
+      oid: placement.oid,
       market: this.market,
       side: rounded.side,
       px: rounded.px ?? null,
@@ -421,20 +518,50 @@ export class BotRunner {
       tif: rounded.tif,
       reduceOnly: rounded.reduceOnly,
       purpose: rounded.purpose,
-      status: placement.kind === "filled" ? "filled" : "resting",
+      status:
+        placement.kind === "filled"
+          ? "filled"
+          : Number(record.remainingSz) < Number(record.sz)
+            ? "partially_filled"
+            : "resting",
       createdAt: now(),
       updatedAt: now(),
     })
+    this.strategy.onOrderPlaced?.(
+      this.ctx(),
+      this.params as never,
+      rounded,
+      placement.kind,
+      record.remainingSz
+    )
   }
 
-  private async cancelOrder(existing: ExistingOrder) {
-    await this.broker?.cancel(existing.cloid)
+  private async cancelOrder(existing: ExistingOrder, notifyStrategy = true) {
+    const cancelled = (await this.broker?.cancel(existing.cloid)) ?? false
     this.openOrders.delete(existing.purpose)
-    await db
-      .update(tradingBotOrders)
-      .set({ status: "cancelled", updatedAt: now() })
-      .where(eq(tradingBotOrders.cloid, existing.cloid))
-      .catch(() => {})
+    if (cancelled) {
+      await db
+        .update(tradingBotOrders)
+        .set({ status: "cancelled", updatedAt: now() })
+        .where(eq(tradingBotOrders.cloid, existing.cloid))
+        .catch(() => {})
+    }
+    if (notifyStrategy) {
+      this.strategy.onOrderCancelled?.(
+        this.ctx(),
+        this.params as never,
+        {
+          purpose: existing.purpose,
+          side: existing.side,
+          orderType: "limit",
+          px: existing.px ?? undefined,
+          sz: existing.sz,
+          tif: existing.tif as DesiredOrder["tif"],
+          reduceOnly: existing.reduceOnly,
+        },
+        cancelled
+      )
+    }
   }
 
   private async cancelAllOrders(reason: string) {
@@ -464,7 +591,11 @@ export class BotRunner {
         this.strategyState = next
       },
       emit: (type, message, data) =>
-        void this.event("info", type, message, data),
+        void this.event("info", type, message, {
+          market: this.market,
+          network: this.botNetwork,
+          ...(data && typeof data === "object" ? data : {}),
+        }),
       now: Date.now(),
     }
   }

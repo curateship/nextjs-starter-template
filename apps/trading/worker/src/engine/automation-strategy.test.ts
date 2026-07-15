@@ -258,4 +258,458 @@ describe("createAutomationStrategy", () => {
     // Short 4% TP = 96, 3% SL = 103 — distinct from the long side.
     expect(strategy.exitTriggers?.(ctx, undefined as never)).toEqual([96, 103])
   })
+
+  const wallConfig: AutomationConfig = {
+    v: 2,
+    kind: "automation",
+    interval: "15m",
+    protection: {},
+    rules: [
+      {
+        id: "long",
+        action: "buy",
+        targetEquityPct: 10,
+        condition: {
+          kind: "liveWall",
+          nodeId: "wall",
+          side: "bid",
+          minUsd: 500_000,
+          relativeSize: 5,
+          maxDistancePct: 0.5,
+          confirmationMs: 2_000,
+        },
+      },
+      {
+        id: "short",
+        action: "short",
+        targetEquityPct: 10,
+        condition: {
+          kind: "liveWall",
+          nodeId: "wall",
+          side: "ask",
+          minUsd: 500_000,
+          relativeSize: 5,
+          maxDistancePct: 0.5,
+          confirmationMs: 2_000,
+        },
+      },
+    ],
+  }
+
+  function book(options: { bidIndex?: number; askIndex?: number } = {}) {
+    const bids = Array.from({ length: 5 }, (_, index) => ({
+      px: String(99.9 - index * 0.1),
+      sz: String(index === options.bidIndex ? 6_000 : 100),
+      n: 1,
+    }))
+    const asks = Array.from({ length: 5 }, (_, index) => ({
+      px: String(100.1 + index * 0.1),
+      sz: String(index === options.askIndex ? 6_000 : 100),
+      n: 1,
+    }))
+    return { coin: "TEST", time: 0, levels: [bids, asks] } as never
+  }
+
+  function wallContext() {
+    const strategy = createAutomationStrategy(wallConfig)
+    let state = strategy.init(undefined as never)
+    let currentPosition: { szi: string; entryPx: string } | null = null
+    const events: string[] = []
+    const ctx: StrategyCtx<AutomationState> = {
+      market: "TEST",
+      mid: "100",
+      candles: () => [],
+      get position() {
+        return currentPosition
+      },
+      equity: "10000",
+      startingEquity: "10000",
+      get state() {
+        return state
+      },
+      setState: (next) => {
+        state = next
+      },
+      emit: (type) => events.push(type),
+      now: 0,
+    }
+    return {
+      strategy,
+      ctx,
+      events,
+      state: () => state,
+      setPosition: (position: typeof currentPosition) => {
+        currentPosition = position
+      },
+    }
+  }
+
+  it("confirms one exact wall for two seconds before resting post-only", () => {
+    const { strategy, ctx, state } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(state().wall?.active?.wall.px).toBeCloseTo(99.8)
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([
+      expect.objectContaining({
+        purpose: "auto:wall-entry",
+        side: "buy",
+        px: "99.801",
+        tif: "Alo",
+      }),
+    ])
+  })
+
+  it("keeps the broker-rounded entry size after the order starts resting", () => {
+    const { strategy, ctx } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+    strategy.onOrderPlaced?.(
+      ctx,
+      undefined as never,
+      { ...entry, sz: "10.01" },
+      "resting",
+      "6.01"
+    )
+
+    expect(strategy.desiredOrders(ctx, undefined as never)[0]).toEqual(
+      expect.objectContaining({ sz: "6.01", sizeIsRemaining: true })
+    )
+  })
+
+  it("places no entry while both sides have qualifying walls", () => {
+    const { strategy, ctx } = wallContext()
+    strategy.onBook?.(
+      ctx,
+      undefined as never,
+      book({ bidIndex: 1, askIndex: 1 }),
+      { szDecimals: 2 }
+    )
+    ctx.now = 2_000
+    strategy.onBook?.(
+      ctx,
+      undefined as never,
+      book({ bidIndex: 1, askIndex: 1 }),
+      { szDecimals: 2 }
+    )
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+  })
+
+  it("cancels on wall movement and force-closes a partial fill", () => {
+    const { strategy, ctx, events, setPosition } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    setPosition({ szi: "4", entryPx: "99.81" })
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.81",
+      sz: "4",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_100,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "6",
+      orderStatus: "partially_filled",
+    })
+    ctx.now = 2_500
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 3 }), {
+      szDecimals: 2,
+    })
+
+    expect(events).toContain("wall_entry_partial_fill")
+    expect(events).toContain("wall_invalidated")
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([
+      expect.objectContaining({
+        purpose: "auto:wall-forced-exit",
+        side: "sell",
+        sz: "4",
+        reduceOnly: true,
+      }),
+    ])
+  })
+
+  it("keeps only the unfilled remainder after a partial entry fill", () => {
+    const { strategy, ctx, setPosition } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+    strategy.onOrderPlaced?.(
+      ctx,
+      undefined as never,
+      entry,
+      "resting",
+      entry.sz
+    )
+    setPosition({ szi: "4", entryPx: "99.801" })
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.801",
+      sz: "4",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_100,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "6.02",
+      orderStatus: "partially_filled",
+    })
+
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([
+      expect.objectContaining({
+        purpose: "auto:wall-entry",
+        sz: "6.02",
+        sizeIsRemaining: true,
+      }),
+    ])
+  })
+
+  it("restarts confirmation after a stale unfilled entry is cancelled", () => {
+    const { strategy, ctx } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+
+    ctx.now = 4_000
+    strategy.onTick?.(ctx, undefined as never)
+    strategy.onOrderCancelled?.(ctx, undefined as never, entry, true)
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+
+    ctx.now = 6_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toHaveLength(1)
+  })
+
+  it("treats a partial exchange order update as an owned position", () => {
+    const { strategy, ctx, events, state } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+    strategy.onOrderUpdate?.(
+      ctx,
+      undefined as never,
+      entry,
+      "partially_filled",
+      "6"
+    )
+
+    expect(state().wall?.active).toEqual(
+      expect.objectContaining({ ownsPosition: true, remainingSz: 6 })
+    )
+    expect(events).toContain("wall_entry_partial_fill")
+
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.801",
+      sz: "4",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_100,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "6",
+      orderStatus: "partially_filled",
+    })
+    expect(
+      events.filter((event) => event === "wall_entry_partial_fill")
+    ).toHaveLength(1)
+  })
+
+  it("force-closes a fill that wins a cancellation race", () => {
+    const { strategy, ctx, events, setPosition } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+    ctx.now = 2_500
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 3 }), {
+      szDecimals: 2,
+    })
+    strategy.onOrderCancelled?.(ctx, undefined as never, entry, false)
+    setPosition({ szi: "2", entryPx: "99.801" })
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.801",
+      sz: "2",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_501,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "0",
+      orderStatus: "filled",
+    })
+
+    expect(events).toContain("wall_cancellation_race_fill")
+    expect(strategy.desiredOrders(ctx, undefined as never)[0]).toEqual(
+      expect.objectContaining({
+        purpose: "auto:wall-forced-exit",
+        side: "sell",
+        sz: "2",
+      })
+    )
+  })
+
+  it("waits for a new book after rejection and rearms only after wall change", () => {
+    const { strategy, ctx, setPosition } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    const entry = strategy.desiredOrders(ctx, undefined as never)[0]
+    strategy.onOrderRejected?.(
+      ctx,
+      undefined as never,
+      entry,
+      "post-only order would cross"
+    )
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+    ctx.now = 2_500
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toHaveLength(1)
+
+    setPosition({ szi: "10", entryPx: "99.81" })
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.81",
+      sz: "10",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_600,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "0",
+      orderStatus: "filled",
+    })
+    setPosition(null)
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "sell",
+      px: "101",
+      sz: "10",
+      fee: "0",
+      closedPnl: "10",
+      time: 3_000,
+      cloid: "exit",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:close",
+      remainingSz: "0",
+      orderStatus: "filled",
+    })
+    ctx.now = 5_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+
+    ctx.now = 5_500
+    strategy.onBook?.(ctx, undefined as never, book(), { szDecimals: 2 })
+    ctx.now = 6_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 3 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 8_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 3 }), {
+      szDecimals: 2,
+    })
+    expect(strategy.desiredOrders(ctx, undefined as never)).toHaveLength(1)
+  })
+
+  it("requires a flat new start and repeatedly exits owned recovery after five stale seconds", () => {
+    const fresh = wallContext()
+    fresh.setPosition({ szi: "1", entryPx: "100" })
+    expect(() =>
+      fresh.strategy.onStart?.(fresh.ctx, undefined as never)
+    ).toThrow("must start flat")
+
+    const { strategy, ctx, setPosition } = wallContext()
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    ctx.now = 2_000
+    strategy.onBook?.(ctx, undefined as never, book({ bidIndex: 1 }), {
+      szDecimals: 2,
+    })
+    setPosition({ szi: "3", entryPx: "99.801" })
+    strategy.onFill?.(ctx, undefined as never, {
+      side: "buy",
+      px: "99.801",
+      sz: "3",
+      fee: "0",
+      closedPnl: "0",
+      time: 2_100,
+      cloid: "wall",
+      oid: null,
+      hlTid: null,
+      purpose: "auto:wall-entry",
+      remainingSz: "0",
+      orderStatus: "filled",
+    })
+
+    ctx.now = 3_000
+    strategy.onStart?.(ctx, undefined as never)
+    ctx.now = 8_000
+    strategy.onTick?.(ctx, undefined as never)
+    expect(strategy.desiredOrders(ctx, undefined as never)).toHaveLength(1)
+    ctx.now = 8_500
+    expect(strategy.desiredOrders(ctx, undefined as never)).toEqual([])
+    ctx.now = 9_000
+    expect(strategy.desiredOrders(ctx, undefined as never)).toHaveLength(1)
+  })
 })

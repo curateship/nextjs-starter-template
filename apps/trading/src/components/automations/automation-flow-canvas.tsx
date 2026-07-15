@@ -148,7 +148,11 @@ export function AutomationFlowCanvas({
       // Normalize scroll units so a wheel notch zooms the same amount whether the
       // browser reports pixels (Chrome/most webviews), lines (Firefox), or pages.
       const unit =
-        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height || 1 : 1
+        event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? rect.height || 1
+            : 1
       const nextZoom = clampZoom(
         current.viewport.zoom * Math.exp(-event.deltaY * unit * 0.0015)
       )
@@ -245,7 +249,11 @@ export function AutomationFlowCanvas({
               ? target.kind === "stopLoss"
               : draft.sourcePort === "match"
                 ? false
-                : target.kind === "action")
+                : draft.sourcePort === "bidWall"
+                  ? target.kind === "action" && target.action === "buy"
+                  : draft.sourcePort === "askWall"
+                    ? target.kind === "action" && target.action === "short"
+                    : target.kind === "action")
     if (!allowed) {
       setConnect(null)
       return

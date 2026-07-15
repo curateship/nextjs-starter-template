@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   GitBranchIcon,
   OctagonXIcon,
+  RadarIcon,
   RepeatIcon,
   ShieldXIcon,
   TargetIcon,
@@ -228,6 +229,7 @@ function NodeIcon({ node }: { node: AutomationNode }) {
   if (node.kind === "indicator") return <ActivityIcon className="size-4" />
   if (node.kind === "logic") return <GitBranchIcon className="size-4" />
   if (node.kind === "lookback") return <TimerIcon className="size-4" />
+  if (node.kind === "whaleWall") return <RadarIcon className="size-4" />
   if (node.kind === "takeProfit") return <TargetIcon className="size-4" />
   if (node.kind === "stopLoss") return <OctagonXIcon className="size-4" />
   if (node.action === "buy") return <TrendingUpIcon className="size-4" />

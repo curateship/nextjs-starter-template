@@ -45,6 +45,21 @@ describe("Automation canvas model", () => {
     expect(
       nodeOutputPorts({ id: "lb", kind: "lookback", bars: 48, x: 0, y: 0 })
     ).toEqual([{ id: "trend", label: "Trend" }])
+    expect(
+      nodeOutputPorts({
+        id: "wall",
+        kind: "whaleWall",
+        minUsd: 500_000,
+        relativeSize: 5,
+        maxDistancePct: 0.5,
+        confirmationMs: 2_000,
+        x: 0,
+        y: 0,
+      })
+    ).toEqual([
+      { id: "bidWall", label: "Bid Wall" },
+      { id: "askWall", label: "Ask Wall" },
+    ])
   })
 
   it("anchors named outputs and inputs to the node edges", () => {
