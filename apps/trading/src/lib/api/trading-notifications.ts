@@ -28,12 +28,9 @@ const idSchema = z.object({ id: z.string().min(1).max(36) })
 const listFn = createServerFn({ method: "GET" })
   .inputValidator(pageSchema)
   .handler(async ({ data }) => {
-    const { syncTradingNotificationsForUser } =
-      await import("@/server/trading-notification-sync")
     const { getTradingNotificationPage } =
       await import("@/server/trading-notifications")
     const user = await requireUser()
-    await syncTradingNotificationsForUser(user.id)
     return getTradingNotificationPage(user.id, data.limit)
   })
 

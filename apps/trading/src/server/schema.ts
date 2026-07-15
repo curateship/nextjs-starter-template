@@ -49,7 +49,6 @@ export const customShellSessions = pgTable(
   },
   (table) => [
     index("ix_sessions_user_id").on(table.userId),
-    index("ix_sessions_token_hash").on(table.tokenHash),
     index("ix_sessions_expires_at").on(table.expiresAt),
   ]
 )
@@ -62,9 +61,7 @@ export const customShellSettings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    check("settings_default_key", sql`${table.key} = 'default'`),
-  ]
+  (table) => [check("settings_default_key", sql`${table.key} = 'default'`)]
 )
 
 export const customShellWorkspaces = pgTable(
@@ -80,9 +77,7 @@ export const customShellWorkspaces = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    index("ix_workspaces_user_id").on(table.userId),
-  ]
+  (table) => [index("ix_workspaces_user_id").on(table.userId)]
 )
 
 export const customShellFeedback = pgTable(
@@ -120,10 +115,7 @@ export const customShellFeedbackVotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("feedback_votes_unique_user").on(
-      table.feedbackId,
-      table.userId
-    ),
+    unique("feedback_votes_unique_user").on(table.feedbackId, table.userId),
     index("ix_feedback_votes_feedback_id").on(table.feedbackId),
     index("ix_feedback_votes_user_id").on(table.userId),
   ]
@@ -185,11 +177,12 @@ export const customShellNotifications = pgTable(
       table.recipientUserId,
       table.createdAt
     ),
+    index("ix_notifications_recipient_unread")
+      .on(table.recipientUserId)
+      .where(sql`${table.readAt} is null`),
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
-    index("ix_notifications_comment_id").on(
-      table.feedbackCommentId
-    ),
+    index("ix_notifications_comment_id").on(table.feedbackCommentId),
   ]
 )
 
@@ -785,7 +778,6 @@ export const tradingBacktests = pgTable(
   ]
 )
 
-
 export const tradingAuditLog = pgTable(
   "audit_log",
   {
@@ -929,6 +921,9 @@ export const tradingPaperOrders = pgTable(
       table.paperWalletId,
       table.status
     ),
+    index("ix_paper_orders_actionable")
+      .on(table.status)
+      .where(sql`${table.status} in ('pending', 'cancelling')`),
   ]
 )
 
@@ -1105,6 +1100,9 @@ export const scannerAlerts = pgTable(
       .where(sql`${table.dedupeKey} is not null`),
     index("ix_scanner_alerts_created_at").on(table.createdAt),
     index("ix_scanner_alerts_read_at").on(table.readAt),
+    index("ix_scanner_alerts_unread_created")
+      .on(table.createdAt.desc())
+      .where(sql`${table.readAt} is null`),
   ]
 )
 
@@ -1385,13 +1383,22 @@ export const tradingWorkerControls = pgTable(
   ]
 )
 
-export const tradingWorkerHeartbeats = pgTable("worker_heartbeats", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
-  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
-  version: varchar("version", { length: 40 }),
-  meta: jsonb("meta"),
-})
+export const tradingWorkerHeartbeats = pgTable(
+  "worker_heartbeats",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    version: varchar("version", { length: 40 }),
+    meta: jsonb("meta"),
+  },
+  (table) => [
+    index("ix_worker_heartbeats_kind_seen").on(
+      sql`(${table.meta}->>'workerKind')`,
+      table.lastSeenAt.desc()
+    ),
+  ]
+)
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellWorkspace = typeof customShellWorkspaces.$inferSelect

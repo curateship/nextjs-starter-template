@@ -420,7 +420,8 @@ export function BacktestDashboard({
     if (!runId) return
     if (run?.status !== "pending" && run?.status !== "running") return
     let cancelled = false
-    const timer = setInterval(() => {
+    const poll = () => {
+      if (document.visibilityState !== "visible") return
       void (async () => {
         try {
           const res = await loadBacktest(runId)
@@ -434,10 +435,16 @@ export function BacktestDashboard({
           // ignore transient errors; keep polling
         }
       })()
-    }, 3000)
+    }
+    const timer = setInterval(poll, 3000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") poll()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
       cancelled = true
       clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [runId, run?.status])
 

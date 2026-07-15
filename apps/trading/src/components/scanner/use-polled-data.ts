@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { useVisibleInterval } from "@/lib/use-visible-interval"
+
 /**
  * Shared state for a scanner dashboard table: adopts fresh loader data during
  * render when the route re-runs (filters changed), and re-fetches on an
@@ -29,10 +31,7 @@ export function usePolledData<T, F>(
     }
   }, [load, filters])
 
-  React.useEffect(() => {
-    const timer = setInterval(() => void refetch(), pollMs)
-    return () => clearInterval(timer)
-  }, [refetch, pollMs])
+  useVisibleInterval(refetch, pollMs)
 
   return [data, refetch]
 }

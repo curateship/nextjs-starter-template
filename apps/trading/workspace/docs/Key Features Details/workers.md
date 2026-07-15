@@ -5,7 +5,9 @@ one worker process and one database leader lock, so a second copy waits instead
 of processing the same work twice.
 
 - **Bot Worker** runs live and paper bots. Whale Wall bots read their own order
-  books and do not depend on either scanner.
+  books and do not depend on either scanner. It also records trading
+  notifications in the background, so opening a page does not trigger exchange
+  requests. Notification recording continues while bot workloads are paused.
 - **Whale Scanner** collects whale trades, wallets, positions, book metrics,
   and research alerts from mainnet.
 - **Market Scanner** evaluates market and chart-alert rules from its own shared

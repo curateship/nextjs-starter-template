@@ -95,9 +95,7 @@ export async function getAlertEventsPage(
     database
       .select({ value: count() })
       .from(alertEvents)
-      .where(
-        and(eq(alertEvents.userId, userId), isNull(alertEvents.readAt))
-      ),
+      .where(and(eq(alertEvents.userId, userId), isNull(alertEvents.readAt))),
     database
       .select({ coin: alertEvents.coin })
       .from(alertEvents)
@@ -113,6 +111,29 @@ export async function getAlertEventsPage(
     total: total?.value ?? 0,
     unreadCount: unread?.value ?? 0,
     markets: markets.map((row) => row.coin),
+  }
+}
+
+export async function getAlertEventsPoll(
+  userId: string,
+  limit = 10,
+  database: CustomShellDb = db
+) {
+  const [rows, [unread]] = await Promise.all([
+    database
+      .select()
+      .from(alertEvents)
+      .where(eq(alertEvents.userId, userId))
+      .orderBy(desc(alertEvents.occurredAt), desc(alertEvents.id))
+      .limit(Math.max(1, Math.min(50, limit))),
+    database
+      .select({ value: count() })
+      .from(alertEvents)
+      .where(and(eq(alertEvents.userId, userId), isNull(alertEvents.readAt))),
+  ])
+  return {
+    events: rows.map(serializeEvent),
+    unreadCount: unread?.value ?? 0,
   }
 }
 
@@ -218,12 +239,12 @@ export async function markAlertRulesEvaluated(
   await database
     .update(alertRules)
     .set({ lastEvaluatedAt: evaluatedAt })
-    .where(and(inArray(alertRules.id, ruleIds), eq(alertRules.status, "active")))
+    .where(
+      and(inArray(alertRules.id, ruleIds), eq(alertRules.status, "active"))
+    )
 }
 
-export async function listAlertRuleTriggerTimes(
-  database: CustomShellDb = db
-) {
+export async function listAlertRuleTriggerTimes(database: CustomShellDb = db) {
   const rows = await database
     .select({
       ruleId: alertEvents.ruleId,
@@ -385,8 +406,7 @@ function conditionValues(input: AlertRuleInput | AlertRuleItem) {
     direction: input.kind === "price_move" ? input.direction : null,
     level: input.kind === "price_level" ? String(input.level) : null,
     percent: input.kind === "price_move" ? String(input.percent) : null,
-    multiplier:
-      input.kind === "volume_spike" ? String(input.multiplier) : null,
+    multiplier: input.kind === "volume_spike" ? String(input.multiplier) : null,
     window: input.kind === "price_level" ? null : input.window,
   }
 }

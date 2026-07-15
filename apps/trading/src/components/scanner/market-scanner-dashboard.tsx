@@ -54,6 +54,7 @@ import {
   type MarketScannerRuleItem,
   type MarketScannerWindow,
 } from "@/lib/market-scanner"
+import { useVisibleInterval } from "@/lib/use-visible-interval"
 
 const POLL_MS = 10_000
 const ALERT_PAGE_SIZE = 25
@@ -105,11 +106,10 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
         "Notification" in window ? Notification.permission : "unsupported"
       )
     })
-    const timer = window.setInterval(() => {
-      void loadMarketScannerRulesPage().then(setData).catch(() => {})
-    }, POLL_MS)
-    return () => window.clearInterval(timer)
   }, [])
+  useVisibleInterval(async () => {
+    setData(await loadMarketScannerRulesPage())
+  }, POLL_MS)
 
   const rules = useMemo(
     () => sortRules(data.rules, ruleSort.sortBy, ruleSort.dir),
@@ -222,23 +222,17 @@ export function MarketScannerAlertsDashboard({ initial }: { initial: AlertsPage 
     [data.alerts, alertSort]
   )
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void loadMarketScannerAlertsPage(ALERT_PAGE_SIZE)
-        .then((latest) => {
-          setData((current) => ({
-            ...latest,
-            alerts: mergeAlerts(latest.alerts, current.alerts),
-            nextCursor:
-              current.alerts.length > ALERT_PAGE_SIZE
-                ? current.nextCursor
-                : latest.nextCursor,
-          }))
-        })
-        .catch(() => {})
-    }, POLL_MS)
-    return () => window.clearInterval(timer)
-  }, [])
+  useVisibleInterval(async () => {
+    const latest = await loadMarketScannerAlertsPage(ALERT_PAGE_SIZE)
+    setData((current) => ({
+      ...latest,
+      alerts: mergeAlerts(latest.alerts, current.alerts),
+      nextCursor:
+        current.alerts.length > ALERT_PAGE_SIZE
+          ? current.nextCursor
+          : latest.nextCursor,
+    }))
+  }, POLL_MS)
 
   async function loadMore() {
     if (!data.nextCursor || loadingMore) return

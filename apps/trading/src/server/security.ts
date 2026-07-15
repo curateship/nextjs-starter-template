@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "node:crypto"
 
-import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
+import {
+  getCookie,
+  getRequestProtocol,
+  setCookie,
+} from "@tanstack/react-start/server"
 import { verify } from "argon2"
 import { eq, and, gt } from "drizzle-orm"
 
@@ -21,7 +25,8 @@ export const SESSION_COOKIE_NAME = "custom_shell_session"
 // default. Override with CUSTOM_SHELL_SESSION_TTL_HOURS.
 const DEFAULT_SESSION_TTL_HOURS = 24 * 30
 const SESSION_TTL_HOURS = Number.parseInt(
-  process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(DEFAULT_SESSION_TTL_HOURS),
+  process.env.CUSTOM_SHELL_SESSION_TTL_HOURS ||
+    String(DEFAULT_SESSION_TTL_HOURS),
   10
 )
 
@@ -74,9 +79,13 @@ export async function findUserBySessionToken(
   token: string,
   database: CustomShellDb = db
 ): Promise<CustomShellUser | null> {
-  const [session] = await database
-    .select()
+  const [row] = await database
+    .select({ user: customShellUsers })
     .from(customShellSessions)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellSessions.userId, customShellUsers.id)
+    )
     .where(
       and(
         eq(customShellSessions.tokenHash, hashSessionToken(token)),
@@ -84,16 +93,5 @@ export async function findUserBySessionToken(
       )
     )
     .limit(1)
-
-  if (!session) {
-    return null
-  }
-
-  const [user] = await database
-    .select()
-    .from(customShellUsers)
-    .where(eq(customShellUsers.id, session.userId))
-    .limit(1)
-
-  return user ?? null
+  return row?.user ?? null
 }

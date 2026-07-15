@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/table"
 import {
   deleteBacktests,
+  pollBacktestProgress,
   updateRunStatus,
   type BacktestListItem,
 } from "@/lib/api/backtests"
@@ -88,26 +89,86 @@ const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   year: "numeric",
 })
+const BACKTEST_PROGRESS_BATCH_SIZE = 100
 
-/**
- * While `active` (a run is queued/running), refreshes the route loaders right
- * away and then on a snappy interval so the progress column and results update
- * live. Stops as soon as nothing is in progress.
- */
-function useProgressPolling(active: boolean, intervalMs = 2000): void {
+/** Keeps only changing run fields live; the full route refreshes once at completion. */
+function useLiveBacktestRuns(
+  initial: BacktestListItem[],
+  intervalMs = 2000
+): BacktestListItem[] {
   const router = useRouter()
+  const [runs, setRuns] = React.useState(initial)
+  const [previousInitial, setPreviousInitial] = React.useState(initial)
+  if (previousInitial !== initial) {
+    setPreviousInitial(initial)
+    setRuns(initial)
+  }
+
+  const activeIds = runs
+    .filter((run) => run.status === "pending" || run.status === "running")
+    .map((run) => run.id)
+  const activeKey = activeIds.join(",")
+
   React.useEffect(() => {
-    if (!active) return
+    if (!activeKey) return
     let cancelled = false
-    void router.invalidate()
-    const id = setInterval(() => {
-      if (!cancelled) void router.invalidate()
-    }, intervalMs)
+    let running = false
+    let completionInvalidated = false
+    const ids = activeKey.split(",")
+
+    async function refresh() {
+      if (cancelled || running || document.visibilityState !== "visible") {
+        return
+      }
+      running = true
+      try {
+        const batches: string[][] = []
+        for (
+          let start = 0;
+          start < ids.length;
+          start += BACKTEST_PROGRESS_BATCH_SIZE
+        ) {
+          batches.push(ids.slice(start, start + BACKTEST_PROGRESS_BATCH_SIZE))
+        }
+        const updates = (
+          await Promise.all(batches.map((batch) => pollBacktestProgress(batch)))
+        ).flat()
+        if (cancelled) return
+        const byId = new Map(updates.map((update) => [update.id, update]))
+        setRuns((current) =>
+          current.map((run) => {
+            const update = byId.get(run.id)
+            return update ? { ...run, ...update } : run
+          })
+        )
+        const stillActive = updates.some(
+          (run) => run.status === "pending" || run.status === "running"
+        )
+        if (!stillActive && !completionInvalidated) {
+          completionInvalidated = true
+          await router.invalidate()
+        }
+      } catch {
+        // Keep the current progress and retry on the next visible tick.
+      } finally {
+        running = false
+      }
+    }
+
+    void refresh()
+    const id = setInterval(() => void refresh(), intervalMs)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refresh()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
       cancelled = true
       clearInterval(id)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [active, router, intervalMs])
+  }, [activeKey, router, intervalMs])
+
+  return runs
 }
 
 /** A slim bar + "finished/total" count for a run group's queue progress. */
@@ -167,7 +228,9 @@ function useTableState<Column extends string>(defaultColumn: Column) {
   const [sortDirection, setSortDirection] =
     React.useState<TableSortDirection>("desc")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSizeState] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSizeState] = React.useState(
+    config.dashboardRowsPerPage
+  )
 
   const setSearch = (value: string) => {
     setSearchState(value)
@@ -276,7 +339,10 @@ function ConfirmDeleteDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (busy ? null : onOpenChange(next))}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (busy ? null : onOpenChange(next))}
+    >
       <DialogContent variant="admin" className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Delete backtests</DialogTitle>
@@ -351,7 +417,11 @@ function DeleteSelectedButton({
 function sortHead<Column extends string>(
   label: string,
   column: Column,
-  state: { sortColumn: Column; sortDirection: TableSortDirection; toggleSort: (c: Column) => void }
+  state: {
+    sortColumn: Column
+    sortDirection: TableSortDirection
+    toggleSort: (c: Column) => void
+  }
 ) {
   return (
     <TableHead column="meta" key={column}>
@@ -459,7 +529,7 @@ function compareGroups(a: GroupRow, b: GroupRow, column: GroupSort): number {
 }
 
 export function RunGroupsDashboard({
-  runs,
+  runs: initialRuns,
   groupMetrics,
 }: {
   runs: BacktestListItem[]
@@ -467,6 +537,7 @@ export function RunGroupsDashboard({
 }) {
   const navigate = useNavigate()
   const router = useRouter()
+  const runs = useLiveBacktestRuns(initialRuns)
   const state = useTableState<GroupSort>("last")
   const selection = useSelection()
   const [pendingDelete, setPendingDelete] = React.useState<GroupRow | null>(
@@ -546,14 +617,6 @@ export function RunGroupsDashboard({
     })
   }, [runs, groupMetrics])
 
-  // While any run is still queued/running, refresh the list live so the
-  // progress column (and results) fill in as the queue works.
-  const anyInProgress = React.useMemo(
-    () => groups.some((group) => group.inProgress),
-    [groups]
-  )
-  useProgressPolling(anyInProgress)
-
   const filtered = React.useMemo(() => {
     const query = state.search.trim().toLowerCase()
     const matches = groups.filter((group) => {
@@ -612,7 +675,9 @@ export function RunGroupsDashboard({
     <div className="w-full">
       <DashboardTable
         title="Backtest"
-        icon={<ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={
+          <ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+        }
         count={filtered.length}
         selectedCount={selection.selected.size}
         onClearSelection={selection.clear}
@@ -747,7 +812,10 @@ export function RunGroupsDashboard({
               })
             }
           >
-            <TableCell column="select" onClick={(event) => event.stopPropagation()}>
+            <TableCell
+              column="select"
+              onClick={(event) => event.stopPropagation()}
+            >
               <Checkbox
                 checked={selection.selected.has(group.groupId)}
                 onCheckedChange={() => selection.toggle(group.groupId)}
@@ -813,7 +881,7 @@ export function RunGroupsDashboard({
             </TableCell>
             <TableCell
               column="meta"
-              className="font-mono tabular-nums text-red-500"
+              className="font-mono text-red-500 tabular-nums"
               title="Combined-basket peak-to-trough drawdown"
             >
               {group.status === "done" && group.combinedDrawdownPct !== null
@@ -836,17 +904,25 @@ export function RunGroupsDashboard({
                   : "0%"
                 : "—"}
             </TableCell>
-            <TableCell column="mutedMeta" className="font-mono text-xs tabular-nums">
+            <TableCell
+              column="mutedMeta"
+              className="font-mono text-xs tabular-nums"
+            >
               {dateTimeFormatter.format(group.lastRunAt)}
             </TableCell>
-            <TableCell column="meta" onClick={(event) => event.stopPropagation()}>
+            <TableCell
+              column="meta"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label={group.pinned ? `Unpin ${group.name}` : `Pin ${group.name}`}
+                  aria-label={
+                    group.pinned ? `Unpin ${group.name}` : `Pin ${group.name}`
+                  }
                   onClick={() =>
                     void applyStatus([group.groupId], { pinned: !group.pinned })
                   }
@@ -904,7 +980,7 @@ const CHART_UP = "#089981"
 const CHART_DOWN = "#f23645"
 
 export function RunHistoryDashboard({
-  runs,
+  runs: initialRuns,
   groupId,
   groupMetrics,
   groupCurve,
@@ -915,6 +991,7 @@ export function RunHistoryDashboard({
   groupCurve: GroupCombinedCurve | null
 }) {
   const navigate = useNavigate()
+  const runs = useLiveBacktestRuns(initialRuns)
   const state = useTableState<MarketSort>("net")
   const selection = useSelection()
 
@@ -926,16 +1003,6 @@ export function RunHistoryDashboard({
   const main =
     marketRuns.find((run) => run.id === groupId) ?? marketRuns[0] ?? null
   const runName = main?.name ?? "Run"
-
-  // Refresh while markets are still queued/running so rows fill in live.
-  const anyInProgress = React.useMemo(
-    () =>
-      marketRuns.some(
-        (run) => run.status === "pending" || run.status === "running"
-      ),
-    [marketRuns]
-  )
-  useProgressPolling(anyInProgress)
 
   // Client-side filter (by market symbol) + sort, then paginate with the
   // shared table footer — the same table UI as every other dashboard.
@@ -1040,7 +1107,9 @@ export function RunHistoryDashboard({
               ]}
             />
           }
-          icon={<HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={
+            <HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          }
           count={marketRuns.length}
           selectedCount={selection.selected.size}
           onClearSelection={selection.clear}
@@ -1109,7 +1178,10 @@ export function RunHistoryDashboard({
                 void navigate({ to: "/backtest", search: { run: run.id } })
               }
             >
-              <TableCell column="select" onClick={(event) => event.stopPropagation()}>
+              <TableCell
+                column="select"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <Checkbox
                   checked={selection.selected.has(run.id)}
                   onCheckedChange={() => selection.toggle(run.id)}
@@ -1131,19 +1203,26 @@ export function RunHistoryDashboard({
                   ? `${signedUsd(run.netPnl)}${run.netPnlPct !== null ? ` (${pct(run.netPnlPct)})` : ""}`
                   : "—"}
               </TableCell>
-              <TableCell column="meta" className="font-mono tabular-nums text-red-500">
+              <TableCell
+                column="meta"
+                className="font-mono text-red-500 tabular-nums"
+              >
                 {run.maxDrawdownPct !== null
                   ? `-${run.maxDrawdownPct.toFixed(2)}%`
                   : "—"}
               </TableCell>
               <TableCell column="meta" className="font-mono tabular-nums">
-                {run.winRate !== null ? `${(run.winRate * 100).toFixed(1)}%` : "—"}
+                {run.winRate !== null
+                  ? `${(run.winRate * 100).toFixed(1)}%`
+                  : "—"}
               </TableCell>
               <TableCell
                 column="meta"
                 className={cn(
                   "font-mono tabular-nums",
-                  run.sharpe !== null ? toneClass(run.sharpe) : "text-muted-foreground"
+                  run.sharpe !== null
+                    ? toneClass(run.sharpe)
+                    : "text-muted-foreground"
                 )}
               >
                 {run.sharpe !== null ? run.sharpe.toFixed(2) : "—"}
@@ -1164,11 +1243,15 @@ export function RunHistoryDashboard({
             <CardContent className="flex flex-col gap-4 px-5">
               <div className="flex items-end justify-between gap-4">
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Total P&L</span>
+                  <span className="text-xs text-muted-foreground">
+                    Total P&L
+                  </span>
                   <span
                     className={cn(
                       "font-mono text-3xl leading-none font-semibold tabular-nums",
-                      summary.netPnl != null ? toneClass(summary.netPnl) : "text-foreground"
+                      summary.netPnl != null
+                        ? toneClass(summary.netPnl)
+                        : "text-foreground"
                     )}
                   >
                     {summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
@@ -1188,7 +1271,8 @@ export function RunHistoryDashboard({
                         : "bg-red-500/10 text-red-500"
                     )}
                   >
-                    {summary.netPnlPct >= 0 ? "▲" : "▼"} {pct(summary.netPnlPct)}
+                    {summary.netPnlPct >= 0 ? "▲" : "▼"}{" "}
+                    {pct(summary.netPnlPct)}
                   </span>
                 ) : null}
               </div>
@@ -1211,7 +1295,9 @@ export function RunHistoryDashboard({
                       <span
                         className={cn(
                           "font-mono text-sm tabular-nums",
-                          row.tone != null ? toneClass(row.tone) : "text-foreground"
+                          row.tone != null
+                            ? toneClass(row.tone)
+                            : "text-foreground"
                         )}
                       >
                         {row.value}
@@ -1226,7 +1312,9 @@ export function RunHistoryDashboard({
           <Card className="gap-2 py-5">
             <CardHeader className="px-5">
               <div className="flex items-baseline justify-between gap-2">
-                <CardTitle className="text-sm font-semibold">P&L curve</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  P&L curve
+                </CardTitle>
                 {rangeLabel ? (
                   <span className="text-[11px] text-muted-foreground">
                     {rangeLabel}

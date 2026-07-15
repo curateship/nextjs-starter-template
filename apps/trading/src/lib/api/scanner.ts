@@ -844,29 +844,6 @@ const loadAlertsPageFn = createServerFn({ method: "POST" })
     }
   })
 
-const pollAlertsFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AlertsPollResponse> => {
-    await requireUser()
-    const { count, desc, isNull } = await import("drizzle-orm")
-    const { db } = await import("@/server/db")
-    const { scannerAlerts } = await import("@/server/schema")
-
-    const [latest, [{ value: unreadCount }]] = await Promise.all([
-      db
-        .select()
-        .from(scannerAlerts)
-        .where(isNull(scannerAlerts.readAt))
-        .orderBy(desc(scannerAlerts.createdAt))
-        .limit(5),
-      db
-        .select({ value: count() })
-        .from(scannerAlerts)
-        .where(isNull(scannerAlerts.readAt)),
-    ])
-    return { unreadCount, latest: latest.map(serializeAlert) }
-  }
-)
-
 const markAlertsReadFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ ok: true }> => {
     const { requireAppOrigin } = await import("@/server/origin")
@@ -1020,10 +997,6 @@ export function loadAlertsPage(
   dir: "asc" | "desc" = "desc"
 ) {
   return loadAlertsPageFn({ data: { page, pageSize, sortBy, dir } })
-}
-
-export function pollAlerts() {
-  return pollAlertsFn()
 }
 
 export function markAlertsRead() {

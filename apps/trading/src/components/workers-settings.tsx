@@ -23,6 +23,7 @@ import {
   updateWorkerPaused,
 } from "@/lib/api/workers"
 import type { WorkerStatus, WorkersDashboardData } from "@/lib/workers"
+import { useVisibleInterval } from "@/lib/use-visible-interval"
 
 const POLL_MS = 10_000
 
@@ -46,9 +47,8 @@ export function WorkersSettings({
 
   React.useEffect(() => {
     queueMicrotask(() => void refresh())
-    const timer = window.setInterval(() => void refresh(), POLL_MS)
-    return () => window.clearInterval(timer)
   }, [refresh])
+  useVisibleInterval(refresh, POLL_MS)
 
   async function change(key: string, action: () => Promise<unknown>) {
     setSaving(key)

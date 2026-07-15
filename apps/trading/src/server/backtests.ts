@@ -279,6 +279,49 @@ const indicatorTypeSql = sql<
   string | null
 >`coalesce(${tradingBacktests.params} #>> '{indicator,type}', ${tradingBacktests.params} ->> 'kind')`
 
+const backtestListFields = {
+  id: tradingBacktests.id,
+  groupId: tradingBacktests.groupId,
+  name: tradingBacktests.name,
+  indicatorType: indicatorTypeSql,
+  market: tradingBacktests.market,
+  network: tradingBacktests.network,
+  interval: tradingBacktests.interval,
+  startTime: tradingBacktests.startTime,
+  endTime: tradingBacktests.endTime,
+  startingEquity: tradingBacktests.startingEquity,
+  status: tradingBacktests.status,
+  reviewStatus: tradingBacktests.reviewStatus,
+  pinned: tradingBacktests.pinned,
+  error: tradingBacktests.error,
+  createdAt: tradingBacktests.createdAt,
+  completedAt: tradingBacktests.completedAt,
+  progress: tradingBacktests.progress,
+  progressStage: tradingBacktests.progressStage,
+  netPnl: sql<string | null>`(${tradingBacktests.resultStats} ->> 'netPnl')`,
+  netPnlPct: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} ->> 'netPnlPct')`,
+  tradeCount: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} #>> '{all,trades}')`,
+  maxDrawdownPct: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} ->> 'maxDrawdownPct')`,
+  winRate: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} #>> '{all,winRate}')`,
+  sharpe: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} #>> '{all,sharpe}')`,
+  firstEntryMs: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} ->> 'firstEntryMs')`,
+  lastExitMs: sql<
+    string | null
+  >`(${tradingBacktests.resultStats} ->> 'lastExitMs')`,
+}
+
 /** Recent runs for the list page + header dropdown; omits the heavy result. */
 export async function listUserBacktests(
   userId: string,
@@ -302,6 +345,15 @@ export async function listUserBacktests(
     filters.push(eq(tradingBacktests.groupId, options.groupId))
   const where = and(...filters)
 
+  if (options.groupId) {
+    const rows = await database
+      .select(backtestListFields)
+      .from(tradingBacktests)
+      .where(where)
+      .orderBy(desc(tradingBacktests.createdAt))
+    return { rows, totalGroups: rows.length > 0 ? 1 : 0 }
+  }
+
   const [{ totalGroups = 0 } = { totalGroups: 0 }] = await database
     .select({
       totalGroups: sql<number>`count(distinct ${tradingBacktests.groupId})::int`,
@@ -324,52 +376,7 @@ export async function listUserBacktests(
   if (groups.length === 0) return { rows: [], totalGroups }
 
   const rows = await database
-    .select({
-      id: tradingBacktests.id,
-      groupId: tradingBacktests.groupId,
-      name: tradingBacktests.name,
-      indicatorType: indicatorTypeSql,
-      market: tradingBacktests.market,
-      network: tradingBacktests.network,
-      interval: tradingBacktests.interval,
-      startTime: tradingBacktests.startTime,
-      endTime: tradingBacktests.endTime,
-      startingEquity: tradingBacktests.startingEquity,
-      status: tradingBacktests.status,
-      reviewStatus: tradingBacktests.reviewStatus,
-      pinned: tradingBacktests.pinned,
-      error: tradingBacktests.error,
-      createdAt: tradingBacktests.createdAt,
-      completedAt: tradingBacktests.completedAt,
-      progress: tradingBacktests.progress,
-      progressStage: tradingBacktests.progressStage,
-      netPnl: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} ->> 'netPnl')`,
-      netPnlPct: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} ->> 'netPnlPct')`,
-      tradeCount: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} #>> '{all,trades}')`,
-      maxDrawdownPct: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} ->> 'maxDrawdownPct')`,
-      winRate: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} #>> '{all,winRate}')`,
-      sharpe: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} #>> '{all,sharpe}')`,
-      // First order opened / last order closed — drives the "Days" (active
-      // trading span) column, which varies per coin unlike the padded window.
-      firstEntryMs: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} ->> 'firstEntryMs')`,
-      lastExitMs: sql<
-        string | null
-      >`(${tradingBacktests.resultStats} ->> 'lastExitMs')`,
-    })
+    .select(backtestListFields)
     .from(tradingBacktests)
     .where(
       and(

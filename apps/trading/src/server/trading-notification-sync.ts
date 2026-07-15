@@ -55,6 +55,7 @@ export async function syncTradingNotificationsForUser(
 ) {
   const wallets = await database
     .select({
+      userId: tradingWallets.userId,
       walletId: tradingWallets.id,
       network: tradingWallets.network,
       accountAddress: tradingWallets.accountAddress,
@@ -77,7 +78,44 @@ export async function syncTradingNotificationsForUser(
         address: (wallet.vaultAddress ??
           wallet.accountAddress) as `0x${string}`,
       },
-      userId,
+      wallet.userId,
+      syncedAt,
+      database,
+      exchange
+    )
+  }
+}
+
+export async function syncTradingNotificationsForAllUsers({
+  database = db,
+  exchange = hyperliquidExchange,
+  syncedAt = now(),
+}: SyncOptions = {}) {
+  const wallets = await database
+    .select({
+      userId: tradingWallets.userId,
+      walletId: tradingWallets.id,
+      network: tradingWallets.network,
+      accountAddress: tradingWallets.accountAddress,
+      vaultAddress: tradingWallets.vaultAddress,
+    })
+    .from(tradingWallets)
+    .where(
+      and(
+        eq(tradingWallets.isActive, true),
+        eq(tradingWallets.status, "active")
+      )
+    )
+
+  for (const wallet of wallets) {
+    await syncWallet(
+      {
+        walletId: wallet.walletId,
+        network: wallet.network as TradingNetwork,
+        address: (wallet.vaultAddress ??
+          wallet.accountAddress) as `0x${string}`,
+      },
+      wallet.userId,
       syncedAt,
       database,
       exchange

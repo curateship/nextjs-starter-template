@@ -85,6 +85,23 @@ export type BacktestListResponse = {
   }
 }
 
+export type BacktestProgressItem = Pick<
+  BacktestListItem,
+  | "id"
+  | "status"
+  | "error"
+  | "completedAt"
+  | "progress"
+  | "progressStage"
+  | "netPnl"
+  | "netPnlPct"
+  | "tradeCount"
+  | "maxDrawdownPct"
+  | "winRate"
+  | "sharpe"
+  | "tradingDays"
+>
+
 export type BacktestDetail = {
   id: string
   groupId: string
@@ -338,28 +355,109 @@ const loadBacktestsFn = createServerFn({ method: "GET" })
     }
   })
 
-const groupMetricsSchema = z.object({
-  groupIds: z.array(z.string().min(1)).max(100),
-})
-
-const loadGroupMetricsFn = createServerFn({ method: "GET" })
-  .inputValidator(groupMetricsSchema)
-  .handler(async ({ data }): Promise<Record<string, GroupPortfolioMetrics>> => {
+const loadBacktestOverviewFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<
+    BacktestListResponse & {
+      groupMetrics: Record<string, GroupPortfolioMetrics>
+    }
+  > => {
+    const { listUserBacktests } = await import("@/server/backtests")
     const { loadGroupPortfolioMetrics } =
       await import("@/server/backtest/portfolio-metrics")
     const user = await requireUser()
-    return loadGroupPortfolioMetrics(user.id, data.groupIds)
-  })
+    const list = await listUserBacktests(user.id, { page: 1, pageSize: 500 })
+    const runs = list.rows.map(serializeListItem)
+    const groupIds = [...new Set(runs.map((run) => run.groupId))].slice(0, 100)
+    return {
+      runs,
+      groupMetrics: await loadGroupPortfolioMetrics(user.id, groupIds),
+    }
+  }
+)
 
-const groupCurveSchema = z.object({ groupId: z.string().min(1) })
+const groupSummarySchema = z.object({ groupId: z.string().min(1) })
 
-const loadGroupCurveFn = createServerFn({ method: "GET" })
-  .inputValidator(groupCurveSchema)
-  .handler(async ({ data }): Promise<GroupCombinedCurve | null> => {
-    const { loadGroupCombinedCurve } =
-      await import("@/server/backtest/portfolio-metrics")
+const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
+  .inputValidator(groupSummarySchema)
+  .handler(
+    async ({
+      data,
+    }): Promise<
+      BacktestListResponse & {
+        groupMetrics: Record<string, GroupPortfolioMetrics>
+        groupCurve: GroupCombinedCurve | null
+      }
+    > => {
+      const { listUserBacktests } = await import("@/server/backtests")
+      const { loadGroupPortfolioSummary } =
+        await import("@/server/backtest/portfolio-metrics")
+      const user = await requireUser()
+      const [list, portfolio] = await Promise.all([
+        listUserBacktests(user.id, { groupId: data.groupId }),
+        loadGroupPortfolioSummary(user.id, data.groupId),
+      ])
+      return {
+        runs: list.rows.map(serializeListItem),
+        groupMetrics: portfolio.metrics
+          ? { [data.groupId]: portfolio.metrics }
+          : {},
+        groupCurve: portfolio.curve,
+      }
+    }
+  )
+
+const backtestProgressSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+})
+
+const pollBacktestProgressFn = createServerFn({ method: "GET" })
+  .inputValidator(backtestProgressSchema)
+  .handler(async ({ data }): Promise<BacktestProgressItem[]> => {
+    const { and, eq, inArray, sql } = await import("drizzle-orm")
+    const { db } = await import("@/server/db")
+    const { tradingBacktests } = await import("@/server/schema")
     const user = await requireUser()
-    return loadGroupCombinedCurve(user.id, data.groupId)
+    const rows = await db
+      .select({
+        id: tradingBacktests.id,
+        status: tradingBacktests.status,
+        error: tradingBacktests.error,
+        completedAt: tradingBacktests.completedAt,
+        progress: tradingBacktests.progress,
+        progressStage: tradingBacktests.progressStage,
+        netPnl: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} ->> 'netPnl')`,
+        netPnlPct: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} ->> 'netPnlPct')`,
+        tradeCount: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} #>> '{all,trades}')`,
+        maxDrawdownPct: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} ->> 'maxDrawdownPct')`,
+        winRate: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} #>> '{all,winRate}')`,
+        sharpe: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} #>> '{all,sharpe}')`,
+        firstEntryMs: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} ->> 'firstEntryMs')`,
+        lastExitMs: sql<
+          string | null
+        >`(${tradingBacktests.resultStats} ->> 'lastExitMs')`,
+      })
+      .from(tradingBacktests)
+      .where(
+        and(
+          eq(tradingBacktests.userId, user.id),
+          inArray(tradingBacktests.id, data.ids)
+        )
+      )
+    return rows.map(serializeProgressItem)
   })
 
 const loadBacktestFn = createServerFn({ method: "POST" })
@@ -533,12 +631,16 @@ export function loadBacktests(input: z.input<typeof loadBacktestsSchema> = {}) {
   return loadBacktestsFn({ data: input })
 }
 
-export function loadGroupMetrics(groupIds: string[]) {
-  return loadGroupMetricsFn({ data: { groupIds } })
+export function loadBacktestOverview() {
+  return loadBacktestOverviewFn()
 }
 
-export function loadGroupCurve(groupId: string) {
-  return loadGroupCurveFn({ data: { groupId } })
+export function loadBacktestGroupSummary(groupId: string) {
+  return loadBacktestGroupSummaryFn({ data: { groupId } })
+}
+
+export function pollBacktestProgress(ids: string[]) {
+  return pollBacktestProgressFn({ data: { ids } })
 }
 
 export function loadBacktest(backtestId: string) {
@@ -618,6 +720,45 @@ function serializeListItem(row: ListRow): BacktestListItem {
     winRate: row.winRate === null ? null : Number(row.winRate),
     sharpe: row.sharpe === null ? null : Number(row.sharpe),
     // Active trading span: first order opened → last order closed.
+    tradingDays:
+      firstEntry !== null && lastExit !== null
+        ? Math.round((lastExit - firstEntry) / 86_400_000)
+        : null,
+  }
+}
+
+function serializeProgressItem(row: {
+  id: string
+  status: string
+  error: string | null
+  completedAt: Date | null
+  progress: number
+  progressStage: string | null
+  netPnl: string | null
+  netPnlPct: string | null
+  tradeCount: string | null
+  maxDrawdownPct: string | null
+  winRate: string | null
+  sharpe: string | null
+  firstEntryMs: string | null
+  lastExitMs: string | null
+}): BacktestProgressItem {
+  const firstEntry = row.firstEntryMs === null ? null : Number(row.firstEntryMs)
+  const lastExit = row.lastExitMs === null ? null : Number(row.lastExitMs)
+  return {
+    id: row.id,
+    status: row.status as BacktestProgressItem["status"],
+    error: row.error,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    progress: row.progress,
+    progressStage: row.progressStage,
+    netPnl: row.netPnl === null ? null : Number(row.netPnl),
+    netPnlPct: row.netPnlPct === null ? null : Number(row.netPnlPct),
+    tradeCount: row.tradeCount === null ? null : Number(row.tradeCount),
+    maxDrawdownPct:
+      row.maxDrawdownPct === null ? null : Number(row.maxDrawdownPct),
+    winRate: row.winRate === null ? null : Number(row.winRate),
+    sharpe: row.sharpe === null ? null : Number(row.sharpe),
     tradingDays:
       firstEntry !== null && lastExit !== null
         ? Math.round((lastExit - firstEntry) / 86_400_000)
