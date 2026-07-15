@@ -11,7 +11,7 @@ import {
 } from "@/lib/strategies/qqe"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import { db } from "@/server/db"
-import { createUserBacktest, finishUserBacktest } from "@/server/backtests"
+import { createCompletedUserBacktest } from "@/server/backtests"
 import {
   fetchCandleHistory,
   INTERVAL_MS,
@@ -628,21 +628,24 @@ async function save(score: Score, basket = "primary24") {
   const name = `QQE + Trendline 4h WF OOS ${basket} — thr${score.candidate.threshold} sf${score.candidate.smoothing} swing${score.candidate.swingLookback} confirm${score.candidate.confirmationBars} break${score.candidate.breakBuffer} stopBuf${score.candidate.stopBuffer} age${score.candidate.lookbackBars} lineSL QQE-exit 1x ${score.costs.slippageBps}bps slip`
   let groupId: string | undefined
   for (const { market, result } of score.runs) {
-    const row = await createUserBacktest(user.id, {
-      name,
-      groupId,
-      automationId: null,
-      market,
-      network: "mainnet",
-      interval: INTERVAL,
-      params: automationConfig(score.candidate),
-      costs: score.costs,
-      startTime: new Date(PHASES.final[0]),
-      endTime: new Date(PHASES.final[1]),
-      startingEquity: STARTING_EQUITY,
-    })
+    const row = await createCompletedUserBacktest(
+      user.id,
+      {
+        name,
+        groupId,
+        automationId: null,
+        market,
+        network: "mainnet",
+        interval: INTERVAL,
+        params: automationConfig(score.candidate),
+        costs: score.costs,
+        startTime: new Date(PHASES.final[0]),
+        endTime: new Date(PHASES.final[1]),
+        startingEquity: STARTING_EQUITY,
+      },
+      result
+    )
     groupId ??= row.id
-    await finishUserBacktest(row.id, result)
   }
   console.log("SAVED", groupId, name)
 }

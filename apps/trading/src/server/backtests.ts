@@ -28,7 +28,7 @@ export type CreateBacktestInput = {
   startingEquity: number
 }
 
-/** The config columns shared by create and reset. */
+/** The config columns shared by queued and already-completed runs. */
 function backtestConfigValues(input: CreateBacktestInput) {
   return {
     name: input.name.slice(0, 255),
@@ -46,15 +46,30 @@ function backtestConfigValues(input: CreateBacktestInput) {
   }
 }
 
-/** Inserts a running backtest row; the caller computes and finishes it. */
+function backtestResultValues(result: BacktestResult) {
+  return {
+    result,
+    resultStats: {
+      ...result.stats,
+      firstEntryMs: result.trades[0]?.entryTime ?? null,
+      lastExitMs: result.trades[result.trades.length - 1]?.exitTime ?? null,
+    },
+  }
+}
+
+function assertBacktestable(input: CreateBacktestInput) {
+  if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
+    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
+  }
+}
+
+/** Inserts a queued backtest row for the dedicated worker. */
 export async function createUserBacktest(
   userId: string,
   input: CreateBacktestInput,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
-  if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
-    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
-  }
+  assertBacktestable(input)
   const id = uuid()
   const [row] = await database
     .insert(tradingBacktests)
@@ -66,6 +81,8 @@ export async function createUserBacktest(
       // Queued; the background queue claims it and stamps startedAt on run.
       status: "pending",
       startedAt: null,
+      progress: 0,
+      progressStage: "queued",
       createdAt: now(),
     })
     .returning()
@@ -73,74 +90,91 @@ export async function createUserBacktest(
   return row
 }
 
-/**
- * Re-runs an existing row in place: rewrites its config and puts it back in
- * "running" with the old result cleared. Keeps the id, so group lineage (and
- * the main row's id == groupId) survives re-runs.
- */
-export async function resetUserBacktest(
+/** Saves a result computed by an explicit offline tool without queueing it. */
+export async function createCompletedUserBacktest(
   userId: string,
-  backtestId: string,
   input: CreateBacktestInput,
+  result: BacktestResult,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
-  if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
-    throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
-  }
+  assertBacktestable(input)
+  const id = uuid()
+  const timestamp = now()
+  const [row] = await database
+    .insert(tradingBacktests)
+    .values({
+      id,
+      userId,
+      groupId: input.groupId ?? id,
+      ...backtestConfigValues(input),
+      ...backtestResultValues(result),
+      status: "done",
+      progress: 100,
+      progressStage: "complete",
+      claimedBy: null,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      completedAt: timestamp,
+    })
+    .returning()
+  if (!row) throw new Error("Completed Backtest was not saved")
+  return row
+}
+
+/** Finishes only the run still owned by this worker claim. */
+export async function finishClaimedBacktest(
+  backtestId: string,
+  workerId: string,
+  result: BacktestResult,
+  database: CustomShellDb = db
+) {
   const [row] = await database
     .update(tradingBacktests)
     .set({
-      ...backtestConfigValues(input),
-      // Requeued; the background queue claims it and stamps startedAt on run.
-      status: "pending",
-      error: null,
-      result: null,
-      resultStats: null,
-      startedAt: null,
-      completedAt: null,
+      status: "done",
+      ...backtestResultValues(result),
+      completedAt: now(),
+      progress: 100,
+      progressStage: "complete",
+      claimedBy: null,
     })
     .where(
       and(
         eq(tradingBacktests.id, backtestId),
-        eq(tradingBacktests.userId, userId)
+        eq(tradingBacktests.status, "running"),
+        eq(tradingBacktests.claimedBy, workerId)
       )
     )
-    .returning()
-  if (!row) throw new Error("Backtest was not found")
-  return row
+    .returning({ id: tradingBacktests.id })
+  if (!row) throw new Error("Backtest claim was lost before completion")
 }
 
-/** Marks a backtest done and stores its result (+ compact list stats). */
-export async function finishUserBacktest(
+/** Fails only the run still owned by this worker claim. */
+export async function failClaimedBacktest(
   backtestId: string,
-  result: BacktestResult,
-  database: CustomShellDb = db
-) {
-  await database
-    .update(tradingBacktests)
-    .set({
-      status: "done",
-      result,
-      resultStats: {
-        ...result.stats,
-        firstEntryMs: result.trades[0]?.entryTime ?? null,
-        lastExitMs: result.trades[result.trades.length - 1]?.exitTime ?? null,
-      },
-      completedAt: now(),
-    })
-    .where(eq(tradingBacktests.id, backtestId))
-}
-
-/** Marks a backtest failed with a short error message. */
-export async function failUserBacktest(
-  backtestId: string,
+  workerId: string,
   error: string,
   database: CustomShellDb = db
 ) {
-  await database
+  const [row] = await database
     .update(tradingBacktests)
-    .set({ status: "error", error: error.slice(0, 400), completedAt: now() })
-    .where(eq(tradingBacktests.id, backtestId))
+    .set({
+      status: "error",
+      error: error.slice(0, 400),
+      completedAt: now(),
+      progress: 100,
+      progressStage: "failed",
+      claimedBy: null,
+    })
+    .where(
+      and(
+        eq(tradingBacktests.id, backtestId),
+        eq(tradingBacktests.status, "running"),
+        eq(tradingBacktests.claimedBy, workerId)
+      )
+    )
+    .returning({ id: tradingBacktests.id })
+  if (!row) throw new Error("Backtest claim was lost before failure was saved")
 }
 
 /**
@@ -150,6 +184,7 @@ export async function failUserBacktest(
  * null when the queue is empty.
  */
 export async function claimNextPendingBacktest(
+  workerId: string,
   database: CustomShellDb = db
 ): Promise<TradingBacktest | null> {
   return database.transaction(async (tx) => {
@@ -163,7 +198,14 @@ export async function claimNextPendingBacktest(
     if (!candidate) return null
     const [row] = await tx
       .update(tradingBacktests)
-      .set({ status: "running", startedAt: now() })
+      .set({
+        status: "running",
+        startedAt: now(),
+        attemptCount: sql`${tradingBacktests.attemptCount} + 1`,
+        progress: 5,
+        progressStage: "claimed",
+        claimedBy: workerId,
+      })
       .where(eq(tradingBacktests.id, candidate.id))
       .returning()
     return row ?? null
@@ -171,19 +213,64 @@ export async function claimNextPendingBacktest(
 }
 
 /**
- * Restart recovery: any row left `running` was orphaned when the server stopped
+ * Restart recovery: any row left `running` was orphaned when the worker stopped
  * (nothing is computing it now), so put it back in the queue as `pending`.
  * Returns how many were requeued.
  */
 export async function resetOrphanedRunning(
   database: CustomShellDb = db
-): Promise<number> {
-  const rows = await database
+): Promise<{ requeued: number; failed: number }> {
+  const exhausted = await database
     .update(tradingBacktests)
-    .set({ status: "pending", startedAt: null })
+    .set({
+      status: "error",
+      error: "Backtest stopped repeatedly while running.",
+      progress: 100,
+      progressStage: "failed",
+      completedAt: now(),
+      claimedBy: null,
+    })
+    .where(
+      and(
+        eq(tradingBacktests.status, "running"),
+        sql`${tradingBacktests.attemptCount} >= 3`
+      )
+    )
+    .returning({ id: tradingBacktests.id })
+  const requeued = await database
+    .update(tradingBacktests)
+    .set({
+      status: "pending",
+      startedAt: null,
+      progress: 0,
+      progressStage: "retrying",
+      claimedBy: null,
+    })
     .where(eq(tradingBacktests.status, "running"))
     .returning({ id: tradingBacktests.id })
-  return rows.length
+  return { requeued: requeued.length, failed: exhausted.length }
+}
+
+export async function updateBacktestProgress(
+  backtestId: string,
+  workerId: string,
+  progress: number,
+  stage: string,
+  database: CustomShellDb = db
+) {
+  await database
+    .update(tradingBacktests)
+    .set({
+      progress: Math.max(0, Math.min(99, Math.round(progress))),
+      progressStage: stage.slice(0, 40),
+    })
+    .where(
+      and(
+        eq(tradingBacktests.id, backtestId),
+        eq(tradingBacktests.status, "running"),
+        eq(tradingBacktests.claimedBy, workerId)
+      )
+    )
 }
 
 /** The run's strategy identity from the config JSON: its indicator id, or the
@@ -254,6 +341,8 @@ export async function listUserBacktests(
       error: tradingBacktests.error,
       createdAt: tradingBacktests.createdAt,
       completedAt: tradingBacktests.completedAt,
+      progress: tradingBacktests.progress,
+      progressStage: tradingBacktests.progressStage,
       netPnl: sql<
         string | null
       >`(${tradingBacktests.resultStats} ->> 'netPnl')`,

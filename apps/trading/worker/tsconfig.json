@@ -5,10 +5,12 @@
     "lib": ["ES2022"],
     "types": ["node"],
     "jsx": "preserve",
+    "erasableSyntaxOnly": false,
     "baseUrl": "..",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "../src/server", "../src/lib/strategies"]
+  "include": ["src", "../src/server", "../src/lib/strategies"],
+  "exclude": ["src/**/*.test.ts", "../src/**/*.test.ts", "../src/**/*.test.tsx"]
 }

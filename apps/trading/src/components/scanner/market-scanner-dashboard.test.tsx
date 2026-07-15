@@ -8,7 +8,7 @@ vi.mock("@tanstack/react-router", () => ({
 import { MarketScannerDashboard } from "./market-scanner-dashboard"
 
 describe("MarketScannerDashboard", () => {
-  it("shows the manual power control without removing the pause control", () => {
+  it("keeps worker-wide controls out of the rules page", () => {
     const markup = renderToStaticMarkup(
       <MarketScannerDashboard
         initial={{
@@ -18,15 +18,14 @@ describe("MarketScannerDashboard", () => {
           workerOnline: true,
           paused: false,
           runtimeEnabled: false,
-          canControlRuntime: true,
           checkedAt: Date.now(),
         }}
       />
     )
 
     expect(markup).toContain("Scanner off")
-    expect(markup).toContain("Turn scanner on")
-    expect(markup).toContain("Pause scanner")
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Pause scanner/s)
+    expect(markup).not.toContain("Turn scanner on")
+    expect(markup).not.toContain("Pause scanner")
+    expect(markup).toContain("New rule")
   })
 })

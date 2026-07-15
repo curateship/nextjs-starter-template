@@ -2,7 +2,6 @@ import * as React from "react"
 import { ImageIcon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media-picker"
-import { ScannerControlCard } from "@/components/scanner/scanner-control-card"
 import {
   Card,
   CardContent,
@@ -264,8 +263,6 @@ export function GeneralSettings({
           </div>
         </CardContent>
       </Card>
-
-      <ScannerControlCard />
 
       <MediaPicker
         open={pickerOpen}

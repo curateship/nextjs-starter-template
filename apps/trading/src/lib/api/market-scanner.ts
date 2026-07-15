@@ -16,71 +16,41 @@ const alertsPageSchema = z.object({
   limit: z.number().int().min(1).max(100).default(25),
   cursor: z.string().min(1).max(1_024).optional(),
 })
-const pauseSchema = z.object({ paused: z.boolean() })
-const runtimeSchema = z.object({ enabled: z.boolean() })
 
 const loadRulesPageFn = createServerFn({ method: "GET" }).handler(async () => {
-    const {
-      getMarketScannerPaused,
-      getMarketScannerRules,
-      getMarketScannerRuntimeEnabled,
-    } = await import("@/server/market-scanner")
-    const { getScannerUniverse } = await import("@/server/scanner/info")
-    const { getMarketScannerWorkerStatus } = await import(
-      "@/server/market-scanner-status"
-    )
-    const user = await requireUser()
-    const [rules, universe, status, paused, runtimeEnabled] = await Promise.all([
-      getMarketScannerRules(user.id),
-      getScannerUniverse().catch(() => null),
-      getMarketScannerWorkerStatus(),
-      getMarketScannerPaused(user.id),
-      getMarketScannerRuntimeEnabled(),
-    ])
-    return {
-      rules,
-      markets: universe
-        ? universe.map((asset) => asset.coin)
-        : [...new Set(rules.flatMap((rule) => rule.markets))],
-      marketsAvailable: universe !== null,
-      workerOnline: status.workerOnline,
-      paused,
-      runtimeEnabled,
-      canControlRuntime: user.role === "admin",
-      checkedAt: Date.now(),
-    }
-  })
-
-const setPausedFn = createServerFn({ method: "POST" })
-  .inputValidator(pauseSchema)
-  .handler(async ({ data }) => {
-    await requireMutation()
-    const user = await requireUser()
-    const { setMarketScannerPaused } = await import("@/server/market-scanner")
-    return { paused: await setMarketScannerPaused(user.id, data.paused) }
-  })
-
-const setRuntimeEnabledFn = createServerFn({ method: "POST" })
-  .inputValidator(runtimeSchema)
-  .handler(async ({ data }) => {
-    await requireMutation()
-    const user = await requireUser()
-    if (user.role !== "admin") throw new Error("Administrator access required")
-    const { setMarketScannerRuntimeEnabled } = await import(
-      "@/server/market-scanner"
-    )
-    return {
-      runtimeEnabled: await setMarketScannerRuntimeEnabled(data.enabled),
-    }
-  })
+  const { getMarketScannerPaused, getMarketScannerRules } =
+    await import("@/server/market-scanner")
+  const { getScannerUniverse } = await import("@/server/scanner/info")
+  const { getMarketScannerWorkerStatus } =
+    await import("@/server/market-scanner-status")
+  const { getWorkerControl } = await import("@/server/workers/control")
+  const user = await requireUser()
+  const [rules, universe, status, paused, control] = await Promise.all([
+    getMarketScannerRules(user.id),
+    getScannerUniverse().catch(() => null),
+    getMarketScannerWorkerStatus(),
+    getMarketScannerPaused(user.id),
+    getWorkerControl("market-scanner"),
+  ])
+  return {
+    rules,
+    markets: universe
+      ? universe.map((asset) => asset.coin)
+      : [...new Set(rules.flatMap((rule) => rule.markets))],
+    marketsAvailable: universe !== null,
+    workerOnline: status.workerOnline,
+    paused,
+    runtimeEnabled: control.enabled && !control.paused,
+    checkedAt: Date.now(),
+  }
+})
 
 const loadAlertsPageFn = createServerFn({ method: "GET" })
   .inputValidator(alertsPageSchema)
   .handler(async ({ data }) => {
     const user = await requireUser()
-    const { getMarketScannerAlertsPage } = await import(
-      "@/server/market-scanner"
-    )
+    const { getMarketScannerAlertsPage } =
+      await import("@/server/market-scanner")
     return getMarketScannerAlertsPage(user.id, data)
   })
 
@@ -114,11 +84,13 @@ const deleteRuleFn = createServerFn({ method: "POST" })
   })
 
 const pollAlertsFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ alerts: MarketScannerAlertItem[]; unreadCount: number }> => {
+  async (): Promise<{
+    alerts: MarketScannerAlertItem[]
+    unreadCount: number
+  }> => {
     const user = await requireUser()
-    const { getMarketScannerAlertsPage } = await import(
-      "@/server/market-scanner"
-    )
+    const { getMarketScannerAlertsPage } =
+      await import("@/server/market-scanner")
     const page = await getMarketScannerAlertsPage(user.id, { limit: 10 })
     return { alerts: page.alerts, unreadCount: page.unreadCount }
   }
@@ -129,9 +101,8 @@ const markAlertReadFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireMutation()
     const user = await requireUser()
-    const { markMarketScannerAlertRead } = await import(
-      "@/server/market-scanner"
-    )
+    const { markMarketScannerAlertRead } =
+      await import("@/server/market-scanner")
     return markMarketScannerAlertRead(user.id, data.id)
   })
 
@@ -139,9 +110,8 @@ const markAllAlertsReadFn = createServerFn({ method: "POST" }).handler(
   async () => {
     await requireMutation()
     const user = await requireUser()
-    const { markAllMarketScannerAlertsRead } = await import(
-      "@/server/market-scanner"
-    )
+    const { markAllMarketScannerAlertsRead } =
+      await import("@/server/market-scanner")
     return markAllMarketScannerAlertsRead(user.id)
   }
 )
@@ -150,9 +120,8 @@ const deleteAllAlertsFn = createServerFn({ method: "POST" }).handler(
   async () => {
     await requireMutation()
     const user = await requireUser()
-    const { deleteAllMarketScannerAlerts } = await import(
-      "@/server/market-scanner"
-    )
+    const { deleteAllMarketScannerAlerts } =
+      await import("@/server/market-scanner")
     return deleteAllMarketScannerAlerts(user.id)
   }
 )
@@ -161,10 +130,7 @@ export function loadMarketScannerRulesPage() {
   return loadRulesPageFn()
 }
 
-export function loadMarketScannerAlertsPage(
-  limit = 25,
-  cursor?: string
-) {
+export function loadMarketScannerAlertsPage(limit = 25, cursor?: string) {
   return loadAlertsPageFn({ data: { limit, cursor } })
 }
 
@@ -181,14 +147,6 @@ export function updateMarketScannerRule(
 
 export function deleteMarketScannerRule(id: string) {
   return deleteRuleFn({ data: { id } })
-}
-
-export function setMarketScannerPaused(paused: boolean) {
-  return setPausedFn({ data: { paused } })
-}
-
-export function setMarketScannerRuntimeEnabled(enabled: boolean) {
-  return setRuntimeEnabledFn({ data: { enabled } })
 }
 
 export function pollMarketScannerAlerts() {
@@ -222,7 +180,9 @@ async function requireMutation() {
 async function assertSelectedMarkets(input: MarketScannerRuleInput) {
   if (input.marketScope !== "selected") return
   const { getScannerUniverse } = await import("@/server/scanner/info")
-  const allowed = new Set((await getScannerUniverse()).map((asset) => asset.coin))
+  const allowed = new Set(
+    (await getScannerUniverse()).map((asset) => asset.coin)
+  )
   if (input.markets.some((coin) => !allowed.has(coin))) {
     throw new Error("One or more markets are no longer available.")
   }

@@ -763,6 +763,10 @@ export const tradingBacktests = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    progress: integer("progress").notNull().default(0),
+    progressStage: varchar("progress_stage", { length: 40 }),
+    claimedBy: varchar("claimed_by", { length: 36 }),
   },
   (table) => [
     check(
@@ -773,6 +777,7 @@ export const tradingBacktests = pgTable(
       "backtests_review_status_check",
       sql`${table.reviewStatus} in ('review', 'archived')`
     ),
+    check("backtests_progress_check", sql`${table.progress} between 0 and 100`),
     index("ix_backtests_user_id_created_at").on(table.userId, table.createdAt),
     index("ix_backtests_status_created_at").on(table.status, table.createdAt),
     index("ix_backtests_user_id_group_id").on(table.userId, table.groupId),
@@ -1215,21 +1220,6 @@ export const marketScannerControl = pgTable("market_scanner_control", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
-export const marketScannerRuntimeControl = pgTable(
-  "market_scanner_runtime_control",
-  {
-    id: varchar("id", { length: 20 }).primaryKey(),
-    enabled: boolean("enabled").notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    check(
-      "market_scanner_runtime_control_id_check",
-      sql`${table.id} = 'default'`
-    ),
-  ]
-)
-
 export const alertRules = pgTable(
   "alert_rules",
   {
@@ -1379,13 +1369,21 @@ export const scannerBookMetrics = pgTable("scanner_book_metrics", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
-// Single-row runtime switch (id = 'default') for pausing the scanner worker
-// from the UI without a restart. The worker polls `paused`.
-export const scannerControl = pgTable("scanner_control", {
-  id: varchar("id", { length: 20 }).primaryKey(),
-  paused: boolean("paused").notNull().default(false),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const tradingWorkerControls = pgTable(
+  "worker_controls",
+  {
+    kind: varchar("kind", { length: 30 }).primaryKey(),
+    enabled: boolean("enabled").notNull().default(true),
+    paused: boolean("paused").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "worker_controls_kind_check",
+      sql`${table.kind} in ('bot', 'whale-scanner', 'market-scanner', 'backtest')`
+    ),
+  ]
+)
 
 export const tradingWorkerHeartbeats = pgTable("worker_heartbeats", {
   id: varchar("id", { length: 36 }).primaryKey(),

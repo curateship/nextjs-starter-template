@@ -1,28 +1,27 @@
 import { sql } from "drizzle-orm"
 
+import { safeWorkerError, type WorkerKind } from "@/lib/workers"
 import { db } from "@/server/db"
 import { tradingWorkerHeartbeats } from "@/server/schema"
 
 const HEARTBEAT_INTERVAL_MS = 10_000
 
-export type HeartbeatMeta = {
-  runningBots: number
-  subscriptions: number
-}
-
-export class Heartbeat {
+export class WorkerHeartbeat {
   private timer: NodeJS.Timeout | null = null
   private readonly startedAt = new Date()
   private readonly workerId: string
+  private readonly kind: WorkerKind
   private readonly version: string
-  private readonly getMeta: () => HeartbeatMeta
+  private readonly getMeta: () => Record<string, unknown>
 
   constructor(
     workerId: string,
+    kind: WorkerKind,
     version: string,
-    getMeta: () => HeartbeatMeta
+    getMeta: () => Record<string, unknown>
   ) {
     this.workerId = workerId
+    this.kind = kind
     this.version = version
     this.getMeta = getMeta
   }
@@ -39,6 +38,7 @@ export class Heartbeat {
 
   private async beat() {
     try {
+      const meta = this.getMeta()
       await db
         .insert(tradingWorkerHeartbeats)
         .values({
@@ -46,7 +46,11 @@ export class Heartbeat {
           startedAt: this.startedAt,
           lastSeenAt: new Date(),
           version: this.version,
-          meta: this.getMeta(),
+          meta: {
+            ...meta,
+            workerKind: this.kind,
+            latestError: safeWorkerError(meta.latestError),
+          },
         })
         .onConflictDoUpdate({
           target: tradingWorkerHeartbeats.id,
@@ -56,7 +60,7 @@ export class Heartbeat {
           },
         })
     } catch (error) {
-      console.error("heartbeat failed", error)
+      console.error(`${this.kind} worker: heartbeat failed`, error)
     }
   }
 }

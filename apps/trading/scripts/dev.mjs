@@ -4,7 +4,10 @@ const npm = process.platform === "win32" ? "npm.cmd" : "npm"
 const detached = process.platform !== "win32"
 const children = [
   start("Trading app", ["run", "dev:app"]),
+  start("Bot Worker", ["run", "bot-worker:dev"]),
+  start("Whale Scanner", ["run", "whale-scanner:dev"]),
   start("Market Scanner", ["run", "market-scanner:dev"]),
+  start("Backtest Worker", ["run", "backtest-worker:dev"]),
 ]
 
 let stopping = false

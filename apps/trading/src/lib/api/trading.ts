@@ -28,7 +28,7 @@ const loadTradingContextFn = createServerFn({ method: "GET" }).handler(
     const { getDefaultNetwork, isMainnetEnabled } = await import(
       "@/server/hyperliquid/transport"
     )
-    const { desc } = await import("drizzle-orm")
+    const { desc, sql } = await import("drizzle-orm")
     const { db } = await import("@/server/db")
     const { tradingWorkerHeartbeats } = await import("@/server/schema")
     const { listPaperWallets } = await import("@/server/paper")
@@ -40,6 +40,7 @@ const loadTradingContextFn = createServerFn({ method: "GET" }).handler(
       db
         .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
         .from(tradingWorkerHeartbeats)
+        .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
         .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
         .limit(1),
     ])

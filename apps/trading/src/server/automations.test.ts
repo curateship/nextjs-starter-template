@@ -137,6 +137,7 @@ const BASE_MIGRATIONS = [
   "../../drizzle/0000_custom_shell_baseline.sql",
   "../../drizzle/0003_custom_shell_workspaces.sql",
   "../../drizzle/0004_trading.sql",
+  "../../drizzle/0007_scanner_control.sql",
   "../../drizzle/0008_backtests.sql",
   "../../drizzle/0011_run_status.sql",
   "../../drizzle/0013_multi_market_bots.sql",
@@ -152,6 +153,11 @@ beforeEach(async () => {
   }
   await applyMigration(client, "../../drizzle/0020_trading_automations.sql")
   await applyMigration(client, "../../drizzle/0025_automation_type.sql")
+  await applyMigration(
+    client,
+    "../../drizzle/0042_market_scanner_runtime_control.sql"
+  )
+  await applyMigration(client, "../../drizzle/0043_dedicated_workers.sql")
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })
