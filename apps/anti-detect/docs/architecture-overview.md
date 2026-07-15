@@ -65,6 +65,9 @@ is by separate database. `varchar(36)` ids, tz-aware timestamps.
 - **`browser_sessions`** — runtime Camoufox/Neko sessions. Tracks the owning user,
   profile, worker node, Docker container/volume names, stream URL, allocated stream
   and WebRTC ports, status, start/end times, and last activity.
+- **`nodes` / `capacity_config`** — worker RAM/vCPU inventory plus the canonical
+  per-profile resource budgets and per-user concurrency cap used for launch
+  reservations and the admin capacity dashboard.
 - **`profile_folders`** — per-user groups.
 - **`profile_statuses`** — per-user customizable workflow labels (name + palette
   color), unique per `(user_id, name)`, auto-seeded Ready/Warming/Banned on first use.
@@ -112,11 +115,16 @@ the existing bell dropdown and admin notifications feed.
 statements, plus duplicate (clones config with a fresh fingerprint = a new identity)
 and client-side search / filter over the loaded list.
 
+**Capacity.** The orchestrator serializes launches per node, enforces the global
+per-user cap and node resource reservations, and collects per-container Docker
+RAM/vCPU stats. `admin/capacity` reports live/reserved usage, safe headroom,
+remaining profile slots, active-user cap meters, and recent idle-reap events.
+
 ## Migrations
 
 Plain SQL files in `drizzle/`, applied via `psql` — there is no drizzle journal; the
 test suite (`server/profiles.test.ts`, pglite) reads the files directly. Current:
-`0000` baseline → `0011` (operational alerts — generalizes `notifications`). Column/constraint
+`0000` baseline → `0012` (capacity inventory and budgets). Column/constraint
 additions are written idempotently (`ADD COLUMN IF NOT EXISTS`, `DO $$ … duplicate_object …$$`).
 
 ## Built vs. planned

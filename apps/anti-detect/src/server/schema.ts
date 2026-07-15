@@ -326,6 +326,52 @@ export const profiles = pgTable(
   ]
 )
 
+export const nodes = pgTable(
+  "nodes",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    label: varchar("label", { length: 255 }).notNull(),
+    totalRamMb: integer("total_ram_mb").notNull(),
+    totalVcpu: integer("total_vcpu").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+  },
+  (table) => [
+    check("nodes_total_ram_check", sql`${table.totalRamMb} > 0`),
+    check("nodes_total_vcpu_check", sql`${table.totalVcpu} > 0`),
+    check(
+      "nodes_status_check",
+      sql`${table.status} in ('active', 'draining', 'offline')`
+    ),
+  ]
+)
+
+export const capacityConfig = pgTable(
+  "capacity_config",
+  {
+    key: text("key").primaryKey(),
+    perUserConcurrencyCap: integer("per_user_concurrency_cap").notNull(),
+    profileRamMb: integer("profile_ram_mb").notNull(),
+    profileVcpuMillicores: integer("profile_vcpu_millicores").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("capacity_config_default_key", sql`${table.key} = 'default'`),
+    check(
+      "capacity_config_user_cap_check",
+      sql`${table.perUserConcurrencyCap} > 0`
+    ),
+    check(
+      "capacity_config_profile_ram_check",
+      sql`${table.profileRamMb} > 0`
+    ),
+    check(
+      "capacity_config_profile_vcpu_check",
+      sql`${table.profileVcpuMillicores} > 0`
+    ),
+  ]
+)
+
 export const browserSessions = pgTable(
   "browser_sessions",
   {
@@ -425,6 +471,8 @@ export type Notification =
   typeof notifications.$inferSelect
 export type Proxy = typeof proxies.$inferSelect
 export type Profile = typeof profiles.$inferSelect
+export type Node = typeof nodes.$inferSelect
+export type CapacityConfig = typeof capacityConfig.$inferSelect
 export type BrowserSession = typeof browserSessions.$inferSelect
 export type ProfileFolderRow = typeof profileFolders.$inferSelect
 export type ProfileStatusRow = typeof profileStatuses.$inferSelect
