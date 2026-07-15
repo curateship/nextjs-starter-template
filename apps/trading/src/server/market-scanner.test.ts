@@ -10,10 +10,13 @@ import {
   createMarketScannerRule,
   deleteAllMarketScannerAlerts,
   deleteMarketScannerRule,
+  getMarketScannerPaused,
   getMarketScannerAlertsPage,
   getMarketScannerRules,
   insertMarketScannerAlert,
+  listEnabledMarketScannerRules,
   markMarketScannerAlertRead,
+  setMarketScannerPaused,
   updateMarketScannerRule,
 } from "@/server/market-scanner"
 import * as schema from "@/server/schema"
@@ -27,6 +30,7 @@ beforeEach(async () => {
   for (const file of [
     "../../drizzle/0000_custom_shell_baseline.sql",
     "../../drizzle/0035_market_scanner.sql",
+    "../../drizzle/0041_market_scanner_pause.sql",
   ]) {
     await client.exec(await readFile(new URL(file, import.meta.url), "utf8"))
   }
@@ -65,6 +69,48 @@ const input: MarketScannerRuleInput = {
 }
 
 describe("market scanner storage", () => {
+  it("pauses scanner rule evaluation without disabling saved rules", async () => {
+    const userId = await createUser("owner@example.test")
+    await createMarketScannerRule(
+      userId,
+      input,
+      database as unknown as CustomShellDb
+    )
+
+    expect(
+      await listEnabledMarketScannerRules(database as unknown as CustomShellDb)
+    ).toHaveLength(1)
+
+    await setMarketScannerPaused(
+      userId,
+      true,
+      database as unknown as CustomShellDb
+    )
+
+    expect(
+      await getMarketScannerPaused(
+        userId,
+        database as unknown as CustomShellDb
+      )
+    ).toBe(true)
+    expect(
+      await listEnabledMarketScannerRules(database as unknown as CustomShellDb)
+    ).toEqual([])
+    expect(
+      await getMarketScannerRules(userId, database as unknown as CustomShellDb)
+    ).toHaveLength(1)
+
+    await setMarketScannerPaused(
+      userId,
+      false,
+      database as unknown as CustomShellDb
+    )
+
+    expect(
+      await listEnabledMarketScannerRules(database as unknown as CustomShellDb)
+    ).toHaveLength(1)
+  })
+
   it("enforces the 100-rule limit during simultaneous creates", async () => {
     const userId = await createUser("owner@example.test")
     const results = await Promise.allSettled(

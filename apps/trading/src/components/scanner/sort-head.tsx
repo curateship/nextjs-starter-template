@@ -13,11 +13,13 @@ export function SortHeaderRow<K extends string>({
   activeKey,
   dir,
   onSort,
+  trailing,
 }: {
   columns: readonly { key: K; label: string; main?: boolean }[]
   activeKey: K
   dir: SortDir
   onSort: (next: { sortBy: K; dir: SortDir }) => void
+  trailing?: React.ReactNode
 }) {
   return (
     <TableHeader>
@@ -33,6 +35,7 @@ export function SortHeaderRow<K extends string>({
             onSort={onSort}
           />
         ))}
+        {trailing}
       </TableRow>
     </TableHeader>
   )

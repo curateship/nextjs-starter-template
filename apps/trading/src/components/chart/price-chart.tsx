@@ -976,12 +976,51 @@ export function PriceChartView({
           setResetMenu({ x: event.clientX, y: event.clientY })
         }
 
+        let longPressTimer: ReturnType<typeof setTimeout> | null = null
+        let longPressStart: { x: number; y: number } | null = null
+        const cancelLongPress = () => {
+          if (longPressTimer) clearTimeout(longPressTimer)
+          longPressTimer = null
+          longPressStart = null
+        }
+        const onTouchStart = (event: TouchEvent) => {
+          if (event.touches.length !== 1 || !contextMenuRef.current) return
+          const touch = event.touches[0]
+          longPressStart = { x: touch.clientX, y: touch.clientY }
+          longPressTimer = setTimeout(() => {
+            const price = candleSeries.coordinateToPrice(
+              touch.clientY - container.getBoundingClientRect().top
+            )
+            if (price !== null && price > 0) {
+              contextMenuRef.current?.(price, touch.clientX, touch.clientY)
+            }
+            cancelLongPress()
+          }, 600)
+        }
+        const onTouchMove = (event: TouchEvent) => {
+          const touch = event.touches[0]
+          if (
+            !touch ||
+            !longPressStart ||
+            Math.hypot(
+              touch.clientX - longPressStart.x,
+              touch.clientY - longPressStart.y
+            ) > 10
+          ) {
+            cancelLongPress()
+          }
+        }
+
         container.addEventListener("mousedown", onMouseDown, true)
         container.addEventListener("dblclick", onDoubleClick, true)
         container.addEventListener("mousemove", onMouseMove)
         container.addEventListener("mouseup", endDrag)
         container.addEventListener("mouseleave", endDrag)
         container.addEventListener("contextmenu", onContextMenu)
+        container.addEventListener("touchstart", onTouchStart)
+        container.addEventListener("touchmove", onTouchMove)
+        container.addEventListener("touchend", cancelLongPress)
+        container.addEventListener("touchcancel", cancelLongPress)
         window.addEventListener("keydown", onKeyDown)
         detachPointerHandlers = () => {
           container.removeEventListener("mousedown", onMouseDown, true)
@@ -990,6 +1029,11 @@ export function PriceChartView({
           container.removeEventListener("mouseup", endDrag)
           container.removeEventListener("mouseleave", endDrag)
           container.removeEventListener("contextmenu", onContextMenu)
+          container.removeEventListener("touchstart", onTouchStart)
+          container.removeEventListener("touchmove", onTouchMove)
+          container.removeEventListener("touchend", cancelLongPress)
+          container.removeEventListener("touchcancel", cancelLongPress)
+          cancelLongPress()
           window.removeEventListener("keydown", onKeyDown)
         }
 

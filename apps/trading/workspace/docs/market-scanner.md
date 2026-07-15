@@ -5,6 +5,10 @@ Hyperliquid mainnet perpetual markets. It does not use the Research Scanner's
 trade collector or pause switch. Rules and alerts are private to the signed-in
 user.
 
+The Market Scanner dashboard has its own Pause/Resume control. Pausing keeps
+saved rules enabled but skips evaluating that user's rules until scanning is
+resumed. It does not pause TradingView-style chart alerts or Research Scanner.
+
 `npm run dev` starts both Trading and the independent Market Scanner process.
 Use `npm run market-scanner:dev` only when running the scanner by itself. The
 scanner remains separate from `npm run worker:dev`, so it does not start bots.
@@ -33,9 +37,14 @@ granted. The first poll establishes a baseline so old alerts do not create a
 burst of popups. Alert history is kept for 30 days and remains after a rule is
 deleted.
 
+TradingView-style chart alerts are separate. They have their own rules, Alert
+Log, and evaluation behavior; sharing the live trade feed does not change
+Market Scanner rules or results.
+
 ## Status
 
 - **Warming up:** the worker is loading enough candle history to evaluate.
+- **Paused:** this user's Market Scanner rules are not being evaluated.
 - **Active:** the worker recently evaluated the rule.
 - **Stale:** no evaluation has been recorded for more than two minutes.
 - **Off:** the rule is disabled.

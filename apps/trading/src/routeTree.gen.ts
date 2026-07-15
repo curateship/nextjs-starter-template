@@ -18,6 +18,8 @@ import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedAlertLogRouteImport } from './routes/_authenticated/alert-log'
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
 import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
@@ -86,6 +88,16 @@ const AuthenticatedIndicatorsRoute = AuthenticatedIndicatorsRouteImport.update({
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAlertLogRoute = AuthenticatedAlertLogRouteImport.update({
+  id: '/alert-log',
+  path: '/alert-log',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedScannerIndexRoute =
@@ -237,6 +249,8 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/alert-log': typeof AuthenticatedAlertLogRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
@@ -271,6 +285,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/alert-log': typeof AuthenticatedAlertLogRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
   '/pnl': typeof AuthenticatedPnlRoute
@@ -307,6 +323,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/alert-log': typeof AuthenticatedAlertLogRoute
+  '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/indicators': typeof AuthenticatedIndicatorsRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
@@ -345,6 +363,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/alert-log'
+    | '/alerts'
     | '/audit'
     | '/indicators'
     | '/pnl'
@@ -379,6 +399,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/alert-log'
+    | '/alerts'
     | '/audit'
     | '/indicators'
     | '/pnl'
@@ -414,6 +436,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/alert-log'
+    | '/_authenticated/alerts'
     | '/_authenticated/audit'
     | '/_authenticated/indicators'
     | '/_authenticated/pnl'
@@ -517,6 +541,20 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/alert-log': {
+      id: '/_authenticated/alert-log'
+      path: '/alert-log'
+      fullPath: '/alert-log'
+      preLoaderRoute: typeof AuthenticatedAlertLogRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scanner/': {
@@ -744,6 +782,8 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAlertLogRoute: typeof AuthenticatedAlertLogRoute
+  AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedIndicatorsRoute: typeof AuthenticatedIndicatorsRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
@@ -774,6 +814,8 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAlertLogRoute: AuthenticatedAlertLogRoute,
+  AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedIndicatorsRoute: AuthenticatedIndicatorsRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,

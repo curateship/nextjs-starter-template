@@ -25,7 +25,7 @@ export const STICKY_SCROLL_OVERRIDES =
   "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=table-container]]:overflow-visible"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
-  column?: "main" | "meta" | "preview" | "select"
+  column?: "main" | "meta" | "actions" | "preview" | "select"
 }
 
 type TableSortDirection = "asc" | "desc"
@@ -36,7 +36,7 @@ type TableSortButtonProps = React.ComponentProps<"button"> & {
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
-  column?: "main" | "meta" | "mutedMeta" | "preview" | "select"
+  column?: "main" | "meta" | "mutedMeta" | "actions" | "preview" | "select"
 }
 
 type TableStatusIndicatorProps = {
@@ -159,6 +159,8 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
           "w-full min-w-[320px] text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "meta" &&
           "w-px whitespace-nowrap text-left text-xs font-medium text-muted-foreground sm:text-sm",
+        column === "actions" &&
+          "w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm",
         column === "preview" &&
           "hidden w-44 max-w-44 text-left text-xs font-medium text-muted-foreground sm:text-sm md:table-cell",
         column === "select" && "w-11 min-w-11",
@@ -214,6 +216,7 @@ function TableCell({ className, column, ...props }: TableCellProps) {
         column === "meta" && "whitespace-nowrap text-left",
         column === "mutedMeta" &&
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
+        column === "actions" && "w-px whitespace-nowrap text-right",
         column === "preview" &&
           "hidden w-44 max-w-44 text-left text-xs text-muted-foreground sm:text-sm md:table-cell",
         column === "select" && "w-11 min-w-11",

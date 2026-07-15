@@ -43,10 +43,12 @@ import {
   markAlertRead,
   type ScannerAlertItem,
 } from "@/lib/api/scanner"
+import { loadAlertLog, markAlertEventRead } from "@/lib/api/alerts"
 import {
   markMarketScannerAlertRead,
   pollMarketScannerAlerts,
 } from "@/lib/api/market-scanner"
+import { alertTradeTarget, type AlertEventItem } from "@/lib/alerts"
 import {
   marketScannerTradeTarget,
   type MarketScannerAlertItem,
@@ -69,6 +71,7 @@ type UnifiedRow =
   | { kind: "feedback"; id: string; createdAt: string; read: boolean; feedback: NotificationItem }
   | { kind: "alert"; id: string; createdAt: string; read: boolean; alert: ScannerAlertItem }
   | { kind: "market"; id: string; createdAt: string; read: boolean; market: MarketScannerAlertItem }
+  | { kind: "priceAlert"; id: string; createdAt: string; read: boolean; priceAlert: AlertEventItem }
 
 const ALERT_TRAY_LIMIT = 100
 
@@ -88,22 +91,30 @@ const feedbackTypeLabels: Record<NotificationType, string> = {
 function rowTypeLabel(row: UnifiedRow): string {
   if (row.kind === "feedback") return feedbackTypeLabels[row.feedback.type]
   if (row.kind === "market") return "Market scanner"
+  if (row.kind === "priceAlert") return "Price alert"
   return ALERT_TYPE_LABELS[row.alert.type] ?? row.alert.type
 }
 
 function rowActivity(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.actor_name
-  return row.kind === "market" ? row.market.title : row.alert.title
+  if (row.kind === "market") return row.market.title
+  return row.kind === "priceAlert" ? row.priceAlert.title : row.alert.title
 }
 
 function rowDetail(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.feedback_message
-  return (row.kind === "market" ? row.market.body : row.alert.body) ?? ""
+  if (row.kind === "market") return row.market.body ?? ""
+  return (
+    (row.kind === "priceAlert" ? row.priceAlert.body : row.alert.body) ?? ""
+  )
 }
 
 function rowSource(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.recipient_name
-  return row.kind === "market" ? row.market.coin : (row.alert.coin ?? "")
+  if (row.kind === "market") return row.market.coin
+  return row.kind === "priceAlert"
+    ? row.priceAlert.coin
+    : (row.alert.coin ?? "")
 }
 
 function AlertGlyph({ type }: { type: string }) {
@@ -135,6 +146,9 @@ export function NotificationsPage({
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
   const [marketAlerts, setMarketAlerts] = React.useState<MarketScannerAlertItem[]>([])
+  const [priceAlerts, setPriceAlerts] = React.useState<AlertEventItem[]>([])
+  const [priceAlertPage, setPriceAlertPage] = React.useState(1)
+  const [priceAlertHasMore, setPriceAlertHasMore] = React.useState(false)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -147,9 +161,6 @@ export function NotificationsPage({
     React.useState<TableSortDirection>("desc")
 
   const loadNotifications = React.useCallback(async (cursor?: string) => {
-    if (cursor) {
-      setLoadingMore(true)
-    }
     setError(null)
 
     try {
@@ -163,8 +174,6 @@ export function NotificationsPage({
       setNextCursor(data.next_cursor)
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
-    } finally {
-      setLoadingMore(false)
     }
   }, [defaultRowsPerPage])
 
@@ -176,6 +185,19 @@ export function NotificationsPage({
       setError(getNotificationErrorMessage(loadError))
     }
   }, [])
+
+  const loadPriceAlerts = React.useCallback(async (page = 1) => {
+    try {
+      const data = await loadAlertLog({ page, pageSize: defaultRowsPerPage })
+      setPriceAlerts((current) =>
+        page === 1 ? data.items : [...current, ...data.items]
+      )
+      setPriceAlertPage(page)
+      setPriceAlertHasMore(page * data.pageSize < data.total)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [defaultRowsPerPage])
 
   const loadMarketAlerts = React.useCallback(async () => {
     try {
@@ -190,8 +212,9 @@ export function NotificationsPage({
       void loadNotifications()
       void loadAlerts()
       void loadMarketAlerts()
+      void loadPriceAlerts()
     })
-  }, [loadNotifications, loadAlerts, loadMarketAlerts])
+  }, [loadNotifications, loadAlerts, loadMarketAlerts, loadPriceAlerts])
 
   const rows = React.useMemo<UnifiedRow[]>(() => {
     return [
@@ -216,8 +239,15 @@ export function NotificationsPage({
         read: item.readAt !== null,
         market: item,
       })),
+      ...priceAlerts.map((item) => ({
+        kind: "priceAlert" as const,
+        id: `p:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        priceAlert: item,
+      })),
     ]
-  }, [notifications, alerts, marketAlerts])
+  }, [notifications, alerts, marketAlerts, priceAlerts])
 
   const filteredRows = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -240,7 +270,10 @@ export function NotificationsPage({
           (readFilter === "read" && row.read)
         const matchesType =
           typeFilter === "all" ||
-          (typeFilter === "alert" && (row.kind === "alert" || row.kind === "market")) ||
+          (typeFilter === "alert" &&
+            (row.kind === "alert" ||
+              row.kind === "market" ||
+              row.kind === "priceAlert")) ||
           (row.kind === "feedback" && row.feedback.type === typeFilter)
 
         return matchesSearch && matchesRead && matchesType
@@ -286,12 +319,32 @@ export function NotificationsPage({
       if (!row.market.readAt) {
         try {
           const result = await markMarketScannerAlertRead(row.market.id)
-          setMarketAlerts((current) => current.map((item) => item.id === result.id ? { ...item, readAt: result.readAt } : item))
+          setMarketAlerts((current) =>
+            current.map((item) =>
+              item.id === result.id ? { ...item, readAt: result.readAt } : item
+            )
+          )
         } catch {
           // navigate anyway; the read state will reconcile on next load
         }
       }
       void navigate(marketScannerTradeTarget(row.market.coin))
+      return
+    }
+    if (row.kind === "priceAlert") {
+      if (!row.priceAlert.readAt) {
+        try {
+          const result = await markAlertEventRead(row.priceAlert.id)
+          setPriceAlerts((current) =>
+            current.map((item) =>
+              item.id === result.id ? { ...item, readAt: result.readAt } : item
+            )
+          )
+        } catch {
+          // navigate anyway; the read state will reconcile on next load
+        }
+      }
+      void navigate(alertTradeTarget(row.priceAlert.coin))
       return
     }
     if (!row.alert.read_at) {
@@ -309,6 +362,20 @@ export function NotificationsPage({
       }
     }
     void navigate({ to: alertRoute(row.alert.type) })
+  }
+
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      await Promise.all([
+        nextCursor ? loadNotifications(nextCursor) : Promise.resolve(),
+        priceAlertHasMore
+          ? loadPriceAlerts(priceAlertPage + 1)
+          : Promise.resolve(),
+      ])
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   return (
@@ -438,10 +505,10 @@ export function NotificationsPage({
           type: "loadMore",
           count: filteredRows.length,
           label: "notifications",
-          hasMore: Boolean(nextCursor),
+          hasMore: Boolean(nextCursor) || priceAlertHasMore,
           loading: loadingMore,
-          onLoadMore: nextCursor
-            ? () => void loadNotifications(nextCursor)
+          onLoadMore: nextCursor || priceAlertHasMore
+            ? () => void loadMore()
             : undefined,
         }}
       >
@@ -467,7 +534,7 @@ export function NotificationsPage({
                   ) : (
                     <MessageSquareIcon className="size-4 text-muted-foreground" />
                   )
-                ) : row.kind === "market" ? (
+                ) : row.kind === "market" || row.kind === "priceAlert" ? (
                   <RadarIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <AlertGlyph type={row.alert.type} />
@@ -476,12 +543,20 @@ export function NotificationsPage({
                   <p className="line-clamp-1 text-sm font-medium">
                     {row.kind === "feedback"
                       ? feedbackTypeLabels[row.feedback.type]
-                      : row.kind === "market" ? row.market.title : row.alert.title}
+                      : row.kind === "market"
+                        ? row.market.title
+                        : row.kind === "priceAlert"
+                          ? row.priceAlert.title
+                          : row.alert.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {row.kind === "feedback"
                       ? row.feedback.actor_name
-                      : row.kind === "market" ? "Market scanner" : "Research scanner"}
+                      : row.kind === "market"
+                        ? "Market scanner"
+                        : row.kind === "priceAlert"
+                          ? "Price alert"
+                          : "Research scanner"}
                   </p>
                 </div>
               </div>

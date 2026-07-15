@@ -170,7 +170,11 @@ describe("custom shell workspaces", () => {
         href: "/trade",
         visible: true,
         // Child links form the sticky header's chip group with Trade.
-        children: [{ label: "Indicators", href: "/indicators" }],
+        children: [
+          { label: "Indicators", href: "/indicators" },
+          { label: "Alerts", href: "/alerts" },
+          { label: "Alert Log", href: "/alert-log" },
+        ],
       },
       { type: "item", label: "Bots", href: "/bots", visible: true },
       {

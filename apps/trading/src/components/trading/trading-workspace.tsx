@@ -10,6 +10,7 @@ import {
   type AccountSummary,
   type WalletOption,
 } from "@/components/trading/account-strip"
+import { AlertDialog } from "@/components/alerts/alert-dialog"
 import {
   FillsTable,
   OpenOrdersTable,
@@ -82,6 +83,8 @@ import {
   getOrderErrorMessage,
   modifyOrder,
 } from "@/lib/api/orders"
+import { loadChartAlerts, updateAlert } from "@/lib/api/alerts"
+import { alertWithPriceLevel, type AlertRuleItem } from "@/lib/alerts"
 import {
   getPaperErrorMessage,
   loadPaperAccount,
@@ -127,6 +130,12 @@ const BOTTOM_TAB_TRIGGER =
   "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
 const MARKET_FAVORITES_KEY = "trading-favorite-markets"
 const EMPTY_MARKET_FAVORITES: string[] = []
+const ALERT_POLL_MS = 10_000
+
+type AlertEditorState = {
+  alert?: AlertRuleItem
+  prefill?: { coin: string; level: number }
+}
 
 export function TradingWorkspace({
   network,
@@ -164,6 +173,9 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  const [alertEditor, setAlertEditor] =
+    React.useState<AlertEditorState | null>(null)
+  const [alertLineRevision, setAlertLineRevision] = React.useState(0)
   const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(
     null
   )
@@ -228,7 +240,36 @@ export function TradingWorkspace({
     if (paperWalletId) void refreshPaper()
   }, [paperWalletId, refreshPaper])
 
+  const { data: chartAlerts, refresh: refreshChartAlerts } =
+    useIntervalLoader<AlertRuleItem[]>(
+      React.useCallback(() => loadChartAlerts(market), [market]),
+      [],
+      ALERT_POLL_MS
+    )
+  React.useEffect(() => {
+    void refreshChartAlerts()
+  }, [market, refreshChartAlerts])
+
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      if (
+        !event.altKey ||
+        event.code !== "KeyA" ||
+        markPx <= 0 ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.matches("input, textarea, select, [role=dialog] *")))
+      ) {
+        return
+      }
+      event.preventDefault()
+      setAlertEditor({ prefill: { coin: market, level: markPx } })
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [market, markPx])
   const positionMarkets = React.useMemo(
     () =>
       new Set(
@@ -299,7 +340,21 @@ export function TradingWorkspace({
     : Number(sandboxPosition?.szi ?? 0)
 
   const priceLines = React.useMemo<ChartPriceLine[]>(() => {
-    const lines: ChartPriceLine[] = []
+    const lines: ChartPriceLine[] = chartAlerts.flatMap((alert) =>
+      alert.kind === "price_level"
+        ? [
+            {
+              id: `alert:${alert.id}:${alertLineRevision}`,
+              price: alert.level,
+              color: "#f59e0b",
+              title: `Alert: ${alert.name}`,
+              lineStyle: "dashed" as const,
+              draggable: true,
+              axisLabelVisible: true,
+            },
+          ]
+        : []
+    )
     if (isPaper) {
       if (paperPosition && Number(paperPosition.szi) !== 0) {
         lines.push({
@@ -361,6 +416,8 @@ export function TradingWorkspace({
     sandboxPosition,
     account?.openOrders,
     market,
+    chartAlerts,
+    alertLineRevision,
   ])
 
   const notify = React.useCallback(
@@ -397,6 +454,31 @@ export function TradingWorkspace({
   function handleLineDragEnd(id: string, price: number) {
     const px = roundForMarket(price)
 
+    if (id.startsWith("alert:")) {
+      const alertId = id.split(":")[1]
+      const alert = chartAlerts.find((item) => item.id === alertId)
+      if (alert?.kind === "price_level") {
+        void updateAlert(
+          alert.id,
+          alertWithPriceLevel(alert, Number(px))
+        )
+          .then(async () => {
+            await refreshChartAlerts()
+            setAlertLineRevision((revision) => revision + 1)
+          })
+          .catch((cause: unknown) => {
+            setAlertLineRevision((revision) => revision + 1)
+            notify(
+              cause instanceof Error
+                ? cause.message
+                : "Moving the alert failed.",
+              "error"
+            )
+          })
+      }
+      return
+    }
+
     if (id.startsWith("paper-order-")) {
       if (!paperWalletId) return
       const orderId = id.slice("paper-order-".length)
@@ -421,6 +503,12 @@ export function TradingWorkspace({
   }
 
   function handleLineClick(id: string) {
+    if (id.startsWith("alert:")) {
+      const alertId = id.split(":")[1]
+      const alert = chartAlerts.find((item) => item.id === alertId)
+      if (alert) setAlertEditor({ alert })
+      return
+    }
     if (!id.startsWith("order-")) return
     const oid = Number(id.slice("order-".length))
     setEditOrder(account?.openOrders.find((order) => order.oid === oid) ?? null)
@@ -747,9 +835,33 @@ export function TradingWorkspace({
             onComplete={() => setChartMenu(null)}
           />
         }
+        onAddAlert={(price) =>
+          setAlertEditor({
+            prefill: { coin: market, level: Number(roundForMarket(price)) },
+          })
+        }
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
+      {alertEditor ? (
+        <AlertDialog
+          key={alertEditor.alert?.id ?? `${market}:${alertEditor.prefill?.level}`}
+          open
+          alert={alertEditor.alert}
+          prefill={alertEditor.prefill}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAlertEditor(null)
+              setAlertLineRevision((revision) => revision + 1)
+            }
+          }}
+          onSaved={async () => {
+            setAlertEditor(null)
+            await refreshChartAlerts()
+            setAlertLineRevision((revision) => revision + 1)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

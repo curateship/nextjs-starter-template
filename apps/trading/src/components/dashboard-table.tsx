@@ -102,7 +102,7 @@ type DashboardTableProps = DashboardTableBaseProps & (
       header: React.ReactNode
       children: React.ReactNode
       isEmpty: boolean
-      emptyText: string
+      emptyText: React.ReactNode
       emptyColSpan: number
       content?: never
     }

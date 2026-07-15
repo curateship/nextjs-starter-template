@@ -1207,6 +1207,124 @@ export const marketScannerAlerts = pgTable(
   ]
 )
 
+export const marketScannerControl = pgTable("market_scanner_control", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  paused: boolean("paused").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+export const alertRules = pgTable(
+  "alert_rules",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    ruleSlot: integer("rule_slot").notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    message: text("message"),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    operator: varchar("operator", { length: 20 }),
+    direction: varchar("direction", { length: 4 }),
+    level: numeric("level"),
+    percent: numeric("percent"),
+    multiplier: numeric("multiplier"),
+    window: varchar("time_window", { length: 4 }),
+    triggerMode: varchar("trigger_mode", { length: 6 }).notNull(),
+    cooldown: varchar("cooldown", { length: 4 }),
+    status: varchar("status", { length: 10 }).notNull(),
+    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
+    lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "alert_rules_kind_check",
+      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike')`
+    ),
+    check("alert_rules_slot_check", sql`${table.ruleSlot} between 1 and 100`),
+    unique("alert_rules_user_slot_unique").on(table.userId, table.ruleSlot),
+    check(
+      "alert_rules_trigger_check",
+      sql`(${table.triggerMode} = 'once' and ${table.cooldown} is null) or (${table.triggerMode} = 'repeat' and ${table.cooldown} in ('5m', '15m', '1h', '4h', '24h'))`
+    ),
+    check(
+      "alert_rules_condition_check",
+      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h')) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h'))`
+    ),
+    check(
+      "alert_rules_status_check",
+      sql`${table.status} in ('active', 'paused', 'triggered')`
+    ),
+    index("ix_alert_rules_user_updated").on(
+      table.userId,
+      table.updatedAt.desc()
+    ),
+    index("ix_alert_rules_coin_status").on(table.coin, table.status),
+  ]
+)
+
+export const alertEvents = pgTable(
+  "alert_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    ruleId: varchar("rule_id", { length: 36 }).references(() => alertRules.id, {
+      onDelete: "set null",
+    }),
+    eventKey: varchar("event_key", { length: 200 }).notNull(),
+    alertName: varchar("alert_name", { length: 100 }).notNull(),
+    message: text("message"),
+    coin: varchar("coin", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    operator: varchar("operator", { length: 20 }),
+    direction: varchar("direction", { length: 4 }),
+    level: numeric("level"),
+    percent: numeric("percent"),
+    multiplier: numeric("multiplier"),
+    window: varchar("time_window", { length: 4 }),
+    triggerMode: varchar("trigger_mode", { length: 6 }).notNull(),
+    cooldown: varchar("cooldown", { length: 4 }),
+    observed: numeric("observed").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("alert_events_user_event_unique").on(table.userId, table.eventKey),
+    check(
+      "alert_events_kind_check",
+      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike')`
+    ),
+    check(
+      "alert_events_trigger_check",
+      sql`(${table.triggerMode} = 'once' and ${table.cooldown} is null) or (${table.triggerMode} = 'repeat' and ${table.cooldown} in ('5m', '15m', '1h', '4h', '24h'))`
+    ),
+    check(
+      "alert_events_condition_check",
+      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h')) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h'))`
+    ),
+    index("ix_alert_events_user_occurred").on(
+      table.userId,
+      table.occurredAt.desc(),
+      table.id.desc()
+    ),
+    index("ix_alert_events_user_unread").on(table.userId, table.readAt),
+  ]
+)
+
 export const scannerCrowdSignals = pgTable(
   "scanner_crowd_signals",
   {

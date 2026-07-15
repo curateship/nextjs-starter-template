@@ -50,10 +50,20 @@ import {
   type TradingNotificationItem,
 } from "@/lib/api/trading-notifications"
 import {
+  markAlertEventRead,
+  markAllAlertEventsRead,
+  pollAlertEvents,
+} from "@/lib/api/alerts"
+import {
   markAllMarketScannerAlertsRead,
   markMarketScannerAlertRead,
   pollMarketScannerAlerts,
 } from "@/lib/api/market-scanner"
+import {
+  alertTradeTarget,
+  type AlertEventItem,
+} from "@/lib/alerts"
+import { showBrowserAlert } from "@/lib/browser-alerts"
 import {
   marketScannerTradeTarget,
   type MarketScannerAlertItem,
@@ -94,6 +104,13 @@ type TrayItem =
       createdAt: string
       read: boolean
       market: MarketScannerAlertItem
+    }
+  | {
+      kind: "priceAlert"
+      id: string
+      createdAt: string
+      read: boolean
+      priceAlert: AlertEventItem
     }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -275,7 +292,42 @@ function MarketAlertRow({ item }: { item: MarketScannerAlertItem }) {
           </Badge>
           <span className="text-xs text-muted-foreground">{item.coin}</span>
         </div>
-        {item.body ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p> : null}
+        {item.body ? (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            {item.body}
+          </p>
+        ) : null}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {dateFormatter.format(new Date(item.occurredAt))}
+        </p>
+      </div>
+    </>
+  )
+}
+
+function PriceAlertRow({ item }: { item: AlertEventItem }) {
+  return (
+    <>
+      <Avatar size="lg">
+        <AvatarFallback className="bg-emerald-100 text-emerald-800">
+          <ActivityIcon className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <p className="truncate text-sm leading-snug font-medium text-foreground">
+          {item.title}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            Price alert
+          </Badge>
+          <span className="text-xs text-muted-foreground">{item.coin}</span>
+        </div>
+        {item.body ? (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            {item.body}
+          </p>
+        ) : null}
         <p className="mt-1 text-xs text-muted-foreground">
           {dateFormatter.format(new Date(item.occurredAt))}
         </p>
@@ -294,6 +346,8 @@ function TrayRow({ item }: { item: TrayItem }) {
       return <TradingRow item={item.trading} />
     case "market":
       return <MarketAlertRow item={item.market} />
+    case "priceAlert":
+      return <PriceAlertRow item={item.priceAlert} />
   }
 }
 
@@ -347,19 +401,29 @@ export function NotificationCenter({
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
   const [trading, setTrading] = React.useState<TradingNotificationItem[]>([])
-  const [marketAlerts, setMarketAlerts] = React.useState<MarketScannerAlertItem[]>([])
+  const [marketAlerts, setMarketAlerts] = React.useState<
+    MarketScannerAlertItem[]
+  >([])
+  const [priceAlerts, setPriceAlerts] = React.useState<AlertEventItem[]>([])
   const [feedbackUnread, setFeedbackUnread] = React.useState(0)
   const [alertUnread, setAlertUnread] = React.useState(0)
   const [tradingUnread, setTradingUnread] = React.useState(0)
   const [marketUnread, setMarketUnread] = React.useState(0)
+  const [priceAlertUnread, setPriceAlertUnread] = React.useState(0)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
   const seenMarketAlerts = React.useRef<Set<string> | null>(null)
+  const seenPriceAlerts = React.useRef<Set<string> | null>(null)
 
-  const totalUnread = feedbackUnread + alertUnread + tradingUnread + marketUnread
+  const totalUnread =
+    feedbackUnread +
+    alertUnread +
+    tradingUnread +
+    marketUnread +
+    priceAlertUnread
 
   const items = React.useMemo<TrayItem[]>(() => {
     const merged: TrayItem[] = [
@@ -391,9 +455,16 @@ export function NotificationCenter({
         read: item.readAt !== null,
         market: item,
       })),
+      ...priceAlerts.map((item) => ({
+        kind: "priceAlert" as const,
+        id: `p:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        priceAlert: item,
+      })),
     ]
     return merged.sort((x, y) => y.createdAt.localeCompare(x.createdAt))
-  }, [notifications, alerts, trading, marketAlerts])
+  }, [notifications, alerts, trading, marketAlerts, priceAlerts])
 
   const visibleItems =
     filter === "unread" ? items.filter((item) => !item.read) : items
@@ -444,6 +515,16 @@ export function NotificationCenter({
     }
   }, [])
 
+  const loadPriceAlertRows = React.useCallback(async () => {
+    try {
+      const data = await pollAlertEvents()
+      setPriceAlerts(data.events)
+      setPriceAlertUnread(data.unreadCount)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    }
+  }, [])
+
   const loadMarketRows = React.useCallback(async () => {
     try {
       const data = await pollMarketScannerAlerts()
@@ -461,17 +542,20 @@ export function NotificationCenter({
     void loadAlertRows()
     void loadTradingRows()
     void loadMarketRows()
+    void loadPriceAlertRows()
   }
 
   // Keep the unread badge live even while the tray is closed.
   React.useEffect(() => {
     let cancelled = false
     async function tick() {
-      const [alertResult, tradingResult, marketResult] = await Promise.allSettled([
-        pollAlerts(),
-        listTradingNotifications(),
-        pollMarketScannerAlerts(),
-      ])
+      const [alertResult, tradingResult, marketResult, priceAlertResult] =
+        await Promise.allSettled([
+          pollAlerts(),
+          listTradingNotifications(),
+          pollMarketScannerAlerts(),
+          pollAlertEvents(),
+        ])
       if (cancelled) return
       if (alertResult.status === "fulfilled") {
         setAlertUnread(alertResult.value.unreadCount)
@@ -484,12 +568,26 @@ export function NotificationCenter({
         const next = marketResult.value.alerts
         if (seenMarketAlerts.current) {
           for (const alert of next) {
-            if (!seenMarketAlerts.current.has(alert.id)) showBrowserAlert(alert, navigate)
+            if (!seenMarketAlerts.current.has(alert.id)) {
+              showBrowserAlert(alert, navigate)
+            }
           }
         }
         seenMarketAlerts.current = new Set(next.map((alert) => alert.id))
         setMarketAlerts(next)
         setMarketUnread(marketResult.value.unreadCount)
+      }
+      if (priceAlertResult.status === "fulfilled") {
+        const next = priceAlertResult.value.events
+        if (seenPriceAlerts.current) {
+          for (const alert of next) {
+            if (!seenPriceAlerts.current.has(alert.id))
+              showBrowserAlert(alert, navigate)
+          }
+        }
+        seenPriceAlerts.current = new Set(next.map((alert) => alert.id))
+        setPriceAlerts(next)
+        setPriceAlertUnread(priceAlertResult.value.unreadCount)
       }
     }
     void tick()
@@ -529,18 +627,22 @@ export function NotificationCenter({
     if (totalUnread === 0) return
     setError(null)
     try {
-      const [feedbackResult, , tradingResult, marketResult] = await Promise.all([
-        feedbackUnread > 0
-          ? markAllNotificationsRead()
-          : Promise.resolve({ notificationIds: [] as string[], readAt: "" }),
-        alertUnread > 0 ? markAlertsRead() : Promise.resolve({ ok: true }),
-        tradingUnread > 0
-          ? markAllTradingNotificationsRead()
-          : Promise.resolve({ ids: [] as string[], readAt: "" }),
-        marketUnread > 0
-          ? markAllMarketScannerAlertsRead()
-          : Promise.resolve({ ids: [] as string[], readAt: "" }),
-      ])
+      const [feedbackResult, , tradingResult, marketResult, priceAlertResult] =
+        await Promise.all([
+          feedbackUnread > 0
+            ? markAllNotificationsRead()
+            : Promise.resolve({ notificationIds: [] as string[], readAt: "" }),
+          alertUnread > 0 ? markAlertsRead() : Promise.resolve({ ok: true }),
+          tradingUnread > 0
+            ? markAllTradingNotificationsRead()
+            : Promise.resolve({ ids: [] as string[], readAt: "" }),
+          marketUnread > 0
+            ? markAllMarketScannerAlertsRead()
+            : Promise.resolve({ ids: [] as string[], readAt: "" }),
+          priceAlertUnread > 0
+            ? markAllAlertEventsRead()
+            : Promise.resolve({ ids: [] as string[], readAt: "" }),
+        ])
       const readIds = new Set(feedbackResult.notificationIds)
       setNotifications((current) =>
         current.map((item) =>
@@ -571,10 +673,19 @@ export function NotificationCenter({
             : item
         )
       )
+      const priceAlertIds = new Set(priceAlertResult.ids)
+      setPriceAlerts((current) =>
+        current.map((item) =>
+          priceAlertIds.has(item.id)
+            ? { ...item, readAt: priceAlertResult.readAt }
+            : item
+        )
+      )
       setFeedbackUnread(0)
       setAlertUnread(0)
       setTradingUnread(0)
       setMarketUnread(0)
+      setPriceAlertUnread(0)
     } catch (readError) {
       setError(getNotificationErrorMessage(readError))
     }
@@ -646,6 +757,27 @@ export function NotificationCenter({
     })
   }
 
+  async function openPriceAlert(item: AlertEventItem) {
+    setError(null)
+    if (!item.readAt) {
+      try {
+        const result = await markAlertEventRead(item.id)
+        setPriceAlerts((current) =>
+          current.map((currentItem) =>
+            currentItem.id === result.id
+              ? { ...currentItem, readAt: result.readAt }
+              : currentItem
+          )
+        )
+        setPriceAlertUnread((current) => Math.max(0, current - 1))
+      } catch (readError) {
+        setError(getNotificationErrorMessage(readError))
+      }
+    }
+    setOpen(false)
+    void navigate(alertTradeTarget(item.coin))
+  }
+
   async function openMarketAlert(item: MarketScannerAlertItem) {
     setError(null)
     if (!item.readAt) {
@@ -677,6 +809,8 @@ export function NotificationCenter({
         return openTradingNotification(item.trading)
       case "market":
         return openMarketAlert(item.market)
+      case "priceAlert":
+        return openPriceAlert(item.priceAlert)
     }
   }
 
@@ -766,20 +900,4 @@ export function NotificationCenter({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-function showBrowserAlert(
-  alert: MarketScannerAlertItem,
-  navigate: ReturnType<typeof useNavigate>
-) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return
-  const key = `market-scanner-browser-alert:${alert.id}`
-  if (window.localStorage.getItem(key)) return
-  window.localStorage.setItem(key, "1")
-  const notification = new Notification(alert.title, { body: alert.body ?? undefined, tag: key })
-  notification.onclick = () => {
-    window.focus()
-    void navigate(marketScannerTradeTarget(alert.coin))
-    notification.close()
-  }
 }
