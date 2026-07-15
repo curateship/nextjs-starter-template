@@ -40,7 +40,7 @@ type TableCellProps = React.ComponentProps<"td"> & {
 }
 
 type TableStatusIndicatorProps = {
-  tone: "error" | "success"
+  tone: "error" | "neutral" | "success"
   children: React.ReactNode
 }
 
@@ -86,7 +86,9 @@ function TableStatusIndicator({
         "rounded-md border px-2 py-1 text-xs",
         tone === "error"
           ? "border-destructive/30 bg-destructive/10 text-destructive"
-          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          : tone === "neutral"
+            ? "border-border bg-muted text-muted-foreground"
+            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
       )}
     >
       {children}

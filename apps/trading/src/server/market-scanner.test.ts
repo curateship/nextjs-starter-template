@@ -10,13 +10,15 @@ import {
   createMarketScannerRule,
   deleteAllMarketScannerAlerts,
   deleteMarketScannerRule,
-  getMarketScannerPaused,
   getMarketScannerAlertsPage,
+  getMarketScannerPaused,
   getMarketScannerRules,
+  getMarketScannerRuntimeEnabled,
   insertMarketScannerAlert,
   listEnabledMarketScannerRules,
   markMarketScannerAlertRead,
   setMarketScannerPaused,
+  setMarketScannerRuntimeEnabled,
   updateMarketScannerRule,
 } from "@/server/market-scanner"
 import * as schema from "@/server/schema"
@@ -31,6 +33,7 @@ beforeEach(async () => {
     "../../drizzle/0000_custom_shell_baseline.sql",
     "../../drizzle/0035_market_scanner.sql",
     "../../drizzle/0041_market_scanner_pause.sql",
+    "../../drizzle/0042_market_scanner_runtime_control.sql",
   ]) {
     await client.exec(await readFile(new URL(file, import.meta.url), "utf8"))
   }
@@ -69,6 +72,28 @@ const input: MarketScannerRuleInput = {
 }
 
 describe("market scanner storage", () => {
+  it("keeps the scanner runtime on until it is explicitly turned off", async () => {
+    expect(
+      await getMarketScannerRuntimeEnabled(database as unknown as CustomShellDb)
+    ).toBe(true)
+
+    await setMarketScannerRuntimeEnabled(
+      false,
+      database as unknown as CustomShellDb
+    )
+    expect(
+      await getMarketScannerRuntimeEnabled(database as unknown as CustomShellDb)
+    ).toBe(false)
+
+    await setMarketScannerRuntimeEnabled(
+      true,
+      database as unknown as CustomShellDb
+    )
+    expect(
+      await getMarketScannerRuntimeEnabled(database as unknown as CustomShellDb)
+    ).toBe(true)
+  })
+
   it("pauses scanner rule evaluation without disabling saved rules", async () => {
     const userId = await createUser("owner@example.test")
     await createMarketScannerRule(

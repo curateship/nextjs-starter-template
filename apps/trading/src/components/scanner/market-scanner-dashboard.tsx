@@ -7,6 +7,7 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
+  PowerIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -46,6 +47,7 @@ import {
   markAllMarketScannerAlertsRead,
   markMarketScannerAlertRead,
   setMarketScannerPaused,
+  setMarketScannerRuntimeEnabled,
   updateMarketScannerRule,
 } from "@/lib/api/market-scanner"
 import {
@@ -97,6 +99,7 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
   const [data, setData] = useState(initial)
   const [editing, setEditing] = useState<MarketScannerRuleItem | null | undefined>()
   const [savingPause, setSavingPause] = useState(false)
+  const [savingRuntime, setSavingRuntime] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ruleSort, setRuleSort] = useState<{ sortBy: RuleSort; dir: SortDir }>({
     sortBy: "name",
@@ -147,6 +150,23 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
     }
   }
 
+  async function toggleRuntime() {
+    setSavingRuntime(true)
+    setError(null)
+    try {
+      const result = await setMarketScannerRuntimeEnabled(!data.runtimeEnabled)
+      setData((current) => ({
+        ...current,
+        runtimeEnabled: result.runtimeEnabled,
+        checkedAt: Date.now(),
+      }))
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setSavingRuntime(false)
+    }
+  }
+
   return (
     <div className="grid w-full gap-3">
       {error ? (
@@ -164,19 +184,36 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
         title="Market scanner"
         icon={<ActivityIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={rules.length}
-        status={data.paused
-          ? null
-          : !data.workerOnline
+        status={!data.runtimeEnabled
+          ? { tone: "neutral", text: "Scanner off" }
+          : data.paused
+            ? null
+            : !data.workerOnline
             ? { tone: "error", text: "Scanner offline" }
           : scannerStale
             ? { tone: "error", text: "Worker stale" }
             : { tone: "success", text: "Watching mainnet" }}
         controls={
           <>
+            {data.canControlRuntime ? (
+              <DashboardToolbarButton
+                type="button"
+                variant={data.runtimeEnabled ? "outline" : "default"}
+                disabled={savingRuntime}
+                onClick={() => void toggleRuntime()}
+              >
+                {savingRuntime ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PowerIcon className="size-4" />
+                )}
+                {data.runtimeEnabled ? "Turn scanner off" : "Turn scanner on"}
+              </DashboardToolbarButton>
+            ) : null}
             <DashboardToolbarButton
               type="button"
               variant={data.paused ? "default" : "outline"}
-              disabled={savingPause}
+              disabled={savingPause || !data.runtimeEnabled}
               onClick={() => void togglePaused()}
             >
               {savingPause ? (
@@ -216,7 +253,7 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
             <TableCell column="meta">{rule.marketScope === "all" ? "All markets" : `${rule.markets.length} selected`}</TableCell>
             <TableCell column="meta">{rule.window}</TableCell>
             <TableCell column="meta">{rule.cooldown}</TableCell>
-            <TableCell column="meta"><Badge variant={!data.paused && rule.enabled && data.workerOnline && !scannerStale && rule.lastEvaluatedAt ? "default" : "secondary"}>{ruleStatus(rule, data.paused, data.workerOnline, scannerStale)}</Badge></TableCell>
+            <TableCell column="meta"><Badge variant={data.runtimeEnabled && !data.paused && rule.enabled && data.workerOnline && !scannerStale && rule.lastEvaluatedAt ? "default" : "secondary"}>{ruleStatus(rule, data.runtimeEnabled, data.paused, data.workerOnline, scannerStale)}</Badge></TableCell>
             <TableCell column="mutedMeta">{formatTime(rule.lastTriggeredAt)}</TableCell>
           </TableRow>
         ))}
@@ -606,8 +643,9 @@ function ruleCondition(rule: MarketScannerRuleItem) {
   return rule.kind === "volume_spike" ? `${rule.threshold}× normal` : `${rule.direction === "down" ? "Falls" : "Rises"} ${rule.threshold}%`
 }
 
-function ruleStatus(rule: MarketScannerRuleItem, paused: boolean, workerOnline: boolean, scannerStale: boolean) {
+function ruleStatus(rule: MarketScannerRuleItem, runtimeEnabled: boolean, paused: boolean, workerOnline: boolean, scannerStale: boolean) {
   if (!rule.enabled) return "Off"
+  if (!runtimeEnabled) return "Scanner off"
   if (paused) return "Paused"
   if (!workerOnline) return "Offline"
   if (scannerStale) return "Stale"
