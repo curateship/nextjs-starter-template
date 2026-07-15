@@ -77,17 +77,19 @@ export async function getDeletionImpactAction(input: DeletionImpactRequest): Pro
     let impact: DestructiveImpact[]
 
     if (input.target === "ai-automation") {
-      const result = await db.execute<{ target_count: number; reference_count: number; run_count: number }>(sql`
+      const result = await db.execute<{ target_count: number; run_count: number; step_count: number; source_count: number }>(sql`
         select
-          (select count(*)::int from ai_agent_automations where site_id = ${input.siteId}::uuid and id in (${idList})) as target_count,
-          (select count(*)::int from ai_agent_automation_references where automation_id in (${idList})) as reference_count,
-          (select count(*)::int from ai_agent_automation_runs where automation_id in (${idList})) as run_count
+          (select count(*)::int from site_automations where site_id = ${input.siteId}::uuid and id in (${idList})) as target_count,
+          (select count(*)::int from site_automation_runs where automation_id in (${idList})) as run_count,
+          (select count(*)::int from site_automation_run_steps where run_id in (select id from site_automation_runs where automation_id in (${idList}))) as step_count,
+          (select count(*)::int from site_automation_source_states where automation_id in (${idList})) as source_count
       `)
       const row = result.rows[0]
       if (count(row?.target_count) !== ids.length) return { data: null, error: "Automation not found or access denied" }
       impact = [
-        { label: "references", count: count(row.reference_count) },
-        { label: "run-history records", count: count(row.run_count) },
+        { label: "automation runs", count: count(row.run_count) },
+        { label: "node run records", count: count(row.step_count) },
+        { label: "scraped-source states", count: count(row.source_count) },
       ]
     } else if (input.target === "newsletter-automation") {
       const result = await db.execute<{ target_count: number; step_count: number; enrollment_count: number }>(sql`
