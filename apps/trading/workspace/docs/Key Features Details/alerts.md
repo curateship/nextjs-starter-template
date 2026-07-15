@@ -2,7 +2,8 @@
 
 Price alerts are private to the signed-in user. Create them from the Trade
 chart by right-clicking or long-pressing a price and choosing **Add alert**.
-`Alt+A` creates an alert at the current live price.
+This immediately creates a one-time crossing alert. `Alt+A` creates the same
+alert at the current live price. Click its chart line to customize it.
 
 Use `/alerts` to edit, pause, resume, restart, or delete alerts. Active
 exact-price alerts appear as dashed amber chart lines. Clicking a line edits
@@ -30,9 +31,9 @@ boundary and wait for its chosen cooldown before firing again.
 Events appear in the shared notification inbox. Browser alerts work while
 Trading is open and permission is granted. Turn them on or off under
 **Settings → General Settings → Browser alerts**. This preference is saved in
-the current browser and does not change Market Scanner browser alerts. The first
-poll establishes a baseline, so old events do not create a burst of popups.
-Tabs share a stored event key to avoid duplicate browser popups.
+the current browser and applies to all alert sources. The first poll establishes
+a baseline, so old events do not create a burst of popups. Tabs share a stored
+event key to avoid duplicate browser popups.
 
 `npm run dev` starts Trading and all dedicated workers. Use
 `npm run market-scanner:dev` only to run that worker by itself. The TradingView

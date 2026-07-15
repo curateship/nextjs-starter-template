@@ -14,6 +14,11 @@ export type NotificationItem = {
   created_at: string
 }
 
+export type NotificationDeleteTarget = {
+  kind: "feedback" | "alert" | "trading" | "market" | "priceAlert"
+  id: string
+}
+
 type NotificationListResponse = {
   notifications: NotificationItem[]
   next_cursor: string | null
@@ -36,6 +41,18 @@ const notificationIdSchema = z.object({
   notificationId: z.string().min(1),
 })
 
+const notificationDeleteTargetsSchema = z.object({
+  targets: z
+    .array(
+      z.object({
+        kind: z.enum(["feedback", "alert", "trading", "market", "priceAlert"]),
+        id: z.string().min(1).max(100),
+      })
+    )
+    .min(1)
+    .max(500),
+})
+
 export function getNotificationErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Notification request failed."
 }
@@ -43,9 +60,8 @@ export function getNotificationErrorMessage(error: unknown) {
 const listNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listNotificationsSchema)
   .handler(async ({ data }): Promise<NotificationListResponse> => {
-    const { listCurrentUserNotificationPage } = await import(
-      "@/server/notifications"
-    )
+    const { listCurrentUserNotificationPage } =
+      await import("@/server/notifications")
     return listCurrentUserNotificationPage(data)
   })
 
@@ -60,19 +76,33 @@ const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(notificationIdSchema)
   .handler(
     async ({ data }): Promise<{ notificationId: string; readAt: string }> => {
-      const { markCurrentUserNotificationRead } = await import(
-        "@/server/notifications"
-      )
+      const { markCurrentUserNotificationRead } =
+        await import("@/server/notifications")
       return markCurrentUserNotificationRead(data.notificationId)
     }
   )
 
 const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ notificationIds: string[]; readAt: string }> => {
-    const { markAllCurrentUserNotificationsRead } = await import(
-      "@/server/notifications"
-    )
+    const { markAllCurrentUserNotificationsRead } =
+      await import("@/server/notifications")
     return markAllCurrentUserNotificationsRead()
+  }
+)
+
+const deleteAdminNotificationsFn = createServerFn({ method: "POST" })
+  .inputValidator(notificationDeleteTargetsSchema)
+  .handler(async ({ data }): Promise<{ count: number }> => {
+    const { deleteAdminNotificationRows } =
+      await import("@/server/notifications")
+    return deleteAdminNotificationRows(data.targets)
+  })
+
+const clearAdminNotificationsFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ count: number }> => {
+    const { clearAdminNotificationRows } =
+      await import("@/server/notifications")
+    return clearAdminNotificationRows()
   }
 )
 
@@ -90,4 +120,12 @@ export function markNotificationRead(notificationId: string) {
 
 export function markAllNotificationsRead() {
   return markAllNotificationsReadFn()
+}
+
+export function deleteAdminNotifications(targets: NotificationDeleteTarget[]) {
+  return deleteAdminNotificationsFn({ data: { targets } })
+}
+
+export function clearAdminNotifications() {
+  return clearAdminNotificationsFn()
 }

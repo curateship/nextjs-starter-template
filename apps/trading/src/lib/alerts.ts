@@ -4,7 +4,11 @@ import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 
 export const ALERT_WINDOWS = ["1m", "5m", "15m", "1h", "4h", "24h"] as const
 export const ALERT_COOLDOWNS = ["5m", "15m", "1h", "4h", "24h"] as const
-export const ALERT_KINDS = ["price_level", "price_move", "volume_spike"] as const
+export const ALERT_KINDS = [
+  "price_level",
+  "price_move",
+  "volume_spike",
+] as const
 export const PRICE_LEVEL_OPERATORS = [
   "crossing",
   "crossing_up",
@@ -38,11 +42,7 @@ export type AlertLogFilters = {
 const identityFields = {
   name: z.string().trim().min(1).max(100),
   message: z.string().trim().max(1_000).optional(),
-  coin: z
-    .string()
-    .trim()
-    .min(1)
-    .max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
+  coin: z.string().trim().min(1).max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
 }
 
 const onceFields = {
@@ -76,11 +76,15 @@ const volumeSpikeFields = {
 
 export const alertRuleInputSchema = z.union([
   z.object({ ...identityFields, ...priceLevelFields, ...onceFields }).strict(),
-  z.object({ ...identityFields, ...priceLevelFields, ...repeatFields }).strict(),
+  z
+    .object({ ...identityFields, ...priceLevelFields, ...repeatFields })
+    .strict(),
   z.object({ ...identityFields, ...priceMoveFields, ...onceFields }).strict(),
   z.object({ ...identityFields, ...priceMoveFields, ...repeatFields }).strict(),
   z.object({ ...identityFields, ...volumeSpikeFields, ...onceFields }).strict(),
-  z.object({ ...identityFields, ...volumeSpikeFields, ...repeatFields }).strict(),
+  z
+    .object({ ...identityFields, ...volumeSpikeFields, ...repeatFields })
+    .strict(),
 ])
 
 export type AlertRuleInput = z.infer<typeof alertRuleInputSchema>
@@ -121,6 +125,20 @@ export function alertTradeTarget(coin: string) {
   return {
     to: "/trade" as const,
     search: { market: coin },
+  }
+}
+
+export function quickPriceAlert(
+  coin: string,
+  level: number
+): Extract<AlertRuleInput, { kind: "price_level" }> {
+  return {
+    name: `${coin} price alert`,
+    coin,
+    kind: "price_level",
+    operator: "crossing",
+    level,
+    triggerMode: "once",
   }
 }
 
@@ -224,7 +242,8 @@ export function evaluateWindowAlert(
     baseline.push(volume)
   }
   if (currentVolume === null) return null
-  const average = baseline.reduce((sum, value) => sum + value, 0) / baseline.length
+  const average =
+    baseline.reduce((sum, value) => sum + value, 0) / baseline.length
   if (average <= 0) return null
   const observed = currentVolume / average
   return { matched: observed >= rule.multiplier, observed }

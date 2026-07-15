@@ -83,8 +83,17 @@ import {
   getOrderErrorMessage,
   modifyOrder,
 } from "@/lib/api/orders"
-import { deleteAlert, loadChartAlerts, updateAlert } from "@/lib/api/alerts"
-import { alertWithPriceLevel, type AlertRuleItem } from "@/lib/alerts"
+import {
+  createAlert,
+  deleteAlert,
+  loadChartAlerts,
+  updateAlert,
+} from "@/lib/api/alerts"
+import {
+  alertWithPriceLevel,
+  quickPriceAlert,
+  type AlertRuleItem,
+} from "@/lib/alerts"
 import {
   cancelPaperOrder,
   getPaperErrorMessage,
@@ -174,8 +183,9 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
-  const [alertEditor, setAlertEditor] =
-    React.useState<AlertEditorState | null>(null)
+  const [alertEditor, setAlertEditor] = React.useState<AlertEditorState | null>(
+    null
+  )
   const [alertLineRevision, setAlertLineRevision] = React.useState(0)
   const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(
     null
@@ -241,36 +251,18 @@ export function TradingWorkspace({
     if (paperWalletId) void refreshPaper()
   }, [paperWalletId, refreshPaper])
 
-  const { data: chartAlerts, refresh: refreshChartAlerts } =
-    useIntervalLoader<AlertRuleItem[]>(
-      React.useCallback(() => loadChartAlerts(market), [market]),
-      [],
-      ALERT_POLL_MS
-    )
+  const { data: chartAlerts, refresh: refreshChartAlerts } = useIntervalLoader<
+    AlertRuleItem[]
+  >(
+    React.useCallback(() => loadChartAlerts(market), [market]),
+    [],
+    ALERT_POLL_MS
+  )
   React.useEffect(() => {
     void refreshChartAlerts()
   }, [market, refreshChartAlerts])
 
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target
-      if (
-        !event.altKey ||
-        event.code !== "KeyA" ||
-        markPx <= 0 ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable ||
-            target.matches("input, textarea, select, [role=dialog] *")))
-      ) {
-        return
-      }
-      event.preventDefault()
-      setAlertEditor({ prefill: { coin: market, level: markPx } })
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [market, markPx])
   const positionMarkets = React.useMemo(
     () =>
       new Set(
@@ -440,13 +432,55 @@ export function TradingWorkspace({
     [notify]
   )
 
-  function roundForMarket(price: number): string {
-    try {
-      return formatPrice(price, marketRow?.szDecimals ?? 4, "perp")
-    } catch {
-      return price.toPrecision(5)
+  const roundForMarket = React.useCallback(
+    (price: number): string => {
+      try {
+        return formatPrice(price, marketRow?.szDecimals ?? 4, "perp")
+      } catch {
+        return price.toPrecision(5)
+      }
+    },
+    [marketRow]
+  )
+
+  const addChartAlert = React.useCallback(
+    async (price: number) => {
+      const level = Number(roundForMarket(price))
+      try {
+        await createAlert(quickPriceAlert(market, level))
+        setChartMenu(null)
+        await refreshChartAlerts()
+        setAlertLineRevision((revision) => revision + 1)
+        toast.success(`${market} alert added at ${roundForMarket(level)}.`)
+      } catch (cause) {
+        toast.error(
+          cause instanceof Error ? cause.message : "Adding the alert failed."
+        )
+      }
+    },
+    [market, refreshChartAlerts, roundForMarket]
+  )
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      if (
+        !event.altKey ||
+        event.code !== "KeyA" ||
+        event.repeat ||
+        markPx <= 0 ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.matches("input, textarea, select, [role=dialog] *")))
+      ) {
+        return
+      }
+      event.preventDefault()
+      void addChartAlert(markPx)
     }
-  }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [addChartAlert, markPx])
 
   function handleChartContextMenu(price: number, x: number, y: number) {
     setChartMenu({ price, px: roundForMarket(price), x, y })
@@ -459,10 +493,7 @@ export function TradingWorkspace({
       const alertId = id.split(":")[1]
       const alert = chartAlerts.find((item) => item.id === alertId)
       if (alert?.kind === "price_level") {
-        void updateAlert(
-          alert.id,
-          alertWithPriceLevel(alert, Number(px))
-        )
+        void updateAlert(alert.id, alertWithPriceLevel(alert, Number(px)))
           .then(async () => {
             await refreshChartAlerts()
             setAlertLineRevision((revision) => revision + 1)
@@ -873,17 +904,15 @@ export function TradingWorkspace({
             onComplete={() => setChartMenu(null)}
           />
         }
-        onAddAlert={(price) =>
-          setAlertEditor({
-            prefill: { coin: market, level: Number(roundForMarket(price)) },
-          })
-        }
+        onAddAlert={(price) => void addChartAlert(price)}
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
       {alertEditor ? (
         <AlertDialog
-          key={alertEditor.alert?.id ?? `${market}:${alertEditor.prefill?.level}`}
+          key={
+            alertEditor.alert?.id ?? `${market}:${alertEditor.prefill?.level}`
+          }
           open
           alert={alertEditor.alert}
           prefill={alertEditor.prefill}

@@ -3,6 +3,7 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
   isNull,
   lt,
   or,
@@ -13,14 +14,22 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  alertEvents,
   customShellFeedback,
   customShellNotifications,
   customShellUsers,
+  marketScannerAlerts,
+  marketScannerRules,
+  scannerAlerts,
+  tradingNotifications,
   type CustomShellNotification,
   type CustomShellUser,
 } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
-import type { NotificationItem } from "@/lib/api/notification"
+import type {
+  NotificationDeleteTarget,
+  NotificationItem,
+} from "@/lib/api/notification"
 
 type NotificationListResponse = {
   notifications: NotificationItem[]
@@ -112,6 +121,147 @@ export async function markAllCurrentUserNotificationsRead() {
   }
 }
 
+export async function deleteAdminNotificationRows(
+  targets: NotificationDeleteTarget[],
+  database: CustomShellDb = db
+) {
+  requireAppOrigin()
+  const user = await requireAdminNotificationUser()
+  const idsByKind = new Map<NotificationDeleteTarget["kind"], string[]>()
+  for (const target of targets) {
+    const ids = idsByKind.get(target.kind) ?? []
+    ids.push(target.id)
+    idsByKind.set(target.kind, ids)
+  }
+
+  return database.transaction(async (transaction) => {
+    let count = 0
+    const feedbackIds = idsByKind.get("feedback")
+    if (feedbackIds?.length) {
+      count += (
+        await transaction
+          .delete(customShellNotifications)
+          .where(inArray(customShellNotifications.id, feedbackIds))
+          .returning({ id: customShellNotifications.id })
+      ).length
+    }
+    const alertIds = idsByKind.get("alert")
+    if (alertIds?.length) {
+      count += (
+        await transaction
+          .delete(scannerAlerts)
+          .where(inArray(scannerAlerts.id, alertIds))
+          .returning({ id: scannerAlerts.id })
+      ).length
+    }
+    const tradingIds = idsByKind.get("trading")
+    if (tradingIds?.length) {
+      count += (
+        await transaction
+          .delete(tradingNotifications)
+          .where(
+            and(
+              eq(tradingNotifications.userId, user.id),
+              inArray(tradingNotifications.id, tradingIds)
+            )
+          )
+          .returning({ id: tradingNotifications.id })
+      ).length
+    }
+    const marketIds = idsByKind.get("market")
+    if (marketIds?.length) {
+      const affectedRules = await transaction
+        .select({ id: marketScannerAlerts.ruleId })
+        .from(marketScannerAlerts)
+        .where(
+          and(
+            eq(marketScannerAlerts.userId, user.id),
+            inArray(marketScannerAlerts.id, marketIds),
+            isNotNull(marketScannerAlerts.ruleId)
+          )
+        )
+      count += (
+        await transaction
+          .delete(marketScannerAlerts)
+          .where(
+            and(
+              eq(marketScannerAlerts.userId, user.id),
+              inArray(marketScannerAlerts.id, marketIds)
+            )
+          )
+          .returning({ id: marketScannerAlerts.id })
+      ).length
+      const ruleIds = affectedRules.flatMap((row) =>
+        row.id === null ? [] : [row.id]
+      )
+      if (ruleIds.length) {
+        await transaction
+          .update(marketScannerRules)
+          .set({
+            lastTriggeredAt: sql`(
+              select max(${marketScannerAlerts.occurredAt})
+              from ${marketScannerAlerts}
+              where ${marketScannerAlerts.ruleId} = ${marketScannerRules.id}
+            )`,
+          })
+          .where(
+            and(
+              eq(marketScannerRules.userId, user.id),
+              inArray(marketScannerRules.id, ruleIds)
+            )
+          )
+      }
+    }
+    const priceAlertIds = idsByKind.get("priceAlert")
+    if (priceAlertIds?.length) {
+      count += (
+        await transaction
+          .delete(alertEvents)
+          .where(
+            and(
+              eq(alertEvents.userId, user.id),
+              inArray(alertEvents.id, priceAlertIds)
+            )
+          )
+          .returning({ id: alertEvents.id })
+      ).length
+    }
+    return { count }
+  })
+}
+
+export async function clearAdminNotificationRows(database: CustomShellDb = db) {
+  requireAppOrigin()
+  const user = await requireAdminNotificationUser()
+  return database.transaction(async (transaction) => {
+    const deleted = [
+      await transaction
+        .delete(customShellNotifications)
+        .returning({ id: customShellNotifications.id }),
+      await transaction
+        .delete(scannerAlerts)
+        .returning({ id: scannerAlerts.id }),
+      await transaction
+        .delete(tradingNotifications)
+        .where(eq(tradingNotifications.userId, user.id))
+        .returning({ id: tradingNotifications.id }),
+      await transaction
+        .delete(marketScannerAlerts)
+        .where(eq(marketScannerAlerts.userId, user.id))
+        .returning({ id: marketScannerAlerts.id }),
+      await transaction
+        .delete(alertEvents)
+        .where(eq(alertEvents.userId, user.id))
+        .returning({ id: alertEvents.id }),
+    ]
+    await transaction
+      .update(marketScannerRules)
+      .set({ lastTriggeredAt: null })
+      .where(eq(marketScannerRules.userId, user.id))
+    return { count: deleted.reduce((total, rows) => total + rows.length, 0) }
+  })
+}
+
 async function requireNotificationUser() {
   const user = await findCurrentUser()
   if (!user) {
@@ -153,7 +303,9 @@ export async function getNotificationPage({
   const conditions: SQL[] = []
 
   if (!includeAll) {
-    conditions.push(eq(customShellNotifications.recipientUserId, currentUser.id))
+    conditions.push(
+      eq(customShellNotifications.recipientUserId, currentUser.id)
+    )
   }
   if (cursor) {
     const [createdAtValue, id] = cursor.split(CURSOR_SEPARATOR)
@@ -234,7 +386,10 @@ async function serializeNotificationRows(
     .from(customShellUsers)
     .where(inArray(customShellUsers.id, userIds))
   const feedbackRows = await database
-    .select({ id: customShellFeedback.id, message: customShellFeedback.message })
+    .select({
+      id: customShellFeedback.id,
+      message: customShellFeedback.message,
+    })
     .from(customShellFeedback)
     .where(inArray(customShellFeedback.id, feedbackIds))
 
@@ -249,7 +404,8 @@ async function serializeNotificationRows(
     actor_name: userNames.get(row.actorUserId) ?? "Unknown",
     recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
     feedback_id: row.feedbackId,
-    feedback_message: feedbackMessages.get(row.feedbackId) ?? "Deleted feedback",
+    feedback_message:
+      feedbackMessages.get(row.feedbackId) ?? "Deleted feedback",
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))
