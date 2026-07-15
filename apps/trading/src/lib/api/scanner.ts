@@ -885,24 +885,6 @@ const markAlertsReadFn = createServerFn({ method: "POST" }).handler(
   }
 )
 
-const loadScannerControlFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ paused: boolean }> => {
-    await requireUser()
-    const { isScannerPaused } = await import("@/server/scanner/control")
-    return { paused: await isScannerPaused() }
-  }
-)
-
-const setScannerPausedFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ paused: z.boolean() }))
-  .handler(async ({ data }): Promise<{ paused: boolean }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    await requireAdminUser()
-    const { setScannerPaused } = await import("@/server/scanner/control")
-    return { paused: await setScannerPaused(data.paused) }
-  })
-
 const markAlertReadFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }): Promise<{ id: string; readAt: string }> => {
@@ -1050,12 +1032,4 @@ export function markAlertsRead() {
 
 export function markAlertRead(id: string) {
   return markAlertReadFn({ data: { id } })
-}
-
-export function loadScannerControl() {
-  return loadScannerControlFn()
-}
-
-export function setScannerPaused(paused: boolean) {
-  return setScannerPausedFn({ data: { paused } })
 }

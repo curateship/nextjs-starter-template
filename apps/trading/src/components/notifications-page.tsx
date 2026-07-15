@@ -556,7 +556,7 @@ export function NotificationsPage({
                         ? "Market scanner"
                         : row.kind === "priceAlert"
                           ? "Price alert"
-                          : "Research scanner"}
+                          : "Whale Scanner"}
                   </p>
                 </div>
               </div>

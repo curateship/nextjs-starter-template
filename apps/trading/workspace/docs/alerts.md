@@ -34,8 +34,8 @@ the current browser and does not change Market Scanner browser alerts. The first
 poll establishes a baseline, so old events do not create a burst of popups.
 Tabs share a stored event key to avoid duplicate browser popups.
 
-`npm run dev` starts Trading and the independent market-data worker. Use
+`npm run dev` starts Trading and all dedicated workers. Use
 `npm run market-scanner:dev` only to run that worker by itself. The TradingView
 alert evaluator shares its live trade feed with Market Scanner, but their rules,
-history, routes, and behavior remain separate. The Research Scanner pause switch
-does not affect either system.
+history, routes, and behavior remain separate. Whale Scanner controls do not
+affect either system.

@@ -1,9 +1,15 @@
 import pg from "pg"
 
 import { getDatabaseUrl } from "@/server/db"
+import type { WorkerKind } from "@/lib/workers"
 
-const LOCK_KEY = "trading_worker_leader"
 const RETRY_MS = 5_000
+
+export function workerLockKey(kind: WorkerKind) {
+  if (kind === "bot") return "trading_worker_leader"
+  if (kind === "market-scanner") return "market_scanner_worker_leader"
+  return `trading_${kind.replaceAll("-", "_")}_worker_leader`
+}
 
 /**
  * Single-engine guarantee: a session-level Postgres advisory lock held on a
@@ -11,27 +17,28 @@ const RETRY_MS = 5_000
  * (rolling deploy, stray dev process) waits in standby until the leader's
  * connection drops, which releases the lock automatically.
  */
-export async function acquireLeadership(): Promise<pg.Client> {
+export async function acquireLeadership(kind: WorkerKind): Promise<pg.Client> {
+  const lockKey = workerLockKey(kind)
   for (;;) {
     const client = new pg.Client({ connectionString: getDatabaseUrl() })
     try {
       await client.connect()
       const result = await client.query(
         "select pg_try_advisory_lock(hashtext($1)) as acquired",
-        [LOCK_KEY]
+        [lockKey]
       )
       if (result.rows[0]?.acquired) {
         client.on("error", () => {
-          console.error("leadership connection lost; exiting for restart")
+          console.error(`${kind} worker: leadership lost; exiting for restart`)
           process.exit(1)
         })
         return client
       }
       await client.end()
-      console.log("another worker holds the leader lock; standing by…")
+      console.log(`${kind} worker: another process is leader; standing by…`)
     } catch (error) {
       await client.end().catch(() => {})
-      console.error("leadership check failed; retrying", error)
+      console.error(`${kind} worker: leadership check failed; retrying`, error)
     }
     await new Promise((resolve) => setTimeout(resolve, RETRY_MS))
   }

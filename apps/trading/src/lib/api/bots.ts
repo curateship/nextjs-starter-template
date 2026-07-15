@@ -325,7 +325,7 @@ async function requireUser() {
 
 async function botListForUser(userId: string): Promise<BotListResponse> {
   const { listUserBots } = await import("@/server/bots")
-  const { desc } = await import("drizzle-orm")
+  const { desc, sql } = await import("drizzle-orm")
   const { db } = await import("@/server/db")
   const { tradingWorkerHeartbeats } = await import("@/server/schema")
 
@@ -334,6 +334,7 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
     db
       .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
       .from(tradingWorkerHeartbeats)
+      .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
       .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
       .limit(1),
   ])

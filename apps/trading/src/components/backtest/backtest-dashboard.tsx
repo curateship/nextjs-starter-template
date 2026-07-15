@@ -541,7 +541,7 @@ export function BacktestDashboard({
       ) : run?.status === "pending" || run?.status === "running" ? (
         <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-600 dark:text-amber-400">
           {run.status === "running"
-            ? "Running this market in the background — results will appear here when it finishes."
+            ? `${run.progressStage ?? "Running"} — ${run.progress}% complete.`
             : "Queued — this market will run in the background. Results will appear here shortly."}
         </div>
       ) : null}

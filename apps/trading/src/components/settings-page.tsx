@@ -6,6 +6,7 @@ import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { TradingSettings } from "@/components/trading-settings"
 import { OneClickOrderSettings } from "@/components/one-click-order-settings"
+import { WorkersSettings } from "@/components/workers-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -14,6 +15,7 @@ const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "trading", label: "Trading" },
   { id: "one-click-order", label: "One Click Order" },
+  { id: "workers", label: "Workers" },
   { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
@@ -66,6 +68,10 @@ export function SettingsPage({
         ) : activeTab === "one-click-order" ? (
           <span className="text-sm text-muted-foreground">
             Templates save immediately
+          </span>
+        ) : activeTab === "workers" ? (
+          <span className="text-sm text-muted-foreground">
+            Controls save immediately
           </span>
         ) : (
           <div className="flex items-center gap-3">
@@ -130,6 +136,7 @@ export function SettingsPage({
             />
           ) : null}
           {activeTab === "one-click-order" ? <OneClickOrderSettings /> : null}
+          {activeTab === "workers" ? <WorkersSettings /> : null}
           {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings

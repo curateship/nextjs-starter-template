@@ -12,7 +12,6 @@ import { now } from "@/server/util"
 
 import { BotRunner } from "./bot-runner"
 import { marketHub } from "./market-hub"
-import type { HeartbeatMeta } from "./heartbeat"
 
 /**
  * Owns one BotRunner per (bot, market) — a bot now trades several markets at
@@ -56,13 +55,20 @@ export class BotSupervisor {
     this.runners.clear()
   }
 
-  meta(): HeartbeatMeta {
+  meta() {
     const runningBots = new Set<string>()
+    const liveBots = new Set<string>()
+    const paperBots = new Set<string>()
     for (const runner of this.runners.values()) {
-      if (runner.meta().running) runningBots.add(runner.bot.id)
+      if (!runner.meta().running) continue
+      runningBots.add(runner.bot.id)
+      if (runner.bot.mode === "live") liveBots.add(runner.bot.id)
+      else paperBots.add(runner.bot.id)
     }
     return {
       runningBots: runningBots.size,
+      runningLiveBots: liveBots.size,
+      runningPaperBots: paperBots.size,
       subscriptions: marketHub.subscriptionCount(),
     }
   }

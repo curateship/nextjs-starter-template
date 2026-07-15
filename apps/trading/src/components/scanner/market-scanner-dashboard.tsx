@@ -3,11 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   ActivityIcon,
   BellIcon,
-  Loader2Icon,
-  PauseIcon,
-  PlayIcon,
   PlusIcon,
-  PowerIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -46,8 +42,6 @@ import {
   loadMarketScannerRulesPage,
   markAllMarketScannerAlertsRead,
   markMarketScannerAlertRead,
-  setMarketScannerPaused,
-  setMarketScannerRuntimeEnabled,
   updateMarketScannerRule,
 } from "@/lib/api/market-scanner"
 import {
@@ -98,8 +92,6 @@ const ALERT_COLUMNS = [
 export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
   const [data, setData] = useState(initial)
   const [editing, setEditing] = useState<MarketScannerRuleItem | null | undefined>()
-  const [savingPause, setSavingPause] = useState(false)
-  const [savingRuntime, setSavingRuntime] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ruleSort, setRuleSort] = useState<{ sortBy: RuleSort; dir: SortDir }>({
     sortBy: "name",
@@ -137,36 +129,6 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
     setNotificationPermission(permission)
   }
 
-  async function togglePaused() {
-    setSavingPause(true)
-    setError(null)
-    try {
-      const result = await setMarketScannerPaused(!data.paused)
-      setData((current) => ({ ...current, paused: result.paused }))
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setSavingPause(false)
-    }
-  }
-
-  async function toggleRuntime() {
-    setSavingRuntime(true)
-    setError(null)
-    try {
-      const result = await setMarketScannerRuntimeEnabled(!data.runtimeEnabled)
-      setData((current) => ({
-        ...current,
-        runtimeEnabled: result.runtimeEnabled,
-        checkedAt: Date.now(),
-      }))
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setSavingRuntime(false)
-    }
-  }
-
   return (
     <div className="grid w-full gap-3">
       {error ? (
@@ -195,36 +157,6 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
             : { tone: "success", text: "Watching mainnet" }}
         controls={
           <>
-            {data.canControlRuntime ? (
-              <DashboardToolbarButton
-                type="button"
-                variant={data.runtimeEnabled ? "outline" : "default"}
-                disabled={savingRuntime}
-                onClick={() => void toggleRuntime()}
-              >
-                {savingRuntime ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <PowerIcon className="size-4" />
-                )}
-                {data.runtimeEnabled ? "Turn scanner off" : "Turn scanner on"}
-              </DashboardToolbarButton>
-            ) : null}
-            <DashboardToolbarButton
-              type="button"
-              variant={data.paused ? "default" : "outline"}
-              disabled={savingPause || !data.runtimeEnabled}
-              onClick={() => void togglePaused()}
-            >
-              {savingPause ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : data.paused ? (
-                <PlayIcon className="size-4" />
-              ) : (
-                <PauseIcon className="size-4" />
-              )}
-              {data.paused ? "Resume scanner" : "Pause scanner"}
-            </DashboardToolbarButton>
             {notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
               <DashboardToolbarButton type="button" variant="outline" onClick={() => void enableBrowserAlerts()}>
                 <BellIcon className="size-4" />

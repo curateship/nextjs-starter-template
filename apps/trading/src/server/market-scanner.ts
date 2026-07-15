@@ -24,7 +24,6 @@ import { db, type CustomShellDb } from "@/server/db"
 import {
   marketScannerAlerts,
   marketScannerControl,
-  marketScannerRuntimeControl,
   marketScannerRules,
 } from "@/server/schema"
 import { now, uuid } from "@/server/util"
@@ -168,31 +167,6 @@ export async function setMarketScannerPaused(
       set: { paused, updatedAt: now() },
     })
   return paused
-}
-
-export async function getMarketScannerRuntimeEnabled(
-  database: CustomShellDb = db
-) {
-  const [control] = await database
-    .select({ enabled: marketScannerRuntimeControl.enabled })
-    .from(marketScannerRuntimeControl)
-    .where(eq(marketScannerRuntimeControl.id, "default"))
-    .limit(1)
-  if (!control) throw new Error("Market Scanner runtime control is missing")
-  return control.enabled
-}
-
-export async function setMarketScannerRuntimeEnabled(
-  enabled: boolean,
-  database: CustomShellDb = db
-) {
-  const [control] = await database
-    .update(marketScannerRuntimeControl)
-    .set({ enabled, updatedAt: now() })
-    .where(eq(marketScannerRuntimeControl.id, "default"))
-    .returning({ enabled: marketScannerRuntimeControl.enabled })
-  if (!control) throw new Error("Market Scanner runtime control is missing")
-  return control.enabled
 }
 
 export async function markMarketScannerRulesEvaluated(

@@ -1,22 +1,20 @@
 # Market scanner
 
 The Market Scanner is an independent read-only worker subsystem that watches
-Hyperliquid mainnet perpetual markets. It does not use the Research Scanner's
+Hyperliquid mainnet perpetual markets. It does not use the Whale Scanner's
 trade collector or pause switch. Rules and alerts are private to the signed-in
 user.
 
-The Market Scanner dashboard has separate power and Pause/Resume controls.
-Turning the scanner off stops Market Scanner evaluation for everyone and keeps
-that choice after an app or worker restart. Pausing keeps saved rules enabled
-but skips only the signed-in user's rules until scanning is resumed. Neither
-control pauses TradingView-style chart alerts or Research Scanner.
+Worker-wide controls live only under **Settings → Workers**. Turning the Market
+Scanner off or pausing it stops its subscriptions and processing without
+deleting rules or alerts. **Pause my rules** skips only the signed-in user's
+saved rules. None of these controls affect the Whale Scanner or bots.
 
-`npm run dev` starts both Trading and the independent Market Scanner process.
+`npm run dev` starts Trading and all four independent worker processes.
 Use `npm run market-scanner:dev` only when running the scanner by itself. The
-scanner remains separate from `npm run worker:dev`, so it does not start bots.
-The Market Scanner process restarts automatically after an unexpected crash.
-An intentional Off setting is respected after recovery. The Research Scanner
-can be paused or disabled without affecting market rules.
+scanner remains separate from `npm run bot-worker:dev`, so it does not start
+bots. An intentional Off or Paused setting survives a process restart. The
+Whale Scanner can be paused or disabled without affecting market rules.
 
 Click an alert title on the Market Alerts dashboard to open its market on the
 Trade dashboard. Market alerts in the notification tray open the same Trade

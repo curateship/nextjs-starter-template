@@ -62,6 +62,8 @@ export type BacktestListItem = {
   startingEquity: number
   createdAt: string
   completedAt: string | null
+  progress: number
+  progressStage: string | null
   netPnl: number | null
   netPnlPct: number | null
   tradeCount: number | null
@@ -99,6 +101,8 @@ export type BacktestDetail = {
   createdAt: string
   startedAt: string | null
   completedAt: string | null
+  progress: number
+  progressStage: string | null
   params: AutomationConfig
   costs: BacktestCosts
   result: BacktestResult | null
@@ -207,7 +211,6 @@ const runBacktestFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
     const { createUserBacktest } = await import("@/server/backtests")
-    const { kickBacktestQueue } = await import("@/server/backtest/queue")
     requireAppOrigin()
     const user = await requireUser()
     const run = await resolveAutomationRun(user.id, data.automationId)
@@ -231,7 +234,6 @@ const runBacktestFn = createServerFn({ method: "POST" })
     // downloads history and runs the engine one market at a time so a big basket
     // can't hold the request open or flood the candle source.
     const result = await enqueueRun(user.id, data, run, { createUserBacktest })
-    kickBacktestQueue()
     return result
   })
 
@@ -314,11 +316,7 @@ const loadBacktestsFn = createServerFn({ method: "GET" })
   .inputValidator(loadBacktestsSchema)
   .handler(async ({ data }): Promise<BacktestListResponse> => {
     const { listUserBacktests } = await import("@/server/backtests")
-    const { kickBacktestQueue } = await import("@/server/backtest/queue")
     const user = await requireUser()
-    // Resume any queued/orphaned runs whenever the dashboard is opened — covers
-    // a server restart mid-run without a dedicated boot hook. Idempotent.
-    kickBacktestQueue()
     const page = data.page ?? 1
     const pageSize = data.pageSize ?? 20
     const list = await listUserBacktests(user.id, {
@@ -369,11 +367,7 @@ const loadBacktestFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<BacktestDetailResponse> => {
     const { getUserBacktest, listGroupRuns } =
       await import("@/server/backtests")
-    const { kickBacktestQueue } = await import("@/server/backtest/queue")
     const user = await requireUser()
-    // The progress modal polls this while runs are pending — kicking here
-    // (idempotent) revives a queue stalled by a server restart mid-run.
-    kickBacktestQueue()
     const row = await getUserBacktest(user.id, data.backtestId)
     if (!row) return { backtest: null, groupRuns: [] }
     const siblings = await listGroupRuns(user.id, row.groupId)
@@ -582,6 +576,8 @@ type ListRow = {
   startingEquity: string
   createdAt: Date
   completedAt: Date | null
+  progress: number
+  progressStage: string | null
   netPnl: string | null
   netPnlPct: string | null
   tradeCount: string | null
@@ -612,6 +608,8 @@ function serializeListItem(row: ListRow): BacktestListItem {
     startingEquity: Number(row.startingEquity),
     createdAt: row.createdAt.toISOString(),
     completedAt: row.completedAt?.toISOString() ?? null,
+    progress: row.progress,
+    progressStage: row.progressStage,
     netPnl: row.netPnl === null ? null : Number(row.netPnl),
     netPnlPct: row.netPnlPct === null ? null : Number(row.netPnlPct),
     tradeCount: row.tradeCount === null ? null : Number(row.tradeCount),
@@ -643,6 +641,8 @@ type DetailRow = {
   createdAt: Date
   startedAt: Date | null
   completedAt: Date | null
+  progress: number
+  progressStage: string | null
   params: unknown
   costs: unknown
   result: unknown
@@ -665,6 +665,8 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     createdAt: row.createdAt.toISOString(),
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
+    progress: row.progress,
+    progressStage: row.progressStage,
     // Normalized so `params.kind` is always set (pre-kind rows lack it).
     params:
       normalizeAutomationConfig(row.params) ?? (row.params as AutomationConfig),

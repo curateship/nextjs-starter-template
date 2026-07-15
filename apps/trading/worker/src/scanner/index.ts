@@ -2,7 +2,6 @@ import { SubscriptionClient } from "@nktkas/hyperliquid"
 
 import { createReadOnlyWebSocketTransport } from "@/server/hyperliquid/transport"
 import { getScannerInfoClient } from "@/server/scanner/info"
-import { isScannerPaused } from "@/server/scanner/control"
 import { BookWatcher } from "./book-watcher"
 import { CrowdDetector } from "./crowd-detector"
 import { PositionTracker } from "./position-tracker"
@@ -11,15 +10,9 @@ import { Retention } from "./retention"
 import { TradeCollector } from "./trade-collector"
 import { WalletStatsRefresher } from "./wallet-stats"
 
-const CONTROL_POLL_MS = 10_000
-
 /**
- * Research scanner: read-only mainnet market surveillance. Runs inside the
- * worker's leader lock, gated by SCANNER_ENABLED=true. Trading (signing)
- * stays testnet — the scanner never touches keys.
- *
- * A control loop polls the `scanner_control.paused` flag so the scanner can
- * be paused/resumed from the UI without a worker restart.
+ * Whale Scanner: read-only mainnet market surveillance. It runs in its own
+ * process and never touches trading keys or the Bot worker.
  */
 export class ScannerSupervisor {
   private subClient: SubscriptionClient | null = null
@@ -31,13 +24,10 @@ export class ScannerSupervisor {
   private readonly retention = new Retention()
   private readonly restBucket = new TokenBucket(600)
   private running = false
-  private stopped = false
-  private syncing = false
-  private controlTimer: NodeJS.Timeout | null = null
 
   meta() {
     return {
-      scannerPaused: !this.running,
+      currentActivity: this.running ? "Collecting whale activity" : "Idle",
       ...(this.collector?.meta() ?? { subscriptions: 0, tradesCollected: 0 }),
       ...(this.statsRefresher?.meta() ?? { statsRefreshed: 0 }),
       ...(this.positionTracker?.meta() ?? {
@@ -50,38 +40,12 @@ export class ScannerSupervisor {
   }
 
   async start() {
-    this.stopped = false
-    await this.syncWithControl()
-    this.controlTimer = setInterval(
-      () => void this.syncWithControl(),
-      CONTROL_POLL_MS
-    )
+    if (this.running) return
+    await this.startSubsystems()
   }
 
   async stop() {
-    this.stopped = true
-    if (this.controlTimer) clearInterval(this.controlTimer)
-    this.controlTimer = null
-    if (this.running) await this.stopSubsystems()
-  }
-
-  /** Reconciles running subsystems with the DB pause flag. */
-  private async syncWithControl() {
-    if (this.syncing || this.stopped) return
-    this.syncing = true
-    try {
-      const paused = await isScannerPaused()
-      if (paused && this.running) {
-        await this.stopSubsystems()
-        console.log("scanner: paused")
-      } else if (!paused && !this.running) {
-        await this.startSubsystems()
-      }
-    } catch (error) {
-      console.error("scanner: control check failed", error)
-    } finally {
-      this.syncing = false
-    }
+    await this.stopSubsystems()
   }
 
   private async startSubsystems() {
@@ -111,7 +75,7 @@ export class ScannerSupervisor {
     this.retention.start()
     this.running = true
     console.log(
-      `scanner: started (min trade notional $${minNotional.toLocaleString("en-US")})`
+      `whale scanner: started (min trade notional $${minNotional.toLocaleString("en-US")})`
     )
   }
 
