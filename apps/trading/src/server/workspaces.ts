@@ -373,6 +373,16 @@ function createDefaultWorkspaceSections(): ShellSection[] {
               label: "Indicators",
               href: "/indicators",
             },
+            {
+              id: "item-trade-alerts",
+              label: "Alerts",
+              href: "/alerts",
+            },
+            {
+              id: "item-trade-alert-log",
+              label: "Alert Log",
+              href: "/alert-log",
+            },
           ],
         },
         {

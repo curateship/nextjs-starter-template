@@ -23,6 +23,7 @@ describe("chart order menu", () => {
             <button type="button">Sell limit - WS:10% SL:2% TP:5%</button>
           </>
         }
+        onAddAlert={vi.fn()}
         onResetView={vi.fn()}
         onClose={vi.fn()}
       />
@@ -31,6 +32,7 @@ describe("chart order menu", () => {
     expect(markup).toContain("ETH @ 1,744.2")
     expect(markup).toContain("Buy limit - WS:10% SL:2% TP:5%")
     expect(markup).toContain("Sell limit - WS:10% SL:2% TP:5%")
+    expect(markup).toContain("Add alert")
     expect(markup).not.toContain("1-Click Long")
     expect(markup).not.toContain("1-Click Short")
     expect(markup).toContain("w-max")

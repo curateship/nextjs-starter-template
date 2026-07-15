@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { ActivityIcon, BellIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  ActivityIcon,
+  BellIcon,
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
@@ -37,6 +45,7 @@ import {
   loadMarketScannerRulesPage,
   markAllMarketScannerAlertsRead,
   markMarketScannerAlertRead,
+  setMarketScannerPaused,
   updateMarketScannerRule,
 } from "@/lib/api/market-scanner"
 import {
@@ -87,6 +96,7 @@ const ALERT_COLUMNS = [
 export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
   const [data, setData] = useState(initial)
   const [editing, setEditing] = useState<MarketScannerRuleItem | null | undefined>()
+  const [savingPause, setSavingPause] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ruleSort, setRuleSort] = useState<{ sortBy: RuleSort; dir: SortDir }>({
     sortBy: "name",
@@ -124,6 +134,19 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
     setNotificationPermission(permission)
   }
 
+  async function togglePaused() {
+    setSavingPause(true)
+    setError(null)
+    try {
+      const result = await setMarketScannerPaused(!data.paused)
+      setData((current) => ({ ...current, paused: result.paused }))
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setSavingPause(false)
+    }
+  }
+
   return (
     <div className="grid w-full gap-3">
       {error ? (
@@ -141,13 +164,30 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
         title="Market scanner"
         icon={<ActivityIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={rules.length}
-        status={!data.workerOnline
+        status={data.paused
+          ? null
+          : !data.workerOnline
             ? { tone: "error", text: "Scanner offline" }
           : scannerStale
             ? { tone: "error", text: "Worker stale" }
             : { tone: "success", text: "Watching mainnet" }}
         controls={
           <>
+            <DashboardToolbarButton
+              type="button"
+              variant={data.paused ? "default" : "outline"}
+              disabled={savingPause}
+              onClick={() => void togglePaused()}
+            >
+              {savingPause ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : data.paused ? (
+                <PlayIcon className="size-4" />
+              ) : (
+                <PauseIcon className="size-4" />
+              )}
+              {data.paused ? "Resume scanner" : "Pause scanner"}
+            </DashboardToolbarButton>
             {notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
               <DashboardToolbarButton type="button" variant="outline" onClick={() => void enableBrowserAlerts()}>
                 <BellIcon className="size-4" />
@@ -176,7 +216,7 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
             <TableCell column="meta">{rule.marketScope === "all" ? "All markets" : `${rule.markets.length} selected`}</TableCell>
             <TableCell column="meta">{rule.window}</TableCell>
             <TableCell column="meta">{rule.cooldown}</TableCell>
-            <TableCell column="meta"><Badge variant={rule.enabled && data.workerOnline && !scannerStale && rule.lastEvaluatedAt ? "default" : "secondary"}>{ruleStatus(rule, data.workerOnline, scannerStale)}</Badge></TableCell>
+            <TableCell column="meta"><Badge variant={!data.paused && rule.enabled && data.workerOnline && !scannerStale && rule.lastEvaluatedAt ? "default" : "secondary"}>{ruleStatus(rule, data.paused, data.workerOnline, scannerStale)}</Badge></TableCell>
             <TableCell column="mutedMeta">{formatTime(rule.lastTriggeredAt)}</TableCell>
           </TableRow>
         ))}
@@ -566,8 +606,9 @@ function ruleCondition(rule: MarketScannerRuleItem) {
   return rule.kind === "volume_spike" ? `${rule.threshold}× normal` : `${rule.direction === "down" ? "Falls" : "Rises"} ${rule.threshold}%`
 }
 
-function ruleStatus(rule: MarketScannerRuleItem, workerOnline: boolean, scannerStale: boolean) {
+function ruleStatus(rule: MarketScannerRuleItem, paused: boolean, workerOnline: boolean, scannerStale: boolean) {
   if (!rule.enabled) return "Off"
+  if (paused) return "Paused"
   if (!workerOnline) return "Offline"
   if (scannerStale) return "Stale"
   return rule.lastEvaluatedAt ? "Active" : "Warming up"

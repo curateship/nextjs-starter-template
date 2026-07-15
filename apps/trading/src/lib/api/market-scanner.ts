@@ -16,18 +16,22 @@ const alertsPageSchema = z.object({
   limit: z.number().int().min(1).max(100).default(25),
   cursor: z.string().min(1).max(1_024).optional(),
 })
+const pauseSchema = z.object({ paused: z.boolean() })
 
 const loadRulesPageFn = createServerFn({ method: "GET" }).handler(async () => {
-    const { getMarketScannerRules } = await import("@/server/market-scanner")
+    const { getMarketScannerPaused, getMarketScannerRules } = await import(
+      "@/server/market-scanner"
+    )
     const { getScannerUniverse } = await import("@/server/scanner/info")
     const { getMarketScannerWorkerStatus } = await import(
       "@/server/market-scanner-status"
     )
     const user = await requireUser()
-    const [rules, universe, status] = await Promise.all([
+    const [rules, universe, status, paused] = await Promise.all([
       getMarketScannerRules(user.id),
       getScannerUniverse().catch(() => null),
       getMarketScannerWorkerStatus(),
+      getMarketScannerPaused(user.id),
     ])
     return {
       rules,
@@ -36,8 +40,18 @@ const loadRulesPageFn = createServerFn({ method: "GET" }).handler(async () => {
         : [...new Set(rules.flatMap((rule) => rule.markets))],
       marketsAvailable: universe !== null,
       workerOnline: status.workerOnline,
+      paused,
       checkedAt: Date.now(),
     }
+  })
+
+const setPausedFn = createServerFn({ method: "POST" })
+  .inputValidator(pauseSchema)
+  .handler(async ({ data }) => {
+    await requireMutation()
+    const user = await requireUser()
+    const { setMarketScannerPaused } = await import("@/server/market-scanner")
+    return { paused: await setMarketScannerPaused(user.id, data.paused) }
   })
 
 const loadAlertsPageFn = createServerFn({ method: "GET" })
@@ -147,6 +161,10 @@ export function updateMarketScannerRule(
 
 export function deleteMarketScannerRule(id: string) {
   return deleteRuleFn({ data: { id } })
+}
+
+export function setMarketScannerPaused(paused: boolean) {
+  return setPausedFn({ data: { paused } })
 }
 
 export function pollMarketScannerAlerts() {

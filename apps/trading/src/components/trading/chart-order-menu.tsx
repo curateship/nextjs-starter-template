@@ -19,12 +19,14 @@ export function ChartOrderMenu({
   menu,
   market,
   oneClickActions,
+  onAddAlert,
   onResetView,
   onClose,
 }: {
   menu: ChartMenuState | null
   market: string
   oneClickActions: React.ReactNode
+  onAddAlert: (price: number) => void
   onResetView: () => void
   onClose: () => void
 }) {
@@ -73,6 +75,18 @@ export function ChartOrderMenu({
         <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
           {market} @ {formatPriceDisplay(menu.px)}
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="justify-start"
+          onClick={() => {
+            onAddAlert(menu.price)
+            onClose()
+          }}
+        >
+          Add alert
+        </Button>
         {oneClickActions}
       </div>
     </>

@@ -10,6 +10,7 @@ import {
   isNull,
   lt,
   max,
+  notExists,
   or,
 } from "drizzle-orm"
 
@@ -20,7 +21,11 @@ import type {
   MarketScannerRuleItem,
 } from "@/lib/market-scanner"
 import { db, type CustomShellDb } from "@/server/db"
-import { marketScannerAlerts, marketScannerRules } from "@/server/schema"
+import {
+  marketScannerAlerts,
+  marketScannerControl,
+  marketScannerRules,
+} from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
 export async function getMarketScannerRules(
@@ -118,8 +123,50 @@ export async function listEnabledMarketScannerRules(
   const rows = await database
     .select()
     .from(marketScannerRules)
-    .where(eq(marketScannerRules.enabled, true))
+    .where(
+      and(
+        eq(marketScannerRules.enabled, true),
+        notExists(
+          database
+            .select({ userId: marketScannerControl.userId })
+            .from(marketScannerControl)
+            .where(
+              and(
+                eq(marketScannerControl.userId, marketScannerRules.userId),
+                eq(marketScannerControl.paused, true)
+              )
+            )
+        )
+      )
+    )
   return rows.map(serializeRule)
+}
+
+export async function getMarketScannerPaused(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const [row] = await database
+    .select({ paused: marketScannerControl.paused })
+    .from(marketScannerControl)
+    .where(eq(marketScannerControl.userId, userId))
+    .limit(1)
+  return row?.paused ?? false
+}
+
+export async function setMarketScannerPaused(
+  userId: string,
+  paused: boolean,
+  database: CustomShellDb = db
+) {
+  await database
+    .insert(marketScannerControl)
+    .values({ userId, paused, updatedAt: now() })
+    .onConflictDoUpdate({
+      target: marketScannerControl.userId,
+      set: { paused, updatedAt: now() },
+    })
+  return paused
 }
 
 export async function markMarketScannerRulesEvaluated(

@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -25,6 +26,10 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { MAX_CANDLES_LIMIT, MIN_CANDLES } from "@/lib/backtest/types"
+import {
+  priceAlertBrowserEnabled,
+  setPriceAlertBrowserEnabled,
+} from "@/lib/browser-alerts"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -38,7 +43,39 @@ export function GeneralSettings({
   onConfigChange,
 }: GeneralSettingsProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
+  const [browserPermission, setBrowserPermission] = React.useState<
+    NotificationPermission | "unsupported"
+  >("unsupported")
+  const [browserAlertsEnabled, setBrowserAlertsEnabled] = React.useState(false)
   const favicon = config.favicon.trim()
+
+  React.useEffect(() => {
+    queueMicrotask(() => {
+      const permission =
+        "Notification" in window ? Notification.permission : "unsupported"
+      setBrowserPermission(permission)
+      setBrowserAlertsEnabled(
+        permission === "granted" && priceAlertBrowserEnabled()
+      )
+    })
+  }, [])
+
+  async function changeBrowserAlerts(enabled: boolean) {
+    if (!enabled) {
+      setPriceAlertBrowserEnabled(false)
+      setBrowserAlertsEnabled(false)
+      return
+    }
+    if (!("Notification" in window)) return
+    const permission =
+      Notification.permission === "default"
+        ? await Notification.requestPermission()
+        : Notification.permission
+    const nextEnabled = permission === "granted"
+    setPriceAlertBrowserEnabled(nextEnabled)
+    setBrowserPermission(permission)
+    setBrowserAlertsEnabled(nextEnabled)
+  }
 
   return (
     <CardGroup>
@@ -185,6 +222,45 @@ export function GeneralSettings({
             <p className="text-xs text-muted-foreground">
               Upload a square image for the browser tab and workspace logo.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Browser alerts</CardTitle>
+          <CardDescription>
+            Control browser popups for alerts created from the Trade chart.
+            Market Scanner browser alerts are separate.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="browser-alerts"
+              checked={browserAlertsEnabled}
+              disabled={
+                browserPermission === "denied" ||
+                browserPermission === "unsupported"
+              }
+              onCheckedChange={(checked) =>
+                void changeBrowserAlerts(checked === true)
+              }
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="browser-alerts" className="font-normal">
+                Browser alerts
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {browserPermission === "denied"
+                  ? "Browser access is blocked for this app."
+                  : browserPermission === "unsupported"
+                    ? "This browser does not support notifications."
+                    : browserAlertsEnabled
+                      ? "Trade alert popups are on."
+                      : "Trade alert popups are off."}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
