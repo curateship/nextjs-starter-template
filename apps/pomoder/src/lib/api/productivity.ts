@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import { localDateFor, rollOverTasks, toggleTaskStatus } from "@/server/productivity"
+import { completeProductivitySession, localDateFor, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
 import { dailyFocusStats, focusSessions, tasks, userPreferences, users } from "@/server/schema"
 import { requireUser } from "@/server/security"
 
@@ -66,14 +66,7 @@ const updatePreferencesFn = createServerFn({ method: "POST" }).inputValidator(pr
 const startSessionFn = createServerFn({ method: "POST" }).inputValidator(startSessionSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
-  if (data.taskId) {
-    const owned = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.id, data.taskId), eq(tasks.userId, user.id))).limit(1)
-    if (!owned.length) throw new Error("TASK_NOT_FOUND")
-  }
-  const [created] = await db.insert(focusSessions).values({ userId: user.id, ...data, targetEndsAt: new Date(Date.now() + data.plannedSeconds * 1_000) }).onConflictDoNothing().returning()
-  if (created) return created
-  const [existing] = await db.select().from(focusSessions).where(and(eq(focusSessions.userId, user.id), eq(focusSessions.idempotencyKey, data.idempotencyKey))).limit(1)
-  return existing
+  return startProductivitySession(user.id, localDateFor(user.timezone), data)
 })
 
 const pauseSessionFn = createServerFn({ method: "POST" }).inputValidator(sessionProgressSchema).handler(async ({ data }) => {
@@ -102,16 +95,7 @@ const cancelSessionFn = createServerFn({ method: "POST" }).inputValidator(z.obje
 const completeSessionFn = createServerFn({ method: "POST" }).inputValidator(sessionProgressSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
-  const today = localDateFor(user.timezone)
-  return db.transaction(async (tx) => {
-    const [completed] = await tx.update(focusSessions).set({ status: "completed", accumulatedSeconds: data.accumulatedSeconds, completedAt: new Date(), targetEndsAt: null, updatedAt: new Date() }).where(and(eq(focusSessions.id, data.sessionId), eq(focusSessions.userId, user.id), sql`${focusSessions.status} in ('running', 'paused')`)).returning()
-    if (!completed) return null
-    if (completed.mode === "focus") {
-      await tx.insert(dailyFocusStats).values({ userId: user.id, localDate: today, focusSessions: 1, focusSeconds: data.accumulatedSeconds }).onConflictDoUpdate({ target: [dailyFocusStats.userId, dailyFocusStats.localDate], set: { focusSessions: sql`${dailyFocusStats.focusSessions} + 1`, focusSeconds: sql`${dailyFocusStats.focusSeconds} + ${data.accumulatedSeconds}`, updatedAt: new Date() } })
-      if (completed.taskId) await tx.update(tasks).set({ pomodoroCount: sql`${tasks.pomodoroCount} + 1`, updatedAt: new Date() }).where(and(eq(tasks.id, completed.taskId), eq(tasks.userId, user.id)))
-    }
-    return completed
-  })
+  return completeProductivitySession(user.id, data.sessionId, data.accumulatedSeconds, localDateFor(user.timezone))
 })
 
 const leaderboardFn = createServerFn({ method: "GET" }).handler(async () => {

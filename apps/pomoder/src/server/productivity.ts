@@ -1,7 +1,26 @@
 import { and, eq, lt, sql } from "drizzle-orm"
 
 import { db, type PomoderDb } from "@/server/db"
-import { dailyFocusStats, tasks } from "@/server/schema"
+import { dailyFocusStats, focusSessions, tasks } from "@/server/schema"
+
+type StartProductivitySessionInput = {
+  mode: "focus" | "short" | "long"
+  plannedSeconds: number
+  taskId: string | null
+  idempotencyKey: string
+}
+
+export async function startProductivitySession(userId: string, today: string, input: StartProductivitySessionInput, database: PomoderDb = db) {
+  const taskId = input.mode === "focus" ? input.taskId : null
+  if (taskId) {
+    const owned = await database.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.id, taskId), eq(tasks.userId, userId), eq(tasks.status, "active"), eq(tasks.plannedDate, today))).limit(1)
+    if (!owned.length) throw new Error("TASK_NOT_FOUND")
+  }
+  const [created] = await database.insert(focusSessions).values({ userId, ...input, taskId, targetEndsAt: new Date(Date.now() + input.plannedSeconds * 1_000) }).onConflictDoNothing().returning()
+  if (created) return created
+  const [existing] = await database.select().from(focusSessions).where(and(eq(focusSessions.userId, userId), eq(focusSessions.idempotencyKey, input.idempotencyKey))).limit(1)
+  return existing
+}
 
 export async function rollOverTasks(userId: string, today: string, database: PomoderDb = db) {
   return database.transaction(async (tx) => {
@@ -26,6 +45,23 @@ export async function toggleTaskStatus(userId: string, taskId: string, today: st
       await tx.update(dailyFocusStats).set({ tasksCompleted: sql`greatest(0, ${dailyFocusStats.tasksCompleted} - 1)`, updatedAt: new Date() }).where(and(eq(dailyFocusStats.userId, userId), eq(dailyFocusStats.localDate, today)))
     }
     return updated
+  })
+}
+
+export async function completeProductivitySession(userId: string, sessionId: string, accumulatedSeconds: number, today: string, database: PomoderDb = db) {
+  return database.transaction(async (tx) => {
+    const [session] = await tx.update(focusSessions).set({ status: "completed", accumulatedSeconds, completedAt: new Date(), targetEndsAt: null, updatedAt: new Date() }).where(and(eq(focusSessions.id, sessionId), eq(focusSessions.userId, userId), sql`${focusSessions.status} in ('running', 'paused')`)).returning()
+    if (!session) return null
+
+    let updatedTask: { id: string; pomodoroCount: number } | null = null
+    if (session.mode === "focus") {
+      await tx.insert(dailyFocusStats).values({ userId, localDate: today, focusSessions: 1, focusSeconds: accumulatedSeconds }).onConflictDoUpdate({ target: [dailyFocusStats.userId, dailyFocusStats.localDate], set: { focusSessions: sql`${dailyFocusStats.focusSessions} + 1`, focusSeconds: sql`${dailyFocusStats.focusSeconds} + ${accumulatedSeconds}`, updatedAt: new Date() } })
+      if (session.taskId) {
+        const [task] = await tx.update(tasks).set({ pomodoroCount: sql`${tasks.pomodoroCount} + 1`, updatedAt: new Date() }).where(and(eq(tasks.id, session.taskId), eq(tasks.userId, userId), eq(tasks.status, "active"))).returning({ id: tasks.id, pomodoroCount: tasks.pomodoroCount })
+        updatedTask = task ?? null
+      }
+    }
+    return { session, task: updatedTask }
   })
 }
 

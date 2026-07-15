@@ -1,6 +1,6 @@
 ---
 name: audit-change
-description: Audit staged, unstaged, or recent code changes and, when edits are authorized, automatically fix clear in-scope issues involving correctness, security, maintainability, exact-behavior simplification, efficiency, dead code, deletion-first hard cuts, and commit readiness. Use when the user asks to audit, clean up, harden, simplify, remove bloat, or prepare changes for commit or merge, and after security-sensitive changes to authentication, server actions, API routes, middleware, database policies, uploads, payments, webhooks, or external integrations. Hand a ready standalone audit to commit-change for a local commit when nothing needs user attention. Keep explicitly review-only and commit workflows report-only. Never push, deploy, or rewrite history.
+description: Audit staged, unstaged, or recent code changes and, when edits are authorized, automatically fix clear in-scope issues involving correctness, security, maintainability, exact-behavior simplification, efficiency, dead code, deletion-first hard cuts, and commit readiness. Use when the user asks to audit, clean up, harden, simplify, remove bloat, or prepare changes for commit or merge, and after security-sensitive changes to authentication, server actions, API routes, middleware, database policies, uploads, payments, webhooks, or external integrations. Reading or running this skill never authorizes staging or committing; only an explicit user commit request does. Keep explicitly review-only and commit workflows report-only. Never push, deploy, or rewrite history.
 ---
 
 # Audit Change
@@ -16,7 +16,7 @@ Review the smallest concrete diff that answers the request. Prefer deleting unne
 - Ask for confirmation only when valid fixes conflict or the resolution could reasonably break intended app behavior or persisted data, materially increase code size or complexity, or weaken security.
 - For a confirmation request, explain the conflict and tradeoff in plain English. Otherwise choose the smallest safe fix and continue.
 - Do not ask permission for routine cleanup, simplification, Hard Cut deletion, regression fixes, or security hardening that clearly preserves intended behavior.
-- Never directly stage or commit. Use the `commit-change` handoff defined below. Never push, deploy, create branches, discard files, or rewrite history.
+- Never stage, commit, or invoke `commit-change` unless the user explicitly requested a commit in the current conversation. Never push, deploy, create branches, discard files, or rewrite history.
 
 Use the narrowest available scope: named files, staged diff, unstaged diff, commit range, PR diff, or recent changes. Expand beyond it only when required to understand call sites, dynamic or configuration-driven use, a public contract, or a correctness or security boundary.
 
@@ -33,7 +33,7 @@ Audit the whole repository only when the user explicitly requests it. In that mo
 7. Run the smallest relevant checks first, then broader checks required by repository guidance or risk.
 8. Automatically fix every clear in-scope finding when editing is authorized, then re-run the affected gates against the resulting diff.
 9. Review the final diff and issue a commit-readiness verdict.
-10. When the audit is ready and nothing requires user attention, follow the Commit Handoff.
+10. Stop after the verdict unless the user explicitly requested a commit in the current conversation.
 
 ## Security Gate
 
@@ -135,12 +135,12 @@ Run checks proportionate to the changed behavior and risk:
 
 After simplification, existing tests must pass without weakening assertions or changing expected behavior. Report pre-existing failures separately and fix only failures caused by the audited change unless the user expands scope.
 
-## Commit Handoff
+## Commit Boundary
 
-- Stop after the verdict when the user requested review-only or when `commit-change` invoked this audit.
+- Stop after the verdict when the user requested review-only, did not explicitly request a commit, or when `commit-change` invoked this audit.
 - Stop and ask for direction when a Critical or Required finding remains, valid fixes conflict, or resolving the issue could break the app, materially increase code size or complexity, or weaken security.
-- Otherwise, when changes remain and the verdict is `Ready to commit`, invoke `commit-change` to review, stage, and create one local commit from the authorized changes.
-- Treat a standalone request that triggers `audit-change` as authorization for this local commit handoff unless the user opts out. Never push.
+- Only when the user explicitly requested a commit in the current conversation and the verdict is `Ready to commit`, invoke `commit-change` to review, stage, and create one local commit. Never push.
+- Never treat a standalone audit, clean result, completed task, or skill handoff as commit authorization.
 
 ## Findings and Verdict
 

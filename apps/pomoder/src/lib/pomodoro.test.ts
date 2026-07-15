@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   createTimer,
   getRemainingSeconds,
+  incrementTaskPomodoros,
   pauseTimer,
   resetTimer,
+  resolveSelectedTaskId,
   startTimer,
   toggleTask,
   type GuestTask,
@@ -49,5 +51,25 @@ describe("guest tasks", () => {
       tasks[0],
       { ...tasks[1], completed: true },
     ])
+  })
+
+  it("keeps a valid active selection and ignores stale hydration", () => {
+    const tasks: GuestTask[] = [
+      { id: "active", title: "Active task", completed: false, pomodoros: 0 },
+      { id: "done", title: "Completed task", completed: true, pomodoros: 2 },
+    ]
+    expect(resolveSelectedTaskId(tasks, "active")).toBe("active")
+    expect(resolveSelectedTaskId(tasks, "missing")).toBeNull()
+    expect(resolveSelectedTaskId(tasks, "done")).toBeNull()
+    expect(resolveSelectedTaskId(tasks, 42)).toBeNull()
+  })
+
+  it("clears a removed selection and increments only its completed focus", () => {
+    const tasks: GuestTask[] = [
+      { id: "selected", title: "Selected task", completed: false, pomodoros: 1 },
+      { id: "other", title: "Other task", completed: false, pomodoros: 3 },
+    ]
+    expect(incrementTaskPomodoros(tasks, "selected")).toEqual([{ ...tasks[0], pomodoros: 2 }, tasks[1]])
+    expect(resolveSelectedTaskId(tasks.filter((task) => task.id !== "selected"), "selected")).toBeNull()
   })
 })
