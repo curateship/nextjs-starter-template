@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Change"
+  short_description: "Turn requests into actionable code plans"
+  default_prompt: "Use $plan-change to turn this request into a focused implementation plan."

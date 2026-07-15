@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship Release"
+  short_description: "Prepare and verify a production release"
+  default_prompt: "Use $ship-release to prepare this change for a safe production release."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Change"
+  short_description: "Review and commit changes without pushing"
+  default_prompt: "Use $commit-change to review and commit the current changes locally."

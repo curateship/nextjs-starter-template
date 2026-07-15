@@ -9,6 +9,7 @@ Guidance for agents working in Trading.
 - ATrading tasks live in `workspace/tasks/`.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
+- Before building or changing UI, read and follow `workspace/docs/ui-rules.md`.
 - **Before back-testing any strategy, read and follow `workspace/docs/back-testing-rule.md`.**
 - **Before building or changing any UI/layout, read and follow `workspace/docs/ui-ux.md` (design guide — all layout gaps must match the site gap).**
 

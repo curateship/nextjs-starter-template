@@ -1,4 +1,0 @@
-interface:
-  display_name: "New Features Ideation"
-  short_description: "Rank project feature opportunities"
-  default_prompt: "Use $new-features-ideation to scan this project and rank feature opportunities."

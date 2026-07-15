@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate App"
+  short_description: "Verify changed workflows in the running app"
+  default_prompt: "Use $validate-app to verify this change in the relevant running application."
