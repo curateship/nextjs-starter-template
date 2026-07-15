@@ -1,4 +1,4 @@
-import { AlertCircleIcon, Trash2Icon } from "lucide-react"
+import { AlertCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,12 +27,14 @@ export function AutomationInspector({
   selectedNode,
   errors,
   onNodeChange,
+  onAddNode,
   onDeleteNode,
 }: {
   className?: string
   selectedNode: AutomationNode | null
   errors: AutomationValidationError[]
   onNodeChange: (node: AutomationNode) => void
+  onAddNode?: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
 }) {
   const nodeErrors = selectedNode
@@ -96,6 +98,17 @@ export function AutomationInspector({
               of them.
             </div>
           )}
+
+          {selectedNode && onAddNode ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onAddNode(selectedNode)}
+            >
+              <PlusIcon className="size-4" />
+              Add node
+            </Button>
+          ) : null}
 
           {selectedNode ? (
             <Button

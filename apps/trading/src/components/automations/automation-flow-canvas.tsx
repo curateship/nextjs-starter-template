@@ -54,6 +54,7 @@ export function AutomationFlowCanvas({
   onSelectNode,
   onSelectEdge,
   onSizeChange,
+  onDropNode,
 }: {
   graph: AutomationGraph
   errors: AutomationValidationError[]
@@ -63,6 +64,7 @@ export function AutomationFlowCanvas({
   onSelectNode: (nodeId: string | null) => void
   onSelectEdge: (edgeId: string | null) => void
   onSizeChange: (size: CanvasSize) => void
+  onDropNode?: (position: CanvasPoint) => void
 }) {
   const canvasRef = React.useRef<HTMLDivElement | null>(null)
   const dragRef = React.useRef<DragState | null>(null)
@@ -339,6 +341,20 @@ export function AutomationFlowCanvas({
       aria-label="Automation canvas"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onDragOver={(event) => {
+        if (!onDropNode) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = "copy"
+      }}
+      onDrop={(event) => {
+        if (!onDropNode) return
+        event.preventDefault()
+        const point = worldFromClient(event.clientX, event.clientY)
+        onDropNode({
+          x: point.x - NODE_WIDTH / 2,
+          y: point.y - NODE_HEIGHT / 2,
+        })
+      }}
       onPointerDown={(event) => {
         if (event.button !== 0 || event.target !== event.currentTarget) return
         event.preventDefault()
