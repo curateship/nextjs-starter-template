@@ -224,6 +224,13 @@ struct GitFile {
     app_path: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneratedGitCommitMessage {
+    message: String,
+    files: Vec<GitFile>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DiffHunk {
@@ -1368,6 +1375,32 @@ fn git_status_basic(
         develop_commits: Vec::new(),
         develop_files: Vec::new(),
     })
+}
+
+#[tauri::command]
+fn git_generate_commit_message(
+    workspace_id: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<GeneratedGitCommitMessage, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let files = git_files_for(&workspace)?;
+    let semantic_paths = files
+        .iter()
+        .filter(|file| !is_support_path(file.app_path.as_deref().unwrap_or(file.path.as_str())))
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let diff = if semantic_paths.is_empty() {
+        String::new()
+    } else {
+        run_git_with_paths(
+            &workspace.worktree_root,
+            &["diff", "--unified=0", "HEAD", "--"],
+            &semantic_paths,
+        )?
+    };
+    let message = generate_commit_message(&files, &diff)?;
+
+    Ok(GeneratedGitCommitMessage { message, files })
 }
 
 #[tauri::command]
@@ -2554,13 +2587,13 @@ mod tests {
     use super::{
         clean_repo_path, cleanup_created_worktree, commit_count, commit_generated_app_scaffold,
         delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
-        find_custom_shell_scaffold_dir, generated_database_port, generated_database_port_from_env,
-        git_branch_exists, git_status_lines, has_origin_remote, new_app_repo_target,
-        normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg, primary_worktree_for,
-        read_git_repo_text_file, render_task_template, reorder_workspace_records,
-        rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry, sync_workspace_branch,
-        validate_editor_settings, validate_new_app_name, DiffHunk, EditorSettings, WorkspaceRecord,
-        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        find_custom_shell_scaffold_dir, generate_commit_message, generated_database_port,
+        generated_database_port_from_env, git_branch_exists, git_status_lines, has_origin_remote,
+        new_app_repo_target, normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg,
+        primary_worktree_for, read_git_repo_text_file, render_task_template,
+        reorder_workspace_records, rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry,
+        sync_workspace_branch, validate_editor_settings, validate_new_app_name, DiffHunk,
+        EditorSettings, GitFile, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2571,6 +2604,14 @@ mod tests {
     };
 
     const WORKSPACE_10_BRANCH: &str = "personal-ide/workspace-10";
+
+    fn changed_file(status: &str, path: &str) -> GitFile {
+        GitFile {
+            status: status.to_string(),
+            path: path.to_string(),
+            app_path: Some(path.to_string()),
+        }
+    }
 
     fn temp_path(label: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -3228,6 +3269,143 @@ mod tests {
     }
 
     #[test]
+    fn commit_message_rejects_empty_changes() {
+        assert_eq!(
+            generate_commit_message(&[], "").unwrap_err(),
+            "No changes to describe"
+        );
+    }
+
+    #[test]
+    fn commit_message_uses_added_for_new_files() {
+        let files = vec![changed_file("??", "src/components/settings-page.tsx")];
+
+        assert_eq!(
+            generate_commit_message(&files, "").unwrap(),
+            "Added settings page"
+        );
+    }
+
+    #[test]
+    fn commit_message_names_two_changed_areas() {
+        let files = vec![
+            changed_file("M", "src/app/native/git.ts"),
+            changed_file("M", "src/components/personal-ide/changes-panel.tsx"),
+            changed_file("M", "src/hooks/use-git-changes.ts"),
+            changed_file("M", "workspace/docs/architecture-overview.md"),
+        ];
+        let diff = r#"
++struct GeneratedGitCommitMessage {
++fn git_generate_commit_message(
++export type GeneratedGitCommitMessage = {
++export function generateGitCommitMessage(workspaceId: string) {
++async function generateCommitMessage() {
++onGenerateCommitMessage={generateCommitMessage}
+"#;
+
+        assert_eq!(
+            generate_commit_message(&files, diff).unwrap(),
+            "Added commit message generator"
+        );
+    }
+
+    #[test]
+    fn commit_message_uses_status_based_verbs() {
+        let deleted = vec![changed_file("D", "src/legacy-panel.tsx")];
+        let renamed = vec![changed_file("R", "src/current-panel.tsx")];
+        let mixed = vec![
+            changed_file("??", "src/new-panel.tsx"),
+            changed_file("M", "src/current-panel.tsx"),
+        ];
+
+        assert_eq!(
+            generate_commit_message(&deleted, "").unwrap(),
+            "Removed legacy panel"
+        );
+        assert_eq!(
+            generate_commit_message(&renamed, "").unwrap(),
+            "Renamed current panel"
+        );
+        assert_eq!(
+            generate_commit_message(&mixed, "").unwrap(),
+            "Modified new panel and current panel"
+        );
+    }
+
+    #[test]
+    fn commit_message_uses_fixed_for_fix_changes() {
+        let files = vec![changed_file("M", "src/commit-message-generator.ts")];
+        let diff = r#"
++function fixCommitMessageGenerator() {
+"#;
+
+        assert_eq!(
+            generate_commit_message(&files, diff).unwrap(),
+            "Fixed commit message generator"
+        );
+    }
+
+    #[test]
+    fn commit_message_does_not_treat_fixed_values_as_fixes() {
+        let files = vec![changed_file("M", "src/commit-message-generator.ts")];
+        let diff = "+position: fixed;";
+
+        assert_eq!(
+            generate_commit_message(&files, diff).unwrap(),
+            "Modified commit message generator"
+        );
+    }
+
+    #[test]
+    fn commit_message_recognizes_support_only_changes() {
+        let docs = vec![
+            changed_file("M", "README.md"),
+            changed_file("??", "workspace/docs/git.md"),
+        ];
+        let tests = vec![
+            changed_file("M", "src/app.test.ts"),
+            changed_file("M", "src-tauri/tests/git_test.rs"),
+        ];
+        let locks = vec![
+            changed_file("M", "package-lock.json"),
+            changed_file("M", "src-tauri/Cargo.lock"),
+        ];
+
+        assert_eq!(
+            generate_commit_message(&docs, "").unwrap(),
+            "Modified documentation"
+        );
+        assert_eq!(
+            generate_commit_message(&tests, "").unwrap(),
+            "Modified tests"
+        );
+        assert_eq!(
+            generate_commit_message(&locks, "").unwrap(),
+            "Modified dependencies"
+        );
+    }
+
+    #[test]
+    fn commit_message_uses_backend_for_generic_tauri_files() {
+        let files = vec![changed_file("M", "src-tauri/src/lib.rs")];
+
+        assert_eq!(
+            generate_commit_message(&files, "").unwrap(),
+            "Modified Tauri backend"
+        );
+    }
+
+    #[test]
+    fn commit_message_falls_back_without_cutting_long_targets() {
+        let path = format!("src/{}.ts", "long-component-name-".repeat(5));
+        let files = vec![changed_file("M", &path)];
+        let message = generate_commit_message(&files, "").unwrap();
+
+        assert_eq!(message, "Modified 1 file");
+        assert!(message.chars().count() <= 72);
+    }
+
+    #[test]
     fn clean_repo_path_rejects_backslash_parent_segments() {
         assert!(clean_repo_path("..\\local-apps.json").is_err());
     }
@@ -3552,6 +3730,330 @@ fn git_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
             })
         })
         .collect::<Result<Vec<_>, String>>()
+}
+
+fn generate_commit_message(files: &[GitFile], diff: &str) -> Result<String, String> {
+    if files.is_empty() {
+        return Err("No changes to describe".to_string());
+    }
+
+    let semantic_target = semantic_target_from_diff(diff);
+    let describes_fix = diff
+        .lines()
+        .filter(|line| line.starts_with('+') && !line.starts_with("+++"))
+        .any(|line| {
+            line[1..]
+                .split(|character: char| {
+                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
+                })
+                .any(|identifier| {
+                    let phrase = humanize_identifier(identifier);
+                    let mut words = phrase.split_whitespace();
+                    matches!(words.next(), Some("fix" | "fixed" | "fixes" | "fixing"))
+                        && words.next().is_some()
+                })
+        });
+    let verb = if describes_fix {
+        "Fixed"
+    } else if semantic_target.is_some() {
+        "Added"
+    } else if files
+        .iter()
+        .all(|file| file.status == "??" || file.status.contains('A'))
+    {
+        "Added"
+    } else if files.iter().all(|file| file.status.contains('D')) {
+        "Removed"
+    } else if files.iter().all(|file| file.status.contains('R')) {
+        "Renamed"
+    } else {
+        "Modified"
+    };
+
+    let paths = files
+        .iter()
+        .map(|file| file.app_path.as_deref().unwrap_or(&file.path))
+        .collect::<Vec<_>>();
+    let category = if paths.iter().all(|path| is_documentation_path(path)) {
+        Some("documentation")
+    } else if paths.iter().all(|path| is_test_path(path)) {
+        Some("tests")
+    } else if paths.iter().all(|path| is_lockfile_path(path)) {
+        Some("dependencies")
+    } else if paths.iter().all(|path| is_configuration_path(path)) {
+        Some("project setup")
+    } else {
+        None
+    };
+
+    let mut targets = Vec::new();
+    if semantic_target.is_none() && category.is_none() {
+        for path in &paths {
+            if is_support_path(path) {
+                continue;
+            }
+            let Some(target) = target_from_path(path) else {
+                continue;
+            };
+            let target_lower = target.to_lowercase();
+            if targets
+                .iter()
+                .any(|existing: &String| existing.to_lowercase().contains(&target_lower))
+            {
+                continue;
+            }
+            if let Some(index) = targets
+                .iter()
+                .position(|existing: &String| target_lower.contains(&existing.to_lowercase()))
+            {
+                targets[index] = target;
+            } else {
+                targets.push(target);
+            }
+        }
+    }
+
+    let file_count_target = if files.len() == 1 {
+        "1 file".to_string()
+    } else {
+        format!("{} files", files.len())
+    };
+    let target = semantic_target
+        .or_else(|| category.map(str::to_string))
+        .or_else(|| match targets.as_slice() {
+            [first, second, ..] => Some(format!("{first} and {second}")),
+            [first] => Some(first.clone()),
+            [] => common_directory_target(&paths),
+        })
+        .unwrap_or_else(|| file_count_target.clone());
+    let message = format!("{verb} {target}");
+
+    if message.chars().count() <= 72 {
+        return Ok(message);
+    }
+
+    if let Some(first) = targets.first() {
+        let shorter = format!("{verb} {first}");
+        if shorter.chars().count() <= 72 {
+            return Ok(shorter);
+        }
+    }
+
+    Ok(format!("{verb} {file_count_target}"))
+}
+
+fn semantic_target_from_diff(diff: &str) -> Option<String> {
+    let mut counts = HashMap::<String, usize>::new();
+
+    for line in diff
+        .lines()
+        .filter(|line| line.starts_with('+') && !line.starts_with("+++"))
+    {
+        for identifier in line[1..]
+            .split(|character: char| {
+                !character.is_ascii_alphanumeric() && character != '_' && character != '-'
+            })
+            .filter(|identifier| !identifier.is_empty())
+        {
+            let phrase = humanize_identifier(identifier);
+            let words = phrase.split_whitespace().collect::<Vec<_>>();
+            let start = words
+                .iter()
+                .take_while(|word| matches!(**word, "handle" | "on" | "use"))
+                .count();
+            let words = &words[start..];
+            let Some((action_index, action)) =
+                words.iter().enumerate().find_map(|(index, word)| {
+                    let action = match *word {
+                        "create" | "created" | "creates" | "creating" => "creation",
+                        "format" | "formatted" | "formats" | "formatting" => "formatting",
+                        "generate" | "generated" | "generates" | "generating" => "generator",
+                        "parse" | "parsed" | "parses" | "parsing" => "parser",
+                        "render" | "rendered" | "renders" | "rendering" => "rendering",
+                        "sync" | "synced" | "syncing" | "syncs" => "sync",
+                        "validate" | "validated" | "validates" | "validating" => "validation",
+                        _ => return None,
+                    };
+                    Some((index, action))
+                })
+            else {
+                continue;
+            };
+            let topic = words
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| *index != action_index)
+                .map(|(_, word)| *word)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if topic.is_empty() {
+                continue;
+            }
+
+            *counts
+                .entry(format!("{topic} {action}").to_lowercase())
+                .or_default() += 1;
+        }
+    }
+
+    let mut best = None::<(String, usize)>;
+    for candidate in counts.keys() {
+        let score = counts
+            .iter()
+            .filter(|(other, _)| other.ends_with(candidate))
+            .map(|(_, count)| count)
+            .sum();
+        if score < 2 {
+            continue;
+        }
+        let replace = best.as_ref().is_none_or(|(current, current_score)| {
+            score > *current_score
+                || (score == *current_score
+                    && (candidate.len() < current.len()
+                        || (candidate.len() == current.len() && candidate < current)))
+        });
+        if replace {
+            best = Some((candidate.clone(), score));
+        }
+    }
+
+    best.map(|(target, _)| humanize_identifier(&target))
+}
+
+fn is_documentation_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".md") || lower.contains("/docs/")
+}
+
+fn is_test_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.contains("/tests/")
+        || lower.contains(".test.")
+        || lower.contains(".spec.")
+        || lower.ends_with("_test.rs")
+}
+
+fn is_lockfile_path(path: &str) -> bool {
+    matches!(
+        path.rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .to_lowercase()
+            .as_str(),
+        "cargo.lock" | "package-lock.json" | "pnpm-lock.yaml" | "yarn.lock"
+    )
+}
+
+fn is_configuration_path(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
+    is_lockfile_path(path)
+        || name == "package.json"
+        || name == "cargo.toml"
+        || name == "dockerfile"
+        || name.starts_with("tsconfig")
+        || name.contains(".config.")
+}
+
+fn is_support_path(path: &str) -> bool {
+    is_documentation_path(path) || is_test_path(path) || is_configuration_path(path)
+}
+
+fn target_from_path(path: &str) -> Option<String> {
+    let name = path.rsplit('/').next()?;
+    let stem = name.split('.').next()?;
+    let mut target = humanize_identifier(stem);
+    if let Some(without_hook_prefix) = target.strip_prefix("use ") {
+        target = without_hook_prefix.to_string();
+    }
+
+    if matches!(
+        target.to_lowercase().as_str(),
+        "app" | "constants" | "index" | "lib" | "main" | "mod" | "types" | "utils"
+    ) {
+        None
+    } else {
+        Some(target)
+    }
+}
+
+fn humanize_identifier(value: &str) -> String {
+    let mut spaced = String::new();
+    let mut previous_was_lowercase = false;
+    for character in value.chars() {
+        if character == '-' || character == '_' {
+            spaced.push(' ');
+            previous_was_lowercase = false;
+        } else {
+            if character.is_uppercase() && previous_was_lowercase {
+                spaced.push(' ');
+            }
+            spaced.push(character.to_ascii_lowercase());
+            previous_was_lowercase = character.is_lowercase();
+        }
+    }
+
+    spaced
+        .split_whitespace()
+        .map(|word| match word {
+            "api" => "API",
+            "git" => "Git",
+            "ide" => "IDE",
+            "ui" => "UI",
+            _ => word,
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn common_directory_target(paths: &[&str]) -> Option<String> {
+    let directories = paths
+        .iter()
+        .map(|path| {
+            let mut parts = path.split('/').collect::<Vec<_>>();
+            parts.pop();
+            parts
+        })
+        .collect::<Vec<_>>();
+    let first = directories.first()?;
+    let common_length = first
+        .iter()
+        .enumerate()
+        .take_while(|(index, segment)| {
+            directories
+                .iter()
+                .all(|parts| parts.get(*index) == Some(segment))
+        })
+        .count();
+
+    first[..common_length]
+        .iter()
+        .rev()
+        .find(|segment| {
+            !matches!(
+                segment.to_lowercase().as_str(),
+                "app"
+                    | "apps"
+                    | "components"
+                    | "hooks"
+                    | "native"
+                    | "src"
+                    | "src-tauri"
+                    | "workspace"
+            )
+        })
+        .map(|segment| humanize_identifier(segment))
+        .or_else(|| {
+            paths
+                .iter()
+                .all(|path| path.starts_with("src-tauri/"))
+                .then(|| "Tauri backend".to_string())
+        })
+        .or_else(|| {
+            paths
+                .iter()
+                .all(|path| path.starts_with("src/"))
+                .then(|| "app".to_string())
+        })
 }
 
 fn unpushed_commit_count(workspace: &WorkspaceRecord) -> Result<u32, String> {
@@ -4114,6 +4616,7 @@ pub fn run() {
             list_resource_folders,
             git_status,
             git_status_basic,
+            git_generate_commit_message,
             diff_hunks,
             repo_diff_hunks,
             merge_diff_hunks,

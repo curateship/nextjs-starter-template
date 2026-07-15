@@ -8,6 +8,7 @@ import {
   diffHunks,
   discardGitChanges,
   discardGitFile,
+  generateGitCommitMessage,
   getGitStatus,
   mergeDiffHunks,
   readDevelopTextFile,
@@ -128,6 +129,26 @@ export function useGitChanges({
       await onRefreshResources()
     } catch (error) {
       setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function generateCommitMessage() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("generate")
+
+    try {
+      const generated = await generateGitCommitMessage(activeWorkspaceId)
+      if (activeWorkspaceIdRef.current !== activeWorkspaceId) return
+
+      setGitStatus((current) => ({ ...current, files: generated.files }))
+      setCommitMessage(generated.message)
+    } catch (error) {
+      if (activeWorkspaceIdRef.current === activeWorkspaceId) {
+        setGitError(readableError(error))
+      }
     } finally {
       setBusyAction("")
     }
@@ -282,6 +303,7 @@ export function useGitChanges({
     commitMessage,
     discardChangedFile,
     discardChanges,
+    generateCommitMessage,
     gitError,
     gitStatus,
     gitStatusRef,

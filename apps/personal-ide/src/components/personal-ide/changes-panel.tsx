@@ -6,6 +6,7 @@ import type { GitFile, GitStatus } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDismissibleMenu } from "@/hooks/use-dismissible-menu"
 import { cn } from "@/lib/utils"
 
@@ -19,6 +20,7 @@ export function ChangesPanel({
   onCommitMessageChange,
   onDiscardAll,
   onDiscardFile,
+  onGenerateCommitMessage,
   onOpenFile,
   onOpenMergeFile,
   onRefresh,
@@ -33,6 +35,7 @@ export function ChangesPanel({
   onCommitMessageChange: (value: string) => void
   onDiscardAll: () => void
   onDiscardFile: (file: GitFile) => void
+  onGenerateCommitMessage: () => void
   onOpenFile: (file: GitFile) => void
   onOpenMergeFile: (file: GitFile) => void
   onRefresh: () => void
@@ -204,13 +207,28 @@ export function ChangesPanel({
             placeholder="Commit message"
             className="bg-background pr-9"
           />
-          <Sparkles className="absolute top-2 right-2 size-4 text-muted-foreground" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="absolute top-0.5 right-0.5"
+                disabled={Boolean(busyAction) || !gitStatus.branch || !gitStatus.files.length}
+                onClick={onGenerateCommitMessage}
+                aria-label="Generate commit message"
+              >
+                <Sparkles className={cn(busyAction === "generate" && "animate-pulse")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Generate commit message</TooltipContent>
+          </Tooltip>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
             className="bg-background"
-            disabled={busyAction === "commit" || !commitMessage.trim()}
+            disabled={busyAction === "commit" || busyAction === "generate" || !commitMessage.trim()}
             onClick={onCommit}
           >
             <GitCommitHorizontal />
@@ -219,7 +237,12 @@ export function ChangesPanel({
           <Button
             variant="outline"
             className="bg-background"
-            disabled={busyAction === "sync" || !gitStatus.branch || syncWorkCount === 0}
+            disabled={
+              busyAction === "sync" ||
+              busyAction === "generate" ||
+              !gitStatus.branch ||
+              syncWorkCount === 0
+            }
             onClick={onSync}
           >
             <RefreshCw />
@@ -238,7 +261,7 @@ export function ChangesPanel({
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-              disabled={busyAction === "discard"}
+              disabled={busyAction === "discard" || busyAction === "generate"}
               onClick={() => {
                 const { file } = discardMenu
                 if (!file) return
@@ -253,7 +276,9 @@ export function ChangesPanel({
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-            disabled={busyAction === "discard" || !gitStatus.files.length}
+            disabled={
+              busyAction === "discard" || busyAction === "generate" || !gitStatus.files.length
+            }
             onClick={() => {
               setDiscardMenu(null)
               onDiscardAll()

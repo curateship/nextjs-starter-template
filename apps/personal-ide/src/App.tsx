@@ -207,6 +207,7 @@ function App() {
     commitMessage,
     discardChangedFile,
     discardChanges,
+    generateCommitMessage,
     gitError,
     gitStatus,
     gitStatusRef,
@@ -718,6 +719,7 @@ function App() {
                     onCommitMessageChange={setCommitMessage}
                     onDiscardAll={discardChanges}
                     onDiscardFile={discardChangedFile}
+                    onGenerateCommitMessage={generateCommitMessage}
                     onOpenFile={openChangedFile}
                     onOpenMergeFile={openMergeFile}
                     onRefresh={() => refreshGit(undefined, "full")}
