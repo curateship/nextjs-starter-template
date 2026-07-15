@@ -11,7 +11,7 @@ function Toaster({ ...props }: ToasterProps) {
       theme={theme}
       className="toaster group"
       position="top-center"
-      duration={10000}
+      duration={4000}
       closeButton
       // Color toasts by severity: green success, red error, amber warning,
       // blue info. Neutral `toast()` calls keep the popover styling below.

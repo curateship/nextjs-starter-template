@@ -8,6 +8,7 @@ import {
   MessageSquareIcon,
   RadarIcon,
   ThumbsUpIcon,
+  Trash2Icon,
   UsersIcon,
 } from "lucide-react"
 
@@ -15,9 +16,16 @@ import { alertRoute, ALERT_TYPE_LABELS } from "@/components/scanner/alert-meta"
 import { Badge } from "@/components/ui/badge"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import {
+  ConfirmDeleteDialog,
+  MassDeleteToolbarButton,
+  SelectVisibleHead,
+} from "@/components/feedback-shared"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -33,11 +41,19 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
+  clearAdminNotifications,
+  deleteAdminNotifications,
   getNotificationErrorMessage,
   listAllNotifications,
+  type NotificationDeleteTarget,
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
+import {
+  listTradingNotifications,
+  markTradingNotificationRead,
+  type TradingNotificationItem,
+} from "@/lib/api/trading-notifications"
 import {
   loadAlertsPage,
   markAlertRead,
@@ -54,6 +70,7 @@ import {
   type MarketScannerAlertItem,
 } from "@/lib/market-scanner"
 import { cn } from "@/lib/utils"
+import { useRowSelection } from "@/lib/use-row-selection"
 
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType | "alert"
@@ -68,10 +85,41 @@ type NotificationSortColumn =
 // A row is a feedback notification or a scanner alert — the same unified feed
 // shown in the top-right notification tray.
 type UnifiedRow =
-  | { kind: "feedback"; id: string; createdAt: string; read: boolean; feedback: NotificationItem }
-  | { kind: "alert"; id: string; createdAt: string; read: boolean; alert: ScannerAlertItem }
-  | { kind: "market"; id: string; createdAt: string; read: boolean; market: MarketScannerAlertItem }
-  | { kind: "priceAlert"; id: string; createdAt: string; read: boolean; priceAlert: AlertEventItem }
+  | {
+      kind: "feedback"
+      id: string
+      createdAt: string
+      read: boolean
+      feedback: NotificationItem
+    }
+  | {
+      kind: "alert"
+      id: string
+      createdAt: string
+      read: boolean
+      alert: ScannerAlertItem
+    }
+  | {
+      kind: "trading"
+      id: string
+      createdAt: string
+      read: boolean
+      trading: TradingNotificationItem
+    }
+  | {
+      kind: "market"
+      id: string
+      createdAt: string
+      read: boolean
+      market: MarketScannerAlertItem
+    }
+  | {
+      kind: "priceAlert"
+      id: string
+      createdAt: string
+      read: boolean
+      priceAlert: AlertEventItem
+    }
 
 const ALERT_TRAY_LIMIT = 100
 
@@ -90,6 +138,7 @@ const feedbackTypeLabels: Record<NotificationType, string> = {
 
 function rowTypeLabel(row: UnifiedRow): string {
   if (row.kind === "feedback") return feedbackTypeLabels[row.feedback.type]
+  if (row.kind === "trading") return "Trading"
   if (row.kind === "market") return "Market scanner"
   if (row.kind === "priceAlert") return "Price alert"
   return ALERT_TYPE_LABELS[row.alert.type] ?? row.alert.type
@@ -97,12 +146,18 @@ function rowTypeLabel(row: UnifiedRow): string {
 
 function rowActivity(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.actor_name
+  if (row.kind === "trading") {
+    return `${row.trading.coin} ${row.trading.kind.replaceAll("_", " ")}`
+  }
   if (row.kind === "market") return row.market.title
   return row.kind === "priceAlert" ? row.priceAlert.title : row.alert.title
 }
 
 function rowDetail(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.feedback_message
+  if (row.kind === "trading") {
+    return `${row.trading.size} ${row.trading.coin} at $${Number(row.trading.price).toLocaleString()}`
+  }
   if (row.kind === "market") return row.market.body ?? ""
   return (
     (row.kind === "priceAlert" ? row.priceAlert.body : row.alert.body) ?? ""
@@ -111,6 +166,7 @@ function rowDetail(row: UnifiedRow): string {
 
 function rowSource(row: UnifiedRow): string {
   if (row.kind === "feedback") return row.feedback.recipient_name
+  if (row.kind === "trading") return row.trading.walletLabel
   if (row.kind === "market") return row.market.coin
   return row.kind === "priceAlert"
     ? row.priceAlert.coin
@@ -145,12 +201,18 @@ export function NotificationsPage({
     []
   )
   const [alerts, setAlerts] = React.useState<ScannerAlertItem[]>([])
-  const [marketAlerts, setMarketAlerts] = React.useState<MarketScannerAlertItem[]>([])
+  const [trading, setTrading] = React.useState<TradingNotificationItem[]>([])
+  const [marketAlerts, setMarketAlerts] = React.useState<
+    MarketScannerAlertItem[]
+  >([])
   const [priceAlerts, setPriceAlerts] = React.useState<AlertEventItem[]>([])
   const [priceAlertPage, setPriceAlertPage] = React.useState(1)
   const [priceAlertHasMore, setPriceAlertHasMore] = React.useState(false)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
+  const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
@@ -160,22 +222,25 @@ export function NotificationsPage({
   const [sortDirection, setSortDirection] =
     React.useState<TableSortDirection>("desc")
 
-  const loadNotifications = React.useCallback(async (cursor?: string) => {
-    setError(null)
+  const loadNotifications = React.useCallback(
+    async (cursor?: string) => {
+      setError(null)
 
-    try {
-      const data = await listAllNotifications({
-        cursor,
-        limit: defaultRowsPerPage,
-      })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
-      setNextCursor(data.next_cursor)
-    } catch (loadError) {
-      setError(getNotificationErrorMessage(loadError))
-    }
-  }, [defaultRowsPerPage])
+      try {
+        const data = await listAllNotifications({
+          cursor,
+          limit: defaultRowsPerPage,
+        })
+        setNotifications((current) =>
+          cursor ? [...current, ...data.notifications] : data.notifications
+        )
+        setNextCursor(data.next_cursor)
+      } catch (loadError) {
+        setError(getNotificationErrorMessage(loadError))
+      }
+    },
+    [defaultRowsPerPage]
+  )
 
   const loadAlerts = React.useCallback(async () => {
     try {
@@ -186,18 +251,29 @@ export function NotificationsPage({
     }
   }, [])
 
-  const loadPriceAlerts = React.useCallback(async (page = 1) => {
+  const loadTrading = React.useCallback(async () => {
     try {
-      const data = await loadAlertLog({ page, pageSize: defaultRowsPerPage })
-      setPriceAlerts((current) =>
-        page === 1 ? data.items : [...current, ...data.items]
-      )
-      setPriceAlertPage(page)
-      setPriceAlertHasMore(page * data.pageSize < data.total)
+      setTrading((await listTradingNotifications()).items)
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
     }
-  }, [defaultRowsPerPage])
+  }, [])
+
+  const loadPriceAlerts = React.useCallback(
+    async (page = 1) => {
+      try {
+        const data = await loadAlertLog({ page, pageSize: defaultRowsPerPage })
+        setPriceAlerts((current) =>
+          page === 1 ? data.items : [...current, ...data.items]
+        )
+        setPriceAlertPage(page)
+        setPriceAlertHasMore(page * data.pageSize < data.total)
+      } catch (loadError) {
+        setError(getNotificationErrorMessage(loadError))
+      }
+    },
+    [defaultRowsPerPage]
+  )
 
   const loadMarketAlerts = React.useCallback(async () => {
     try {
@@ -211,10 +287,17 @@ export function NotificationsPage({
     queueMicrotask(() => {
       void loadNotifications()
       void loadAlerts()
+      void loadTrading()
       void loadMarketAlerts()
       void loadPriceAlerts()
     })
-  }, [loadNotifications, loadAlerts, loadMarketAlerts, loadPriceAlerts])
+  }, [
+    loadNotifications,
+    loadAlerts,
+    loadTrading,
+    loadMarketAlerts,
+    loadPriceAlerts,
+  ])
 
   const rows = React.useMemo<UnifiedRow[]>(() => {
     return [
@@ -232,6 +315,13 @@ export function NotificationsPage({
         read: a.read_at !== null,
         alert: a,
       })),
+      ...trading.map((item) => ({
+        kind: "trading" as const,
+        id: `t:${item.id}`,
+        createdAt: item.occurredAt,
+        read: item.readAt !== null,
+        trading: item,
+      })),
       ...marketAlerts.map((item) => ({
         kind: "market" as const,
         id: `m:${item.id}`,
@@ -247,7 +337,7 @@ export function NotificationsPage({
         priceAlert: item,
       })),
     ]
-  }, [notifications, alerts, marketAlerts, priceAlerts])
+  }, [notifications, alerts, trading, marketAlerts, priceAlerts])
 
   const filteredRows = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -272,6 +362,7 @@ export function NotificationsPage({
           typeFilter === "all" ||
           (typeFilter === "alert" &&
             (row.kind === "alert" ||
+              row.kind === "trading" ||
               row.kind === "market" ||
               row.kind === "priceAlert")) ||
           (row.kind === "feedback" && row.feedback.type === typeFilter)
@@ -301,6 +392,8 @@ export function NotificationsPage({
       })
   }, [rows, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
 
+  const selection = useRowSelection(filteredRows.map((row) => row.id))
+
   const toggleSort = (column: NotificationSortColumn) => {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
@@ -313,6 +406,25 @@ export function NotificationsPage({
   async function openRow(row: UnifiedRow) {
     if (row.kind === "feedback") {
       onOpenFeedbackThread(row.feedback.feedback_id)
+      return
+    }
+    if (row.kind === "trading") {
+      if (!row.trading.readAt) {
+        try {
+          const result = await markTradingNotificationRead(row.trading.id)
+          setTrading((current) =>
+            current.map((item) =>
+              item.id === result.id ? { ...item, readAt: result.readAt } : item
+            )
+          )
+        } catch {
+          // navigate anyway; the read state will reconcile on next load
+        }
+      }
+      void navigate({
+        to: "/trade",
+        search: { market: row.trading.coin, wallet: row.trading.walletId },
+      })
       return
     }
     if (row.kind === "market") {
@@ -378,6 +490,78 @@ export function NotificationsPage({
     }
   }
 
+  function deleteTarget(row: UnifiedRow): NotificationDeleteTarget {
+    const item =
+      row.kind === "feedback"
+        ? row.feedback
+        : row.kind === "alert"
+          ? row.alert
+          : row.kind === "trading"
+            ? row.trading
+            : row.kind === "market"
+              ? row.market
+              : row.priceAlert
+    return { kind: row.kind, id: item.id }
+  }
+
+  async function deleteSelected() {
+    const targets = rows
+      .filter((row) => selection.selectedIds.has(row.id))
+      .map(deleteTarget)
+    if (!targets.length) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const result = await deleteAdminNotifications(targets)
+      if (result.count !== targets.length) {
+        throw new Error("Some selected notifications could not be deleted.")
+      }
+      const deletedIds = new Set(selection.selectedIds)
+      setNotifications((current) =>
+        current.filter((item) => !deletedIds.has(`f:${item.id}`))
+      )
+      setAlerts((current) =>
+        current.filter((item) => !deletedIds.has(`a:${item.id}`))
+      )
+      setTrading((current) =>
+        current.filter((item) => !deletedIds.has(`t:${item.id}`))
+      )
+      setMarketAlerts((current) =>
+        current.filter((item) => !deletedIds.has(`m:${item.id}`))
+      )
+      setPriceAlerts((current) =>
+        current.filter((item) => !deletedIds.has(`p:${item.id}`))
+      )
+      selection.setSelectedIds(new Set())
+      setMassDeleteOpen(false)
+    } catch (cause) {
+      setError(getNotificationErrorMessage(cause))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function clearAll() {
+    setDeleting(true)
+    setError(null)
+    try {
+      await clearAdminNotifications()
+      setNotifications([])
+      setAlerts([])
+      setTrading([])
+      setMarketAlerts([])
+      setPriceAlerts([])
+      setNextCursor(null)
+      setPriceAlertHasMore(false)
+      selection.setSelectedIds(new Set())
+      setClearAllOpen(false)
+    } catch (cause) {
+      setError(getNotificationErrorMessage(cause))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="w-full">
       {error ? (
@@ -392,10 +576,28 @@ export function NotificationsPage({
 
       <DashboardTable
         title="Notifications"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={
+          <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+        }
         count={filteredRows.length}
+        selectedCount={selection.selectedIds.size}
+        onClearSelection={() => selection.setSelectedIds(new Set())}
         controls={
           <>
+            <MassDeleteToolbarButton
+              count={selection.selectedIds.size}
+              deleting={deleting}
+              onClick={() => setMassDeleteOpen(true)}
+            />
+            <DashboardToolbarButton
+              type="button"
+              variant="destructive"
+              disabled={rows.length === 0 || deleting}
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2Icon className="size-4" />
+              Clear all
+            </DashboardToolbarButton>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}
@@ -431,7 +633,7 @@ export function NotificationsPage({
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="alert">Scanner alerts</SelectItem>
+                <SelectItem value="alert">Alerts</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
               </SelectContent>
@@ -441,6 +643,12 @@ export function NotificationsPage({
         header={
           <TableHeader>
             <TableRow>
+              <SelectVisibleHead
+                allSelected={selection.visibleSelected}
+                partiallySelected={selection.visiblePartiallySelected}
+                onToggle={selection.toggleVisible}
+                ariaLabel="Select visible notifications"
+              />
               <TableHead column="main">
                 <TableSortButton
                   active={sortColumn === "activity"}
@@ -500,16 +708,15 @@ export function NotificationsPage({
         }
         isEmpty={filteredRows.length === 0}
         emptyText="No notifications found."
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "loadMore",
           count: filteredRows.length,
           label: "notifications",
           hasMore: Boolean(nextCursor) || priceAlertHasMore,
           loading: loadingMore,
-          onLoadMore: nextCursor || priceAlertHasMore
-            ? () => void loadMore()
-            : undefined,
+          onLoadMore:
+            nextCursor || priceAlertHasMore ? () => void loadMore() : undefined,
         }}
       >
         {filteredRows.map((row) => (
@@ -526,6 +733,17 @@ export function NotificationsPage({
               }
             }}
           >
+            <TableCell
+              column="select"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <Checkbox
+                checked={selection.selectedIds.has(row.id)}
+                onCheckedChange={() => selection.toggleRow(row.id)}
+                aria-label={`Select ${rowActivity(row)}`}
+              />
+            </TableCell>
             <TableCell column="main">
               <div className="flex items-center gap-2">
                 {row.kind === "feedback" ? (
@@ -536,6 +754,8 @@ export function NotificationsPage({
                   )
                 ) : row.kind === "market" || row.kind === "priceAlert" ? (
                   <RadarIcon className="size-4 text-muted-foreground" />
+                ) : row.kind === "trading" ? (
+                  <ArrowRightLeftIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <AlertGlyph type={row.alert.type} />
                 )}
@@ -543,20 +763,24 @@ export function NotificationsPage({
                   <p className="line-clamp-1 text-sm font-medium">
                     {row.kind === "feedback"
                       ? feedbackTypeLabels[row.feedback.type]
-                      : row.kind === "market"
-                        ? row.market.title
-                        : row.kind === "priceAlert"
-                          ? row.priceAlert.title
-                          : row.alert.title}
+                      : row.kind === "trading"
+                        ? `${row.trading.coin} ${row.trading.kind.replaceAll("_", " ")}`
+                        : row.kind === "market"
+                          ? row.market.title
+                          : row.kind === "priceAlert"
+                            ? row.priceAlert.title
+                            : row.alert.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {row.kind === "feedback"
                       ? row.feedback.actor_name
-                      : row.kind === "market"
-                        ? "Market scanner"
-                        : row.kind === "priceAlert"
-                          ? "Price alert"
-                          : "Whale Scanner"}
+                      : row.kind === "trading"
+                        ? row.trading.walletLabel
+                        : row.kind === "market"
+                          ? "Market scanner"
+                          : row.kind === "priceAlert"
+                            ? "Price alert"
+                            : "Whale Scanner"}
                   </p>
                 </div>
               </div>
@@ -582,6 +806,23 @@ export function NotificationsPage({
           </TableRow>
         ))}
       </DashboardTable>
+      <ConfirmDeleteDialog
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selection.selectedIds.size} notification${selection.selectedIds.size === 1 ? "" : "s"}?`}
+        body="This permanently removes the selected notification history."
+        deleting={deleting}
+        confirmDisabled={selection.selectedIds.size === 0}
+        onConfirm={() => void deleteSelected()}
+      />
+      <ConfirmDeleteDialog
+        open={clearAllOpen}
+        onOpenChange={setClearAllOpen}
+        title="Clear all notifications?"
+        body="This permanently removes all notification history shown on this dashboard."
+        deleting={deleting}
+        onConfirm={() => void clearAll()}
+      />
     </div>
   )
 }

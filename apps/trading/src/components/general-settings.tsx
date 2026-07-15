@@ -26,8 +26,8 @@ import {
 } from "@/lib/custom-shell"
 import { MAX_CANDLES_LIMIT, MIN_CANDLES } from "@/lib/backtest/types"
 import {
-  priceAlertBrowserEnabled,
-  setPriceAlertBrowserEnabled,
+  browserAlertsEnabled as browserAlertsPreferenceEnabled,
+  setBrowserAlertsEnabled as setBrowserAlertsPreference,
 } from "@/lib/browser-alerts"
 
 type GeneralSettingsProps = {
@@ -54,14 +54,14 @@ export function GeneralSettings({
         "Notification" in window ? Notification.permission : "unsupported"
       setBrowserPermission(permission)
       setBrowserAlertsEnabled(
-        permission === "granted" && priceAlertBrowserEnabled()
+        permission === "granted" && browserAlertsPreferenceEnabled()
       )
     })
   }, [])
 
   async function changeBrowserAlerts(enabled: boolean) {
     if (!enabled) {
-      setPriceAlertBrowserEnabled(false)
+      setBrowserAlertsPreference(false)
       setBrowserAlertsEnabled(false)
       return
     }
@@ -71,7 +71,7 @@ export function GeneralSettings({
         ? await Notification.requestPermission()
         : Notification.permission
     const nextEnabled = permission === "granted"
-    setPriceAlertBrowserEnabled(nextEnabled)
+    setBrowserAlertsPreference(nextEnabled)
     setBrowserPermission(permission)
     setBrowserAlertsEnabled(nextEnabled)
   }
@@ -181,9 +181,7 @@ export function GeneralSettings({
                 const next = Number(event.target.value)
                 onConfigChange({
                   ...config,
-                  maxCandles: Number.isFinite(next)
-                    ? next
-                    : config.maxCandles,
+                  maxCandles: Number.isFinite(next) ? next : config.maxCandles,
                 })
               }}
             />
@@ -229,8 +227,8 @@ export function GeneralSettings({
         <CardHeader>
           <CardTitle>Browser alerts</CardTitle>
           <CardDescription>
-            Control browser popups for alerts created from the Trade chart.
-            Market Scanner browser alerts are separate.
+            Control browser popups for Trade, trading, Market Scanner, and Whale
+            Scanner alerts.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -256,8 +254,8 @@ export function GeneralSettings({
                   : browserPermission === "unsupported"
                     ? "This browser does not support notifications."
                     : browserAlertsEnabled
-                      ? "Trade alert popups are on."
-                      : "Trade alert popups are off."}
+                      ? "Browser popups are on for all alerts."
+                      : "Browser popups are off for all alerts."}
               </p>
             </div>
           </div>

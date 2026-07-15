@@ -59,10 +59,7 @@ import {
   markMarketScannerAlertRead,
   pollMarketScannerAlerts,
 } from "@/lib/api/market-scanner"
-import {
-  alertTradeTarget,
-  type AlertEventItem,
-} from "@/lib/alerts"
+import { alertTradeTarget, type AlertEventItem } from "@/lib/alerts"
 import { showBrowserAlert } from "@/lib/browser-alerts"
 import {
   marketScannerTradeTarget,
@@ -415,6 +412,8 @@ export function NotificationCenter({
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
+  const seenScannerAlerts = React.useRef<Set<string> | null>(null)
+  const seenTradingAlerts = React.useRef<Set<string> | null>(null)
   const seenMarketAlerts = React.useRef<Set<string> | null>(null)
   const seenPriceAlerts = React.useRef<Set<string> | null>(null)
 
@@ -558,10 +557,28 @@ export function NotificationCenter({
         ])
       if (cancelled) return
       if (alertResult.status === "fulfilled") {
+        const next = alertResult.value.latest
+        if (seenScannerAlerts.current) {
+          for (const alert of next) {
+            if (!seenScannerAlerts.current.has(alert.id)) {
+              showBrowserAlert(alert, navigate)
+            }
+          }
+        }
+        seenScannerAlerts.current = new Set(next.map((alert) => alert.id))
         setAlertUnread(alertResult.value.unreadCount)
       }
       if (tradingResult.status === "fulfilled") {
-        setTrading(tradingResult.value.items)
+        const next = tradingResult.value.items
+        if (seenTradingAlerts.current) {
+          for (const alert of next) {
+            if (!seenTradingAlerts.current.has(alert.id)) {
+              showBrowserAlert(alert, navigate)
+            }
+          }
+        }
+        seenTradingAlerts.current = new Set(next.map((alert) => alert.id))
+        setTrading(next)
         setTradingUnread(tradingResult.value.unreadCount)
       }
       if (marketResult.status === "fulfilled") {

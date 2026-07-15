@@ -7,15 +7,14 @@ import {
   evaluateWindowAlert,
   nextPriceLevelState,
   nextThresholdState,
+  quickPriceAlert,
   type AlertRuleItem,
   type MarketBar,
 } from "@/lib/alerts"
 
 const MINUTE = 60_000
 
-function priceMoveRule(
-  overrides: Partial<AlertRuleItem> = {}
-): AlertRuleItem {
+function priceMoveRule(overrides: Partial<AlertRuleItem> = {}): AlertRuleItem {
   return {
     id: "rule-1",
     userId: "user-1",
@@ -270,6 +269,19 @@ describe("alertTradeTarget", () => {
     expect(alertTradeTarget("BTC")).toEqual({
       to: "/trade",
       search: { market: "BTC" },
+    })
+  })
+})
+
+describe("quickPriceAlert", () => {
+  it("creates the default chart alert without another confirmation step", () => {
+    expect(quickPriceAlert("BTC", 69_500)).toEqual({
+      name: "BTC price alert",
+      coin: "BTC",
+      kind: "price_level",
+      operator: "crossing",
+      level: 69_500,
+      triggerMode: "once",
     })
   })
 })

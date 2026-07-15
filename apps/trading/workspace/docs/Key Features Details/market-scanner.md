@@ -36,8 +36,8 @@ Rules are managed on the Market Scanner dashboard. Alerts appear on the
 separate Market Alerts dashboard and in the shared notification inbox. Browser
 alerts work only while Trading is open and browser permission is
 granted. The first poll establishes a baseline so old alerts do not create a
-burst of popups. Alert history is kept for 30 days and remains after a rule is
-deleted.
+burst of popups. The shared browser alert setting is under **Settings → General
+Settings**. Alert history is kept for 30 days and remains after a rule is deleted.
 
 TradingView-style chart alerts are separate. They have their own rules, Alert
 Log, and evaluation behavior; sharing the live trade feed does not change
