@@ -30,7 +30,7 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com;
+      script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com;
       style-src 'self' 'unsafe-inline';
       img-src 'self' blob: data: https:;
       font-src 'self' data:;
@@ -65,11 +65,6 @@ const nextConfig: NextConfig = {
       'date-fns',
       'sonner',
     ],
-  },
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
   },
   images: {
     deviceSizes: [384, 640, 1080, 1920],

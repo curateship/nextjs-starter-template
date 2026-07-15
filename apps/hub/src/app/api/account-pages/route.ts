@@ -1,6 +1,5 @@
 import { eq, and } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { siteAccountPages } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
@@ -14,14 +13,14 @@ export const POST = createResourceHandler({
   revalidateTags: ['public-profile'],
   serializeResponse: serializeAccountPage,
   // Validate content blocks and unset the existing default page before insert
-  beforeInsert: async (data, siteId) => {
+  beforeInsert: async (data, siteId, executor) => {
     const contentBlocksError = validateContentBlocks(data.content_blocks ?? {})
     if (contentBlocksError) {
       return NextResponse.json({ data: null, error: contentBlocksError }, { status: 400 })
     }
 
     if (data.is_default === true) {
-      await db.update(siteAccountPages)
+      await executor.update(siteAccountPages)
         .set({ isDefault: false })
         .where(and(eq(siteAccountPages.siteId, siteId), eq(siteAccountPages.isDefault, true)))
     }

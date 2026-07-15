@@ -72,12 +72,13 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
   const [loadingAction, setLoadingAction] = useState<"save" | "continue" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const drip = useDripSettings(false, false)
+  const loadDripConfig = drip.loadFromConfig
 
   useEffect(() => {
     if (currentSite?.id === siteId && currentSite.settings?.newsletter_drip_defaults) {
-      drip.loadFromConfig(currentSite.settings.newsletter_drip_defaults)
+      loadDripConfig(currentSite.settings.newsletter_drip_defaults)
     }
-  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, drip.loadFromConfig, siteId])
+  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, loadDripConfig, siteId])
 
   useEffect(() => {
     if (!siteId) return

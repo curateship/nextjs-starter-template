@@ -1,20 +1,25 @@
 import { notFound } from 'next/navigation'
-import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
-import { verifyCheckoutSession, verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
+import { getProductBySlugForSite } from '@/lib/actions/products/product-frontend-actions'
+import { verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
 import { recordPaidPurchase } from '@/lib/actions/products/paid-purchase-recording'
+import { getSiteFromHeaders } from '@/lib/utils/site-resolver'
 
 interface SuccessPageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ session_id?: string; payment_intent?: string }>
+  searchParams: Promise<{ payment_intent?: string }>
 }
 
 export default async function SuccessPage({ params, searchParams }: SuccessPageProps) {
   const { slug } = await params
-  const { session_id, payment_intent } = await searchParams
+  const { payment_intent } = await searchParams
 
-  // Fetch product data
-  const result = await getProductBySlugDirect(slug)
+  const siteResult = await getSiteFromHeaders()
+  if (!siteResult.success || !siteResult.site) {
+    notFound()
+  }
+
+  const result = await getProductBySlugForSite(siteResult.site.id, slug)
 
   if (!result.success || !result.product) {
     notFound()
@@ -27,14 +32,14 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
   const pricingTiers = pricingBlockData?.content?.productPricingTiers || []
 
-  // Verify payment - check for payment_intent (Payment Element) or session_id (Checkout Session)
+  // Only the current Payment Element flow is supported.
   let sessionData = null
-  let sessionError = null
+  let sessionError: string | null = payment_intent ? null : 'Missing payment confirmation'
   let tierId: string | null = null
 
   if (payment_intent) {
     // Payment Element flow
-    const verificationResult = await verifyPaymentIntent(payment_intent, siteId)
+    const verificationResult = await verifyPaymentIntent(payment_intent, siteId, product.id)
     if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
       const metadata = verificationResult.paymentIntent.metadata
@@ -53,65 +58,34 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
         } : undefined,
       }
 
-      await recordPaidPurchase({
-        siteId,
-        productId: product.id,
-        customerEmail: verificationResult.paymentIntent.customerEmail ?? null,
-        stripePaymentIntentId: verificationResult.paymentIntent.id,
-        amountTotal: verificationResult.paymentIntent.amount ?? null,
-        currency: verificationResult.paymentIntent.currency ?? null,
-        paymentStatus: 'succeeded',
-        metadata: {
-          source: 'success_page_verification',
-          product_slug: product.slug,
-          tier_id: metadata?.tierId || null,
-          tier_name: metadata?.tierName || null,
-        },
-      })
-    } else {
-      sessionError = verificationResult.error
-    }
-  } else if (session_id) {
-    // Legacy Checkout Session flow
-    const verificationResult = await verifyCheckoutSession(session_id, siteId)
-    if (verificationResult.success && verificationResult.session) {
-      const session = verificationResult.session
-      const metadata = session.metadata
-      tierId = metadata?.tierId as string | null
-      sessionData = {
-        ...session,
-        metadata: metadata ? {
-          productName: metadata.productName as string | undefined,
-          orderBumps: metadata.orderBumps as string | undefined,
-          tierId: metadata.tierId as string | undefined,
-          tierName: metadata.tierName as string | undefined,
-        } : undefined,
+      try {
+        await recordPaidPurchase({
+          siteId,
+          productId: product.id,
+          customerEmail: verificationResult.paymentIntent.customerEmail ?? null,
+          stripePaymentIntentId: verificationResult.paymentIntent.id,
+          amountTotal: verificationResult.paymentIntent.amount ?? null,
+          currency: verificationResult.paymentIntent.currency ?? null,
+          paymentStatus: 'succeeded',
+          metadata: {
+            source: 'success_page_verification',
+            product_slug: product.slug,
+            tier_id: metadata?.tierId || null,
+            tier_name: metadata?.tierName || null,
+          },
+        })
+      } catch (error) {
+        console.error('Failed to record verified purchase from success page:', error)
       }
-
-      await recordPaidPurchase({
-        siteId,
-        productId: product.id,
-        customerEmail: session.customerEmail ?? null,
-        stripeSessionId: session.id,
-        amountTotal: session.amountTotal ?? null,
-        currency: session.currency ?? null,
-        paymentStatus: 'succeeded',
-        metadata: {
-          source: 'success_page_verification',
-          product_slug: product.slug,
-          tier_id: metadata?.tierId || null,
-          tier_name: metadata?.tierName || null,
-        },
-      })
     } else {
-      sessionError = verificationResult.error
+      sessionError = verificationResult.error || 'Payment verification failed'
     }
   }
 
   // Find the purchased tier and get its download content
   const purchasedTier = tierId ? pricingTiers.find((tier: any) => tier.id === tierId) : null
   const tierDownloadContent = purchasedTier?.downloadContent
-  const showDownloads = purchasedTier?.enableDownloadPage === true && tierDownloadContent
+  const showDownloads = Boolean(sessionData && purchasedTier?.enableDownloadPage === true && tierDownloadContent)
 
   return (
     <div className="min-h-screen bg-background">

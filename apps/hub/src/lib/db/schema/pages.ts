@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
 
 export const pages = pgTable('pages', {
@@ -19,6 +19,7 @@ export const pages = pgTable('pages', {
 }, (table) => [
   uniqueIndex('idx_pages_site_slug_unique').on(table.siteId, table.slug),
   index('idx_pages_site_published').on(table.siteId, table.isPublished),
+  uniqueIndex('idx_pages_one_homepage_per_site').on(table.siteId).where(sql`${table.isHomepage} = true`),
 ])
 
 export const pagesRelations = relations(pages, ({ one }) => ({

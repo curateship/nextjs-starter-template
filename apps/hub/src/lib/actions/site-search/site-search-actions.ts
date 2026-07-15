@@ -1,8 +1,9 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { sites } from '@/lib/db/schema'
 import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
@@ -97,6 +98,16 @@ export async function searchSiteAction(input: {
         },
       }
     }
+
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(
+        eq(sites.id, input.siteId),
+        inArray(sites.status, ['active', 'draft']),
+      ))
+      .limit(1)
+    if (!site) return { success: false, error: 'Site not found' }
 
     const requestHeaders = await headers()
     const ip = getClientIp(requestHeaders) || 'unknown'

@@ -68,11 +68,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 })
     }
 
-    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:${productId}:lead-magnet`
-    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
-      return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 })
-    }
-
     const [site] = await db
       .select({
         id: sites.id,
@@ -124,6 +119,11 @@ export async function POST(request: NextRequest) {
 
     if (!leadMagnetBlock || leadMagnetBlock.content?.visibility?.hideBlock === true) {
       return NextResponse.json({ success: false, error: 'Lead magnet not found' }, { status: 404 })
+    }
+
+    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:${productId}:lead-magnet`
+    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
+      return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 })
     }
 
     const blockContent = normalizeProductLeadMagnetContent(leadMagnetBlock.content)

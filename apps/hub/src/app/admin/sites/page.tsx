@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -101,10 +101,10 @@ export default function SitesPage() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const siteSort = useAdminSort<SiteSortColumn>()
 
-  const reportError = (message: string) => {
+  const reportError = useCallback((message: string) => {
     setError(message)
     showActionError(message)
-  }
+  }, [])
 
   const reportDuplicateError = (message: string) => {
     setDuplicateError(message)
@@ -112,16 +112,12 @@ export default function SitesPage() {
   }
 
   useEffect(() => {
-    loadSites()
-  }, [])
-
-  useEffect(() => {
     if (searchParams.get("create") === "1") {
       setShowCreateModal(true)
     }
   }, [searchParams])
 
-  const loadSites = async () => {
+  const loadSites = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -141,7 +137,11 @@ export default function SitesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [reportError])
+
+  useEffect(() => {
+    loadSites()
+  }, [loadSites])
 
   const handleDelete = async (siteId: string) => {
     try {

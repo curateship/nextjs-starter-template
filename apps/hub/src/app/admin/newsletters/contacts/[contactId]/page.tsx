@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -83,12 +83,7 @@ export default function ContactDashboardPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // Load all data on mount
-  useEffect(() => {
-    if (contactId) loadData()
-  }, [contactId])
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -129,7 +124,11 @@ export default function ContactDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [contactId])
+
+  useEffect(() => {
+    if (contactId) loadData()
+  }, [contactId, loadData])
 
   // Load more events (pagination)
   async function loadMoreEvents() {

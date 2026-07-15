@@ -54,13 +54,14 @@ export function NewsletterSettingsModal({
   const [maxWidth, setMaxWidth] = useState(600)
 
   const drip = useDripSettings(false, false)
+  const loadDripConfig = drip.loadFromConfig
 
   useEffect(() => {
     if (newsletter) {
       setSubject(newsletter.subject)
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
       setMaxWidth(newsletter.metadata?.maxWidth || 600)
-      drip.loadFromConfig(newsletter.metadata?.drip_config)
+      loadDripConfig(newsletter.metadata?.drip_config)
       setError(null)
       setSuccessMsg(null)
 
@@ -75,7 +76,7 @@ export function NewsletterSettingsModal({
         setAudienceMode('none')
       }
     }
-  }, [newsletter, drip.loadFromConfig])
+  }, [newsletter, loadDripConfig])
 
   useEffect(() => {
     if (open) {

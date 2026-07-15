@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
-import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
+import { getProductBySlugForSite } from '@/lib/actions/products/product-frontend-actions'
 import { CheckoutForm } from '@/components/frontend/checkout/CheckoutForm'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
+import { getSiteFromHeaders } from '@/lib/utils/site-resolver'
+import { headers } from 'next/headers'
 
 interface CheckoutPageProps {
   params: Promise<{ slug: string }>
@@ -12,8 +14,12 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   const { slug } = await params
   const { tier: tierId } = await searchParams
 
-  // Fetch product data
-  const result = await getProductBySlugDirect(slug)
+  const siteResult = await getSiteFromHeaders()
+  if (!siteResult.success || !siteResult.site) {
+    notFound()
+  }
+
+  const result = await getProductBySlugForSite(siteResult.site.id, slug)
 
   if (!result.success || !result.product) {
     notFound()
@@ -23,14 +29,13 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   const site = result.site
   const stripeConfig = site?.id ? await getStripeConfig(site.id) : null
 
-  // Normalize the site domain into an absolute origin for Stripe redirect URLs
-  const domain = site?.custom_domain || process.env.NEXT_PUBLIC_APP_DOMAIN
-  let checkoutOrigin: string | undefined
-  if (domain) {
-    if (/^https?:\/\//i.test(domain)) checkoutOrigin = domain.replace(/\/$/, '')
-    else if (domain.startsWith('localhost') || domain.startsWith('127.')) checkoutOrigin = `http://${domain}`
-    else checkoutOrigin = `https://${domain}`
-  }
+  const requestHeaders = await headers()
+  const host = requestHeaders.get('host')
+  const forwardedProtocol = requestHeaders.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https'
+    ? forwardedProtocol
+    : process.env.NODE_ENV === 'development' ? 'http' : 'https'
+  const checkoutOrigin = host ? `${protocol}://${host}` : undefined
 
   // Get checkout block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')

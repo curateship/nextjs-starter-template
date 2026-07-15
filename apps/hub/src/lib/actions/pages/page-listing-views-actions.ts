@@ -63,7 +63,7 @@ interface ListingViewsRow extends Record<string, unknown> {
 }
 
 function normalizeCategoryIds(categoryIds?: string[]) {
-  return [...new Set((categoryIds || []).filter((id) => UUID_REGEX.test(id)))].sort()
+  return [...new Set((categoryIds || []).filter((id) => UUID_REGEX.test(id)))].sort().slice(0, 50)
 }
 
 function getCurrentPage(offset: number, limit: number) {
@@ -353,12 +353,16 @@ export async function getListingViewsData(params: {
   error?: string
 }> {
   try {
-    const { site_id, contentType, sortBy, sortOrder, limit = 6, offset = 0 } = params
+    const { site_id, contentType } = params
+    const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 6
+    const offset = Number.isFinite(params.offset) ? Math.min(100_000, Math.max(0, Math.floor(params.offset!))) : 0
+    const sortBy = params.sortBy === 'title' || params.sortBy === 'display_order' ? params.sortBy : 'date'
+    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc'
     const categoryIds = normalizeCategoryIds(params.categoryIds)
     const includeCategories = contentType === 'directory' && params.includeCategories === true
 
-    if (!site_id) {
-      return { success: false, error: 'Site ID is required' }
+    if (!UUID_REGEX.test(site_id)) {
+      return { success: false, error: 'Valid site ID is required' }
     }
 
     if (contentType !== 'products' && contentType !== 'posts' && contentType !== 'directory') {

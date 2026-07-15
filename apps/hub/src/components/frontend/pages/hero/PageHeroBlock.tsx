@@ -7,16 +7,6 @@ import Link from "next/link";
 import { HERO_STYLE_RENDERERS } from ".";
 import { GuidedFormBlock } from "@/components/frontend/forms/GuidedFormBlock";
 
-// Fields that were previously at the content root before the styleConfig migration
-const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage', 'showRainbowButton',
-  'rainbowButtonText', 'rainbowButtonIcon', 'githubLink',
-  'showParticles', 'trustedByText', 'trustedByCount',
-  'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-  'backgroundPatternOpacity', 'backgroundColor', 'backgroundCustomColor',
-  'backgroundMutedShade', 'showTrustedByBadge', 'extendBackgroundUnderNavigation',
-] as const;
-
 interface EmailFormConfig {
   enabled?: boolean;
   placeholder?: string;
@@ -45,26 +35,6 @@ interface PageHeroBlockProps {
   customWidth?: number;
   emailForm?: EmailFormConfig;
   visibility?: Record<string, boolean>;
-  // Legacy fields (for migration fallback)
-  rainbowButtonText?: string;
-  rainbowButtonIcon?: string;
-  rainbowButtonLink?: string;
-  trustedByText?: string;
-  trustedByCount?: string;
-  trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
-  backgroundPattern?: string;
-  backgroundPatternSize?: string;
-  backgroundPatternOpacity?: number;
-  backgroundColor?: string;
-  backgroundCustomColor?: string;
-  backgroundMutedShade?: number;
-  extendBackgroundUnderNavigation?: boolean;
-  heroImage?: string;
-  githubLink?: string;
-  showHeroImage?: boolean;
-  showRainbowButton?: boolean;
-  showParticles?: boolean;
-  showTrustedByBadge?: boolean;
   [key: string]: any;
 }
 
@@ -269,19 +239,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     visibility,
   } = props;
 
-  // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
-  let resolvedConfig: Record<string, any>;
-  if (styleConfig && styleConfig[heroStyle]) {
-    resolvedConfig = { ...styleConfig[heroStyle] };
-  } else {
-    // Legacy fallback: pull style fields from the root props
-    resolvedConfig = {};
-    LEGACY_STYLE_FIELDS.forEach(field => {
-      if (props[field] !== undefined) {
-        resolvedConfig[field] = props[field];
-      }
-    });
-  }
+  const resolvedConfig: Record<string, any> = { ...(styleConfig?.[heroStyle] || {}) };
 
   // Default contentMaxWidth to the site-level width if not explicitly set
   if (resolvedConfig.contentMaxWidth === undefined && customWidth) {

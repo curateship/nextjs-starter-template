@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { and, eq, ne } from 'drizzle-orm'
-import { db } from '@/lib/db'
 import { siteAccountPages } from '@/lib/db/schema'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
 import { serializeAccountPage } from '@/lib/utils/content-serializer'
@@ -28,7 +27,7 @@ const config = {
     is_default: 'isDefault',
     is_published: 'isPublished',
   },
-  transformUpdateValues: async (updates: Record<string, unknown>, page: typeof siteAccountPages.$inferSelect, updateValues: Record<string, unknown>) => {
+  transformUpdateValues: async (updates: Record<string, unknown>, page: typeof siteAccountPages.$inferSelect, updateValues: Record<string, unknown>, executor: any) => {
     if (updates.content_blocks !== undefined) {
       const contentBlocksError = validateContentBlocks(updates.content_blocks)
       if (contentBlocksError) {
@@ -40,7 +39,7 @@ const config = {
     }
 
     if (updates.is_default === true) {
-      await db.update(siteAccountPages)
+      await executor.update(siteAccountPages)
         .set({ isDefault: false })
         .where(and(
           eq(siteAccountPages.siteId, page.siteId),

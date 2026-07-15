@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getNewsletterById, updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "./useBlockEditor"
@@ -40,8 +40,9 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
   const [error, setError] = useState<string | null>(null)
 
   const blockEditor = useBlockEditor()
+  const setBlocks = blockEditor.setBlocks
 
-  const loadNewsletter = async () => {
+  const loadNewsletter = useCallback(async () => {
     setLoading(true)
     const { data, error: fetchError } = await getNewsletterById(newsletterId)
     if (fetchError || !data) {
@@ -51,13 +52,13 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     }
     setNewsletter(data)
     setSubject(data.subject || "")
-    blockEditor.setBlocks(parseBlocksFromJson(data.content_blocks || {}))
+    setBlocks(parseBlocksFromJson(data.content_blocks || {}))
     setLoading(false)
-  }
+  }, [newsletterId, setBlocks])
 
   useEffect(() => {
     loadNewsletter()
-  }, [newsletterId])
+  }, [loadNewsletter])
 
   const persistNewsletter = async (nextBlocks: ReturnType<typeof useBlockEditor>['blocks'], nextSubject = subject) => {
     if (!newsletter) return false

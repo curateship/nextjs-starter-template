@@ -6,14 +6,6 @@ import Link from "next/link";
 import { HERO_STYLE_RENDERERS } from ".";
 import { PRODUCT_EMAIL_MODAL_HREF, PRODUCT_EMAIL_MODAL_OPEN_EVENT } from "@/lib/actions/products/email-modal";
 
-// Fields that were previously at the content root before the styleConfig migration
-const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage',
-  'showParticles', 'trustedByText', 'trustedByCount',
-  'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-  'backgroundPatternOpacity', 'showTrustedByBadge',
-] as const;
-
 interface ProductHeroBlockProps {
   className?: string;
   title?: string;
@@ -29,17 +21,6 @@ interface ProductHeroBlockProps {
   siteWidth?: 'full' | 'custom';
   customWidth?: number;
   visibility?: Record<string, boolean>;
-  // Legacy fields (for migration fallback)
-  trustedByText?: string;
-  trustedByCount?: string;
-  trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
-  backgroundPattern?: string;
-  backgroundPatternSize?: string;
-  backgroundPatternOpacity?: number;
-  heroImage?: string;
-  showHeroImage?: boolean;
-  showParticles?: boolean;
-  showTrustedByBadge?: boolean;
   [key: string]: any;
 }
 
@@ -163,18 +144,7 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
     visibility,
   } = props;
 
-  // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
-  let resolvedConfig: Record<string, any>;
-  if (styleConfig && styleConfig[heroStyle]) {
-    resolvedConfig = { ...styleConfig[heroStyle] };
-  } else {
-    resolvedConfig = {};
-    LEGACY_STYLE_FIELDS.forEach(field => {
-      if (props[field] !== undefined) {
-        resolvedConfig[field] = props[field];
-      }
-    });
-  }
+  const resolvedConfig: Record<string, any> = { ...(styleConfig?.[heroStyle] || {}) };
 
   if (resolvedConfig.siteWidth === undefined && siteWidth) {
     resolvedConfig.siteWidth = siteWidth;

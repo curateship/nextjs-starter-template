@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { emailAutomationEnrollments, emailAutomations, emailAutomationSteps, newsletterContacts, productOrders, products } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
@@ -12,6 +12,10 @@ import {
   renderSystemEmailSubject,
 } from '@/lib/actions/email/system-email'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import {
+  resolvePaidPurchaseStatus,
+  shouldClaimPaidPurchaseFulfillment,
+} from '@/lib/utils/paid-purchase-state'
 
 function generateAccessToken() {
   return randomBytes(32).toString('base64url')
@@ -116,91 +120,186 @@ export async function recordPaidPurchase(params: {
     return
   }
 
+  if (!stripeSessionId && !stripePaymentIntentId) {
+    console.error('Skipping paid purchase recording: missing Stripe identifier')
+    return
+  }
+
+  const normalizedEmail = customerEmail.toLowerCase().trim()
+
   const existingChecks = [
     stripeSessionId ? eq(productOrders.stripeSessionId, stripeSessionId) : null,
     stripePaymentIntentId ? eq(productOrders.stripePaymentIntentId, stripePaymentIntentId) : null,
   ].filter((check): check is NonNullable<typeof check> => check !== null)
 
-  if (existingChecks.length) {
-    const [existingOrder] = await db
-      .select({
-        id: productOrders.id,
-        accessToken: productOrders.accessToken,
-        emailSentAt: productOrders.emailSentAt,
-      })
-      .from(productOrders)
-      .where(existingChecks.length === 1 ? existingChecks[0] : or(...existingChecks))
-      .limit(1)
+  const matchExistingOrder = existingChecks.length === 1 ? existingChecks[0] : or(...existingChecks)
+  const staleClaimBefore = new Date(Date.now() - 15 * 60 * 1000)
 
-    if (existingOrder) {
-      if (params.paymentStatus === 'succeeded') {
-        await markMatchingAutomationGoalsMet({
+  const outcome = await db.transaction(async (tx) => {
+    const selectExisting = async () => {
+      const [existing] = await tx
+        .select({
+          id: productOrders.id,
+          siteId: productOrders.siteId,
+          productId: productOrders.productId,
+          accessToken: productOrders.accessToken,
+          emailSentAt: productOrders.emailSentAt,
+          paymentStatus: productOrders.paymentStatus,
+        })
+        .from(productOrders)
+        .where(matchExistingOrder)
+        .limit(1)
+      return existing
+    }
+
+    let order = await selectExisting()
+    let created = false
+
+    if (!order) {
+      const [inserted] = await tx
+        .insert(productOrders)
+        .values({
           siteId,
           productId,
-          customerEmail,
-          orderId: existingOrder.id,
+          customerEmail: normalizedEmail,
+          orderType: 'paid_purchase',
+          stripeSessionId: stripeSessionId || null,
+          stripePaymentIntentId: stripePaymentIntentId || null,
+          amountTotal: params.amountTotal ?? null,
+          currency: params.currency || null,
+          paymentStatus: params.paymentStatus,
+          accessToken: generateAccessToken(),
+          metadata: params.metadata || null,
         })
-      }
-      if (!existingOrder.emailSentAt) {
-        await sendPaidProductEmail({
-          siteId,
-          productId,
-          customerEmail,
-          orderId: existingOrder.id,
-          accessToken: existingOrder.accessToken,
-          tierId: params.metadata?.tier_id || params.metadata?.tierId,
-          tierName: params.metadata?.tier_name || params.metadata?.tierName,
+        .onConflictDoNothing()
+        .returning({
+          id: productOrders.id,
+          siteId: productOrders.siteId,
+          productId: productOrders.productId,
+          accessToken: productOrders.accessToken,
+          emailSentAt: productOrders.emailSentAt,
+          paymentStatus: productOrders.paymentStatus,
         })
+
+      order = inserted || await selectExisting()
+      created = Boolean(inserted)
+    }
+
+    if (!order) {
+      throw new Error('Unable to create or resolve paid purchase order')
+    }
+    if (order.siteId !== siteId || order.productId !== productId) {
+      throw new Error('Stripe payment identifier is already attached to another order')
+    }
+
+    const becameSucceeded = params.paymentStatus === 'succeeded' && order.paymentStatus !== 'succeeded'
+    const nextStatus = resolvePaidPurchaseStatus(order.paymentStatus, params.paymentStatus)
+
+    if (!created) {
+      const [updated] = await tx
+        .update(productOrders)
+        .set({
+          stripeSessionId: stripeSessionId || undefined,
+          stripePaymentIntentId: stripePaymentIntentId || undefined,
+          amountTotal: params.amountTotal ?? undefined,
+          currency: params.currency || undefined,
+          paymentStatus: nextStatus,
+          metadata: sql`coalesce(${productOrders.metadata}, '{}'::jsonb) || ${JSON.stringify(params.metadata || {})}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(eq(productOrders.id, order.id))
+        .returning({
+          id: productOrders.id,
+          siteId: productOrders.siteId,
+          productId: productOrders.productId,
+          accessToken: productOrders.accessToken,
+          emailSentAt: productOrders.emailSentAt,
+          paymentStatus: productOrders.paymentStatus,
+        })
+      order = updated || order
+    }
+
+    let claimedForFulfillment = false
+    if (shouldClaimPaidPurchaseFulfillment(order.paymentStatus, order.emailSentAt)) {
+      const [claim] = await tx
+        .update(productOrders)
+        .set({ fulfillmentStartedAt: new Date(), updatedAt: new Date() })
+        .where(and(
+          eq(productOrders.id, order.id),
+          isNull(productOrders.emailSentAt),
+          or(
+            isNull(productOrders.fulfillmentStartedAt),
+            lt(productOrders.fulfillmentStartedAt, staleClaimBefore),
+          ),
+        ))
+        .returning({ id: productOrders.id })
+      claimedForFulfillment = Boolean(claim)
+    }
+
+    return {
+      order,
+      claimedForFulfillment,
+      shouldNotify: order.paymentStatus === 'succeeded' && (created || becameSucceeded),
+    }
+  })
+
+  const { order } = outcome
+  if (outcome.claimedForFulfillment) {
+    let delivered = false
+    try {
+      delivered = await sendPaidProductEmail({
+        siteId,
+        productId,
+        customerEmail: normalizedEmail,
+        orderId: order.id,
+        accessToken: order.accessToken,
+        tierId: params.metadata?.tier_id || params.metadata?.tierId,
+        tierName: params.metadata?.tier_name || params.metadata?.tierName,
+      })
+    } finally {
+      if (!delivered) {
+        await db
+          .update(productOrders)
+          .set({ fulfillmentStartedAt: null, updatedAt: new Date() })
+          .where(and(eq(productOrders.id, order.id), isNull(productOrders.emailSentAt)))
       }
-      return
     }
   }
 
-  const [order] = await db.insert(productOrders).values({
-    siteId,
-    productId,
-    customerEmail: customerEmail.toLowerCase(),
-    orderType: 'paid_purchase',
-    stripeSessionId: stripeSessionId || null,
-    stripePaymentIntentId: stripePaymentIntentId || null,
-    amountTotal: params.amountTotal ?? null,
-    currency: params.currency || null,
-    paymentStatus: params.paymentStatus,
-    accessToken: generateAccessToken(),
-    metadata: params.metadata || null,
-  }).returning({
-    id: productOrders.id,
-    accessToken: productOrders.accessToken,
-  })
-
-  if (order) {
+  if (outcome.shouldNotify) {
     const [product] = await db
       .select({ title: products.title })
       .from(products)
       .where(and(eq(products.id, productId), eq(products.siteId, siteId)))
       .limit(1)
 
-    await createHubNotificationForSuperAdmins({
-      type: 'product_order',
-      siteId,
-      sourceId: order.id,
-      title: 'New paid purchase',
-      message: `${customerEmail.toLowerCase().trim()} purchased ${product?.title ?? 'a product'}.`,
-      targetHref: '/admin/orders?type=paid_purchase',
-      metadata: {
-        product_id: productId,
-        order_type: 'paid_purchase',
-        payment_status: params.paymentStatus,
-      },
-    })
+    try {
+      await createHubNotificationForSuperAdmins({
+        type: 'product_order',
+        siteId,
+        sourceId: order.id,
+        title: 'New paid purchase',
+        message: `${normalizedEmail} purchased ${product?.title ?? 'a product'}.`,
+        targetHref: '/admin/orders?type=paid_purchase',
+        metadata: {
+          product_id: productId,
+          order_type: 'paid_purchase',
+          payment_status: 'succeeded',
+        },
+      })
+    } catch (error) {
+      console.error('Failed to create paid purchase notification:', error)
+    }
   }
+
+  if (order.paymentStatus !== 'succeeded') return
 
   try {
     await db
       .insert(newsletterContacts)
       .values({
         siteId,
-        email: customerEmail.toLowerCase(),
+        email: normalizedEmail,
         metadata: {
           source: 'paid_purchase',
           source_product_id: productId,
@@ -221,24 +320,16 @@ export async function recordPaidPurchase(params: {
   }
 
   if (params.paymentStatus === 'succeeded') {
-    await markMatchingAutomationGoalsMet({
-      siteId,
-      productId,
-      customerEmail,
-      orderId: order?.id,
-    })
-  }
-
-  if (order) {
-    await sendPaidProductEmail({
-      siteId,
-      productId,
-      customerEmail,
-      orderId: order.id,
-      accessToken: order.accessToken,
-      tierId: params.metadata?.tier_id || params.metadata?.tierId,
-      tierName: params.metadata?.tier_name || params.metadata?.tierName,
-    })
+    try {
+      await markMatchingAutomationGoalsMet({
+        siteId,
+        productId,
+        customerEmail: normalizedEmail,
+        orderId: order.id,
+      })
+    } catch (error) {
+      console.error('Failed to update paid purchase automation goals:', error)
+    }
   }
 }
 
@@ -261,12 +352,12 @@ async function sendPaidProductEmail(params: {
     .where(and(eq(products.id, params.productId), eq(products.siteId, params.siteId)))
     .limit(1)
 
-  if (!product) return
+  if (!product) return false
 
   const config = await getEmailConfig(params.siteId)
   if (!config?.apiKey || !config.fromEmail) {
     console.error('Skipping paid product email: Resend is not configured for site', params.siteId)
-    return
+    return false
   }
 
   const downloadPageContent = getTierDownloadPageContent(
@@ -302,16 +393,19 @@ async function sendPaidProductEmail(params: {
 
   if (!result.success) {
     console.error('Failed to send paid product email:', result.error)
-    return
+    return false
   }
 
   await db
     .update(productOrders)
     .set({
       emailSentAt: new Date(),
+      fulfillmentStartedAt: null,
       updatedAt: new Date(),
     })
     .where(eq(productOrders.id, params.orderId))
+
+  return true
 }
 
 function getTierDownloadPageContent(

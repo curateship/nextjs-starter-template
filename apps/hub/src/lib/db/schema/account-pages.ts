@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
 
 // Legacy SQL table names still use "dashboard", but the runtime model is account pages.
@@ -26,6 +26,7 @@ export const siteAccountPages = pgTable('site_dashboard_pages', {
 }, (table) => [
   uniqueIndex('idx_dashboard_pages_site_slug_unique').on(table.siteId, table.slug),
   index('idx_dashboard_pages_site_published').on(table.siteId, table.isPublished),
+  uniqueIndex('idx_dashboard_pages_one_default_per_site').on(table.siteId).where(sql`${table.isDefault} = true`),
 ])
 
 export const siteAccountPageConfigRelations = relations(siteAccountPageConfig, ({ one }) => ({

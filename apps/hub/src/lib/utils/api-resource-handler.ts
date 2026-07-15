@@ -77,7 +77,7 @@ interface CreateResourceConfig {
   /** Runs after slug validation, immediately before insert — for side effects like
    * unsetting an existing homepage/default flag or extra body validation.
    * Return a NextResponse to abort with that error. */
-  beforeInsert?: (data: any, siteId: string) => Promise<NextResponse | void> | NextResponse | void
+  beforeInsert?: (data: any, siteId: string, executor: any) => Promise<NextResponse | void> | NextResponse | void
   /** Runs after insert with the returned row. */
   afterInsert?: (row: any) => Promise<void> | void
 }
@@ -97,8 +97,8 @@ async function findResourceBySlug(table: any, siteId: string, slug: string) {
   return rows[0] ?? null
 }
 
-async function getNextDisplayOrder(table: any, siteId: string) {
-  const rows = await db
+async function getNextDisplayOrder(table: any, siteId: string, executor: any = db) {
+  const rows = await executor
     .select({ displayOrder: table.displayOrder })
     .from(table)
     .where(eq(table.siteId, siteId))
@@ -153,21 +153,21 @@ export function createResourceHandler(config: CreateResourceConfig) {
         )
       }
 
-      /* Resource-specific pre-insert side effects (e.g. unset existing homepage flag) */
-      if (config.beforeInsert) {
-        const beforeResult = await config.beforeInsert(data, data.site_id)
-        if (beforeResult instanceof NextResponse) return beforeResult
-      }
-
-      /* Display order */
-      const nextOrder = await getNextDisplayOrder(config.table, data.site_id)
-
       const contentBlocks = data.content_blocks || {}
+      const mutation = await db.transaction(async (tx) => {
+        if (config.beforeInsert) {
+          const beforeResult = await config.beforeInsert(data, data.site_id, tx)
+          if (beforeResult instanceof NextResponse) return { response: beforeResult, row: null }
+        }
 
-      /* Insert */
-      const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)
-      const result = await db.insert(config.table).values(insertValues).returning() as any[]
-      const newRow = result[0]
+        const nextOrder = await getNextDisplayOrder(config.table, data.site_id, tx)
+        const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)
+        const result = await tx.insert(config.table).values(insertValues).returning() as any[]
+        return { response: null, row: result[0] }
+      })
+      if (mutation.response) return mutation.response
+
+      const newRow = mutation.row
       if (config.afterInsert) await config.afterInsert(newRow)
       revalidateResourceTags(config.revalidateTags)
 
@@ -199,7 +199,7 @@ interface ItemResourceConfig {
   /** Map snake_case request fields to camelCase DB columns for updates */
   updateFieldMap: Record<string, string>
   /** Optional transform for resource-specific update behavior */
-  transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown> | NextResponse> | Record<string, unknown> | NextResponse
+  transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>, executor: any) => Promise<Record<string, unknown> | NextResponse> | Record<string, unknown> | NextResponse
   /** Optional response serializer for routes that expose snake_case action shapes. */
   serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful update. */
@@ -318,17 +318,21 @@ export function updateResourceHandler(config: ItemResourceConfig) {
         }
       }
 
-      const finalUpdateValues = config.transformUpdateValues
-        ? await config.transformUpdateValues(updates, entity, updateValues)
-        : updateValues
-      if (finalUpdateValues instanceof NextResponse) return finalUpdateValues
+      const mutation = await db.transaction(async (tx) => {
+        const finalUpdateValues = config.transformUpdateValues
+          ? await config.transformUpdateValues(updates, entity, updateValues, tx)
+          : updateValues
+        if (finalUpdateValues instanceof NextResponse) return { response: finalUpdateValues, row: null }
 
-      /* Update */
-      const updateResult = await db.update(config.table)
-        .set(finalUpdateValues)
-        .where(eq(config.table.id, entityId))
-        .returning() as any[]
-      const updatedRow = updateResult[0]
+        const updateResult = await tx.update(config.table)
+          .set(finalUpdateValues)
+          .where(eq(config.table.id, entityId))
+          .returning() as any[]
+        return { response: null, row: updateResult[0] }
+      })
+      if (mutation.response) return mutation.response
+
+      const updatedRow = mutation.row
       if (config.afterUpdate) await config.afterUpdate(updatedRow)
       revalidateResourceTags(config.revalidateTags)
 
