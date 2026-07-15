@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getStepById, updateStep, getAutomationById } from "@/lib/actions/newsletters/automation-actions"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "../config/useBlockEditor"
@@ -19,8 +19,9 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
   const [error, setError] = useState<string | null>(null)
 
   const blockEditor = useBlockEditor()
+  const setBlocks = blockEditor.setBlocks
 
-  const loadStep = async () => {
+  const loadStep = useCallback(async () => {
     setLoading(true)
     const [stepResult, automationResult] = await Promise.all([
       getStepById(stepId),
@@ -41,13 +42,13 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     setStep(stepResult.data)
     setAutomation(automationResult.data)
     setSubject(stepResult.data.subject || "")
-    blockEditor.setBlocks(parseBlocksFromJson(stepResult.data.content_blocks || {}))
+    setBlocks(parseBlocksFromJson(stepResult.data.content_blocks || {}))
     setLoading(false)
-  }
+  }, [automationId, setBlocks, stepId])
 
   useEffect(() => {
     loadStep()
-  }, [stepId, automationId])
+  }, [loadStep])
 
   const handleSave = async () => {
     if (!step) return

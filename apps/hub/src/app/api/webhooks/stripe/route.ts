@@ -118,7 +118,9 @@ export async function POST(req: NextRequest) {
           stripePaymentIntentId: sessionPaymentIntentId,
           amountTotal: session.amount_total,
           currency: session.currency,
-          paymentStatus: session.payment_status === 'paid' ? 'succeeded' : 'pending',
+          paymentStatus: event.type === 'checkout.session.async_payment_succeeded' || session.payment_status === 'paid'
+            ? 'succeeded'
+            : 'pending',
           metadata: {
             stripe_event_type: event.type,
             product_slug: session.metadata?.productSlug || null,

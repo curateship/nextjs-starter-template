@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
 import { directories, directoryTemplates } from '@/lib/db/schema'
 import { pruneDirectoryValueBlocksForTemplate } from '@/lib/actions/directories/directory-template-inheritance'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
@@ -25,7 +24,7 @@ const config = {
   },
   revalidateTags: ['directory', 'listing-views'],
   afterUpdate: (row: typeof directories.$inferSelect) => safeSyncSiteSearchDocument('directory', row),
-  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => {
+  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>, executor: any) => {
     if (updates.is_published === true) {
       updateValues.status = 'published'
     }
@@ -41,7 +40,7 @@ const config = {
       return NextResponse.json({ data: null, error: 'Invalid template ID' }, { status: 400 })
     }
 
-    const [template] = await db
+    const [template] = await executor
       .select({ contentBlocks: directoryTemplates.contentBlocks })
       .from(directoryTemplates)
       .where(and(eq(directoryTemplates.id, templateId), eq(directoryTemplates.siteId, entity.siteId)))

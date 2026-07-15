@@ -7,21 +7,13 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Check } from "lucide-react"
-import { useEffect, useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { PRODUCT_EMAIL_MODAL_HREF } from "@/lib/actions/products/email-modal"
 import { validateUrl } from "@/lib/utils/url-validator"
-
-// Fields that live at the content root for legacy data and need migrating into styleConfig.default
-const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage',
-  'showParticles', 'trustedByText', 'trustedByCount',
-  'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-  'backgroundPatternOpacity', 'showTrustedByBadge',
-]
 
 interface ProductHeroBlockProps {
   content: Record<string, any>
@@ -46,38 +38,9 @@ const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (valu
 )
 
 export function ProductHeroBlock({ content, onContentChange, siteId, blockId, onBack }: ProductHeroBlockProps) {
-  // --- Lazy migration: move legacy root-level style fields into styleConfig.default ---
-  useEffect(() => {
-    const hasLegacyFields = LEGACY_STYLE_FIELDS.some(f => content[f] !== undefined && !content.styleConfig)
-    if (!hasLegacyFields) return
-
-    const migrated: Record<string, any> = {}
-    LEGACY_STYLE_FIELDS.forEach(f => {
-      if (content[f] !== undefined) {
-        migrated[f] = content[f]
-      }
-    })
-
-    if (Object.keys(migrated).length > 0) {
-      const existingConfig = content.styleConfig?.default || {}
-      onContentChange('styleConfig', {
-        ...content.styleConfig,
-        default: { ...existingConfig, ...migrated },
-      })
-      LEGACY_STYLE_FIELDS.forEach(f => {
-        if (content[f] !== undefined) {
-          onContentChange(f, undefined)
-        }
-      })
-      if (!content.heroStyle) {
-        onContentChange('heroStyle', 'default')
-      }
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const heroStyle = content.heroStyle || 'default'
-  const styleConfig = content.styleConfig || {}
-  const currentStyleConfig = styleConfig[heroStyle] || {}
+  const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
+  const currentStyleConfig = useMemo(() => styleConfig[heroStyle] || {}, [styleConfig, heroStyle])
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     const updated = {

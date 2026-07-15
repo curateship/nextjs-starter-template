@@ -72,6 +72,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
   const [searchQuery, setSearchQuery] = useState("")
   const categorySelection = useAdminBulkSelection()
+  const clearCategorySelection = categorySelection.clearSelection
   const categorySort = useAdminSort<CategorySortColumn>()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
@@ -93,8 +94,8 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
 
   useEffect(() => {
     setCurrentPage(1)
-    categorySelection.clearSelection()
-  }, [categorySelection.clearSelection, parentSlug])
+    clearCategorySelection()
+  }, [clearCategorySelection, parentSlug])
 
   // Load categories and assignment counts in a single server action
   const loadedRef = useRef<string | null>(null)

@@ -8,6 +8,4 @@ Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `
 - Never expose stack traces, SQL, raw provider responses, or secrets.
 - Error messages must never reveal another user's data (site names, emails, domains they own).
 
-## Rollout status
-
-Only the mail actions (`mail-actions.ts`) return `AdminActionResult` so far. `runAction` also accepts the legacy `{ success, error }` shape purely as a transition bridge — delete `LegacyActionResult` from `admin-action-feedback.ts` once the site, media, and template action families are converted to `AdminActionResult`.
+`runAction` accepts only `AdminActionResult`; callers must convert older result shapes at their action boundary.

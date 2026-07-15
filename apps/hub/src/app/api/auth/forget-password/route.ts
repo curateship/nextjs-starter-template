@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/email/system-email'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 import { getHubPlatformOrigin, isHubPlatformHost } from '@/lib/utils/platform-host'
+import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 
 const DEFAULT_REDIRECT_PATH = '/login'
 const VERIFICATION_TABLE = 'user_verifications'
@@ -44,10 +45,19 @@ function isLocalBaseUrl(baseUrl: string) {
   }
 }
 
-function getBaseUrl(request: Request) {
+async function getBaseUrl(request: Request) {
   const host = request.headers.get('host') || new URL(request.url).host
   if (isHubPlatformHost(host)) {
     return getHubPlatformOrigin()
+  }
+
+  const site = await resolveSiteByHost(host)
+  if (site) {
+    const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+    const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https'
+      ? forwardedProtocol
+      : process.env.NODE_ENV === 'production' ? 'https' : new URL(request.url).protocol.replace(':', '')
+    return normalizeTrustedBaseUrl(`${protocol}://${host}`)
   }
 
   const configuredBaseUrl = normalizeTrustedBaseUrl(
@@ -124,7 +134,7 @@ async function sendResetEmail(email: string, resetUrl: string) {
 }
 
 export async function POST(request: Request) {
-  const baseUrl = getBaseUrl(request)
+  const baseUrl = await getBaseUrl(request)
 
   if (!baseUrl) {
     console.error('Password reset base URL is not configured')
@@ -151,10 +161,7 @@ export async function POST(request: Request) {
   }
 
   const ip = getClientIp(request.headers)
-  if (
-    (ip && isRateLimited(`password-reset:ip:${ip}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)) ||
-    isRateLimited(`password-reset:email:${email}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)
-  ) {
+  if (ip && isRateLimited(`password-reset:ip:${ip}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)) {
     return Response.json(GENERIC_RESPONSE)
   }
 
@@ -175,6 +182,10 @@ export async function POST(request: Request) {
       where identifier = 'dummy-verification-token'
       limit 1
     `)
+    return Response.json(GENERIC_RESPONSE)
+  }
+
+  if (isRateLimited(`password-reset:email:${user.email.toLowerCase()}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)) {
     return Response.json(GENERIC_RESPONSE)
   }
 

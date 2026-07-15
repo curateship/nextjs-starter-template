@@ -511,6 +511,7 @@ export default function SiteEditPage() {
   )
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
   const newsletterDripDefaults = useDripSettings(false, false)
+  const loadNewsletterDripDefaults = newsletterDripDefaults.loadFromConfig
   const [coldThresholdEmails, setColdThresholdEmails] = useState(
     String(normalizeContactColdEmailThreshold(contextSite?.settings?.newsletter_cold_threshold_emails))
   )
@@ -560,9 +561,9 @@ export default function SiteEditPage() {
 
   useEffect(() => {
     if (site?.settings?.newsletter_drip_defaults) {
-      newsletterDripDefaults.loadFromConfig(site.settings.newsletter_drip_defaults)
+      loadNewsletterDripDefaults(site.settings.newsletter_drip_defaults)
     }
-  }, [newsletterDripDefaults.loadFromConfig, site?.settings?.newsletter_drip_defaults])
+  }, [loadNewsletterDripDefaults, site?.settings?.newsletter_drip_defaults])
 
   useEffect(() => {
     setColdThresholdEmails(String(normalizeContactColdEmailThreshold(site?.settings?.newsletter_cold_threshold_emails)))

@@ -45,7 +45,6 @@ export function AutomationCanvasNode({
       role="button"
       tabIndex={0}
       aria-label={`${node.name} node`}
-      aria-invalid={invalid || undefined}
       onFocus={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {

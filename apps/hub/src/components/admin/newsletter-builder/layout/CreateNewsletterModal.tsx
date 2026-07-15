@@ -52,11 +52,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
 
   const drip = useDripSettings(false, false)
+  const loadDripConfig = drip.loadFromConfig
 
   useEffect(() => {
     const defaults = currentSite?.settings?.newsletter_drip_defaults
-    if (defaults) drip.loadFromConfig(defaults)
-  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, drip.loadFromConfig])
+    if (defaults) loadDripConfig(defaults)
+  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, loadDripConfig])
 
   // Load segments and templates
   useEffect(() => {

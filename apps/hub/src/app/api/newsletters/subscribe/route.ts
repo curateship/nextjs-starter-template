@@ -88,14 +88,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:email-form`
-    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
-      return NextResponse.json(
-        { success: false, error: 'Too many requests' },
-        { status: 429 }
-      )
-    }
-
     const [site] = await db
       .select({
         id: sites.id,
@@ -123,6 +115,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Invalid origin' },
         { status: 403 }
+      )
+    }
+
+    const rateLimitKey = `${getClientIp(request.headers) || 'unknown'}:${siteId}:email-form`
+    if (await isPersistentRateLimited(rateLimitKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests' },
+        { status: 429 }
       )
     }
 

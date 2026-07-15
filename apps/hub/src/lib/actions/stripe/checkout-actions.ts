@@ -131,55 +131,6 @@ async function resolveCheckoutSelection(data: {
 }
 
 /**
- * Verify a checkout session and retrieve session details
- */
-export async function verifyCheckoutSession(sessionId: string, siteId?: string) {
-  try {
-    const stripe = await getStripeClient(siteId)
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['line_items', 'customer'],
-    })
-
-    if (session.payment_status !== 'paid') {
-      return {
-        success: false,
-        error: 'Payment not completed',
-      }
-    }
-    if (siteId && session.metadata?.siteId !== siteId) {
-      return {
-        success: false,
-        error: 'Checkout session does not belong to this site',
-      }
-    }
-
-    return {
-      success: true,
-      session: {
-        id: session.id,
-        customerEmail: session.customer_details?.email,
-        amountTotal: session.amount_total,
-        currency: session.currency,
-        paymentStatus: session.payment_status,
-        metadata: session.metadata,
-        lineItems: session.line_items?.data.map((item) => ({
-          description: item.description,
-          amount: item.amount_total,
-          quantity: item.quantity,
-        })),
-      },
-    }
-  } catch (error) {
-    console.error('Error verifying checkout session:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to verify session',
-    }
-  }
-}
-
-/**
  * Create a Payment Intent for Payment Element
  */
 export async function createPaymentIntent(data: {
@@ -339,7 +290,7 @@ export async function updatePaymentIntentCustomer(data: {
 /**
  * Verify a payment intent and retrieve details
  */
-export async function verifyPaymentIntent(paymentIntentId: string, siteId?: string) {
+export async function verifyPaymentIntent(paymentIntentId: string, siteId?: string, productId?: string) {
   try {
     const stripe = await getStripeClient(siteId)
 
@@ -357,6 +308,12 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
       return {
         success: false,
         error: 'Payment does not belong to this site',
+      }
+    }
+    if (productId && paymentIntent.metadata?.productId !== productId) {
+      return {
+        success: false,
+        error: 'Payment does not belong to this product',
       }
     }
 
@@ -379,4 +336,3 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
     }
   }
 }
-

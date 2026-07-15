@@ -140,6 +140,7 @@ function ParentCategorySelect({
             role="combobox"
             aria-expanded={open}
             aria-haspopup="listbox"
+            aria-controls={`category-options-${parent.id}`}
             tabIndex={0}
             className={cn(
               "border-input flex min-h-10 w-full cursor-text flex-wrap items-center gap-1 rounded-md border bg-transparent text-sm outline-none transition-[color,box-shadow] hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
@@ -176,7 +177,7 @@ function ParentCategorySelect({
               value={searchQuery}
               onValueChange={setSearchQuery}
             />
-            <CommandList>
+            <CommandList id={`category-options-${parent.id}`}>
               {filteredChildren.length === 0 && !showCreateInput ? (
                 <div className="py-6 text-center text-sm text-muted-foreground">
                   No child categories found.

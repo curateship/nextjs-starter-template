@@ -1,5 +1,4 @@
 import { and, eq, ne } from 'drizzle-orm'
-import { db } from '@/lib/db'
 import { pages } from '@/lib/db/schema'
 import { serializePage } from '@/lib/utils/content-serializer'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
@@ -26,9 +25,9 @@ const config = {
     is_published: 'isPublished',
     display_order: 'displayOrder',
   },
-  transformUpdateValues: async (updates: Record<string, unknown>, page: typeof pages.$inferSelect, updateValues: Record<string, unknown>) => {
+  transformUpdateValues: async (updates: Record<string, unknown>, page: typeof pages.$inferSelect, updateValues: Record<string, unknown>, executor: any) => {
     if (updates.is_homepage === true) {
-      await db.update(pages)
+      await executor.update(pages)
         .set({ isHomepage: false })
         .where(and(
           eq(pages.siteId, page.siteId),

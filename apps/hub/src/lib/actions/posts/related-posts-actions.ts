@@ -4,6 +4,7 @@ import { eq, and, ne, asc, desc } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { posts } from '@/lib/db/schema'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export interface RelatedPostsData {
   posts: Array<{
@@ -75,10 +76,13 @@ export async function getRelatedPostsData(params: {
   error?: string
 }> {
   try {
-    const { siteId, excludePostId, sortBy, sortOrder, limit = 3 } = params
+    const { siteId, excludePostId } = params
+    const sortBy = params.sortBy === 'title' ? 'title' : 'date'
+    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc'
+    const limit = Number.isFinite(params.limit) ? Math.min(24, Math.max(1, Math.floor(params.limit!))) : 3
 
-    if (!siteId) {
-      return { success: false, error: 'Site ID is required' }
+    if (!UUID_REGEX.test(siteId) || !UUID_REGEX.test(excludePostId)) {
+      return { success: false, error: 'Valid site and post IDs are required' }
     }
 
     const data = await getCachedRelatedPosts(siteId, excludePostId, sortBy, sortOrder, limit)

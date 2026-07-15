@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
@@ -30,8 +30,8 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
   const [localTitle, setLocalTitle] = useState(postData?.title || postData?.name || 'Untitled Post')
 
   const coreStyle = content.coreStyle || 'default'
-  const styleConfig = content.styleConfig || {}
-  const currentStyleConfig = styleConfig[coreStyle] || {}
+  const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
+  const currentStyleConfig = useMemo(() => styleConfig[coreStyle] || {}, [styleConfig, coreStyle])
 
   // Update local title when post data changes
   useEffect(() => {

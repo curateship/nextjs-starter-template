@@ -17,16 +17,6 @@ import { VisibilitySettings } from "@/components/admin/layout/builder/Visibility
 import { validateUrl } from "@/lib/utils/url-validator"
 import { getGuidedFormsBySite, type GuidedForm } from "@/lib/actions/guided-forms/guided-form-actions"
 
-// Fields that live at the content root for legacy data and need migrating into styleConfig.default
-const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage', 'showRainbowButton',
-  'rainbowButtonText', 'rainbowButtonIcon', 'githubLink',
-  'showParticles', 'trustedByText', 'trustedByCount',
-  'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-  'backgroundPatternOpacity', 'backgroundColor', 'backgroundCustomColor',
-  'backgroundMutedShade', 'showTrustedByBadge', 'extendBackgroundUnderNavigation',
-]
-
 interface PageHeroBlockProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
@@ -50,38 +40,6 @@ const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (valu
 )
 
 export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBack }: PageHeroBlockProps) {
-  // --- Lazy migration: move legacy root-level style fields into styleConfig.default ---
-  useEffect(() => {
-    const hasLegacyFields = LEGACY_STYLE_FIELDS.some(f => content[f] !== undefined && !content.styleConfig)
-    if (!hasLegacyFields) return
-
-    const migrated: Record<string, any> = {}
-    LEGACY_STYLE_FIELDS.forEach(f => {
-      if (content[f] !== undefined) {
-        migrated[f] = content[f]
-      }
-    })
-
-    if (Object.keys(migrated).length > 0) {
-      // Write the styleConfig with migrated values merged over defaults
-      const existingConfig = content.styleConfig?.default || {}
-      onContentChange('styleConfig', {
-        ...content.styleConfig,
-        default: { ...existingConfig, ...migrated },
-      })
-      // Clean up legacy fields from root
-      LEGACY_STYLE_FIELDS.forEach(f => {
-        if (content[f] !== undefined) {
-          onContentChange(f, undefined)
-        }
-      })
-      // Ensure heroStyle is set
-      if (!content.heroStyle) {
-        onContentChange('heroStyle', 'default')
-      }
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const heroStyle = content.heroStyle || 'default'
   const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
   const currentStyleConfig = useMemo(() => styleConfig[heroStyle] || {}, [styleConfig, heroStyle])

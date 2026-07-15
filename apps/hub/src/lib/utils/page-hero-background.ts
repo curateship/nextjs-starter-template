@@ -43,7 +43,7 @@ function getResolvedHeroStyleConfig(content: Record<string, any> | null | undefi
   if (!content) return {}
 
   const heroStyle = typeof content.heroStyle === "string" ? content.heroStyle : "default"
-  return content.styleConfig?.[heroStyle] || content
+  return content.styleConfig?.[heroStyle] || {}
 }
 
 export function getHeroNavigationBackgroundColor(

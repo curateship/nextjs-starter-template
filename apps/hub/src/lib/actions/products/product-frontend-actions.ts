@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
 import { convertContentBlocksToArray, type ContentBlock as UtilProductBlock } from '@/lib/utils/block-utils'
@@ -47,27 +47,27 @@ async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
   }
 }
 
-/**
- * Get a product by slug directly (for non-subdomain access at /products/[slug])
- */
-export async function getProductBySlugDirect(productSlug: string): Promise<GetProductResult> {
+/** Get a published product only within the already-resolved request site. */
+export async function getProductBySlugForSite(siteId: string, productSlug: string): Promise<GetProductResult> {
   try {
-    const productResult = await db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_published: boolean
-      featured_image: string | null
-      meta_description: string | null
-    }>(sql`
-      SELECT id, site_id, title, slug, is_published, featured_image, meta_description
-      FROM products
-      WHERE slug = ${productSlug} AND is_published = true
-      LIMIT 1
-    `)
+    const [product] = await db
+      .select({
+        id: products.id,
+        siteId: products.siteId,
+        title: products.title,
+        slug: products.slug,
+        isPublished: products.isPublished,
+        featuredImage: products.featuredImage,
+        metaDescription: products.metaDescription,
+      })
+      .from(products)
+      .where(and(
+        eq(products.siteId, siteId),
+        eq(products.slug, productSlug),
+        eq(products.isPublished, true),
+      ))
+      .limit(1)
 
-    const product = productResult.rows?.[0]
     if (!product) {
       return {
         success: false,
@@ -79,7 +79,7 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
     const [site] = await db
       .select()
       .from(sites)
-      .where(eq(sites.id, product.site_id))
+      .where(eq(sites.id, product.siteId))
 
     if (!site) {
       return {
@@ -95,9 +95,9 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       id: product.id,
       title: product.title,
       slug: product.slug,
-      is_published: product.is_published,
-      featured_image: product.featured_image ?? null,
-      meta_description: product.meta_description ?? null,
+      is_published: product.isPublished,
+      featured_image: product.featuredImage ?? null,
+      meta_description: product.metaDescription ?? null,
       blocks
     }
 

@@ -41,6 +41,7 @@ export function SuccessContent({
   sessionData,
   sessionError
 }: SuccessContentProps) {
+  const isVerified = Boolean(sessionData)
   // Parse order bumps from metadata
   let orderBumps: Array<{ id: string; title: string; priceId: string }> = []
   if (sessionData?.metadata?.orderBumps) {
@@ -53,15 +54,20 @@ export function SuccessContent({
 
   return (
     <div className="space-y-8">
-      {/* Success Header */}
       <div className="text-center">
         <div className="flex justify-center mb-4">
-          <div className="rounded-full bg-green-100 p-3">
-            <CheckCircle2 className="h-12 w-12 text-green-600" />
+          <div className={isVerified ? "rounded-full bg-green-100 p-3" : "rounded-full bg-yellow-100 p-3"}>
+            {isVerified
+              ? <CheckCircle2 className="h-12 w-12 text-green-600" />
+              : <AlertCircle className="h-12 w-12 text-yellow-600" />}
           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-2">Payment Successful!</h1>
-        <p className="text-lg text-muted-foreground">Thank you for your purchase!</p>
+        <h1 className="text-4xl font-bold mb-2">
+          {isVerified ? "Payment Successful!" : "Payment Verification Pending"}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {isVerified ? "Thank you for your purchase!" : "We could not verify this payment yet."}
+        </p>
       </div>
 
       {/* Session Error */}
@@ -152,7 +158,7 @@ export function SuccessContent({
       )}
 
       {/* What&apos;s Next */}
-      <Card>
+      {isVerified && <Card>
         <CardHeader>
           <CardTitle>What&apos;s Next?</CardTitle>
         </CardHeader>
@@ -169,7 +175,7 @@ export function SuccessContent({
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center">

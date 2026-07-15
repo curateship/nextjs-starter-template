@@ -48,7 +48,7 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
     if (tab === activeTab) return
     setSearchQuery('')
     router.replace(`/admin/settings/seo?tab=${tab}`, { scroll: false })
-  }, [activeTab, router, siteId])
+  }, [activeTab, router])
 
   const activeTabConfig = SEO_TABS.find((tab) => tab.id === activeTab) || SEO_TABS[0]
   const search = activeTabConfig.searchPlaceholder

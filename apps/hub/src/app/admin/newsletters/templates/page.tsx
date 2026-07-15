@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -70,11 +70,7 @@ export default function TemplatesPage() {
   const [formName, setFormName] = useState("")
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    loadTemplates()
-  }, [currentSite?.id, currentPage, pageSize])
-
-  async function loadTemplates() {
+  const loadTemplates = useCallback(async () => {
     if (!currentSite?.id) {
       setLoading(true)
       setTemplates([])
@@ -104,7 +100,11 @@ export default function TemplatesPage() {
       setError(err instanceof Error ? err.message : "Failed to load templates")
       setLoading(false)
     }
-  }
+  }, [currentSite?.id, currentPage, pageSize])
+
+  useEffect(() => {
+    loadTemplates()
+  }, [loadTemplates])
 
   async function handleCreate() {
     if (!currentSite?.id || !formName.trim()) return

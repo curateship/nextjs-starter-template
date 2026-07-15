@@ -3,10 +3,39 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { media } from '@/lib/db/schema'
 import { getFromR2 } from '@/lib/utils/r2'
-import { parseR2MediaKey } from '@/lib/utils/media-proxy'
+import { parseExternalMediaUrl, parseR2MediaKey } from '@/lib/utils/media-proxy'
+import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
 // Timeout for fetch requests (10 seconds)
 const FETCH_TIMEOUT = 10000
+const MAX_RESPONSE_BYTES = 100 * 1024 * 1024
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_REQUESTS = 240
+
+function isOversized(contentLength?: number | string | null) {
+  if (contentLength == null || contentLength === '') return false
+  const length = Number(contentLength)
+  return Number.isFinite(length) && length > MAX_RESPONSE_BYTES
+}
+
+function limitedStream(body: ReadableStream<Uint8Array>) {
+  let bytesRead = 0
+  return body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      bytesRead += chunk.byteLength
+      if (bytesRead > MAX_RESPONSE_BYTES) {
+        controller.error(new Error('Media response exceeded size limit'))
+        return
+      }
+      controller.enqueue(chunk)
+    },
+  }))
+}
+
+function applyRateLimit(request: NextRequest) {
+  const ip = getClientIp(request.headers) || 'unknown'
+  return isRateLimited(`media-proxy:${ip}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -36,10 +65,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Media not found' }, { status: 404 })
       }
 
+      if (applyRateLimit(request)) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+      }
+
       const r2Object = await getFromR2(mediaKey, range)
 
       if (!r2Object.Body) {
         throw new Error('No body in R2 response')
+      }
+      if (isOversized(r2Object.ContentLength)) {
+        return NextResponse.json({ error: 'Media response too large' }, { status: 413 })
       }
 
       const contentType = r2Object.ContentType || 'application/octet-stream'
@@ -60,17 +96,22 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const parsedUrl = parseAllowedMediaUrl(url)
-    if (parsedUrl instanceof NextResponse) {
-      return parsedUrl
+    const parsed = parseExternalMediaUrl(url)
+    if (!parsed.url) {
+      const status = parsed.error === 'host_not_allowed' ? 403 : 400
+      return NextResponse.json({ error: parsed.error === 'host_not_allowed' ? 'URL host not allowed' : 'Invalid URL' }, { status })
+    }
+    if (applyRateLimit(request)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
     try {
-      const response = await fetch(parsedUrl.toString(), {
+      const response = await fetch(parsed.url.toString(), {
         signal: controller.signal,
+        redirect: 'manual',
         headers: range ? { Range: range } : {},
       })
       clearTimeout(timeoutId)
@@ -82,27 +123,28 @@ export async function GET(request: NextRequest) {
       const contentType = response.headers.get('content-type') || 'application/octet-stream'
       const contentLength = response.headers.get('content-length')
       const contentRange = response.headers.get('content-range')
+      if (isOversized(contentLength)) {
+        await response.body?.cancel()
+        return NextResponse.json({ error: 'Media response too large' }, { status: 413 })
+      }
+      const responseBody = response.body ? limitedStream(response.body) : null
+      const responseHeaders = new Headers({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Accept-Ranges': 'bytes',
+      })
+      if (contentLength) responseHeaders.set('Content-Length', contentLength)
+      if (contentRange) responseHeaders.set('Content-Range', contentRange)
 
       if (range && contentRange) {
-        return new NextResponse(response.body, {
+        return new NextResponse(responseBody, {
           status: 206,
-          headers: {
-            'Content-Range': contentRange,
-            'Accept-Ranges': 'bytes',
-            'Content-Length': contentLength || '',
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-          },
+          headers: responseHeaders,
         })
       }
 
-      return new NextResponse(response.body, {
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': contentLength || '',
-          'Cache-Control': 'public, max-age=31536000, immutable',
-          'Accept-Ranges': 'bytes',
-        },
+      return new NextResponse(responseBody, {
+        headers: responseHeaders,
       })
     } catch (error) {
       clearTimeout(timeoutId)
@@ -120,42 +162,6 @@ export async function GET(request: NextRequest) {
 
     console.error('Media proxy error:', error)
     return NextResponse.json({ error: 'Failed to proxy media' }, { status: 500 })
-  }
-}
-
-function parseAllowedMediaUrl(url: string): URL | NextResponse {
-  let parsedUrl: URL
-  try {
-    parsedUrl = new URL(url)
-  } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
-  }
-
-  if (parsedUrl.protocol !== 'https:') {
-    return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 })
-  }
-
-  const allowedHostSuffixes = ['.r2.dev', '.r2.cloudflarestorage.com']
-  const allowedExactHosts = getExactAllowedHosts()
-  const hostname = parsedUrl.hostname.toLowerCase()
-  const isAllowed = allowedExactHosts.includes(hostname)
-    || allowedHostSuffixes.some(host => hostname.endsWith(host))
-
-  if (!isAllowed) {
-    return NextResponse.json({ error: 'URL host not allowed' }, { status: 403 })
-  }
-
-  return parsedUrl
-}
-
-function getExactAllowedHosts() {
-  const publicUrl = process.env.R2_PUBLIC_URL
-  if (!publicUrl) return []
-
-  try {
-    return [new URL(publicUrl).hostname.toLowerCase()]
-  } catch {
-    return []
   }
 }
 

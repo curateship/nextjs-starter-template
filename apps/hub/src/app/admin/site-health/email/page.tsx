@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -21,11 +21,7 @@ export default function EmailHealthPage() {
   const [error, setError] = useState<string | null>(null)
   const selectedSender = searchParams.get("sender")
 
-  useEffect(() => {
-    loadReport()
-  }, [currentSite?.id])
-
-  async function loadReport() {
+  const loadReport = useCallback(async () => {
     if (!currentSite?.id) {
       setLoading(true)
       return
@@ -37,7 +33,11 @@ export default function EmailHealthPage() {
     if (error) setError(error)
     if (data) setReport(data)
     setLoading(false)
-  }
+  }, [currentSite?.id])
+
+  useEffect(() => {
+    loadReport()
+  }, [loadReport])
 
   const dnsStatusIcon = (status: string) => {
     if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600" />

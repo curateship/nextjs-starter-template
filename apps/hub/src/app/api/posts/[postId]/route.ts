@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
 import { posts, postTemplates } from '@/lib/db/schema'
 import { prunePostValueBlocksForTemplate } from '@/lib/actions/posts/post-template-inheritance'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
@@ -27,7 +26,7 @@ const config = {
     template_id: 'templateId',
   },
   revalidateTags: ['posts', 'listing-views'],
-  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => {
+  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>, executor: any) => {
     const templateId = typeof updateValues.templateId === 'string'
       ? updateValues.templateId
       : entity.templateId
@@ -35,7 +34,7 @@ const config = {
       return NextResponse.json({ data: null, error: 'Invalid template ID' }, { status: 400 })
     }
 
-    const [template] = await db
+    const [template] = await executor
       .select({ contentBlocks: postTemplates.contentBlocks })
       .from(postTemplates)
       .where(and(eq(postTemplates.id, templateId), eq(postTemplates.siteId, entity.siteId)))

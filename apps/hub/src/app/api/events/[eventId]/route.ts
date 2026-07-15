@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
 import { events, eventTemplates } from '@/lib/db/schema'
 import { pruneEventValueBlocksForTemplate } from '@/lib/actions/events/event-template-inheritance'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
@@ -24,7 +23,7 @@ const config = {
     template_id: 'templateId',
   },
   // Switching templates re-prunes the event's value blocks to the new template's shape
-  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => {
+  transformUpdateValues: async (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>, executor: any) => {
     const templateId = typeof updateValues.templateId === 'string'
       ? updateValues.templateId
       : entity.templateId
@@ -32,7 +31,7 @@ const config = {
       return NextResponse.json({ data: null, error: 'Invalid template ID' }, { status: 400 })
     }
 
-    const [template] = await db
+    const [template] = await executor
       .select({ contentBlocks: eventTemplates.contentBlocks })
       .from(eventTemplates)
       .where(and(eq(eventTemplates.id, templateId), eq(eventTemplates.siteId, entity.siteId)))

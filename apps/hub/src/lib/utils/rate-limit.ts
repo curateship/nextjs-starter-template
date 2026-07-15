@@ -2,29 +2,12 @@ import 'server-only'
 
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { MemoryRateLimiter } from '@/lib/utils/memory-rate-limiter'
 
-type Bucket = {
-  count: number
-  resetAt: number
-}
-
-const buckets = new Map<string, Bucket>()
+const memoryRateLimiter = new MemoryRateLimiter()
 
 export function isRateLimited(key: string, limit: number, windowMs: number) {
-  const now = Date.now()
-  const current = buckets.get(key)
-
-  if (!current || current.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs })
-    return false
-  }
-
-  if (current.count >= limit) {
-    return true
-  }
-
-  current.count += 1
-  return false
+  return memoryRateLimiter.isLimited(key, limit, windowMs)
 }
 
 function getConfiguredClientIpHeader() {
@@ -51,6 +34,17 @@ export function getClientIp(headers: Headers) {
 export async function isPersistentRateLimited(key: string, limit: number, windowMs: number) {
   const resetAt = new Date(Date.now() + windowMs)
   const result = await db.execute<{ count: number | string }>(sql`
+    with expired as (
+      delete from rate_limit_buckets
+      where rate_key in (
+        select rate_key
+        from rate_limit_buckets
+        where reset_at <= now()
+          and rate_key <> ${key}
+        order by reset_at
+        limit 500
+      )
+    )
     insert into rate_limit_buckets (rate_key, count, reset_at, updated_at)
     values (${key}, 1, ${resetAt}, now())
     on conflict (rate_key) do update set

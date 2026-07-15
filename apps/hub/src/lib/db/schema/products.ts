@@ -38,6 +38,7 @@ export const productOrders = pgTable('product_orders', {
   clickedAt: timestamp('clicked_at', { withTimezone: true }),
   clickCount: integer('click_count').default(0),
   emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
+  fulfillmentStartedAt: timestamp('fulfillment_started_at', { withTimezone: true }),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -47,6 +48,8 @@ export const productOrders = pgTable('product_orders', {
   index('idx_product_orders_email').on(table.customerEmail),
   index('idx_product_orders_token').on(table.accessToken),
   index('idx_product_orders_site_type').on(table.siteId, table.orderType),
+  uniqueIndex('idx_product_orders_stripe_session_unique').on(table.stripeSessionId),
+  uniqueIndex('idx_product_orders_stripe_payment_intent_unique').on(table.stripePaymentIntentId),
 ])
 
 export const productsRelations = relations(products, ({ one }) => ({

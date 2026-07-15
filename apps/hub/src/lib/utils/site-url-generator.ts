@@ -28,10 +28,10 @@ export function getSiteUrl(site: Site): string {
     return `https://${customDomain}`
   }
 
-  // Fallback for production without custom domain — use sslip.io base URL
+  // Fallback for production without custom domain.
   const baseDomain = (process.env.NEXT_PUBLIC_APP_DOMAIN || '').replace(/^https?:\/\//, '')
   if (baseDomain) {
-    return `http://${site.subdomain}.${baseDomain}`
+    return `https://${site.subdomain}.${baseDomain}`
   }
   return `http://${site.subdomain}.localhost:3000`
 }

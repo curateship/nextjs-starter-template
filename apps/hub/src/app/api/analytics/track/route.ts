@@ -36,6 +36,12 @@ function normalizeHost(host: string): string {
   return host.split(':')[0]?.replace(/^www\./, '').toLowerCase() || ''
 }
 
+function canUseDevelopmentSiteFallback(host: string) {
+  if (process.env.NODE_ENV === 'production') return false
+  const hostname = normalizeHost(host)
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
 function extractReferrerDomain(url: string | undefined, requestHost: string): string | null {
   if (typeof url !== 'string' || url.length > MAX_REFERRER_LENGTH) return null
 
@@ -185,8 +191,7 @@ export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get('host') || ''
     let site = await resolveSiteByHost(host)
-    // Fallback for localhost: grab first active site
-    if (!site) {
+    if (!site && canUseDevelopmentSiteFallback(host)) {
       const [firstSite] = await db
         .select({ id: sites.id, subdomain: sites.subdomain, customDomain: sites.customDomain })
         .from(sites)
