@@ -35,7 +35,7 @@ import {
 const defaultPageSizeOptions = [10, 25, 50]
 
 type DashboardTableStatus = {
-  tone: "error" | "success"
+  tone: "error" | "neutral" | "success"
   text: string
 }
 

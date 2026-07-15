@@ -1215,6 +1215,21 @@ export const marketScannerControl = pgTable("market_scanner_control", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
+export const marketScannerRuntimeControl = pgTable(
+  "market_scanner_runtime_control",
+  {
+    id: varchar("id", { length: 20 }).primaryKey(),
+    enabled: boolean("enabled").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "market_scanner_runtime_control_id_check",
+      sql`${table.id} = 'default'`
+    ),
+  ]
+)
+
 export const alertRules = pgTable(
   "alert_rules",
   {
