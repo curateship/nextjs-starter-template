@@ -112,6 +112,29 @@ export async function markAllCurrentUserNotificationsRead() {
   }
 }
 
+export async function deleteAdminNotificationRows(notificationIds: string[]) {
+  requireAppOrigin()
+  await requireAdminNotificationUser()
+
+  const rows = await db
+    .delete(notifications)
+    .where(inArray(notifications.id, notificationIds))
+    .returning({ id: notifications.id })
+
+  return { count: rows.length }
+}
+
+export async function clearAdminNotificationRows() {
+  requireAppOrigin()
+  await requireAdminNotificationUser()
+
+  const rows = await db
+    .delete(notifications)
+    .returning({ id: notifications.id })
+
+  return { count: rows.length }
+}
+
 async function requireNotificationUser() {
   const user = await findCurrentUser()
   if (!user) {
