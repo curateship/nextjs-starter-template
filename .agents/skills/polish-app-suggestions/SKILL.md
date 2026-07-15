@@ -1,17 +1,17 @@
 ---
 name: polish-app-suggestions
-description: Inspect an existing app and suggest evidence-backed ways to polish its current experience in batches of exactly ten, then review them with the user one at a time using separate Yes or No confirmations in a planning-only workflow. After each batch, offer to create tasks, finish, or suggest ten more non-duplicate polish items while preserving earlier selections. Use the Personal IDE task-creation tool and configured default task template only after task creation is selected. Use when the user asks how to polish, refine, improve, clean up, or make an existing app feel more complete. Do not implement changes during this workflow.
+description: Inspect an existing app and suggest evidence-backed ways to polish its current experience in batches of exactly ten, then present all ten together in a Plan-mode checkbox control with options to suggest ten more or let the user suggest their own. Summarize every option in the terminal chat before showing the control, preserve selections across batches, and create tasks only after separate confirmation. Use the Personal IDE task-creation tool and configured default task template only after task creation is selected. Use when the user asks how to polish, refine, improve, clean up, or make an existing app feel more complete. Do not implement changes during this workflow.
 ---
 
 # Polish App Suggestions
 
-Find focused improvements to workflows the app already has, let the user decide on each one individually, and create tasks only after final confirmation.
+Find focused improvements to workflows the app already has, let the user select them as a batch, and create tasks only after final confirmation.
 
 ## Planning Boundary
 
 - Remain planning-only throughout this workflow. Use Plan mode when available.
 - Do not edit product code, implement polish, create branches, commit, push, or deploy.
-- Do not create tasks until a full batch of ten decisions is complete and the user separately selects task creation.
+- Do not create tasks until the user submits the batch checkbox selection and separately selects task creation.
 - Explain everything in plain English.
 
 ## 1. Inspect the Existing Experience
@@ -48,50 +48,47 @@ For each item include:
 - effort: Low, Medium, or High
 - main risk or dependency
 
-Show the ranked overview before starting confirmations. Do not replace rejected items or add more than ten in a batch. For later batches, exclude existing tasks and every polish item shown in earlier batches.
+Show the complete ranked overview in the terminal chat before opening the checkbox control. After the ten polish summaries, also summarize `Suggest 10 more` and `Suggest your own`, so all twelve checkbox options are explained in the terminal chat. This summary is required even when the control also displays descriptions. Do not replace unselected items or add more than ten polish suggestions in a batch. For later batches, exclude existing tasks and every polish item shown in earlier batches.
 
-## 3. Confirm Items One at a Time
+## 3. Select Items Together in Plan Mode
 
-Review items in rank order. Ask about exactly one item per turn and wait for the answer before continuing.
+In Plan mode, use one multi-select checkbox control containing exactly twelve visible options:
 
-For each confirmation show:
+- the ten ranked polish suggestions, in rank order
+- `Suggest 10 more`
+- `Suggest your own`
 
-```text
-Round 1 — Polish 1 of 10: Item name
-Current friction: ...
-Suggested polish: ...
-Effort and risk: ...
+Use concise polish names as checkbox labels and a one-sentence summary as each option description. Allow any number of polish checkboxes to be selected. Do not replace this with ten separate Yes or No questions, and do not auto-resolve an unanswered selection.
 
-Add this polish item to the selected plan?
-[Yes] [No]
-```
+Treat checked polish suggestions as accepted and unchecked suggestions as not selected. Record the batch and preserve all prior selections so the user can revise them later.
 
-In Plan mode, use the available choice control with exactly `Yes` and `No` options. Do not batch items or auto-resolve unanswered confirmations. Record every decision and allow earlier answers to be revised when requested.
+- If `Suggest your own` is checked, immediately ask for the user's polish idea in a free-text Plan-mode follow-up. Summarize the idea, identify any obvious overlap, conflict, or expansion into a new feature, and add it to the accepted plan after the user confirms the interpretation.
+- If `Suggest 10 more` is checked, preserve every accepted polish item and custom idea, produce the next non-duplicate batch of exactly ten, show its complete terminal-chat summary, and repeat the same twelve-option checkbox control.
+- If both action options are checked, collect and confirm the user's own idea first, then produce the next batch.
 
-Continue until all ten items have explicit decisions. Do not expand an item into a broad redesign during confirmation.
+If Plan mode does not provide a multi-select checkbox control, show the same twelve options as a Markdown checkbox list in the terminal chat and ask the user to return the checked list. Do not expand an item into a broad redesign during selection.
 
-## 4. Finish, Create Tasks, or Suggest More
+## 4. Finish or Create Tasks
 
-After the tenth decision, show a concise summary of the current batch and the cumulative accepted polish items.
+When neither action option is selected, show a concise summary of the current batch and all accepted polish items across completed rounds.
 
 If one or more polish items were accepted, ask:
 
 ```text
 What should I do next?
-[Create tasks] [Finish] [Suggest 10 more]
+[Create tasks] [Finish]
 ```
 
 If none were accepted, omit the unavailable task action:
 
 ```text
-[Finish] [Suggest 10 more]
+[Finish]
 ```
 
 Use the available choice control and do not auto-resolve the decision.
 
 - `Create tasks`: Continue to task creation for every accepted polish item across all completed rounds.
 - `Finish`: Stop without creating or modifying task files.
-- `Suggest 10 more`: Produce a fresh batch of exactly ten, label it with the next round number, exclude all previous suggestions and existing tasks, preserve every earlier decision, and repeat the one-at-a-time confirmation flow. Do not create tasks yet.
 
 ## 5. Create Selected Tasks
 
