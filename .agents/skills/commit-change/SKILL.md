@@ -1,11 +1,13 @@
 ---
 name: commit-change
-description: Review and commit the current worktree changes to the current branch without pushing. Use when the user explicitly asks to commit, save changes to Git, or create a local commit, or when audit-change hands off a ready standalone audit under its documented policy. Do not trigger for implementation, review, or general Git questions that do not authorize a commit.
+description: Review and commit the current worktree changes to the current branch without pushing. Use only when the user explicitly asks to commit, save changes to Git, or create a local commit in the current conversation. Do not trigger for implementation, review, audits, task completion, or general Git questions that do not authorize a commit.
 ---
 
 # Commit Change
 
 Create one safe local commit from the changes the user authorized. Never push.
+
+An audit result, automatic skill handoff, or completed task is not authorization to stage or commit.
 
 ## Workflow
 

@@ -501,7 +501,16 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .dashboard-modes { display: inline-flex; gap: 4px; border: 1px solid rgba(255,255,255,.07); border-radius: 999px; background: #0b0b0e; padding: 4px; }
 .dashboard-modes button { border: 0; border-radius: 999px; background: transparent; padding: 9px 20px; color: #8a8894; font-size: 13.5px; font-weight: 600; }
 .dashboard-modes button.active { background: rgba(255,90,60,.14); color: #ff7a5c; }
+.dashboard-current-task { display: flex; min-height: 42px; max-width: min(520px,calc(100vw - 36px)); align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: rgba(11,11,14,.75); padding: 8px 10px 8px 14px; }
+.dashboard-current-task > span { color: #8a8894; font: 400 10px "JetBrains Mono",monospace; letter-spacing: .12em; text-transform: uppercase; }
+.dashboard-current-task > strong { min-width: 0; overflow: hidden; color: #edeae6; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-current-task > a { color: #ff7a5c; font-size: 13.5px; font-weight: 700; }
+.dashboard-current-task > button { display: grid; width: 28px; height: 28px; margin-left: auto; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #8a8894; }
+.dashboard-current-task > button:not(:disabled):hover { background: rgba(255,255,255,.08); color: #edeae6; }
+.dashboard-current-task > button:disabled { cursor: not-allowed; opacity: .35; }
+.dashboard-current-task > button svg { width: 13px; height: 13px; }
 .dashboard-controls > p { max-width: 380px; margin: 0; color: rgba(237,234,230,.65); font-size: 15.5px; line-height: 1.55; text-align: center; text-wrap: pretty; }
+.dashboard-controls > p.dashboard-sync-error { color: #ff8b76; }
 .dashboard-session-count { display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 20px; }
 .dashboard-session-count > div { display: flex; gap: 7px; }
 .dashboard-session-count i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.12); }
@@ -516,11 +525,18 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .dashboard-task-list { display: flex; flex-direction: column; padding: 8px 12px; }
 .dashboard-task { display: flex; align-items: center; gap: 14px; border-radius: 12px; padding: 10px 12px; }
 .dashboard-task:hover { background: rgba(255,255,255,.04); }
+.dashboard-task.selected, .today-task-row.selected { background: rgba(255,90,60,.1); box-shadow: inset 3px 0 #ff5a3c; }
 .dashboard-task > button:first-child { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 1.5px solid rgba(255,255,255,.25); border-radius: 50%; background: transparent; color: transparent; }
 .dashboard-task > button:first-child.completed { border: 0; background: #4ade80; color: #0b0b0e; }
 .dashboard-task > button:first-child svg { width: 12px; height: 12px; stroke-width: 3.5; }
-.dashboard-task > span { min-width: 0; color: rgba(237,234,230,.9); font-size: 14.5px; }
-.dashboard-task > span.completed { color: #8a8894; text-decoration: line-through; }
+.task-focus-choice { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; border: 0; background: transparent; padding: 4px 0; color: rgba(237,234,230,.9); text-align: left; }
+.task-focus-choice > span { min-width: 0; overflow: hidden; flex: 1; font-size: 14.5px; text-overflow: ellipsis; white-space: nowrap; }
+.task-focus-choice > span.completed { color: #8a8894; text-decoration: line-through; }
+.task-focus-choice > small { flex: 0 0 auto; color: #8a8894; font: 400 11px "JetBrains Mono",monospace; }
+.task-focus-choice:disabled { cursor: default; }
+.task-focus-choice:disabled:not([aria-pressed="true"]) > span { opacity: .75; }
+.task-selection-empty { margin: 0; padding: 18px 12px; color: #8a8894; font-size: 13.5px; text-align: center; }
+.task-selection-empty a { color: #ff7a5c; font-weight: 700; }
 .remove-task { display: grid; width: 30px; height: 30px; margin-left: auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #8a8894; }
 .remove-task:hover { background: rgba(255,255,255,.08); color: #edeae6; }
 .remove-task svg { width: 13px; height: 13px; }
@@ -626,8 +642,6 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .today-task-row > button:first-child { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 1.5px solid rgba(255,255,255,.25); border-radius: 50%; background: transparent; color: transparent; }
 .today-task-row > button:first-child.completed { border: 0; background: #4ade80; color: #0b0b0e; }
 .today-task-row > button:first-child svg { width: 12px; height: 12px; stroke-width: 3.5; }
-.today-task-row > span { color: rgba(237,234,230,.9); font-size: 14.5px; }
-.today-task-row > span.completed { color: #8a8894; text-decoration: line-through; }
 .today-task-row > button:last-child { display: grid; width: 30px; height: 30px; margin-left: auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #8a8894; }
 .today-task-row > button:last-child svg { width: 13px; height: 13px; }
 .today-tasks-card > form { display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(255,255,255,.07); background: #0e0e12; padding: 14px 24px; color: #8a8894; }
@@ -743,7 +757,7 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
   .dashboard-tasks, .dashboard-room-preview { border-radius: 18px; }
   .dashboard-tasks > header, .dashboard-room-preview > header { padding: 16px 18px; }
   .dashboard-task { gap: 11px; padding: 9px 7px; }
-  .dashboard-task > span { font-size: 13.5px; }
+  .task-focus-choice > span { font-size: 13.5px; }
   .dashboard-tasks > form { padding: 12px 18px; }
   .room-preview-section { padding-bottom: 50px; }
   .dashboard-room-preview > header span { display: none; }

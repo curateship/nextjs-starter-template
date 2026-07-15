@@ -28,6 +28,7 @@ export function PomodoroDashboard() {
   const totalSeconds = pomodoro.timer.durationMinutes * 60
   const dashOffset = circumference * (1 - pomodoro.remainingSeconds / totalSeconds)
   const completedTasks = pomodoro.tasks.filter((task) => task.completed).length
+  const activeTasks = pomodoro.tasks.filter((task) => !task.completed)
 
   return (
     <div className="reference-dashboard">
@@ -70,7 +71,12 @@ export function PomodoroDashboard() {
                 </button>
               ))}
             </div>
+            <div className="dashboard-current-task" aria-live="polite">
+              <span>{pomodoro.timer.mode === "focus" ? "Focus task" : "Next focus task"}</span>
+              {pomodoro.selectedTask ? <><strong>{pomodoro.selectedTask.title}</strong><button disabled={!pomodoro.canSelectTask} onClick={() => pomodoro.selectTask(null)} aria-label={`Clear selected task ${pomodoro.selectedTask.title}`}><X aria-hidden="true" /></button></> : <Link to="/tasks">Choose a task</Link>}
+            </div>
             <p>{modeHints[pomodoro.timer.mode]}</p>
+            {pomodoro.syncError ? <p className="dashboard-sync-error" role="alert">{pomodoro.syncError}</p> : null}
             <div className="dashboard-session-count">
               <div aria-label={`${pomodoro.focusSessions} of 4 sessions complete`}>
                 {[0, 1, 2, 3].map((index) => <i key={index} className={index < pomodoro.focusSessions % 4 ? "filled" : ""} />)}
@@ -85,12 +91,13 @@ export function PomodoroDashboard() {
         <div className="dashboard-tasks">
           <header><strong>Tasks</strong><span>{completedTasks} / {pomodoro.tasks.length} done</span></header>
           <div className="dashboard-task-list">
+            {!activeTasks.length ? <p className="task-selection-empty">No active tasks. <Link to="/tasks">Create a task</Link> to focus on.</p> : null}
             {pomodoro.tasks.map((task) => (
-              <div className="dashboard-task" key={task.id}>
+              <div className={`dashboard-task ${pomodoro.selectedTaskId === task.id ? "selected" : ""}`} key={task.id}>
                 <button className={task.completed ? "completed" : ""} onClick={() => pomodoro.toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}>
                   {task.completed ? <Check aria-hidden="true" /> : null}
                 </button>
-                <span className={task.completed ? "completed" : ""}>{task.title}</span>
+                <button className="task-focus-choice" disabled={task.completed || !pomodoro.canSelectTask} aria-pressed={pomodoro.selectedTaskId === task.id} onClick={() => pomodoro.selectTask(task.id)}><span className={task.completed ? "completed" : ""}>{task.title}</span><small>{task.pomodoros} {task.pomodoros === 1 ? "pomo" : "pomos"}</small></button>
                 <button className="remove-task" onClick={() => pomodoro.removeTask(task.id)} aria-label={`Remove ${task.title}`}><X aria-hidden="true" /></button>
               </div>
             ))}

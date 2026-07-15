@@ -18,6 +18,29 @@ test("guest timer and tasks survive reload", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible()
 })
 
+test("guest focus selection survives reload and receives the completed Pomodoro", async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()) })
+  await page.goto("/")
+  const selectedTask = page.locator(".task-focus-choice").filter({ hasText: "Review pull request #142" })
+  await selectedTask.click()
+  await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem("pomoder:guest:v1") || "{}").selectedTaskId)).toBe("pull-request")
+
+  await page.reload()
+  await expect(selectedTask).toHaveAttribute("aria-pressed", "true")
+  await page.evaluate(() => {
+    const key = "pomoder:guest:v1"
+    const state = JSON.parse(window.localStorage.getItem(key) || "{}")
+    state.durations.focus = 1
+    state.timer = { mode: "focus", durationMinutes: 1, remainingSeconds: 1, running: true, targetTimestamp: Date.now() + 250 }
+    window.localStorage.setItem(key, JSON.stringify(state))
+  })
+  await page.reload()
+
+  await expect(selectedTask).toContainText("1 pomo")
+  expect(consoleErrors).toEqual([])
+})
+
 test("public product pages are keyboard-accessible", async ({ page }) => {
   await page.goto("/themes")
   await expect(page.getByRole("heading", { name: "Backgrounds" })).toBeVisible()

@@ -58,3 +58,12 @@ export function toggleTask(tasks: GuestTask[], taskId: string) {
     task.id === taskId ? { ...task, completed: !task.completed } : task
   )
 }
+
+export function resolveSelectedTaskId(tasks: GuestTask[], selectedTaskId: unknown) {
+  if (typeof selectedTaskId !== "string") return null
+  return tasks.some((task) => task.id === selectedTaskId && !task.completed) ? selectedTaskId : null
+}
+
+export function incrementTaskPomodoros(tasks: GuestTask[], taskId: string) {
+  return tasks.map((task) => task.id === taskId && !task.completed ? { ...task, pomodoros: task.pomodoros + 1 } : task)
+}

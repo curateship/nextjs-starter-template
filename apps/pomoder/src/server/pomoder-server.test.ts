@@ -17,7 +17,7 @@ import {
   validateMediaUpload,
   validateUploadContentLength,
 } from "@/server/pomoder-media"
-import { rollOverTasks, toggleTaskStatus } from "@/server/productivity"
+import { completeProductivitySession, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
 import { enforceRateLimit } from "@/server/rate-limit"
 import { canJoinRoom } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
@@ -180,6 +180,25 @@ describe("task rollover", () => {
     expect(
       (await database.select().from(dailyFocusStats))[0]?.tasksCompleted
     ).toBe(0)
+  })
+})
+
+describe("focus task attribution", () => {
+  it("increments the linked task exactly once when a focus session completes", async () => {
+    const [user] = await database.insert(users).values({ email: "attribution@example.com", name: "Attribution", passwordHash: "hash" }).returning()
+    const [task] = await database.insert(tasks).values({ userId: user.id, title: "Write tests", plannedDate: "2026-07-15" }).returning()
+    const session = await startProductivitySession(user.id, "2026-07-15", { taskId: task.id, mode: "focus", plannedSeconds: 1_500, idempotencyKey: "task-attribution-test" }, database as unknown as PomoderDb)
+    const breakSession = await startProductivitySession(user.id, "2026-07-15", { taskId: task.id, mode: "short", plannedSeconds: 300, idempotencyKey: "break-attribution-test" }, database as unknown as PomoderDb)
+
+    expect(session?.taskId).toBe(task.id)
+    expect(breakSession?.taskId).toBeNull()
+    const first = await completeProductivitySession(user.id, session!.id, 1_500, "2026-07-15", database as unknown as PomoderDb)
+    const duplicate = await completeProductivitySession(user.id, session!.id, 1_500, "2026-07-15", database as unknown as PomoderDb)
+
+    expect(first?.task).toMatchObject({ id: task.id, pomodoroCount: 1 })
+    expect(duplicate).toBeNull()
+    expect((await database.select().from(tasks))[0]?.pomodoroCount).toBe(1)
+    expect((await database.select().from(dailyFocusStats))[0]).toMatchObject({ focusSessions: 1, focusSeconds: 1_500 })
   })
 })
 

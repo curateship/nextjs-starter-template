@@ -15,8 +15,10 @@ import {
 import {
   createTimer,
   getRemainingSeconds,
+  incrementTaskPomodoros,
   pauseTimer,
   resetTimer,
+  resolveSelectedTaskId,
   startTimer,
   toggleTask,
   type GuestTask,
@@ -34,6 +36,7 @@ type GuestState = {
   focusSessions: number
   durations: Record<TimerMode, number>
   serverSessionId: string | null
+  selectedTaskId: string | null
 }
 
 const initialState: GuestState = {
@@ -47,12 +50,18 @@ const initialState: GuestState = {
   focusSessions: 0,
   durations: DEFAULT_DURATIONS,
   serverSessionId: null,
+  selectedTaskId: null,
+}
+
+function canChangeSelectedTask(state: GuestState) {
+  return !state.timer.running && state.serverSessionId === null && state.timer.remainingSeconds === state.timer.durationMinutes * 60
 }
 
 export function usePomodoro(authenticated = false) {
   const [state, setState] = React.useState(initialState)
   const [remainingSeconds, setRemainingSeconds] = React.useState(initialState.timer.remainingSeconds)
   const [hydrated, setHydrated] = React.useState(false)
+  const [syncError, setSyncError] = React.useState("")
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -60,7 +69,8 @@ export function usePomodoro(authenticated = false) {
         const saved = window.localStorage.getItem(STORAGE_KEY)
         if (saved) {
           const parsed = JSON.parse(saved) as Partial<GuestState>
-          const restored = { ...initialState, ...parsed, durations: parsed.durations || DEFAULT_DURATIONS, serverSessionId: null }
+          const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : initialState.tasks
+          const restored = { ...initialState, ...parsed, tasks, durations: parsed.durations || DEFAULT_DURATIONS, serverSessionId: null, selectedTaskId: resolveSelectedTaskId(tasks, parsed.selectedTaskId) }
           setState(restored)
           setRemainingSeconds(getRemainingSeconds(restored.timer))
         }
@@ -74,16 +84,18 @@ export function usePomodoro(authenticated = false) {
     if (!hydrated || !authenticated) return
     void loadProductivity().then((data) => {
       const durations = { focus: data.preferences.focusMinutes, short: data.preferences.shortBreakMinutes, long: data.preferences.longBreakMinutes }
+      const tasks = data.tasks.filter((task) => ["active", "completed"].includes(task.status)).map((task) => ({ id: task.id, title: task.title, completed: task.status === "completed", pomodoros: task.pomodoroCount }))
       setState((current) => ({
         ...current,
         durations,
         timer: createTimer(current.timer.mode, durations[current.timer.mode]),
         autoStart: data.preferences.autoStart,
-        tasks: data.tasks.filter((task) => ["active", "completed"].includes(task.status)).map((task) => ({ id: task.id, title: task.title, completed: task.status === "completed", pomodoros: task.pomodoroCount })),
+        tasks,
+        selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId),
         focusSessions: Math.min(4, data.recentStats.find((day) => day.localDate === data.today)?.focusSessions || 0),
         serverSessionId: null,
       }))
-    }).catch(() => undefined)
+    }).catch(() => setSyncError("Your tasks could not be loaded."))
   }, [authenticated, hydrated])
 
   React.useEffect(() => {
@@ -110,16 +122,22 @@ export function usePomodoro(authenticated = false) {
       const nextRemaining = getRemainingSeconds(state.timer)
       setRemainingSeconds(nextRemaining)
       if (nextRemaining === 0) {
-        if (authenticated && state.serverSessionId) void completeFocusSession({ sessionId: state.serverSessionId, accumulatedSeconds: state.timer.durationMinutes * 60 }).catch(() => undefined)
+        if (authenticated && state.serverSessionId) void completeFocusSession({ sessionId: state.serverSessionId, accumulatedSeconds: state.timer.durationMinutes * 60 }).then((result) => {
+          const updatedTask = result?.task
+          if (updatedTask) setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === updatedTask.id ? { ...task, pomodoros: updatedTask.pomodoroCount } : task) }))
+        }).catch(() => setSyncError("Your completed focus session could not be saved."))
         setState((current) => {
-          const completedFocusSessions = current.timer.mode === "focus" ? Math.min(4, current.focusSessions + 1) : current.timer.mode === "long" ? 0 : current.focusSessions
+          const completedFocus = current.timer.mode === "focus"
+          const completedFocusSessions = completedFocus ? Math.min(4, current.focusSessions + 1) : current.timer.mode === "long" ? 0 : current.focusSessions
           const nextMode: TimerMode = current.timer.mode === "focus" ? (completedFocusSessions === 4 ? "long" : "short") : "focus"
           const ready = createTimer(nextMode, current.durations[nextMode])
           const timer = current.autoStart ? startTimer(ready) : ready
           if (authenticated && current.autoStart) {
-            void startFocusSession({ mode: nextMode, plannedSeconds: timer.durationMinutes * 60, taskId: null, idempotencyKey: crypto.randomUUID() }).then((session) => { if (session) setState((latest) => ({ ...latest, serverSessionId: session.id })) }).catch(() => undefined)
+            const taskId = nextMode === "focus" ? resolveSelectedTaskId(current.tasks, current.selectedTaskId) : null
+            void startFocusSession({ mode: nextMode, plannedSeconds: timer.durationMinutes * 60, taskId, idempotencyKey: crypto.randomUUID() }).then((session) => { if (session) setState((latest) => ({ ...latest, serverSessionId: session.id })) }).catch(() => setSyncError("Your focus session could not be synced."))
           }
-          return { ...current, timer, serverSessionId: null, focusSessions: completedFocusSessions }
+          const tasks = !authenticated && completedFocus && current.selectedTaskId ? incrementTaskPomodoros(current.tasks, current.selectedTaskId) : current.tasks
+          return { ...current, tasks, timer, serverSessionId: null, focusSessions: completedFocusSessions }
         })
       }
     }
@@ -146,8 +164,8 @@ export function usePomodoro(authenticated = false) {
       if (authenticated) {
         const request = current.serverSessionId
           ? resumeFocusSession({ sessionId: current.serverSessionId, remainingSeconds: current.timer.remainingSeconds })
-          : startFocusSession({ mode: current.timer.mode, plannedSeconds: current.timer.durationMinutes * 60, taskId: null, idempotencyKey: crypto.randomUUID() })
-        void request.then((session) => { if (session) setState((latest) => ({ ...latest, serverSessionId: session.id })) }).catch(() => undefined)
+          : startFocusSession({ mode: current.timer.mode, plannedSeconds: current.timer.durationMinutes * 60, taskId: current.timer.mode === "focus" ? resolveSelectedTaskId(current.tasks, current.selectedTaskId) : null, idempotencyKey: crypto.randomUUID() })
+        void request.then((session) => { if (session) setState((latest) => ({ ...latest, serverSessionId: session.id })) }).catch(() => setSyncError("Your focus session could not be synced."))
       }
       return { ...current, timer: next }
     })
@@ -163,18 +181,41 @@ export function usePomodoro(authenticated = false) {
     if (!cleanTitle) return
     const temporaryId = crypto.randomUUID()
     setState((current) => ({ ...current, tasks: [...current.tasks, { id: temporaryId, title: cleanTitle, completed: false, pomodoros: 0 }] }))
-    if (authenticated) void createTask(cleanTitle).then((created) => setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === temporaryId ? { ...task, id: created.id } : task) }))).catch(() => setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== temporaryId) })))
+    if (authenticated) void createTask(cleanTitle).then((created) => setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === temporaryId ? { ...task, id: created.id } : task), selectedTaskId: current.selectedTaskId === temporaryId ? created.id : current.selectedTaskId }))).catch(() => {
+      setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== temporaryId), selectedTaskId: current.selectedTaskId === temporaryId ? null : current.selectedTaskId }))
+      setSyncError("The task could not be created.")
+    })
   }, [authenticated])
 
   const toggleGuestTask = React.useCallback((taskId: string) => {
-    setState((current) => ({ ...current, tasks: toggleTask(current.tasks, taskId) }))
-    if (authenticated) void togglePersistentTask(taskId).catch(() => setState((current) => ({ ...current, tasks: toggleTask(current.tasks, taskId) })))
+    if (authenticated) {
+      void togglePersistentTask(taskId).then((updated) => setState((current) => {
+        const tasks = current.tasks.map((task) => task.id === taskId ? { ...task, completed: updated.status === "completed", pomodoros: updated.pomodoroCount } : task)
+        return { ...current, tasks, selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId) }
+      })).catch(() => setSyncError("The task could not be updated."))
+      return
+    }
+    setState((current) => {
+      const tasks = toggleTask(current.tasks, taskId)
+      return { ...current, tasks, selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId) }
+    })
   }, [authenticated])
 
   const removeTask = React.useCallback((taskId: string) => {
-    setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== taskId) }))
-    if (authenticated) void abandonTask(taskId).catch(() => undefined)
+    const remove = () => setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== taskId), selectedTaskId: current.selectedTaskId === taskId ? null : current.selectedTaskId }))
+    if (authenticated) {
+      void abandonTask(taskId).then(remove).catch(() => setSyncError("The task could not be removed."))
+      return
+    }
+    remove()
   }, [authenticated])
+
+  const selectTask = React.useCallback((taskId: string | null) => {
+    setState((current) => {
+      if (!canChangeSelectedTask(current)) return current
+      return { ...current, selectedTaskId: taskId === null ? null : resolveSelectedTaskId(current.tasks, taskId) }
+    })
+  }, [])
 
   const setAutoStart = React.useCallback((autoStart: boolean) => {
     setState((current) => {
@@ -190,5 +231,7 @@ export function usePomodoro(authenticated = false) {
     })
   }, [authenticated])
 
-  return { ...state, remainingSeconds, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, setAutoStart, setDurations }
+  const selectedTask = state.tasks.find((task) => task.id === state.selectedTaskId && !task.completed) ?? null
+
+  return { ...state, remainingSeconds, selectedTask, canSelectTask: canChangeSelectedTask(state), syncError, selectTask, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, setAutoStart, setDurations }
 }
