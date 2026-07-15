@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  hasMarketActivity,
-  isMarketVisible,
-} from "@/lib/hl/market-visibility"
+import { hasMarketActivity, isMarketVisible } from "@/lib/hl/market-visibility"
 
 describe("market visibility", () => {
   it("hides an unprotected market with zero volume", () => {
@@ -24,5 +21,15 @@ describe("market visibility", () => {
     const market = { coin: "xyz:EMPTY", dayNtlVlm: "0" }
 
     expect(isMarketVisible(market, new Set([market.coin]))).toBe(true)
+  })
+
+  it("shows a market name while its live data is loading", () => {
+    const market = {
+      coin: "xyz:TSLA",
+      dayNtlVlm: "0",
+      liveData: false,
+    }
+
+    expect(isMarketVisible(market, new Set())).toBe(true)
   })
 })

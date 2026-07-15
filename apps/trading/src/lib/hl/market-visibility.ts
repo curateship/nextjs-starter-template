@@ -1,6 +1,7 @@
 type MarketActivity = {
   coin: string
   dayNtlVlm: string
+  liveData?: boolean
 }
 
 export function hasMarketActivity(market: MarketActivity): boolean {
@@ -11,5 +12,9 @@ export function isMarketVisible(
   market: MarketActivity,
   protectedMarkets: ReadonlySet<string>
 ): boolean {
-  return hasMarketActivity(market) || protectedMarkets.has(market.coin)
+  return (
+    market.liveData === false ||
+    hasMarketActivity(market) ||
+    protectedMarkets.has(market.coin)
+  )
 }

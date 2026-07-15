@@ -39,9 +39,8 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import { useMarketRows, type MarketRow } from "@/lib/hl/hooks"
+import type { MarketRow } from "@/lib/hl/hooks"
 import { isMarketVisible } from "@/lib/hl/market-visibility"
-import type { TradingNetwork } from "@/lib/hl/network"
 import type { PerpMarketCategory } from "@/lib/hl/perp-markets"
 import { cn } from "@/lib/utils"
 
@@ -99,7 +98,7 @@ const TRADFI_CATEGORIES: Array<{ value: CategoryFilter; label: string }> = [
 ]
 
 export function MarketWatchlist({
-  network,
+  rows,
   selected,
   positionMarkets,
   openOrderMarkets,
@@ -107,7 +106,7 @@ export function MarketWatchlist({
   onToggleFavorite,
   onSelect,
 }: {
-  network: TradingNetwork
+  rows: MarketRow[]
   selected: string
   positionMarkets: ReadonlySet<string>
   openOrderMarkets: ReadonlySet<string>
@@ -115,7 +114,6 @@ export function MarketWatchlist({
   onToggleFavorite: (coin: string) => void
   onSelect: (coin: string) => void
 }) {
-  const rows = useMarketRows(network)
   const [query, setQuery] = React.useState("")
   const [tab, setTab] = React.useState<WatchlistTab>("favorites")
   const [category, setCategory] = React.useState<CategoryFilter>("all")
@@ -250,6 +248,7 @@ export function MarketWatchlist({
         <div className="px-2 py-1">
           {visible.map(({ row, change }) => {
             const isFavorite = favorites.has(row.coin)
+            const liveData = row.liveData
             return (
               <div
                 key={row.coin}
@@ -284,19 +283,27 @@ export function MarketWatchlist({
                     </span>
                     <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
                       {row.dex ? `${row.dex} · ` : ""}
-                      {formatCompactUsd(Number(row.dayNtlVlm))}
+                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
                     </span>
                   </span>
                   <span
                     className={cn(
                       "rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums",
-                      change >= 0
-                        ? "bg-emerald-500/10 text-emerald-600"
-                        : "bg-red-500/10 text-red-500"
+                      !liveData
+                        ? "bg-muted text-muted-foreground"
+                        : change >= 0
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : "bg-red-500/10 text-red-500"
                     )}
                   >
-                    {change >= 0 ? "+" : ""}
-                    {change.toFixed(2)}%
+                    {liveData ? (
+                      <>
+                        {change >= 0 ? "+" : ""}
+                        {change.toFixed(2)}%
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </span>
                 </button>
               </div>
@@ -527,6 +534,7 @@ export function MarketPicker({
                 const openInterest =
                   Number(row.openInterest) * Number(row.markPx)
                 const favorite = favorites.has(row.coin)
+                const liveData = row.liveData
                 return (
                   <TableRow
                     key={row.coin}
@@ -572,25 +580,35 @@ export function MarketPicker({
                       </div>
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {formatPriceDisplay(row.markPx)}
+                      {liveData ? formatPriceDisplay(row.markPx) : "—"}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "font-mono tabular-nums",
-                        change >= 0 ? "text-emerald-600" : "text-red-500"
+                        !liveData
+                          ? "text-muted-foreground"
+                          : change >= 0
+                            ? "text-emerald-600"
+                            : "text-red-500"
                       )}
                     >
-                      {change >= 0 ? "+" : ""}
-                      {change.toFixed(2)}%
+                      {liveData ? (
+                        <>
+                          {change >= 0 ? "+" : ""}
+                          {change.toFixed(2)}%
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {funding.toFixed(4)}%
+                      {liveData ? `${funding.toFixed(4)}%` : "—"}
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {formatCompactUsd(Number(row.dayNtlVlm))}
+                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {formatCompactUsd(openInterest)}
+                      {liveData ? formatCompactUsd(openInterest) : "—"}
                     </TableCell>
                   </TableRow>
                 )
