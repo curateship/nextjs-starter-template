@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises"
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
@@ -10,8 +12,10 @@ import { setDbForTests, type Db } from "@/server/db"
 import {
   DockerConnectionError,
   DockerRequestError,
+  calculateNodeCapacity,
   dockerConnection,
   dockerCreateOptions,
+  getCapacitySummary,
   listActiveUserSessions,
   serializeBrowserSessionSummary,
   startSession,
@@ -20,8 +24,15 @@ import {
   type BrowserDockerClient,
   type OrchestratorConfig,
 } from "@/server/orchestrator"
+import { createAlert } from "@/server/notifications"
 import { createUserProfile, listUserProfiles } from "@/server/profiles"
-import { browserSessions, notifications, users } from "@/server/schema"
+import {
+  browserSessions,
+  capacityConfig,
+  nodes,
+  notifications,
+  users,
+} from "@/server/schema"
 import { now, uuid } from "@/server/security"
 import * as schema from "@/server/schema"
 
@@ -29,12 +40,18 @@ const TEST_KEY = "b".repeat(64)
 
 let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
+let queries: string[]
 
 beforeEach(async () => {
   process.env.ANTIDETECT_ENCRYPTION_KEY = TEST_KEY
+  queries = []
   client = new PGlite()
   const baseline = await readFile(
     new URL("../../drizzle/0000_baseline.sql", import.meta.url),
+    "utf8"
+  )
+  const workspaces = await readFile(
+    new URL("../../drizzle/0003_workspaces.sql", import.meta.url),
     "utf8"
   )
   const profilesProxies = await readFile(
@@ -61,18 +78,32 @@ beforeEach(async () => {
     new URL("../../drizzle/0011_operational_alerts.sql", import.meta.url),
     "utf8"
   )
+  const capacity = await readFile(
+    new URL("../../drizzle/0012_capacity.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(baseline)
+  await client.exec(workspaces)
   await client.exec(profilesProxies)
   await client.exec(proxyProtocol)
   await client.exec(organization)
   await client.exec(statusUnique)
   await client.exec(browserSession)
   await client.exec(operationalAlerts)
-  database = drizzle(client, { schema })
+  await client.exec(capacity)
+  database = drizzle(client, {
+    schema,
+    logger: {
+      logQuery(query) {
+        queries.push(query)
+      },
+    },
+  })
   setDbForTests(database as unknown as Db)
 })
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   await client.close()
 })
 
@@ -117,10 +148,38 @@ function fakeDocker(): BrowserDockerClient {
     startContainer: vi.fn().mockResolvedValue(undefined),
     stopContainer: vi.fn().mockResolvedValue(undefined),
     removeContainer: vi.fn().mockResolvedValue(undefined),
+    getContainerStats: vi.fn().mockResolvedValue({
+      memoryUsageBytes: 768 * 1024 * 1024,
+      usedVcpu: 0.25,
+    }),
   }
 }
 
 describe("browser session orchestrator", () => {
+  it("calculates headroom and remaining profiles from reserved budgets", () => {
+    expect(
+      calculateNodeCapacity({
+        totalRamMb: 8192,
+        totalVcpu: 4,
+        activeSessions: 2,
+        liveRamUsedMb: 2500,
+        liveVcpuUsed: 0.7,
+        profileRamMb: 1536,
+        profileVcpu: 0.5,
+      })
+    ).toEqual({
+      ramUsedMb: 3072,
+      ramHeadroomMb: 5120,
+      liveRamUsedMb: 2500,
+      reservedRamMb: 3072,
+      vcpuUsed: 1,
+      vcpuHeadroom: 3,
+      liveVcpuUsed: 0.7,
+      reservedVcpu: 1,
+      estimatedRemainingProfiles: 3,
+    })
+  })
+
   it("starts one Camoufox session for an owned profile", async () => {
     const userId = await seedUser("start@test.dev")
     const profile = await createUserProfile(
@@ -184,6 +243,162 @@ describe("browser session orchestrator", () => {
 
     expect(second.id).toBe(first.id)
     expect(second.streamPassword).toBe(first.streamPassword)
+    expect(docker.createContainer).toHaveBeenCalledTimes(1)
+  })
+
+  it("loads capacity without browser launch credentials", async () => {
+    vi.stubEnv("ANTIDETECT_NEKO_USER_PASSWORD", "")
+    vi.stubEnv("ANTIDETECT_NEKO_ADMIN_PASSWORD", "")
+
+    await expect(getCapacitySummary({ db: testDb() })).resolves.toMatchObject({
+      nodes: [expect.objectContaining({ id: "local", activeSessions: 0 })],
+      users: [],
+    })
+  })
+
+  it("returns live node capacity and active-user concurrency meters", async () => {
+    const userId = await seedUser("capacity@test.dev")
+    const profile = await createUserProfile(
+      userId,
+      { name: "P", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    const docker = fakeDocker()
+    await startSession(userId, profile.id, {
+      db: testDb(),
+      docker,
+      config: testConfig(),
+      waitForReady: async () => undefined,
+    })
+    await createAlert({
+      recipientUserId: userId,
+      type: "session_reaped",
+      severity: "info",
+      title: "Idle browser session stopped",
+      entityType: "profile",
+      entityId: profile.id,
+      database: testDb(),
+    })
+
+    const summary = await getCapacitySummary({
+      db: testDb(),
+      docker,
+      config: testConfig(),
+    })
+
+    expect(summary.budget).toEqual({ ramMbPerProfile: 1536, vcpuPerProfile: 0.5 })
+    expect(summary.nodes[0]).toMatchObject({
+      id: "local",
+      activeSessions: 1,
+      ramUsedMb: 1536,
+      liveRamUsedMb: 768,
+      vcpuUsed: 0.5,
+      liveVcpuUsed: 0.25,
+      estimatedRemainingProfiles: 4,
+      statsStatus: "live",
+    })
+    expect(summary.users).toEqual([
+      expect.objectContaining({
+        userId,
+        activeSessions: 1,
+        concurrencyCap: 5,
+      }),
+    ])
+    expect(summary.reapEvents).toEqual([
+      expect.objectContaining({ userName: "Test", profileId: profile.id }),
+    ])
+    expect(docker.getContainerStats).toHaveBeenCalledWith("container-1")
+  })
+
+  it("rejects a launch when the user concurrency cap is reached", async () => {
+    const userId = await seedUser("user-cap@test.dev")
+    const firstProfile = await createUserProfile(
+      userId,
+      { name: "One", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    const secondProfile = await createUserProfile(
+      userId,
+      { name: "Two", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    await database
+      .update(capacityConfig)
+      .set({ perUserConcurrencyCap: 1 })
+      .where(eq(capacityConfig.key, "default"))
+    const docker = fakeDocker()
+    const options = {
+      db: testDb(),
+      docker,
+      config: testConfig(),
+      waitForReady: async () => undefined,
+    }
+
+    await startSession(userId, firstProfile.id, options)
+    await expect(
+      startSession(userId, secondProfile.id, options)
+    ).rejects.toThrow("User concurrency limit of 1 reached")
+    expect(docker.createContainer).toHaveBeenCalledTimes(1)
+  })
+
+  it("locks the user before enforcing the global concurrency cap", async () => {
+    const userId = await seedUser("locked-user@test.dev")
+    const profile = await createUserProfile(
+      userId,
+      { name: "Locked", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    queries = []
+
+    await startSession(userId, profile.id, {
+      db: testDb(),
+      docker: fakeDocker(),
+      config: testConfig(),
+      waitForReady: async () => undefined,
+    })
+
+    const userLock = queries.findIndex(
+      (query) => query.includes('from "users"') && query.includes("for update")
+    )
+    const nodeLock = queries.findIndex(
+      (query) => query.includes('from "nodes"') && query.includes("for update")
+    )
+    expect(userLock).toBeGreaterThanOrEqual(0)
+    expect(nodeLock).toBeGreaterThan(userLock)
+  })
+
+  it("rejects a launch when the node has no profile capacity", async () => {
+    const userId = await seedUser("node-cap@test.dev")
+    const firstProfile = await createUserProfile(
+      userId,
+      { name: "One", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    const secondProfile = await createUserProfile(
+      userId,
+      { name: "Two", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    await database
+      .update(capacityConfig)
+      .set({ perUserConcurrencyCap: 10 })
+      .where(eq(capacityConfig.key, "default"))
+    await database
+      .update(nodes)
+      .set({ totalRamMb: 1536, totalVcpu: 1 })
+      .where(eq(nodes.id, "local"))
+    const docker = fakeDocker()
+    const options = {
+      db: testDb(),
+      docker,
+      config: testConfig(),
+      waitForReady: async () => undefined,
+    }
+
+    await startSession(userId, firstProfile.id, options)
+    await expect(
+      startSession(userId, secondProfile.id, options)
+    ).rejects.toThrow('Node "Local" is at capacity')
     expect(docker.createContainer).toHaveBeenCalledTimes(1)
   })
 
@@ -258,6 +473,53 @@ describe("browser session orchestrator", () => {
       hostname: "docker.example.com",
       port: 2376,
     })
+  })
+
+  it("rejects oversized Docker stats responses", async () => {
+    const userId = await seedUser("large-stats@test.dev")
+    const profile = await createUserProfile(
+      userId,
+      { name: "Large stats", engine: "camoufox", os: "windows" },
+      testDb()
+    )
+    await startSession(userId, profile.id, {
+      db: testDb(),
+      docker: fakeDocker(),
+      config: testConfig(),
+      waitForReady: async () => undefined,
+    })
+    const body = JSON.stringify({
+      memory_stats: { usage: 1024 },
+      cpu_stats: {
+        cpu_usage: { total_usage: 200 },
+        system_cpu_usage: 2000,
+        online_cpus: 4,
+      },
+      precpu_stats: {
+        cpu_usage: { total_usage: 100 },
+        system_cpu_usage: 1000,
+      },
+      padding: "x".repeat(1024 * 1024),
+    })
+    const server = createServer((_request, response) => {
+      response.setHeader("Content-Type", "application/json")
+      response.end(body)
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const address = server.address() as AddressInfo
+    vi.stubEnv("ANTIDETECT_DOCKER_HOST", `http://127.0.0.1:${address.port}`)
+
+    try {
+      const summary = await getCapacitySummary({
+        db: testDb(),
+        config: testConfig(),
+      })
+      expect(summary.nodes[0]?.statsStatus).toBe("unavailable")
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
   })
 
   it("sanitizes Docker request failures before returning them", async () => {

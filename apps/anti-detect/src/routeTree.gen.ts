@@ -15,10 +15,12 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedProxiesRouteImport } from './routes/_authenticated/proxies'
 import { Route as AuthenticatedProfilesRouteImport } from './routes/_authenticated/profiles'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminCapacityRouteImport } from './routes/_authenticated/admin/capacity'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -52,6 +54,11 @@ const AuthenticatedProfilesRoute = AuthenticatedProfilesRouteImport.update({
   path: '/profiles',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -73,6 +80,12 @@ const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/admin/feedback',
     path: '/admin/feedback',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminCapacityRoute =
+  AuthenticatedAdminCapacityRouteImport.update({
+    id: '/admin/capacity',
+    path: '/admin/capacity',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminSettingsTabRoute =
@@ -99,10 +112,12 @@ export interface FileRoutesByFullPath {
   '/profiles': typeof AuthenticatedProfilesRoute
   '/proxies': typeof AuthenticatedProxiesRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/admin/capacity': typeof AuthenticatedAdminCapacityRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -113,10 +128,12 @@ export interface FileRoutesByTo {
   '/proxies': typeof AuthenticatedProxiesRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/capacity': typeof AuthenticatedAdminCapacityRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -129,10 +146,12 @@ export interface FileRoutesById {
   '/_authenticated/proxies': typeof AuthenticatedProxiesRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/capacity': typeof AuthenticatedAdminCapacityRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -145,10 +164,12 @@ export interface FileRouteTypes {
     | '/profiles'
     | '/proxies'
     | '/workspaces'
+    | '/admin/capacity'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -159,10 +180,12 @@ export interface FileRouteTypes {
     | '/proxies'
     | '/workspaces'
     | '/'
+    | '/admin/capacity'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -174,10 +197,12 @@ export interface FileRouteTypes {
     | '/_authenticated/proxies'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
+    | '/_authenticated/admin/capacity'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -233,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfilesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
       path: '/admin/settings'
@@ -259,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/feedback'
       fullPath: '/admin/feedback'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/capacity': {
+      id: '/_authenticated/admin/capacity'
+      path: '/admin/capacity'
+      fullPath: '/admin/capacity'
+      preLoaderRoute: typeof AuthenticatedAdminCapacityRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings/$tab': {
@@ -319,10 +358,12 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProxiesRoute: typeof AuthenticatedProxiesRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminCapacityRoute: typeof AuthenticatedAdminCapacityRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -330,10 +371,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProxiesRoute: AuthenticatedProxiesRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminCapacityRoute: AuthenticatedAdminCapacityRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

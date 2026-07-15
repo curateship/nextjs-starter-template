@@ -396,6 +396,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           icon: "globe",
           visible: true,
         },
+        {
+          type: "item",
+          id: "item-capacity",
+          label: "Capacity",
+          href: "/admin/capacity",
+          icon: "barChart3",
+          visible: true,
+        },
       ],
     },
     {

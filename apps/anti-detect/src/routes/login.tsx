@@ -11,7 +11,7 @@ export const Route = createFileRoute("/login")({
   loader: async () => {
     const user = await loadCurrentUser()
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/admin/" })
     }
   },
   pendingComponent: LoginLoadingSkeleton,
@@ -33,7 +33,7 @@ function LoginRoute() {
 
       try {
         await login(email, password)
-        await navigate({ to: "/" })
+        await navigate({ to: "/admin/" })
       } catch (loginError) {
         setError(getAuthErrorMessage(loginError))
       } finally {
@@ -50,9 +50,9 @@ function LoginRoute() {
         className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
       >
         <div className="mb-6">
-          <h1 className="text-xl font-semibold">Sign in to Custom Shell</h1>
+          <h1 className="text-xl font-semibold">Sign in to Antidetect</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Use your Custom Shell account.
+            Use your Antidetect account.
           </p>
         </div>
         <div className="space-y-4">

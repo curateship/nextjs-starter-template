@@ -1,15 +1,19 @@
 import { request as httpRequest, type RequestOptions } from "node:http"
 import { request as httpsRequest } from "node:https"
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm"
 
 import { db, type Db } from "@/server/db"
 import { decryptSecret } from "@/server/encryption"
 import { createAlert } from "@/server/notifications"
 import {
   browserSessions,
+  capacityConfig,
+  nodes,
+  notifications,
   profiles,
   proxies,
+  users,
   type BrowserSession,
   type Profile,
   type Proxy,
@@ -68,6 +72,12 @@ export type BrowserDockerClient = {
   startContainer(containerId: string): Promise<void>
   stopContainer(containerId: string): Promise<void>
   removeContainer(containerId: string): Promise<void>
+  getContainerStats(containerId: string): Promise<DockerContainerStats>
+}
+
+export type DockerContainerStats = {
+  memoryUsageBytes: number
+  usedVcpu: number
 }
 
 type OrchestratorOptions = {
@@ -88,6 +98,7 @@ const ACTIVE_SESSION_STATUSES: BrowserSessionStatus[] = [
   "running",
   "stopping",
 ]
+const MAX_DOCKER_RESPONSE_BYTES = 1024 * 1024
 const NEKO_STREAM_USERNAME = "user"
 
 export async function getActiveSession(
@@ -122,6 +133,218 @@ export async function listActiveUserSessions(userId: string, database: Db = db) 
         inArray(browserSessions.status, ACTIVE_SESSION_STATUSES)
       )
     )
+}
+
+export type CapacitySummary = {
+  budget: { ramMbPerProfile: number; vcpuPerProfile: number }
+  nodes: CapacityNode[]
+  users: Array<{
+    userId: string
+    name: string
+    email: string
+    activeSessions: number
+    concurrencyCap: number
+  }>
+  reapEvents: Array<{
+    id: string
+    userName: string
+    profileId: string | null
+    createdAt: string
+  }>
+}
+
+export type CapacityNode = {
+  id: string
+  label: string
+  status: string
+  totalRamMb: number
+  totalVcpu: number
+  activeSessions: number
+  ramUsedMb: number
+  ramHeadroomMb: number
+  liveRamUsedMb: number
+  reservedRamMb: number
+  vcpuUsed: number
+  vcpuHeadroom: number
+  liveVcpuUsed: number
+  reservedVcpu: number
+  estimatedRemainingProfiles: number
+  statsStatus: "live" | "partial" | "unavailable"
+}
+
+type CapacityCalculationInput = {
+  totalRamMb: number
+  totalVcpu: number
+  activeSessions: number
+  liveRamUsedMb: number
+  liveVcpuUsed: number
+  profileRamMb: number
+  profileVcpu: number
+}
+
+export function calculateNodeCapacity(input: CapacityCalculationInput) {
+  const reservedRamMb = input.activeSessions * input.profileRamMb
+  const reservedVcpu = input.activeSessions * input.profileVcpu
+  const ramUsedMb = Math.max(input.liveRamUsedMb, reservedRamMb)
+  const vcpuUsed = Math.max(input.liveVcpuUsed, reservedVcpu)
+  const ramHeadroomMb = Math.max(0, input.totalRamMb - ramUsedMb)
+  const vcpuHeadroom = Math.max(0, input.totalVcpu - vcpuUsed)
+
+  return {
+    ramUsedMb: round(ramUsedMb),
+    ramHeadroomMb: round(ramHeadroomMb),
+    liveRamUsedMb: round(input.liveRamUsedMb),
+    reservedRamMb: round(reservedRamMb),
+    vcpuUsed: round(vcpuUsed),
+    vcpuHeadroom: round(vcpuHeadroom),
+    liveVcpuUsed: round(input.liveVcpuUsed),
+    reservedVcpu: round(reservedVcpu),
+    estimatedRemainingProfiles: Math.max(
+      0,
+      Math.floor(
+        Math.min(
+          ramHeadroomMb / input.profileRamMb,
+          vcpuHeadroom / input.profileVcpu
+        )
+      )
+    ),
+  }
+}
+
+export async function getCapacitySummary(
+  options: OrchestratorOptions = {}
+): Promise<CapacitySummary> {
+  const database = options.db ?? db
+  const nodeId =
+    options.config?.nodeId ?? envString("ANTIDETECT_BROWSER_NODE_ID", "local")
+  const [capacity] = await database
+    .select()
+    .from(capacityConfig)
+    .where(eq(capacityConfig.key, "default"))
+    .limit(1)
+  if (!capacity) throw new Error("Capacity configuration is missing")
+
+  const nodeRows = await database.select().from(nodes).orderBy(asc(nodes.label))
+  const sessionRows = await database
+    .select({
+      userId: browserSessions.userId,
+      nodeId: browserSessions.nodeId,
+      containerId: browserSessions.containerId,
+    })
+    .from(browserSessions)
+    .where(
+      and(
+        isNull(browserSessions.endedAt),
+        inArray(browserSessions.status, ACTIVE_SESSION_STATUSES)
+      )
+    )
+  const reapRows = await database
+    .select({
+      id: notifications.id,
+      userId: notifications.recipientUserId,
+      profileId: notifications.entityId,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .where(eq(notifications.type, "session_reaped"))
+    .orderBy(desc(notifications.createdAt))
+    .limit(10)
+  const userIds = Array.from(
+    new Set([
+      ...sessionRows.map((session) => session.userId),
+      ...reapRows.map((event) => event.userId),
+    ])
+  )
+  const userRows = userIds.length
+    ? await database
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(inArray(users.id, userIds))
+    : []
+  const userById = new Map(userRows.map((user) => [user.id, user]))
+  const profileVcpu = capacity.profileVcpuMillicores / 1000
+  let docker: BrowserDockerClient | undefined = options.docker
+
+  const nodeSummaries = await Promise.all(
+    nodeRows.map(async (node): Promise<CapacityNode> => {
+      const nodeSessions = sessionRows.filter((session) => session.nodeId === node.id)
+      const liveStats: DockerContainerStats[] = []
+      if (node.id === nodeId) {
+        docker ??= createDockerClient()
+        const results = await Promise.all(
+          nodeSessions.map((session) =>
+            session.containerId
+              ? docker!.getContainerStats(session.containerId).catch(() => null)
+              : Promise.resolve(null)
+          )
+        )
+        liveStats.push(
+          ...results.filter((result): result is DockerContainerStats => Boolean(result))
+        )
+      }
+      const calculated = calculateNodeCapacity({
+        totalRamMb: node.totalRamMb,
+        totalVcpu: node.totalVcpu,
+        activeSessions: nodeSessions.length,
+        liveRamUsedMb: liveStats.reduce(
+          (total, stats) => total + stats.memoryUsageBytes / 1024 / 1024,
+          0
+        ),
+        liveVcpuUsed: liveStats.reduce(
+          (total, stats) => total + stats.usedVcpu,
+          0
+        ),
+        profileRamMb: capacity.profileRamMb,
+        profileVcpu,
+      })
+      const statsStatus =
+        nodeSessions.length === 0 || liveStats.length === nodeSessions.length
+          ? "live"
+          : liveStats.length
+            ? "partial"
+            : "unavailable"
+
+      return {
+        id: node.id,
+        label: node.label,
+        status: node.status,
+        totalRamMb: node.totalRamMb,
+        totalVcpu: node.totalVcpu,
+        activeSessions: nodeSessions.length,
+        ...calculated,
+        statsStatus,
+      }
+    })
+  )
+
+  const activeByUser = new Map<string, number>()
+  for (const session of sessionRows) {
+    activeByUser.set(session.userId, (activeByUser.get(session.userId) ?? 0) + 1)
+  }
+
+  return {
+    budget: {
+      ramMbPerProfile: capacity.profileRamMb,
+      vcpuPerProfile: profileVcpu,
+    },
+    nodes: nodeSummaries,
+    users: userRows
+      .filter((user) => activeByUser.has(user.id))
+      .map((user) => ({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        activeSessions: activeByUser.get(user.id) ?? 0,
+        concurrencyCap: capacity.perUserConcurrencyCap,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    reapEvents: reapRows.map((event) => ({
+      id: event.id,
+      userName: userById.get(event.userId)?.name ?? "Unknown user",
+      profileId: event.profileId,
+      createdAt: event.createdAt.toISOString(),
+    })),
+  }
 }
 
 export async function startSession(
@@ -160,10 +383,8 @@ export async function startSession(
   let session: BrowserSession | null = null
 
   for (let attempt = 0; attempt < config.maxSessions; attempt += 1) {
-    ports = await allocatePorts(profile.id, config, database)
-
     try {
-      session = await insertStartingSession(
+      const reservation = await reserveStartingSession(
         {
           sessionId,
           userId,
@@ -172,10 +393,14 @@ export async function startSession(
           containerName,
           volumeName,
           config,
-          ports,
         },
         database
       )
+      if (reservation.existing) {
+        return serializeBrowserSession(reservation.existing, streamLogin(config))
+      }
+      session = reservation.session
+      ports = reservation.ports
       break
     } catch (error) {
       if (isActiveSessionConflict(error)) {
@@ -474,6 +699,96 @@ async function allocatePorts(
   throw new Error("No browser session capacity is available")
 }
 
+async function reserveStartingSession(
+  input: {
+    sessionId: string
+    userId: string
+    profileId: string
+    createdAt: Date
+    containerName: string
+    volumeName: string
+    config: OrchestratorConfig
+  },
+  database: Db
+) {
+  return database.transaction(async (tx) => {
+    const [user] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update")
+      .limit(1)
+    if (!user) throw new Error("User not found")
+
+    const [node] = await tx
+      .select()
+      .from(nodes)
+      .where(eq(nodes.id, input.config.nodeId))
+      .for("update")
+      .limit(1)
+    if (!node) {
+      throw new Error(`Browser node "${input.config.nodeId}" is not configured`)
+    }
+    if (node.status !== "active") {
+      throw new Error(`Node "${node.label}" is not accepting new sessions`)
+    }
+
+    const existing = await getActiveSession(input.userId, input.profileId, tx)
+    if (existing) return { existing, session: null, ports: null }
+
+    const [capacity] = await tx
+      .select()
+      .from(capacityConfig)
+      .where(eq(capacityConfig.key, "default"))
+      .limit(1)
+    if (!capacity) throw new Error("Capacity configuration is missing")
+
+    const active = await tx
+      .select({
+        userId: browserSessions.userId,
+        nodeId: browserSessions.nodeId,
+      })
+      .from(browserSessions)
+      .where(
+        and(
+          isNull(browserSessions.endedAt),
+          inArray(browserSessions.status, ACTIVE_SESSION_STATUSES)
+        )
+      )
+    const activeForUser = active.filter(
+      (session) => session.userId === input.userId
+    ).length
+    if (activeForUser >= capacity.perUserConcurrencyCap) {
+      throw new Error(
+        `User concurrency limit of ${capacity.perUserConcurrencyCap} reached`
+      )
+    }
+
+    const activeForNode = active.filter(
+      (session) => session.nodeId === node.id
+    ).length
+    const nodeCapacity = calculateNodeCapacity({
+      totalRamMb: node.totalRamMb,
+      totalVcpu: node.totalVcpu,
+      activeSessions: activeForNode,
+      liveRamUsedMb: 0,
+      liveVcpuUsed: 0,
+      profileRamMb: capacity.profileRamMb,
+      profileVcpu: capacity.profileVcpuMillicores / 1000,
+    })
+    if (
+      activeForNode >= input.config.maxSessions ||
+      nodeCapacity.estimatedRemainingProfiles < 1
+    ) {
+      throw new Error(`Node "${node.label}" is at capacity`)
+    }
+
+    const ports = await allocatePorts(input.profileId, input.config, tx)
+    const session = await insertStartingSession({ ...input, ports }, tx)
+    return { existing: null, session, ports }
+  })
+}
+
 async function insertStartingSession(
   input: {
     sessionId: string
@@ -573,6 +888,10 @@ function hashToSlot(input: string, slots: number) {
   return hash % Math.max(1, slots)
 }
 
+function round(value: number) {
+  return Math.round(value * 100) / 100
+}
+
 function envString(name: string, fallback: string) {
   return process.env[name]?.trim() || fallback
 }
@@ -655,7 +974,64 @@ function createDockerClient(): BrowserDockerClient {
         `/containers/${encodeURIComponent(containerId)}?force=true`
       )
     },
+    async getContainerStats(containerId) {
+      const stats = await dockerRequest<unknown>(
+        connection,
+        "GET",
+        `/containers/${encodeURIComponent(containerId)}/stats?stream=false&one-shot=true`
+      )
+      return parseDockerStats(stats)
+    },
   }
+}
+
+function parseDockerStats(value: unknown): DockerContainerStats {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Docker returned invalid container stats")
+  }
+  const stats = value as Record<string, unknown>
+  const memory = readRecord(stats.memory_stats)
+  const currentCpu = readRecord(stats.cpu_stats)
+  const previousCpu = readRecord(stats.precpu_stats)
+  const currentUsage = readRecord(currentCpu.cpu_usage)
+  const previousUsage = readRecord(previousCpu.cpu_usage)
+  const memoryUsageBytes = readNonNegativeNumber(memory.usage)
+  const currentTotalUsage = readNonNegativeNumber(currentUsage.total_usage)
+  const previousTotalUsage = readNonNegativeNumber(previousUsage.total_usage)
+  const currentSystemUsage = readNonNegativeNumber(currentCpu.system_cpu_usage)
+  const previousSystemUsage = readNonNegativeNumber(previousCpu.system_cpu_usage)
+  const onlineCpus = readNonNegativeNumber(currentCpu.online_cpus)
+  if (
+    memoryUsageBytes === null ||
+    currentTotalUsage === null ||
+    previousTotalUsage === null ||
+    currentSystemUsage === null ||
+    previousSystemUsage === null ||
+    !onlineCpus
+  ) {
+    throw new Error("Docker returned invalid container stats")
+  }
+  const cpuDelta = currentTotalUsage - previousTotalUsage
+  const systemDelta = currentSystemUsage - previousSystemUsage
+  if (cpuDelta < 0 || systemDelta < 0) {
+    throw new Error("Docker returned invalid container stats")
+  }
+  return {
+    memoryUsageBytes,
+    usedVcpu: systemDelta > 0 ? (cpuDelta / systemDelta) * onlineCpus : 0,
+  }
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function readNonNegativeNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null
 }
 
 type DockerConnection =
@@ -727,7 +1103,7 @@ function isLocalDockerHost(hostname: string) {
 
 export class DockerRequestError extends Error {
   constructor(
-    public readonly method: "DELETE" | "POST",
+    public readonly method: "DELETE" | "GET" | "POST",
     public readonly path: string,
     public readonly status: number,
     public readonly responseText: string
@@ -739,7 +1115,7 @@ export class DockerRequestError extends Error {
 
 export class DockerConnectionError extends Error {
   constructor(
-    public readonly method: "DELETE" | "POST",
+    public readonly method: "DELETE" | "GET" | "POST",
     public readonly path: string,
     public readonly causeMessage: string
   ) {
@@ -768,7 +1144,7 @@ function publicDockerError(error: unknown, action: "start" | "stop") {
 
 async function dockerRequest<T = unknown>(
   connection: DockerConnection,
-  method: "DELETE" | "POST",
+  method: "DELETE" | "GET" | "POST",
   path: string,
   body?: unknown
 ): Promise<T> {
@@ -803,8 +1179,27 @@ async function dockerRequest<T = unknown>(
   return new Promise<T>((resolve, reject) => {
     const req = requestFn(options, (res) => {
       const chunks: Buffer[] = []
-      res.on("data", (chunk: Buffer) => chunks.push(chunk))
+      let responseBytes = 0
+      let responseTooLarge = false
+      res.on("data", (chunk: Buffer) => {
+        if (responseTooLarge) return
+        responseBytes += chunk.length
+        if (responseBytes > MAX_DOCKER_RESPONSE_BYTES) {
+          responseTooLarge = true
+          res.destroy()
+          reject(
+            new DockerConnectionError(
+              method,
+              path,
+              "Docker response exceeded the 1 MB limit"
+            )
+          )
+          return
+        }
+        chunks.push(chunk)
+      })
       res.on("end", () => {
+        if (responseTooLarge) return
         const text = Buffer.concat(chunks).toString("utf8")
         const status = res.statusCode ?? 500
         if (status >= 400) {

@@ -6,6 +6,8 @@ import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { requireAdminRoute } from "@/lib/admin-route"
+import { Route as AdminIndexRoute } from "@/routes/_authenticated/admin/index"
 import { setDbForTests, type Db } from "@/server/db"
 import {
   cleanAltText,
@@ -97,6 +99,10 @@ afterEach(async () => {
 })
 
 describe("custom shell auth helpers", () => {
+  it("guards the admin index route", () => {
+    expect(AdminIndexRoute.options.loader).toBe(requireAdminRoute)
+  })
+
   it("verifies argon2 passwords", async () => {
     const passwordHash = await hash("password123")
 
@@ -173,6 +179,12 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       { type: "item", label: "Profiles", href: "/profiles", visible: true },
       { type: "item", label: "Proxies", href: "/proxies", visible: true },
+      {
+        type: "item",
+        label: "Capacity",
+        href: "/admin/capacity",
+        visible: true,
+      },
     ])
     expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
@@ -198,6 +210,12 @@ describe("custom shell workspaces", () => {
     expect(secondSettings.sections[0]?.entries).toMatchObject([
       { type: "item", label: "Profiles", href: "/profiles", visible: true },
       { type: "item", label: "Proxies", href: "/proxies", visible: true },
+      {
+        type: "item",
+        label: "Capacity",
+        href: "/admin/capacity",
+        visible: true,
+      },
     ])
     expect(secondSettings.sections[1]?.entries).toMatchObject([
       {
