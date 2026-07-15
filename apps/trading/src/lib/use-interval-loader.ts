@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { useVisibleInterval } from "@/lib/use-visible-interval"
+
 /**
  * Polls a server fn on an interval. State updates only happen after awaits,
  * so this stays within the hooks lint rules.
@@ -24,10 +26,7 @@ export function useIntervalLoader<T>(
     }
   }, [])
 
-  React.useEffect(() => {
-    const timer = setInterval(() => void refresh(), intervalMs)
-    return () => clearInterval(timer)
-  }, [refresh, intervalMs])
+  useVisibleInterval(refresh, intervalMs)
 
   return { data, refresh }
 }

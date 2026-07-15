@@ -38,6 +38,7 @@ import {
   type AlertRuleItem,
   type AlertStatus,
 } from "@/lib/alerts"
+import { useVisibleInterval } from "@/lib/use-visible-interval"
 
 const POLL_MS = 10_000
 type AlertsPage = Awaited<ReturnType<typeof loadAlertsPage>>
@@ -78,10 +79,7 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
     setData(await loadAlertsPage())
   }, [])
 
-  React.useEffect(() => {
-    const timer = window.setInterval(() => void refresh().catch(() => {}), POLL_MS)
-    return () => window.clearInterval(timer)
-  }, [refresh])
+  useVisibleInterval(refresh, POLL_MS)
 
   const rows = React.useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -157,7 +155,9 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
 
       <DashboardTable
         title="Alerts"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={
+          <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+        }
         count={rows.length}
         status={
           !data.workerOnline
@@ -178,7 +178,10 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
               label="Market"
               value={market}
               onValueChange={setMarket}
-              options={data.markets.map((coin) => ({ value: coin, label: coin }))}
+              options={data.markets.map((coin) => ({
+                value: coin,
+                label: coin,
+              }))}
             />
             <FilterSelect
               label="Type"
@@ -245,14 +248,18 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
             <TableCell column="meta">{conditionLabel(rule)}</TableCell>
             <TableCell column="meta">{triggerLabel(rule)}</TableCell>
             <TableCell column="meta">
-              <Badge variant={rule.status === "active" ? "default" : "secondary"}>
+              <Badge
+                variant={rule.status === "active" ? "default" : "secondary"}
+              >
                 {statusLabel(rule.status)}
               </Badge>
             </TableCell>
             <TableCell column="mutedMeta">
               {formatTime(rule.lastTriggeredAt)}
             </TableCell>
-            <TableCell column="mutedMeta">{formatTime(rule.updatedAt)}</TableCell>
+            <TableCell column="mutedMeta">
+              {formatTime(rule.updatedAt)}
+            </TableCell>
             <TableCell column="actions">
               <div className="flex items-center justify-end">
                 <RowButton
@@ -419,7 +426,9 @@ function typeLabel(kind: AlertKind) {
 }
 
 function statusLabel(status: AlertStatus) {
-  return status === "triggered" ? "Triggered once" : status[0].toUpperCase() + status.slice(1)
+  return status === "triggered"
+    ? "Triggered once"
+    : status[0].toUpperCase() + status.slice(1)
 }
 
 function formatTime(value: string | null) {

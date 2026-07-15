@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { BacktestDashboard } from "@/components/backtest/backtest-dashboard"
 import { RunGroupsDashboard } from "@/components/backtest/strategies-dashboard"
-import { loadBacktests, loadGroupMetrics } from "@/lib/api/backtests"
+import { loadBacktestOverview } from "@/lib/api/backtests"
 
 const backtestSearchSchema = z.object({
   run: z.string().optional(),
@@ -11,14 +11,7 @@ const backtestSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/backtest/")({
   validateSearch: backtestSearchSchema,
-  loader: async () => {
-    const data = await loadBacktests()
-    // Blended per-group metrics for the run list (the API caps one metrics
-    // request at 100 groups; beyond that the DD/Bucket cells just stay empty).
-    const groupIds = [...new Set(data.runs.map((run) => run.groupId))]
-    const groupMetrics = await loadGroupMetrics(groupIds.slice(0, 100))
-    return { ...data, groupMetrics }
-  },
+  loader: () => loadBacktestOverview(),
   component: BacktestRoute,
 })
 

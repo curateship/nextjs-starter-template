@@ -11,6 +11,7 @@ import {
   clearAlertEvents,
   createAlertRule,
   deleteAlertRule,
+  getAlertEventsPoll,
   getAlertEventsPage,
   getAlertRules,
   markAlertEventRead,
@@ -93,7 +94,9 @@ describe("alert storage", () => {
       )
     )
 
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(100)
+    expect(
+      results.filter((result) => result.status === "fulfilled")
+    ).toHaveLength(100)
     expect(await getAlertRules(userId, asDb())).toHaveLength(100)
   })
 
@@ -131,7 +134,9 @@ describe("alert storage", () => {
     const userId = await createUser("owner@example.test")
     const rule = await createAlertRule(userId, onceInput, asDb())
 
-    expect((await pauseAlertRule(userId, rule.id, asDb())).status).toBe("paused")
+    expect((await pauseAlertRule(userId, rule.id, asDb())).status).toBe(
+      "paused"
+    )
     const resumed = await activateAlertRule(userId, rule.id, asDb())
     expect(resumed.status).toBe("active")
 
@@ -140,7 +145,9 @@ describe("alert storage", () => {
       asDb()
     )
     expect((await getAlertRules(userId, asDb()))[0]?.status).toBe("triggered")
-    expect((await activateAlertRule(userId, rule.id, asDb())).status).toBe("active")
+    expect((await activateAlertRule(userId, rule.id, asDb())).status).toBe(
+      "active"
+    )
   })
 
   it("atomically records and stops a one-time alert", async () => {
@@ -237,6 +244,11 @@ describe("alert storage", () => {
     expect(unread.items[0]?.coin).toBe("BTC")
     expect(allByTime.items[0]?.coin).toBe("BTC")
     expect(secondPage.items[0]?.coin).toBe("ETH")
+
+    const poll = await getAlertEventsPoll(userId, 1, asDb())
+    expect(poll).toMatchObject({ unreadCount: 1 })
+    expect(poll.events).toHaveLength(1)
+    expect(poll.events[0]?.coin).toBe("BTC")
   })
 
   it("marks all read and clears only one user's history", async () => {
@@ -287,8 +299,8 @@ describe("alert storage", () => {
     expect(
       await pruneAlertEvents(new Date("2026-07-01T00:00:00.000Z"), asDb())
     ).toEqual({ count: 1 })
-    expect((await getAlertEventsPage(userId, {}, asDb())).items[0]?.observed).toBe(
-      5.3
-    )
+    expect(
+      (await getAlertEventsPage(userId, {}, asDb())).items[0]?.observed
+    ).toBe(5.3)
   })
 })

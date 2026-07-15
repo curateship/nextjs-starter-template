@@ -31,6 +31,7 @@ import {
   type AlertLogFilters,
   type AlertLogSort,
 } from "@/lib/alerts"
+import { useVisibleInterval } from "@/lib/use-visible-interval"
 
 const POLL_MS = 10_000
 const SEARCH_DEBOUNCE_MS = 300
@@ -87,12 +88,12 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
   )
 
   React.useEffect(() => {
-    queueMicrotask(() =>
-      void refresh(filters).catch((cause) => setError(errorMessage(cause)))
+    queueMicrotask(
+      () =>
+        void refresh(filters).catch((cause) => setError(errorMessage(cause)))
     )
-    const timer = window.setInterval(() => void refresh(filters).catch(() => {}), POLL_MS)
-    return () => window.clearInterval(timer)
   }, [filters, refresh])
+  useVisibleInterval(() => refresh(filters), POLL_MS)
 
   React.useEffect(() => {
     const search = searchInput || undefined
@@ -109,8 +110,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
     const next = {
       ...filters,
       ...patch,
-      page:
-        "page" in patch || "pageSize" in patch ? (patch.page ?? 1) : 1,
+      page: "page" in patch || "pageSize" in patch ? (patch.page ?? 1) : 1,
     }
     setFilters(next)
     setError(null)
@@ -194,7 +194,10 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
               onValueChange={(value) =>
                 patchFilters({ coin: value === "all" ? undefined : value })
               }
-              options={data.markets.map((coin) => ({ value: coin, label: coin }))}
+              options={data.markets.map((coin) => ({
+                value: coin,
+                label: coin,
+              }))}
             />
             <FilterSelect
               label="Type"
@@ -356,5 +359,7 @@ function formatTime(value: string) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "The Alert Log request failed."
+  return error instanceof Error
+    ? error.message
+    : "The Alert Log request failed."
 }

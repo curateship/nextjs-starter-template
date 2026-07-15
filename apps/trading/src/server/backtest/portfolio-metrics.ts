@@ -15,6 +15,7 @@ type MarketCurve = { start: number; curve: BacktestEquityPoint[] }
 
 /** One point on the summed basket curve: bar time and total basket equity. */
 type CombinedPoint = { t: number; total: number }
+type BlendedCurve = { totalStart: number; series: CombinedPoint[] }
 
 /**
  * Blends every market's equity curve into one combined basket curve. Equal-
@@ -23,9 +24,7 @@ type CombinedPoint = { t: number; total: number }
  * before its history begins, so markets with shorter histories don't distort
  * the early basket. Returns the total starting capital plus the summed curve.
  */
-function blendCurves(
-  markets: MarketCurve[]
-): { totalStart: number; series: CombinedPoint[] } | null {
+function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
   const ms = markets
     .filter((m) => Array.isArray(m.curve) && m.curve.length > 0)
     .map((m) => ({
@@ -65,6 +64,16 @@ function blendCurves(
 function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
   const blended = blendCurves(markets)
   if (!blended) return null
+  return computeCombinedFromBlend(
+    blended,
+    markets.filter((market) => market.curve.length > 0).length
+  )
+}
+
+function computeCombinedFromBlend(
+  blended: BlendedCurve,
+  marketCount: number
+): GroupPortfolioMetrics {
   const { totalStart, series } = blended
 
   let peak = -Infinity
@@ -88,9 +97,7 @@ function computeCombined(markets: MarketCurve[]): GroupPortfolioMetrics | null {
   }
 
   return {
-    markets: markets.filter(
-      (m) => Array.isArray(m.curve) && m.curve.length > 0
-    ).length,
+    markets: marketCount,
     combinedDrawdownPct: maxDrawdown * 100,
     drawdownAt,
     bucketLowPct: Math.min(0, (minTotal / totalStart - 1) * 100),
@@ -122,8 +129,43 @@ function downsample(series: CombinedPoint[]): BacktestEquityPoint[] {
  */
 const cache = new Map<
   string,
-  { sig: string; metrics: GroupPortfolioMetrics | null }
+  {
+    sig: string
+    metrics: GroupPortfolioMetrics | null
+    expiresAt: number
+  }
 >()
+const CACHE_MAX_GROUPS = 500
+const CACHE_TTL_MS = 15 * 60_000
+
+function readCache(key: string, sig: string) {
+  const hit = cache.get(key)
+  if (!hit || hit.sig !== sig || hit.expiresAt <= Date.now()) {
+    if (hit) cache.delete(key)
+    return null
+  }
+  cache.delete(key)
+  cache.set(key, hit)
+  return hit
+}
+
+function writeCache(
+  key: string,
+  sig: string,
+  metrics: GroupPortfolioMetrics | null
+) {
+  cache.delete(key)
+  cache.set(key, {
+    sig,
+    metrics,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  })
+  while (cache.size > CACHE_MAX_GROUPS) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
+}
 
 /**
  * Combined-basket risk for each requested run group. Only completed markets
@@ -161,8 +203,8 @@ export async function loadGroupPortfolioMetrics(
   const toLoad: string[] = []
   for (const groupId of ids) {
     const sig = sigByGroup.get(groupId) ?? "0:"
-    const hit = cache.get(`${userId}:${groupId}`)
-    if (hit && hit.sig === sig) {
+    const hit = readCache(`${userId}:${groupId}`, sig)
+    if (hit) {
       if (hit.metrics) result[groupId] = hit.metrics
     } else {
       toLoad.push(groupId)
@@ -195,10 +237,11 @@ export async function loadGroupPortfolioMetrics(
     }
     for (const groupId of toLoad) {
       const metrics = computeCombined(byGroup.get(groupId) ?? [])
-      cache.set(`${userId}:${groupId}`, {
-        sig: sigByGroup.get(groupId) ?? "0:",
-        metrics,
-      })
+      writeCache(
+        `${userId}:${groupId}`,
+        sigByGroup.get(groupId) ?? "0:",
+        metrics
+      )
       if (metrics) result[groupId] = metrics
     }
   }
@@ -206,16 +249,14 @@ export async function loadGroupPortfolioMetrics(
   return result
 }
 
-/**
- * The combined equity curve for a single run group — the same blend as the risk
- * metrics, downsampled for the results-page P&L chart. Returns null when the
- * group has no completed markets with equity curves.
- */
-export async function loadGroupCombinedCurve(
+export async function loadGroupPortfolioSummary(
   userId: string,
   groupId: string,
   database: CustomShellDb = db
-): Promise<GroupCombinedCurve | null> {
+): Promise<{
+  metrics: GroupPortfolioMetrics | null
+  curve: GroupCombinedCurve | null
+}> {
   const rows = await database
     .select({
       startingEquity: tradingBacktests.startingEquity,
@@ -231,15 +272,18 @@ export async function loadGroupCombinedCurve(
         eq(tradingBacktests.status, "done")
       )
     )
-  const markets: MarketCurve[] = []
-  for (const row of rows) {
-    if (!row.curve) continue
-    markets.push({ start: Number(row.startingEquity), curve: row.curve })
-  }
+  const markets = rows.flatMap((row) =>
+    row.curve && row.curve.length > 0
+      ? [{ start: Number(row.startingEquity), curve: row.curve }]
+      : []
+  )
   const blended = blendCurves(markets)
-  if (!blended) return null
+  if (!blended) return { metrics: null, curve: null }
   return {
-    startEquity: blended.totalStart,
-    points: downsample(blended.series),
+    metrics: computeCombinedFromBlend(blended, markets.length),
+    curve: {
+      startEquity: blended.totalStart,
+      points: downsample(blended.series),
+    },
   }
 }

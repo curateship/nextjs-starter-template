@@ -16,10 +16,7 @@ import {
 } from "@/lib/backtest/types"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import {
-  customShellSettings,
-  customShellWorkspaces,
-} from "@/server/schema"
+import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
@@ -54,16 +51,15 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
-  sidebarWidth: z
+  sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
+  dashboardRowsPerPage: z
     .number()
     .int()
-    .min(MIN_SIDEBAR_WIDTH)
-    .max(MAX_SIDEBAR_WIDTH),
-  dashboardRowsPerPage: z.number().int().refine((value) =>
-    DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-      value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-    )
-  ),
+    .refine((value) =>
+      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+        value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+      )
+    ),
   maxCandles: z
     .number()
     .int()
@@ -98,7 +94,9 @@ const shellConfigSchema = z.object({
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Shell settings request failed."
+  return error instanceof Error
+    ? error.message
+    : "Shell settings request failed."
 }
 
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
@@ -273,7 +271,7 @@ async function requireAdminUser() {
   return user
 }
 
-function parseShellGlobals(value: unknown) {
+export function parseShellGlobals(value: unknown) {
   const fallback = createDefaultShellConfig()
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return pickShellGlobals(fallback)

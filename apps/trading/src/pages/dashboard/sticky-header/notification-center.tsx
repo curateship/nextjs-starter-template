@@ -36,11 +36,11 @@ import {
   markNotificationRead,
   type NotificationItem,
 } from "@/lib/api/notification"
+import { pollNotificationFeed } from "@/lib/api/notification-feed"
 import {
   loadAlertsPage,
   markAlertRead,
   markAlertsRead,
-  pollAlerts,
   type ScannerAlertItem,
 } from "@/lib/api/scanner"
 import {
@@ -547,71 +547,92 @@ export function NotificationCenter({
   // Keep the unread badge live even while the tray is closed.
   React.useEffect(() => {
     let cancelled = false
+    let running = false
     async function tick() {
-      const [alertResult, tradingResult, marketResult, priceAlertResult] =
-        await Promise.allSettled([
-          pollAlerts(),
-          listTradingNotifications(),
-          pollMarketScannerAlerts(),
-          pollAlertEvents(),
-        ])
-      if (cancelled) return
-      if (alertResult.status === "fulfilled") {
-        const next = alertResult.value.latest
-        if (seenScannerAlerts.current) {
-          for (const alert of next) {
-            if (!seenScannerAlerts.current.has(alert.id)) {
-              showBrowserAlert(alert, navigate)
+      if (cancelled || running || document.visibilityState !== "visible") {
+        return
+      }
+      running = true
+      try {
+        const result = await pollNotificationFeed()
+        if (cancelled) return
+        if (result.scanner) {
+          const nextScanner = result.scanner.latest
+          if (seenScannerAlerts.current) {
+            for (const alert of nextScanner) {
+              if (!seenScannerAlerts.current.has(alert.id)) {
+                showBrowserAlert(alert, navigate)
+              }
             }
           }
+          seenScannerAlerts.current = new Set(
+            nextScanner.map((alert) => alert.id)
+          )
+          setAlertUnread(result.scanner.unreadCount)
         }
-        seenScannerAlerts.current = new Set(next.map((alert) => alert.id))
-        setAlertUnread(alertResult.value.unreadCount)
-      }
-      if (tradingResult.status === "fulfilled") {
-        const next = tradingResult.value.items
-        if (seenTradingAlerts.current) {
-          for (const alert of next) {
-            if (!seenTradingAlerts.current.has(alert.id)) {
-              showBrowserAlert(alert, navigate)
+
+        if (result.trading) {
+          const nextTrading = result.trading.items
+          if (seenTradingAlerts.current) {
+            for (const alert of nextTrading) {
+              if (!seenTradingAlerts.current.has(alert.id)) {
+                showBrowserAlert(alert, navigate)
+              }
             }
           }
+          seenTradingAlerts.current = new Set(
+            nextTrading.map((alert) => alert.id)
+          )
+          setTrading(nextTrading)
+          setTradingUnread(result.trading.unreadCount)
         }
-        seenTradingAlerts.current = new Set(next.map((alert) => alert.id))
-        setTrading(next)
-        setTradingUnread(tradingResult.value.unreadCount)
-      }
-      if (marketResult.status === "fulfilled") {
-        const next = marketResult.value.alerts
-        if (seenMarketAlerts.current) {
-          for (const alert of next) {
-            if (!seenMarketAlerts.current.has(alert.id)) {
-              showBrowserAlert(alert, navigate)
+
+        if (result.market) {
+          const nextMarket = result.market.alerts
+          if (seenMarketAlerts.current) {
+            for (const alert of nextMarket) {
+              if (!seenMarketAlerts.current.has(alert.id)) {
+                showBrowserAlert(alert, navigate)
+              }
             }
           }
+          seenMarketAlerts.current = new Set(
+            nextMarket.map((alert) => alert.id)
+          )
+          setMarketAlerts(nextMarket)
+          setMarketUnread(result.market.unreadCount)
         }
-        seenMarketAlerts.current = new Set(next.map((alert) => alert.id))
-        setMarketAlerts(next)
-        setMarketUnread(marketResult.value.unreadCount)
-      }
-      if (priceAlertResult.status === "fulfilled") {
-        const next = priceAlertResult.value.events
-        if (seenPriceAlerts.current) {
-          for (const alert of next) {
-            if (!seenPriceAlerts.current.has(alert.id))
-              showBrowserAlert(alert, navigate)
+
+        if (result.priceAlerts) {
+          const nextPriceAlerts = result.priceAlerts.events
+          if (seenPriceAlerts.current) {
+            for (const alert of nextPriceAlerts) {
+              if (!seenPriceAlerts.current.has(alert.id))
+                showBrowserAlert(alert, navigate)
+            }
           }
+          seenPriceAlerts.current = new Set(
+            nextPriceAlerts.map((alert) => alert.id)
+          )
+          setPriceAlerts(nextPriceAlerts)
+          setPriceAlertUnread(result.priceAlerts.unreadCount)
         }
-        seenPriceAlerts.current = new Set(next.map((alert) => alert.id))
-        setPriceAlerts(next)
-        setPriceAlertUnread(priceAlertResult.value.unreadCount)
+      } catch {
+        // A later tick retries transient request failures.
+      } finally {
+        running = false
       }
     }
     void tick()
     const timer = setInterval(() => void tick(), ALERT_POLL_MS)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void tick()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
       cancelled = true
       clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [navigate])
 

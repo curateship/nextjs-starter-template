@@ -1,10 +1,11 @@
-import { sql } from "drizzle-orm"
+import { lt, sql } from "drizzle-orm"
 
 import { safeWorkerError, type WorkerKind } from "@/lib/workers"
 import { db } from "@/server/db"
 import { tradingWorkerHeartbeats } from "@/server/schema"
 
 const HEARTBEAT_INTERVAL_MS = 10_000
+const HEARTBEAT_RETENTION_MS = 7 * 24 * 60 * 60_000
 
 export class WorkerHeartbeat {
   private timer: NodeJS.Timeout | null = null
@@ -13,6 +14,7 @@ export class WorkerHeartbeat {
   private readonly kind: WorkerKind
   private readonly version: string
   private readonly getMeta: () => Record<string, unknown>
+  private pruned = false
 
   constructor(
     workerId: string,
@@ -59,6 +61,17 @@ export class WorkerHeartbeat {
             meta: sql`excluded.meta`,
           },
         })
+      if (!this.pruned) {
+        await db
+          .delete(tradingWorkerHeartbeats)
+          .where(
+            lt(
+              tradingWorkerHeartbeats.lastSeenAt,
+              new Date(Date.now() - HEARTBEAT_RETENTION_MS)
+            )
+          )
+        this.pruned = true
+      }
     } catch (error) {
       console.error(`${this.kind} worker: heartbeat failed`, error)
     }

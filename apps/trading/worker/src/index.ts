@@ -10,6 +10,8 @@ const { BotWorkerService } = await import("./bot-worker-service")
 const { WorkerHeartbeat } = await import("./heartbeat")
 const { acquireLeadership } = await import("./leadership")
 const { WorkerRuntimeController } = await import("./runtime-control")
+const { TradingNotificationSyncService } =
+  await import("./trading-notification-sync-service")
 
 const WORKER_VERSION = "0.1.0"
 
@@ -27,7 +29,9 @@ heartbeat.start()
 const leadershipConnection = await acquireLeadership("bot")
 role = "leader"
 console.log("bot worker: leader lock acquired")
+const notificationSync = new TradingNotificationSyncService()
 await runtime.start()
+await notificationSync.start()
 console.log("bot worker ready")
 
 let shuttingDown = false
@@ -36,6 +40,7 @@ async function shutdown(signal: string) {
   shuttingDown = true
   console.log(`bot worker received ${signal}, shutting down`)
   heartbeat.stop()
+  notificationSync.stop()
   try {
     await runtime.stop()
   } catch (error) {

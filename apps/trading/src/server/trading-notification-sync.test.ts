@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import * as schema from "@/server/schema"
 import {
+  syncTradingNotificationsForAllUsers,
   syncTradingNotificationsForUser,
   type TradingNotificationExchange,
 } from "@/server/trading-notification-sync"
@@ -72,6 +73,36 @@ function exchangeWith(
 }
 
 describe("syncTradingNotificationsForUser", () => {
+  it("syncs active wallets without a browser request", async () => {
+    const { userId } = await createUserAndWallet()
+    const exchange = exchangeWith([
+      {
+        tid: 100,
+        oid: 500,
+        coin: "BTC",
+        px: "68000",
+        sz: "0.01",
+        side: "B",
+        startPosition: "0",
+        time: Date.parse("2026-07-13T20:00:20.000Z"),
+      },
+    ])
+
+    await syncTradingNotificationsForAllUsers({
+      database: database as unknown as CustomShellDb,
+      exchange,
+      syncedAt: new Date("2026-07-13T20:00:20.000Z"),
+    })
+
+    expect(
+      await getTradingNotificationPage(
+        userId,
+        20,
+        database as unknown as CustomShellDb
+      )
+    ).toMatchObject({ items: [{ coin: "BTC", kind: "position_opened" }] })
+  })
+
   it("records verified fills returned by Hyperliquid", async () => {
     const { userId } = await createUserAndWallet()
     const exchange = exchangeWith([

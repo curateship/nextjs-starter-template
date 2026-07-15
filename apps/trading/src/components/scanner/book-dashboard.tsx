@@ -14,6 +14,7 @@ import {
   type BookMetricsResponse,
 } from "@/lib/api/scanner"
 import { cn } from "@/lib/utils"
+import { useVisibleInterval } from "@/lib/use-visible-interval"
 
 const POLL_MS = 5_000
 
@@ -64,21 +65,16 @@ function sortValue(item: BookMetricsItem, key: BookSortKey): number {
 export function BookDashboard({ initial }: { initial: BookMetricsResponse }) {
   const [data, setData] = React.useState(initial)
   const [expanded, setExpanded] = React.useState<string | null>(null)
-  const [sort, setSort] = React.useState<{ sortBy: BookSortKey; dir: SortDir }>({
-    sortBy: "updated",
-    dir: "desc",
-  })
+  const [sort, setSort] = React.useState<{ sortBy: BookSortKey; dir: SortDir }>(
+    {
+      sortBy: "updated",
+      dir: "desc",
+    }
+  )
 
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      void loadBookMetrics()
-        .then(setData)
-        .catch(() => {
-          // transient poll failure; next tick retries
-        })
-    }, POLL_MS)
-    return () => clearInterval(timer)
-  }, [])
+  useVisibleInterval(async () => {
+    setData(await loadBookMetrics())
+  }, POLL_MS)
 
   const sortedItems = React.useMemo(() => {
     const items = [...data.items]
@@ -184,12 +180,12 @@ function BookRow({
         </span>
       </TableCell>
       <TableCell column="meta">
-        <span className="font-mono text-xs tabular-nums text-emerald-600">
+        <span className="font-mono text-xs text-emerald-600 tabular-nums">
           {bid1 === undefined ? "—" : formatNotional(bid1)}
         </span>
       </TableCell>
       <TableCell column="meta">
-        <span className="font-mono text-xs tabular-nums text-red-500">
+        <span className="font-mono text-xs text-red-500 tabular-nums">
           {ask1 === undefined ? "—" : formatNotional(ask1)}
         </span>
       </TableCell>
@@ -231,7 +227,7 @@ function BookRow({
         )}
       </TableCell>
       <TableCell column="meta">
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
           {new Date(item.updatedAt).toLocaleTimeString("en-US", {
             hour12: false,
           })}

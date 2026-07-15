@@ -90,6 +90,7 @@ export function BacktestAutomationDialog({
     if (!open || !groupId) return
     let cancelled = false
     const poll = () => {
+      if (document.visibilityState !== "visible") return
       void loadBacktest(groupId)
         .then((response) => {
           if (cancelled) return
@@ -110,16 +111,19 @@ export function BacktestAutomationDialog({
         })
     }
     const timer = setInterval(poll, POLL_MS)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") poll()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
     poll()
     return () => {
       cancelled = true
       clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [groupId, onOpenChange, open, router])
 
-  const availableMarkets = markets.filter(
-    (row) => !selected.includes(row.coin)
-  )
+  const availableMarkets = markets.filter((row) => !selected.includes(row.coin))
 
   const submit = async () => {
     if (busy) return
