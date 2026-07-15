@@ -48,6 +48,13 @@ const notificationIdSchema = z.object({
   notificationId: z.string().min(1),
 })
 
+const deleteNotificationsSchema = z.object({
+  notificationIds: z
+    .array(z.string().min(1).max(100))
+    .min(1)
+    .max(500),
+})
+
 export function getNotificationErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Notification request failed."
 }
@@ -88,6 +95,24 @@ const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
   }
 )
 
+const deleteAdminNotificationsFn = createServerFn({ method: "POST" })
+  .inputValidator(deleteNotificationsSchema)
+  .handler(async ({ data }): Promise<{ count: number }> => {
+    const { deleteAdminNotificationRows } = await import(
+      "@/server/notifications"
+    )
+    return deleteAdminNotificationRows(data.notificationIds)
+  })
+
+const clearAdminNotificationsFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ count: number }> => {
+    const { clearAdminNotificationRows } = await import(
+      "@/server/notifications"
+    )
+    return clearAdminNotificationRows()
+  }
+)
+
 export function listNotificationPage(payload: NotificationListPayload = {}) {
   return listNotificationsPageFn({ data: payload })
 }
@@ -102,4 +127,12 @@ export function markNotificationRead(notificationId: string) {
 
 export function markAllNotificationsRead() {
   return markAllNotificationsReadFn()
+}
+
+export function deleteAdminNotifications(notificationIds: string[]) {
+  return deleteAdminNotificationsFn({ data: { notificationIds } })
+}
+
+export function clearAdminNotifications() {
+  return clearAdminNotificationsFn()
 }

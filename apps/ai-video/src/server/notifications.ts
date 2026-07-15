@@ -113,6 +113,29 @@ export async function markAllCurrentUserNotificationsRead() {
   }
 }
 
+export async function deleteAdminNotificationRows(notificationIds: string[]) {
+  requireAppOrigin()
+  await requireAdminNotificationUser()
+
+  const rows = await db
+    .delete(aiVideoNotifications)
+    .where(inArray(aiVideoNotifications.id, notificationIds))
+    .returning({ id: aiVideoNotifications.id })
+
+  return { count: rows.length }
+}
+
+export async function clearAdminNotificationRows() {
+  requireAppOrigin()
+  await requireAdminNotificationUser()
+
+  const rows = await db
+    .delete(aiVideoNotifications)
+    .returning({ id: aiVideoNotifications.id })
+
+  return { count: rows.length }
+}
+
 async function requireNotificationUser() {
   const user = await findCurrentUser()
   if (!user) {

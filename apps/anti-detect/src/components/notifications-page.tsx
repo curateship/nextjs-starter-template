@@ -3,17 +3,31 @@ import {
   AlertCircleIcon,
   AlertTriangleIcon,
   BellIcon,
+  Loader2Icon,
   InfoIcon,
   MessageSquareIcon,
   ThumbsUpIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -29,6 +43,8 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
+  clearAdminNotifications,
+  deleteAdminNotifications,
   getNotificationErrorMessage,
   listAllNotifications,
   type NotificationItem,
@@ -122,6 +138,10 @@ export function NotificationsPage({
   )
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = React.useState(false)
+  const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
+  const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
@@ -188,6 +208,73 @@ export function NotificationsPage({
     })
   }, [notifications, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
 
+  const visibleNotificationIds = React.useMemo(
+    () => filteredNotifications.map((item) => item.id),
+    [filteredNotifications]
+  )
+  const visibleSelected =
+    visibleNotificationIds.length > 0 &&
+    visibleNotificationIds.every((id) => selectedIds.has(id))
+  const visiblePartiallySelected =
+    !visibleSelected && visibleNotificationIds.some((id) => selectedIds.has(id))
+
+  function toggleVisibleSelection(checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      for (const id of visibleNotificationIds) {
+        if (checked) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }
+
+  function toggleNotificationSelection(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function deleteSelected() {
+    const notificationIds = Array.from(selectedIds)
+    if (!notificationIds.length) return
+
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteAdminNotifications(notificationIds)
+      const deletedIds = new Set(notificationIds)
+      setNotifications((current) =>
+        current.filter((item) => !deletedIds.has(item.id))
+      )
+      setSelectedIds(new Set())
+      setMassDeleteOpen(false)
+    } catch (deleteError) {
+      setError(getNotificationErrorMessage(deleteError))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function clearAll() {
+    setDeleting(true)
+    setError(null)
+    try {
+      await clearAdminNotifications()
+      setNotifications([])
+      setNextCursor(null)
+      setSelectedIds(new Set())
+      setClearAllOpen(false)
+    } catch (deleteError) {
+      setError(getNotificationErrorMessage(deleteError))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const toggleSort = (column: NotificationSortColumn) => {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
@@ -214,8 +301,36 @@ export function NotificationsPage({
         title="Notifications"
         icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={filteredNotifications.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                disabled={deleting || loadingMore}
+                onClick={() => setMassDeleteOpen(true)}
+              >
+                {deleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarButton
+              type="button"
+              variant="destructive"
+              disabled={
+                notifications.length === 0 || deleting || loadingMore
+              }
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2Icon className="size-4" />
+              Clear all
+            </DashboardToolbarButton>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}
@@ -274,6 +389,21 @@ export function NotificationsPage({
         header={
             <TableHeader>
               <TableRow>
+                <TableHead column="select">
+                  <Checkbox
+                    checked={
+                      visibleSelected
+                        ? true
+                        : visiblePartiallySelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={(checked) =>
+                      toggleVisibleSelection(checked === true)
+                    }
+                    aria-label="Select visible notifications"
+                  />
+                </TableHead>
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "activity"} direction={sortDirection} onClick={() => toggleSort("activity")}>
                     Activity
@@ -309,7 +439,7 @@ export function NotificationsPage({
         }
         isEmpty={filteredNotifications.length === 0}
         emptyText="No notifications found."
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "loadMore",
           count: filteredNotifications.length,
@@ -340,6 +470,17 @@ export function NotificationsPage({
               }
             }}
           >
+            <TableCell
+              column="select"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <Checkbox
+                checked={selectedIds.has(item.id)}
+                onCheckedChange={() => toggleNotificationSelection(item.id)}
+                aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
+              />
+            </TableCell>
             <TableCell column="main">
               <div className="flex items-center gap-2">
                 <NotificationActivityIcon item={item} />
@@ -382,6 +523,75 @@ export function NotificationsPage({
           </TableRow>
         ))}
       </DashboardTable>
+      <NotificationDeleteDialog
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
+        description="This permanently removes the selected notification history."
+        confirmLabel="Delete"
+        deleting={deleting}
+        onConfirm={() => void deleteSelected()}
+      />
+      <NotificationDeleteDialog
+        open={clearAllOpen}
+        onOpenChange={setClearAllOpen}
+        title="Clear all notifications?"
+        description="This permanently removes all notification history shown on this dashboard."
+        confirmLabel="Clear all"
+        deleting={deleting}
+        onConfirm={() => void clearAll()}
+      />
     </div>
+  )
+}
+
+function NotificationDeleteDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  deleting,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel: string
+  deleting: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>This cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deleting}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deleting}
+            onClick={onConfirm}
+          >
+            {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {deleting ? "Working…" : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
