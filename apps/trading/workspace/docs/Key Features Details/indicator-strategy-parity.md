@@ -26,11 +26,10 @@ same settings. Never add a capability to only one side.
   booleans as 0/1). Example: EMA is ONE indicator with `fast/slow/third` +
   `showFast/showSlow/showThird` on both sides — never separate "EMA 20 /
   EMA 50" chart entries next to an "EMA Cross" strategy with different fields.
-- **Chart seeds the canvas.** New automation indicator nodes start as an exact
-  copy of the chart indicator's saved settings via a `<name>ParamsFromChart()`
-  function in the indicator's def file (see `priceActionParamsFromChart`,
-  `emaCrossParamsFromChart`), wired into the automation route loader
-  (`src/routes/_authenticated/automations/$automationId.tsx`).
+- **Independent starting settings.** New Automation indicator nodes use the
+  defaults from `src/lib/indicators/registry.ts`. Chart pins and saved chart
+  settings never control which Automation nodes are available or how a new
+  node starts. Existing saved Automation node settings remain unchanged.
 - **Automation paints in chart shape.** An indicator module's
   `paint.indicators` must emit the SAME config shape the chart's own overlay
   uses (EMA Cross emits one `type: "ema"` config with all three lines), so an
@@ -52,7 +51,7 @@ same settings. Never add a capability to only one side.
 3. Update the chart rendering (`src/components/chart/price-chart.tsx`) and the
    settings modal (`src/components/indicators/indicator-settings-dialog.tsx`).
 4. Update server param validation (`src/server/indicators.ts`).
-5. Update/add the `ParamsFromChart` seeding.
+5. Check the registry defaults are correct for a new Automation node.
 6. Check old saved params still parse to identical behavior (zod defaults).
 7. Run the parity tests (`src/lib/indicators/parity.test.ts`) and the full
    suite.

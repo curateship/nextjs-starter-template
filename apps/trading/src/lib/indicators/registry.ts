@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-import type { IndicatorType } from "@/lib/trading/indicators-config"
 import type { IndicatorModule } from "./contract"
 import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
@@ -49,24 +48,6 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   price_action: erase(priceActionIndicator),
   fair_value_gap: erase(fairValueGapIndicator),
   trendline: erase(trendlineIndicator),
-}
-
-/**
- * Chart-overlay indicator types that have a signal-module counterpart.
- * Pinning the chart indicator also offers its signal version on the
- * automation canvas. Base and Sessions are draw-only (no buy/sell rule),
- * so they have no entry here.
- */
-export const SIGNAL_FOR_CHART_TYPE: Partial<Record<IndicatorType, IndicatorId>> = {
-  ema: "ema_cross",
-  vwap: "vwap_cross",
-  bollinger: "bollinger",
-  rsi: "rsi_levels",
-  macd: "macd_cross",
-  priceAction: "price_action",
-  qqe: "qqe",
-  fairValueGap: "fair_value_gap",
-  trendline: "trendline",
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

@@ -11,6 +11,10 @@ import {
   type AutomationConfig,
   type AutomationValidationError,
 } from "@/lib/automations/automation"
+import {
+  AUTOMATION_PALETTE_KEYS,
+  type AutomationPaletteKey,
+} from "@/lib/automations/palette"
 import { automationTypeSchema } from "@/lib/automations/automation-types"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import type { TradingAutomation } from "@/server/schema"
@@ -58,6 +62,18 @@ const saveSchema = automationIdSchema.extend({
   backtest: automationBacktestSettingsSchema.default(
     DEFAULT_AUTOMATION_BACKTEST_SETTINGS
   ),
+})
+const favoriteNodeKeysSchema = z.object({
+  favoriteNodeKeys: z
+    .array(
+      z.enum(
+        AUTOMATION_PALETTE_KEYS as [
+          AutomationPaletteKey,
+          ...AutomationPaletteKey[],
+        ]
+      )
+    )
+    .max(AUTOMATION_PALETTE_KEYS.length),
 })
 
 const SAFE_ERROR_MESSAGES = new Set([
@@ -173,6 +189,39 @@ const deleteAutomationFn = createServerFn({ method: "POST" })
       })
   )
 
+const loadAutomationFavoritesFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ favoriteNodeKeys: AutomationPaletteKey[] }> =>
+    safeRequest(async () => {
+      const user = await requireUser()
+      const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+        await import("@/server/workspaces")
+      const workspace = await getOrCreateCurrentWorkspace(user.id)
+      return {
+        favoriteNodeKeys: parseWorkspaceSettings(workspace.settings)
+          .automationFavoriteNodeKeys,
+      }
+    })
+)
+
+const saveAutomationFavoritesFn = createServerFn({ method: "POST" })
+  .inputValidator(favoriteNodeKeysSchema)
+  .handler(
+    async ({ data }): Promise<{ favoriteNodeKeys: AutomationPaletteKey[] }> =>
+      safeRequest(async () => {
+        const { requireAppOrigin } = await import("@/server/origin")
+        requireAppOrigin()
+        const user = await requireUser()
+        const { saveWorkspaceAutomationFavorites } =
+          await import("@/server/workspaces")
+        return {
+          favoriteNodeKeys: await saveWorkspaceAutomationFavorites(
+            user.id,
+            data.favoriteNodeKeys
+          ),
+        }
+      })
+  )
+
 export function listAutomations() {
   return listAutomationsFn()
 }
@@ -195,6 +244,16 @@ export function duplicateAutomation(automationId: string) {
 
 export function deleteAutomation(automationId: string) {
   return deleteAutomationFn({ data: { automationId } })
+}
+
+export function loadAutomationFavorites() {
+  return loadAutomationFavoritesFn()
+}
+
+export function saveAutomationFavorites(
+  favoriteNodeKeys: AutomationPaletteKey[]
+) {
+  return saveAutomationFavoritesFn({ data: { favoriteNodeKeys } })
 }
 
 async function serializeDetail(

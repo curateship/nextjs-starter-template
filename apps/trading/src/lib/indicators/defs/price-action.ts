@@ -23,36 +23,6 @@ const paramsSchema = z.object({
 
 export type PriceActionParams = z.infer<typeof paramsSchema>
 
-const TOGGLE_KEYS = [
-  "bullHammer",
-  "bearShootingStar",
-  "bullEngulfing",
-  "bearEngulfing",
-  "bullSweep",
-  "bearSweep",
-  "bullBos",
-  "bearBos",
-] as const
-
-/**
- * Seed strategy params from the chart's saved Price Action settings (numeric,
- * toggles as 0/1) so a fresh strategy starts as an exact copy of the chart.
- */
-export function priceActionParamsFromChart(
-  chartParams: Record<string, number>
-): PriceActionParams {
-  const params = { ...priceActionIndicator.defaultParams }
-  for (const key of TOGGLE_KEYS) {
-    const value = chartParams[key]
-    if (value !== undefined) params[key] = value !== 0
-  }
-  params.wickBodyRatio = chartParams.wickBodyRatio ?? params.wickBodyRatio
-  params.extremeLookback = chartParams.extremeLookback ?? params.extremeLookback
-  params.sweepLookback = chartParams.sweepLookback ?? params.sweepLookback
-  params.swingLookback = chartParams.swingLookback ?? params.swingLookback
-  return params
-}
-
 /**
  * Candlestick/structure patterns from the chart's Price Action indicator:
  * hammer, shooting star, engulfing, liquidity sweep, break of structure.

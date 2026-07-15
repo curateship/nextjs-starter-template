@@ -13,7 +13,7 @@ have to repeat myself. Plain English on purpose.
 - **Backtest data comes from Binance, not Hyperliquid.** Hyperliquid only serves
   ~5,000 candles per timeframe (15m ≈ 52 days), which is too short. Binance keeps
   years of history and lists more coins, so all backtest candles come from
-  Binance. Hyperliquid is still used for live trading, order booworkspace/docs/back-testing-rule.mdks, and slippage.
+  Binance. Hyperliquid is still used for live trading, order books, and slippage.
 
 ## Costs — the thing that makes or breaks it
 

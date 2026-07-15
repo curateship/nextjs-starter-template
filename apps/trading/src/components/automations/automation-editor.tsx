@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
+import { toast } from "sonner"
 
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
@@ -31,12 +32,17 @@ import {
   type AutomationGraph,
   type AutomationNode,
 } from "@/lib/automations/automation"
-import { saveAutomation, type AutomationDetail } from "@/lib/api/automations"
 import {
-  INDICATORS,
-  type IndicatorId,
-  type IndicatorParamValue,
-} from "@/lib/indicators/registry"
+  getAutomationErrorMessage,
+  saveAutomation,
+  saveAutomationFavorites,
+  type AutomationDetail,
+} from "@/lib/api/automations"
+import {
+  automationPaletteKeyForNode,
+  type AutomationPaletteKey,
+} from "@/lib/automations/palette"
+import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
@@ -46,18 +52,12 @@ import { automationNodeName } from "./node-labels"
 
 export function AutomationEditor({
   initial,
-  pinnedIndicators,
-  indicatorParamSeeds,
+  initialFavoriteNodeKeys,
   onCreateBot,
   onBacktest,
 }: {
   initial: AutomationDetail
-  pinnedIndicators: IndicatorId[]
-  /** Per-indicator starting params (e.g. the chart's saved Price Action
-   * settings) a new node copies instead of the module defaults. */
-  indicatorParamSeeds?: Partial<
-    Record<IndicatorId, Record<string, IndicatorParamValue>>
-  >
+  initialFavoriteNodeKeys: AutomationPaletteKey[]
   onCreateBot?: () => void
   onBacktest?: () => void
 }) {
@@ -95,6 +95,10 @@ export function AutomationEditor({
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
   const [logOpen, setLogOpen] = React.useState(true)
   const [logEntries, setLogEntries] = React.useState<AutomationLogEntry[]>([])
+  const [favoriteNodeKeys, setFavoriteNodeKeys] = React.useState(
+    initialFavoriteNodeKeys
+  )
+  const [savingFavorites, setSavingFavorites] = React.useState(false)
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -182,6 +186,9 @@ export function AutomationEditor({
     (selectedNodeId
       ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
       : null)
+  const selectedPaletteKey = selectedNode
+    ? automationPaletteKeyForNode(selectedNode)
+    : null
 
   const updateNode = React.useCallback(
     (nextNode: AutomationNode) => {
@@ -219,59 +226,77 @@ export function AutomationEditor({
     [previewNode?.id, record]
   )
 
-  const createNode = React.useCallback(
-    (choice: AutomationPaletteChoice) => {
-      const id = crypto.randomUUID()
-      const x = 0
-      const y = 0
-      let node: AutomationNode
-      if (choice.kind === "indicator") {
-        node = {
-          id,
-          kind: "indicator",
-          x,
-          y,
-          indicator: {
-            type: choice.indicatorType,
-            params: {
-              ...(INDICATORS[choice.indicatorType].defaultParams as Record<
-                string,
-                IndicatorParamValue
-              >),
-              ...indicatorParamSeeds?.[choice.indicatorType],
-            },
+  const createNode = React.useCallback((choice: AutomationPaletteChoice) => {
+    const id = crypto.randomUUID()
+    const x = 0
+    const y = 0
+    let node: AutomationNode
+    if (choice.kind === "indicator") {
+      node = {
+        id,
+        kind: "indicator",
+        x,
+        y,
+        indicator: {
+          type: choice.indicatorType,
+          params: {
+            ...(INDICATORS[choice.indicatorType].defaultParams as Record<
+              string,
+              IndicatorParamValue
+            >),
           },
-        }
-      } else if (choice.kind === "lookback") {
-        node = { id, kind: "lookback", bars: 48, x, y }
-      } else if (choice.kind === "whaleWall") {
-        node = {
-          id,
-          kind: "whaleWall",
-          minUsd: 500_000,
-          relativeSize: 5,
-          maxDistancePct: 0.5,
-          confirmationMs: 2_000,
-          x,
-          y,
-        }
-      } else if (choice.kind === "takeProfit") {
-        node = { id, kind: "takeProfit", pct: 2, x, y }
-      } else if (choice.kind === "stopLoss") {
-        node = { id, kind: "stopLoss", pct: 1, x, y }
-      } else {
-        node = {
-          id,
-          kind: "action",
-          action: choice.action,
-          ...(choice.action === "close" ? {} : { targetEquityPct: 10 }),
-          x,
-          y,
-        }
+        },
       }
-      return node
+    } else if (choice.kind === "lookback") {
+      node = { id, kind: "lookback", bars: 48, x, y }
+    } else if (choice.kind === "whaleWall") {
+      node = {
+        id,
+        kind: "whaleWall",
+        minUsd: 500_000,
+        relativeSize: 5,
+        maxDistancePct: 0.5,
+        confirmationMs: 2_000,
+        x,
+        y,
+      }
+    } else if (choice.kind === "takeProfit") {
+      node = { id, kind: "takeProfit", pct: 2, x, y }
+    } else if (choice.kind === "stopLoss") {
+      node = { id, kind: "stopLoss", pct: 1, x, y }
+    } else {
+      node = {
+        id,
+        kind: "action",
+        action: choice.action,
+        ...(choice.action === "close" ? {} : { targetEquityPct: 10 }),
+        x,
+        y,
+      }
+    }
+    return node
+  }, [])
+
+  const toggleFavoriteNode = React.useCallback(
+    async (key: AutomationPaletteKey) => {
+      if (savingFavorites) return
+      const previous = favoriteNodeKeys
+      const next = previous.includes(key)
+        ? previous.filter((candidate) => candidate !== key)
+        : [...previous, key]
+      setFavoriteNodeKeys(next)
+      setSavingFavorites(true)
+      try {
+        const saved = await saveAutomationFavorites(next)
+        setFavoriteNodeKeys(saved.favoriteNodeKeys)
+      } catch (error) {
+        setFavoriteNodeKeys(previous)
+        toast.error(getAutomationErrorMessage(error))
+      } finally {
+        setSavingFavorites(false)
+      }
     },
-    [indicatorParamSeeds]
+    [favoriteNodeKeys, savingFavorites]
   )
 
   const previewPaletteNode = React.useCallback(
@@ -399,7 +424,18 @@ export function AutomationEditor({
     <AutomationInspector
       selectedNode={selectedNode}
       errors={compiled.errors}
+      favorite={
+        selectedPaletteKey
+          ? favoriteNodeKeys.includes(selectedPaletteKey)
+          : undefined
+      }
+      savingFavorite={savingFavorites}
       onNodeChange={updateNode}
+      onToggleFavorite={
+        selectedPaletteKey
+          ? () => void toggleFavoriteNode(selectedPaletteKey)
+          : undefined
+      }
       onAddNode={previewNode ? placeNode : undefined}
       onDeleteNode={deleteNode}
     />
@@ -444,7 +480,7 @@ export function AutomationEditor({
       >
         <WorkspacePanel>
           <AutomationPalette
-            pinnedIndicators={pinnedIndicators}
+            favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
             onAdd={addNode}
             onDragStart={setDraggedChoice}
@@ -589,7 +625,7 @@ export function AutomationEditor({
         >
           <SheetPanelHeader title="Add a node" />
           <AutomationPalette
-            pinnedIndicators={pinnedIndicators}
+            favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
             onAdd={addNode}
             onDragStart={setDraggedChoice}

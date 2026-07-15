@@ -108,14 +108,3 @@ export const trendlineIndicator: IndicatorModule<TrendlineIndicatorParams> = {
     }
   },
 }
-
-export function trendlineParamsFromChart(
-  params: Record<string, number>
-): TrendlineIndicatorParams {
-  return paramsSchema.parse({
-    swingLookback: params.swingLookback,
-    confirmationBars: params.confirmationBars,
-    breakBuffer: params.breakBuffer,
-    requireCounterSlope: (params.requireCounterSlope ?? 1) !== 0,
-  })
-}

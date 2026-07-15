@@ -10,6 +10,10 @@ import {
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import {
+  cleanAutomationPaletteKeys,
+  type AutomationPaletteKey,
+} from "@/lib/automations/palette"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellWorkspaces,
@@ -24,9 +28,39 @@ export type WorkspaceSettings = {
   icon: IconKey
   sidebarWidth: number
   favicon: string
+  automationFavoriteNodeKeys: AutomationPaletteKey[]
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+}
+
+export async function saveWorkspaceAutomationFavorites(
+  userId: string,
+  favoriteNodeKeys: AutomationPaletteKey[],
+  database: CustomShellDb = db
+) {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  const cleanedKeys = cleanAutomationPaletteKeys(favoriteNodeKeys)
+  const [updated] = await database
+    .update(customShellWorkspaces)
+    .set({
+      settings: {
+        ...settings,
+        automationFavoriteNodeKeys: cleanedKeys,
+      },
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(customShellWorkspaces.id, workspace.id),
+        eq(customShellWorkspaces.userId, userId)
+      )
+    )
+    .returning({ id: customShellWorkspaces.id })
+
+  if (!updated) throw new Error("Workspace not found")
+  return cleanedKeys
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -321,14 +355,17 @@ function cleanWorkspaceSettings(
 ): WorkspaceSettings {
   const fallback = defaultWorkspaceSettings()
   return {
-    icon: isWorkspaceIcon(settings.icon)
-      ? settings.icon
-      : fallback.icon,
+    icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
     sidebarWidth: isSidebarWidth(settings.sidebarWidth)
       ? settings.sidebarWidth
       : fallback.sidebarWidth,
     favicon:
-      typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+      typeof settings.favicon === "string"
+        ? settings.favicon
+        : fallback.favicon,
+    automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+      settings.automationFavoriteNodeKeys
+    ),
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -346,6 +383,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
+    automationFavoriteNodeKeys: [],
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),

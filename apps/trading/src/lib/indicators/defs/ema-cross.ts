@@ -25,23 +25,6 @@ const paramsSchema = z
 
 export type EmaCrossParams = z.infer<typeof paramsSchema>
 
-/**
- * Seed strategy params from the chart's saved EMA settings (numeric, toggles
- * as 0/1) so a fresh EMA Cross node starts as an exact copy of the chart.
- */
-export function emaCrossParamsFromChart(
-  chartParams: Record<string, number>
-): EmaCrossParams {
-  const params = { ...emaCrossIndicator.defaultParams }
-  params.fast = chartParams.fast ?? params.fast
-  params.slow = chartParams.slow ?? params.slow
-  params.third = chartParams.third ?? params.third
-  if (chartParams.showFast !== undefined) params.showFast = chartParams.showFast !== 0
-  if (chartParams.showSlow !== undefined) params.showSlow = chartParams.showSlow !== 0
-  if (chartParams.showThird !== undefined) params.showThird = chartParams.showThird !== 0
-  return params
-}
-
 function enabledEmas(params: EmaCrossParams) {
   return [
     { id: "ema-fast", period: params.fast, on: params.showFast },

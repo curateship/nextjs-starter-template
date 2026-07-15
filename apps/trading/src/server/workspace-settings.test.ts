@@ -14,4 +14,28 @@ describe("workspace settings", () => {
       })
     ).toThrow("Saved workspace settings are missing sidebarWidth")
   })
+
+  it("defaults missing Automation favorites and removes invalid duplicates", () => {
+    const base = {
+      icon: "briefcaseBusiness",
+      sidebarWidth: 280,
+      favicon: "",
+      topNavigation: [],
+      topRightNavigation: [],
+      sections: [],
+    }
+
+    expect(parseWorkspaceSettings(base).automationFavoriteNodeKeys).toEqual([])
+    expect(
+      parseWorkspaceSettings({
+        ...base,
+        automationFavoriteNodeKeys: [
+          "indicator-ema_cross",
+          "action-buy",
+          "action-buy",
+          "unknown-node",
+        ],
+      }).automationFavoriteNodeKeys
+    ).toEqual(["indicator-ema_cross", "action-buy"])
+  })
 })
