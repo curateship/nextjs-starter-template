@@ -169,26 +169,40 @@ export function StudioTimeline() {
   }, [durationMs, fit])
 
   // ---- scrub / seek on the ruler & empty lane areas ----------------------
-  const scrubbing = React.useRef(false)
+  const scrub = React.useRef<{ pointerId: number; lastMs: number } | null>(null)
   function seekDown(e: React.PointerEvent) {
     if (e.button !== 0) return
     // A pointer-down that lands on a clip is handled by the clip itself.
     if ((e.target as HTMLElement).closest("[data-clip]")) return
     dispatch({ type: "SELECT_CLIP", clipId: null })
-    scrubbing.current = true
+    const timeMs = msAtClientX(e.clientX)
+    scrub.current = { pointerId: e.pointerId, lastMs: timeMs }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    clock.seek(msAtClientX(e.clientX))
+    clock.beginScrub(timeMs)
   }
   function seekMove(e: React.PointerEvent) {
-    if (scrubbing.current) clock.seek(msAtClientX(e.clientX))
+    const active = scrub.current
+    if (!active || active.pointerId !== e.pointerId) return
+    active.lastMs = msAtClientX(e.clientX)
+    clock.updateScrub(active.lastMs)
   }
   function seekUp(e: React.PointerEvent) {
-    scrubbing.current = false
+    const active = scrub.current
+    if (!active || active.pointerId !== e.pointerId) return
+    active.lastMs = msAtClientX(e.clientX)
+    scrub.current = null
+    clock.endScrub(active.lastMs)
     try {
       ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
     } catch {
       /* capture may already be gone */
     }
+  }
+  function seekCancel(e: React.PointerEvent) {
+    const active = scrub.current
+    if (!active || active.pointerId !== e.pointerId) return
+    scrub.current = null
+    clock.endScrub(active.lastMs)
   }
 
   const contentWidth = GUTTER + msToPx(Math.max(durationMs, 1000), pps) + 48
@@ -244,6 +258,8 @@ export function StudioTimeline() {
               onPointerDown={seekDown}
               onPointerMove={seekMove}
               onPointerUp={seekUp}
+              onPointerCancel={seekCancel}
+              onLostPointerCapture={seekCancel}
               style={{ position: "relative", flex: 1, cursor: "pointer" }}
             >
               <RulerTicks pps={pps} durationMs={durationMs} />
@@ -258,6 +274,7 @@ export function StudioTimeline() {
               seekDown={seekDown}
               seekMove={seekMove}
               seekUp={seekUp}
+              seekCancel={seekCancel}
             />
           ))}
 
@@ -311,12 +328,14 @@ function TimelineRow({
   seekDown,
   seekMove,
   seekUp,
+  seekCancel,
 }: {
   track: EditorTrack
   index: number
   seekDown: (e: React.PointerEvent) => void
   seekMove: (e: React.PointerEvent) => void
   seekUp: (e: React.PointerEvent) => void
+  seekCancel: (e: React.PointerEvent) => void
 }) {
   const { store, dispatch } = useEditorRuntime()
   const kind = trackKind(track)
@@ -438,6 +457,8 @@ function TimelineRow({
         onPointerDown={seekDown}
         onPointerMove={seekMove}
         onPointerUp={seekUp}
+        onPointerCancel={seekCancel}
+        onLostPointerCapture={seekCancel}
         style={{ position: "relative", flex: 1, background: "transparent" }}
       >
         {track.clips.map((clip) => (
@@ -833,7 +854,10 @@ function ClockPlayhead({
 }) {
   const lineRef = React.useRef<HTMLDivElement>(null)
   const knobRef = React.useRef<HTMLDivElement>(null)
-  const dragging = React.useRef(false)
+  const dragging = React.useRef<{
+    pointerId: number
+    lastMs: number
+  } | null>(null)
 
   React.useEffect(() => {
     function paint() {
@@ -848,23 +872,40 @@ function ClockPlayhead({
   function down(e: React.PointerEvent) {
     if (e.button !== 0) return
     e.stopPropagation()
-    dragging.current = true
+    const timeMs = clock.getTime()
+    dragging.current = { pointerId: e.pointerId, lastMs: timeMs }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    clock.beginScrub(timeMs)
+  }
+  function timeAtPointer(clientX: number) {
+    const inner = knobRef.current?.parentElement
+    if (!inner) return clock.getTime()
+    const originX = inner.getBoundingClientRect().left + GUTTER
+    return Math.max(0, pxToMs(clientX - originX, pps))
   }
   function move(e: React.PointerEvent) {
-    if (!dragging.current) return
-    const inner = knobRef.current?.parentElement
-    if (!inner) return
-    const originX = inner.getBoundingClientRect().left + GUTTER
-    clock.seek(Math.max(0, pxToMs(e.clientX - originX, pps)))
+    const active = dragging.current
+    if (!active || active.pointerId !== e.pointerId) return
+    active.lastMs = timeAtPointer(e.clientX)
+    clock.updateScrub(active.lastMs)
   }
   function up(e: React.PointerEvent) {
-    dragging.current = false
+    const active = dragging.current
+    if (!active || active.pointerId !== e.pointerId) return
+    active.lastMs = timeAtPointer(e.clientX)
+    dragging.current = null
+    clock.endScrub(active.lastMs)
     try {
       ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
     } catch {
       /* noop */
     }
+  }
+  function cancel(e: React.PointerEvent) {
+    const active = dragging.current
+    if (!active || active.pointerId !== e.pointerId) return
+    dragging.current = null
+    clock.endScrub(active.lastMs)
   }
 
   return (
@@ -902,6 +943,8 @@ function ClockPlayhead({
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
+        onPointerCancel={cancel}
+        onLostPointerCapture={cancel}
         title="Drag playhead"
         style={{
           position: "absolute",
