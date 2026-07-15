@@ -1,4 +1,4 @@
-import { AlertCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { AlertCircleIcon, PlusIcon, StarIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,14 +26,20 @@ export function AutomationInspector({
   className,
   selectedNode,
   errors,
+  favorite,
+  savingFavorite,
   onNodeChange,
+  onToggleFavorite,
   onAddNode,
   onDeleteNode,
 }: {
   className?: string
   selectedNode: AutomationNode | null
   errors: AutomationValidationError[]
+  favorite?: boolean
+  savingFavorite?: boolean
   onNodeChange: (node: AutomationNode) => void
+  onToggleFavorite?: () => void
   onAddNode?: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
 }) {
@@ -45,7 +51,12 @@ export function AutomationInspector({
     <div
       className={cn("flex min-h-0 flex-1 flex-col bg-background", className)}
     >
-      <div className="border-b px-4 py-3">
+      <div
+        className={cn(
+          "relative border-b px-4 py-3",
+          onToggleFavorite && "pr-12"
+        )}
+      >
         <h2 className="text-sm font-semibold">
           {selectedNode ? automationNodeName(selectedNode) : "Automation"}
         </h2>
@@ -54,6 +65,23 @@ export function AutomationInspector({
             ? automationNodeDescription(selectedNode)
             : "Select a node to view and edit its settings."}
         </p>
+        {selectedNode && onToggleFavorite ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`${favorite ? "Remove" : "Add"} ${automationNodeName(selectedNode)} ${favorite ? "from" : "to"} favorites`}
+            aria-pressed={favorite}
+            disabled={savingFavorite}
+            onClick={onToggleFavorite}
+            className={cn(
+              "absolute top-3 right-3",
+              favorite && "text-amber-500"
+            )}
+          >
+            <StarIcon className={cn("size-4", favorite && "fill-current")} />
+          </Button>
+        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-4 p-4">

@@ -10,8 +10,7 @@ import { getAutomationErrorMessage } from "@/lib/api/automations"
 const routeApi = getRouteApi("/_authenticated/automations/$automationId")
 
 export function AutomationRouteContent() {
-  const { automation, pinnedIndicators, indicatorParamSeeds } =
-    routeApi.useLoaderData()
+  const { automation, favoriteNodeKeys } = routeApi.useLoaderData()
   const router = useRouter()
   const [botOpen, setBotOpen] = React.useState(false)
   const [backtestOpen, setBacktestOpen] = React.useState(false)
@@ -21,8 +20,7 @@ export function AutomationRouteContent() {
       <AutomationEditor
         key={automation.id}
         initial={automation}
-        pinnedIndicators={pinnedIndicators}
-        indicatorParamSeeds={indicatorParamSeeds}
+        initialFavoriteNodeKeys={favoriteNodeKeys}
         onCreateBot={() => setBotOpen(true)}
         onBacktest={() => setBacktestOpen(true)}
       />

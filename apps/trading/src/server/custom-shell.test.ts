@@ -49,6 +49,7 @@ import {
   getOrCreateCurrentWorkspace,
   listUserWorkspaces,
   parseWorkspaceSettings,
+  saveWorkspaceAutomationFavorites,
   switchUserWorkspace,
   updateUserWorkspace,
 } from "@/server/workspaces"
@@ -163,6 +164,7 @@ describe("custom shell workspaces", () => {
     })
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
+    expect(defaultSettings.automationFavoriteNodeKeys).toEqual([])
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       {
         type: "item",
@@ -268,6 +270,21 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
+    await expect(
+      saveWorkspaceAutomationFavorites(
+        userId,
+        ["indicator-ema_cross", "action-buy"],
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toEqual(["indicator-ema_cross", "action-buy"])
+    const [favoriteWorkspace] = await database
+      .select()
+      .from(schema.customShellWorkspaces)
+      .where(eq(schema.customShellWorkspaces.id, secondWorkspace.id))
+    expect(
+      parseWorkspaceSettings(favoriteWorkspace?.settings)
+        .automationFavoriteNodeKeys
+    ).toEqual(["indicator-ema_cross", "action-buy"])
     expect(secondSettings.sections[2]?.entries).toMatchObject([
       {
         type: "item",

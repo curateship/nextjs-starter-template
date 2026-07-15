@@ -33,6 +33,21 @@ the live worker and the backtester.
 - **AND/OR (legacy)** — removed. Old drafts still load but must delete the
   node; running bots keep their frozen snapshots working.
 
+## Node palette
+
+- **Fav** and **All nodes** use the standard rounded segmented tab control. Its
+  background spans the palette, while each tab stays content-width.
+- **Fav** contains the nodes favorited in the current workspace. Select a node
+  in **All nodes**, then use the always-visible star in the upper-right of its
+  settings to add or remove it. Favorites cover every node type and follow the
+  workspace across devices.
+- **All nodes** contains every registered Automation node. The Indicators
+  dashboard no longer controls which indicator nodes appear or which settings
+  a new node receives. New indicator nodes start from their Automation defaults.
+- Search stays at the bottom of the palette while the node list scrolls and
+  filters whichever tab is open. Select a card to preview it, or drag/use `+`
+  to add it to the canvas.
+
 ## Rules the compiler enforces
 
 - Trend → indicator or Look Back. Look Back → indicator only.

@@ -9,10 +9,10 @@ Guidance for agents working in Trading.
 - ATrading tasks live in `workspace/tasks/`.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
-- **Before back-testing any strategy, read and follow `workspace/docs/back-testing-rule.md`.**
-- **Before building or changing any UI/layout, read and follow `workspace/docs/ui-ux.md` (design guide — all layout gaps must match the site gap).**
+- **Before back-testing any strategy, read and follow `workspace/docs/back-guide.md`.**
+- **Before building or changing any UI/layout, read and follow `workspace/docs/ui-rules.md`, including its site-gap rules.**
 - **Before adding any new page, dashboard, or nav item, read and follow `workspace/docs/app-guide.md`** 
-- **Before touching any indicator or strategy, read and follow `workspace/docs/indicator-strategy-parity.md`.**
+- **Before touching any indicator or strategy, read and follow `workspace/docs/Key Features Details/indicator-strategy-parity.md`.**
 
 ## App Context
 
@@ -43,4 +43,3 @@ Use this app's local code, config, and workspace docs as source of truth for Tra
 ## Tools
 
 - Use Playwright to test (not chrome extension)
-- Use typham2@gmail.com pass:gundam11 to login to test
