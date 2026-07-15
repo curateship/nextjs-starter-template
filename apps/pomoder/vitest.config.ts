@@ -10,5 +10,6 @@ export default defineConfig({
   test: {
     environment: "node",
     pool: "forks",
+    exclude: ["e2e/**", "node_modules/**"],
   },
 })

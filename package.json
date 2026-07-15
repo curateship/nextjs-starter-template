@@ -9,6 +9,7 @@
     "dev:ai-video": "npm run dev --workspace=ai-video",
     "dev:core": "npm run dev --workspace=core",
     "dev:anti-detect": "npm run dev --workspace=anti-detect",
+    "dev:pomoder": "npm run dev --workspace=pomoder",
     "dev:ai-agents": "npm run dev --workspace=ai-agents",
     "dev:personal-ide": "npm run tauri:dev --workspace=personal-ide",
     "dev:hub": "npm run dev --workspace=@repo/hub",
@@ -17,6 +18,7 @@
     "build:ai-video": "npm run build --workspace=ai-video",
     "build:core": "npm run build --workspace=core",
     "build:anti-detect": "npm run build --workspace=anti-detect",
+    "build:pomoder": "npm run build --workspace=pomoder",
     "build:ai-agents": "npm run build --workspace=ai-agents",
     "build:personal-ide": "npm run tauri:build --workspace=personal-ide",
     "lint": "turbo lint"

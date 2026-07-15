@@ -77,15 +77,7 @@ Only fix build, lint, or type errors caused by your change unless the user asks 
 
 Local ports are defined in `local-apps.json`.
 
-Current app ports:
-
-- Hub: `3000`
-- Custom Shell: `3002`
-- Core: `3003`
-- AI Video: `3004`
-- Antidetect: `3005`
-
-Personal IDE and app dev configs read from `local-apps.json`. Change that file first when changing local ports.
+Every new app must receive one unused port in `local-apps.json` when it is created. This file is the only place an app port may be assigned. App code, runtime scripts, tests, environment defaults, Dockerfiles, health checks, and documentation must derive the port from it instead of duplicating the number. Never use another port or change an assignment unless the user explicitly requests that exact reassignment.
 
 ## Agent Files, Docs, Tasks, And Skills
 

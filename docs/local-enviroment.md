@@ -68,17 +68,6 @@ One local shell command is available from `~/.local/bin`:
 
 This command is a user-local helper, not a repo script.
 
-## Current Expected Output
+## Port Registry
 
-Running `localapps` should show:
-
-```text
-hub: http://localhost:3000
-custom-shell: http://localhost:3002
-core: http://localhost:3003
-ai-video: http://localhost:3004
-anti-detect: http://localhost:3005
-seo: http://localhost:3009
-ai-agents: http://localhost:3008
-trading: http://localhost:3007
-```
+`local-apps.json` is the only source of app port assignments. `localapps`, Vite configs, runtime scripts, tests, and health checks must read from that registry; do not maintain a second list of port numbers in documentation or configuration.

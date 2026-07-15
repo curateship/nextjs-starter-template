@@ -406,6 +406,38 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
       ],
     },
+    {
+      id: "section-pomoder-management",
+      title: "Pomoder",
+      entries: [
+        {
+          type: "item",
+          id: "item-pomoder-dashboard",
+          label: "Dashboard",
+          href: "/admin",
+          icon: "layoutDashboard",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-pomoder-management",
+          label: "App Management",
+          href: "/admin/pomoder/users",
+          icon: "slidersHorizontal",
+          visible: true,
+          children: [
+            { id: "item-pomoder-users", label: "Users", href: "/admin/pomoder/users" },
+            { id: "item-pomoder-tasks", label: "Tasks", href: "/admin/pomoder/tasks" },
+            { id: "item-pomoder-sessions", label: "Sessions", href: "/admin/pomoder/sessions" },
+            { id: "item-pomoder-rooms", label: "Rooms", href: "/admin/pomoder/rooms" },
+            { id: "item-pomoder-media", label: "Media", href: "/admin/pomoder/media" },
+            { id: "item-pomoder-billing", label: "Billing", href: "/admin/pomoder/billing" },
+            { id: "item-pomoder-ai", label: "AI usage", href: "/admin/pomoder/ai" },
+            { id: "item-pomoder-reports", label: "Reports", href: "/admin/pomoder/reports" },
+          ],
+        },
+      ],
+    },
   ]
 }
 

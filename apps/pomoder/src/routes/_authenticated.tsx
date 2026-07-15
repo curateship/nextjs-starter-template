@@ -12,6 +12,9 @@ export const Route = createFileRoute("/_authenticated")({
     if (!user) {
       throw redirect({ to: "/login" })
     }
+    if (user.role !== "admin") {
+      throw redirect({ to: "/" })
+    }
 
     const { settings } = await loadShellSettings()
     const workspaces = await loadWorkspaces()
