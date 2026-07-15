@@ -23,6 +23,10 @@ export function resizeNativeTerminal(terminalId: string, cols: number, rows: num
   return invoke("resize_terminal", { terminalId, cols, rows })
 }
 
+export function detachNativeTerminalOutput(terminalId: string) {
+  return invoke("detach_terminal_output", { terminalId })
+}
+
 export function writeNativeTerminal(terminalId: string, data: string) {
   return invoke("write_terminal", { terminalId, data })
 }

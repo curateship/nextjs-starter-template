@@ -1,45 +1,7 @@
 import { EMPTY_TERMINAL_STATE, TERMINAL_SESSIONS_STORAGE_KEY } from "@/app/constants"
 import type { TerminalAgent, TerminalItem, WorkspaceTerminalState } from "@/app/types"
 
-const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g")
-const TERMINAL_OUTPUT_DECODER = new TextDecoder()
-
 export const TERMINAL_SCROLLBACK_LINES = 800
-
-const AGENT_OUTPUT_PATTERN = new RegExp(
-  [
-    // Codex TUI: bullet lines and action verbs at line start
-    "(^|\\n)\\s*(\\u2022|Ran |Edited |Updated |Thinking|Checking|Applying|Codex\\b)",
-    // Claude Code TUI: tool/message bullets (\u23fa) and the busy status line,
-    // which redraws "(esc to interrupt)" continuously while working
-    "\\u23FA",
-    "esc to interrupt",
-  ].join("|")
-)
-
-// Claude Code redraws "(esc to interrupt)" continuously while working and
-// prints ⏺ before every tool call; Codex prints its own name in the banner
-// and while working. Both are distinctive enough to tell the agents apart.
-const CLAUDE_OUTPUT_PATTERN = /⏺|esc to interrupt/
-const CODEX_OUTPUT_PATTERN = /(^|\n)\s*Codex\b/
-
-// Decode + ANSI-strip once per chunk; callers share the cleaned string
-// between looksLikeAgentOutput and detectTerminalAgent.
-export function cleanTerminalOutput(data: Uint8Array) {
-  return TERMINAL_OUTPUT_DECODER
-    .decode(data)
-    .replace(ANSI_ESCAPE_PATTERN, "")
-}
-
-export function looksLikeAgentOutput(clean: string) {
-  return AGENT_OUTPUT_PATTERN.test(clean)
-}
-
-export function detectTerminalAgent(clean: string): TerminalAgent | undefined {
-  if (CLAUDE_OUTPUT_PATTERN.test(clean)) return "claude"
-  if (CODEX_OUTPUT_PATTERN.test(clean)) return "codex"
-  return undefined
-}
 
 export function agentResumeCommand(agent: TerminalAgent) {
   return agent === "claude" ? "claude --continue\n" : "codex resume --last\n"

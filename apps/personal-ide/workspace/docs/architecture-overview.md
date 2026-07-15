@@ -189,7 +189,7 @@ Terminals use xterm.js in the frontend and a Rust PTY backend.
 
 Terminal sessions are keyed by terminal id, not workspace id. Each session stores its owning workspace.
 
-PTY output streams to the frontend over a raw-byte IPC channel (no JSON encoding). The Rust side coalesces reads and flushes at most every 16ms while output is streaming, so a fast agent costs at most ~60 IPC messages per second per terminal; idle terminals flush keystroke echo immediately. Each pane passes its channel to `start_terminal`; calling it again for a running terminal re-attaches the channel (pane remounts), and callers that only need to ensure the terminal is running pass no channel. Only the visible pane holds a WebGL renderer — hidden panes drop to the DOM renderer so they never exhaust Chrome's ~16 live WebGL context limit.
+PTY output streams to the frontend over a raw-byte IPC channel (no JSON encoding). The Rust side coalesces reads and flushes at most every 16ms while output is streaming, so a fast agent costs at most ~60 IPC messages per second per terminal; idle terminals flush keystroke echo immediately. Only visible panes attach an output channel. Hidden output stays in a bounded 1MB Rust buffer and replays before live output when the pane is shown; overflow adds an explicit truncation line. Callers that only need to ensure a terminal is running pass no channel. Rust also scans coalesced output for agent activity and emits small events for running/waiting badges, so hidden terminals do not need to parse output in the webview. Only the visible pane holds a WebGL renderer — hidden panes drop to the DOM renderer so they never exhaust Chrome's ~16 live WebGL context limit.
 
 Behavior:
 
