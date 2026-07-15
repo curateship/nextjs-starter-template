@@ -1,20 +1,12 @@
 import * as React from "react"
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router"
 
-import { LoginLoadingSkeleton } from "@/components/loading-skeleton"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { AuthError, AuthLayout } from "@/components/pomoder/auth-layout"
 import { getAuthErrorMessage, loadCurrentUser, login } from "@/lib/api/auth"
+import { importGuestState } from "@/lib/api/productivity"
 
 export const Route = createFileRoute("/login")({
-  loader: async () => {
-    const user = await loadCurrentUser()
-    if (user) {
-      throw redirect({ to: "/" })
-    }
-  },
-  pendingComponent: LoginLoadingSkeleton,
+  loader: async () => { if (await loadCurrentUser()) throw redirect({ to: "/" }) },
   component: LoginRoute,
 })
 
@@ -25,65 +17,15 @@ function LoginRoute() {
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
 
-  const handleSubmit = React.useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      setError(null)
-      setLoading(true)
+  return <AuthLayout><h1>Welcome back</h1><p>Sign in to sync your tasks, streaks and focus rooms.</p><form onSubmit={async (event) => { event.preventDefault(); setLoading(true); setError(null); try { await login(email, password); await importGuestData(); await navigate({ to: "/" }) } catch (cause) { setError(getAuthErrorMessage(cause)) } finally { setLoading(false) } }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label><AuthError message={error} /><button className="pill-button" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button></form><Link to="/forgot-password" className="auth-secondary-link">Forgot password?</Link><span>New to Pomoder? <Link to="/register">Create an account</Link></span></AuthLayout>
+}
 
-      try {
-        await login(email, password)
-        await navigate({ to: "/" })
-      } catch (loginError) {
-        setError(getAuthErrorMessage(loginError))
-      } finally {
-        setLoading(false)
-      }
-    },
-    [email, navigate, password]
-  )
-
-  return (
-    <main className="grid min-h-screen place-items-center bg-background px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
-      >
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold">Sign in to Pomoder</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Use your Pomoder account.
-          </p>
-        </div>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
-        </div>
-      </form>
-    </main>
-  )
+async function importGuestData() {
+  try {
+    const saved = window.localStorage.getItem("pomoder:guest:v1")
+    if (!saved) return
+    const state = JSON.parse(saved) as { tasks?: Array<{ title: string; completed: boolean; pomodoros: number }>; durations?: { focus: number; short: number; long: number }; autoStart?: boolean }
+    await importGuestState({ tasks: state.tasks || [], focusMinutes: state.durations?.focus || 25, shortBreakMinutes: state.durations?.short || 5, longBreakMinutes: state.durations?.long || 15, autoStart: state.autoStart || false })
+    window.localStorage.removeItem("pomoder:guest:v1")
+  } catch { /* Keep local data so the user can retry the import. */ }
 }

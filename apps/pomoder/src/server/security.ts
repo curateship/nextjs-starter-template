@@ -1,41 +1,68 @@
-import { createHash, randomUUID } from "node:crypto"
+import { createHash, randomBytes, randomUUID } from "node:crypto"
 
-import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
-import { verify } from "argon2"
-import { eq, and, gt } from "drizzle-orm"
-
-import { db, type CustomShellDb } from "@/server/db"
 import {
-  customShellSessions,
-  customShellUsers,
-  type CustomShellUser,
-} from "@/server/schema"
+  getCookie,
+  getRequestProtocol,
+  setCookie,
+} from "@tanstack/react-start/server"
+import { hash, verify } from "argon2"
+import { and, eq, gt, isNull } from "drizzle-orm"
 
-export const SESSION_COOKIE_NAME = "custom_shell_session"
-const TEN_YEARS_IN_HOURS = 24 * 365 * 10
-const SESSION_TTL_HOURS = Number.parseInt(
-  process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),
-  10
-)
+import { db, type PomoderDb } from "@/server/db"
+import { authTokens, sessions, users, type User } from "@/server/schema"
+
+type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
+type SecurityDatabase = PomoderDb | PomoderTransaction
+
+export const SESSION_COOKIE_NAME = "pomoder_session"
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 
 export function now() {
   return new Date()
 }
-
 export function uuid() {
   return randomUUID()
 }
-
-export function createSessionToken() {
-  return randomUUID() + randomUUID()
+export function createSecretToken() {
+  return randomBytes(32).toString("base64url")
 }
-
-export function hashSessionToken(token: string) {
+export function hashToken(token: string) {
   return createHash("sha256").update(token, "utf8").digest("hex")
 }
-
+export const createSessionToken = createSecretToken
+export const hashSessionToken = hashToken
 export function createSessionExpiresAt() {
-  return new Date(now().getTime() + SESSION_TTL_HOURS * 60 * 60 * 1000)
+  return new Date(Date.now() + SESSION_TTL_SECONDS * 1_000)
+}
+export function hashPassword(password: string) {
+  return hash(password, {
+    type: 2,
+    memoryCost: 65_536,
+    timeCost: 3,
+    parallelism: 1,
+  })
+}
+
+export async function consumeAuthToken(
+  tokenHash: string,
+  purpose: "verify_email" | "reset_password",
+  timestamp: Date,
+  database: SecurityDatabase
+) {
+  const [token] = await database
+    .update(authTokens)
+    .set({ usedAt: timestamp })
+    .where(
+      and(
+        eq(authTokens.tokenHash, tokenHash),
+        eq(authTokens.purpose, purpose),
+        isNull(authTokens.usedAt),
+        gt(authTokens.expiresAt, timestamp)
+      )
+    )
+    .returning()
+  if (!token) throw new Error("INVALID_OR_EXPIRED_TOKEN")
+  return token
 }
 
 export async function verifyPassword(passwordHash: string, password: string) {
@@ -49,7 +76,7 @@ export async function verifyPassword(passwordHash: string, password: string) {
 export function setSessionCookie(token: string) {
   setCookie(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    maxAge: SESSION_TTL_HOURS * 3600,
+    maxAge: SESSION_TTL_SECONDS,
     path: "/",
     sameSite: "lax",
     secure: getRequestProtocol({ xForwardedProto: true }) === "https",
@@ -66,35 +93,36 @@ export function clearSessionCookie() {
   })
 }
 
-export async function findCurrentUser(database: CustomShellDb = db) {
+export async function findCurrentUser(database: PomoderDb = db) {
   const token = getCookie(SESSION_COOKIE_NAME)
   return token ? findUserBySessionToken(token, database) : null
 }
 
+export async function requireUser(database: PomoderDb = db) {
+  const user = await findCurrentUser(database)
+  if (!user) throw new Error("AUTH_REQUIRED")
+  return user
+}
+
 export async function findUserBySessionToken(
   token: string,
-  database: CustomShellDb = db
-): Promise<CustomShellUser | null> {
+  database: PomoderDb = db
+): Promise<User | null> {
   const [session] = await database
     .select()
-    .from(customShellSessions)
+    .from(sessions)
     .where(
       and(
-        eq(customShellSessions.tokenHash, hashSessionToken(token)),
-        gt(customShellSessions.expiresAt, now())
+        eq(sessions.tokenHash, hashToken(token)),
+        gt(sessions.expiresAt, now())
       )
     )
     .limit(1)
-
-  if (!session) {
-    return null
-  }
-
+  if (!session) return null
   const [user] = await database
     .select()
-    .from(customShellUsers)
-    .where(eq(customShellUsers.id, session.userId))
+    .from(users)
+    .where(eq(users.id, session.userId))
     .limit(1)
-
   return user ?? null
 }

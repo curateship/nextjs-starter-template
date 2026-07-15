@@ -1,44 +1,36 @@
-# Architecture Overview
+# Pomoder architecture
 
-`custom-shell` is a scaffolding app.
+## Runtime
 
-Its job is to be the base UI for future admin and internal apps in this repo, so new products start from a working shell instead of rebuilding layout, navigation, theme, and shared UI from scratch.
+The web and worker services use the same image. The web service renders the app, handles typed server functions, Stripe webhooks, private media, and room SSE. The worker consumes pg-boss jobs for media processing, AI generation, room transitions, cleanup, and aggregate repair.
 
-## Principles
+The authenticated `/admin` shell remains the operational management surface. Its existing feedback, notification, workspace, settings, and media tools are preserved and are extended with Pomoder-specific management pages.
+Pomoder management tables use server pagination, a single validated CRUD contract, and transactional audit logging. Object deletion is decoupled through a durable PostgreSQL queue consumed by the worker.
 
-- Start from a usable shell, not a blank app.
-- Keep shell structure separate from product logic.
-- Reuse shared UI patterns before creating one-off versions.
-- Extend through config and composition before adding new abstractions.
-- Allow visual variation without changing the shell itself.
-- Keep the baseline simple, replaceable, and easy to build on.
+PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus sessions, leaderboard aggregates, rooms, chat, media metadata, and AI credits. Guest timer/tasks/preferences remain in versioned browser storage until the first authenticated import.
 
-## What The Shell Owns
+## Core invariants
 
-- app frame
-- sidebar, header, and content layout
-- navigation patterns
-- theme and font presets
-- shared UI primitives
+- Only completed focus-mode sessions affect statistics.
+- Focus completion uses a per-user idempotency key.
+- Previous-day active tasks are archived and cloned once.
+- A user has at most one active room membership.
+- Room phases use server timestamps; joins are locked during focus.
+- Leaderboard inclusion requires opt-in and a public display name.
+- Entitlements are calculated server-side from synchronized Stripe state.
+- AI credits are reserved transactionally and refunded on permanent failure.
+- Private R2 objects are streamed only after owner/catalog authorization.
+- Deleted media objects remain queued until R2 confirms deletion.
+- Every privileged Pomoder mutation records its actor, action, resource, record IDs, and timestamp.
 
-## Navigation Model
+## Public HTTP routes
 
-- The sticky header top-left area is local navigation for the current context.
-- Since the root does not have local navigation (child items) Index can have its own local nav, such as `[Overview] [Overview 2]`.
-- Clicking a sidebar parent opens that parent section's landing page.
-- When a parent section is active, the sticky header top-left nav should show the section-local nav as `[parent] [child] [child]`.
-- Example: clicking `Media Library` should open the `Media Library` page, and the sticky header should show `[Media Library] [Images] [Folders]`.
-- A plain sidebar destination without children is just a page. It does not get fake sticky header child nav.
+- `GET /api/rooms/:slug/events` — authenticated SSE snapshot stream.
+- `POST /api/media` — authenticated Pro multipart upload.
+- `GET /api/media/:id/file` — authenticated private range delivery.
+- `POST /api/webhooks/stripe` — signature-verified raw Stripe webhook.
+- `GET /api/health/live` — process liveness.
+- `GET /api/health/ready` — database and worker readiness.
+- `GET /api/metrics` — bearer-protected Prometheus metrics.
 
-## What The Shell Does Not Own
-
-- app-specific business logic
-- product workflows
-- domain models
-- backend architecture decisions
-
-## Current Baseline
-
-Today, `custom-shell` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, and a config-driven shell model through `ShellConfig`.
-
-The current placeholder routes and demo content exist to prove the shell works. Future apps should keep the shell frame and replace the content with real product features.
+Other product mutations use typed TanStack server functions with Zod boundary validation.

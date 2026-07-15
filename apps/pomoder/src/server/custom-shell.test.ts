@@ -76,6 +76,10 @@ beforeEach(async () => {
   )
   await client.exec(migration)
   await client.exec(workspaceMigration)
+  await client.exec(await readFile(
+    new URL("../../drizzle/0004_pomoder_product.sql", import.meta.url),
+    "utf8"
+  ))
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })

@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 
 type Theme = "dark" | "light" | "system"
@@ -41,6 +40,9 @@ function getSystemTheme(): ResolvedTheme {
 
 function disableTransitionsTemporarily() {
   const style = document.createElement("style")
+  style.nonce =
+    document.querySelector<HTMLMetaElement>('meta[property="csp-nonce"]')
+      ?.content || ""
   style.appendChild(
     document.createTextNode(
       "*,*::before,*::after{-webkit-transition:none!important;transition:none!important}"

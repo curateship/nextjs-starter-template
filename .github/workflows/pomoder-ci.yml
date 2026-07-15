@@ -1,0 +1,62 @@
+name: Pomoder CI
+
+on:
+  pull_request:
+    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "package-lock.json", ".github/workflows/pomoder-ci.yml"]
+  push:
+    branches: [main]
+    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "package-lock.json", ".github/workflows/pomoder-ci.yml"]
+
+concurrency:
+  group: pomoder-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: localdev
+          POSTGRES_DB: pomoder
+        ports: ["54326:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POMODER_DATABASE_URL: postgresql://postgres:localdev@127.0.0.1:54326/pomoder
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Migrate test database
+        run: npm run db:migrate --workspace=pomoder
+      - name: Lint
+        run: npm run lint --workspace=pomoder
+      - name: Typecheck
+        run: npm run typecheck --workspace=pomoder
+      - name: Unit and integration tests
+        run: npm test --workspace=pomoder
+      - name: Production build
+        run: npm run build --workspace=pomoder
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npm run test:e2e --workspace=pomoder -- --project=desktop
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pomoder-browser-failure
+          path: |
+            apps/pomoder/playwright-report
+            apps/pomoder/test-results

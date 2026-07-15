@@ -1,0 +1,54 @@
+import AxeBuilder from "@axe-core/playwright"
+import { expect, test } from "@playwright/test"
+
+test("guest timer and tasks survive reload", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "Lofi focus scene" })).toBeVisible()
+  await expect(page.getByText("25:00")).toBeVisible()
+
+  await page.getByLabel("New task").fill("Review the Pomoder plan")
+  await page.getByLabel("New task").press("Enter")
+  await expect(page.getByText("Review the Pomoder plan")).toBeVisible()
+
+  await page.getByRole("button", { name: "Start", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible()
+  await page.waitForTimeout(1_100)
+  await page.reload()
+  await expect(page.getByText("Review the Pomoder plan")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible()
+})
+
+test("public product pages are keyboard-accessible", async ({ page }) => {
+  await page.goto("/themes")
+  await expect(page.getByRole("heading", { name: "Backgrounds" })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Lofi girl/ })).toBeVisible()
+  const results = await new AxeBuilder({ page }).analyze()
+  expect(results.violations).toEqual([])
+})
+
+test("the active background does not remount while navigating", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("pomoder:background", "lofi"))
+  await page.goto("/")
+
+  const video = page.getByRole("region", { name: "Lofi focus scene" }).locator("video")
+  await expect(video).toBeVisible()
+  await expect.poll(() => video.evaluate((element) => element.currentTime)).toBeGreaterThan(0.25)
+  const element = await video.elementHandle()
+  const currentTime = await video.evaluate((node) => node.currentTime)
+
+  await page.getByRole("link", { name: "Browse rooms", exact: true }).click()
+  await expect(page).toHaveURL(/\/rooms$/)
+  await expect(page.getByRole("heading", { name: "Open to join" })).toBeVisible()
+
+  expect(await page.evaluate((node) => node === document.querySelector(".dashboard-hero video") && node.isConnected, element)).toBe(true)
+  await expect.poll(() => video.evaluate((node) => node.currentTime)).toBeGreaterThan(currentTime)
+})
+
+test("stale background storage cannot replace the MP4 after refresh", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("pomoder:background", "stars"))
+  await page.goto("/")
+
+  const hero = page.getByRole("region", { name: "Lofi focus scene" })
+  await expect(hero.locator("video")).toBeVisible()
+  await expect(hero.locator('img[src="/pomoder/thumbs-stars.png"]')).toHaveCount(0)
+})

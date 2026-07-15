@@ -1,5 +1,7 @@
 import { getRequestHeader } from "@tanstack/react-start/server"
 
+import { localPomoderOrigins } from "@/lib/app-port"
+
 export function requireAppOrigin() {
   const origin = getRequestHeader("origin")
   if (!origin) {
@@ -12,17 +14,16 @@ export function requireAppOrigin() {
 }
 
 function getAllowedOrigins() {
-  const configured = process.env.CUSTOM_SHELL_APP_ORIGINS
+  const configured = process.env.POMODER_ALLOWED_ORIGINS
   const origins = new Set(
-    (configured || "http://127.0.0.1:3002,http://localhost:3002")
+    (configured || "")
       .split(",")
       .map((origin) => origin.trim().replace(/\/$/, ""))
       .filter(Boolean)
   )
 
-  if (process.env.CUSTOM_SHELL_API_ENV !== "production") {
-    origins.add("http://127.0.0.1:3002")
-    origins.add("http://localhost:3002")
+  if (process.env.NODE_ENV !== "production") {
+    for (const origin of localPomoderOrigins) origins.add(origin)
   }
 
   return origins
