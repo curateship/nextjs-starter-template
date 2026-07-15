@@ -38,21 +38,20 @@ const logFiltersSchema = z.object({
 const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
   const user = await requireUser()
   const { getAlertRules } = await import("@/server/alerts")
-  const { getScannerUniverse } = await import("@/server/scanner/info")
-  const { getMarketScannerWorkerStatus } = await import(
-    "@/server/market-scanner-status"
-  )
-  const [rules, universe, status] = await Promise.all([
+  const { getActivePerpMarkets } = await import("@/server/hyperliquid/info")
+  const { getMarketScannerWorkerStatus } =
+    await import("@/server/market-scanner-status")
+  const [rules, markets, status] = await Promise.all([
     getAlertRules(user.id),
-    getScannerUniverse().catch(() => null),
+    getActivePerpMarkets("mainnet").catch(() => null),
     getMarketScannerWorkerStatus(),
   ])
   return {
     rules,
-    markets: universe
-      ? universe.map((asset) => asset.coin)
+    markets: markets
+      ? markets.map((asset) => asset.coin)
       : [...new Set(rules.map((rule) => rule.coin))],
-    marketsAvailable: universe !== null,
+    marketsAvailable: markets !== null,
     workerOnline: status.workerOnline,
     checkedAt: Date.now(),
   }
@@ -84,7 +83,7 @@ const createAlertFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireMutation()
     const user = await requireUser()
-    await assertMarket(data.coin)
+    await assertAlertMarket(data.coin)
     const { createAlertRule } = await import("@/server/alerts")
     return createAlertRule(user.id, data)
   })
@@ -94,7 +93,7 @@ const updateAlertFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireMutation()
     const user = await requireUser()
-    await assertMarket(data.alert.coin)
+    await assertAlertMarket(data.alert.coin)
     const { updateAlertRule } = await import("@/server/alerts")
     return updateAlertRule(user.id, data.id, data.alert)
   })
@@ -222,8 +221,10 @@ async function requireMutation() {
   requireAppOrigin()
 }
 
-async function assertMarket(coin: string) {
-  const { getScannerUniverse } = await import("@/server/scanner/info")
-  const allowed = new Set((await getScannerUniverse()).map((asset) => asset.coin))
-  if (!allowed.has(coin)) throw new Error("This market is no longer available.")
+export async function assertAlertMarket(coin: string) {
+  const { getActivePerpMarkets } = await import("@/server/hyperliquid/info")
+  const markets = await getActivePerpMarkets("mainnet")
+  if (!markets.some((market) => market.coin === coin)) {
+    throw new Error("This market is no longer available.")
+  }
 }

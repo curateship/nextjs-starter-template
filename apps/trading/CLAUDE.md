@@ -12,7 +12,7 @@ Guidance for agents working in Trading.
 - **Before back-testing any strategy, read and follow `workspace/docs/back-guide.md`.**
 - **Before building or changing any UI/layout, read and follow `workspace/docs/ui-rules.md`, including its site-gap rules.**
 - **Before adding any new page, dashboard, or nav item, read and follow `workspace/docs/app-guide.md`** 
-- **Before touching any indicator or strategy, read and follow `workspace/docs/Key Features Details/indicator-strategy-parity.md`.**
+- **Before touching any indicator or strategy, read and follow `workspace/docs/Key-Features/indicator-strategy-parity.md`.**
 
 ## App Context
 

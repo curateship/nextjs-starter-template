@@ -1,13 +1,21 @@
 import { InfoClient } from "@nktkas/hyperliquid"
 
 import { buildPerpMarkets } from "@/lib/hl/perp-markets"
-import { createHttpTransport } from "@/server/hyperliquid/transport"
+import {
+  createHttpTransport,
+  createReadOnlyHttpTransport,
+} from "@/server/hyperliquid/transport"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 
 const META_CACHE_TTL_MS = 60_000
 
 const infoClients = new Map<TradingNetwork, InfoClient>()
+const readOnlyInfoClients = new Map<TradingNetwork, InfoClient>()
 const metaCache = new Map<
+  TradingNetwork,
+  { fetchedAt: number; assets: Map<string, AssetInfo> }
+>()
+const readOnlyMetaCache = new Map<
   TradingNetwork,
   { fetchedAt: number; assets: Map<string, AssetInfo> }
 >()
@@ -40,6 +48,15 @@ export function getInfoClient(network: TradingNetwork): InfoClient {
   return client
 }
 
+function getReadOnlyInfoClient(network: TradingNetwork): InfoClient {
+  let client = readOnlyInfoClients.get(network)
+  if (!client) {
+    client = new InfoClient({ transport: createReadOnlyHttpTransport(network) })
+    readOnlyInfoClients.set(network, client)
+  }
+  return client
+}
+
 export async function getAssetInfo(
   network: TradingNetwork,
   coin: string
@@ -52,6 +69,20 @@ export async function getAssetInfo(
   return asset
 }
 
+/** All active perpetual markets across the default and HIP-3 exchanges. */
+export async function getActivePerpMarkets(
+  network: TradingNetwork
+): Promise<AssetInfo[]> {
+  const cached = readOnlyMetaCache.get(network)
+  if (cached && Date.now() - cached.fetchedAt < META_CACHE_TTL_MS) {
+    return [...cached.assets.values()]
+  }
+
+  const assets = await loadAssetMap(getReadOnlyInfoClient(network))
+  readOnlyMetaCache.set(network, { fetchedAt: Date.now(), assets })
+  return [...assets.values()]
+}
+
 async function getAssetMap(
   network: TradingNetwork
 ): Promise<Map<string, AssetInfo>> {
@@ -60,7 +91,12 @@ async function getAssetMap(
     return cached.assets
   }
 
-  const info = getInfoClient(network)
+  const assets = await loadAssetMap(getInfoClient(network))
+  metaCache.set(network, { fetchedAt: Date.now(), assets })
+  return assets
+}
+
+async function loadAssetMap(info: InfoClient): Promise<Map<string, AssetInfo>> {
   const [dexs, metas, categories, spotMeta] = await Promise.all([
     info.perpDexs(),
     info.allPerpMetas(),
@@ -76,6 +112,5 @@ async function getAssetMap(
   )) {
     assets.set(market.coin, market)
   }
-  metaCache.set(network, { fetchedAt: Date.now(), assets })
   return assets
 }

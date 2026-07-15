@@ -1,7 +1,8 @@
 import { SubscriptionClient } from "@nktkas/hyperliquid"
 
+import { getActivePerpMarkets } from "@/server/hyperliquid/info"
 import { createReadOnlyWebSocketTransport } from "@/server/hyperliquid/transport"
-import { getScannerInfoClient } from "@/server/scanner/info"
+import { getScannerInfoClient, getScannerUniverse } from "@/server/scanner/info"
 import { TradingViewAlertEngine } from "../alerts/alert-engine"
 import { TradingViewAlertRetention } from "../alerts/retention"
 import { MarketAlertEngine } from "./alert-engine"
@@ -43,6 +44,11 @@ export class MarketScannerSupervisor {
   }
 
   private async startSubsystems() {
+    const [scannerUniverse, alertUniverse] = await Promise.all([
+      getScannerUniverse(),
+      getActivePerpMarkets("mainnet"),
+    ])
+    const scannerCoins = new Set(scannerUniverse.map((asset) => asset.coin))
     this.subClient = new SubscriptionClient({
       transport: createReadOnlyWebSocketTransport("mainnet"),
     })
@@ -51,10 +57,16 @@ export class MarketScannerSupervisor {
       this.rateLimiter
     )
     await this.alertEngine.start()
-    this.tradeStream = new MarketTradeStream(this.subClient, (trades) => {
-      this.engine?.onTrades(trades)
-      this.alertEngine?.onTrades(trades)
-    })
+    this.tradeStream = new MarketTradeStream(
+      this.subClient,
+      (trades) => {
+        this.engine?.onTrades(
+          trades.filter((trade) => scannerCoins.has(trade.coin))
+        )
+        this.alertEngine?.onTrades(trades)
+      },
+      async () => alertUniverse
+    )
     await this.tradeStream.start()
     this.engine = new MarketAlertEngine(
       getScannerInfoClient(),
