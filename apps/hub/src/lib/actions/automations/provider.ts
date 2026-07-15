@@ -1,8 +1,9 @@
 import 'server-only'
 
 import type { AIProvider } from '@/lib/utils/ai-models'
+import { RetryableAutomationError } from './errors'
 
-export interface AiGenerateTextInput {
+export interface AutomationTextInput {
   provider: AIProvider
   model: string
   apiKey: string
@@ -11,56 +12,41 @@ export interface AiGenerateTextInput {
   maxOutputTokens?: number
 }
 
-export interface AiGenerateTextResult {
+export interface AutomationTextResult {
   output: string
-  usage: Record<string, any>
-  rawStatus?: string | null
+  usage: Record<string, unknown>
 }
 
 const DEFAULT_TIMEOUT_MS = 90_000
 
-export async function generateAutomationText(input: AiGenerateTextInput): Promise<AiGenerateTextResult> {
+export async function generateAutomationText(input: AutomationTextInput): Promise<AutomationTextResult> {
   if (input.provider === 'openai') return generateOpenAIText(input)
   if (input.provider === 'anthropic') return generateAnthropicText(input)
   if (input.provider === 'google_ai') return generateGoogleAIText(input)
   throw new Error('Unsupported AI provider')
 }
 
-async function generateOpenAIText(input: AiGenerateTextInput) {
-  // Official API shape: https://developers.openai.com/api/reference/resources/responses/methods/create
+async function generateOpenAIText(input: AutomationTextInput) {
   const response = await fetchWithTimeout('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: input.model,
       input: [
         { role: 'system', content: input.system },
         { role: 'user', content: input.prompt },
       ],
-      max_output_tokens: input.maxOutputTokens ?? 1800,
+      max_output_tokens: input.maxOutputTokens ?? 4000,
       store: false,
     }),
   })
-
   const json = await readProviderJson(response)
-  if (!response.ok) throw new Error(readProviderError(json, 'OpenAI request failed'))
-
-  const output = typeof json.output_text === 'string'
-    ? json.output_text
-    : extractOpenAIOutput(json.output)
-
-  return {
-    output,
-    usage: isRecord(json.usage) ? json.usage : {},
-    rawStatus: typeof json.status === 'string' ? json.status : null,
-  }
+  assertProviderResponse(response, json, 'OpenAI request failed')
+  const output = typeof json.output_text === 'string' ? json.output_text : extractOpenAIOutput(json.output)
+  return { output, usage: isRecord(json.usage) ? json.usage : {} }
 }
 
-async function generateAnthropicText(input: AiGenerateTextInput) {
-  // Official API shape: https://platform.claude.com/docs/en/build-with-claude/working-with-messages
+async function generateAnthropicText(input: AutomationTextInput) {
   const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -70,48 +56,34 @@ async function generateAnthropicText(input: AiGenerateTextInput) {
     },
     body: JSON.stringify({
       model: input.model,
-      max_tokens: input.maxOutputTokens ?? 1800,
+      max_tokens: input.maxOutputTokens ?? 4000,
       system: input.system,
       messages: [{ role: 'user', content: input.prompt }],
     }),
   })
-
   const json = await readProviderJson(response)
-  if (!response.ok) throw new Error(readProviderError(json, 'Anthropic request failed'))
-
-  return {
-    output: extractAnthropicOutput(json.content),
-    usage: isRecord(json.usage) ? json.usage : {},
-    rawStatus: typeof json.stop_reason === 'string' ? json.stop_reason : null,
-  }
+  assertProviderResponse(response, json, 'Anthropic request failed')
+  return { output: extractAnthropicOutput(json.content), usage: isRecord(json.usage) ? json.usage : {} }
 }
 
-async function generateGoogleAIText(input: AiGenerateTextInput) {
-  // Official API shape: https://ai.google.dev/api/generate-content
+async function generateGoogleAIText(input: AutomationTextInput) {
   const model = input.model.startsWith('models/') ? input.model : `models/${input.model}`
   const safeModelPath = model.split('/').map(encodeURIComponent).join('/')
-  const url = `https://generativelanguage.googleapis.com/v1beta/${safeModelPath}:generateContent`
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': input.apiKey,
-    },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: input.system }] },
-      contents: [{ role: 'user', parts: [{ text: input.prompt }] }],
-      generationConfig: { maxOutputTokens: input.maxOutputTokens ?? 1800 },
-    }),
-  })
-
+  const response = await fetchWithTimeout(
+    `https://generativelanguage.googleapis.com/v1beta/${safeModelPath}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': input.apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: input.system }] },
+        contents: [{ role: 'user', parts: [{ text: input.prompt }] }],
+        generationConfig: { maxOutputTokens: input.maxOutputTokens ?? 4000 },
+      }),
+    }
+  )
   const json = await readProviderJson(response)
-  if (!response.ok) throw new Error(readProviderError(json, 'Google AI request failed'))
-
-  return {
-    output: extractGoogleAIOutput(json.candidates),
-    usage: isRecord(json.usageMetadata) ? json.usageMetadata : {},
-    rawStatus: typeof json.candidates?.[0]?.finishReason === 'string' ? json.candidates[0].finishReason : null,
-  }
+  assertProviderResponse(response, json, 'Google AI request failed')
+  return { output: extractGoogleAIOutput(json.candidates), usage: isRecord(json.usageMetadata) ? json.usageMetadata : {} }
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit) {
@@ -119,27 +91,40 @@ async function fetchWithTimeout(url: string, init: RequestInit) {
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? 'AI provider request timed out'
+      : 'AI provider could not be reached'
+    throw new RetryableAutomationError(message)
   } finally {
     clearTimeout(timeout)
   }
 }
 
-async function readProviderJson(response: Response): Promise<Record<string, any>> {
+function assertProviderResponse(response: Response, json: Record<string, unknown>, fallback: string) {
+  if (response.ok) return
+  const message = readProviderError(json, fallback)
+  if (response.status === 408 || response.status === 429 || response.status >= 500) {
+    throw new RetryableAutomationError(message)
+  }
+  throw new Error(message)
+}
+
+async function readProviderJson(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text()
   if (!text.trim()) return {}
   try {
-    const json = JSON.parse(text)
+    const json: unknown = JSON.parse(text)
     return isRecord(json) ? json : {}
   } catch {
     return { error: { message: text.slice(0, 1000) } }
   }
 }
 
-function readProviderError(json: Record<string, any>, fallback: string) {
+function readProviderError(json: Record<string, unknown>, fallback: string) {
   const directError = json.error
-  if (isRecord(directError)) {
-    const message = directError.message
-    if (typeof message === 'string' && message.trim()) return message.slice(0, 1000)
+  if (isRecord(directError) && typeof directError.message === 'string' && directError.message.trim()) {
+    return directError.message.slice(0, 1000)
   }
   if (typeof directError === 'string' && directError.trim()) return directError.slice(0, 1000)
   return fallback
@@ -171,6 +156,6 @@ function extractGoogleAIOutput(candidates: unknown) {
     .trim()
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

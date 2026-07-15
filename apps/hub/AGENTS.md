@@ -11,6 +11,7 @@ Guidance for agents working in Hub.
 - Before changing task-driven work, check `workspace/tasks/`.
 - Before building or changing UI, read and follow `workspace/docs/ui-rules.md`.
 - For builder block work, read `workspace/docs/builder-blocks.md`.
+- For automation graph, node, scheduler, or executor work, read `workspace/docs/automations.md`.
 
 ## App Context
 

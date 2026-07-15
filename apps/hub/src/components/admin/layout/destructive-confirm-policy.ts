@@ -8,8 +8,7 @@ type DestructiveActionPolicy = {
 export const DESTRUCTIVE_ACTION_POLICIES = {
   "archive-form": { level: 1, consequence: "The form stops accepting public submissions but keeps its existing submissions." },
   "delete-account-page": { level: 1, consequence: "The account page and its configured content are permanently deleted." },
-  "delete-ai-automation": { level: 2, consequence: "The automation, its references, and its run history are permanently deleted." },
-  "delete-ai-reference": { level: 1, consequence: "The reference and its extracted content are permanently deleted." },
+  "delete-ai-automation": { level: 2, consequence: "The workflow, its run history, node results, and scraped-source state are permanently deleted." },
   "delete-automation-node": { level: 1, consequence: "The automation node is permanently deleted." },
   "delete-automation-trigger": { level: 1, consequence: "The trigger is removed and will no longer enroll contacts." },
   "delete-block": { level: 1, consequence: "The block is removed from this draft." },
