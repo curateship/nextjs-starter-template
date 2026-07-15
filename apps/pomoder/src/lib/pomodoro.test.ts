@@ -4,6 +4,7 @@ import {
   createTimer,
   getRemainingSeconds,
   incrementTaskPomodoros,
+  normalizeDailyGoalSessions,
   pauseTimer,
   resetTimer,
   resolveSelectedTaskId,
@@ -71,5 +72,16 @@ describe("guest tasks", () => {
     ]
     expect(incrementTaskPomodoros(tasks, "selected")).toEqual([{ ...tasks[0], pomodoros: 2 }, tasks[1]])
     expect(resolveSelectedTaskId(tasks.filter((task) => task.id !== "selected"), "selected")).toBeNull()
+  })
+})
+
+describe("guest daily goal", () => {
+  it("accepts bounded session goals and resets invalid stored values", () => {
+    expect(normalizeDailyGoalSessions(1)).toBe(1)
+    expect(normalizeDailyGoalSessions(20)).toBe(20)
+    expect(normalizeDailyGoalSessions(0)).toBe(4)
+    expect(normalizeDailyGoalSessions(21)).toBe(4)
+    expect(normalizeDailyGoalSessions(2.5)).toBe(4)
+    expect(normalizeDailyGoalSessions("8")).toBe(4)
   })
 })

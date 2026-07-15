@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from "drizzle-orm"
+import { and, eq, gt, lt, sql } from "drizzle-orm"
 
 import { db, type PomoderDb } from "@/server/db"
 import { dailyFocusStats, focusSessions, tasks } from "@/server/schema"
@@ -69,4 +69,54 @@ export function localDateFor(timezone: string, timestamp = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(timestamp)
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${values.year}-${values.month}-${values.day}`
+}
+
+function localDateOrdinal(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(0)
+  date.setUTCHours(0, 0, 0, 0)
+  date.setUTCFullYear(year, month - 1, day)
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+  return Math.floor(date.getTime() / 86_400_000)
+}
+
+export function calculateFocusStreaks(orderedLocalDates: readonly string[], todayLocalDate: string) {
+  const today = localDateOrdinal(todayLocalDate)
+  if (today === null) throw new Error("INVALID_LOCAL_DATE")
+  const days = [...new Set(orderedLocalDates.map(localDateOrdinal).filter((day): day is number => day !== null && day <= today))].sort((left, right) => left - right)
+  let bestStreak = 0
+  let run = 0
+  let previous: number | null = null
+
+  for (const day of days) {
+    run = previous !== null && day === previous + 1 ? run + 1 : 1
+    bestStreak = Math.max(bestStreak, run)
+    previous = day
+  }
+
+  const latest = days.at(-1)
+  if (latest === undefined || latest < today - 1) return { currentStreak: 0, bestStreak }
+  let currentStreak = 1
+  for (let index = days.length - 2; index >= 0 && days[index] === days[index + 1] - 1; index -= 1) currentStreak += 1
+  return { currentStreak, bestStreak }
+}
+
+export function buildFocusSummary(dailyStats: readonly { localDate: string; focusSessions: number }[], todayLocalDate: string, dailyGoalSessions: number) {
+  const todayCompletedSessions = dailyStats.find((day) => day.localDate === todayLocalDate)?.focusSessions ?? 0
+  return {
+    ...calculateFocusStreaks(dailyStats.filter((day) => day.focusSessions > 0).map((day) => day.localDate), todayLocalDate),
+    todayCompletedSessions,
+    dailyGoalSessions,
+    goalProgress: Math.min(1, todayCompletedSessions / dailyGoalSessions),
+    goalCompleted: todayCompletedSessions >= dailyGoalSessions,
+  }
+}
+
+export async function loadFocusSummary(userId: string, todayLocalDate: string, dailyGoalSessions: number, database: PomoderDb = db) {
+  const dailyStats = await database.select({ localDate: dailyFocusStats.localDate, focusSessions: dailyFocusStats.focusSessions }).from(dailyFocusStats).where(and(eq(dailyFocusStats.userId, userId), gt(dailyFocusStats.focusSessions, 0))).orderBy(dailyFocusStats.localDate)
+  return buildFocusSummary(dailyStats, todayLocalDate, dailyGoalSessions)
 }

@@ -78,10 +78,8 @@ export function PomodoroDashboard() {
             <p>{modeHints[pomodoro.timer.mode]}</p>
             {pomodoro.syncError ? <p className="dashboard-sync-error" role="alert">{pomodoro.syncError}</p> : null}
             <div className="dashboard-session-count">
-              <div aria-label={`${pomodoro.focusSessions} of 4 sessions complete`}>
-                {[0, 1, 2, 3].map((index) => <i key={index} className={index < pomodoro.focusSessions % 4 ? "filled" : ""} />)}
-              </div>
-              <span>{pomodoro.focusSessions} {pomodoro.focusSessions === 1 ? "session" : "sessions"} completed today</span>
+              <progress value={Math.min(pomodoro.todayFocusSessions, pomodoro.dailyGoalSessions)} max={pomodoro.dailyGoalSessions} aria-label={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} completed focus sessions`} />
+              <span>{pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions} completed today{pomodoro.todayFocusSessions >= pomodoro.dailyGoalSessions ? " · Goal reached" : ""}</span>
             </div>
           </div>
         </div>

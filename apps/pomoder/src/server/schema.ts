@@ -118,6 +118,7 @@ export const userPreferences = pgTable(
     focusMinutes: integer("focus_minutes").notNull().default(25),
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+    dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
     autoStart: boolean("auto_start").notNull().default(false),
     selectedBackgroundId: uuid("selected_background_id"),
     selectedSoundId: uuid("selected_sound_id"),
@@ -137,6 +138,10 @@ export const userPreferences = pgTable(
     check(
       "preferences_long_check",
       sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "preferences_daily_goal_check",
+      sql`${table.dailyGoalSessions} between 1 and 20`
     ),
   ]
 )

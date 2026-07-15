@@ -15,6 +15,10 @@ export type GuestTask = {
   pomodoros: number
 }
 
+export function normalizeDailyGoalSessions(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 20 ? value : 4
+}
+
 export function createTimer(mode: TimerMode, durationMinutes: number): PomodoroTimer {
   return {
     mode,
