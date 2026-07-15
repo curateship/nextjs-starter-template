@@ -4,6 +4,8 @@ Price alerts are private to the signed-in user. Create them from the Trade
 chart by right-clicking or long-pressing a price and choosing **Add alert**.
 This immediately creates a one-time crossing alert. `Alt+A` creates the same
 alert at the current live price. Click its chart line to customize it.
+Alerts work with every active mainnet perpetual market shown in Trade,
+including markets on Hyperliquid's HIP-3 exchanges.
 
 Use `/alerts` to edit, pause, resume, restart, or delete alerts. Active
 exact-price alerts appear as dashed amber chart lines. Clicking a line edits

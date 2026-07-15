@@ -10,9 +10,7 @@ describe("market scanner trade stream", () => {
       normalizeMarketTrades([
         { coin: "BTC", px: "100", sz: "0.01", time: 1_000, tid: 1 },
       ])
-    ).toEqual([
-      { coin: "BTC", px: 100, notional: 1, ts: 1_000, tid: 1 },
-    ])
+    ).toEqual([{ coin: "BTC", px: 100, notional: 1, ts: 1_000, tid: 1 }])
   })
 
   it("drops invalid external trade values", () => {
@@ -53,5 +51,25 @@ describe("market scanner trade stream", () => {
     stream.stop()
     expect(unsubscribe).toHaveBeenCalledOnce()
     vi.useRealTimers()
+  })
+
+  it("subscribes to HIP-3 markets supplied by the alert universe", async () => {
+    const unsubscribe = vi.fn().mockResolvedValue(undefined)
+    const trades = vi.fn().mockResolvedValue({ unsubscribe })
+    const stream = new MarketTradeStream(
+      { trades } as unknown as SubscriptionClient,
+      () => {},
+      async () => [{ coin: "BTC" }, { coin: "xyz:TSLA" }]
+    )
+
+    await stream.start()
+
+    expect(trades).toHaveBeenCalledWith({ coin: "BTC" }, expect.any(Function))
+    expect(trades).toHaveBeenCalledWith(
+      { coin: "xyz:TSLA" },
+      expect.any(Function)
+    )
+
+    stream.stop()
   })
 })

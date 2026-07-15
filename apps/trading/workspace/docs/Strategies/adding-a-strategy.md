@@ -62,4 +62,4 @@ implementing `IndicatorModule` (label, description, params schema + fields,
 the signals feed the automation evaluator, not chart arrows), plus one line
 in `src/lib/indicators/registry.ts`. The chart, automation canvas, live
 engine, and backtester pick it up automatically. Follow
-`workspace/docs/Key Features Details/indicator-strategy-parity.md`.
+`workspace/docs/Key-Features/indicator-strategy-parity.md`.

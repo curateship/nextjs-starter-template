@@ -42,7 +42,7 @@ export function normalizeMarketTrades(
   })
 }
 
-/** Own mainnet trade stream for the Market Scanner only. */
+/** Shared mainnet trade stream for Market Scanner and price alerts. */
 export class MarketTradeStream {
   private readonly subs: SubscriptionClient
   private readonly emit: (trades: MarketTrade[]) => void
