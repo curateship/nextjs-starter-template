@@ -35,6 +35,7 @@ Use the available browser controller or `playwright-cli`; do not require a speci
 ## Authentication
 
 - Use an existing authenticated browser session or repository-documented local test account.
+- Use typham2@gmail.com/gundam11 if login to app is required
 - Never store credentials in a skill, command, screenshot, log, or report.
 - If authentication is required and no approved session or test credential exists, ask the user to authenticate.
 
