@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Change"
+  short_description: "Build focused changes with tests and checks"
+  default_prompt: "Use $implement-change to implement this code change safely and directly."

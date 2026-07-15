@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Change"
+  short_description: "Audit, fix, and commit ready changes"
+  default_prompt: "Use $audit-change to audit these changes, fix clear issues, and commit them locally when nothing needs my attention."

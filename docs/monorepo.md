@@ -105,16 +105,30 @@ Agent-specific files live in `.agents/`.
 Project skills live in:
 
 ```text
-.agents/skills/
+.agents/skills/<skill>/SKILL.md
 ```
 
-Use this folder for repo-local agent workflows, not app runtime code. App-specific agent instructions should live in the relevant app folder when needed.
+The shared skill set is intentionally small and flat:
+
+- `plan-change` - refine requests, specifications, and implementation plans
+- `new-features-suggestion` - scan a codebase and confirm feature opportunities in batches of ten
+- `polish-app-suggestions` - inspect an app and confirm polish opportunities in batches of ten
+- `implement-change` - build and test focused code changes
+- `validate-app` - verify changed workflows in a running app
+- `audit-change` - review changes for correctness, security, and commit readiness
+- `commit-change` - create an explicitly requested local commit without pushing
+- `migrate-legacy-code` - perform explicit legacy-system cutovers
+- `ship-release` - prepare and execute authorized production releases
+
+Use `.agents/skills/` for repo-local agent workflows, not app runtime code. App-specific agent instructions should live in the relevant app folder when needed.
 
 Each app has its own `AGENTS.md`. Those files route agents to:
 
 - shared skills in `.agents/skills/`
 - app docs in `workspace/docs/`
 - app tasks in `workspace/tasks/`
+
+Every app carries the same `workspace/docs/ui-rules.md` and routes UI work to it from its `AGENTS.md`. App-specific UI guides may add stricter conventions, but the shared copies should remain identical.
 
 ## Deployment
 

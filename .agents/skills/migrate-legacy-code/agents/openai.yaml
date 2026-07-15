@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migrate Legacy Code"
+  short_description: "Replace legacy systems with a clear cutover"
+  default_prompt: "Use $migrate-legacy-code to plan and execute this legacy-system migration."

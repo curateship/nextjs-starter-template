@@ -1,0 +1,4 @@
+interface:
+  display_name: "New Features Suggestion"
+  short_description: "Suggest and confirm ten codebase features"
+  default_prompt: "Use $new-features-suggestion to scan this codebase, propose ten features, and review them with me one by one."
