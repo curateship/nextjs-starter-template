@@ -188,18 +188,20 @@ export function PricingPage() {
 
 export function LeaderboardPage() {
   const { user } = useRouteContext({ from: "__root__" })
+  const pomodoro = usePomodoro(false)
   const [leaders, setLeaders] = React.useState<Awaited<ReturnType<typeof loadLeaderboard>>>([])
   const [stats, setStats] = React.useState<Awaited<ReturnType<typeof loadProductivity>> | null>(null)
+  const [statsError, setStatsError] = React.useState("")
   React.useEffect(() => { void loadLeaderboard().then(setLeaders) }, [])
-  React.useEffect(() => { if (user) void loadProductivity().then(setStats) }, [user])
+  React.useEffect(() => { if (user) void loadProductivity().then(setStats).catch(() => setStatsError("Your focus stats could not be loaded. Reload to try again.")) }, [user])
   const week = [...(stats?.recentStats || [])].slice(0, 7).reverse()
   const focusSeconds = week.reduce((total, day) => total + day.focusSeconds, 0)
   const sessions = week.reduce((total, day) => total + day.focusSessions, 0)
   const completed = week.reduce((total, day) => total + day.tasksCompleted, 0)
   const hours = Math.floor(focusSeconds / 3_600)
   const minutes = Math.floor((focusSeconds % 3_600) / 60)
-  const chartValues = week.length ? [0,1,2,3,4,5,6].map((index) => week[index]?.focusSessions || 0) : [6, 8, 4, 9, 7, 3, 5]
-  const chartDays = week.length ? [0,1,2,3,4,5,6].map((index) => week[index] ? new Date(`${week[index].localDate}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" }) : "·") : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  const chartValues = stats ? [0,1,2,3,4,5,6].map((index) => week[index]?.focusSessions || 0) : user ? [0, 0, 0, 0, 0, 0, 0] : [6, 8, 4, 9, 7, 3, 5]
+  const chartDays = stats ? [0,1,2,3,4,5,6].map((index) => week[index] ? new Date(`${week[index].localDate}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" }) : "·") : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
   const chartMax = Math.max(1, ...chartValues)
   const leaderRows = leaders.length ? leaders.map((leader, index) => ({ id: leader.id, name: leader.name, focusSeconds: leader.focusSeconds, sessions: leader.focusSessions, avatar: ["tomas", "maya", "ana", "devon"][index % 4], you: leader.id === user?.id })) : [
     { id: "l1", name: "Kenji Watanabe", focusSeconds: 31 * 3600 + 10 * 60, sessions: 74, avatar: "tomas", you: false },
@@ -211,11 +213,12 @@ export function LeaderboardPage() {
   ]
   const statCards = stats ? [
     ["Focus today", `${Math.floor((stats.recentStats.find((day) => day.localDate === stats.today)?.focusSeconds || 0) / 3600)}h ${Math.floor(((stats.recentStats.find((day) => day.localDate === stats.today)?.focusSeconds || 0) % 3600) / 60)}m`, `${stats.recentStats.find((day) => day.localDate === stats.today)?.focusSessions || 0} sessions`],
-    ["This week", `${hours}h ${minutes}m`, `${sessions} sessions`], ["Current streak", "—", "Keep focusing"], ["Tasks done", String(completed), "this week"],
-  ] : [["Focus today", "3h 45m", "9 sessions"], ["This week", "18h 20m", "42 sessions"], ["Current streak", "12 days", "Best: 21 days"], ["Tasks done", "86", "this month"]]
+    ["This week", `${hours}h ${minutes}m`, `${sessions} sessions`], ["Current streak", `${stats.summary.currentStreak} ${stats.summary.currentStreak === 1 ? "day" : "days"}`, `Best: ${stats.summary.bestStreak} ${stats.summary.bestStreak === 1 ? "day" : "days"}`], ["Tasks done", String(completed), "this week"],
+  ] : user ? [["Focus today", statsError ? "Unavailable" : "Loading…", statsError ? "Reload to try again" : "Loading your stats"], ["This week", statsError ? "Unavailable" : "Loading…", statsError ? "Reload to try again" : "Loading your stats"], ["Current streak", statsError ? "Unavailable" : "Loading…", statsError ? "Reload to try again" : "Loading your stats"], ["Tasks done", statsError ? "Unavailable" : "Loading…", statsError ? "Reload to try again" : "Loading your stats"]] : [["Focus today", `${pomodoro.todayFocusSessions} ${pomodoro.todayFocusSessions === 1 ? "session" : "sessions"}`, `${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} goal`], ["This week", "Not synced", "Sign in for history"], ["Current streak", "Not synced", "Sign in for history"], ["Tasks done", String(pomodoro.tasks.filter((task) => task.completed).length), "today"]]
   return (
     <div className="reference-view leaderboard-reference-view"><div className="leaderboard-reference-inner">
       <header className="reference-page-heading"><h2>Leaderboard</h2><p>Your focus this week, and how you stack up.</p></header>
+      {statsError ? <p role="alert">{statsError}</p> : null}
       <div className="reference-kicker">Your stats</div>
       <section className="reference-stat-grid">{statCards.map(([label, value, sub]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{sub}</small></article>)}</section>
       <section className="reference-week-chart"><header><h3>Sessions this week</h3><span>{chartValues.reduce((sum, value) => sum + value, 0)} total</span></header><div className="reference-bars">{chartValues.map((value, index) => <div key={chartDays[index]}><span>{value}</span><i className={index === 3 ? "today" : ""} style={{ height: `${Math.round(value / chartMax * 130) + 6}px` }} /><small>{chartDays[index]}</small></div>)}</div></section>
@@ -261,16 +264,25 @@ export function SettingsPage() {
   const [focus, setFocus] = React.useState(25)
   const [short, setShort] = React.useState(5)
   const [long, setLong] = React.useState(15)
+  const [dailyGoal, setDailyGoal] = React.useState(4)
   const [name, setName] = React.useState(user?.name || "")
   const [displayName, setDisplayName] = React.useState(user?.publicDisplayName || "")
   const [timezone, setTimezone] = React.useState(user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
   const [leaderboard, setLeaderboard] = React.useState(user?.leaderboardOptIn || false)
   const [deletePassword, setDeletePassword] = React.useState("")
   const [notice, setNotice] = React.useState("")
+  const validTimerSettings = [focus, short, long].every((value) => Number.isInteger(value) && value >= 1 && value <= 90) && Number.isInteger(dailyGoal) && dailyGoal >= 1 && dailyGoal <= 20
+
+  React.useEffect(() => {
+    setFocus(pomodoro.durations.focus)
+    setShort(pomodoro.durations.short)
+    setLong(pomodoro.durations.long)
+    setDailyGoal(pomodoro.dailyGoalSessions)
+  }, [pomodoro.dailyGoalSessions, pomodoro.durations.focus, pomodoro.durations.long, pomodoro.durations.short])
 
   return (
     <div className="settings-layout">
-      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Auto-start next<input type="checkbox" checked={pomodoro.autoStart} onChange={(event) => pomodoro.setAutoStart(event.target.checked)} /></label><button className="pill-button" onClick={() => { pomodoro.setDurations({ focus, short, long }); setNotice(user ? "Timer preferences synced." : "Timer preferences saved locally.") }}>Save timer</button></section>
+      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<input type="checkbox" checked={pomodoro.autoStart} onChange={(event) => pomodoro.setAutoStart(event.target.checked)} /></label><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
       {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<input type="checkbox" checked={leaderboard} onChange={(event) => setLeaderboard(event.target.checked)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
       {notice ? <p role="status">{notice}</p> : null}
     </div>

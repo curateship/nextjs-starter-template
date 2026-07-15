@@ -41,6 +41,40 @@ test("guest focus selection survives reload and receives the completed Pomodoro"
   expect(consoleErrors).toEqual([])
 })
 
+test("guest daily goal persists and updates after a completed focus session", async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()) })
+  await page.goto("/settings")
+
+  const goal = page.getByLabel("Daily session goal")
+  await goal.fill("0")
+  await expect(page.getByRole("button", { name: "Save focus rhythm" })).toBeDisabled()
+  await goal.fill("1")
+  await page.getByRole("button", { name: "Save focus rhythm" }).click()
+  await expect(page.getByText("Focus rhythm saved locally.")).toBeVisible()
+
+  await page.reload()
+  await expect(goal).toHaveValue("1")
+  await page.goto("/")
+  await expect(page.getByRole("progressbar", { name: "0 of 1 completed focus sessions" })).toBeVisible()
+
+  await page.evaluate(() => {
+    const key = "pomoder:guest:v1"
+    const state = JSON.parse(window.localStorage.getItem(key) || "{}")
+    state.durations.focus = 1
+    state.timer = { mode: "focus", durationMinutes: 1, remainingSeconds: 1, running: true, targetTimestamp: Date.now() + 250 }
+    window.localStorage.setItem(key, JSON.stringify(state))
+  })
+  await page.reload()
+
+  await expect(page.getByRole("progressbar", { name: "1 of 1 completed focus sessions" })).toBeVisible()
+  await expect(page.getByText("1 of 1 completed today · Goal reached")).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole("progressbar", { name: "1 of 1 completed focus sessions" })).toBeVisible()
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  expect(consoleErrors).toEqual([])
+})
+
 test("public product pages are keyboard-accessible", async ({ page }) => {
   await page.goto("/themes")
   await expect(page.getByRole("heading", { name: "Backgrounds" })).toBeVisible()

@@ -4,13 +4,13 @@ import { z } from "zod"
 
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import { completeProductivitySession, localDateFor, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
+import { completeProductivitySession, loadFocusSummary, localDateFor, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
 import { dailyFocusStats, focusSessions, tasks, userPreferences, users } from "@/server/schema"
 import { requireUser } from "@/server/security"
 
 const taskIdSchema = z.object({ taskId: z.string().uuid() })
 const createTaskSchema = z.object({ title: z.string().trim().min(1).max(160) })
-const preferenceSchema = z.object({ focusMinutes: z.number().int().min(1).max(90), shortBreakMinutes: z.number().int().min(1).max(90), longBreakMinutes: z.number().int().min(1).max(90), autoStart: z.boolean() })
+const productivityPreferenceSchema = z.object({ focusMinutes: z.number().int().min(1).max(90), shortBreakMinutes: z.number().int().min(1).max(90), longBreakMinutes: z.number().int().min(1).max(90), dailyGoalSessions: z.number().int().min(1).max(20), autoStart: z.boolean() })
 const startSessionSchema = z.object({ mode: z.enum(["focus", "short", "long"]), plannedSeconds: z.number().int().min(60).max(5_400), taskId: z.string().uuid().nullable(), idempotencyKey: z.string().min(8).max(100) })
 const sessionProgressSchema = z.object({ sessionId: z.string().uuid(), accumulatedSeconds: z.number().int().min(0).max(5_400) })
 const resumeSessionSchema = z.object({ sessionId: z.string().uuid(), remainingSeconds: z.number().int().min(1).max(5_400) })
@@ -19,6 +19,7 @@ const guestImportSchema = z.object({
   focusMinutes: z.number().int().min(1).max(90),
   shortBreakMinutes: z.number().int().min(1).max(90),
   longBreakMinutes: z.number().int().min(1).max(90),
+  dailyGoalSessions: z.number().int().min(1).max(20),
   autoStart: z.boolean(),
 })
 
@@ -26,13 +27,24 @@ const loadProductivityFn = createServerFn({ method: "GET" }).handler(async () =>
   const user = await requireUser()
   const today = localDateFor(user.timezone)
   await rollOverTasks(user.id, today)
-  const [preferences, todayTasks, archivedTasks, recentStats] = await Promise.all([
-    db.select().from(userPreferences).where(eq(userPreferences.userId, user.id)).limit(1),
+  const preferencesPromise = Promise.resolve(db.select().from(userPreferences).where(eq(userPreferences.userId, user.id)).limit(1))
+  const summaryPromise = preferencesPromise.then(([preferences]) => loadFocusSummary(user.id, today, preferences.dailyGoalSessions))
+  const [preferences, todayTasks, archivedTasks, recentStats, summary] = await Promise.all([
+    preferencesPromise,
     db.select().from(tasks).where(and(eq(tasks.userId, user.id), eq(tasks.plannedDate, today))).orderBy(tasks.createdAt),
     db.select().from(tasks).where(and(eq(tasks.userId, user.id), sql`${tasks.plannedDate} < ${today}`)).orderBy(desc(tasks.plannedDate), desc(tasks.createdAt)).limit(50),
     db.select().from(dailyFocusStats).where(eq(dailyFocusStats.userId, user.id)).orderBy(desc(dailyFocusStats.localDate)).limit(14),
+    summaryPromise,
   ])
-  return { preferences: preferences[0], tasks: todayTasks, archivedTasks, recentStats, today }
+  const resolvedPreferences = preferences[0]
+  return {
+    preferences: resolvedPreferences,
+    tasks: todayTasks,
+    archivedTasks,
+    recentStats,
+    today,
+    summary,
+  }
 })
 
 const createTaskFn = createServerFn({ method: "POST" }).inputValidator(createTaskSchema).handler(async ({ data }) => {
@@ -56,7 +68,7 @@ const abandonTaskFn = createServerFn({ method: "POST" }).inputValidator(taskIdSc
   return updated
 })
 
-const updatePreferencesFn = createServerFn({ method: "POST" }).inputValidator(preferenceSchema).handler(async ({ data }) => {
+const updatePreferencesFn = createServerFn({ method: "POST" }).inputValidator(productivityPreferenceSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
   const [preferences] = await db.insert(userPreferences).values({ userId: user.id, ...data }).onConflictDoUpdate({ target: userPreferences.userId, set: { ...data, updatedAt: new Date() } }).returning()
@@ -95,7 +107,11 @@ const cancelSessionFn = createServerFn({ method: "POST" }).inputValidator(z.obje
 const completeSessionFn = createServerFn({ method: "POST" }).inputValidator(sessionProgressSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
-  return completeProductivitySession(user.id, data.sessionId, data.accumulatedSeconds, localDateFor(user.timezone))
+  const today = localDateFor(user.timezone)
+  const completion = await completeProductivitySession(user.id, data.sessionId, data.accumulatedSeconds, today)
+  if (!completion) return null
+  const [preferences] = await db.select({ dailyGoalSessions: userPreferences.dailyGoalSessions }).from(userPreferences).where(eq(userPreferences.userId, user.id)).limit(1)
+  return { ...completion, today, summary: await loadFocusSummary(user.id, today, preferences.dailyGoalSessions) }
 })
 
 const leaderboardFn = createServerFn({ method: "GET" }).handler(async () => {
@@ -110,7 +126,7 @@ const importGuestStateFn = createServerFn({ method: "POST" }).inputValidator(gue
     const [locked] = await tx.select({ guestImportedAt: users.guestImportedAt }).from(users).where(eq(users.id, user.id)).for("update")
     if (locked?.guestImportedAt) return { imported: false }
     if (data.tasks.length) await tx.insert(tasks).values(data.tasks.map((task) => ({ userId: user.id, title: task.title, plannedDate: today, status: task.completed ? "completed" : "active", completedAt: task.completed ? new Date() : null, pomodoroCount: task.pomodoros })))
-    await tx.insert(userPreferences).values({ userId: user.id, focusMinutes: data.focusMinutes, shortBreakMinutes: data.shortBreakMinutes, longBreakMinutes: data.longBreakMinutes, autoStart: data.autoStart }).onConflictDoUpdate({ target: userPreferences.userId, set: { focusMinutes: data.focusMinutes, shortBreakMinutes: data.shortBreakMinutes, longBreakMinutes: data.longBreakMinutes, autoStart: data.autoStart, updatedAt: new Date() } })
+    await tx.insert(userPreferences).values({ userId: user.id, focusMinutes: data.focusMinutes, shortBreakMinutes: data.shortBreakMinutes, longBreakMinutes: data.longBreakMinutes, dailyGoalSessions: data.dailyGoalSessions, autoStart: data.autoStart }).onConflictDoUpdate({ target: userPreferences.userId, set: { focusMinutes: data.focusMinutes, shortBreakMinutes: data.shortBreakMinutes, longBreakMinutes: data.longBreakMinutes, dailyGoalSessions: data.dailyGoalSessions, autoStart: data.autoStart, updatedAt: new Date() } })
     await tx.update(users).set({ guestImportedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, user.id))
     return { imported: true }
   })
@@ -120,7 +136,7 @@ export const loadProductivity = () => loadProductivityFn()
 export const createTask = (title: string) => createTaskFn({ data: { title } })
 export const togglePersistentTask = (taskId: string) => toggleTaskFn({ data: { taskId } })
 export const abandonTask = (taskId: string) => abandonTaskFn({ data: { taskId } })
-export const updatePreferences = (data: z.infer<typeof preferenceSchema>) => updatePreferencesFn({ data })
+export const updatePreferences = (data: z.infer<typeof productivityPreferenceSchema>) => updatePreferencesFn({ data })
 export const startFocusSession = (data: z.infer<typeof startSessionSchema>) => startSessionFn({ data })
 export const pauseFocusSession = (data: z.infer<typeof sessionProgressSchema>) => pauseSessionFn({ data })
 export const resumeFocusSession = (data: z.infer<typeof resumeSessionSchema>) => resumeSessionFn({ data })

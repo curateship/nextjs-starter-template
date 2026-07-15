@@ -43,6 +43,13 @@
       "when": 1784075400000,
       "tag": "0005_admin_security",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784145600000,
+      "tag": "0006_daily_goals_and_streaks",
+      "breakpoints": true
     }
   ]
 }

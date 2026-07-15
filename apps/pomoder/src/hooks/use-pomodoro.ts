@@ -16,6 +16,7 @@ import {
   createTimer,
   getRemainingSeconds,
   incrementTaskPomodoros,
+  normalizeDailyGoalSessions,
   pauseTimer,
   resetTimer,
   resolveSelectedTaskId,
@@ -33,7 +34,10 @@ type GuestState = {
   timer: PomodoroTimer
   tasks: GuestTask[]
   autoStart: boolean
-  focusSessions: number
+  cycleFocusSessions: number
+  todayFocusSessions: number
+  dailyGoalSessions: number
+  dailyProgressDate: string
   durations: Record<TimerMode, number>
   serverSessionId: string | null
   selectedTaskId: string | null
@@ -47,7 +51,10 @@ const initialState: GuestState = {
     { id: "group-sprint", title: "Prep notes for the 6pm group sprint", completed: false, pomodoros: 0 },
   ],
   autoStart: false,
-  focusSessions: 0,
+  cycleFocusSessions: 0,
+  todayFocusSessions: 0,
+  dailyGoalSessions: 4,
+  dailyProgressDate: "",
   durations: DEFAULT_DURATIONS,
   serverSessionId: null,
   selectedTaskId: null,
@@ -55,6 +62,17 @@ const initialState: GuestState = {
 
 function canChangeSelectedTask(state: GuestState) {
   return !state.timer.running && state.serverSessionId === null && state.timer.remainingSeconds === state.timer.durationMinutes * 60
+}
+
+function browserLocalDate(timestamp = new Date()) {
+  const year = timestamp.getFullYear()
+  const month = String(timestamp.getMonth() + 1).padStart(2, "0")
+  const day = String(timestamp.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function storedSessionCount(value: unknown, maximum = Number.MAX_SAFE_INTEGER) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? Math.min(value, maximum) : 0
 }
 
 export function usePomodoro(authenticated = false) {
@@ -70,10 +88,12 @@ export function usePomodoro(authenticated = false) {
         if (saved) {
           const parsed = JSON.parse(saved) as Partial<GuestState>
           const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : initialState.tasks
-          const restored = { ...initialState, ...parsed, tasks, durations: parsed.durations || DEFAULT_DURATIONS, serverSessionId: null, selectedTaskId: resolveSelectedTaskId(tasks, parsed.selectedTaskId) }
+          const today = browserLocalDate()
+          const sameDay = parsed.dailyProgressDate === today
+          const restored = { ...initialState, ...parsed, tasks, durations: parsed.durations || DEFAULT_DURATIONS, cycleFocusSessions: storedSessionCount(parsed.cycleFocusSessions, 4), todayFocusSessions: sameDay ? storedSessionCount(parsed.todayFocusSessions) : 0, dailyGoalSessions: normalizeDailyGoalSessions(parsed.dailyGoalSessions), dailyProgressDate: today, serverSessionId: null, selectedTaskId: resolveSelectedTaskId(tasks, parsed.selectedTaskId) }
           setState(restored)
           setRemainingSeconds(getRemainingSeconds(restored.timer))
-        }
+        } else setState((current) => ({ ...current, dailyProgressDate: browserLocalDate() }))
       } catch { window.localStorage.removeItem(STORAGE_KEY) }
       setHydrated(true)
     }, 0)
@@ -92,7 +112,10 @@ export function usePomodoro(authenticated = false) {
         autoStart: data.preferences.autoStart,
         tasks,
         selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId),
-        focusSessions: Math.min(4, data.recentStats.find((day) => day.localDate === data.today)?.focusSessions || 0),
+        cycleFocusSessions: data.summary.todayCompletedSessions % 4,
+        todayFocusSessions: data.summary.todayCompletedSessions,
+        dailyGoalSessions: data.summary.dailyGoalSessions,
+        dailyProgressDate: data.today,
         serverSessionId: null,
       }))
     }).catch(() => setSyncError("Your tasks could not be loaded."))
@@ -104,14 +127,24 @@ export function usePomodoro(authenticated = false) {
   }, [authenticated, hydrated, state])
 
   React.useEffect(() => {
+    if (!hydrated || authenticated) return
+    const resetExpiredProgress = () => setState((current) => {
+      const today = browserLocalDate()
+      return current.dailyProgressDate === today ? current : { ...current, todayFocusSessions: 0, dailyProgressDate: today }
+    })
+    const interval = window.setInterval(resetExpiredProgress, 60_000)
+    return () => window.clearInterval(interval)
+  }, [authenticated, hydrated])
+
+  React.useEffect(() => {
     const update = (event: Event) => {
       const { durations, autoStart } = (event as CustomEvent<{ durations: Record<TimerMode, number>; autoStart: boolean }>).detail
+      if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, dailyGoalSessions: state.dailyGoalSessions, autoStart }).catch(() => undefined)
       setState((current) => ({ ...current, durations, autoStart, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }))
-      if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, autoStart }).catch(() => undefined)
     }
     window.addEventListener("pomoder:preferences", update)
     return () => window.removeEventListener("pomoder:preferences", update)
-  }, [authenticated])
+  }, [authenticated, state.dailyGoalSessions])
 
   React.useEffect(() => {
     if (!state.timer.running) {
@@ -123,12 +156,19 @@ export function usePomodoro(authenticated = false) {
       setRemainingSeconds(nextRemaining)
       if (nextRemaining === 0) {
         if (authenticated && state.serverSessionId) void completeFocusSession({ sessionId: state.serverSessionId, accumulatedSeconds: state.timer.durationMinutes * 60 }).then((result) => {
-          const updatedTask = result?.task
-          if (updatedTask) setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === updatedTask.id ? { ...task, pomodoros: updatedTask.pomodoroCount } : task) }))
-        }).catch(() => setSyncError("Your completed focus session could not be saved."))
+          if (!result) return
+          const updatedTask = result.task
+          setState((current) => ({
+            ...current,
+            tasks: updatedTask ? current.tasks.map((task) => task.id === updatedTask.id ? { ...task, pomodoros: updatedTask.pomodoroCount } : task) : current.tasks,
+            todayFocusSessions: result.summary.todayCompletedSessions,
+            dailyGoalSessions: result.summary.dailyGoalSessions,
+            dailyProgressDate: result.today,
+          }))
+        }).catch(() => setSyncError("Your completed focus session could not be synced."))
         setState((current) => {
           const completedFocus = current.timer.mode === "focus"
-          const completedFocusSessions = completedFocus ? Math.min(4, current.focusSessions + 1) : current.timer.mode === "long" ? 0 : current.focusSessions
+          const completedFocusSessions = completedFocus ? Math.min(4, current.cycleFocusSessions + 1) : current.timer.mode === "long" ? 0 : current.cycleFocusSessions
           const nextMode: TimerMode = current.timer.mode === "focus" ? (completedFocusSessions === 4 ? "long" : "short") : "focus"
           const ready = createTimer(nextMode, current.durations[nextMode])
           const timer = current.autoStart ? startTimer(ready) : ready
@@ -137,7 +177,11 @@ export function usePomodoro(authenticated = false) {
             void startFocusSession({ mode: nextMode, plannedSeconds: timer.durationMinutes * 60, taskId, idempotencyKey: crypto.randomUUID() }).then((session) => { if (session) setState((latest) => ({ ...latest, serverSessionId: session.id })) }).catch(() => setSyncError("Your focus session could not be synced."))
           }
           const tasks = !authenticated && completedFocus && current.selectedTaskId ? incrementTaskPomodoros(current.tasks, current.selectedTaskId) : current.tasks
-          return { ...current, tasks, timer, serverSessionId: null, focusSessions: completedFocusSessions }
+          const nextState = { ...current, tasks, timer, serverSessionId: null, cycleFocusSessions: completedFocusSessions }
+          if (authenticated) return nextState
+          const progressDate = browserLocalDate()
+          const previousToday = current.dailyProgressDate === progressDate ? current.todayFocusSessions : 0
+          return { ...nextState, todayFocusSessions: completedFocus ? previousToday + 1 : previousToday, dailyProgressDate: progressDate }
         })
       }
     }
@@ -219,17 +263,16 @@ export function usePomodoro(authenticated = false) {
 
   const setAutoStart = React.useCallback((autoStart: boolean) => {
     setState((current) => {
-      if (authenticated) void updatePreferences({ focusMinutes: current.durations.focus, shortBreakMinutes: current.durations.short, longBreakMinutes: current.durations.long, autoStart }).catch(() => undefined)
+      if (authenticated) void updatePreferences({ focusMinutes: current.durations.focus, shortBreakMinutes: current.durations.short, longBreakMinutes: current.durations.long, dailyGoalSessions: current.dailyGoalSessions, autoStart }).catch(() => undefined)
       return { ...current, autoStart }
     })
   }, [authenticated])
 
-  const setDurations = React.useCallback((durations: Record<TimerMode, number>) => {
-    setState((current) => {
-      if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, autoStart: current.autoStart }).catch(() => undefined)
-      return { ...current, durations, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }
-    })
-  }, [authenticated])
+  const setDurations = React.useCallback((durations: Record<TimerMode, number>, dailyGoalSessions?: number) => {
+    const goal = dailyGoalSessions ?? state.dailyGoalSessions
+    setState((current) => ({ ...current, durations, dailyGoalSessions: goal, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }))
+    return authenticated ? updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, dailyGoalSessions: goal, autoStart: state.autoStart }) : Promise.resolve()
+  }, [authenticated, state.autoStart, state.dailyGoalSessions])
 
   const selectedTask = state.tasks.find((task) => task.id === state.selectedTaskId && !task.completed) ?? null
 

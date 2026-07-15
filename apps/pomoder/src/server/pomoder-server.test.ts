@@ -17,7 +17,7 @@ import {
   validateMediaUpload,
   validateUploadContentLength,
 } from "@/server/pomoder-media"
-import { completeProductivitySession, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
+import { buildFocusSummary, calculateFocusStreaks, completeProductivitySession, loadFocusSummary, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
 import { enforceRateLimit } from "@/server/rate-limit"
 import { canJoinRoom } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
@@ -36,6 +36,7 @@ import {
   storageDeletionJobs,
   subscriptions,
   tasks,
+  userPreferences,
   users,
 } from "@/server/schema"
 import { processStorageDeletionJobs } from "@/server/storage-deletion"
@@ -69,6 +70,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0005_admin_security.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0006_daily_goals_and_streaks.sql", import.meta.url),
       "utf8"
     )
   )
@@ -199,6 +206,67 @@ describe("focus task attribution", () => {
     expect(duplicate).toBeNull()
     expect((await database.select().from(tasks))[0]?.pomodoroCount).toBe(1)
     expect((await database.select().from(dailyFocusStats))[0]).toMatchObject({ focusSessions: 1, focusSeconds: 1_500 })
+  })
+})
+
+describe("daily goals and focus streaks", () => {
+  it("calculates current and best streaks across gaps and ignores duplicates and future dates", () => {
+    expect(calculateFocusStreaks([], "2026-07-15")).toEqual({ currentStreak: 0, bestStreak: 0 })
+    expect(calculateFocusStreaks(["2026-07-15", "2026-07-14", "2026-07-14", "2026-07-10", "2026-07-09", "2026-07-08", "2026-07-16"], "2026-07-15")).toEqual({ currentStreak: 2, bestStreak: 3 })
+    expect(calculateFocusStreaks(["2026-07-12", "2026-07-11"], "2026-07-15")).toEqual({ currentStreak: 0, bestStreak: 2 })
+  })
+
+  it("keeps a streak ending yesterday current through today", () => {
+    expect(calculateFocusStreaks(["2026-07-12", "2026-07-13", "2026-07-14"], "2026-07-15")).toEqual({ currentStreak: 3, bestStreak: 3 })
+  })
+
+  it("treats timezone-local dates as consecutive across daylight-saving boundaries", () => {
+    expect(calculateFocusStreaks(["2026-03-07", "2026-03-08", "2026-03-09"], "2026-03-09")).toEqual({ currentStreak: 3, bestStreak: 3 })
+    expect(calculateFocusStreaks(["2026-10-31", "2026-11-01", "2026-11-02"], "2026-11-02")).toEqual({ currentStreak: 3, bestStreak: 3 })
+  })
+
+  it("applies a bounded default daily goal in the database", async () => {
+    const [user] = await database.insert(users).values({ email: "goals@example.com", name: "Goals", passwordHash: "hash" }).returning()
+    const [preferences] = await database.insert(userPreferences).values({ userId: user.id }).returning()
+    expect(preferences.dailyGoalSessions).toBe(4)
+    await expect(database.update(userPreferences).set({ dailyGoalSessions: 0 })).rejects.toThrow()
+    await expect(database.update(userPreferences).set({ dailyGoalSessions: 21 })).rejects.toThrow()
+  })
+
+  it("builds goal progress and streak values for productivity responses", () => {
+    expect(buildFocusSummary([
+      { localDate: "2026-07-13", focusSessions: 2 },
+      { localDate: "2026-07-14", focusSessions: 1 },
+      { localDate: "2026-07-15", focusSessions: 4 },
+    ], "2026-07-15", 4)).toEqual({
+      currentStreak: 3,
+      bestStreak: 3,
+      todayCompletedSessions: 4,
+      dailyGoalSessions: 4,
+      goalProgress: 1,
+      goalCompleted: true,
+    })
+  })
+
+  it("loads focus summaries only from the requested user's daily stats", async () => {
+    const [first, second] = await database.insert(users).values([
+      { email: "first-goal@example.com", name: "First", passwordHash: "hash" },
+      { email: "second-goal@example.com", name: "Second", passwordHash: "hash" },
+    ]).returning()
+    await database.insert(dailyFocusStats).values([
+      { userId: first.id, localDate: "2026-07-14", focusSessions: 1 },
+      { userId: first.id, localDate: "2026-07-15", focusSessions: 2 },
+      { userId: second.id, localDate: "2026-07-15", focusSessions: 12 },
+    ])
+
+    expect(await loadFocusSummary(first.id, "2026-07-15", 4, database as unknown as PomoderDb)).toEqual({
+      currentStreak: 2,
+      bestStreak: 2,
+      todayCompletedSessions: 2,
+      dailyGoalSessions: 4,
+      goalProgress: 0.5,
+      goalCompleted: false,
+    })
   })
 })
 

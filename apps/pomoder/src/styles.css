@@ -512,9 +512,10 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .dashboard-controls > p { max-width: 380px; margin: 0; color: rgba(237,234,230,.65); font-size: 15.5px; line-height: 1.55; text-align: center; text-wrap: pretty; }
 .dashboard-controls > p.dashboard-sync-error { color: #ff8b76; }
 .dashboard-session-count { display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 20px; }
-.dashboard-session-count > div { display: flex; gap: 7px; }
-.dashboard-session-count i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.12); }
-.dashboard-session-count i.filled { background: #ff5a3c; }
+.dashboard-session-count progress { width: 120px; height: 8px; overflow: hidden; border: 0; border-radius: 999px; background: rgba(255,255,255,.12); }
+.dashboard-session-count progress::-webkit-progress-bar { border-radius: 999px; background: rgba(255,255,255,.12); }
+.dashboard-session-count progress::-webkit-progress-value { border-radius: 999px; background: #ff5a3c; }
+.dashboard-session-count progress::-moz-progress-bar { border-radius: 999px; background: #ff5a3c; }
 .dashboard-session-count span { color: #8a8894; font: 400 12px "JetBrains Mono",monospace; }
 
 .dashboard-panel-section { position: relative; padding: 0 48px 32px; }
