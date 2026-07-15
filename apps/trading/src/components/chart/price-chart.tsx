@@ -1,4 +1,5 @@
 import * as React from "react"
+import { XIcon } from "lucide-react"
 import type {
   CandlestickData,
   HistogramData,
@@ -74,6 +75,8 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
+/** Canvas label room reserved for the overlaid cancel button. */
+const LINE_ACTION_TITLE_PADDING = "     "
 /** Pulsing pointer that locates a focused trade's entry/exit on the chart. */
 const FOCUS_COLOR = "#2962ff"
 const TRENDLINE_COLORS = [
@@ -260,6 +263,7 @@ export function PriceChartView({
   onCrosshairOhlc,
   onLineDragEnd,
   onLineClick,
+  onLineCancel,
   onChartContextMenu,
   onVisibleRangeChange,
   registerApi,
@@ -297,6 +301,8 @@ export function PriceChartView({
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired when a draggable price line is clicked without moving it. */
   onLineClick?: (id: string) => void
+  /** Fired when the cancel button on a draggable price line is clicked. */
+  onLineCancel?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
   /**
@@ -321,6 +327,7 @@ export function PriceChartView({
   onTrendlinesCommit?: (trendlines: Trendline[]) => void
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const lineCancelEnabled = Boolean(onLineCancel)
   const chartRef = React.useRef<IChartApi | null>(null)
   const candleSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
   const volumeSeriesRef = React.useRef<ISeriesApi<"Histogram"> | null>(null)
@@ -380,6 +387,9 @@ export function PriceChartView({
       color: string
       textColor?: string
     }[]
+  >([])
+  const [lineActionPixels, setLineActionPixels] = React.useState<
+    { id: string; y: number; right: number; color: string; title: string }[]
   >([])
   // Built-in right-click "Reset View" menu (viewport coords); only used when the
   // parent hasn't taken over the context menu with its own handler.
@@ -876,6 +886,11 @@ export function PriceChartView({
             if (price !== null && price > 0) {
               priceLineRefs.current.get(dragging.id)?.applyOptions({ price })
               dragging.price = price
+              setLineActionPixels((current) =>
+                current.map((action) =>
+                  action.id === dragging.id ? { ...action, y } : action
+                )
+              )
             }
             event.preventDefault()
             return
@@ -1771,11 +1786,15 @@ export function PriceChartView({
       }
 
       const current = existing.get(spec.id)
+      const title =
+        lineCancelEnabled && spec.draggable
+          ? `${spec.title}${LINE_ACTION_TITLE_PADDING}`
+          : spec.title
       if (current) {
         current.applyOptions({
           price,
           color: spec.color,
-          title: spec.title,
+          title,
         })
       } else {
         existing.set(
@@ -1783,7 +1802,7 @@ export function PriceChartView({
           candleSeries.createPriceLine({
             price,
             color: spec.color,
-            title: spec.title,
+            title,
             lineWidth: spec.lineWidth ?? (spec.draggable ? 2 : 1),
             lineStyle: spec.lineStyle === "solid" ? 0 : 2,
             axisLabelVisible: spec.axisLabelVisible ?? true,
@@ -1791,7 +1810,46 @@ export function PriceChartView({
         )
       }
     }
-  }, [ready, priceLines])
+  }, [ready, priceLines, lineCancelEnabled])
+
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const series = candleSeriesRef.current
+    const container = containerRef.current
+    const lines = lineCancelEnabled
+      ? priceLines.filter((line) => line.draggable)
+      : []
+    if (!ready || !chart || !series || !container || lines.length === 0) {
+      setLineActionPixels([])
+      return
+    }
+
+    const timeScale = chart.timeScale()
+    const recompute = () => {
+      const right = Math.max(container.clientWidth - timeScale.width(), 0)
+      setLineActionPixels(
+        lines.flatMap((spec) => {
+          const price =
+            priceLineRefs.current.get(spec.id)?.options().price ?? spec.price
+          const y = series.priceToCoordinate(price)
+          return y === null || y < 0 || y > container.clientHeight
+            ? []
+            : [{ id: spec.id, y, right, color: spec.color, title: spec.title }]
+        })
+      )
+    }
+    const recomputeAfterWheel = () => requestAnimationFrame(recompute)
+    recompute()
+    timeScale.subscribeVisibleTimeRangeChange(recompute)
+    const observer = new ResizeObserver(recompute)
+    observer.observe(container)
+    container.addEventListener("wheel", recomputeAfterWheel)
+    return () => {
+      timeScale.unsubscribeVisibleTimeRangeChange(recompute)
+      observer.disconnect()
+      container.removeEventListener("wheel", recomputeAfterWheel)
+    }
+  }, [ready, priceLines, lineCancelEnabled, overlayRevision])
 
   // Bounding box of the focused trade's entry + exit pixels, so the result box
   // spans from one to the other. Only when both are on screen (the focus effect
@@ -2090,6 +2148,24 @@ export function PriceChartView({
           </div>
         </div>
       ) : null}
+      {onLineCancel
+        ? lineActionPixels.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              aria-label={`Cancel ${action.title}`}
+              className="absolute z-40 flex size-4 -translate-y-1/2 items-center justify-center text-white shadow-sm outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              style={{
+                top: action.y,
+                right: action.right,
+                backgroundColor: action.color,
+              }}
+              onClick={() => onLineCancel(action.id)}
+            >
+              <XIcon className="size-3" aria-hidden="true" />
+            </button>
+          ))
+        : null}
       {resetMenu ? (
         <>
           <div
@@ -2171,6 +2247,7 @@ export function PriceChart({
   onCrosshairOhlc,
   onLineDragEnd,
   onLineClick,
+  onLineCancel,
   onChartContextMenu,
   registerApi,
   trendlineDrawing,
@@ -2200,6 +2277,8 @@ export function PriceChart({
   onLineDragEnd?: (id: string, price: number) => void
   /** Fired when a draggable price line is clicked without moving it. */
   onLineClick?: (id: string) => void
+  /** Fired when the cancel button on a draggable price line is clicked. */
+  onLineCancel?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
   /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
@@ -2552,6 +2631,7 @@ export function PriceChart({
       }
       onLineDragEnd={onLineDragEnd}
       onLineClick={onLineClick}
+      onLineCancel={onLineCancel}
       onChartContextMenu={onChartContextMenu}
       registerApi={registerApi}
       trendlineDrawing={trendlineDrawing}

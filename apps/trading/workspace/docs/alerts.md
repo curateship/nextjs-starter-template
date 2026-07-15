@@ -7,6 +7,7 @@ chart by right-clicking or long-pressing a price and choosing **Add alert**.
 Use `/alerts` to edit, pause, resume, restart, or delete alerts. Active
 exact-price alerts appear as dashed amber chart lines. Clicking a line edits
 it. Dragging a line saves the new price immediately without opening a dialog.
+Use the X on the line to delete the alert directly from the chart.
 
 Use `/alert-log` for triggered alert history. Opening a row marks it read and
 opens its market on Trade. History is kept for 30 days and remains available

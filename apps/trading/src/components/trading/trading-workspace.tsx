@@ -83,9 +83,10 @@ import {
   getOrderErrorMessage,
   modifyOrder,
 } from "@/lib/api/orders"
-import { loadChartAlerts, updateAlert } from "@/lib/api/alerts"
+import { deleteAlert, loadChartAlerts, updateAlert } from "@/lib/api/alerts"
 import { alertWithPriceLevel, type AlertRuleItem } from "@/lib/alerts"
 import {
+  cancelPaperOrder,
   getPaperErrorMessage,
   loadPaperAccount,
   movePaperOrder,
@@ -514,6 +515,42 @@ export function TradingWorkspace({
     setEditOrder(account?.openOrders.find((order) => order.oid === oid) ?? null)
   }
 
+  function handleLineCancel(id: string) {
+    if (id.startsWith("alert:")) {
+      const alertId = id.split(":")[1]
+      void deleteAlert(alertId)
+        .then(async () => {
+          await refreshChartAlerts()
+          notify("Alert deleted.", "ok")
+        })
+        .catch((cause: unknown) =>
+          notify(
+            cause instanceof Error
+              ? cause.message
+              : "Deleting the alert failed.",
+            "error"
+          )
+        )
+      return
+    }
+
+    if (id.startsWith("paper-order-")) {
+      if (!paperWalletId) return
+      const orderId = id.slice("paper-order-".length)
+      void cancelPaperOrder(paperWalletId, orderId)
+        .then(() => notify("Paper order cancelled.", "ok"))
+        .catch((error: unknown) => notify(getPaperErrorMessage(error), "error"))
+      return
+    }
+
+    if (id.startsWith("order-") && selectedWallet?.is_active) {
+      const oid = Number(id.slice("order-".length))
+      void cancelOrder({ walletId: selectedWallet.id, market, oid })
+        .then(() => notify(`Cancelled order #${oid}.`, "ok"))
+        .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
+    }
+  }
+
   const options: WalletOption[] = [
     ...paperWallets.map((wallet) => ({
       value: `${PAPER_WALLET_PREFIX}${wallet.id}`,
@@ -686,6 +723,7 @@ export function TradingWorkspace({
                       indicators={pinnedIndicators}
                       onLineDragEnd={handleLineDragEnd}
                       onLineClick={handleLineClick}
+                      onLineCancel={handleLineCancel}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
                       trendlineDrawing={trendlineDrawing}
@@ -747,7 +785,7 @@ export function TradingWorkspace({
                 </>
               ) : null}
               <ResizableHandle gap />
-              <ResizablePanel id="ticket" defaultSize="20%" minSize="14%">
+              <ResizablePanel id="ticket" defaultSize="20%" minSize="12%">
                 <WorkspacePanel className="flex flex-col">
                   <ScrollArea className="min-h-0 flex-1">
                     <OrderTicket
