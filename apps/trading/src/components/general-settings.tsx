@@ -130,12 +130,12 @@ export function GeneralSettings({
                   adminRoute: event.target.value,
                 })
               }
-              placeholder="Leave empty for the overview"
+              placeholder="Leave empty for Trade"
             />
             <p className="text-xs text-muted-foreground">
               Where the home page (<code>/</code>) and <code>/admin</code> open
-              (e.g. <code>/trade</code>). Empty shows the workspace overview.
-              Must be a real route — an unknown path will 404.
+              (e.g. <code>/scanner/market</code>). Empty opens Trade. Must be a
+              real route — an unknown path will 404.
             </p>
           </div>
 

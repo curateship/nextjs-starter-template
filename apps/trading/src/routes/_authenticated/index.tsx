@@ -1,11 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminOverview } from "@/components/admin-overview"
+import { loadShellSettings } from "@/lib/api/shell-settings"
+import { configuredRouteTarget } from "@/lib/home-route"
 
 /**
- * The home route. Redirects to the route configured in General Settings
- * (`adminRoute`), or shows the workspace overview when that's empty.
+ * Home forwards to the configured route, or Trade by default.
  */
 export const Route = createFileRoute("/_authenticated/")({
-  component: AdminOverview,
+  loader: async () => {
+    const { settings } = await loadShellSettings()
+    const target = configuredRouteTarget(settings.adminRoute) ?? "/trade"
+    throw redirect({ href: target })
+  },
 })

@@ -66,6 +66,15 @@ there is no local data yet, so that request cannot be skipped. That is the
 same request TradingView makes; they are just physically closer to their own
 data servers.
 
+## Market list loading
+
+The Trade workspace loads the market catalog once and shares it with the
+market panel. Market names and exchange details are saved in the current
+browser, rendered immediately on later visits, and refreshed in the
+background. Live price, volume, funding, and open-interest fields show a dash
+until the shared market stream supplies current values. Newly listed or
+delisted markets are picked up by the background refresh.
+
 ## If you touch this code
 
 - Don't paint pre-seed websocket candles. That reintroduces the giant-candle

@@ -196,18 +196,6 @@ export function loadShellSettings() {
   return loadShellSettingsFn()
 }
 
-/**
- * The configured home/admin redirect target, or null when it's unset or not a
- * safe internal path. Only internal absolute paths are allowed — external or
- * protocol-relative values are ignored to avoid an open redirect.
- */
-export function configuredRouteTarget(
-  adminRoute: string | null | undefined
-): string | null {
-  const target = (adminRoute ?? "").trim()
-  return target.startsWith("/") && !target.startsWith("//") ? target : null
-}
-
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
 }

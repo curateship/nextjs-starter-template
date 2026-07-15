@@ -6,6 +6,7 @@ import type {
 } from "@nktkas/hyperliquid"
 
 import type { TradingNetwork } from "@/lib/hl/network"
+import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 import {
   buildPerpMarkets,
   type PerpMarketDefinition,
@@ -320,6 +321,56 @@ export type MarketRow = PerpMarketDefinition & {
   funding: string
   openInterest: string
   dayNtlVlm: string
+  liveData: boolean
+}
+
+const MARKET_CATALOG_CACHE_KEY = "trading-market-catalog-v1"
+const MARKET_CATALOG_MAX_MARKETS = 2_000
+const MARKET_CATALOG_TTL_MS = 5 * 60_000
+const marketCatalogCache = new Map<
+  TradingNetwork,
+  { fetchedAt: number; markets: PerpMarketDefinition[] }
+>()
+const marketCatalogRequests = new Map<
+  TradingNetwork,
+  Promise<PerpMarketDefinition[]>
+>()
+
+export function parseMarketCatalog(raw: string): PerpMarketDefinition[] {
+  try {
+    const value: unknown = JSON.parse(raw)
+    return Array.isArray(value) &&
+      value.length <= MARKET_CATALOG_MAX_MARKETS &&
+      value.every(isPerpMarketDefinition)
+      ? value
+      : []
+  } catch {
+    return []
+  }
+}
+
+export function marketRowsForCatalog(
+  markets: PerpMarketDefinition[],
+  currentRows: MarketRow[] = []
+): MarketRow[] {
+  const liveByCoin = new Map(
+    currentRows.filter((row) => row.liveData).map((row) => [row.coin, row])
+  )
+  return markets.map((market) => {
+    const current = liveByCoin.get(market.coin)
+    return current
+      ? {
+          ...market,
+          markPx: current.markPx,
+          oraclePx: current.oraclePx,
+          prevDayPx: current.prevDayPx,
+          funding: current.funding,
+          openInterest: current.openInterest,
+          dayNtlVlm: current.dayNtlVlm,
+          liveData: true,
+        }
+      : loadingMarketRow(market)
+  })
 }
 
 /** All active perpetual markets, kept live by Hyperliquid's all-DEX stream. */
@@ -330,41 +381,63 @@ export function useMarketRows(network: TradingNetwork) {
     let cancelled = false
 
     let unsubscribe: (() => void) | null = null
+    let markets = readMarketCatalog(network)
+    let catalogReady = false
+    let publishPendingLiveData: (() => void) | null = null
+
+    const publishCatalog = () => {
+      setState((current) => ({
+        key: network,
+        data: marketRowsForCatalog(
+          markets,
+          current?.key === network ? current.data : []
+        ),
+      }))
+    }
+
+    const subscribe = () => {
+      if (unsubscribe) return
+      unsubscribe = subscribeAllDexsAssetCtxs(network, (event) => {
+        const publish = () => {
+          const contexts = new Map(event.ctxs)
+          const next = markets.map((market) => {
+            const ctx = contexts.get(market.dex)?.[market.assetIndex]
+            return ctx
+              ? {
+                  ...market,
+                  markPx: ctx.markPx,
+                  oraclePx: ctx.oraclePx,
+                  prevDayPx: ctx.prevDayPx,
+                  funding: ctx.funding,
+                  openInterest: ctx.openInterest,
+                  dayNtlVlm: ctx.dayNtlVlm,
+                  liveData: true,
+                }
+              : loadingMarketRow(market)
+          })
+          if (!cancelled) setState({ key: network, data: next })
+        }
+        if (catalogReady) publish()
+        else publishPendingLiveData = publish
+      })
+    }
+
+    subscribe()
+    if (markets.length > 0) {
+      queueMicrotask(() => {
+        if (!cancelled) publishCatalog()
+      })
+    }
 
     async function connect() {
       try {
-        const info = getBrowserInfoClient(network)
-        const [dexs, metas, categories, spotMeta] = await Promise.all([
-          info.perpDexs(),
-          info.allPerpMetas(),
-          info.perpCategories(),
-          info.spotMeta(),
-        ])
+        const fresh = await loadMarketCatalog(network)
         if (cancelled) return
-        const markets = buildPerpMarkets(
-          dexs,
-          metas,
-          categories,
-          spotMeta.tokens
-        )
-        unsubscribe = subscribeAllDexsAssetCtxs(network, (event) => {
-          const contexts = new Map(event.ctxs)
-          const next: MarketRow[] = []
-          for (const market of markets) {
-            const ctx = contexts.get(market.dex)?.[market.assetIndex]
-            if (!ctx) continue
-            next.push({
-              ...market,
-              markPx: ctx.markPx,
-              oraclePx: ctx.oraclePx,
-              prevDayPx: ctx.prevDayPx,
-              funding: ctx.funding,
-              openInterest: ctx.openInterest,
-              dayNtlVlm: ctx.dayNtlVlm,
-            })
-          }
-          if (!cancelled) setState({ key: network, data: next })
-        })
+        markets = fresh
+        catalogReady = true
+        publishCatalog()
+        publishPendingLiveData?.()
+        publishPendingLiveData = null
       } catch {
         // A future remount or network switch retries the complete catalog.
       }
@@ -378,6 +451,119 @@ export function useMarketRows(network: TradingNetwork) {
   }, [network])
 
   return state?.key === network ? state.data : EMPTY_MARKET_ROWS
+}
+
+function loadingMarketRow(market: PerpMarketDefinition): MarketRow {
+  return {
+    ...market,
+    markPx: "0",
+    oraclePx: "0",
+    prevDayPx: "0",
+    funding: "0",
+    openInterest: "0",
+    dayNtlVlm: "0",
+    liveData: false,
+  }
+}
+
+function readMarketCatalog(network: TradingNetwork): PerpMarketDefinition[] {
+  const cached = marketCatalogCache.get(network)
+  if (cached) return cached.markets
+  if (typeof window === "undefined") return []
+  try {
+    const markets = parseMarketCatalog(
+      window.localStorage.getItem(`${MARKET_CATALOG_CACHE_KEY}:${network}`) ??
+        ""
+    )
+    if (markets.length > 0) {
+      marketCatalogCache.set(network, { fetchedAt: 0, markets })
+    }
+    return markets
+  } catch {
+    return []
+  }
+}
+
+function cacheMarketCatalog(
+  network: TradingNetwork,
+  markets: PerpMarketDefinition[]
+) {
+  marketCatalogCache.set(network, { fetchedAt: Date.now(), markets })
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(
+      `${MARKET_CATALOG_CACHE_KEY}:${network}`,
+      JSON.stringify(markets)
+    )
+  } catch {
+    // Storage full/blocked — the in-memory catalog still avoids duplicate work.
+  }
+}
+
+function loadMarketCatalog(
+  network: TradingNetwork
+): Promise<PerpMarketDefinition[]> {
+  const cached = marketCatalogCache.get(network)
+  if (
+    cached &&
+    cached.fetchedAt > 0 &&
+    Date.now() - cached.fetchedAt < MARKET_CATALOG_TTL_MS
+  ) {
+    return Promise.resolve(cached.markets)
+  }
+  const pending = marketCatalogRequests.get(network)
+  if (pending) return pending
+
+  const info = getBrowserInfoClient(network)
+  const request = Promise.all([
+    info.perpDexs(),
+    info.allPerpMetas(),
+    info.perpCategories(),
+    info.spotMeta(),
+  ]).then(([dexs, metas, categories, spotMeta]) => {
+    const markets = buildPerpMarkets(dexs, metas, categories, spotMeta.tokens)
+    if (
+      markets.length === 0 ||
+      markets.length > MARKET_CATALOG_MAX_MARKETS ||
+      !markets.every(isPerpMarketDefinition)
+    ) {
+      throw new Error("Hyperliquid returned an invalid market catalog")
+    }
+    cacheMarketCatalog(network, markets)
+    return markets
+  })
+  marketCatalogRequests.set(network, request)
+  void request.then(
+    () => marketCatalogRequests.delete(network),
+    () => marketCatalogRequests.delete(network)
+  )
+  return request
+}
+
+function isPerpMarketDefinition(value: unknown): value is PerpMarketDefinition {
+  if (!value || typeof value !== "object") return false
+  const market = value as Record<string, unknown>
+  return (
+    typeof market.coin === "string" &&
+    market.coin.length > 0 &&
+    market.coin.length <= HYPERLIQUID_MARKET_NAME_MAX_LENGTH &&
+    typeof market.dex === "string" &&
+    market.dex.length <= HYPERLIQUID_MARKET_NAME_MAX_LENGTH &&
+    typeof market.dexName === "string" &&
+    market.dexName.length <= 100 &&
+    Number.isInteger(market.dexIndex) &&
+    Number.isInteger(market.assetIndex) &&
+    Number.isInteger(market.assetId) &&
+    ["crypto", "stocks", "indices", "commodities", "forex", "other"].includes(
+      String(market.category)
+    ) &&
+    Number.isInteger(market.collateralToken) &&
+    typeof market.collateralSymbol === "string" &&
+    Number.isInteger(market.szDecimals) &&
+    typeof market.maxLeverage === "number" &&
+    Number.isFinite(market.maxLeverage) &&
+    typeof market.onlyIsolated === "boolean"
+  )
 }
 
 function mergeSnapshot(snapshot: Candle[], streamed: Candle[]): Candle[] {

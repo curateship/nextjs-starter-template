@@ -211,16 +211,26 @@ export function TradingWorkspace({
   const marketRows = useMarketRows(tradingNetwork)
   const { favorites, toggleFavorite } = useMarketFavorites()
   const mids = React.useMemo(
-    () => Object.fromEntries(marketRows.map((row) => [row.coin, row.markPx])),
+    () =>
+      Object.fromEntries(
+        marketRows
+          .filter((row) => row.liveData)
+          .map((row) => [row.coin, row.markPx])
+      ),
     [marketRows]
   )
   const marketRow = marketRows.find((row) => row.coin === market) ?? null
   const marketDexes = React.useMemo(
-    () => [...new Set(marketRows.map((row) => row.dex))].sort(),
+    () =>
+      [
+        ...new Set(
+          marketRows.filter((row) => row.liveData).map((row) => row.dex)
+        ),
+      ].sort(),
     [marketRows]
   )
   React.useEffect(() => {
-    if (marketRows.length === 0 || marketRow) return
+    if (!marketRows.some((row) => row.liveData) || marketRow) return
     const fallback =
       marketRows.find((row) => row.coin === "BTC") ??
       marketRows.reduce((best, row) =>
@@ -231,7 +241,7 @@ export function TradingWorkspace({
   const account = useAccountSnapshot(
     tradingNetwork,
     isPaper ? null : accountAddress,
-    marketRow,
+    marketRow?.liveData ? marketRow : null,
     marketDexes
   )
 
@@ -633,13 +643,15 @@ export function TradingWorkspace({
   )
   const [panels, setPanels] = usePersistedPanels()
 
-  const ticketDisabledReason = isPaper
-    ? null
-    : !selectedWallet
-      ? "Select or create a wallet to trade"
-      : !selectedWallet.is_active
-        ? "Wallet is disabled"
-        : null
+  const ticketDisabledReason = !marketRow?.liveData
+    ? "Loading current market data"
+    : isPaper
+      ? null
+      : !selectedWallet
+        ? "Select or create a wallet to trade"
+        : !selectedWallet.is_active
+          ? "Wallet is disabled"
+          : null
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60">
@@ -677,7 +689,7 @@ export function TradingWorkspace({
               <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
                 <WorkspacePanel>
                   <MarketWatchlist
-                    network={tradingNetwork}
+                    rows={marketRows}
                     selected={market}
                     positionMarkets={positionMarkets}
                     openOrderMarkets={openOrderMarkets}
@@ -1237,11 +1249,17 @@ function MarketInfoBar({
       <span className="text-sm font-semibold text-muted-foreground">—</span>
     )
   }
+  const liveData = marketRow.liveData
   const prev = Number(marketRow.prevDayPx)
-  const change = prev > 0 ? ((price - prev) / prev) * 100 : 0
+  const change = liveData && prev > 0 ? ((price - prev) / prev) * 100 : null
   const funding = Number(marketRow.funding) * 100
   const openInterestUsd = Number(marketRow.openInterest) * price
-  const tone = change >= 0 ? "text-emerald-600" : "text-red-500"
+  const tone =
+    change === null
+      ? "text-muted-foreground"
+      : change >= 0
+        ? "text-emerald-600"
+        : "text-red-500"
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -1265,22 +1283,32 @@ function MarketInfoBar({
           {price > 0 ? formatPriceDisplay(String(price)) : "—"}
         </span>
         <span className={cn("font-mono text-[11px] tabular-nums", tone)}>
-          {change >= 0 ? "+" : ""}
-          {change.toFixed(2)}%
+          {change === null
+            ? "—"
+            : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <MarketStat label="Mark" value={formatPriceDisplay(marketRow.markPx)} />
+        <MarketStat
+          label="Mark"
+          value={liveData ? formatPriceDisplay(marketRow.markPx) : "—"}
+        />
         <MarketStat
           label="Index"
-          value={formatPriceDisplay(marketRow.oraclePx)}
+          value={liveData ? formatPriceDisplay(marketRow.oraclePx) : "—"}
         />
-        <MarketStat label="Funding" value={`${funding.toFixed(4)}%`} />
+        <MarketStat
+          label="Funding"
+          value={liveData ? `${funding.toFixed(4)}%` : "—"}
+        />
         <MarketStat
           label="24h Vol"
-          value={formatCompactUsd(Number(marketRow.dayNtlVlm))}
+          value={liveData ? formatCompactUsd(Number(marketRow.dayNtlVlm)) : "—"}
         />
-        <MarketStat label="OI" value={formatCompactUsd(openInterestUsd)} />
+        <MarketStat
+          label="OI"
+          value={liveData ? formatCompactUsd(openInterestUsd) : "—"}
+        />
       </div>
     </div>
   )
