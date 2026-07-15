@@ -72,6 +72,11 @@ export function AutomationEditor({
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null
   )
+  const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
+    null
+  )
+  const [draggedChoice, setDraggedChoice] =
+    React.useState<AutomationPaletteChoice | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(
     null
   )
@@ -169,21 +174,34 @@ export function AutomationEditor({
     backtestSettings
   )
   const dirty = currentSerialized !== lastSaved
-  const selectedNode = selectedNodeId
-    ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
-    : null
+  const selectedNode =
+    previewNode ??
+    (selectedNodeId
+      ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
+      : null)
 
-  const updateNode = React.useCallback((nextNode: AutomationNode) => {
-    setGraph((current) => ({
-      ...current,
-      nodes: current.nodes.map((node) =>
-        node.id === nextNode.id ? nextNode : node
-      ),
-    }))
-  }, [])
+  const updateNode = React.useCallback(
+    (nextNode: AutomationNode) => {
+      if (nextNode.id === previewNode?.id) {
+        setPreviewNode(nextNode)
+        return
+      }
+      setGraph((current) => ({
+        ...current,
+        nodes: current.nodes.map((node) =>
+          node.id === nextNode.id ? nextNode : node
+        ),
+      }))
+    },
+    [previewNode?.id]
+  )
 
   const deleteNode = React.useCallback(
     (nodeId: string) => {
+      if (nodeId === previewNode?.id) {
+        setPreviewNode(null)
+        return
+      }
       const node = graphRef.current.nodes.find((item) => item.id === nodeId)
       setGraph((current) => ({
         ...current,
@@ -195,18 +213,14 @@ export function AutomationEditor({
       setSelectedNodeId(null)
       record(`Deleted ${node ? automationNodeName(node) : "node"}.`)
     },
-    [record]
+    [previewNode?.id, record]
   )
 
-  const addNode = React.useCallback(
+  const createNode = React.useCallback(
     (choice: AutomationPaletteChoice) => {
-      const width = canvasSize.width || 800
-      const { x, y } = nextNodePosition(
-        graph.nodes.length,
-        graph.viewport,
-        width
-      )
       const id = crypto.randomUUID()
+      const x = 0
+      const y = 0
       let node: AutomationNode
       if (choice.kind === "indicator") {
         node = {
@@ -241,23 +255,56 @@ export function AutomationEditor({
           y,
         }
       }
-      setGraph((current) => ({
-        ...current,
-        nodes: [...current.nodes, node],
-      }))
-      setSelectedNodeId(id)
+      return node
+    },
+    [indicatorParamSeeds]
+  )
+
+  const previewPaletteNode = React.useCallback(
+    (choice: AutomationPaletteChoice) => {
+      setPreviewNode(createNode(choice))
+      setSelectedNodeId(null)
       setSelectedEdgeId(null)
       setPaletteOpen(false)
-      record(`Added ${automationNodeName(node)}.`)
+      if (desktop) inspectorPanelRef.current?.expand()
+      else setInspectorOpen(true)
     },
-    [
-      canvasSize.width,
-      graph.nodes.length,
-      graph.viewport,
-      indicatorParamSeeds,
-      record,
-    ]
+    [createNode, desktop]
   )
+
+  const placeNode = React.useCallback(
+    (node: AutomationNode, position?: { x: number; y: number }) => {
+      const { x, y } =
+        position ??
+        nextNodePosition(
+          graph.nodes.length,
+          graph.viewport,
+          canvasSize.width || 800
+        )
+      const placedNode = { ...node, x, y }
+      setGraph((current) => ({
+        ...current,
+        nodes: [...current.nodes, placedNode],
+      }))
+      setPreviewNode(null)
+      setSelectedNodeId(placedNode.id)
+      setSelectedEdgeId(null)
+      setPaletteOpen(false)
+      record(`Added ${automationNodeName(placedNode)}.`)
+    },
+    [canvasSize.width, graph.nodes.length, graph.viewport, record]
+  )
+
+  const addNode = React.useCallback(
+    (choice: AutomationPaletteChoice, position?: { x: number; y: number }) =>
+      placeNode(createNode(choice), position),
+    [createNode, placeNode]
+  )
+
+  const selectCanvasNode = React.useCallback((nodeId: string | null) => {
+    setPreviewNode(null)
+    setSelectedNodeId(nodeId)
+  }, [])
 
   const handleCanvasGraphChange = React.useCallback(
     (next: AutomationGraph) => {
@@ -339,6 +386,7 @@ export function AutomationEditor({
       selectedNode={selectedNode}
       errors={compiled.errors}
       onNodeChange={updateNode}
+      onAddNode={previewNode ? placeNode : undefined}
       onDeleteNode={deleteNode}
     />
   )
@@ -349,9 +397,17 @@ export function AutomationEditor({
       selectedNodeId={selectedNodeId}
       selectedEdgeId={selectedEdgeId}
       onGraphChange={handleCanvasGraphChange}
-      onSelectNode={setSelectedNodeId}
+      onSelectNode={selectCanvasNode}
       onSelectEdge={setSelectedEdgeId}
       onSizeChange={setCanvasSize}
+      onDropNode={
+        draggedChoice
+          ? (position) => {
+              addNode(draggedChoice, position)
+              setDraggedChoice(null)
+            }
+          : undefined
+      }
     />
   )
   const workspace = desktop ? (
@@ -373,7 +429,13 @@ export function AutomationEditor({
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
         <WorkspacePanel>
-          <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
+          <AutomationPalette
+            pinnedIndicators={pinnedIndicators}
+            onSelect={previewPaletteNode}
+            onAdd={addNode}
+            onDragStart={setDraggedChoice}
+            onDragEnd={() => setDraggedChoice(null)}
+          />
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap />
@@ -508,7 +570,13 @@ export function AutomationEditor({
           className="w-[min(90vw,320px)] gap-0 p-0"
         >
           <SheetPanelHeader title="Add a node" />
-          <AutomationPalette pinnedIndicators={pinnedIndicators} onAdd={addNode} />
+          <AutomationPalette
+            pinnedIndicators={pinnedIndicators}
+            onSelect={previewPaletteNode}
+            onAdd={addNode}
+            onDragStart={setDraggedChoice}
+            onDragEnd={() => setDraggedChoice(null)}
+          />
         </SheetContent>
       </Sheet>
       <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>

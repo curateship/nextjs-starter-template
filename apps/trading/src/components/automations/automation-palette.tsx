@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ActivityIcon,
   OctagonXIcon,
+  PlusIcon,
   RepeatIcon,
   SearchIcon,
   ShieldXIcon,
@@ -96,12 +97,18 @@ const exitItems: PaletteItem[] = [
 export function AutomationPalette({
   className,
   pinnedIndicators,
+  onSelect,
   onAdd,
+  onDragStart,
+  onDragEnd,
 }: {
   className?: string
   /** Indicator ids the user pinned on the Strategies page — the only ones offered. */
   pinnedIndicators: IndicatorId[]
+  onSelect: (choice: AutomationPaletteChoice) => void
   onAdd: (choice: AutomationPaletteChoice) => void
+  onDragStart: (choice: AutomationPaletteChoice) => void
+  onDragEnd: () => void
 }) {
   const [search, setSearch] = React.useState("")
   const query = search.trim().toLowerCase()
@@ -187,33 +194,43 @@ export function AutomationPalette({
                 {group.items.map((item) => {
                   const Icon = item.icon
                   return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => onAdd(item.choice)}
-                      className="flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                    >
-                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <Icon className="size-3.5" />
-                      </span>
-                      <span className="min-w-0 flex-1 overflow-hidden">
-                        <span className="block truncate text-xs font-medium">
-                          {item.name}
-                        </span>
-                        <span
-                          className="line-clamp-2 text-[10px] leading-4 text-muted-foreground"
-                          title={item.description}
-                        >
-                          {item.description}
-                        </span>
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className="mt-0.5 shrink-0 text-muted-foreground"
+                    <div key={item.key} className="group relative">
+                      <button
+                        type="button"
+                        draggable
+                        onClick={() => onSelect(item.choice)}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "copy"
+                          event.dataTransfer.setData("text/plain", item.name)
+                          onDragStart(item.choice)
+                        }}
+                        onDragEnd={onDragEnd}
+                        className="flex w-full cursor-grab items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 pr-10 text-left transition-colors active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))] hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                       >
-                        +
-                      </span>
-                    </button>
+                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                          <Icon className="size-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1 overflow-hidden">
+                          <span className="block truncate text-xs font-medium">
+                            {item.name}
+                          </span>
+                          <span
+                            className="line-clamp-2 text-[10px] leading-4 text-muted-foreground"
+                            title={item.description}
+                          >
+                            {item.description}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Add ${item.name} node`}
+                        onClick={() => onAdd(item.choice)}
+                        className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none group-focus-within:opacity-100"
+                      >
+                        <PlusIcon className="size-4" />
+                      </button>
+                    </div>
                   )
                 })}
               </div>
@@ -227,7 +244,7 @@ export function AutomationPalette({
         </div>
       </ScrollArea>
       <p className="border-t px-3 py-2 text-[10px] text-muted-foreground">
-        Select a node to add it to the visible canvas.
+        Select to preview · Drag or use + to add.
       </p>
     </div>
   )
