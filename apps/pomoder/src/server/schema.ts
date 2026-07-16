@@ -168,6 +168,9 @@ export const tasks = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("active"),
     plannedDate: date("planned_date", { mode: "string" }).notNull(),
     pomodoroCount: integer("pomodoro_count").notNull().default(0),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    sortOrder: integer("sort_order").notNull().default(0),
     carriedToTaskId: uuid("carried_to_task_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
@@ -177,6 +180,15 @@ export const tasks = pgTable(
       "tasks_status_check",
       sql`${table.status} in ('active', 'completed', 'carried', 'abandoned')`
     ),
+    check(
+      "tasks_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "tasks_estimated_pomodoros_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check("tasks_sort_order_check", sql`${table.sortOrder} >= 0`),
     index("tasks_user_date_idx").on(table.userId, table.plannedDate),
   ]
 )

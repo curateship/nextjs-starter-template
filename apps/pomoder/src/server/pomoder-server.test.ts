@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
+import { and, eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -17,7 +18,7 @@ import {
   validateMediaUpload,
   validateUploadContentLength,
 } from "@/server/pomoder-media"
-import { buildFocusSummary, calculateFocusStreaks, completeProductivitySession, loadFocusSummary, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
+import { buildFocusSummary, calculateFocusStreaks, completeProductivitySession, loadFocusSummary, reorderTodayTasks, rollOverTasks, startProductivitySession, toggleTaskStatus, updateTaskPlan } from "@/server/productivity"
 import { enforceRateLimit } from "@/server/rate-limit"
 import { canJoinRoom } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
@@ -88,6 +89,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0007_working_sound_player.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0008_advanced_task_planning.sql", import.meta.url),
       "utf8"
     )
   )
@@ -322,6 +329,109 @@ describe("media and room policies", () => {
     expect(() =>
       validateUploadContentLength(String(102 * 1024 * 1024))
     ).toThrow("FILE_TOO_LARGE")
+  })
+})
+
+describe("task planning", () => {
+  const testDb = () => database as unknown as PomoderDb
+
+  async function createPlanningUser(email: string) {
+    const [user] = await database.insert(users).values({ email, name: "Planner", passwordHash: "hash" }).returning()
+    return user
+  }
+
+  it("backfills a deterministic per-day order for tasks created before the migration", async () => {
+    const legacy = new PGlite()
+    for (const file of ["0000_custom_shell_baseline.sql", "0003_custom_shell_workspaces.sql", "0004_pomoder_product.sql"]) {
+      await legacy.exec(await readFile(new URL(`../../drizzle/${file}`, import.meta.url), "utf8"))
+    }
+    const inserted = await legacy.query<{ id: string }>(
+      "insert into users (email, name, password_hash) values ('legacy@example.com', 'Legacy', 'hash') returning id"
+    )
+    const userId = inserted.rows[0].id
+    await legacy.query(
+      `insert into tasks (user_id, title, planned_date, created_at) values
+        ($1, 'Second', '2026-07-16', '2026-07-16T09:05:00Z'),
+        ($1, 'Third', '2026-07-16', '2026-07-16T10:00:00Z'),
+        ($1, 'First', '2026-07-16', '2026-07-16T08:00:00Z'),
+        ($1, 'Other day', '2026-07-15', '2026-07-15T08:00:00Z')`,
+      [userId]
+    )
+    await legacy.exec(await readFile(new URL("../../drizzle/0007_working_sound_player.sql", import.meta.url), "utf8"))
+    await legacy.exec(await readFile(new URL("../../drizzle/0008_advanced_task_planning.sql", import.meta.url), "utf8"))
+    const migrated = await legacy.query<{ title: string; sort_order: number; priority: string; estimated_pomodoros: number | null }>(
+      "select title, sort_order, priority, estimated_pomodoros from tasks where planned_date = '2026-07-16' order by sort_order"
+    )
+    expect(migrated.rows).toEqual([
+      { title: "First", sort_order: 1, priority: "normal", estimated_pomodoros: null },
+      { title: "Second", sort_order: 2, priority: "normal", estimated_pomodoros: null },
+      { title: "Third", sort_order: 3, priority: "normal", estimated_pomodoros: null },
+    ])
+    const otherDay = await legacy.query<{ sort_order: number }>("select sort_order from tasks where planned_date = '2026-07-15'")
+    expect(otherDay.rows).toEqual([{ sort_order: 1 }])
+    await legacy.close()
+  })
+
+  it("carries planning metadata into the next day's clone exactly once", async () => {
+    const user = await createPlanningUser("carry@example.com")
+    await database.insert(tasks).values({ userId: user.id, title: "Carry me", plannedDate: "2026-07-15", priority: "high", estimatedPomodoros: 5, sortOrder: 2, pomodoroCount: 1 })
+
+    expect(await rollOverTasks(user.id, "2026-07-16", testDb())).toBe(1)
+    expect(await rollOverTasks(user.id, "2026-07-16", testDb())).toBe(0)
+
+    const rows = await database.select().from(tasks).where(eq(tasks.userId, user.id)).orderBy(tasks.plannedDate)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ status: "carried", carriedToTaskId: rows[1].id })
+    expect(rows[1]).toMatchObject({ status: "active", plannedDate: "2026-07-16", title: "Carry me", priority: "high", estimatedPomodoros: 5, sortOrder: 2, pomodoroCount: 1 })
+  })
+
+  it("only lets the owner edit today's active tasks within bounds", async () => {
+    const owner = await createPlanningUser("owner-plan@example.com")
+    const stranger = await createPlanningUser("stranger-plan@example.com")
+    const [task] = await database.insert(tasks).values({ userId: owner.id, title: "Editable", plannedDate: "2026-07-16", sortOrder: 1 }).returning()
+    const [done] = await database.insert(tasks).values({ userId: owner.id, title: "Done", plannedDate: "2026-07-16", status: "completed", sortOrder: 2 }).returning()
+
+    const updated = await updateTaskPlan(owner.id, task.id, "2026-07-16", { title: "Edited", priority: "high", estimatedPomodoros: 4 }, testDb())
+    expect(updated).toMatchObject({ title: "Edited", priority: "high", estimatedPomodoros: 4 })
+    const cleared = await updateTaskPlan(owner.id, task.id, "2026-07-16", { estimatedPomodoros: null }, testDb())
+    expect(cleared.estimatedPomodoros).toBeNull()
+    expect(cleared.title).toBe("Edited")
+
+    await expect(updateTaskPlan(stranger.id, task.id, "2026-07-16", { title: "Hijacked" }, testDb())).rejects.toThrow("TASK_NOT_FOUND")
+    await expect(updateTaskPlan(owner.id, done.id, "2026-07-16", { title: "Nope" }, testDb())).rejects.toThrow("TASK_NOT_FOUND")
+    await expect(updateTaskPlan(owner.id, task.id, "2026-07-17", { title: "Wrong day" }, testDb())).rejects.toThrow("TASK_NOT_FOUND")
+    await expect(database.insert(tasks).values({ userId: owner.id, title: "Bad", plannedDate: "2026-07-16", priority: "urgent" })).rejects.toThrow()
+    await expect(database.insert(tasks).values({ userId: owner.id, title: "Bad", plannedDate: "2026-07-16", estimatedPomodoros: 25 })).rejects.toThrow()
+  })
+
+  it("reorders only today's active tasks atomically and rejects invalid orders", async () => {
+    const user = await createPlanningUser("reorder@example.com")
+    const stranger = await createPlanningUser("reorder-stranger@example.com")
+    const values = (title: string, sortOrder: number, extras: Partial<typeof tasks.$inferInsert> = {}) => ({ userId: user.id, title, plannedDate: "2026-07-16", sortOrder, ...extras })
+    const [first] = await database.insert(tasks).values(values("First", 1)).returning()
+    const [second] = await database.insert(tasks).values(values("Second", 2)).returning()
+    const [third] = await database.insert(tasks).values(values("Third", 3)).returning()
+    const [done] = await database.insert(tasks).values(values("Done", 4, { status: "completed" })).returning()
+    const [yesterday] = await database.insert(tasks).values(values("Yesterday", 1, { plannedDate: "2026-07-15" })).returning()
+    const [foreign] = await database.insert(tasks).values({ userId: stranger.id, title: "Foreign", plannedDate: "2026-07-16", sortOrder: 1 }).returning()
+
+    await expect(reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id], testDb())).rejects.toThrow("TASK_ORDER_MISMATCH")
+    await expect(reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id, first.id], testDb())).rejects.toThrow("TASK_ORDER_MISMATCH")
+    await expect(reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id, foreign.id], testDb())).rejects.toThrow("TASK_ORDER_MISMATCH")
+    await expect(reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id, done.id], testDb())).rejects.toThrow("TASK_ORDER_MISMATCH")
+    await expect(reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id, yesterday.id], testDb())).rejects.toThrow("TASK_ORDER_MISMATCH")
+
+    await reorderTodayTasks(user.id, "2026-07-16", [third.id, first.id, second.id], testDb())
+    await reorderTodayTasks(user.id, "2026-07-16", [second.id, third.id, first.id], testDb())
+
+    const ordered = await database.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.userId, user.id), eq(tasks.plannedDate, "2026-07-16"), eq(tasks.status, "active"))).orderBy(tasks.sortOrder)
+    expect(ordered.map((row) => row.title)).toEqual(["Second", "Third", "First"])
+    const [untouchedYesterday] = await database.select({ sortOrder: tasks.sortOrder }).from(tasks).where(eq(tasks.id, yesterday.id))
+    expect(untouchedYesterday.sortOrder).toBe(1)
+    const [untouchedDone] = await database.select({ sortOrder: tasks.sortOrder }).from(tasks).where(eq(tasks.id, done.id))
+    expect(untouchedDone.sortOrder).toBe(4)
+    const [untouchedForeign] = await database.select({ sortOrder: tasks.sortOrder }).from(tasks).where(eq(tasks.id, foreign.id))
+    expect(untouchedForeign.sortOrder).toBe(1)
   })
 })
 

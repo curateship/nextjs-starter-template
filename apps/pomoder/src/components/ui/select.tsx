@@ -4,6 +4,11 @@ import { Select as SelectPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
+function cspNonce() {
+  if (typeof document === "undefined") return undefined
+  return document.querySelector<HTMLMetaElement>('meta[property="csp-nonce"]')?.content
+}
+
 function Select({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
@@ -75,6 +80,9 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           data-position={position}
+          // The viewport injects a <style> element; the CSP nonce keeps it
+          // valid under the strict style-src policy.
+          nonce={cspNonce()}
           className={cn(
             "p-1 data-[position=popper]:h-(--radix-select-trigger-height) data-[position=popper]:w-full data-[position=popper]:min-w-(--radix-select-trigger-width)",
             position === "popper" && ""

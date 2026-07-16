@@ -86,7 +86,8 @@ export function PomoderShell({
 
   return (
     <SoundPlayerProvider authenticated={Boolean(user)}>
-    <div className={`pomoder-app ${collapsed ? "sidebar-collapsed" : ""}`}>
+    {/* The product shell is always dark, so shadcn primitives inside it use dark tokens. */}
+    <div className={`pomoder-app dark ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`pomoder-sidebar ${menuOpen ? "is-open" : ""}`}>
         <Link to="/" className="pomoder-brand" aria-label="Pomoder dashboard">
           <TomatoMark />

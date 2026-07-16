@@ -7,17 +7,24 @@ import {
   createTask,
   loadProductivity,
   pauseFocusSession,
+  reorderTasks,
   resumeFocusSession,
   startFocusSession,
   togglePersistentTask,
   updatePreferences,
+  updateTask,
 } from "@/lib/api/productivity"
 import { completionAlertMessage, fireCompletionAlert } from "@/lib/completion-alerts"
 import {
+  applyActiveTaskOrder,
   createTimer,
   getRemainingSeconds,
   incrementTaskPomodoros,
   normalizeDailyGoalSessions,
+  normalizeEstimatedPomodoros,
+  normalizeGuestTasks,
+  normalizeTaskPriority,
+  orderTasksForDisplay,
   pauseTimer,
   resetTimer,
   resolveSelectedTaskId,
@@ -25,6 +32,7 @@ import {
   toggleTask,
   type GuestTask,
   type PomodoroTimer,
+  type TaskPriority,
   type TimerMode,
 } from "@/lib/pomodoro"
 
@@ -47,9 +55,9 @@ type GuestState = {
 const initialState: GuestState = {
   timer: createTimer("focus", DEFAULT_DURATIONS.focus),
   tasks: [
-    { id: "essay-introduction", title: "Draft the essay introduction", completed: true, pomodoros: 1 },
-    { id: "pull-request", title: "Review pull request #142", completed: false, pomodoros: 0 },
-    { id: "group-sprint", title: "Prep notes for the 6pm group sprint", completed: false, pomodoros: 0 },
+    { id: "pull-request", title: "Review pull request #142", completed: false, pomodoros: 0, priority: "normal", estimatedPomodoros: null },
+    { id: "group-sprint", title: "Prep notes for the 6pm group sprint", completed: false, pomodoros: 0, priority: "normal", estimatedPomodoros: null },
+    { id: "essay-introduction", title: "Draft the essay introduction", completed: true, pomodoros: 1, priority: "normal", estimatedPomodoros: null },
   ],
   autoStart: false,
   cycleFocusSessions: 0,
@@ -88,7 +96,7 @@ export function usePomodoro(authenticated = false) {
         const saved = window.localStorage.getItem(STORAGE_KEY)
         if (saved) {
           const parsed = JSON.parse(saved) as Partial<GuestState>
-          const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : initialState.tasks
+          const tasks = orderTasksForDisplay(normalizeGuestTasks(parsed.tasks) ?? initialState.tasks)
           const today = browserLocalDate()
           const sameDay = parsed.dailyProgressDate === today
           const restored = { ...initialState, ...parsed, tasks, durations: parsed.durations || DEFAULT_DURATIONS, cycleFocusSessions: storedSessionCount(parsed.cycleFocusSessions, 4), todayFocusSessions: sameDay ? storedSessionCount(parsed.todayFocusSessions) : 0, dailyGoalSessions: normalizeDailyGoalSessions(parsed.dailyGoalSessions), dailyProgressDate: today, serverSessionId: null, selectedTaskId: resolveSelectedTaskId(tasks, parsed.selectedTaskId) }
@@ -105,7 +113,7 @@ export function usePomodoro(authenticated = false) {
     if (!hydrated || !authenticated) return
     void loadProductivity().then((data) => {
       const durations = { focus: data.preferences.focusMinutes, short: data.preferences.shortBreakMinutes, long: data.preferences.longBreakMinutes }
-      const tasks = data.tasks.filter((task) => ["active", "completed"].includes(task.status)).map((task) => ({ id: task.id, title: task.title, completed: task.status === "completed", pomodoros: task.pomodoroCount }))
+      const tasks = orderTasksForDisplay(data.tasks.filter((task) => ["active", "completed"].includes(task.status)).map((task) => ({ id: task.id, title: task.title, completed: task.status === "completed", pomodoros: task.pomodoroCount, priority: normalizeTaskPriority(task.priority), estimatedPomodoros: normalizeEstimatedPomodoros(task.estimatedPomodoros) })))
       setState((current) => ({
         ...current,
         durations,
@@ -226,7 +234,7 @@ export function usePomodoro(authenticated = false) {
     const cleanTitle = title.trim().slice(0, 160)
     if (!cleanTitle) return
     const temporaryId = crypto.randomUUID()
-    setState((current) => ({ ...current, tasks: [...current.tasks, { id: temporaryId, title: cleanTitle, completed: false, pomodoros: 0 }] }))
+    setState((current) => ({ ...current, tasks: orderTasksForDisplay([...current.tasks, { id: temporaryId, title: cleanTitle, completed: false, pomodoros: 0, priority: "normal", estimatedPomodoros: null }]) }))
     if (authenticated) void createTask(cleanTitle).then((created) => setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === temporaryId ? { ...task, id: created.id } : task), selectedTaskId: current.selectedTaskId === temporaryId ? created.id : current.selectedTaskId }))).catch(() => {
       setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== temporaryId), selectedTaskId: current.selectedTaskId === temporaryId ? null : current.selectedTaskId }))
       setSyncError("The task could not be created.")
@@ -236,13 +244,13 @@ export function usePomodoro(authenticated = false) {
   const toggleGuestTask = React.useCallback((taskId: string) => {
     if (authenticated) {
       void togglePersistentTask(taskId).then((updated) => setState((current) => {
-        const tasks = current.tasks.map((task) => task.id === taskId ? { ...task, completed: updated.status === "completed", pomodoros: updated.pomodoroCount } : task)
+        const tasks = orderTasksForDisplay(current.tasks.map((task) => task.id === taskId ? { ...task, completed: updated.status === "completed", pomodoros: updated.pomodoroCount } : task))
         return { ...current, tasks, selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId) }
       })).catch(() => setSyncError("The task could not be updated."))
       return
     }
     setState((current) => {
-      const tasks = toggleTask(current.tasks, taskId)
+      const tasks = orderTasksForDisplay(toggleTask(current.tasks, taskId))
       return { ...current, tasks, selectedTaskId: resolveSelectedTaskId(tasks, current.selectedTaskId) }
     })
   }, [authenticated])
@@ -255,6 +263,33 @@ export function usePomodoro(authenticated = false) {
     }
     remove()
   }, [authenticated])
+
+  // These two read the rendered state directly so the pre-change snapshot for
+  // rollback is captured before the optimistic update is queued.
+  const updateTaskDetails = (taskId: string, changes: { title?: string; priority?: TaskPriority; estimatedPomodoros?: number | null }) => {
+    const cleanTitle = changes.title?.trim().slice(0, 160)
+    if (changes.title !== undefined && !cleanTitle) return
+    const applied = changes.title !== undefined ? { ...changes, title: cleanTitle } : changes
+    const target = state.tasks.find((task) => task.id === taskId)
+    if (!target || target.completed) return
+    const previousTasks = state.tasks
+    setState((current) => ({ ...current, tasks: current.tasks.map((task) => task.id === taskId && !task.completed ? { ...task, ...applied } : task) }))
+    if (authenticated) void updateTask({ taskId, ...applied }).catch(() => {
+      setState((current) => ({ ...current, tasks: previousTasks }))
+      setSyncError("The task could not be updated.")
+    })
+  }
+
+  const reorderActiveTasks = (orderedTaskIds: string[]) => {
+    const next = applyActiveTaskOrder(state.tasks, orderedTaskIds)
+    if (!next) return
+    const previousTasks = state.tasks
+    setState((current) => ({ ...current, tasks: applyActiveTaskOrder(current.tasks, orderedTaskIds) ?? current.tasks }))
+    if (authenticated) void reorderTasks(orderedTaskIds).catch(() => {
+      setState((current) => ({ ...current, tasks: previousTasks }))
+      setSyncError("The new task order could not be saved.")
+    })
+  }
 
   const selectTask = React.useCallback((taskId: string | null) => {
     setState((current) => {
@@ -278,5 +313,5 @@ export function usePomodoro(authenticated = false) {
 
   const selectedTask = state.tasks.find((task) => task.id === state.selectedTaskId && !task.completed) ?? null
 
-  return { ...state, remainingSeconds, selectedTask, canSelectTask: canChangeSelectedTask(state), syncError, selectTask, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, setAutoStart, setDurations }
+  return { ...state, remainingSeconds, selectedTask, canSelectTask: canChangeSelectedTask(state), syncError, selectTask, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, updateTaskDetails, reorderActiveTasks, setAutoStart, setDurations }
 }
