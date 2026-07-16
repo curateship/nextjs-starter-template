@@ -2,6 +2,13 @@ import type {
   AutomationNode,
   AutomationSourcePort,
 } from "@/lib/automations/automation"
+import {
+  automationNodeAttachmentPorts,
+  automationNodeOutputPorts,
+  canConnectAutomationNodes,
+  type AutomationNodeAttachmentPort,
+  type AutomationNodePort,
+} from "@/lib/automations/node-registry"
 
 export const NODE_WIDTH = 280
 export const NODE_HEIGHT = 88
@@ -10,7 +17,7 @@ export const MAX_ZOOM = 2
 
 export type CanvasPoint = { x: number; y: number }
 export type CanvasSize = { width: number; height: number }
-export type NodePort = { id: AutomationSourcePort; label: string }
+export type NodePort = AutomationNodePort
 
 /** Places newly added nodes in the visible viewport without stacking them. */
 export function nextNodePosition(
@@ -34,33 +41,19 @@ export function nextNodePosition(
 }
 
 export function nodeOutputPorts(node: AutomationNode): NodePort[] {
-  if (node.kind === "indicator") {
-    return [
-      { id: "bullish", label: "Bullish" },
-      { id: "trend", label: "Trend" },
-      { id: "bearish", label: "Bearish" },
-    ]
-  }
-  if (node.kind === "logic") return [{ id: "match", label: "Match" }]
-  // Look Back forwards the (time-limited) trend to the next indicator.
-  if (node.kind === "lookback") return [{ id: "trend", label: "Trend" }]
-  if (node.kind === "whaleWall") {
-    return [
-      { id: "bidWall", label: "Bid Wall" },
-      { id: "askWall", label: "Ask Wall" },
-    ]
-  }
-  // Take Profit / Stop Loss are leaf targets — they emit nothing.
-  if (node.kind === "takeProfit" || node.kind === "stopLoss") return []
-  // Actions chain onward to their exit watchers (e.g. Long → EMA → Close).
-  return [{ id: "then", label: "Then" }]
+  return [...automationNodeOutputPorts(node)]
+}
+
+export function canConnectNodes(
+  source: AutomationNode,
+  sourcePort: AutomationSourcePort,
+  target: AutomationNode
+): boolean {
+  return canConnectAutomationNodes(source, sourcePort, target)
 }
 
 /** A Take Profit / Stop Loss hook drawn on the top or bottom edge of an entry. */
-export type NodeAttachmentPort = {
-  id: "tp" | "sl"
-  edge: "top" | "bottom"
-}
+export type NodeAttachmentPort = AutomationNodeAttachmentPort
 
 /**
  * Which edge a hook sits on. Long: Take Profit above, Stop Loss below (matching
@@ -70,25 +63,17 @@ export function attachmentPortEdge(
   node: AutomationNode,
   port: "tp" | "sl"
 ): "top" | "bottom" {
-  const isLong = node.kind === "action" && node.action === "buy"
-  if (port === "tp") return isLong ? "top" : "bottom"
-  return isLong ? "bottom" : "top"
+  return (
+    automationNodeAttachmentPorts(node).find((item) => item.id === port)
+      ?.edge ?? (port === "tp" ? "bottom" : "top")
+  )
 }
 
 /** The two protective hooks a Long/Short entry exposes (none for other nodes). */
 export function nodeAttachmentPorts(
   node: AutomationNode
 ): NodeAttachmentPort[] {
-  if (
-    node.kind !== "action" ||
-    (node.action !== "buy" && node.action !== "short")
-  ) {
-    return []
-  }
-  return [
-    { id: "tp", edge: attachmentPortEdge(node, "tp") },
-    { id: "sl", edge: attachmentPortEdge(node, "sl") },
-  ]
+  return [...automationNodeAttachmentPorts(node)]
 }
 
 export function portOut(

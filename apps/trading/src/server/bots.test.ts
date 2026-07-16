@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
+import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
 import {
   createUserBot,
   getBotDetail,
@@ -22,7 +23,9 @@ import { now, uuid } from "@/server/util"
 import * as schema from "@/server/schema"
 
 vi.mock("@/server/hyperliquid/info", () => ({
-  getAssetInfo: vi.fn(async () => ({ assetId: 0, szDecimals: 4 })),
+  getActivePerpMarkets: vi.fn(async () =>
+    ["BTC", "ETH", "SOL"].map((coin, assetId) => ({ coin, assetId }))
+  ),
 }))
 
 const AUTOMATION_CONFIG: AutomationConfig = {
@@ -66,6 +69,15 @@ const WALL_CONFIG: AutomationConfig = {
       },
     },
   ],
+}
+
+const QFL_CONFIG: AutomationConfig = {
+  v: 2,
+  kind: "automation",
+  interval: "15m",
+  protection: {},
+  rules: [],
+  qfl: { nodeId: "qfl", ...DEFAULT_QFL_SETTINGS },
 }
 
 async function applyMigration(target: PGlite, file: string) {
@@ -204,6 +216,49 @@ describe("Automation bot creation", () => {
     expect(paper.mode).toBe("paper")
     expect(live.params).toEqual(WALL_CONFIG)
     expect(live.mode).toBe("live")
+  })
+
+  it("creates selected QFL markets and their runtime state together", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId, QFL_CONFIG, "QFL")
+
+    const bot = await createUserBot(userId, {
+      ...botInput(walletId, automationId),
+      markets: ["BTC", "ETH"],
+    })
+    const detail = await getBotDetail(userId, bot.id)
+
+    expect(bot.markets).toEqual(["BTC", "ETH"])
+    expect(detail.states.map((state) => state.market).sort()).toEqual([
+      "BTC",
+      "ETH",
+    ])
+  })
+
+  it("rejects a QFL market basket whose required history would exhaust the worker", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(
+      userId,
+      {
+        ...QFL_CONFIG,
+        interval: "1m",
+        qfl: {
+          ...QFL_CONFIG.qfl!,
+          respectFilterEnabled: true,
+          respectLookbackMonths: 60,
+        },
+      },
+      "Large QFL"
+    )
+
+    await expect(
+      createUserBot(userId, {
+        ...botInput(walletId, automationId),
+        markets: ["BTC", "ETH", "SOL"],
+      })
+    ).rejects.toThrow("history candles")
   })
 
   it("does not reveal or use another user's Automation", async () => {

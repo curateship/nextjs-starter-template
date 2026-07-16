@@ -73,6 +73,28 @@ export const qqeIndicator: IndicatorModule<QqeIndicatorParams> = {
     { key: "minConsolidationLen", label: "Min consolidation bars" },
     { key: "swingLookback", label: "Swing lookback" },
   ],
+  paramGroups: [
+    {
+      title: "QQE",
+      keys: [
+        "rsiPeriod",
+        "rsiSmoothing",
+        "qqeFactor",
+        "threshold",
+        "maType",
+        "rsiSource",
+      ],
+    },
+    {
+      title: "Consolidation",
+      keys: [
+        "consolidationFilter",
+        "loopbackPeriod",
+        "minConsolidationLen",
+      ],
+    },
+    { title: "Swing levels", keys: ["swingLookback"] },
+  ],
   warmupBars: (params) =>
     Math.max(params.loopbackPeriod + params.minConsolidationLen, params.swingLookback * 2, 400),
 

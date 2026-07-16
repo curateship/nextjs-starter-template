@@ -34,13 +34,16 @@ export function AutomationRouteContent() {
         }
       />
 
-      <BacktestAutomationDialog
-        open={backtestOpen}
-        onOpenChange={setBacktestOpen}
-        automationId={automation.id}
-        automationName={automation.name}
-        interval={automation.interval}
-      />
+      {backtestOpen ? (
+        <BacktestAutomationDialog
+          open
+          onOpenChange={setBacktestOpen}
+          automationId={automation.id}
+          automationName={automation.name}
+          interval={automation.interval}
+          isQfl={Boolean(automation.compiledConfig?.qfl)}
+        />
+      ) : null}
     </>
   )
 }

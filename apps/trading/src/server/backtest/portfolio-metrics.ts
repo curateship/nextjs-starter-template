@@ -11,7 +11,11 @@ import { tradingBacktests } from "@/server/schema"
 /**
  * One market's inputs to the blend: its starting capital and its equity curve.
  */
-type MarketCurve = { start: number; curve: BacktestEquityPoint[] }
+type MarketCurve = {
+  start: number
+  curve: BacktestEquityPoint[]
+  sharedAccount?: boolean
+}
 
 /** One point on the summed basket curve: bar time and total basket equity. */
 type CombinedPoint = { t: number; total: number }
@@ -24,15 +28,19 @@ type BlendedCurve = { totalStart: number; series: CombinedPoint[] }
  * before its history begins, so markets with shorter histories don't distort
  * the early basket. Returns the total starting capital plus the summed curve.
  */
-function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
+export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
   const ms = markets
     .filter((m) => Array.isArray(m.curve) && m.curve.length > 0)
     .map((m) => ({
       start: m.start,
+      sharedAccount: m.sharedAccount === true,
       pts: [...m.curve].sort((a, b) => a.t - b.t),
     }))
   if (ms.length === 0) return null
-  const totalStart = ms.reduce((sum, m) => sum + m.start, 0)
+  const sharedAccount = ms.every((market) => market.sharedAccount)
+  const totalStart = sharedAccount
+    ? ms[0].start
+    : ms.reduce((sum, m) => sum + m.start, 0)
   if (totalStart <= 0) return null
 
   // Union of every bar time across all markets, in order.
@@ -53,8 +61,10 @@ function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
         idx[i]++
       }
     }
-    let total = 0
-    for (const v of cur) total += v
+    let total = sharedAccount ? totalStart : 0
+    for (let index = 0; index < cur.length; index += 1) {
+      total += sharedAccount ? cur[index] - ms[index].start : cur[index]
+    }
     series.push({ t, total })
   }
   return { totalStart, series }
@@ -219,6 +229,9 @@ export async function loadGroupPortfolioMetrics(
         curve: sql<
           BacktestEquityPoint[] | null
         >`${tradingBacktests.result} -> 'equityCurve'`,
+        sharedAccount: sql<
+          string | null
+        >`${tradingBacktests.result} #>> '{portfolio,sharedAccount}'`,
       })
       .from(tradingBacktests)
       .where(
@@ -232,7 +245,11 @@ export async function loadGroupPortfolioMetrics(
     for (const row of rows) {
       if (!row.curve) continue
       const list = byGroup.get(row.groupId) ?? []
-      list.push({ start: Number(row.startingEquity), curve: row.curve })
+      list.push({
+        start: Number(row.startingEquity),
+        curve: row.curve,
+        sharedAccount: row.sharedAccount === "true",
+      })
       byGroup.set(row.groupId, list)
     }
     for (const groupId of toLoad) {
@@ -263,6 +280,9 @@ export async function loadGroupPortfolioSummary(
       curve: sql<
         BacktestEquityPoint[] | null
       >`${tradingBacktests.result} -> 'equityCurve'`,
+      sharedAccount: sql<
+        string | null
+      >`${tradingBacktests.result} #>> '{portfolio,sharedAccount}'`,
     })
     .from(tradingBacktests)
     .where(
@@ -274,7 +294,13 @@ export async function loadGroupPortfolioSummary(
     )
   const markets = rows.flatMap((row) =>
     row.curve && row.curve.length > 0
-      ? [{ start: Number(row.startingEquity), curve: row.curve }]
+      ? [
+          {
+            start: Number(row.startingEquity),
+            curve: row.curve,
+            sharedAccount: row.sharedAccount === "true",
+          },
+        ]
       : []
   )
   const blended = blendCurves(markets)

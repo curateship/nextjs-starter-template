@@ -88,31 +88,21 @@ export type BotDetailResponse = {
   }
 }
 
-const createBotSchema = z
-  .object({
-    name: z.string().min(1).max(255),
-    walletId: z.string().min(1),
-    markets: z.array(hyperliquidMarketSchema).min(1),
-    exchange: z.string().min(1).max(20).default("hyperliquid"),
-    mode: z.enum(["paper", "live"]),
-    /** The bot's config is the Automation's server-compiled snapshot. */
-    automationId: z.string().uuid(),
-    paperStartingEquity: z.number().positive().max(100_000_000).optional(),
-  })
-  .superRefine((input, ctx) => {
-    if (input.markets.length !== 1) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["markets"],
-        message: "Automation bots can trade exactly one market.",
-      })
-    }
-  })
+const createBotSchema = z.object({
+  name: z.string().min(1).max(255),
+  walletId: z.string().min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+  exchange: z.string().min(1).max(20).default("hyperliquid"),
+  mode: z.enum(["paper", "live"]),
+  /** The bot's config is the Automation's server-compiled snapshot. */
+  automationId: z.string().uuid(),
+  paperStartingEquity: z.number().positive().max(100_000_000).optional(),
+})
 
 const updateBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().min(1).max(255),
-  markets: z.array(hyperliquidMarketSchema).min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
   params: automationConfigSchema,
 })
 

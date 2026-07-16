@@ -6,8 +6,12 @@ import {
   automationConfigSchema,
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
+import {
+  MAX_QFL_PORTFOLIO_HISTORY_BARS,
+  qflPortfolioHistoryBars,
+} from "@/lib/automations/qfl"
 import { db, type CustomShellDb } from "@/server/db"
-import { getAssetInfo } from "@/server/hyperliquid/info"
+import { getActivePerpMarkets } from "@/server/hyperliquid/info"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
   tradingBotCommands,
@@ -46,6 +50,35 @@ const RUNNABLE_BOT_TYPES = new Set(["automation"])
 
 function isRunnableBotType(type: string): type is "automation" {
   return RUNNABLE_BOT_TYPES.has(type)
+}
+
+async function validateMarkets(network: TradingNetwork, markets: string[]) {
+  const active = new Set(
+    (await getActivePerpMarkets(network)).map((market) => market.coin)
+  )
+  for (const market of markets) {
+    if (!active.has(market)) {
+      throw new Error(`Unknown Hyperliquid market: ${market}`)
+    }
+  }
+}
+
+function validateQflPortfolioSize(
+  params: AutomationConfig,
+  marketCount: number
+) {
+  if (!params.qfl) return
+  const historyBars = qflPortfolioHistoryBars(
+    params.qfl,
+    params.interval,
+    params.marketScanner,
+    marketCount
+  )
+  if (historyBars > MAX_QFL_PORTFOLIO_HISTORY_BARS) {
+    throw new Error(
+      `This QFL bot needs about ${historyBars.toLocaleString()} history candles across its markets. Use fewer markets, less history, or a coarser timeframe.`
+    )
+  }
 }
 
 export async function listUserBots(
@@ -213,16 +246,16 @@ export async function updateUserBot(
     ...new Set(input.markets.map((m) => m.trim()).filter(Boolean)),
   ]
   if (markets.length === 0) throw new Error("Pick at least one market")
-  if (bot.strategyType === "automation" && markets.length !== 1) {
+  if (!stored.data.qfl && markets.length !== 1) {
     throw new Error("Automation bots can trade exactly one market.")
   }
+  if (markets.length > 200) throw new Error("Pick no more than 200 markets.")
+  validateQflPortfolioSize(stored.data, markets.length)
 
   // Validate each market on the wallet's network (rejects typos / delisted).
   const wallet = await findUserWallet(userId, bot.walletId, database)
   if (!wallet) throw new Error("Wallet not found")
-  for (const market of markets) {
-    await getAssetInfo(wallet.network as TradingNetwork, market)
-  }
+  await validateMarkets(wallet.network as TradingNetwork, markets)
 
   const current = new Set(bot.markets)
   const next = new Set(markets)
@@ -309,61 +342,67 @@ export async function createUserBot(
   const automationId = owned.id
 
   // Dedupe while preserving order; a bot needs at least one market.
-  const markets = [
+  const requestedMarkets = [
     ...new Set(input.markets.map((m) => m.trim()).filter(Boolean)),
   ]
-  if (markets.length === 0) throw new Error("Pick at least one market")
-  if (markets.length !== 1) {
-    throw new Error("Automation bots can trade exactly one market.")
+  const markets = requestedMarkets
+  if (markets.length === 0) {
+    throw new Error("Pick at least one market.")
   }
+  if (!params.qfl && markets.length !== 1) {
+    throw new Error("Pick exactly one market for this Automation.")
+  }
+  if (markets.length > 200) throw new Error("Pick no more than 200 markets.")
+  validateQflPortfolioSize(params, markets.length)
 
   // Validates each market exists on the wallet's network.
-  for (const market of markets) {
-    await getAssetInfo(wallet.network as TradingNetwork, market)
-  }
+  await validateMarkets(wallet.network as TradingNetwork, markets)
 
   const createdAt = now()
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const cloidPrefix = randomBytes(4).toString("hex")
     if (cloidPrefix === MANUAL_PREFIX) continue
     try {
-      const [bot] = await database
-        .insert(tradingBots)
-        .values({
-          id: uuid(),
-          userId,
-          name: name.slice(0, 255),
-          strategyType: params.kind,
-          automationId,
-          walletId: wallet.id,
-          markets,
-          exchange: input.exchange || "hyperliquid",
-          mode: input.mode,
-          desiredState: "stopped",
-          status: "stopped",
-          params,
-          riskParams: {},
-          cloidPrefix,
-          paperStartingEquity:
-            input.mode === "paper"
-              ? String(input.paperStartingEquity ?? 10_000)
-              : null,
-          createdAt,
-          updatedAt: createdAt,
-        })
-        .returning()
-      if (!bot) throw new Error("Bot was not created")
+      return await database.transaction(async (tx) => {
+        const [bot] = await tx
+          .insert(tradingBots)
+          .values({
+            id: uuid(),
+            userId,
+            name: name.slice(0, 255),
+            strategyType: params.kind,
+            automationId,
+            walletId: wallet.id,
+            markets,
+            exchange: input.exchange || "hyperliquid",
+            mode: input.mode,
+            desiredState: "stopped",
+            status: "stopped",
+            params,
+            riskParams: {},
+            cloidPrefix,
+            paperStartingEquity:
+              input.mode === "paper"
+                ? String(input.paperStartingEquity ?? 10_000)
+                : null,
+            createdAt,
+            updatedAt: createdAt,
+          })
+          .returning()
+        if (!bot) throw new Error("Bot was not created")
 
-      // One runtime-state row per market — each market trades independently.
-      await database.insert(tradingBotState).values(
-        markets.map((market) => ({
-          botId: bot.id,
-          market,
-          strategyState: {},
-          updatedAt: createdAt,
-        }))
-      )
-      return bot
+        // Keep the bot and every per-market state row atomic: either all
+        // selected markets are runnable or no partial bot is saved.
+        await tx.insert(tradingBotState).values(
+          markets.map((market) => ({
+            botId: bot.id,
+            market,
+            strategyState: {},
+            updatedAt: createdAt,
+          }))
+        )
+        return bot
+      })
     } catch (error) {
       if (isUniqueViolation(error)) continue
       throw error

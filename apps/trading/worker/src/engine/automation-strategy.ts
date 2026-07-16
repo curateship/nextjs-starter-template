@@ -18,6 +18,7 @@ import type {
 } from "../strategies/contract"
 import { exitLevels, tickExit } from "./trade-manager"
 import { closestBookWalls, type BookWall } from "../scanner/book-metrics"
+import { createQflAutomationStrategy } from "./qfl-automation"
 
 const WALL_ENTRY_PURPOSE = "auto:wall-entry"
 const WALL_EXIT_PURPOSE = "auto:wall-forced-exit"
@@ -213,6 +214,12 @@ export function automationTargetOrders(input: {
 export function createAutomationStrategy(
   config: AutomationConfig
 ): Strategy<never, AutomationState> {
+  if (config.qfl) {
+    return createQflAutomationStrategy(config) as unknown as Strategy<
+      never,
+      AutomationState
+    >
+  }
   const capabilities = automationCapabilities(config)
   const routes = wallRoutes(config)
   const window = Math.min(
@@ -628,8 +635,7 @@ export function createAutomationStrategy(
           ),
           remainingSz,
           ownsPosition: true,
-          entryComplete:
-            fill.orderStatus === "filled" || remainingSz <= 0,
+          entryComplete: fill.orderStatus === "filled" || remainingSz <= 0,
         }
         next = { ...next, wall: { ...wall, active } }
         emitWallFillEvidence(ctx, wall.active, active)

@@ -7,6 +7,7 @@ import {
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import {
   claimNextPendingBacktest,
+  claimPendingBacktestGroup,
   failClaimedBacktest,
   finishClaimedBacktest,
   resetOrphanedRunning,
@@ -15,7 +16,11 @@ import {
 import { fetchCandleHistory, INTERVAL_MS } from "@/server/backtest/history"
 import type { TradingBacktest } from "@/server/schema"
 
-import { runBacktest as runEngine } from "./runner"
+import {
+  runBacktest as runEngine,
+  runQflPortfolioBacktests,
+  type RunBacktestConfig,
+} from "./runner"
 import { resolveStrategy } from "../strategies/registry"
 import type { WorkerService } from "../runtime-control"
 
@@ -117,6 +122,16 @@ export class BacktestQueueWorker implements WorkerService {
   private async runOne(row: TradingBacktest) {
     const params = row.params as AutomationConfig
     const interval = row.interval as BacktestInterval
+    if (params.qfl) {
+      const siblings = await claimPendingBacktestGroup(
+        row.groupId,
+        this.workerId
+      )
+      if (siblings.length > 0) {
+        await this.runQflPortfolioGroup([row, ...siblings])
+        return
+      }
+    }
     try {
       await this.progress(row, 10, "Loading history")
       const warmupBars = warmupBarsFor(row.params)
@@ -155,6 +170,93 @@ export class BacktestQueueWorker implements WorkerService {
     } catch (error) {
       console.error("backtest worker: run failed", row.id, error)
       await failClaimedBacktest(row.id, this.workerId, runFailureMessage(error))
+    }
+  }
+
+  private async runQflPortfolioGroup(rows: TradingBacktest[]) {
+    const configs: Array<{
+      row: TradingBacktest
+      config: RunBacktestConfig
+    }> = []
+    for (const [index, row] of rows.entries()) {
+      try {
+        if (index === 0)
+          await this.progress(row, 10, "Loading portfolio history")
+        else {
+          await updateBacktestProgress(
+            row.id,
+            this.workerId,
+            10,
+            "Loading portfolio history"
+          )
+        }
+        const params = row.params as AutomationConfig
+        const interval = row.interval as BacktestInterval
+        const simStartMs = row.startTime.getTime()
+        const candles = await fetchCandleHistory(
+          row.market,
+          interval,
+          simStartMs - warmupBarsFor(params) * INTERVAL_MS[interval],
+          row.endTime.getTime()
+        )
+        if (candles.length === 0) {
+          throw new Error(`No candle history for ${row.market} in that window.`)
+        }
+        const strategy = resolveStrategy(params)
+        if (!strategy) {
+          throw new Error(`Strategy "${row.strategyType}" can't be backtested.`)
+        }
+        configs.push({
+          row,
+          config: {
+            strategy,
+            params,
+            candles,
+            simStartMs,
+            startingEquity: Number(row.startingEquity),
+            market: row.market,
+            interval,
+            costs: row.costs as BacktestCosts,
+          },
+        })
+      } catch (error) {
+        await failClaimedBacktest(
+          row.id,
+          this.workerId,
+          runFailureMessage(error)
+        )
+      }
+    }
+    if (configs.length === 0) return
+
+    try {
+      for (const { row } of configs) {
+        await updateBacktestProgress(
+          row.id,
+          this.workerId,
+          50,
+          "Running portfolio simulation"
+        )
+      }
+      const results = runQflPortfolioBacktests(
+        configs.map((item) => item.config)
+      )
+      for (const { row } of configs) {
+        const result = results.get(row.market)
+        if (!result)
+          throw new Error(`Portfolio result missing for ${row.market}.`)
+        await finishClaimedBacktest(row.id, this.workerId, result)
+        this.completed += 1
+      }
+      this.lastCompletedAt = new Date().toISOString()
+    } catch (error) {
+      for (const { row } of configs) {
+        await failClaimedBacktest(
+          row.id,
+          this.workerId,
+          runFailureMessage(error)
+        ).catch(() => {})
+      }
     }
   }
 }

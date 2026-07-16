@@ -7,6 +7,18 @@ import {
   indicatorSelectionSchema,
 } from "@/lib/indicators/registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import {
+  automationNodeConnectionError,
+  automationNodeSourcePortIsValid,
+} from "./node-registry"
+import {
+  marketScannerSettingsFieldsSchema,
+  marketScannerSettingsSchema,
+  qflSettingsFieldsSchema,
+  qflSettingsSchema,
+  type MarketScannerSettings,
+  type QflSettings,
+} from "./qfl"
 
 export type AutomationIndicatorNode = {
   id: string
@@ -79,6 +91,22 @@ export type AutomationWhaleWallNode = {
   y: number
 }
 
+/** Eligibility filters for markets selected in the bot or Backtest form. */
+export type AutomationMarketScannerNode = MarketScannerSettings & {
+  id: string
+  kind: "marketScanner"
+  x: number
+  y: number
+}
+
+/** Stateful Quickfingers Luc long ladder. It owns entries and exits. */
+export type AutomationQflNode = QflSettings & {
+  id: string
+  kind: "qfl"
+  x: number
+  y: number
+}
+
 export type AutomationNode =
   | AutomationIndicatorNode
   | AutomationLogicNode
@@ -87,6 +115,8 @@ export type AutomationNode =
   | AutomationTakeProfitNode
   | AutomationStopLossNode
   | AutomationWhaleWallNode
+  | AutomationMarketScannerNode
+  | AutomationQflNode
 
 /**
  * Ceiling on the engine's per-candle evaluation window (candles). A Look Back
@@ -178,12 +208,24 @@ export type AutomationRule = {
   condition: AutomationCondition
 }
 
+export type AutomationQflConfig = QflSettings & {
+  nodeId: string
+  /** Optional bullish Trend permission for starting a fresh ladder. */
+  filters?: AutomationFilter[]
+}
+
+export type AutomationMarketScannerConfig = MarketScannerSettings & {
+  nodeId: string
+}
+
 export type AutomationConfig = {
   v: 2
   kind: "automation"
   interval: AutomationInterval
   rules: AutomationRule[]
   protection: AutomationProtection
+  marketScanner?: AutomationMarketScannerConfig
+  qfl?: AutomationQflConfig
 }
 
 export type AutomationValidationError = {
@@ -202,6 +244,7 @@ export type AutomationValidationError = {
     | "invalid_lookback"
     | "lookback_input"
     | "invalid_scanner"
+    | "invalid_strategy"
     | "empty"
     | "limit"
   nodeId?: string
@@ -216,29 +259,6 @@ export type AutomationCompileResult = {
 
 export const LIVE_BOOK_BACKTEST_UNAVAILABLE =
   "Backtesting is unavailable because Whale Wall needs live order-book data."
-
-function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
-  switch (node.kind) {
-    case "indicator":
-      return port === "bullish" || port === "bearish" || port === "trend"
-    case "logic":
-      return port === "match"
-    case "lookback":
-      return port === "trend"
-    case "whaleWall":
-      return port === "bidWall" || port === "askWall"
-    case "action":
-      // Long/Short also expose the Take Profit / Stop Loss attachment hooks.
-      return (
-        port === "then" ||
-        ((node.action === "buy" || node.action === "short") &&
-          (port === "tp" || port === "sl"))
-      )
-    default:
-      // Take Profit / Stop Loss are leaf targets — they emit nothing.
-      return false
-  }
-}
 
 const idSchema = z.string().min(1).max(64)
 const intervalSchema = z.enum(["1m", "5m", "15m", "1h", "4h", "1d"])
@@ -308,6 +328,20 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     relativeSize: z.number().finite(),
     maxDistancePct: z.number().finite(),
     confirmationMs: z.number().finite(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("marketScanner"),
+    ...marketScannerSettingsFieldsSchema.shape,
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("qfl"),
+    ...qflSettingsFieldsSchema.shape,
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -441,6 +475,7 @@ const automationRuleSchema = z
     targetEquityPct: z.number().min(1).max(100).optional(),
     condition: automationConditionSchema,
   })
+
   .superRefine((rule, ctx) => {
     if (rule.action !== "close" && rule.targetEquityPct === undefined) {
       ctx.addIssue({
@@ -457,6 +492,31 @@ const automationRuleSchema = z
       })
     }
   })
+
+const automationQflConfigSchema: z.ZodType<AutomationQflConfig> =
+  z.intersection(
+    z.intersection(z.object({ nodeId: idSchema }), qflSettingsSchema),
+    z.object({
+      filters: z
+        .array(
+          z.object({
+            nodeId: idSchema,
+            indicator: indicatorSelectionSchema,
+            maxAgeBars: z
+              .number()
+              .int()
+              .min(1)
+              .max(AUTOMATION_MAX_WINDOW_BARS)
+              .optional(),
+          })
+        )
+        .max(100)
+        .optional(),
+    })
+  )
+
+const automationMarketScannerConfigSchema: z.ZodType<AutomationMarketScannerConfig> =
+  z.intersection(z.object({ nodeId: idSchema }), marketScannerSettingsSchema)
 
 function conditionHasLiveWall(condition: AutomationCondition): boolean {
   if (condition.kind === "liveWall") return true
@@ -475,11 +535,34 @@ export const automationConfigSchema: z.ZodType<AutomationConfig> = z
     v: z.literal(2),
     kind: z.literal("automation"),
     interval: intervalSchema,
-    rules: z.array(automationRuleSchema).min(1).max(100),
+    rules: z.array(automationRuleSchema).max(100),
     protection: automationProtectionSchema,
+    marketScanner: automationMarketScannerConfigSchema.optional(),
+    qfl: automationQflConfigSchema.optional(),
   })
   .superRefine((config, ctx) => {
+    if (config.rules.length === 0 && !config.qfl) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message: "Add at least one executable entry.",
+      })
+    }
+    if (config.marketScanner && !config.qfl) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["marketScanner"],
+        message: "Market Scanner must feed QFL.",
+      })
+    }
     const entryRules = config.rules.filter((rule) => rule.action !== "close")
+    if (config.qfl && entryRules.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message: "QFL must be the Automation's only entry owner.",
+      })
+    }
     if (
       entryRules.some((rule) => conditionHasLiveWall(rule.condition)) &&
       entryRules.some((rule) => conditionHasCandleTrigger(rule.condition))
@@ -558,6 +641,23 @@ export function compileAutomationGraph(input: {
         message: "Whale Wall settings are outside their allowed ranges.",
       })
     }
+    if (node.kind === "qfl" && !qflSettingsSchema.safeParse(node).success) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: node.id,
+        message: "QFL settings are outside their allowed ranges.",
+      })
+    }
+    if (
+      node.kind === "marketScanner" &&
+      !marketScannerSettingsSchema.safeParse(node).success
+    ) {
+      addError({
+        code: "invalid_scanner",
+        nodeId: node.id,
+        message: "Market Scanner settings are outside their allowed ranges.",
+      })
+    }
   }
 
   const incoming = new Map<string, AutomationEdge[]>()
@@ -583,7 +683,11 @@ export function compileAutomationGraph(input: {
       })
       continue
     }
-    if (!sourcePortIsValid(source, edge.sourcePort)) {
+    const sourcePortIsValid = automationNodeSourcePortIsValid(
+      source,
+      edge.sourcePort
+    )
+    if (!sourcePortIsValid) {
       addError({
         code: "invalid_port",
         edgeId: edge.id,
@@ -596,78 +700,15 @@ export function compileAutomationGraph(input: {
         edgeId: edge.id,
         message: "This connection is not allowed.",
       })
-    } else if (
-      edge.sourcePort === "trend" &&
-      source.kind === "lookback" &&
-      target.kind !== "indicator"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "A Look Back node can only connect to an indicator.",
-      })
-    } else if (
-      edge.sourcePort === "trend" &&
-      source.kind !== "lookback" &&
-      target.kind !== "indicator" &&
-      target.kind !== "lookback"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message:
-          "The Trend output can only connect to an indicator or a Look Back node.",
-      })
-    } else if (
-      edge.sourcePort === "bidWall" &&
-      (target.kind !== "action" || target.action !== "buy")
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Bid Wall can only connect to Long.",
-      })
-    } else if (
-      edge.sourcePort === "askWall" &&
-      (target.kind !== "action" || target.action !== "short")
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Ask Wall can only connect to Short.",
-      })
-    } else if (edge.sourcePort === "then" && target.kind !== "indicator") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Then output can only connect to an indicator.",
-      })
-    } else if (edge.sourcePort === "tp" && target.kind !== "takeProfit") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Take Profit hook can only connect to a Take Profit node.",
-      })
-    } else if (edge.sourcePort === "sl" && target.kind !== "stopLoss") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Stop Loss hook can only connect to a Stop Loss node.",
-      })
-    } else if (
-      edge.sourcePort !== "trend" &&
-      edge.sourcePort !== "then" &&
-      edge.sourcePort !== "tp" &&
-      edge.sourcePort !== "sl" &&
-      edge.sourcePort !== "bidWall" &&
-      edge.sourcePort !== "askWall" &&
-      target.kind !== "action"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Bullish and Bearish outputs can only connect to an action.",
-      })
+    } else if (sourcePortIsValid) {
+      const message = automationNodeConnectionError(
+        source,
+        edge.sourcePort,
+        target
+      )
+      if (message) {
+        addError({ code: "invalid_edge", edgeId: edge.id, message })
+      }
     }
     const key = `${edge.from}:${edge.sourcePort}:${edge.to}`
     if (edgeKeys.has(key)) {
@@ -703,8 +744,18 @@ export function compileAutomationGraph(input: {
   const actions = nodes.filter(
     (node): node is AutomationActionNode => node.kind === "action"
   )
-  if (actions.length === 0)
+  const qflNodes = nodes.filter(
+    (node): node is AutomationQflNode => node.kind === "qfl"
+  )
+  if (actions.length === 0 && qflNodes.length === 0)
     addError({ code: "empty", message: "Add at least one action." })
+  if (qflNodes.length > 1) {
+    addError({
+      code: "invalid_strategy",
+      nodeId: qflNodes[1].id,
+      message: "An Automation can contain only one QFL node.",
+    })
+  }
   for (const node of nodes) {
     const count = incoming.get(node.id)?.length ?? 0
     if (node.kind === "logic") {
@@ -741,6 +792,23 @@ export function compileAutomationGraph(input: {
           code: "lookback_input",
           nodeId: node.id,
           message: "Look Back needs a Trend input from an indicator.",
+        })
+      }
+    }
+    if (node.kind === "qfl") {
+      const inputs = incoming.get(node.id) ?? []
+      if (inputs.filter((edge) => edge.sourcePort === "trend").length > 1) {
+        addError({
+          code: "invalid_strategy",
+          nodeId: node.id,
+          message: "QFL accepts only one direct Trend filter.",
+        })
+      }
+      if (inputs.filter((edge) => edge.sourcePort === "markets").length > 1) {
+        addError({
+          code: "invalid_strategy",
+          nodeId: node.id,
+          message: "QFL accepts only one Market Scanner.",
         })
       }
     }
@@ -800,7 +868,20 @@ export function compileAutomationGraph(input: {
     })
   }
 
-  const connected = new Set<string>(actions.map((node) => node.id))
+  const ownedEntry = actions.find((node) => node.action !== "close")
+  if (qflNodes.length > 0 && ownedEntry) {
+    addError({
+      code: "action_input",
+      nodeId: ownedEntry.id,
+      message:
+        "QFL owns entries. Remove Long, Short, Reverse, and Whale Wall entry paths.",
+    })
+  }
+
+  const connected = new Set<string>([
+    ...actions.map((node) => node.id),
+    ...qflNodes.map((node) => node.id),
+  ])
   const markAncestors = (id: string) => {
     for (const edge of incoming.get(id) ?? []) {
       if (connected.has(edge.from)) continue
@@ -809,6 +890,7 @@ export function compileAutomationGraph(input: {
     }
   }
   for (const action of actions) markAncestors(action.id)
+  for (const qfl of qflNodes) markAncestors(qfl.id)
   // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action → node), so
   // ancestor-marking never reaches them — count an attached one as connected.
   for (const node of nodes) {
@@ -823,7 +905,7 @@ export function compileAutomationGraph(input: {
       addError({
         code: "dangling",
         nodeId: node.id,
-        message: "Node is not connected to an action.",
+        message: "Node is not connected to an action or QFL.",
       })
     }
   }
@@ -895,6 +977,28 @@ export function compileAutomationGraph(input: {
     }
   }
 
+  const qflNode = qflNodes[0]
+  let marketScanner: AutomationMarketScannerConfig | undefined
+  let qfl: AutomationQflConfig | undefined
+  if (qflNode) {
+    const scannerEdge = (incoming.get(qflNode.id) ?? []).find(
+      (edge) => edge.sourcePort === "markets"
+    )
+    const scannerNode = scannerEdge ? nodeById.get(scannerEdge.from) : undefined
+    if (scannerNode?.kind === "marketScanner") {
+      marketScanner = {
+        nodeId: scannerNode.id,
+        ...marketScannerSettingsSchema.parse(scannerNode),
+      }
+    }
+    const filters = collectFilters(qflNode.id)
+    qfl = {
+      nodeId: qflNode.id,
+      ...qflSettingsSchema.parse(qflNode),
+      ...(filters.length > 0 ? { filters } : {}),
+    }
+  }
+
   const rules = actions.map((node): AutomationRule => {
     const inputs = (incoming.get(node.id) ?? []).map(compileEdge)
     const rule: AutomationRule = {
@@ -945,13 +1049,8 @@ export function compileAutomationGraph(input: {
   // engine window: the indicator's own warmup plus the cap has to fit, or
   // the automation would silently never trade.
   const checkedCaps = new Set<string>()
-  const triggersOf = (condition: AutomationCondition): void => {
-    if (condition.kind === "liveWall") return
-    if (condition.kind !== "trigger") {
-      condition.children.forEach(triggersOf)
-      return
-    }
-    for (const filter of condition.filters ?? []) {
+  const checkFilters = (filters: AutomationFilter[]) => {
+    for (const filter of filters) {
       if (filter.maxAgeBars === undefined) continue
       const key = `${filter.nodeId}:${filter.maxAgeBars}`
       if (checkedCaps.has(key)) continue
@@ -970,7 +1069,16 @@ export function compileAutomationGraph(input: {
       }
     }
   }
+  const triggersOf = (condition: AutomationCondition): void => {
+    if (condition.kind === "liveWall") return
+    if (condition.kind !== "trigger") {
+      condition.children.forEach(triggersOf)
+      return
+    }
+    checkFilters(condition.filters ?? [])
+  }
   for (const rule of rules) triggersOf(rule.condition)
+  checkFilters(qfl?.filters ?? [])
   if (errors.length > 0) return { config: null, errors }
 
   return {
@@ -980,6 +1088,8 @@ export function compileAutomationGraph(input: {
       interval: input.interval,
       rules,
       protection,
+      ...(marketScanner ? { marketScanner } : {}),
+      ...(qfl ? { qfl } : {}),
     },
     errors: [],
   }

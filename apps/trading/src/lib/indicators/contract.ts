@@ -47,7 +47,10 @@ export type IndicatorPaint = {
   barColors: { time: number; color: string }[]
 }
 
-export type IndicatorOutput = { paint: IndicatorPaint; signals: IndicatorSignal[] }
+export type IndicatorOutput = {
+  paint: IndicatorPaint
+  signals: IndicatorSignal[]
+}
 
 /** Field metadata the generic params form renders. */
 export type IndicatorParamField = {
@@ -66,6 +69,8 @@ export type IndicatorModule<P = Record<string, unknown>> = {
   paramsSchema: z.ZodType<P>
   defaultParams: P
   paramFields: IndicatorParamField[]
+  /** Optional inspector sections. Fields not listed remain visible in Other settings. */
+  paramGroups?: { title: string; keys: string[] }[]
   /** Bars of history needed before the last-bar signal is trustworthy. */
   warmupBars: (params: P) => number
   /** Pure and causal: computing over a prefix matches the full series. */

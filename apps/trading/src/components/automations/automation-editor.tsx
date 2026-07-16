@@ -7,10 +7,7 @@ import { AutomationActivityLog } from "@/components/automations/automation-activ
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
-import {
-  AutomationPalette,
-  type AutomationPaletteChoice,
-} from "@/components/automations/automation-palette"
+import { AutomationPalette } from "@/components/automations/automation-palette"
 import { AutomationToolbar } from "@/components/automations/automation-toolbar"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,13 +39,15 @@ import {
   automationPaletteKeyForNode,
   type AutomationPaletteKey,
 } from "@/lib/automations/palette"
-import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
+import {
+  automationNodeName,
+  createAutomationNode,
+} from "@/lib/automations/node-registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
-import { automationNodeName } from "./node-labels"
 
 export function AutomationEditor({
   initial,
@@ -76,8 +75,8 @@ export function AutomationEditor({
   const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
     null
   )
-  const [draggedChoice, setDraggedChoice] =
-    React.useState<AutomationPaletteChoice | null>(null)
+  const [draggedNodeKey, setDraggedNodeKey] =
+    React.useState<AutomationPaletteKey | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(
     null
   )
@@ -226,56 +225,15 @@ export function AutomationEditor({
     [previewNode?.id, record]
   )
 
-  const createNode = React.useCallback((choice: AutomationPaletteChoice) => {
-    const id = crypto.randomUUID()
-    const x = 0
-    const y = 0
-    let node: AutomationNode
-    if (choice.kind === "indicator") {
-      node = {
-        id,
-        kind: "indicator",
-        x,
-        y,
-        indicator: {
-          type: choice.indicatorType,
-          params: {
-            ...(INDICATORS[choice.indicatorType].defaultParams as Record<
-              string,
-              IndicatorParamValue
-            >),
-          },
-        },
-      }
-    } else if (choice.kind === "lookback") {
-      node = { id, kind: "lookback", bars: 48, x, y }
-    } else if (choice.kind === "whaleWall") {
-      node = {
-        id,
-        kind: "whaleWall",
-        minUsd: 500_000,
-        relativeSize: 5,
-        maxDistancePct: 0.5,
-        confirmationMs: 2_000,
-        x,
-        y,
-      }
-    } else if (choice.kind === "takeProfit") {
-      node = { id, kind: "takeProfit", pct: 2, x, y }
-    } else if (choice.kind === "stopLoss") {
-      node = { id, kind: "stopLoss", pct: 1, x, y }
-    } else {
-      node = {
-        id,
-        kind: "action",
-        action: choice.action,
-        ...(choice.action === "close" ? {} : { targetEquityPct: 10 }),
-        x,
-        y,
-      }
-    }
-    return node
-  }, [])
+  const createNode = React.useCallback(
+    (key: AutomationPaletteKey) =>
+      createAutomationNode(key, {
+        id: crypto.randomUUID(),
+        x: 0,
+        y: 0,
+      }),
+    []
+  )
 
   const toggleFavoriteNode = React.useCallback(
     async (key: AutomationPaletteKey) => {
@@ -300,8 +258,8 @@ export function AutomationEditor({
   )
 
   const previewPaletteNode = React.useCallback(
-    (choice: AutomationPaletteChoice) => {
-      setPreviewNode(createNode(choice))
+    (key: AutomationPaletteKey) => {
+      setPreviewNode(createNode(key))
       setSelectedNodeId(null)
       setSelectedEdgeId(null)
       setPaletteOpen(false)
@@ -335,8 +293,8 @@ export function AutomationEditor({
   )
 
   const addNode = React.useCallback(
-    (choice: AutomationPaletteChoice, position?: { x: number; y: number }) =>
-      placeNode(createNode(choice), position),
+    (key: AutomationPaletteKey, position?: { x: number; y: number }) =>
+      placeNode(createNode(key), position),
     [createNode, placeNode]
   )
 
@@ -451,10 +409,10 @@ export function AutomationEditor({
       onSelectEdge={setSelectedEdgeId}
       onSizeChange={setCanvasSize}
       onDropNode={
-        draggedChoice
+        draggedNodeKey
           ? (position) => {
-              addNode(draggedChoice, position)
-              setDraggedChoice(null)
+              addNode(draggedNodeKey, position)
+              setDraggedNodeKey(null)
             }
           : undefined
       }
@@ -483,8 +441,8 @@ export function AutomationEditor({
             favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
             onAdd={addNode}
-            onDragStart={setDraggedChoice}
-            onDragEnd={() => setDraggedChoice(null)}
+            onDragStart={setDraggedNodeKey}
+            onDragEnd={() => setDraggedNodeKey(null)}
           />
         </WorkspacePanel>
       </ResizablePanel>
@@ -628,8 +586,8 @@ export function AutomationEditor({
             favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
             onAdd={addNode}
-            onDragStart={setDraggedChoice}
-            onDragEnd={() => setDraggedChoice(null)}
+            onDragStart={setDraggedNodeKey}
+            onDragEnd={() => setDraggedNodeKey(null)}
           />
         </SheetContent>
       </Sheet>

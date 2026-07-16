@@ -4,6 +4,20 @@ Plain-English reference for the Automation canvas semantics. The engine code
 lives in `src/lib/automations/` (compile + resolve) and is shared verbatim by
 the live worker and the backtester.
 
+## Adding a node
+
+`node-registry.ts` is the single catalog for node names, palette groups,
+defaults, descriptions, icon choices, settings-panel choices, output ports,
+attachment hooks, and allowed connections. The palette, editor, canvas,
+compiler, and favorites all read from that catalog instead of maintaining
+their own node lists and switches.
+
+A new node normally changes the registry, its saved shape/compiler handling,
+and its runtime or settings component when it needs custom behavior. Tests and
+this document still change deliberately. A node that reuses an existing saved
+shape and settings panel can be registered without editing the surrounding
+canvas files.
+
 ## Node types
 
 - **Indicator** — computes signals from candles. Three outputs:
@@ -20,11 +34,21 @@ the live worker and the backtester.
   feeds through it; nested Look Backs keep the strictest cap. It cannot wire
   directly into an action (that would re-fire the action on every candle in
   the window).
+- **Market Scanner** (scanner) — checks whether markets already chosen in the
+  bot or Backtest meet a daily-volume floor and, optionally, have enough price
+  history. It never chooses, adds, removes, or replaces markets. Its
+  **Markets** output connects to QFL.
 - **Whale Wall** (scanner) — reads the live order book and follows the closest
   qualifying wall on each side. **Bid Wall** connects to Long and **Ask Wall**
   connects to Short. Its minimum dollar size, size compared with nearby
   levels, maximum market distance, and confirmation time are editable. A wall
   can represent several anonymous orders; it does not identify a wallet.
+- **QFL** — a long-only Quickfingers Luc strategy. It detects a fast,
+  high-volume fall through a confirmed base and owns a fixed ladder of buys.
+  Every buy is anchored to that first base, can fill once, and has its own
+  profit order. An optional Trend input only controls whether a new ladder may
+  start; it does not cancel one already in progress. Markets come from the
+  existing bot and Backtest market pickers.
 - **Action (Long / Short / Close Position)** — targets a % of account equity
   (Close is full reduce-only). Multiple wires into one action mean "any of
   them fires it". The **Then** output is visual-flow only: it chains an
@@ -50,7 +74,8 @@ the live worker and the backtester.
 
 ## Rules the compiler enforces
 
-- Trend → indicator or Look Back. Look Back → indicator only.
+- Trend → indicator, Look Back, or QFL. Look Back → indicator or QFL.
+- Market Scanner Markets → QFL only. QFL accepts at most one Market Scanner.
 - Bullish/Bearish → action only. Then → indicator only.
 - Bid Wall → Long only. Ask Wall → Short only. A Whale Wall automation cannot
   also contain a candle-driven Long, Short, or Reverse entry. Candle-driven
@@ -59,7 +84,11 @@ the live worker and the backtester.
   its indicator's warm-up must also fit the engine's 1400-candle evaluation
   window (`AUTOMATION_MAX_WINDOW_BARS`) — compile rejects it otherwise, so a
   too-large Look Back errors instead of silently never trading.
-- No cycles; every node must reach an action.
+- QFL is the only entry owner in its Automation, so it cannot be combined with
+  Long, Short, Reverse, or Whale Wall entry paths. Candle-based Close rules are
+  allowed.
+- No cycles; every node must reach an action or QFL. A Market Scanner must
+  reach QFL.
 
 ## Backtesting (the only way to run one)
 
@@ -82,6 +111,41 @@ the live worker and the backtester.
   contain past order books. The editor explains this beside the disabled
   Backtest action, and the server rejects direct attempts too. Paper and live
   bots remain available.
+- Multi-market QFL bots reserve the entire planned ladder before buying. The
+  shared QFL exposure limit applies across every market runner. If simultaneous
+  signals do not all fit, QFL ranks them by past base recovery, crack-volume
+  strength, daily volume, then market name for a stable tie-break.
+
+## QFL sizing, recovery, and exits
+
+- The default ladder has five buys. Prices sit 2.5%, 4%, 5.5%, 7%, and 8.5%
+  below the frozen base. The saved spacing growth can change that curve.
+- Size grows geometrically by the saved multiplier. The percentages are
+  normalized so the complete ladder equals the saved per-market exposure.
+  Base, equity, prices, and sizes stay frozen for the whole cycle.
+- Each filled buy takes profit at its own fill price plus the saved profit
+  percentage, never above the saved ceiling below the broken base. Optional
+  stop and time exits close the whole remaining position.
+- Base respect starts with the first cracked confirmed base in a decline.
+  Lower bases before recovery remain part of that same test. A signed recovery
+  target below, at, or above the first base decides whether the test passed.
+  Unresolved tests fail, and zero historical tests cannot pass the optional
+  filter.
+- The saved respect window is loaded for candidate ranking even when the strict
+  filter is off. Markets without the full window remain eligible but rank below
+  markets with a complete score.
+- QFL loads and caches the required long history before using the optional
+  recovery-quality filter or Market Scanner history check. If history is
+  unavailable or incomplete, the check stays blocked instead of treating
+  missing data as proof.
+- Bot creation rejects market, timeframe, and history combinations that would
+  retain more than one million QFL history candles in one worker. Use fewer
+  markets, less history, or a coarser timeframe when that limit is reached.
+- Multi-market QFL waits for every active market to finish the same candle
+  before ranking cracks and reserving shared exposure.
+- After a worker restart, QFL cancels its old resting ladder orders before
+  rebuilding them. It stops if the saved filled size does not match the live
+  position, preventing an uncertain position from being bought twice.
 
 ## Runtime behavior worth knowing
 

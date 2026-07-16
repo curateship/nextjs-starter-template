@@ -7,9 +7,11 @@ import type {
   AutomationSourcePort,
   AutomationValidationError,
 } from "@/lib/automations/automation"
+import { automationNodeName } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
 
 import {
+  canConnectNodes,
   clampZoom,
   edgePath,
   fitViewport,
@@ -24,7 +26,6 @@ import {
   type CanvasSize,
 } from "./canvas-model"
 import { AutomationCanvasNode } from "./automation-canvas-node"
-import { automationNodeName } from "./node-labels"
 
 const MINIMAP_WIDTH = 164
 const MINIMAP_HEIGHT = 100
@@ -232,28 +233,10 @@ export function AutomationFlowCanvas({
     const current = currentRef.current.graph
     const source = current.nodes.find((node) => node.id === draft.from)
     const target = current.nodes.find((node) => node.id === targetId)
-    // Trend chains indicators (optionally via Look Back); Bullish/Bearish
-    // signals drive actions; the TP/SL hooks attach protective exit nodes.
+    // Trend chains indicators (optionally via Look Back) or filters QFL; the
+    // TP/SL hooks attach protective exit nodes.
     const allowed =
-      source &&
-      target &&
-      (draft.sourcePort === "trend"
-        ? source.kind === "lookback"
-          ? target.kind === "indicator"
-          : target.kind === "indicator" || target.kind === "lookback"
-        : draft.sourcePort === "then"
-          ? target.kind === "indicator"
-          : draft.sourcePort === "tp"
-            ? target.kind === "takeProfit"
-            : draft.sourcePort === "sl"
-              ? target.kind === "stopLoss"
-              : draft.sourcePort === "match"
-                ? false
-                : draft.sourcePort === "bidWall"
-                  ? target.kind === "action" && target.action === "buy"
-                  : draft.sourcePort === "askWall"
-                    ? target.kind === "action" && target.action === "short"
-                    : target.kind === "action")
+      source && target && canConnectNodes(source, draft.sourcePort, target)
     if (!allowed) {
       setConnect(null)
       return
