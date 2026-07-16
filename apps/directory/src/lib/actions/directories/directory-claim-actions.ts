@@ -32,6 +32,7 @@ import {
   pruneDirectoryValueBlocksForTemplate,
 } from '@/lib/actions/directories/directory-template-inheritance'
 import type { DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from '@/lib/actions/directories/directory-custom-blocks/types'
+import { resolveDirectoryCoordinateUpdates } from './directory-geocoding'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { generateSlug } from '@/lib/utils/slug'
@@ -1222,10 +1223,22 @@ export async function reviewDirectoryOwnerEditRequestAction(input: {
     getObjectBlocks(row.template.contentBlocks)
   )
 
+  // Geocode outside the transaction (network call); best-effort like builder saves.
+  const coordinateUpdates = await resolveDirectoryCoordinateUpdates({
+    siteId: row.directory.siteId,
+    current: {
+      latitude: row.directory.latitude,
+      longitude: row.directory.longitude,
+      geocodedAddress: row.directory.geocodedAddress,
+    },
+    contentBlocks: valueBlocks,
+  })
+
   await db.transaction(async (tx) => {
     await tx
       .update(directories)
       .set({
+        ...coordinateUpdates,
         title,
         slug: slugResult.slug,
         featuredImage,

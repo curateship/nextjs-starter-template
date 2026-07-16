@@ -27,6 +27,7 @@ import {
   safeDeleteSiteSearchDocument,
   safeSyncSiteSearchDocument,
 } from '@/lib/actions/site-search/site-search-index'
+import { resolveDirectoryCoordinateUpdates } from './directory-geocoding'
 export type DirectoryStatus = 'draft' | 'published'
 
 export interface Directory {
@@ -158,6 +159,16 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
         (directory.contentBlocks || {}) as Record<string, any>,
         nextTemplateContentBlocks || {}
       )
+      // Pruning can drop or change the address block; keep coordinates in sync.
+      Object.assign(drizzleUpdates, await resolveDirectoryCoordinateUpdates({
+        siteId: directory.siteId,
+        current: {
+          latitude: directory.latitude,
+          longitude: directory.longitude,
+          geocodedAddress: directory.geocodedAddress,
+        },
+        contentBlocks: drizzleUpdates.contentBlocks,
+      }))
     }
 
     // Update the directory
@@ -521,7 +532,18 @@ export async function updateDirectoryBlockValuesAction(directoryId: string, cont
     const derivedMetaDescription = directory.metaDescription
       ? null
       : deriveDirectoryMetaDescriptionFromBlocks(valueBlocks)
+    // Keep map coordinates in sync with the (possibly changed) core-block address.
+    const coordinateUpdates = await resolveDirectoryCoordinateUpdates({
+      siteId: directory.siteId,
+      current: {
+        latitude: directory.latitude,
+        longitude: directory.longitude,
+        geocodedAddress: directory.geocodedAddress,
+      },
+      contentBlocks: valueBlocks,
+    })
     const updates: Record<string, any> = {
+      ...coordinateUpdates,
       contentBlocks: valueBlocks,
       updatedAt: new Date(),
     }

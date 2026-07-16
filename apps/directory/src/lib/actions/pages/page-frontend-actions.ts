@@ -5,6 +5,7 @@ import { unstable_cache } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
+import { DIRECTORY_MAP_LISTING_LIMIT } from '@/lib/actions/directories/directory-map-core'
 import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
 import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
@@ -281,13 +282,16 @@ async function prefetchListingData(
           categoryChipParentIds = [],
           sortBy = 'date',
           sortOrder = 'desc',
+          displayMode = 'grid',
           itemsToShow = 6,
           itemsPerPage = 12,
           isPaginated = false
         } = block.content
 
-        const limit = isPaginated ? itemsPerPage : itemsToShow
-        const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
+        // Map mode plots the whole (capped) result set instead of a page of cards.
+        const isMapMode = displayMode === 'map' && contentType === 'directory'
+        const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
+        const offset = isMapMode || !isPaginated ? 0 : (listingPage - 1) * itemsPerPage
 
         const result = await getListingViewsData({
           site_id: siteId,

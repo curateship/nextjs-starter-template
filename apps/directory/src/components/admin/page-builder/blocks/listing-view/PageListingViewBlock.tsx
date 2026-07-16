@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -7,8 +8,14 @@ import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { getCategoriesWithCountsAction, type Category } from "@/lib/actions/categories/category-actions"
+import {
+  backfillDirectoryCoordinatesAction,
+  getDirectoryCoordinateStatsAction,
+  type DirectoryCoordinateStats,
+} from "@/lib/actions/directories/directory-map-actions"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import Check from "lucide-react/dist/esm/icons/check.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { cn } from "@/lib/utils/tailwind"
 
 type ListingContentType = 'products' | 'posts' | 'directory'
@@ -107,6 +114,85 @@ function ParentCategoryChipPicker({
   )
 }
 
+function ListingMapSettingsPanel({ siteId }: { siteId: string }) {
+  const [stats, setStats] = useState<DirectoryCoordinateStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [geocoding, setGeocoding] = useState(false)
+  const [lastRun, setLastRun] = useState<{ geocoded: number; failed: number } | null>(null)
+
+  const loadStats = useCallback(async () => {
+    const result = await getDirectoryCoordinateStatsAction(siteId)
+    if (result.data) {
+      setStats(result.data)
+      setError(null)
+    } else {
+      setError(result.error)
+    }
+  }, [siteId])
+
+  useEffect(() => {
+    void loadStats()
+  }, [loadStats])
+
+  const handleGeocode = async () => {
+    setGeocoding(true)
+    setLastRun(null)
+    try {
+      const result = await backfillDirectoryCoordinatesAction(siteId)
+      if (result.error || !result.data) {
+        setError(result.error || 'Failed to geocode listings')
+        return
+      }
+      setLastRun({ geocoded: result.data.geocoded, failed: result.data.failed })
+      await loadStats()
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-2 rounded-md bg-muted/50 p-3 text-sm">
+      <p className="font-medium">Map locations</p>
+      {error ? (
+        <p className="text-destructive">{error}</p>
+      ) : !stats ? (
+        <p className="text-muted-foreground">Checking listing locations…</p>
+      ) : (
+        <>
+          {!stats.hasApiKey && (
+            <p className="text-muted-foreground">
+              Connect the Google Maps integration (Site Settings → Integrations) to show the map.
+              Until then this block falls back to the grid layout.
+            </p>
+          )}
+          <p className="text-muted-foreground">
+            {stats.withCoordinates} of {stats.totalPublished} published listings have map locations.
+            Listings without one are left off the map.
+          </p>
+          {stats.hasApiKey && stats.needingGeocode > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={handleGeocode} disabled={geocoding}>
+                {geocoding ? <Loader2 className="size-4 animate-spin" /> : null}
+                Geocode {stats.needingGeocode} listing{stats.needingGeocode === 1 ? '' : 's'}
+              </Button>
+              <span className="text-xs text-muted-foreground">Runs in batches; click again if some remain.</span>
+            </div>
+          )}
+          {stats.hasApiKey && stats.needingGeocode === 0 && stats.totalPublished > 0 && (
+            <p className="text-muted-foreground">All listings with addresses are geocoded.</p>
+          )}
+          {lastRun && (
+            <p className="text-xs text-muted-foreground">
+              Geocoded {lastRun.geocoded} listing{lastRun.geocoded === 1 ? '' : 's'}
+              {lastRun.failed > 0 ? `; ${lastRun.failed} address${lastRun.failed === 1 ? '' : 'es'} could not be resolved` : ''}.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 interface SharedListingViewsBlockProps {
   title?: string
   subtitle?: string
@@ -120,7 +206,7 @@ interface SharedListingViewsBlockProps {
   imageHeight?: number
   imageQuality?: number
   saveIconOpacity?: number
-  displayMode?: 'grid' | 'list'
+  displayMode?: 'grid' | 'list' | 'map'
   itemsToShow?: number
   mobileColumns?: number
   columns?: number
@@ -144,7 +230,7 @@ interface SharedListingViewsBlockProps {
   onImageHeightChange: (value: number | undefined) => void
   onImageQualityChange: (value: number | undefined) => void
   onSaveIconOpacityChange: (value: number | undefined) => void
-  onDisplayModeChange: (value: 'grid' | 'list') => void
+  onDisplayModeChange: (value: 'grid' | 'list' | 'map') => void
   onItemsToShowChange: (value: number) => void
   onMobileColumnsChange: (value: number) => void
   onColumnsChange: (value: number) => void
@@ -319,7 +405,17 @@ export function PageListingViewBlock({
           <div className="grid gap-4">
             <div className="w-40 space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
-              <Select value={contentType} onValueChange={(value) => onContentTypeChange(value as ListingContentType)}>
+              <Select
+                value={contentType}
+                onValueChange={(value) => {
+                  const nextContentType = value as ListingContentType
+                  // Map mode is directory-only; leaving directory falls back to grid.
+                  if (displayMode === 'map' && nextContentType !== 'directory') {
+                    onDisplayModeChange('grid')
+                  }
+                  onContentTypeChange(nextContentType)
+                }}
+              >
                 <SelectTrigger id="contentType" size="button" className="w-full min-h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -472,6 +568,7 @@ export function PageListingViewBlock({
                       <SelectContent>
                         <SelectItem value="grid">Grid</SelectItem>
                         <SelectItem value="list">List</SelectItem>
+                        {contentType === 'directory' && <SelectItem value="map">Map</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -481,7 +578,7 @@ export function PageListingViewBlock({
                     <Select
                       value={displayMode === 'grid' ? mobileColumns.toString() : 'disabled'}
                       onValueChange={(v) => onMobileColumnsChange(parseInt(v))}
-                      disabled={displayMode === 'list'}
+                      disabled={displayMode !== 'grid'}
                     >
                       <SelectTrigger id="mobileColumns" size="button">
                         <SelectValue />
@@ -498,7 +595,7 @@ export function PageListingViewBlock({
                     <Select
                       value={displayMode === 'grid' ? columns.toString() : 'disabled'}
                       onValueChange={(v) => onColumnsChange(parseInt(v))}
-                      disabled={displayMode === 'list'}
+                      disabled={displayMode !== 'grid'}
                     >
                       <SelectTrigger id="columns" size="button">
                         <SelectValue />
@@ -538,6 +635,10 @@ export function PageListingViewBlock({
                     </Select>
                   </div>
                 </div>
+
+                {displayMode === 'map' && contentType === 'directory' && (
+                  <ListingMapSettingsPanel siteId={siteId} />
+                )}
                   </BlockEditorSection>
                 </CardContent>
               </Card>
