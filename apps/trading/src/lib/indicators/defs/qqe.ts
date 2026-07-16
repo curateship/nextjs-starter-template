@@ -78,15 +78,17 @@ export const qqeIndicator: IndicatorModule<QqeIndicatorParams> = {
 
   compute: (candles, params): IndicatorOutput => {
     const qqe = computeQqeSeries(candles, params)
-    const cons = computeConsolidation(
-      candles,
-      params.loopbackPeriod,
-      params.minConsolidationLen
-    )
+    const cons = params.consolidationFilter
+      ? computeConsolidation(
+          candles,
+          params.loopbackPeriod,
+          params.minConsolidationLen
+        )
+      : null
 
     const signals: IndicatorSignal[] = []
     for (let i = 0; i < candles.length; i += 1) {
-      const pass = params.consolidationFilter ? !cons.inZone[i] : true
+      const pass = cons ? !cons.inZone[i] : true
       if (!pass) continue
       if (qqe.buy[i]) signals.push({ time: candles[i].t, side: "buy" })
       else if (qqe.sell[i]) signals.push({ time: candles[i].t, side: "sell" })
@@ -105,7 +107,7 @@ export const qqeIndicator: IndicatorModule<QqeIndicatorParams> = {
       barColors.push({ time: candles[i].t, color })
     }
 
-    const zones = cons.zones.map((zone) => ({
+    const zones = (cons?.zones ?? []).map((zone) => ({
       id: `qqe-zone-${zone.startIndex}`,
       fromMs: candles[zone.startIndex].t,
       toMs: candles[zone.endIndex].t,

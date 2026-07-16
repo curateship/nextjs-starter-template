@@ -38,6 +38,7 @@ import {
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
 import { SESSION_OPTIONS, type SessionKey } from "@/lib/trading/sessions"
+import { cn } from "@/lib/utils"
 
 /**
  * Shared editor for one overlay indicator's settings (name, params, session,
@@ -48,11 +49,14 @@ import { SESSION_OPTIONS, type SessionKey } from "@/lib/trading/sessions"
 export function OverlaySettingsDialog({
   indicator,
   open,
+  draggable = false,
   onOpenChange,
   onSave,
 }: {
   indicator: IndicatorConfig
   open: boolean
+  /** Only chart overlays need a movable, non-blocking settings window. */
+  draggable?: boolean
   onOpenChange: (open: boolean) => void
   onSave: (next: IndicatorConfig) => Promise<void>
 }) {
@@ -157,20 +161,25 @@ export function OverlaySettingsDialog({
 
   return (
     <Dialog
-      modal={false}
+      modal={!draggable}
       open={open}
       onOpenChange={(next) => (busy ? null : onOpenChange(next))}
     >
       <DialogContent
         variant="admin"
-        showOverlay={false}
-        className="sm:max-w-md sm:will-change-transform"
-        onInteractOutside={(event) => event.preventDefault()}
+        showOverlay={!draggable}
+        className={cn("sm:max-w-md", draggable && "sm:will-change-transform")}
+        onInteractOutside={
+          draggable ? (event) => event.preventDefault() : undefined
+        }
       >
         <DialogHeader
-          className="sm:cursor-move sm:touch-none sm:select-none"
+          className={cn(
+            draggable && "sm:cursor-move sm:touch-none sm:select-none"
+          )}
           onPointerDown={(event) => {
-            if (event.button !== 0 || window.innerWidth < 640) return
+            if (!draggable || event.button !== 0 || window.innerWidth < 640)
+              return
             dragRef.current = {
               startX: event.clientX,
               startY: event.clientY,
@@ -179,6 +188,7 @@ export function OverlaySettingsDialog({
             event.currentTarget.setPointerCapture(event.pointerId)
           }}
           onPointerMove={(event) => {
+            if (!draggable) return
             const drag = dragRef.current
             if (!drag) return
             positionRef.current = {
@@ -193,10 +203,12 @@ export function OverlaySettingsDialog({
             }
           }}
           onPointerUp={(event) => {
+            if (!draggable) return
             dragRef.current = null
             event.currentTarget.releasePointerCapture(event.pointerId)
           }}
           onPointerCancel={() => {
+            if (!draggable) return
             dragRef.current = null
           }}
         >

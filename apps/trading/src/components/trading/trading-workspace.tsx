@@ -1391,6 +1391,7 @@ function IndicatorsMenu({
         <OverlaySettingsDialog
           indicator={editing}
           open={editingId !== null}
+          draggable
           onOpenChange={(open) => {
             if (!open) setEditingId(null)
           }}
