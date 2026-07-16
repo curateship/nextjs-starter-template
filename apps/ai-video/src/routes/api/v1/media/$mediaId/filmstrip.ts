@@ -16,7 +16,11 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/filmstrip")({
         const response = await streamPrivateR2Object({
           storagePath: media.filmstripStoragePath!,
           contentType: "image/jpeg",
-          cacheControl: "private, max-age=31536000, immutable",
+          // Not `immutable`: the sprite is regenerated in place at this stable
+          // per-media URL (e.g. when a clip's filmstrip is rebuilt), so the
+          // browser must be allowed to revalidate rather than pin the old bytes
+          // for a year. Matches the sibling thumbnail endpoints.
+          cacheControl: "private, max-age=3600",
           missingBodyMessage: "Failed to load filmstrip",
           storageNotConfiguredMessage:
             "R2 storage is not configured. Set the AI_VIDEO_R2_* environment variables.",
@@ -75,7 +79,7 @@ async function loadOwnedFilmstrip(mediaId: string) {
 
 function filmstripHeaders(media: AiVideoMedia) {
   return new Headers({
-    "Cache-Control": "private, max-age=31536000, immutable",
+    "Cache-Control": "private, max-age=3600",
     "Content-Type": "image/jpeg",
     "X-Content-Type-Options": "nosniff",
     "X-Filmstrip-Columns": String(media.filmstripColumns),
