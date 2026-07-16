@@ -82,6 +82,11 @@ import {
   type TextFontId,
 } from "@/lib/text-fonts"
 import {
+  CAPTION_ANIMATIONS,
+  DEFAULT_CAPTION_ANIMATION,
+  type CaptionAnimationId,
+} from "@/lib/caption-animations"
+import {
   getBriefErrorMessage,
   getScriptErrorMessage,
   writeProjectBrief,
@@ -1478,6 +1483,10 @@ function useCaptionStyle() {
   const [highlightColor, setHighlightColor] = React.useState<
     string | undefined
   >(captionStyles[0].highlightColor)
+  // Word-level entrance animation, chosen independently of the color/size
+  // style so any look can pair with any motion.
+  const [animation, setAnimation] =
+    React.useState<CaptionAnimationId>(DEFAULT_CAPTION_ANIMATION)
 
   // Picking a preset refills the editable controls.
   function applyPreset(id: string) {
@@ -1506,6 +1515,8 @@ function useCaptionStyle() {
     fontSize,
     color,
     highlightColor,
+    animation,
+    setAnimation,
     y,
     swatches: config.brandKit.colors,
     presets: captionStyles,
@@ -1549,6 +1560,29 @@ function CaptionStyleFields({
         onChange={style.patch}
         swatches={style.swatches}
       />
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-animation`}>Animation</Label>
+        <Select
+          value={style.animation}
+          onValueChange={(value) =>
+            style.setAnimation(value as CaptionAnimationId)
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-animation`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CAPTION_ANIMATIONS.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Word-by-word entrance for the spoken word (needs per-word timings).
+        </p>
+      </div>
     </>
   )
 }
@@ -1597,6 +1631,7 @@ function CaptionsDialog({
           fontSize: captionStyle.fontSize,
           color: captionStyle.color,
           highlightColor: captionStyle.highlightColor,
+          animation: captionStyle.animation,
           y: captionStyle.y,
           trimStartMs: 0,
           startMs: line.startMs,
@@ -1924,6 +1959,7 @@ function VoiceDialog({
             fontSize: captionStyle.fontSize,
             color: captionStyle.color,
             highlightColor: captionStyle.highlightColor,
+            animation: captionStyle.animation,
             y: captionStyle.y,
             trimStartMs: 0,
             // Shift into timeline time so captions line up with the audio.
@@ -2831,6 +2867,7 @@ function BriefToReelDialog({
               fontSize: captionStyle.fontSize,
               color: captionStyle.color,
               highlightColor: captionStyle.highlightColor,
+              animation: captionStyle.animation,
               y: captionStyle.y,
               trimStartMs: 0,
               startMs: line.startMs,

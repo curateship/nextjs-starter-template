@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import type { CaptionAnimationId } from "../../lib/caption-animations.ts"
 import {
   applyHookVariant,
   type HookVariantInput,
@@ -47,6 +48,9 @@ export type EditorClip = {
   // Per-word timings for voice-synced captions; the active word is highlighted
   // as playback reaches it. Unset = static text (rendered all one color).
   words?: ClipWord[]
+  // Entrance animation played by the active karaoke word each time it becomes
+  // the spoken word. Unset or "none" = static highlight (the historical look).
+  animation?: CaptionAnimationId
   // Normalized 0–1 position of the text block's CENTER on the frame
   // (default 0.5/0.5 = centered). Set by dragging the text in the preview.
   x?: number

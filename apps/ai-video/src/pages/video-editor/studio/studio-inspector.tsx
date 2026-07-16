@@ -3,6 +3,10 @@ import { Pause, Play, Replace, Film, Trash2 } from "lucide-react"
 
 import { requireTextFont, type TextFontId } from "@/lib/text-fonts"
 import {
+  CAPTION_ANIMATIONS,
+  resolveCaptionAnimation,
+} from "@/lib/caption-animations"
+import {
   findClip,
   useEditorDurationMs,
   useEditorRuntime,
@@ -449,6 +453,45 @@ function TextInspector({ clip }: { clip: EditorClip }) {
           onToggle={() => patch({ highlightColor: boxed ? undefined : "#ffffff" })}
         />
       </div>
+
+      {/* Word-level entrance animation — only meaningful for karaoke captions
+          (clips with per-word timings). */}
+      {clip.words?.length ? (
+        <>
+          <Label style={{ margin: "0 0 9px" }}>Animation</Label>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              marginBottom: 18,
+            }}
+          >
+            {CAPTION_ANIMATIONS.map((option) => {
+              const on = resolveCaptionAnimation(clip.animation) === option.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  title={option.description}
+                  onClick={() => patch({ animation: option.id })}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    border: `1px solid ${on ? "var(--acc)" : "var(--line)"}`,
+                    background: on ? "var(--acc-soft)" : "var(--panel2)",
+                    color: "var(--ink)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : null}
 
       <Timing clip={clip} />
     </div>

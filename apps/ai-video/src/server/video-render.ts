@@ -23,6 +23,12 @@ import {
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
+  captionExportWindows,
+  captionWordAnimation,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/caption-animations"
+import {
   requireCanonicalTimeline,
   SAVED_TIMELINE_INVALID_MESSAGE,
 } from "@/lib/timeline-schema"
@@ -465,31 +471,41 @@ async function buildFfmpegCommand(options: {
       const words = clip.words
       if (words?.length) {
         // Karaoke: the highlight moves word-by-word, so render one frame per
-        // active word and overlay each for that word's sub-window.
+        // active word and overlay each for that word's sub-window. Animated
+        // captions further subdivide each word's window so the active word's
+        // entrance (scale/slide/fade) is baked into the frames — matching the
+        // preview's continuous CSS transform.
+        const animated = isAnimatedCaption(resolveCaptionAnimation(clip.animation))
         for (let i = 0; i < words.length; i++) {
           const fromMs = i === 0 ? 0 : words[i].startMs
           const toMs =
             i === words.length - 1 ? clip.durationMs : words[i + 1].startMs
-          const segStartS = (clip.startMs + fromMs) / 1000
-          const segEndS = (clip.startMs + toMs) / 1000
-          if (segEndS <= segStartS) continue
-          const png = await renderTextPng(clip, size, i)
-          const file = path.join(dir, `text-${visualStep}.png`)
-          await writeFile(file, png)
-          inputs.push(
-            "-loop",
-            "1",
-            "-t",
-            String(segEndS - segStartS),
-            "-i",
-            file
-          )
-          filters.push(
-            `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
-            `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
-          )
-          inputIndex += 1
-          visualStep += 1
+          if (toMs <= fromMs) continue
+          const subWindows = animated
+            ? captionExportWindows(fromMs, toMs, words[i].startMs)
+            : [{ fromMs, toMs, progress: undefined as number | undefined }]
+          for (const sub of subWindows) {
+            const segStartS = (clip.startMs + sub.fromMs) / 1000
+            const segEndS = (clip.startMs + sub.toMs) / 1000
+            if (segEndS <= segStartS) continue
+            const png = await renderTextPng(clip, size, i, sub.progress)
+            const file = path.join(dir, `text-${visualStep}.png`)
+            await writeFile(file, png)
+            inputs.push(
+              "-loop",
+              "1",
+              "-t",
+              String(segEndS - segStartS),
+              "-i",
+              file
+            )
+            filters.push(
+              `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
+              `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
+            )
+            inputIndex += 1
+            visualStep += 1
+          }
         }
         // Frames + increments handled above; skip the single-overlay path.
         continue
@@ -785,7 +801,10 @@ function layoutWords(
 async function renderTextPng(
   clip: EditorClip,
   size: { width: number; height: number },
-  activeWordIndex?: number
+  activeWordIndex?: number,
+  // Entrance progress (0..1) for the active word when the clip carries an
+  // animated caption preset; undefined/none renders the resting look.
+  animationProgress?: number
 ) {
   const font = requireTextFont(clip.fontId)
   const fontFile = renderFontPath(font.fileName)
@@ -795,6 +814,14 @@ async function renderTextPng(
 
   const scale = size.height / DESIGN_HEIGHT
   const fontSize = (clip.fontSize ?? 80) * scale
+
+  // When set, the active word is drawn as a separate transformed overlay so it
+  // can scale/translate/fade; the same math the preview applies in CSS.
+  const animation = resolveCaptionAnimation(clip.animation)
+  const wordAnim =
+    isAnimatedCaption(animation) && activeWordIndex != null
+      ? captionWordAnimation(animation, animationProgress ?? 1)
+      : null
   const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
   const lineHeight = fontSize * 1.15
   const maxWidth = size.width * 0.9
@@ -822,6 +849,9 @@ async function renderTextPng(
 
   let maxLineWidth = 0
   const spans: string[] = []
+  // Geometry of the active word when it is animated (drawn as an overlay below).
+  let activeWordGeom: { x: number; baseline: number; text: string; width: number } | null =
+    null
   lineSegments.forEach((segs, li) => {
     const baseline = firstBaseline + li * lineHeight
     const lineWidth =
@@ -833,10 +863,16 @@ async function renderTextPng(
       // and the rest dimmed.
       let x = centerX - lineWidth / 2
       for (const seg of segs) {
-        const opacity = seg.index === activeWordIndex ? 1 : KARAOKE_DIM
-        spans.push(
-          `<tspan x="${x.toFixed(1)}" y="${baseline.toFixed(1)}" fill-opacity="${opacity}">${escapeXml(seg.text) || " "}</tspan>`
-        )
+        const isActive = seg.index === activeWordIndex
+        if (isActive && wordAnim) {
+          // Skip the inline span; the transformed overlay draws this word.
+          activeWordGeom = { x, baseline, text: seg.text, width: seg.width }
+        } else {
+          const opacity = isActive ? 1 : KARAOKE_DIM
+          spans.push(
+            `<tspan x="${x.toFixed(1)}" y="${baseline.toFixed(1)}" fill-opacity="${opacity}">${escapeXml(seg.text) || " "}</tspan>`
+          )
+        }
         x += seg.width + charWidth
       }
     } else {
@@ -864,12 +900,29 @@ async function renderTextPng(
   // preview) so it reads cleanly on the highlight.
   const textFilter = highlight ? "" : ` filter="url(#shadow)"`
   const textAnchor = karaoke ? "start" : "middle"
+
+  // The animated active word, drawn on top with its own transform group so it
+  // can scale about its center and shift vertically — matching the preview's
+  // CSS transform (dy is em-relative there, user-unit-relative here). Scale is
+  // about the word's visual center (~0.3em above the baseline).
+  let activeOverlay = ""
+  if (wordAnim && activeWordGeom) {
+    const geom: { x: number; baseline: number; text: string; width: number } =
+      activeWordGeom
+    const cx = geom.x + geom.width / 2
+    const cy = geom.baseline - fontSize * 0.3
+    const dy = wordAnim.dyEm * fontSize
+    const transform = `translate(0 ${dy.toFixed(2)}) translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${wordAnim.scale.toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`
+    activeOverlay = `<g transform="${transform}"><text${textFilter} text-anchor="start" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}" fill-opacity="${wordAnim.opacity.toFixed(3)}"><tspan x="${geom.x.toFixed(1)}" y="${geom.baseline.toFixed(1)}">${escapeXml(geom.text) || " "}</tspan></text></g>`
+  }
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
   ${highlightRect}
   <text${textFilter} text-anchor="${textAnchor}" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
+  ${activeOverlay}
 </svg>`
 
   const { Resvg } = loadResvg()

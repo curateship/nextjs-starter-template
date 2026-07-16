@@ -10,6 +10,13 @@ import {
 } from "@/lib/audio-ducking"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
+  captionEntranceProgress,
+  captionWordAnimation,
+  captionWordTransformCss,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/caption-animations"
+import {
   timelineDurationMs,
   useEditorRuntime,
   useEditorSelector,
@@ -431,6 +438,8 @@ export function EditorPreview() {
     for (const el of textRefs.current.values()) el.style.visibility = "hidden"
     for (const el of wordRefs.current.values()) {
       el.style.opacity = String(KARAOKE_DIM)
+      // Clear any lingering animated-caption transform from a prior index.
+      if (el.style.transform) el.style.transform = ""
     }
 
     function syncFrame() {
@@ -538,12 +547,39 @@ export function EditorPreview() {
         if (playing && el.paused) void el.play().catch(() => undefined)
       }
 
-      // Karaoke: binary-search the active word and update only the two spans
-      // whose state changes, rather than rewriting every word every frame.
+      // Karaoke: binary-search the active word and update spans imperatively.
       for (const { clip } of frame.texts.values()) {
         if (!clip.words?.length) continue
-        const active = activeWordIndex(clip.words, timeMs - clip.startMs)
+        const relativeMs = timeMs - clip.startMs
+        const active = activeWordIndex(clip.words, relativeMs)
         const previous = activeWords.get(clip.id)
+        const animation = resolveCaptionAnimation(clip.animation)
+
+        if (isAnimatedCaption(animation)) {
+          // The active word animates continuously through its entrance, so it
+          // must be re-styled every frame (one span). When it changes, the
+          // outgoing word is reset to the resting dimmed look.
+          if (previous != null && previous !== active) {
+            const previousEl = wordRefs.current.get(`${clip.id}:${previous}`)
+            if (previousEl) {
+              previousEl.style.opacity = String(KARAOKE_DIM)
+              previousEl.style.transform = ""
+            }
+          }
+          const activeEl = wordRefs.current.get(`${clip.id}:${active}`)
+          if (activeEl) {
+            const t = captionWordAnimation(
+              animation,
+              captionEntranceProgress(relativeMs, clip.words[active].startMs)
+            )
+            activeEl.style.opacity = String(t.opacity)
+            activeEl.style.transform = captionWordTransformCss(t)
+          }
+          activeWords.set(clip.id, active)
+          continue
+        }
+
+        // Static highlight: only the two spans that change need touching.
         if (previous === active) continue
         if (previous != null) {
           const previousEl = wordRefs.current.get(`${clip.id}:${previous}`)
@@ -697,6 +733,8 @@ export function EditorPreview() {
           const active = words?.length
             ? activeWordIndex(words, now - clip.startMs)
             : -1
+          const animation = resolveCaptionAnimation(clip.animation)
+          const animated = isAnimatedCaption(animation)
           return (
           <div
             key={clip.id}
@@ -729,18 +767,50 @@ export function EditorPreview() {
             }}
           >
             {words?.length
-              ? words.map((word, i) => (
+              ? words.map((word, i) => {
                   // Karaoke: each word is a span the sync loop dims/lights;
-                  // initial opacity matches the (paused) playhead.
-                  <span
-                    key={i}
-                    ref={registerRef(wordRefs, `${clip.id}:${i}`)}
-                    style={{ opacity: i === active ? 1 : KARAOKE_DIM }}
-                  >
-                    {word.text}
-                    {i < words.length - 1 ? " " : ""}
-                  </span>
-                ))
+                  // initial style matches the (paused) playhead. The trailing
+                  // space is a sibling text node so animated (inline-block)
+                  // words still wrap. Animated clips carry the active word's
+                  // entrance transform up front to avoid a first-frame flash.
+                  const isActiveWord = i === active
+                  const enter =
+                    animated && isActiveWord
+                      ? captionWordAnimation(
+                          animation,
+                          captionEntranceProgress(
+                            now - clip.startMs,
+                            word.startMs
+                          )
+                        )
+                      : null
+                  return (
+                    <React.Fragment key={i}>
+                      <span
+                        ref={registerRef(wordRefs, `${clip.id}:${i}`)}
+                        style={{
+                          opacity: enter
+                            ? enter.opacity
+                            : isActiveWord
+                              ? 1
+                              : KARAOKE_DIM,
+                          ...(animated
+                            ? {
+                                display: "inline-block",
+                                transformOrigin: "center",
+                                transform: enter
+                                  ? captionWordTransformCss(enter)
+                                  : undefined,
+                              }
+                            : null),
+                        }}
+                      >
+                        {word.text}
+                      </span>
+                      {i < words.length - 1 ? " " : ""}
+                    </React.Fragment>
+                  )
+                })
               : clip.text}
           </div>
           )
