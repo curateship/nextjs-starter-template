@@ -6,6 +6,10 @@ import path from "node:path"
 import { and, eq } from "drizzle-orm"
 
 import {
+  detectFillerRanges,
+  sanitizeFillerTerms,
+} from "../lib/filler-words.ts"
+import {
   requireCanonicalTimeline,
   type ProjectTimeline,
 } from "../lib/timeline-schema.ts"
@@ -15,6 +19,9 @@ import { mediaExtensionForMimeType } from "./media-types.ts"
 
 export type JumpCutSensitivity = "conservative" | "balanced" | "tight"
 export type JumpCutConfidence = "low" | "medium" | "high"
+// "dead-air" removes silence/speech pauses (the original behavior); "filler"
+// removes spoken filler words from the same transcription pass.
+export type JumpCutMode = "dead-air" | "filler"
 
 export type JumpCutWord = {
   text: string
@@ -70,7 +77,14 @@ export async function analyzeJumpCutsForCurrentUser(data: {
   projectId: string
   clipId: string
   sensitivity: JumpCutSensitivity
+  mode?: JumpCutMode
+  fillerTerms?: string[]
 }): Promise<JumpCutAnalysisResult> {
+  const mode: JumpCutMode = data.mode ?? "dead-air"
+  const fillerTerms = sanitizeFillerTerms(data.fillerTerms)
+  if (mode === "filler" && !fillerTerms.length) {
+    return { suggestions: [] }
+  }
   const { db } = await import("./db.ts")
   const { bodyToBytes, getFromR2 } = await import("./media-storage.ts")
   const { requireAppOrigin } = await import("./origin.ts")
@@ -141,6 +155,17 @@ export async function analyzeJumpCutsForCurrentUser(data: {
           clip.durationMs
         )
         const words = await transcribeWordsWithOpenAI(apiKey, audioBytes)
+
+        if (mode === "filler") {
+          return {
+            suggestions: buildFillerWordSuggestions({
+              clip,
+              words,
+              terms: fillerTerms,
+            }),
+          }
+        }
+
         const silenceRanges = await detectSilenceRanges(
           audioBytes,
           clip.durationMs
@@ -275,6 +300,41 @@ export function buildJumpCutSuggestions({
       timelineEndMs: clip.startMs + range.endMs,
       reason: reasonForCandidate(range),
       confidence: confidenceForCandidate(range),
+      removedDurationMs: range.endMs - range.startMs,
+    }))
+}
+
+// One reviewable cut per detected filler occurrence. Words arrive clip-window
+// relative (0 = start of the trimmed clip), so their times map straight onto
+// the removal spans the APPLY_JUMP_CUTS reducer expects. Occurrences shorter
+// than a keepable clip are dropped so the review list only shows cuts that
+// actually apply.
+export function buildFillerWordSuggestions({
+  clip,
+  words,
+  terms,
+}: {
+  clip: Pick<EditorClip, "startMs" | "durationMs" | "trimStartMs">
+  words: JumpCutWord[]
+  terms: string[]
+}): JumpCutSuggestion[] {
+  return detectFillerRanges(words, terms)
+    .map((range) => ({
+      ...range,
+      startMs: Math.max(0, Math.min(range.startMs, clip.durationMs)),
+      endMs: Math.max(0, Math.min(range.endMs, clip.durationMs)),
+    }))
+    .filter((range) => range.endMs - range.startMs >= MIN_CLIP_MS)
+    .map((range, index) => ({
+      id: `filler-cut-${index + 1}`,
+      sourceStartMs: clip.trimStartMs + range.startMs,
+      sourceEndMs: clip.trimStartMs + range.endMs,
+      clipStartMs: range.startMs,
+      clipEndMs: range.endMs,
+      timelineStartMs: clip.startMs + range.startMs,
+      timelineEndMs: clip.startMs + range.endMs,
+      reason: `Filler: “${range.term}”`,
+      confidence: range.confidence,
       removedDurationMs: range.endMs - range.startMs,
     }))
 }
