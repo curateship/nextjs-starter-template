@@ -6,7 +6,6 @@ import type { LucideIcon } from "lucide-react"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import Bell from "lucide-react/dist/esm/icons/bell.js"
 import CheckCheck from "lucide-react/dist/esm/icons/check-check.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 
@@ -18,7 +17,6 @@ import {
 } from "@/lib/actions/notifications/notification-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,26 +116,6 @@ function NotificationRow({
         </p>
       </div>
     </button>
-  )
-}
-
-function NotificationTraySkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-[0.25rem_2.5rem_1fr] gap-2 rounded-md p-2">
-          <div className="pt-5">
-            <Skeleton className="size-2 rounded-full" />
-          </div>
-          <Skeleton className="size-9 rounded-full" />
-          <div className="min-w-0 space-y-2">
-            <Skeleton className="h-4 w-3/5" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/5" />
-          </div>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -282,7 +260,7 @@ export function NotificationCenter() {
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           className="relative"
           aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
@@ -314,9 +292,7 @@ export function NotificationCenter() {
 
         <ScrollArea className="h-112" viewportRef={scrollAreaRef}>
           <div className="px-4 py-4">
-            {loading ? (
-              <NotificationTraySkeleton />
-            ) : visibleNotifications.length > 0 ? (
+            {visibleNotifications.length > 0 ? (
               <div className="space-y-3">
                 {visibleNotifications.map((item) => (
                   <NotificationRow
@@ -326,19 +302,13 @@ export function NotificationCenter() {
                   />
                 ))}
               </div>
-            ) : (
+            ) : loading ? null : (
               <div className="py-10 text-center text-sm text-muted-foreground">
                 No notifications
               </div>
             )}
             {error ? (
               <p className="mt-4 text-sm text-destructive">{error}</p>
-            ) : null}
-            {loadingMore ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading more
-              </div>
             ) : null}
           </div>
         </ScrollArea>

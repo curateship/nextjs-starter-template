@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions";
 import { cn } from "@/lib/utils/tailwind";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
@@ -55,6 +54,7 @@ export function AdminTableShell({
   count,
   footer,
   icon,
+  loading = false,
   onClearSelection,
   selectedCount = 0,
   status,
@@ -65,9 +65,10 @@ export function AdminTableShell({
   children: ReactNode;
   className?: string;
   controls?: ReactNode;
-  count: ReactNode;
+  count: number;
   footer?: ReactNode;
   icon?: ReactNode;
+  loading?: boolean;
   onClearSelection?: () => void;
   selectedCount?: number;
   status?: AdminTableStatus | null;
@@ -76,7 +77,7 @@ export function AdminTableShell({
   titleMeta?: ReactNode;
 }) {
   return (
-    <TableSurface className={className}>
+    <TableSurface className={className} aria-busy={loading}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           {icon ? (
@@ -106,7 +107,7 @@ export function AdminTableShell({
         {controls}
       </div>
       {children}
-      {footer ?? <AdminTableFooterSkeleton />}
+      {footer}
     </TableSurface>
   );
 }
@@ -238,73 +239,11 @@ export function AdminSelectionBanner({
   );
 }
 
-export function AdminListSkeleton({
-  columns = 6,
-  actionCount = 2,
-  rowCount = 5,
-  showCheckbox = true,
-  showThumbnail = true,
-}: {
-  actionCount?: number;
-  columns?: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 12;
-  rowCount?: number;
-  showCheckbox?: boolean;
-  showThumbnail?: boolean;
-}) {
-  const hasActionColumn = actionCount > 0;
-  const middleColumnCount = Math.max(
-    0,
-    columns - (showCheckbox ? 1 : 0) - 1 - (hasActionColumn ? 1 : 0),
-  );
-
+export function AdminListPending() {
   return (
-    <>
-      {Array.from({ length: rowCount }, (_, index) => (
-        <TableRow key={index}>
-          {showCheckbox && (
-            <TableCell column="select">
-              <div className="h-4 w-4 rounded bg-muted motion-safe:animate-pulse" />
-            </TableCell>
-          )}
-          <TableCell column="main">
-            <div className="flex items-center space-x-4">
-              {showThumbnail && (
-                <div className="h-10 w-10 rounded bg-muted motion-safe:animate-pulse" />
-              )}
-              <div>
-                <div className="mb-2 h-4 w-36 rounded bg-muted motion-safe:animate-pulse" />
-                <div className="h-3 w-24 rounded bg-muted/60 motion-safe:animate-pulse" />
-              </div>
-            </div>
-          </TableCell>
-          {Array.from({ length: middleColumnCount }, (_, columnIndex) => (
-            <TableCell
-              key={columnIndex}
-              column={columnIndex === 0 ? "meta" : "mutedMeta"}
-            >
-              <div
-                className={cn(
-                  "rounded bg-muted motion-safe:animate-pulse",
-                  columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-4 w-20",
-                )}
-              />
-            </TableCell>
-          ))}
-          {hasActionColumn && (
-            <TableCell column="meta">
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: actionCount }, (_, actionIndex) => (
-                  <div
-                    key={actionIndex}
-                    className="h-8 w-8 rounded bg-muted motion-safe:animate-pulse"
-                  />
-                ))}
-              </div>
-            </TableCell>
-          )}
-        </TableRow>
-      ))}
-    </>
+    <TableRow aria-hidden="true" className="border-0">
+      <TableCell colSpan={100} className="h-32 border-0 p-0" />
+    </TableRow>
   );
 }
 
@@ -413,24 +352,6 @@ export function AdminListFooter({
         >
           <ChevronsRight className="size-4" />
         </Button>
-      </div>
-    </div>
-  );
-}
-
-function AdminTableFooterSkeleton() {
-  return (
-    <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
-      <div className="flex items-center gap-2">
-        <Skeleton className="hidden h-4 w-24 sm:block" />
-        <Skeleton className="h-8 w-[70px]" />
-        <Skeleton className="h-4 w-16" />
-      </div>
-      <div className="flex items-center gap-1">
-        <Skeleton className="size-8" />
-        <Skeleton className="size-8" />
-        <Skeleton className="size-8" />
-        <Skeleton className="size-8" />
       </div>
     </div>
   );

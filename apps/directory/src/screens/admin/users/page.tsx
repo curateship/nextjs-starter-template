@@ -7,9 +7,8 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
   formatShortDate as formatDate,
   useAdminBulkSelection,
@@ -449,6 +448,7 @@ export default function UsersPage() {
             title="Users"
             icon={<User className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredUsers.length}
+            loading={loading}
             selectedCount={userSelection.selectedCount}
             onClearSelection={userSelection.clearSelection}
             titleActions={
@@ -569,8 +569,8 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={7} showCheckbox actionCount={1} />
+                  {loading && sortedUsers.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

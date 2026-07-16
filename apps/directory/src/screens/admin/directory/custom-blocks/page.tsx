@@ -16,7 +16,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter, ConfirmDestructive } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, ConfirmDestructive } from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -112,6 +112,7 @@ export default function DirectoryCustomBlocksPage() {
             title="Custom Blocks"
             icon={<Pencil className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredTemplates.length}
+            loading={loading}
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -140,8 +141,8 @@ export default function DirectoryCustomBlocksPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={6} rowCount={3} showCheckbox={false} showThumbnail={false} />
+                  {loading && filteredTemplates.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredTemplates.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">

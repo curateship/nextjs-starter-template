@@ -6,6 +6,7 @@ import { cva, VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils/tailwind"
+import { clampAdminSidebarWidth, DEFAULT_ADMIN_SIDEBAR_WIDTH } from "@/lib/utils/admin-sidebar-width"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -23,7 +24,6 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "13.6rem"
 const SIDEBAR_WIDTH_MOBILE = "14.4rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
@@ -36,6 +36,8 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  sidebarWidth: number
+  commitSidebarWidth: (width: number) => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -53,6 +55,8 @@ function SidebarProvider({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
+  sidebarWidth = DEFAULT_ADMIN_SIDEBAR_WIDTH,
+  onSidebarWidthCommit,
   className,
   style,
   children,
@@ -61,6 +65,8 @@ function SidebarProvider({
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  sidebarWidth?: number
+  onSidebarWidthCommit?: (width: number) => void
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
@@ -118,8 +124,10 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      sidebarWidth,
+      commitSidebarWidth: (width) => onSidebarWidthCommit?.(clampAdminSidebarWidth(width)),
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth, onSidebarWidthCommit]
   )
 
   return (
@@ -129,7 +137,7 @@ function SidebarProvider({
           data-slot="sidebar-wrapper"
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width": `${clampAdminSidebarWidth(sidebarWidth)}px`,
               "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
               ...style,
             } as React.CSSProperties
@@ -214,7 +222,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear group-data-[resizing=true]/sidebar-wrapper:transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -225,7 +233,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear group-data-[resizing=true]/sidebar-wrapper:transition-none md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -249,25 +257,108 @@ function Sidebar({
   )
 }
 
-function SidebarRail({ className, style, ...props }: React.ComponentProps<"button">) {
-  const { toggleSidebar } = useSidebar()
+function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+  const { commitSidebarWidth, sidebarWidth, state, toggleSidebar } = useSidebar()
+  const dragRef = React.useRef<{
+    startX: number
+    startWidth: number
+    width: number
+    direction: 1 | -1
+    wrapper: HTMLElement
+  } | null>(null)
+  const draggedRef = React.useRef(false)
+
+  const clearResize = React.useCallback(() => {
+    const drag = dragRef.current
+    if (!drag) return null
+
+    drag.wrapper.removeAttribute("data-resizing")
+    document.body.style.removeProperty("cursor")
+    document.body.style.removeProperty("user-select")
+    dragRef.current = null
+    return drag
+  }, [])
+
+  const finishResize = React.useCallback(() => {
+    const drag = clearResize()
+    if (!drag) return
+    if (draggedRef.current) commitSidebarWidth(drag.width)
+  }, [clearResize, commitSidebarWidth])
+
+  const cancelResize = React.useCallback(() => {
+    const drag = clearResize()
+    if (!drag) return
+
+    drag.wrapper.style.setProperty("--sidebar-width", `${drag.startWidth}px`)
+    draggedRef.current = false
+  }, [clearResize])
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
-      tabIndex={-1}
-      onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      aria-label="Resize or toggle sidebar"
+      tabIndex={0}
+      onPointerDown={(event) => {
+        if (state === "collapsed" || event.button !== 0) return
+
+        const wrapper = event.currentTarget.closest<HTMLElement>('[data-slot="sidebar-wrapper"]')
+        const sidebar = event.currentTarget.closest<HTMLElement>('[data-slot="sidebar"]')
+        if (!wrapper || !sidebar) return
+
+        draggedRef.current = false
+        dragRef.current = {
+          startX: event.clientX,
+          startWidth: sidebarWidth,
+          width: sidebarWidth,
+          direction: sidebar.dataset.side === "right" ? -1 : 1,
+          wrapper,
+        }
+        event.currentTarget.setPointerCapture(event.pointerId)
+        wrapper.setAttribute("data-resizing", "true")
+        document.body.style.cursor = "col-resize"
+        document.body.style.userSelect = "none"
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current
+        if (!drag) return
+
+        const delta = (event.clientX - drag.startX) * drag.direction
+        if (Math.abs(delta) >= 3) draggedRef.current = true
+        if (!draggedRef.current) return
+
+        drag.width = clampAdminSidebarWidth(drag.startWidth + delta)
+        drag.wrapper.style.setProperty("--sidebar-width", `${drag.width}px`)
+      }}
+      onPointerUp={finishResize}
+      onPointerCancel={cancelResize}
+      onClick={(event) => {
+        if (draggedRef.current) {
+          draggedRef.current = false
+          event.preventDefault()
+          return
+        }
+        toggleSidebar()
+      }}
+      onKeyDown={(event) => {
+        if (state === "collapsed" || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return
+
+        event.preventDefault()
+        const sidebar = event.currentTarget.closest<HTMLElement>('[data-slot="sidebar"]')
+        const direction = sidebar?.dataset.side === "right" ? -1 : 1
+        const delta = event.key === "ArrowRight" ? 8 : -8
+        commitSidebarWidth(sidebarWidth + delta * direction)
+      }}
+      title="Drag to resize or click to collapse"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
+        "absolute inset-y-0 z-20 hidden w-4 touch-none -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
+        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
+        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
         className
       )}
-      style={{ cursor: "ew-resize", ...style }}
       {...props}
     />
   )

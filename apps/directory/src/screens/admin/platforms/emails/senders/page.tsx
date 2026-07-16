@@ -7,8 +7,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
-  AdminListSkeleton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
 } from "@/components/admin/layout/list";
 import {
@@ -134,6 +133,7 @@ export default function PlatformSenderEmailsPage() {
             title="Email Accounts"
             icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredSenders.length}
+            loading={loading}
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -157,13 +157,8 @@ export default function PlatformSenderEmailsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton
-                      columns={4}
-                      rowCount={1}
-                      showCheckbox={false}
-                      showThumbnail={false}
-                    />
+                  {loading && filteredSenders.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredSenders.length === 0 ? (
                     <TableRow>
                       <TableCell

@@ -7,9 +7,8 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
-  AdminListSkeleton,
   formatShortDate,
 } from "@/components/admin/layout/list";
 import {
@@ -119,6 +118,7 @@ export default function PlatformEmailsPage() {
             title="Email Templates"
             icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredTemplates.length}
+            loading={loading}
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -142,13 +142,8 @@ export default function PlatformEmailsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton
-                      columns={4}
-                      rowCount={3}
-                      showCheckbox={false}
-                      showThumbnail={false}
-                    />
+                  {loading && filteredTemplates.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredTemplates.length === 0 ? (
                     <TableRow>
                       <TableCell

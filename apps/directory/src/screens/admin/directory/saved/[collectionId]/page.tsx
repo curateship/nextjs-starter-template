@@ -21,8 +21,7 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection
 } from "@/components/admin/layout/list"
@@ -166,6 +165,7 @@ export default function DirectorySavedFolderPage({
             title={collection?.name || "Saved Folder"}
             icon={<Bookmark className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={total}
+            loading={loading}
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}
             titleMeta={collection ? (
@@ -228,8 +228,8 @@ export default function DirectorySavedFolderPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} rowCount={5} />
+                  {loading && items.length === 0 ? (
+                    <AdminListPending />
                   ) : items.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

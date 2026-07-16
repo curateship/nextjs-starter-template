@@ -226,10 +226,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
         <div className="flex flex-1 items-center justify-center overflow-hidden p-6">
           <div className="max-w-md text-center">
             {pagesLoading ? (
-              <>
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-                <p className="mt-4 text-sm text-muted-foreground">Loading account pages...</p>
-              </>
+              null
             ) : (
               <>
                 <h2 className="text-lg font-semibold">Create an account page first</h2>

@@ -12,7 +12,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { ConfirmDestructive, AdminListSkeleton, AdminSortButton, AdminTableShell, AdminTableSummaryFooter, useAdminSort } from "@/components/admin/layout/list"
+import { AdminListPending, ConfirmDestructive, AdminSortButton, AdminTableShell, AdminTableSummaryFooter, useAdminSort } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsButton, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -104,6 +104,7 @@ export default function CampaignsPage() {
           title="Campaigns"
           icon={<Megaphone className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={filtered.length}
+          loading={loading}
           controls={<TableRightActions>
             <TableRightActionsSearch value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns" />
             <TableRightActionsButton onClick={() => { setEditing(null); setEditorOpen(true) }} disabled={!currentSite?.id}><Plus className="size-4" /><span className="hidden sm:inline">New campaign</span></TableRightActionsButton>
@@ -123,7 +124,7 @@ export default function CampaignsPage() {
                 <TableHead column="meta">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {loading ? <AdminListSkeleton columns={8} rowCount={5} actionCount={3} /> : filtered.length === 0 ? (
+                {loading && sorted.length === 0 ? <AdminListPending /> : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-36 text-center"><Megaphone className="mx-auto size-10 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">{campaigns.length ? "No campaigns match your search." : "No campaigns yet."}</p></TableCell></TableRow>
                 ) : sorted.map((campaign) => (
                   <TableRow key={campaign.id}>

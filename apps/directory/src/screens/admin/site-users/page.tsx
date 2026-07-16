@@ -22,9 +22,8 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -522,6 +521,7 @@ export default function SiteUsersPage() {
             title="Site Users"
             icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={total}
+            loading={siteLoading || loading}
             selectedCount={userSelection.selectedCount}
             onClearSelection={userSelection.clearSelection}
             titleActions={
@@ -654,8 +654,8 @@ export default function SiteUsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {siteLoading || loading ? (
-                    <AdminListSkeleton columns={7} rowCount={5} actionCount={2} />
+                  {(siteLoading || loading) && sortedUsers.length === 0 ? (
+                    <AdminListPending />
                   ) : !currentSite?.id ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

@@ -29,7 +29,7 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -247,6 +247,7 @@ export default function DirectoryClaimsPage() {
               : <FilePenLine className="size-4 text-muted-foreground sm:size-[18px]" />
             }
             count={activeRowsCount}
+            loading={loading}
             controls={
               <TableRightActions>
                 <Button
@@ -318,8 +319,8 @@ export default function DirectoryClaimsPage() {
                   )}
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} showCheckbox={false} showThumbnail={false} />
+                  {loading && activeRowsCount === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

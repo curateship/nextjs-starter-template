@@ -9,8 +9,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
 import {
   ConfirmDestructive,
-  AdminListSkeleton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
   formatRelativeDate,
 } from "@/components/admin/layout/list";
@@ -225,6 +224,7 @@ export default function ThemesPage() {
             title="Themes"
             icon={<Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredTemplates.length}
+            loading={loading}
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -256,12 +256,8 @@ export default function ThemesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton
-                      columns={3}
-                      rowCount={3}
-                      showCheckbox={false}
-                    />
+                  {loading && filteredTemplates.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredTemplates.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={3} className="h-32 text-center">

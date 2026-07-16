@@ -18,9 +18,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort
@@ -365,6 +364,7 @@ export default function NewslettersPage() {
             title="Newsletters"
             icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredNewsletters.length}
+            loading={loading}
             selectedCount={newsletterSelection.selectedCount}
             onClearSelection={newsletterSelection.clearSelection}
             titleActions={
@@ -461,8 +461,8 @@ export default function NewslettersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={7} rowCount={3} actionCount={3} />
+                  {loading && sortedNewsletters.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredNewsletters.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

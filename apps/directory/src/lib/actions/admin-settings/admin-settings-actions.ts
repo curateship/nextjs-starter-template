@@ -5,35 +5,45 @@ import { unstable_cache } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { adminSettings } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { MAX_ADMIN_SIDEBAR_WIDTH, MIN_ADMIN_SIDEBAR_WIDTH } from '@/lib/utils/admin-sidebar-width'
 
 export interface AdminSettings {
   id: string
   settings: {
-    font_family?: string
-    secondary_font_family?: string
-    font_weights?: string[]
-    secondary_font_weights?: string[]
     default_theme?: 'system' | 'light' | 'dark'
     dashboard_page_size?: number
+    sidebar_width?: number
   }
   created_at: string
   updated_at: string
 }
 
 export interface UpdateAdminSettingsData {
-  font_family?: string
-  secondary_font_family?: string
-  font_weights?: string[]
-  secondary_font_weights?: string[]
   default_theme?: 'system' | 'light' | 'dark'
   dashboard_page_size?: number
+  sidebar_width?: number
+}
+
+const DEFAULT_ADMIN_SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
+
+async function getOrCreateAdminSettings() {
+  const existingSettings = await db.query.adminSettings.findFirst()
+  if (existingSettings) return existingSettings
+
+  const [createdSettings] = await db
+    .insert(adminSettings)
+    .values({ id: DEFAULT_ADMIN_SETTINGS_ID, settings: {} })
+    .onConflictDoNothing()
+    .returning()
+
+  return createdSettings ?? await db.query.adminSettings.findFirst()
 }
 
 export const getCachedAdminSettings = unstable_cache(
   async () => {
-    const result = await db.query.adminSettings.findFirst()
+    const result = await getOrCreateAdminSettings()
     if (!result) {
-      console.error('Error fetching cached admin settings: no row found')
+      console.error('Error initializing cached admin settings')
       return null
     }
     return result as unknown as AdminSettings
@@ -52,8 +62,8 @@ export async function getAdminSettingsAction(): Promise<{
     if (!user) return { success: false, error: 'Authentication required' }
     if (user.role !== 'super_admin') return { success: false, error: 'Forbidden: super_admin role required' }
 
-    const result = await db.query.adminSettings.findFirst()
-    if (!result) return { success: false, error: 'Admin settings not found' }
+    const result = await getOrCreateAdminSettings()
+    if (!result) return { success: false, error: 'Failed to initialize admin settings' }
 
     return { success: true, data: result as unknown as AdminSettings }
   } catch (error) {
@@ -74,9 +84,6 @@ export async function updateAdminSettingsAction(
     if (!user) return { success: false, error: 'Authentication required' }
     if (user.role !== 'super_admin') return { success: false, error: 'Forbidden: super_admin role required' }
 
-    const currentSettings = await db.query.adminSettings.findFirst()
-    if (!currentSettings) return { success: false, error: 'Admin settings not found' }
-
     if (settingsData.dashboard_page_size !== undefined) {
       const validSizes = [25, 50, 100]
       if (!validSizes.includes(settingsData.dashboard_page_size)) {
@@ -84,8 +91,23 @@ export async function updateAdminSettingsAction(
       }
     }
 
+    if (
+      settingsData.sidebar_width !== undefined &&
+      (!Number.isInteger(settingsData.sidebar_width) ||
+        settingsData.sidebar_width < MIN_ADMIN_SIDEBAR_WIDTH ||
+        settingsData.sidebar_width > MAX_ADMIN_SIDEBAR_WIDTH)
+    ) {
+      return {
+        success: false,
+        error: `Invalid sidebar width. Must be between ${MIN_ADMIN_SIDEBAR_WIDTH} and ${MAX_ADMIN_SIDEBAR_WIDTH} pixels.`
+      }
+    }
+
+    const currentSettings = await getOrCreateAdminSettings()
+    if (!currentSettings) return { success: false, error: 'Failed to initialize admin settings' }
+
     const updatedSettings = {
-      ...(currentSettings.settings as Record<string, any>),
+      ...(currentSettings.settings as Record<string, unknown>),
       ...settingsData
     }
 

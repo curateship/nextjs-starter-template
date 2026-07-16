@@ -23,6 +23,7 @@ interface StylingSettingsCardProps {
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
+  onFaviconFileSelect?: (file: File, altText?: string) => void
   onSiteWidthChange?: (value: "full" | "custom") => void
   onCustomWidthChange?: (value: number | undefined) => void
   onDefaultThemeChange?: (value: "system" | "light" | "dark") => void
@@ -38,6 +39,7 @@ export function StylingSettingsCard({
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onFaviconChange,
+  onFaviconFileSelect,
   onSiteWidthChange,
   onCustomWidthChange,
   onDefaultThemeChange
@@ -209,6 +211,8 @@ export function StylingSettingsCard({
             setShowFaviconPicker(false)
           }}
           currentMediaUrl={favicon}
+          showVideos={false}
+          onUploadDeferred={onFaviconFileSelect}
         />
       )}
     </>

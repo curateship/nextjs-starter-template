@@ -18,9 +18,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -389,6 +388,7 @@ export default function ContactsPage() {
             title="Contacts"
             icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={total}
+            loading={loading}
             selectedCount={contactSelection.selectedCount}
             onClearSelection={contactSelection.clearSelection}
             titleActions={
@@ -570,8 +570,8 @@ export default function ContactsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={8} rowCount={5} showThumbnail={false} actionCount={2} />
+                  {loading && sortedContacts.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center">

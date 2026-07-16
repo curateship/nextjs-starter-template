@@ -18,7 +18,7 @@ import {
   ConfirmDestructive,
   AdminListFooter,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort,
@@ -254,8 +254,8 @@ export function AutomationsDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Loading automations</TableCell></TableRow>
+              {loading && items.length === 0 ? (
+                <AdminListPending />
               ) : items.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">No automations found.</TableCell></TableRow>
               ) : items.map((item) => {

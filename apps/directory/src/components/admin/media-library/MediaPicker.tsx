@@ -23,6 +23,7 @@ import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/medi
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import Image from "@/components/app-image"
+import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
@@ -42,6 +43,7 @@ interface MediaPickerProps {
   showVideos?: boolean
   site_id?: string
   siteId?: string
+  onUploadDeferred?: (file: File, altText?: string) => void
   // Legacy props for backward compatibility
   onSelectImage?: (imageUrl: string, altText?: string) => void
   currentImageUrl?: string
@@ -56,7 +58,8 @@ export function MediaPicker({
   currentImageUrl,
   showVideos = true,
   site_id,
-  siteId
+  siteId,
+  onUploadDeferred
 }: MediaPickerProps) {
   const { currentSite, loading: siteLoading } = useSiteSwitcher()
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
@@ -202,6 +205,15 @@ export function MediaPicker({
   const handleUpload = async () => {
     if (!uploadFile) return
     if (!scopedSiteId) {
+      if (onUploadDeferred) {
+        onUploadDeferred(uploadFile, altText.trim() || undefined)
+        setUploadFile(null)
+        setUploadPreview(null)
+        setAltText('')
+        onOpenChange(false)
+        return
+      }
+
       showActionError('Select a site before uploading media')
       return
     }
@@ -407,7 +419,11 @@ export function MediaPicker({
                       disabled={isUploading}
                       className="w-full"
                     >
-                      {isUploading ? 'Uploading...' : 'Upload & Select'}
+                      {isUploading
+                        ? 'Uploading...'
+                        : !scopedSiteId && onUploadDeferred
+                          ? 'Use This File'
+                          : 'Upload & Select'}
                     </Button>
                   </div>
                 </div>
@@ -470,7 +486,7 @@ export function MediaPicker({
                           {media.file_type === 'video' ? (
                             <div className="relative w-full h-full bg-black">
                               <video
-                                src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                                src={resolveMediaPlaybackUrl(media.public_url)}
                                 className="w-full h-full object-contain"
                                 muted
                                 playsInline

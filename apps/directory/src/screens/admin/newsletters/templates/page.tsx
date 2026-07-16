@@ -19,9 +19,8 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -193,6 +192,7 @@ export default function TemplatesPage() {
             title="Templates"
             icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredTemplates.length}
+            loading={loading}
             selectedCount={templateSelection.selectedCount}
             onClearSelection={templateSelection.clearSelection}
             titleActions={
@@ -286,8 +286,8 @@ export default function TemplatesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} actionCount={3} />
+                  {loading && sortedTemplates.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

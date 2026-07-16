@@ -17,9 +17,8 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -179,6 +178,7 @@ export default function SegmentsPage() {
             title="Segments"
             icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredSegments.length}
+            loading={loading}
             selectedCount={segmentSelection.selectedCount}
             onClearSelection={segmentSelection.clearSelection}
             titleActions={
@@ -269,8 +269,8 @@ export default function SegmentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} actionCount={2} />
+                  {loading && sortedSegments.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

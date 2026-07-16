@@ -23,9 +23,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -255,6 +254,7 @@ export default function EmailAutomationsPage() {
             title="Automations"
             icon={<Zap className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filtered.length}
+            loading={loading}
             selectedCount={automationSelection.selectedCount}
             onClearSelection={automationSelection.clearSelection}
             titleActions={
@@ -360,8 +360,8 @@ export default function EmailAutomationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={7} rowCount={3} actionCount={2} />
+                  {loading && sortedAutomations.length === 0 ? (
+                    <AdminListPending />
                   ) : filtered.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

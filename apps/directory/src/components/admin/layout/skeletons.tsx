@@ -1,21 +1,4 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils/tailwind"
-
-export function CardGridSkeleton({
-  className,
-  count = 10,
-}: {
-  className?: string
-  count?: number
-}) {
-  return (
-    <div className={cn("grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8", className)}>
-      {Array.from({ length: count }, (_, index) => (
-        <Skeleton key={index} className="aspect-square rounded-lg" />
-      ))}
-    </div>
-  )
-}
 
 export function BuilderSkeleton() {
   return (

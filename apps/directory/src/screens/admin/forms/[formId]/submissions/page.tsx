@@ -12,8 +12,7 @@ import { DashboardModalCardTitle, DashboardModalContent } from "@/components/adm
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
-  AdminListSkeleton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate,
 } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
@@ -144,6 +143,7 @@ export default function GuidedFormSubmissionsPage() {
           title={title}
           icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={total}
+          loading={loading}
           status={error ? { tone: "error", text: error } : null}
           controls={
             <TableRightActions>
@@ -178,8 +178,8 @@ export default function GuidedFormSubmissionsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <AdminListSkeleton columns={4} rowCount={5} actionCount={0} showCheckbox={false} showThumbnail={false} />
+                {loading && visibleSubmissions.length === 0 ? (
+                  <AdminListPending />
                 ) : error ? (
                   <TableRow>
                     <TableCell colSpan={4} className="h-32 text-center">

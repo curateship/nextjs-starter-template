@@ -220,7 +220,7 @@ export function StickyHeader({
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 aria-label="Theme"
                 title="Theme"

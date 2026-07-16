@@ -24,9 +24,8 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
@@ -160,6 +159,7 @@ export default function UnusedMediaPage() {
             title="Unused Media"
             icon={<ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredMedia.length}
+            loading={isScanning}
             selectedCount={mediaSelection.selectedCount}
             onClearSelection={mediaSelection.clearSelection}
             titleActions={
@@ -236,8 +236,8 @@ export default function UnusedMediaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isScanning ? (
-                    <AdminListSkeleton columns={6} rowCount={6} actionCount={2} />
+                  {isScanning && sortedMedia.length === 0 ? (
+                    <AdminListPending />
                   ) : mediaItems === null ? (
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center">

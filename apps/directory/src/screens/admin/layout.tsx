@@ -5,6 +5,7 @@ import { AdminClientShell } from "./admin-client-shell"
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
 import { getCurrentUserSiteId, getDefaultAccountPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
+import { DEFAULT_ADMIN_SIDEBAR_WIDTH } from "@/lib/utils/admin-sidebar-width"
 
 export default async function AdminLayout({
   children,
@@ -36,9 +37,8 @@ export default async function AdminLayout({
   ])
 
   const settings = adminSettings?.settings ?? {}
-  const fontFamily = settings.font_family || "urbanist"
-  const secondaryFontFamily = settings.secondary_font_family || "urbanist"
   const pageSize = settings.dashboard_page_size || 50
+  const sidebarWidth = settings.sidebar_width || DEFAULT_ADMIN_SIDEBAR_WIDTH
   const sites = sitesResult.data ?? []
 
   const userName = (session.user as any).displayName || session.user.name || session.user.email?.split('@')[0] || 'User'
@@ -47,10 +47,9 @@ export default async function AdminLayout({
 
   return (
     <AdminClientShell
-      fontFamily={fontFamily}
-      secondaryFontFamily={secondaryFontFamily}
       initialSites={sites}
       pageSize={pageSize}
+      initialSidebarWidth={sidebarWidth}
       user={{ name: userName, email: userEmail, avatar: userAvatar }}
     >
       {children}

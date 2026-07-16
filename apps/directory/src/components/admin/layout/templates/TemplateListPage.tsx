@@ -14,10 +14,9 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -261,6 +260,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
             title="Templates"
             icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={templates.length}
+            loading={loading}
             selectedCount={templateSelection.selectedCount}
             onClearSelection={templateSelection.clearSelection}
             titleActions={
@@ -330,8 +330,8 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} />
+                  {loading && sortedTemplates.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

@@ -33,9 +33,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort,
@@ -901,6 +900,7 @@ export default function AdminGuidedFormsPage() {
           title="Forms"
           icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={total}
+          loading={loading}
           selectedCount={formSelection.selectedCount}
           onClearSelection={formSelection.clearSelection}
           titleActions={formSelection.selectedCount > 0 ? (
@@ -979,8 +979,8 @@ export default function AdminGuidedFormsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <AdminListSkeleton columns={6} rowCount={5} actionCount={4} />
+                {loading && visibleForms.length === 0 ? (
+                  <AdminListPending />
                 ) : error ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center">

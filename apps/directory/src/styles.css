@@ -146,7 +146,7 @@
   }
 }
 
-button:not(:disabled),
+button:not(:disabled):not([data-sidebar="rail"]),
 [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
 [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
 [cmdk-item]:not([data-disabled]) {
@@ -162,29 +162,15 @@ button:not(:disabled),
   }
 }
 
-/* Admin-scoped fonts - only apply within admin layout */
+/* Keep the admin interface on the default system font. */
 .admin-layout {
-  --font-primary: var(--admin-font-primary, system-ui, sans-serif);
-  --font-secondary: var(--admin-font-secondary, system-ui, sans-serif);
-  --font-sans: var(--admin-font-sans, system-ui, sans-serif);
+  --font-primary: system-ui, sans-serif;
+  --font-secondary: system-ui, sans-serif;
+  --font-sans: system-ui, sans-serif;
 }
 
-.admin-layout body {
-  font-family: var(--admin-font-secondary, system-ui, sans-serif);
-}
-
-.admin-layout h1,
-.admin-layout h2,
-.admin-layout h3,
-.admin-layout h4,
-.admin-layout h5,
-.admin-layout h6 {
-  font-family: var(--admin-font-primary, system-ui, sans-serif);
-}
-
-/* Apply admin fonts to sidebar and all admin components */
 .admin-layout *:not([class*="font-"]) {
-  font-family: var(--admin-font-secondary, system-ui, sans-serif);
+  font-family: system-ui, sans-serif;
 }
 
 .admin-layout h1:not([class*="font-"]),
@@ -193,7 +179,7 @@ button:not(:disabled),
 .admin-layout h4:not([class*="font-"]),
 .admin-layout h5:not([class*="font-"]),
 .admin-layout h6:not([class*="font-"]) {
-  font-family: var(--admin-font-primary, system-ui, sans-serif);
+  font-family: system-ui, sans-serif;
 }
 
 /* Override admin fonts in preview - use site fonts instead */

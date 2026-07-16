@@ -18,9 +18,8 @@ import {
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import {
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
   formatRelativeDate as formatDate,
   useAdminSort
@@ -56,6 +55,7 @@ import {
   deleteSiteAction,
   cloneSiteAction,
   createSiteAction,
+  updateSiteAction,
   type SiteWithTheme
 } from "@/lib/actions/sites/site-actions"
 import { applyThemeToSiteAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
@@ -279,6 +279,7 @@ export default function SitesPage() {
             title="Sites"
             icon={<Globe className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredSites.length}
+            loading={loading}
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -354,8 +355,8 @@ export default function SitesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} showCheckbox={false} />
+                  {loading && sortedSites.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
@@ -584,6 +585,7 @@ function CreateSiteModal({
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [defaultTheme, setDefaultTheme] = useState<"system" | "light" | "dark">("system")
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
   const [templates, setTemplates] = useState<SiteWithTheme[]>([])
@@ -602,6 +604,23 @@ function CreateSiteModal({
       if (data) setTemplates(data)
     })
   }, [])
+
+  const handleFaviconChange = (value: string) => {
+    setFaviconFile(null)
+    setFavicon(value)
+  }
+
+  const handleFaviconFileSelect = (file: File) => {
+    setFaviconFile(file)
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setFavicon(reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -628,7 +647,7 @@ function CreateSiteModal({
         site_tag: siteTag.trim() || undefined,
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
-        favicon: favicon || undefined,
+        favicon: faviconFile ? undefined : favicon || undefined,
         default_theme: defaultTheme,
         settings: {
           site_title: siteName.trim(),
@@ -651,7 +670,46 @@ function CreateSiteModal({
         }
       }
 
-      onCreated(data)
+      let createdSite = data
+      if (faviconFile) {
+        try {
+          const formData = new FormData()
+          formData.append("file", faviconFile)
+          formData.append("siteId", data.id)
+
+          const uploadResponse = await fetch("/api/media/upload", {
+            method: "POST",
+            body: formData
+          })
+          const uploadResult = await uploadResponse.json() as {
+            data?: { public_url?: string }
+            error?: string
+          }
+          const uploadedFavicon = uploadResult.data?.public_url
+
+          if (!uploadResponse.ok || !uploadedFavicon) {
+            throw new Error(uploadResult.error || "Favicon upload failed")
+          }
+
+          const { data: updatedSite, error: updateError } = await updateSiteAction(data.id, {
+            settings: {
+              ...(data.settings || {}),
+              favicon: uploadedFavicon
+            }
+          })
+
+          if (updateError || !updatedSite) {
+            throw new Error(updateError || "Favicon could not be saved")
+          }
+
+          createdSite = updatedSite
+        } catch (faviconError) {
+          const message = faviconError instanceof Error ? faviconError.message : "Favicon upload failed"
+          showActionError(`Site created, but ${message.toLowerCase()}. Add the favicon from site settings.`)
+        }
+      }
+
+      onCreated(createdSite)
     } catch {
       reportError("Failed to create site. Please try again.")
     } finally {
@@ -728,7 +786,8 @@ function CreateSiteModal({
             defaultTheme={defaultTheme}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
-            onFaviconChange={setFavicon}
+            onFaviconChange={handleFaviconChange}
+            onFaviconFileSelect={handleFaviconFileSelect}
             onDefaultThemeChange={setDefaultTheme}
           />
         )}

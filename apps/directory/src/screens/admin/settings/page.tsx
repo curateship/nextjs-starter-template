@@ -490,7 +490,6 @@ export default function SiteEditPage() {
   const searchParams = useSearchParams()
   const { currentSite, loading: sitesLoading, setCurrentSite, sites } = useSiteSwitcher()
   const siteId = currentSite?.id ?? ""
-  const loadingMessage = sitesLoading || sites.length > 0 ? "Loading settings..." : "Choose a site to manage settings."
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const requestedTab = searchParams.get("tab")
     return isTabId(requestedTab) ? requestedTab : "general"
@@ -704,9 +703,11 @@ export default function SiteEditPage() {
       <>
         <StickyHeader />
         <AdminLayout>
-          <div className="p-8 text-sm text-muted-foreground">
-            {loadingMessage}
-          </div>
+          {!sitesLoading && sites.length === 0 ? (
+            <div className="p-8 text-sm text-muted-foreground">
+              Choose a site to manage settings.
+            </div>
+          ) : null}
         </AdminLayout>
       </>
     )
