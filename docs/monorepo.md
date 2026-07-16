@@ -34,6 +34,7 @@ The current apps are:
 - `apps/ai-agents` - AI Agents app
 - `apps/seo` - SEO app
 - `apps/trading` - Trading app
+- `apps/directory` - Directory app
 - `apps/personal-ide` - desktop Personal IDE app
 - `apps/directory` - Vite/TanStack port of Hub
 
@@ -74,7 +75,7 @@ The app configs, runtime scripts, tests, Personal IDE, and the `localapps` helpe
 
 Personal IDE is a Tauri desktop app. It can create isolated workspaces for other apps and start their dev servers from its terminal panel.
 
-For known local apps, Personal IDE uses `local-apps.json` for the server URL. For unknown workspaces, it falls back to ports above the configured local app range.
+For known local apps, Personal IDE uses `local-apps.json` for the server URL. For unknown workspaces, it falls back to ports above the configured local app range. Apps created by Personal IDE have their assigned port added to the registry automatically.
 
 ## Agent Setup
 

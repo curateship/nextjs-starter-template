@@ -31,6 +31,7 @@ const TERMINAL_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
 const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
+const LOCAL_APPS_FILE: &str = "local-apps.json";
 const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
@@ -358,6 +359,7 @@ async fn create_workspace(
 #[tauri::command]
 async fn create_app_from_custom_shell(
     app_name: String,
+    app_port: u16,
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceList>, String> {
@@ -371,6 +373,7 @@ async fn create_app_from_custom_shell(
         app_relative_path,
         &scaffold_root,
         &app_name,
+        app_port,
     )
     .map(Some)
 }
@@ -494,6 +497,7 @@ fn add_workspace_for_new_app(
     app_relative_path: String,
     scaffold_root: &Path,
     app_name: &str,
+    app_port: u16,
 ) -> Result<WorkspaceList, String> {
     if app_relative_path.is_empty() {
         return Err("New app path must be inside the selected repo".to_string());
@@ -508,17 +512,67 @@ fn add_workspace_for_new_app(
         app_name.to_string(),
         |app_root| {
             copy_scaffold_dir(scaffold_root, app_root)?;
-            rewrite_scaffold_metadata(app_root, app_name, database_port)?;
+            register_local_app_port(app_root, app_name, app_port)?;
+            rewrite_scaffold_metadata(app_root, app_name, app_port, database_port)?;
             commit_generated_app_scaffold(app_root, app_name)
         },
     )
 }
 
 fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let worktree_root = git_root_for(app_root)?;
+    let app_root = fs::canonicalize(app_root).map_err(|error| error.to_string())?;
+    let app_relative_path = relative_path(&worktree_root, &app_root)?;
     let message = format!("Create {app_name} app");
-    run_git(app_root, &["add", "-A", "."])?;
-    run_git(app_root, &["commit", "-m", &message])?;
+    run_git(
+        &worktree_root,
+        &["add", "-A", "--", &app_relative_path, LOCAL_APPS_FILE],
+    )?;
+    run_git(&worktree_root, &["commit", "-m", &message])?;
     Ok(())
+}
+
+fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Result<(), String> {
+    if app_port < 1024 {
+        return Err("Generated app port must be at least 1024.".to_string());
+    }
+
+    let worktree_root = git_root_for(app_root)?;
+    let path = worktree_root.join(LOCAL_APPS_FILE);
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let ports = serde_json::from_str::<serde_json::Value>(&contents)
+        .map_err(|error| format!("Invalid {LOCAL_APPS_FILE}: {error}"))?;
+    let Some(ports) = ports.as_object() else {
+        return Err(format!("{LOCAL_APPS_FILE} must contain a JSON object."));
+    };
+
+    if let Some(existing_port) = ports.get(app_name) {
+        if existing_port.as_u64() == Some(u64::from(app_port)) {
+            return Ok(());
+        }
+        return Err(format!(
+            "{app_name} already has a different registered port."
+        ));
+    }
+
+    if ports
+        .iter()
+        .any(|(_, port)| port.as_u64() == Some(u64::from(app_port)))
+    {
+        return Err(format!(
+            "Port {app_port} is already registered to another app."
+        ));
+    }
+
+    let closing_brace = contents
+        .rfind('}')
+        .ok_or_else(|| format!("{LOCAL_APPS_FILE} is missing its closing brace."))?;
+    let before_closing = contents[..closing_brace].trim_end();
+    let suffix = &contents[closing_brace + 1..];
+    let separator = if ports.is_empty() { "" } else { "," };
+    let key = serde_json::to_string(app_name).map_err(|error| error.to_string())?;
+    let updated = format!("{before_closing}{separator}\n  {key}: {app_port}\n}}{suffix}");
+    fs::write(path, updated).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -2022,17 +2076,21 @@ fn should_skip_scaffold_entry(name: &str) -> bool {
 fn rewrite_scaffold_metadata(
     app_root: &Path,
     app_name: &str,
+    app_port: u16,
     database_port: u16,
 ) -> Result<(), String> {
     rewrite_package_metadata(app_root, app_name)?;
-    fs::write(app_root.join("vite.config.ts"), generated_vite_config())
-        .map_err(|error| error.to_string())?;
+    fs::write(
+        app_root.join("vite.config.ts"),
+        generated_vite_config(app_name),
+    )
+    .map_err(|error| error.to_string())?;
     fs::write(app_root.join("README.md"), generated_readme(app_name))
         .map_err(|error| error.to_string())?;
     fs::write(app_root.join("AGENTS.md"), generated_agents_md(app_name))
         .map_err(|error| error.to_string())?;
     ensure_generated_gitignore(app_root)?;
-    write_generated_env(app_root, app_name, database_port)?;
+    write_generated_env(app_root, app_name, app_port, database_port)?;
     rewrite_root_title(app_root, app_name)?;
     rewrite_login_branding(app_root, app_name)?;
     Ok(())
@@ -2071,11 +2129,16 @@ fn rewrite_package_metadata(app_root: &Path, app_name: &str) -> Result<(), Strin
     fs::write(path, format!("{}\n", contents)).map_err(|error| error.to_string())
 }
 
-fn write_generated_env(app_root: &Path, app_name: &str, database_port: u16) -> Result<(), String> {
+fn write_generated_env(
+    app_root: &Path,
+    app_name: &str,
+    app_port: u16,
+    database_port: u16,
+) -> Result<(), String> {
     fs::write(
         app_root.join(".env.local"),
         format!(
-            "# Generated by Personal IDE.\nCUSTOM_SHELL_APP_ORIGINS=\"http://127.0.0.1:3000,http://localhost:3000\"\nCUSTOM_SHELL_POSTGRES_PORT=\"{database_port}\"\nCUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:{database_port}/{app_name}\"\n"
+            "# Generated by Personal IDE.\nCUSTOM_SHELL_APP_ORIGINS=\"http://127.0.0.1:{app_port},http://localhost:{app_port}\"\nCUSTOM_SHELL_POSTGRES_PORT=\"{database_port}\"\nCUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:{database_port}/{app_name}\"\n"
         ),
     )
     .map_err(|error| error.to_string())
@@ -2151,7 +2214,7 @@ fn generated_database_port(app_name: &str, used_ports: &HashSet<u16>) -> Result<
     Err("No generated database ports are available.".to_string())
 }
 
-fn generated_vite_config() -> &'static str {
+fn generated_vite_config(app_name: &str) -> String {
     r#"import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
@@ -2159,6 +2222,7 @@ import react from "@vitejs/plugin-react"
 import { nitro } from "nitro/vite"
 import { defineConfig } from "vite"
 import tsconfigPaths from "vite-tsconfig-paths"
+import localAppPorts from "../../local-apps.json"
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -2172,16 +2236,18 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 3000,
+    port: localAppPorts["__APP_NAME__"],
+    strictPort: true,
   },
 })
 "#
+    .replace("__APP_NAME__", app_name)
 }
 
 fn generated_readme(app_name: &str) -> String {
     let title = title_from_slug(app_name);
     format!(
-        "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app runs at `http://localhost:3000` by default.\n"
+        "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app port is defined in `../../local-apps.json`.\n"
     )
 }
 
@@ -2590,10 +2656,11 @@ mod tests {
         find_custom_shell_scaffold_dir, generate_commit_message, generated_database_port,
         generated_database_port_from_env, git_branch_exists, git_status_lines, has_origin_remote,
         new_app_repo_target, normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg,
-        primary_worktree_for, read_git_repo_text_file, render_task_template,
-        reorder_workspace_records, rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry,
-        sync_workspace_branch, validate_editor_settings, validate_new_app_name, DiffHunk,
-        EditorSettings, GitFile, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        primary_worktree_for, read_git_repo_text_file, register_local_app_port,
+        render_task_template, reorder_workspace_records, rewrite_scaffold_metadata, run_git,
+        should_skip_scaffold_entry, sync_workspace_branch, validate_editor_settings,
+        validate_new_app_name, DiffHunk, EditorSettings, GitFile, WorkspaceRecord,
+        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2880,7 +2947,8 @@ mod tests {
             r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
         )
         .expect("write login route");
-        rewrite_scaffold_metadata(&root, "app-name", 54_123).expect("rewrite scaffold metadata");
+        rewrite_scaffold_metadata(&root, "app-name", 3_012, 54_123)
+            .expect("rewrite scaffold metadata");
 
         let package = fs::read_to_string(root.join("package.json")).expect("read package");
         let package: serde_json::Value = serde_json::from_str(&package).expect("parse package");
@@ -2892,10 +2960,19 @@ mod tests {
 
         let env = fs::read_to_string(root.join(".env.local")).expect("read env");
         assert!(env.contains("CUSTOM_SHELL_APP_ORIGINS"));
-        assert!(env.contains("http://127.0.0.1:3000,http://localhost:3000"));
+        assert!(env.contains("http://127.0.0.1:3012,http://localhost:3012"));
         assert!(env.contains("CUSTOM_SHELL_DATABASE_URL"));
         assert!(env.contains("CUSTOM_SHELL_POSTGRES_PORT=\"54123\""));
         assert!(!env.contains("custom_shell_"));
+
+        let vite = fs::read_to_string(root.join("vite.config.ts")).expect("read Vite config");
+        assert!(vite.contains("../../local-apps.json"));
+        assert!(vite.contains("localAppPorts[\"app-name\"]"));
+        assert!(!vite.contains("port: 3000"));
+
+        let readme = fs::read_to_string(root.join("README.md")).expect("read README");
+        assert!(readme.contains("../../local-apps.json"));
+        assert!(!readme.contains("localhost:3000"));
 
         let login = fs::read_to_string(root.join("src/routes/login.tsx")).expect("read login");
         assert!(login.contains("Sign in to App Name"));
@@ -3162,13 +3239,15 @@ mod tests {
     }
 
     #[test]
-    fn generated_app_commit_is_scoped_to_app_folder() {
+    fn generated_app_commit_includes_app_and_port_registry() {
         let root = temp_path("generated-app-commit");
         init_test_repo(&root);
         let app_root = root.join("apps/app-name");
         fs::create_dir_all(app_root.join("src")).expect("create app");
         fs::write(app_root.join("package.json"), "{}\n").expect("write package");
         fs::write(app_root.join("src/main.ts"), "export {}\n").expect("write source");
+        fs::write(root.join("local-apps.json"), "{\"app-name\":3012}\n")
+            .expect("write port registry");
         fs::write(root.join("outside.txt"), "outside\n").expect("write outside file");
 
         commit_generated_app_scaffold(&app_root, "app-name").expect("commit generated app");
@@ -3181,8 +3260,35 @@ mod tests {
                 .trim(),
             "Create app-name app"
         );
+        assert_eq!(
+            run_git(&root, &["show", "HEAD:local-apps.json"]).expect("committed port registry"),
+            "{\"app-name\":3012}\n"
+        );
 
         fs::remove_dir_all(root).expect("remove temp generated app commit repo");
+    }
+
+    #[test]
+    fn generated_app_port_is_registered_without_reformatting_existing_entries() {
+        let root = temp_path("generated-app-port");
+        init_test_repo(&root);
+        let app_root = root.join("apps/app-name");
+        fs::create_dir_all(&app_root).expect("create app");
+        fs::write(
+            root.join("local-apps.json"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002\n}\n",
+        )
+        .expect("write port registry");
+
+        register_local_app_port(&app_root, "app-name", 3_012).expect("register app port");
+
+        assert_eq!(
+            fs::read_to_string(root.join("local-apps.json")).expect("read port registry"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002,\n  \"app-name\": 3012\n}\n"
+        );
+        assert!(register_local_app_port(&app_root, "other-app", 3_012).is_err());
+
+        fs::remove_dir_all(root).expect("remove temp repo");
     }
 
     #[test]

@@ -39,6 +39,8 @@ Do not disguise major new capabilities, broad redesigns, architecture rewrites, 
 
 Rank ten distinct items from highest to lowest impact using user friction, frequency, evidence, effort, risk, and consistency with the shared UI rules.
 
+** Use plain English
+
 For each item include:
 
 - rank and concise name
