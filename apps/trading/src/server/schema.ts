@@ -1378,7 +1378,7 @@ export const tradingWorkerControls = pgTable(
   (table) => [
     check(
       "worker_controls_kind_check",
-      sql`${table.kind} in ('bot', 'whale-scanner', 'market-scanner', 'backtest')`
+      sql`${table.kind} in ('bot', 'whale-scanner', 'market-scanner', 'alert', 'backtest')`
     ),
   ]
 )

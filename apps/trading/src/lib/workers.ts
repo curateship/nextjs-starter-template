@@ -2,6 +2,7 @@ export const WORKER_KINDS = [
   "bot",
   "whale-scanner",
   "market-scanner",
+  "alert",
   "backtest",
 ] as const
 

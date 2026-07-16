@@ -10,18 +10,21 @@ of processing the same work twice.
   requests. Notification recording continues while bot workloads are paused.
 - **Whale Scanner** collects whale trades, wallets, positions, book metrics,
   and research alerts from mainnet.
-- **Market Scanner** evaluates market and chart-alert rules from its own shared
-  market feed.
+- **Market Scanner** evaluates saved Market Scanner rules from its own market
+  feed.
+- **Alert Worker** evaluates Trade alert rules from a separate live market
+  feed and recovers exact-price crossings missed during a restart.
 - **Backtest Worker** claims queued historical runs one at a time, records
   progress, and retries work interrupted by a process restart.
 
-The standard `npm run dev` command starts the app and all four workers and stops
+The standard `npm run dev` command starts the app and all five workers and stops
 them together. Run one process for focused work with:
 
 ```bash
 npm run bot-worker:dev
 npm run whale-scanner:dev
 npm run market-scanner:dev
+npm run alert-worker:dev
 npm run backtest-worker:dev
 ```
 

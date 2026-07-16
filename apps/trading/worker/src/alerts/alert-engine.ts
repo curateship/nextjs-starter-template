@@ -20,6 +20,8 @@ import {
 type RateLimiter = { take: (weight?: number) => Promise<void> }
 
 const REFRESH_MS = 10_000
+const PRICE_TRADE_BUFFER_MS = REFRESH_MS * 3
+const MAX_PRICE_TRADES_PER_COIN = 10_000
 const EVALUATE_MS = 2_000
 const EVALUATED_TOUCH_MS = 60_000
 const ONE_MINUTE_MS = 60_000
@@ -42,6 +44,14 @@ type CoinBars = {
 
 type PriceLevelAlertRule = Extract<AlertRuleItem, { kind: "price_level" }>
 
+type RecoveryCandle = {
+  t: number
+  T: number
+  h: string
+  l: string
+  c: string
+}
+
 export function mergeTradeIntoBars(
   bars: Map<number, MarketBar>,
   trade: AlertTrade,
@@ -62,17 +72,20 @@ export class TradingViewAlertEngine {
   private readonly restBucket: RateLimiter
   private rules: AlertRuleItem[] = []
   private priceRules = new Map<string, PriceLevelAlertRule[]>()
+  private readonly recentPriceTrades = new Map<string, AlertTrade[]>()
   private readonly bars = new Map<string, CoinBars>()
   private readonly thresholdStates = new Map<string, ThresholdState>()
   private readonly priceStates = new Map<string, PriceLevelState>()
   private readonly triggerTimes = new Map<string, number>()
   private readonly warming = new Set<string>()
+  private readonly recoveringPriceRules = new Set<string>()
   private refreshTimer: NodeJS.Timeout | null = null
   private evaluateTimer: NodeJS.Timeout | null = null
   private triggerQueue: Promise<void> = Promise.resolve()
   private lastTouchedAt = 0
   private stopped = true
   private evaluating = false
+  private refreshing = false
 
   constructor(info: InfoClient, restBucket: RateLimiter) {
     this.info = info
@@ -96,6 +109,7 @@ export class TradingViewAlertEngine {
       )
     }
     await this.refresh()
+    if (this.stopped) return
     this.refreshTimer = setInterval(() => void this.refresh(), REFRESH_MS)
     this.evaluateTimer = setInterval(() => void this.evaluate(), EVALUATE_MS)
   }
@@ -108,14 +122,17 @@ export class TradingViewAlertEngine {
     this.evaluateTimer = null
     this.rules = []
     this.priceRules.clear()
+    this.recentPriceTrades.clear()
     this.bars.clear()
     this.thresholdStates.clear()
     this.priceStates.clear()
     this.triggerTimes.clear()
     this.warming.clear()
+    this.recoveringPriceRules.clear()
   }
 
   onTrades(trades: AlertTrade[]) {
+    if (this.stopped) return
     for (const trade of trades) {
       if (
         !Number.isFinite(trade.px) ||
@@ -129,6 +146,7 @@ export class TradingViewAlertEngine {
         continue
       }
 
+      this.rememberPriceTrade(trade)
       const coinBars = this.bars.get(trade.coin)
       if (coinBars) {
         mergeTradeIntoBars(coinBars.oneMinute, trade, ONE_MINUTE_MS)
@@ -138,34 +156,234 @@ export class TradingViewAlertEngine {
       }
 
       for (const rule of this.priceRules.get(trade.coin) ?? []) {
-        const key = `${rule.id}:${rule.coin}`
-        const state = nextPriceLevelState(
-          this.priceStates.get(key),
-          trade.px,
-          trade.ts,
-          {
-            level: rule.level,
-            operator: rule.operator,
-            triggerMode: rule.triggerMode,
-            cooldownMs:
-              rule.triggerMode === "repeat"
-                ? ALERT_COOLDOWN_MS[rule.cooldown]
-                : 0,
-          },
-          this.triggerTimes.get(key) ?? null
-        )
-        this.priceStates.set(key, state)
-        if (state.shouldAlert) {
-          this.queueTrigger(
-            rule,
-            trade.px,
-            new Date(trade.ts),
-            `${rule.id}:${rule.coin}:${trade.tid}`,
-            key
-          )
-        }
+        if (this.recoveringPriceRules.has(rule.id)) continue
+        this.evaluatePriceRule(rule, trade)
       }
     }
+  }
+
+  private rememberPriceTrade(trade: AlertTrade) {
+    const recent = this.recentPriceTrades.get(trade.coin) ?? []
+    recent.push(trade)
+    const cutoff = trade.ts - PRICE_TRADE_BUFFER_MS
+    const firstFresh = recent.findIndex((item) => item.ts >= cutoff)
+    if (firstFresh > 0) recent.splice(0, firstFresh)
+    if (recent.length > MAX_PRICE_TRADES_PER_COIN) {
+      recent.splice(0, recent.length - MAX_PRICE_TRADES_PER_COIN)
+    }
+    this.recentPriceTrades.set(trade.coin, recent)
+  }
+
+  private evaluatePriceRule(
+    rule: PriceLevelAlertRule,
+    trade: AlertTrade,
+    eventKey = `${rule.id}:${rule.coin}:${trade.tid}`
+  ) {
+    const key = `${rule.id}:${rule.coin}`
+    const state = nextPriceLevelState(
+      this.priceStates.get(key),
+      trade.px,
+      trade.ts,
+      {
+        level: rule.level,
+        operator: rule.operator,
+        triggerMode: rule.triggerMode,
+        cooldownMs:
+          rule.triggerMode === "repeat" ? ALERT_COOLDOWN_MS[rule.cooldown] : 0,
+      },
+      this.triggerTimes.get(key) ?? null
+    )
+    this.priceStates.set(key, state)
+    if (!state.shouldAlert) return
+    this.queueTrigger(rule, trade.px, new Date(trade.ts), eventKey, key)
+  }
+
+  private replayPriceRule(
+    rule: PriceLevelAlertRule,
+    recoveredThrough?: number
+  ) {
+    const activatedAt = Date.parse(rule.updatedAt)
+    if (!Number.isFinite(activatedAt)) return
+    const recent = [...(this.recentPriceTrades.get(rule.coin) ?? [])].sort(
+      (left, right) => left.ts - right.ts || (left.tid ?? 0) - (right.tid ?? 0)
+    )
+    if (recoveredThrough !== undefined) {
+      for (const trade of recent) {
+        if (trade.ts > recoveredThrough) this.evaluatePriceRule(rule, trade)
+      }
+      return
+    }
+
+    let before: AlertTrade | undefined
+    for (const trade of recent) {
+      if (trade.ts > activatedAt) break
+      before = trade
+    }
+    if (before) this.evaluatePriceRule(rule, before)
+    for (const trade of recent) {
+      if (trade.ts > activatedAt) this.evaluatePriceRule(rule, trade)
+    }
+  }
+
+  private async recoverPriceRules(rules: PriceLevelAlertRule[]) {
+    const byCoin = new Map<string, PriceLevelAlertRule[]>()
+    for (const rule of rules) {
+      const coinRules = byCoin.get(rule.coin) ?? []
+      coinRules.push(rule)
+      byCoin.set(rule.coin, coinRules)
+    }
+
+    await Promise.all(
+      [...byCoin].map(async ([coin, coinRules]) => {
+        const recent = [...(this.recentPriceTrades.get(coin) ?? [])].sort(
+          (left, right) =>
+            left.ts - right.ts || (left.tid ?? 0) - (right.tid ?? 0)
+        )
+        const needsHistory = coinRules.filter((rule) => {
+          const start = recoveryStart(rule)
+          return !recent.some((trade) => trade.ts <= start)
+        })
+        if (needsHistory.length === 0) {
+          for (const rule of coinRules) this.replayPriceRule(rule)
+          return
+        }
+
+        let candles: RecoveryCandle[] = []
+        const fetchedAt = Date.now()
+        try {
+          await this.restBucket.take()
+          if (this.stopped) return
+          const earliest = Math.min(...needsHistory.map(recoveryStart))
+          candles = (await this.info.candleSnapshot({
+            coin,
+            interval: "1m",
+            startTime: Math.max(0, earliest - ONE_MINUTE_MS),
+            endTime: fetchedAt,
+          })) as RecoveryCandle[]
+          if (this.stopped) return
+        } catch (error) {
+          console.error(`price alerts: recovery failed for ${coin}`, error)
+        }
+
+        for (const rule of coinRules) {
+          if (!needsHistory.some((candidate) => candidate.id === rule.id)) {
+            this.replayPriceRule(rule)
+            continue
+          }
+          const start = recoveryStart(rule)
+          const firstBufferedAt = recent[0]?.ts ?? fetchedAt
+          const recoveredThrough = candles.length
+            ? this.recoverPriceRule(rule, candles, start, firstBufferedAt)
+            : undefined
+          this.replayPriceRule(rule, recoveredThrough)
+        }
+      })
+    )
+  }
+
+  private recoverPriceRule(
+    rule: PriceLevelAlertRule,
+    candles: RecoveryCandle[],
+    start: number,
+    cutoff: number
+  ) {
+    const valid = candles
+      .map((candle) => ({
+        start: Number(candle.t),
+        end: Number(candle.T),
+        high: Number(candle.h),
+        low: Number(candle.l),
+        close: Number(candle.c),
+      }))
+      .filter(
+        (candle) =>
+          Number.isFinite(candle.start) &&
+          Number.isFinite(candle.end) &&
+          Number.isFinite(candle.high) &&
+          Number.isFinite(candle.low) &&
+          Number.isFinite(candle.close) &&
+          candle.high > 0 &&
+          candle.low > 0 &&
+          candle.close > 0 &&
+          candle.low <= candle.high
+      )
+      .sort((left, right) => left.start - right.start)
+    let baseline: (typeof valid)[number] | undefined
+    for (const candle of valid) {
+      if (candle.end > start) break
+      baseline = candle
+    }
+    if (!baseline) return undefined
+
+    this.evaluatePriceRule(rule, {
+      coin: rule.coin,
+      px: baseline.close,
+      notional: 0,
+      ts: baseline.end,
+    })
+    let recoveredThrough = Math.max(start, baseline.end)
+    const interrupted = valid.find(
+      (candle) =>
+        candle.start <= start && candle.end > start && candle.end < cutoff
+    )
+    if (interrupted) {
+      const key = `${rule.id}:${rule.coin}`
+      const state = this.priceStates.get(key)
+      if (state) {
+        this.priceStates.set(key, {
+          ...state,
+          previousPrice: interrupted.close,
+        })
+        recoveredThrough = interrupted.end
+      }
+    }
+
+    for (const candle of valid) {
+      if (candle.end <= recoveredThrough || candle.end >= cutoff) continue
+      const key = `${rule.id}:${rule.coin}:recovery:${candle.end}`
+      const previous = this.priceStates.get(`${rule.id}:${rule.coin}`)
+      if (!previous || previous.stopped) break
+
+      if (previous.previousPrice < rule.level && candle.high >= rule.level) {
+        this.evaluatePriceRule(
+          rule,
+          {
+            coin: rule.coin,
+            px: candle.high,
+            notional: 0,
+            ts: candle.end - 1,
+          },
+          `${key}:up`
+        )
+      } else if (
+        previous.previousPrice > rule.level &&
+        candle.low <= rule.level
+      ) {
+        this.evaluatePriceRule(
+          rule,
+          {
+            coin: rule.coin,
+            px: candle.low,
+            notional: 0,
+            ts: candle.end - 1,
+          },
+          `${key}:down`
+        )
+      }
+
+      this.evaluatePriceRule(
+        rule,
+        {
+          coin: rule.coin,
+          px: candle.close,
+          notional: 0,
+          ts: candle.end,
+        },
+        `${key}:close`
+      )
+      recoveredThrough = candle.end
+    }
+    return recoveredThrough
   }
 
   private queueTrigger(
@@ -193,15 +411,23 @@ export class TradingViewAlertEngine {
   }
 
   private async refresh() {
+    if (this.refreshing) return
+    this.refreshing = true
     try {
       const nextRules = await listActiveAlertRules()
+      if (this.stopped) return
       const nextIds = new Set(nextRules.map((rule) => rule.id))
       const priorVersions = new Map(
         this.rules.map((rule) => [rule.id, rule.updatedAt])
       )
+      const changedPriceRules: PriceLevelAlertRule[] = []
       for (const rule of nextRules) {
         if (priorVersions.get(rule.id) !== rule.updatedAt) {
           this.clearRuleState(rule.id)
+          if (rule.kind === "price_level") {
+            changedPriceRules.push(rule)
+            this.recoveringPriceRules.add(rule.id)
+          }
         }
       }
       for (const rule of this.rules) {
@@ -215,6 +441,8 @@ export class TradingViewAlertEngine {
         coinRules.push(rule)
         this.priceRules.set(rule.coin, coinRules)
       }
+      await this.recoverPriceRules(changedPriceRules)
+      if (this.stopped) return
 
       const needed = new Set(
         nextRules
@@ -236,6 +464,11 @@ export class TradingViewAlertEngine {
       }
     } catch (error) {
       console.error("price alerts: refresh failed", error)
+    } finally {
+      for (const rule of this.rules) {
+        this.recoveringPriceRules.delete(rule.id)
+      }
+      this.refreshing = false
     }
   }
 
@@ -372,4 +605,15 @@ function trimBars(bars: Map<number, MarketBar>, limit: number) {
   if (bars.size <= limit) return
   const keys = [...bars.keys()].sort((a, b) => a - b)
   for (const key of keys.slice(0, bars.size - limit)) bars.delete(key)
+}
+
+function recoveryStart(rule: PriceLevelAlertRule) {
+  const updatedAt = Date.parse(rule.updatedAt)
+  const evaluatedAt = rule.lastEvaluatedAt
+    ? Date.parse(rule.lastEvaluatedAt)
+    : Number.NaN
+  return Math.max(
+    Number.isFinite(updatedAt) ? updatedAt : 0,
+    Number.isFinite(evaluatedAt) ? evaluatedAt : 0
+  )
 }

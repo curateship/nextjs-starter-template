@@ -34,6 +34,10 @@ const DETAILS: Record<WorkerKind, { label: string; description: string }> = {
     label: "Market Scanner",
     description: "Evaluates saved market rules and creates market alerts.",
   },
+  alert: {
+    label: "Alert Worker",
+    description: "Watches Trade alert rules against its own live market feed.",
+  },
   backtest: {
     label: "Backtest Worker",
     description: "Runs queued historical simulations and saves their results.",
@@ -172,7 +176,9 @@ export async function getWorkersDashboard(
           ? isoOf(latestWhaleActivity?.activity_at)
           : kind === "market-scanner"
             ? isoOf(marketStats?.last_evaluated_at)
-            : isoOf(backtests[0]?.lastCompletedAt)
+            : kind === "alert"
+              ? null
+              : isoOf(backtests[0]?.lastCompletedAt)
 
     return {
       kind,
@@ -279,6 +285,16 @@ function metricsFor(
       {
         label: "Last evaluation",
         value: isoOf(marketStats?.last_evaluated_at) ?? "Never",
+      },
+    ]
+  }
+  if (kind === "alert") {
+    return [
+      { label: "Alert rules", value: String(numberOf(meta.alertRules)) },
+      { label: "Markets", value: String(numberOf(meta.alertCoins)) },
+      {
+        label: "Subscriptions",
+        value: String(numberOf(meta.alertSubscriptions)),
       },
     ]
   }
