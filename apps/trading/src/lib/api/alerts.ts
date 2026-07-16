@@ -39,12 +39,11 @@ const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
   const user = await requireUser()
   const { getAlertRules } = await import("@/server/alerts")
   const { getActivePerpMarkets } = await import("@/server/hyperliquid/info")
-  const { getMarketScannerWorkerStatus } =
-    await import("@/server/market-scanner-status")
+  const { getAlertWorkerStatus } = await import("@/server/worker-status")
   const [rules, markets, status] = await Promise.all([
     getAlertRules(user.id),
     getActivePerpMarkets("mainnet").catch(() => null),
-    getMarketScannerWorkerStatus(),
+    getAlertWorkerStatus(),
   ])
   return {
     rules,
@@ -53,6 +52,7 @@ const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
       : [...new Set(rules.map((rule) => rule.coin))],
     marketsAvailable: markets !== null,
     workerOnline: status.workerOnline,
+    workerActive: status.workerActive,
     checkedAt: Date.now(),
   }
 })

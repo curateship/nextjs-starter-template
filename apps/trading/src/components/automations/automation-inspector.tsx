@@ -27,7 +27,6 @@ import type { IndicatorParamField } from "@/lib/indicators/contract"
 import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
 import { cn } from "@/lib/utils"
 
-
 export function AutomationInspector({
   className,
   selectedNode,
@@ -60,12 +59,7 @@ export function AutomationInspector({
         className
       )}
     >
-      <div
-        className={cn(
-          "relative border-b px-4 py-3",
-          onToggleFavorite && "pr-12"
-        )}
-      >
+      <div className={cn("relative px-4 py-3", onToggleFavorite && "pr-12")}>
         <h2 className="text-sm font-semibold">
           {selectedNode ? automationNodeName(selectedNode) : "Automation"}
         </h2>
@@ -119,27 +113,29 @@ export function AutomationInspector({
             <NodeFields node={selectedNode} onChange={onNodeChange} />
           ) : null}
 
-          {selectedNode && onAddNode ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => onAddNode(selectedNode)}
-            >
-              <PlusIcon className="size-4" />
-              Add node
-            </Button>
-          ) : null}
-
           {selectedNode ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => onDeleteNode(selectedNode.id)}
-            >
-              <Trash2Icon className="size-4" />
-              Delete node
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              {onAddNode ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onAddNode(selectedNode)}
+                >
+                  <PlusIcon className="size-4" />
+                  Add node
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className={cn(!onAddNode && "col-span-2")}
+                onClick={() => onDeleteNode(selectedNode.id)}
+              >
+                <Trash2Icon className="size-4" />
+                Delete node
+              </Button>
+            </div>
           ) : null}
         </div>
       </ScrollArea>
@@ -752,27 +748,29 @@ function ActionFields({
   }
 
   return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`target-${node.id}`} className="text-xs">
-        Target account equity %
-      </Label>
-      <Input
-        id={`target-${node.id}`}
-        type="number"
-        min={1}
-        max={100}
-        step={1}
-        value={node.targetEquityPct ?? 10}
-        className="h-8 text-xs"
-        onChange={(event) =>
-          onChange({ ...node, targetEquityPct: Number(event.target.value) })
-        }
-      />
-      <p className="text-[11px] text-muted-foreground">
-        {node.action === "reverse"
-          ? "When the position flips, the new opposite side targets this percentage of account equity. With no open position there is nothing to reverse."
-          : "The engine adjusts toward this target instead of stacking another full order on every signal."}
-      </p>
-    </div>
+    <Card size="sm" className="bg-muted/40">
+      <CardContent className="grid gap-1.5">
+        <Label htmlFor={`target-${node.id}`} className="text-xs">
+          Target account equity %
+        </Label>
+        <Input
+          id={`target-${node.id}`}
+          type="number"
+          min={1}
+          max={100}
+          step={1}
+          value={node.targetEquityPct ?? 10}
+          className="h-8 text-xs"
+          onChange={(event) =>
+            onChange({ ...node, targetEquityPct: Number(event.target.value) })
+          }
+        />
+        <p className="text-[11px] text-muted-foreground">
+          {node.action === "reverse"
+            ? "When the position flips, the new opposite side targets this percentage of account equity. With no open position there is nothing to reverse."
+            : "The engine adjusts toward this target instead of stacking another full order on every signal."}
+        </p>
+      </CardContent>
+    </Card>
   )
 }

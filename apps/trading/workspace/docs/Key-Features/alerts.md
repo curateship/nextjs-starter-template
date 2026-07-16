@@ -26,7 +26,11 @@ after its rule is deleted.
 
 The first valid price arms an exact-price alert without firing it. A one-time
 alert stops after its first event. A repeating alert must reset across its
-boundary and wait for its chosen cooldown before firing again.
+boundary and wait for its chosen cooldown before firing again. If a price
+crosses while a newly saved alert is waiting for the worker's next rule
+refresh, the worker replays its short recent trade window so the crossing is
+not lost. After a worker restart, exact-price alerts rebuild their position
+from closed one-minute market history before continuing with exact live trades.
 
 ## Delivery and worker
 
@@ -38,7 +42,6 @@ a baseline, so old events do not create a burst of popups. Tabs share a stored
 event key to avoid duplicate browser popups.
 
 `npm run dev` starts Trading and all dedicated workers. Use
-`npm run market-scanner:dev` only to run that worker by itself. The TradingView
-alert evaluator shares its live trade feed with Market Scanner, but their rules,
-history, routes, and behavior remain separate. Whale Scanner controls do not
-affect either system.
+`npm run alert-worker:dev` only to run the Alert Worker by itself. It owns its
+live trade feed, evaluation, history retention, heartbeat, and runtime control.
+Market Scanner and Whale Scanner controls do not affect Trade chart alerts.

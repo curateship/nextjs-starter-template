@@ -162,9 +162,11 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
         status={
           !data.workerOnline
             ? { tone: "error", text: "Worker offline" }
-            : stale
-              ? { tone: "error", text: "Worker stale" }
-              : { tone: "success", text: "Watching mainnet" }
+            : !data.workerActive
+              ? { tone: "error", text: "Worker off" }
+              : stale
+                ? { tone: "error", text: "Worker stale" }
+                : { tone: "success", text: "Watching mainnet" }
         }
         controls={
           <>

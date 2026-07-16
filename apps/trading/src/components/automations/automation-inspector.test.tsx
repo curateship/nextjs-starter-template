@@ -49,6 +49,26 @@ describe("AutomationInspector", () => {
     expect(markup).not.toContain("favorites")
   })
 
+  it("groups action settings in a card and keeps node actions side by side", () => {
+    const markup = renderToStaticMarkup(
+      <AutomationInspector
+        selectedNode={longNode}
+        errors={[]}
+        onNodeChange={vi.fn()}
+        onAddNode={vi.fn()}
+        onDeleteNode={vi.fn()}
+      />
+    )
+
+    expect(markup).toContain("Target account equity %")
+    expect(markup.match(/data-slot="card"/g)).toHaveLength(1)
+    expect(markup).toContain("bg-muted/40")
+    expect(markup).toContain("grid-cols-2")
+    expect(markup).toContain("Add node")
+    expect(markup).toContain("Delete node")
+    expect(markup).not.toContain("relative border-b px-4 py-3")
+  })
+
   it("shows QFL ladder, exposure, and recovery controls", () => {
     const markup = renderToStaticMarkup(
       <AutomationInspector

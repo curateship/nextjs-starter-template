@@ -32,21 +32,24 @@ export function normalizeMarketTrades(
     ) {
       return []
     }
-    return [{
-      coin: event.coin,
-      px,
-      notional,
-      ts: event.time,
-      tid: event.tid,
-    }]
+    return [
+      {
+        coin: event.coin,
+        px,
+        notional,
+        ts: event.time,
+        tid: event.tid,
+      },
+    ]
   })
 }
 
-/** Shared mainnet trade stream for Market Scanner and price alerts. */
+/** Per-process mainnet trade subscriptions for market-data workers. */
 export class MarketTradeStream {
   private readonly subs: SubscriptionClient
   private readonly emit: (trades: MarketTrade[]) => void
   private readonly getUniverse: () => Promise<{ coin: string }[]>
+  private readonly label: string
   private readonly seen = new Set<number>()
   private seenOrder: number[] = []
   private unsubscribers: (() => void)[] = []
@@ -59,15 +62,17 @@ export class MarketTradeStream {
   constructor(
     subs: SubscriptionClient,
     emit: (trades: MarketTrade[]) => void,
-    getUniverse: () => Promise<{ coin: string }[]> = getScannerUniverse
+    getUniverse: () => Promise<{ coin: string }[]> = getScannerUniverse,
+    label = "market scanner"
   ) {
     this.subs = subs
     this.emit = emit
     this.getUniverse = getUniverse
+    this.label = label
   }
 
   meta() {
-    return { marketScannerSubscriptions: this.subscribed }
+    return { subscriptions: this.subscribed }
   }
 
   async start() {
@@ -84,9 +89,8 @@ export class MarketTradeStream {
     const coins = [...this.pending]
     const results = await Promise.allSettled(
       coins.map(async (coin) => {
-        const subscription = await this.subs.trades(
-          { coin },
-          (events) => this.onTrades(events)
+        const subscription = await this.subs.trades({ coin }, (events) =>
+          this.onTrades(events)
         )
         if (this.stopped) {
           await subscription.unsubscribe().catch(() => {})
@@ -94,15 +98,17 @@ export class MarketTradeStream {
         }
         this.pending.delete(coin)
         this.subscribed += 1
-        this.unsubscribers.push(() =>
-          void subscription.unsubscribe().catch(() => {})
+        this.unsubscribers.push(
+          () => void subscription.unsubscribe().catch(() => {})
         )
       })
     )
     this.subscribing = false
-    const failed = results.filter((result) => result.status === "rejected").length
+    const failed = results.filter(
+      (result) => result.status === "rejected"
+    ).length
     console.log(
-      `market scanner: subscribed to ${this.subscribed}/${this.subscribed + this.pending.size} markets` +
+      `${this.label}: subscribed to ${this.subscribed}/${this.subscribed + this.pending.size} markets` +
         (failed ? ` (${failed} failed)` : "")
     )
   }
