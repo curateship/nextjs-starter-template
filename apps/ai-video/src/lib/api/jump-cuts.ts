@@ -3,11 +3,13 @@ import { z } from "zod"
 
 import type {
   JumpCutAnalysisResult,
+  JumpCutMode,
   JumpCutSensitivity,
 } from "@/server/jump-cuts"
 
 export type {
   JumpCutAnalysisResult,
+  JumpCutMode,
   JumpCutSensitivity,
   JumpCutSuggestion,
 } from "@/server/jump-cuts"
@@ -16,6 +18,8 @@ const jumpCutSchema = z.object({
   projectId: z.string().min(1).max(36),
   clipId: z.string().min(1).max(64),
   sensitivity: z.enum(["conservative", "balanced", "tight"]),
+  mode: z.enum(["dead-air", "filler"]).optional(),
+  fillerTerms: z.array(z.string().min(1).max(32)).max(64).optional(),
 })
 
 const safeErrorMessages = new Set([
@@ -48,6 +52,8 @@ export function analyzeJumpCuts(data: {
   projectId: string
   clipId: string
   sensitivity: JumpCutSensitivity
+  mode?: JumpCutMode
+  fillerTerms?: string[]
 }) {
   return analyzeJumpCutsFn({ data })
 }

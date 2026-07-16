@@ -3,6 +3,8 @@ import {
   Film,
   Loader2,
   Music,
+  Pause,
+  Play,
   Plus,
   Replace,
   Scissors,
@@ -23,6 +25,14 @@ import {
   type MediaFileType,
   type MediaItem,
 } from "@/lib/api/media"
+import {
+  MUSIC_CATEGORIES,
+  MUSIC_LENGTHS,
+  MUSIC_TRACKS,
+  musicTrackUrl,
+  type MusicCategory,
+  type MusicLengthId,
+} from "@/lib/music-library"
 import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import { requireTextFont, type TextFontId } from "@/lib/text-fonts"
 import {
@@ -1091,33 +1101,16 @@ function AiStudioPanel() {
 
 // ---------------------------------------------------------------- Audio -----
 
+type AudioLibraryTab = "sfx" | "music"
+
 function AudioPanel() {
   const tracks = useEditorSelector((state) => state.tracks)
-  const { dispatch, clock } = useEditorRuntime()
-  const { previewingId, togglePreview } = useAudioPreview()
+  const { dispatch } = useEditorRuntime()
+  const [tab, setTab] = React.useState<AudioLibraryTab>("sfx")
   const projectAudio = tracks
     .flatMap((t) => t.clips)
     .filter((c) => c.kind === "audio")
     .sort((a, b) => a.startMs - b.startMs)
-  const wave = React.useMemo(() => waveformDataUrl("#9a9aa2"), [])
-
-  function addEffect(effect: (typeof SOUND_EFFECTS)[number]) {
-    dispatch({
-      type: "ADD_CLIP",
-      clip: {
-        id: editorId(),
-        kind: "audio",
-        name: effect.label,
-        url: soundEffectUrl(effect.fileName),
-        soundEffectId: effect.id,
-        sourceDurationMs: effect.durationMs,
-        durationMs: effect.durationMs,
-        trimStartMs: 0,
-        startMs: 0,
-      },
-      atMs: clock.getTime(),
-    })
-  }
 
   return (
     <div>
@@ -1162,50 +1155,277 @@ function AudioPanel() {
         )}
       </div>
 
-      <Label>Sound effects</Label>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9 }}>
-        {SOUND_EFFECTS.map((effect) => (
-          <div key={effect.id} className="st-hovcard" style={rowCard}>
+      <div style={segmentRow}>
+        {AUDIO_LIBRARY_TABS.map((t) => {
+          const on = tab === t.id
+          return (
             <button
+              key={t.id}
               type="button"
-              onClick={() => togglePreview(effect.id, soundEffectUrl(effect.fileName))}
-              title={previewingId === effect.id ? "Stop" : "Preview"}
-              style={{
-                height: 34,
-                width: 34,
-                borderRadius: 9,
-                flex: "none",
-                background: wave,
-                backgroundSize: "cover",
-                backgroundColor: "var(--elev)",
-                border: previewingId === effect.id ? "1px solid var(--acc)" : "1px solid var(--line)",
-                cursor: "pointer",
-              }}
-            />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={rowTitle}>{effect.label}</div>
-              <div style={rowMeta}>SFX · {(effect.durationMs / 1000).toFixed(2)}s</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => addEffect(effect)}
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--mut)",
-                display: "grid",
-                placeItems: "center",
-              }}
-              title="Add to timeline"
+              onClick={() => setTab(t.id)}
+              style={segmentBtn(on)}
             >
-              <Plus size={14} />
+              {t.label}
             </button>
+          )
+        })}
+      </div>
+
+      {tab === "sfx" ? <SoundEffectList /> : <MusicList />}
+    </div>
+  )
+}
+
+const AUDIO_LIBRARY_TABS: { id: AudioLibraryTab; label: string }[] = [
+  { id: "sfx", label: "Sound FX" },
+  { id: "music", label: "Music" },
+]
+
+function SoundEffectList() {
+  const { dispatch, clock } = useEditorRuntime()
+  const { previewingId, togglePreview } = useAudioPreview()
+  const wave = React.useMemo(() => waveformDataUrl("#9a9aa2"), [])
+
+  function addEffect(effect: (typeof SOUND_EFFECTS)[number]) {
+    dispatch({
+      type: "ADD_CLIP",
+      clip: {
+        id: editorId(),
+        kind: "audio",
+        name: effect.label,
+        url: soundEffectUrl(effect.fileName),
+        soundEffectId: effect.id,
+        sourceDurationMs: effect.durationMs,
+        durationMs: effect.durationMs,
+        trimStartMs: 0,
+        startMs: 0,
+      },
+      atMs: clock.getTime(),
+    })
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9 }}>
+      {SOUND_EFFECTS.map((effect) => (
+        <div key={effect.id} className="st-hovcard" style={rowCard}>
+          <button
+            type="button"
+            onClick={() => togglePreview(effect.id, soundEffectUrl(effect.fileName))}
+            title={previewingId === effect.id ? "Stop" : "Preview"}
+            style={{
+              height: 34,
+              width: 34,
+              borderRadius: 9,
+              flex: "none",
+              background: wave,
+              backgroundSize: "cover",
+              backgroundColor: "var(--elev)",
+              border: previewingId === effect.id ? "1px solid var(--acc)" : "1px solid var(--line)",
+              cursor: "pointer",
+            }}
+          />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={rowTitle}>{effect.label}</div>
+            <div style={rowMeta}>SFX · {(effect.durationMs / 1000).toFixed(2)}s</div>
           </div>
+          <button
+            type="button"
+            onClick={() => addEffect(effect)}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--mut)",
+              display: "grid",
+              placeItems: "center",
+            }}
+            title="Add to timeline"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MusicList() {
+  const { dispatch } = useEditorRuntime()
+  const { previewingId, togglePreview } = useAudioPreview()
+  const wave = React.useMemo(() => waveformDataUrl("#8a86b8"), [])
+  const [category, setCategory] = React.useState<MusicCategory | "all">("all")
+  const [length, setLength] = React.useState<MusicLengthId>("any")
+
+  const lengthRange = MUSIC_LENGTHS.find((l) => l.id === length) ?? MUSIC_LENGTHS[0]
+  const tracks = MUSIC_TRACKS.filter(
+    (track) =>
+      (category === "all" || track.category === category) &&
+      track.durationMs >= lengthRange.minMs &&
+      track.durationMs < lengthRange.maxMs
+  )
+
+  // A bed goes on its own ducked track so it dips under voice automatically.
+  function addBed(track: (typeof MUSIC_TRACKS)[number]) {
+    dispatch({
+      type: "ADD_MUSIC_BED",
+      clip: {
+        id: editorId(),
+        kind: "audio",
+        name: track.title,
+        url: musicTrackUrl(track.fileName),
+        musicTrackId: track.id,
+        sourceDurationMs: track.durationMs,
+        durationMs: track.durationMs,
+        trimStartMs: 0,
+        startMs: 0,
+      },
+    })
+  }
+
+  return (
+    <div>
+      <div style={chipRow}>
+        <button type="button" onClick={() => setCategory("all")} style={chipStyle(category === "all")}>
+          All
+        </button>
+        {MUSIC_CATEGORIES.map((c) => (
+          <button key={c} type="button" onClick={() => setCategory(c)} style={chipStyle(category === c)}>
+            {c}
+          </button>
         ))}
+      </div>
+      <div style={chipRow}>
+        {MUSIC_LENGTHS.map((l) => (
+          <button key={l.id} type="button" onClick={() => setLength(l.id)} style={chipStyle(length === l.id)}>
+            {l.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9 }}>
+        {tracks.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--mut)", padding: "2px" }}>
+            No tracks match these filters.
+          </div>
+        ) : (
+          tracks.map((track) => {
+            const previewId = `music:${track.id}`
+            const playing = previewingId === previewId
+            return (
+              <div key={track.id} className="st-hovcard" style={{ ...rowCard, cursor: "default" }}>
+                <button
+                  type="button"
+                  onClick={() => togglePreview(previewId, musicTrackUrl(track.fileName))}
+                  title={playing ? "Stop preview" : "Preview"}
+                  style={{
+                    height: 34,
+                    width: 34,
+                    borderRadius: 9,
+                    flex: "none",
+                    display: "grid",
+                    placeItems: "center",
+                    background: wave,
+                    backgroundSize: "cover",
+                    backgroundColor: "var(--elev)",
+                    color: "var(--ink)",
+                    border: playing ? "1px solid var(--acc)" : "1px solid var(--line)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {playing ? <Pause size={13} /> : <Play size={13} />}
+                </button>
+                {/* The whole rest of the row adds the bed to the timeline, so the
+                    primary action isn't hidden behind a small "+" icon. */}
+                <button
+                  type="button"
+                  onClick={() => addBed(track)}
+                  title="Add as music bed"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    minWidth: 0,
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "inherit",
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={rowTitle}>{track.title}</div>
+                    <div style={rowMeta}>
+                      {track.category} · {formatClock(track.durationMs)}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      flex: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 3,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "var(--acc2)",
+                    }}
+                  >
+                    <Plus size={13} />
+                    Add
+                  </span>
+                </button>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
+}
+
+const segmentRow: React.CSSProperties = {
+  display: "flex",
+  gap: 2,
+  padding: 3,
+  background: "var(--elev)",
+  borderRadius: 9,
+  marginBottom: 15,
+}
+
+function segmentBtn(on: boolean): React.CSSProperties {
+  return {
+    flex: 1,
+    padding: "6px 8px",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+    background: on ? "var(--panel)" : "transparent",
+    color: on ? "var(--ink)" : "var(--ink2)",
+    boxShadow: on ? "var(--sh-sm)" : "none",
+  }
+}
+
+const chipRow: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 6,
+  marginBottom: 11,
+}
+
+function chipStyle(on: boolean): React.CSSProperties {
+  return {
+    padding: "5px 10px",
+    border: on ? "1px solid var(--acc)" : "1px solid var(--line)",
+    borderRadius: 8,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+    background: on ? "var(--acc-soft)" : "var(--panel2)",
+    color: on ? "var(--acc2)" : "var(--ink2)",
+  }
 }
 
 const rowCard: React.CSSProperties = {

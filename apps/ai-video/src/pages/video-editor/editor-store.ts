@@ -5,6 +5,7 @@ import {
   applyHookVariant,
   type HookVariantInput,
 } from "../../lib/hook-variants.ts"
+import type { MusicTrackId } from "../../lib/music-library.ts"
 import type { SoundEffectId } from "../../lib/sound-effects.ts"
 import type { TextFontId } from "../../lib/text-fonts.ts"
 import { PlaybackClock } from "./playback-clock.ts"
@@ -35,6 +36,8 @@ export type EditorClip = {
   url?: string
   muted?: boolean
   soundEffectId?: SoundEffectId
+  // Bundled music bed (public/music); inserted onto its own ducked track.
+  musicTrackId?: MusicTrackId
   sourceDurationMs?: number
   trimStartMs: number
   // Text clips.
@@ -92,6 +95,8 @@ export type EditorAction =
       trackId?: string
     }
   | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
+  // Music bed: its own new track, ducked under voice, starting at t=0.
+  | { type: "ADD_MUSIC_BED"; clip: EditorClip }
   | {
       type: "MOVE_CLIP"
       clipId: string
@@ -390,6 +395,21 @@ export function editorReducer(
     case "ADD_CLIP_TO_NEW_TRACK":
       return placeClipInNewTrack(state, action.clip, action.atMs)
 
+    case "ADD_MUSIC_BED": {
+      // A music bed lives on its own track marked to duck under voice, so it
+      // dips under speech automatically (see audio-ducking). Starts at t=0.
+      const track: EditorTrack = {
+        id: editorId(),
+        muted: false,
+        duck: true,
+        clips: [{ ...action.clip, startMs: 0 }],
+      }
+      return {
+        ...pushUndo(state, [...state.tracks, track]),
+        selectedClipId: action.clip.id,
+      }
+    }
+
     case "ADD_CAPTION_CLIPS": {
       if (action.clips.length === 0) return state
       // Captions arrive non-overlapping from the server; give them their own
@@ -592,6 +612,7 @@ export function editorReducer(
         mediaId: action.media.mediaId,
         url: action.media.url,
         soundEffectId: undefined,
+        musicTrackId: undefined,
         name: action.media.name,
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,

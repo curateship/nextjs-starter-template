@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { CAPTION_ANIMATION_IDS } from "./caption-animations.ts"
+import { MUSIC_TRACK_IDS } from "./music-library.ts"
 import { SOUND_EFFECT_IDS } from "./sound-effects.ts"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
 
@@ -24,6 +25,8 @@ const clipSchema = z
     url: z.string().max(2048).optional(),
     muted: z.boolean().optional(),
     soundEffectId: z.enum(SOUND_EFFECT_IDS).optional(),
+    // Bundled music bed (public/music); resolved like a sound effect at export.
+    musicTrackId: z.enum(MUSIC_TRACK_IDS).optional(),
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     text: z.string().max(5000).optional(),
     fontId: z.enum(TEXT_FONT_IDS).optional(),

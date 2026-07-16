@@ -20,6 +20,7 @@ import {
   duckEnvelopeToVolumeExpr,
   type Interval,
 } from "@/lib/audio-ducking"
+import { getMusicTrack } from "@/lib/music-library"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
@@ -426,7 +427,9 @@ async function buildFfmpegCommand(options: {
   const voiceIntervals: Interval[] = []
   for (const { clip, muted, duck } of audio) {
     if (muted || duck) continue
-    if (clip.soundEffectId || clip.mediaId) voiceIntervals.push(sourceInterval(clip))
+    if (clip.soundEffectId || clip.musicTrackId || clip.mediaId) {
+      voiceIntervals.push(sourceInterval(clip))
+    }
   }
   for (const { clip, muted, duck } of visuals) {
     if (muted || duck) continue
@@ -435,7 +438,12 @@ async function buildFfmpegCommand(options: {
     }
   }
   const hasDuckSource =
-    audio.some((a) => a.duck && !a.muted && (a.clip.soundEffectId || a.clip.mediaId)) ||
+    audio.some(
+      (a) =>
+        a.duck &&
+        !a.muted &&
+        (a.clip.soundEffectId || a.clip.musicTrackId || a.clip.mediaId)
+    ) ||
     visuals.some(
       (v) =>
         v.duck &&
@@ -555,6 +563,11 @@ async function buildFfmpegCommand(options: {
       if (!effect) throw new Error("A sound effect no longer exists")
       file = path.join(PUBLIC_ASSET_DIR, "sound-effects", effect.fileName)
       if (!existsSync(file)) throw new Error("A sound effect file is missing")
+    } else if (clip.musicTrackId) {
+      const music = getMusicTrack(clip.musicTrackId)
+      if (!music) throw new Error("A music track no longer exists")
+      file = path.join(PUBLIC_ASSET_DIR, "music", music.fileName)
+      if (!existsSync(file)) throw new Error("A music track file is missing")
     } else if (clip.mediaId) {
       file = sourceFiles.get(clip.mediaId)
     }

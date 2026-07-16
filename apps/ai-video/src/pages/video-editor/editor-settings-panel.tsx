@@ -97,9 +97,14 @@ import {
 import {
   analyzeJumpCuts,
   getJumpCutErrorMessage,
+  type JumpCutMode,
   type JumpCutSensitivity,
   type JumpCutSuggestion,
 } from "@/lib/api/jump-cuts"
+import {
+  DEFAULT_FILLER_TERMS,
+  FILLER_WORD_OPTIONS,
+} from "@/lib/filler-words"
 import {
   getHookRewriteErrorMessage,
   rewriteHookLines,
@@ -466,6 +471,16 @@ function EditorToolTilesPanel({
 
 type JumpCutApplyMode = "review" | "auto"
 
+// What to detect: silence/pauses ("dead-air", the original behavior) or spoken
+// filler words. Filler mode reuses the same transcription + removal path.
+const JUMP_CUT_TARGET_OPTIONS: {
+  value: JumpCutMode
+  label: string
+}[] = [
+  { value: "dead-air", label: "Dead air" },
+  { value: "filler", label: "Filler words" },
+]
+
 const JUMP_CUT_SENSITIVITY_OPTIONS: {
   value: JumpCutSensitivity
   label: string
@@ -480,7 +495,7 @@ const JUMP_CUT_APPLY_MODE_OPTIONS: {
   label: string
 }[] = [
   { value: "review", label: "Review first" },
-  { value: "auto", label: "Auto cut dead air" },
+  { value: "auto", label: "Auto cut" },
 ]
 
 function JumpCutDialog({
@@ -496,8 +511,12 @@ function JumpCutDialog({
       : null
   )
   const { dispatch, clock, documentId, flushSave } = useEditorRuntime()
+  const [target, setTarget] = React.useState<JumpCutMode>("dead-air")
   const [sensitivity, setSensitivity] =
     React.useState<JumpCutSensitivity>("balanced")
+  const [fillerTerms, setFillerTerms] = React.useState<Set<string>>(
+    () => new Set(DEFAULT_FILLER_TERMS)
+  )
   const [applyMode, setApplyMode] = React.useState<JumpCutApplyMode>("review")
   const [suggestions, setSuggestions] = React.useState<JumpCutSuggestion[]>([])
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -515,6 +534,7 @@ function JumpCutDialog({
   const totalRemovedMs = totalJumpCutRemovedMs(selectedSuggestions)
   const hasReviewSuggestions = suggestions.length > 0 && applyMode === "review"
   const analyzeButtonText = applyMode === "auto" ? "Auto Cut" : "Analyze"
+  const noFillerTermsSelected = target === "filler" && fillerTerms.size === 0
 
   function clearAnalysisResults() {
     setSuggestions([])
@@ -525,9 +545,27 @@ function JumpCutDialog({
   }
 
   function reset() {
+    setTarget("dead-air")
     setSensitivity("balanced")
+    setFillerTerms(new Set(DEFAULT_FILLER_TERMS))
     setApplyMode("review")
     setAnalyzing(false)
+    clearAnalysisResults()
+  }
+
+  // Switching what we detect invalidates any results from the previous target.
+  function changeTarget(next: JumpCutMode) {
+    setTarget(next)
+    clearAnalysisResults()
+  }
+
+  function toggleFillerTerm(term: string, checked: boolean) {
+    setFillerTerms((current) => {
+      const next = new Set(current)
+      if (checked) next.add(term)
+      else next.delete(term)
+      return next
+    })
     clearAnalysisResults()
   }
 
@@ -570,6 +608,8 @@ function JumpCutDialog({
         projectId: documentId,
         clipId: selectedClip.id,
         sensitivity,
+        mode: target,
+        fillerTerms: target === "filler" ? [...fillerTerms] : undefined,
       })
       setHasAnalyzed(true)
       if (applyMode === "auto") {
@@ -625,18 +665,16 @@ function JumpCutDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="jump-cut-sensitivity">Sensitivity</Label>
+                <Label htmlFor="jump-cut-target">Remove</Label>
                 <Select
-                  value={sensitivity}
-                  onValueChange={(value) =>
-                    setSensitivity(value as JumpCutSensitivity)
-                  }
+                  value={target}
+                  onValueChange={(value) => changeTarget(value as JumpCutMode)}
                 >
-                  <SelectTrigger id="jump-cut-sensitivity">
+                  <SelectTrigger id="jump-cut-target">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {JUMP_CUT_SENSITIVITY_OPTIONS.map((option) => (
+                    {JUMP_CUT_TARGET_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -666,6 +704,59 @@ function JumpCutDialog({
               </div>
             </div>
 
+            {target === "dead-air" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="jump-cut-sensitivity">Sensitivity</Label>
+                <Select
+                  value={sensitivity}
+                  onValueChange={(value) =>
+                    setSensitivity(value as JumpCutSensitivity)
+                  }
+                >
+                  <SelectTrigger id="jump-cut-sensitivity" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JUMP_CUT_SENSITIVITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Filler words</Label>
+                <div className="grid grid-cols-2 gap-2 rounded-md border bg-background p-3 sm:grid-cols-3">
+                  {FILLER_WORD_OPTIONS.map((option) => {
+                    const id = `filler-term-${option.term.replace(/\s+/g, "-")}`
+                    return (
+                      <div key={option.term} className="flex items-center gap-2">
+                        <Checkbox
+                          id={id}
+                          checked={fillerTerms.has(option.term)}
+                          onCheckedChange={(checked) =>
+                            toggleFillerTerm(option.term, checked === true)
+                          }
+                        />
+                        <Label
+                          htmlFor={id}
+                          className="text-sm font-normal text-foreground"
+                        >
+                          {option.label}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ambiguous words like “like” or “so” can be real speech —
+                  review before applying.
+                </p>
+              </div>
+            )}
+
             {error ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
@@ -684,7 +775,9 @@ function JumpCutDialog({
 
             {emptyAfterAnalyze ? (
               <div className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
-                No removable dead air found.
+                {target === "filler"
+                  ? "No filler words found."
+                  : "No removable dead air found."}
               </div>
             ) : null}
 
@@ -755,7 +848,11 @@ function JumpCutDialog({
                 : ""}
             </Button>
           ) : (
-            <Button type="button" disabled={analyzing} onClick={handleAnalyze}>
+            <Button
+              type="button"
+              disabled={analyzing || noFillerTermsSelected}
+              onClick={handleAnalyze}
+            >
               {analyzing ? (
                 <Loader2Icon className="size-4 animate-spin" />
               ) : (
