@@ -2,16 +2,21 @@ import * as React from "react"
 import { Link, useRouteContext } from "@tanstack/react-router"
 import {
   Check,
+  Loader2,
   LockKeyhole,
+  Pause,
   Play,
   Plus,
   Sparkles,
   Upload,
-  X,
 } from "lucide-react"
 
 import { usePomodoro } from "@/hooks/use-pomodoro"
-import { usePomoderBackground } from "@/components/pomoder/pomoder-background"
+import { usePomoderBackground, type PomoderBackground } from "@/components/pomoder/pomoder-background"
+import { useSoundPlayer } from "@/components/pomoder/sound-player"
+import { TodayTaskList } from "@/components/pomoder/task-plan-list"
+import { enableCompletionAlerts } from "@/lib/completion-alerts"
+import { curatedSounds, sameSoundReference, type SoundReference } from "@/lib/sound-catalog"
 import { deleteAccount, updateProfile } from "@/lib/api/auth"
 import { createBillingPortal, createCheckout } from "@/lib/api/billing"
 import { requestGeneration } from "@/lib/api/generation"
@@ -30,44 +35,60 @@ const backgrounds = [
   ["Fireplace", "fireplace", true],
 ] as const
 
-const sounds = [
-  ["Lofi beats", "lofi", false],
-  ["Rain", "rain", false],
-  ["Café ambience", "cafe", false],
-  ["Brown noise", "brown", false],
-  ["Forest birds", "forest", true],
-  ["Ocean waves", "ocean", true],
-  ["Fireplace", "fire", true],
-  ["Soft piano", "piano", true],
-] as const
-
 export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
   const { user } = useRouteContext({ from: "__root__" })
   const { background, chooseBackground } = usePomoderBackground()
-  const items = kind === "themes" ? backgrounds : sounds
-  const [selected, setSelected] = React.useState(items[0][1])
+  const player = useSoundPlayer()
+  const items = kind === "themes" ? backgrounds : curatedSounds.map((sound) => [sound.label, sound.key, sound.locked] as const)
+  const [selected, setSelected] = React.useState("")
   const [media, setMedia] = React.useState<Awaited<ReturnType<typeof listMedia>>>([])
+  const [mediaLoaded, setMediaLoaded] = React.useState(false)
   const [prompt, setPrompt] = React.useState("")
   const [notice, setNotice] = React.useState("")
   const fileInput = React.useRef<HTMLInputElement>(null)
-  const descriptions = kind === "themes" ? ["video", "animated", "static", "animated", "video", "video", "video", "video"] : ["music", "ambient", "ambient", "noise", "ambient", "ambient", "ambient", "music"]
-  const selectedItem = kind === "themes" ? (background === "lofi" ? "lofi_girl" : background) : selected
+  const descriptions = kind === "themes" ? ["video", "animated", "static", "animated", "video", "video", "video", "video"] : curatedSounds.map((sound) => sound.description)
+  const selectedItem = kind === "themes" ? (background === "lofi" ? "lofi_girl" : background) : null
   const visibleMedia = media.filter((asset) => kind === "themes" ? ["image", "video"].includes(asset.kind) : asset.kind === "audio")
-  const reloadMedia = React.useCallback(() => { if (user) void listMedia().then(setMedia).catch(() => setNotice("Your media could not be loaded.")) }, [user])
-  React.useEffect(reloadMedia, [reloadMedia])
+  const reloadMedia = () => { if (user) void listMedia().then((assets) => { setMedia(assets); setMediaLoaded(true) }).catch(() => setNotice("Your media could not be loaded.")) }
+  React.useEffect(reloadMedia, [user])
+
+  const playerSelected = player.state.selected
+  const { markMediaUnavailable, resolveMediaLabel } = player
+  React.useEffect(() => {
+    if (kind !== "sounds" || !mediaLoaded || playerSelected?.type !== "media") return
+    const asset = media.find((candidate) => candidate.id === playerSelected.mediaId)
+    if (asset && asset.status === "ready") resolveMediaLabel(asset.id, asset.name)
+    else markMediaUnavailable(playerSelected.mediaId)
+  }, [kind, markMediaUnavailable, media, mediaLoaded, playerSelected, resolveMediaLabel])
+
+  const soundCardState = (reference: SoundReference) => {
+    const isSelected = sameSoundReference(playerSelected, reference)
+    return { isSelected, isPlaying: isSelected && player.state.status === "playing", isLoading: isSelected && player.state.status === "loading" }
+  }
 
   return (
     <div className="reference-view catalog-reference-view">
       <div className="catalog-reference-inner">
         <header className="catalog-reference-heading"><div><h2>{kind === "themes" ? "Backgrounds" : "Sounds"}</h2><p>{kind === "themes" ? "Set the scene for your focus sessions." : "Ambient audio to keep you in the zone."}</p></div><Link to="/pricing"><Sparkles aria-hidden="true" />Unlock all</Link></header>
         <div className="reference-catalog-grid">
-          {items.map(([label, image, locked], index) => (
-            <button key={image} className={`reference-catalog-card ${selectedItem === image ? "selected" : ""} ${locked ? "locked" : ""}`} onClick={() => { if (locked) { window.location.assign("/pricing"); return }; if (kind === "themes") chooseBackground(image === "lofi_girl" ? "lofi" : image); else setSelected(image) }}>
-              <span className="catalog-thumb"><img src={`/pomoder/${kind === "themes" ? "thumbs" : "sounds"}-${image}.png`} alt="" />{locked ? <><b>PRO</b><i><LockKeyhole aria-hidden="true" /></i></> : kind === "sounds" ? <i><Play aria-hidden="true" /></i> : selectedItem === image ? <i><Check aria-hidden="true" /></i> : null}</span>
-              <strong>{label}</strong><small>{descriptions[index]}</small>
-            </button>
-          ))}
-          {visibleMedia.map((asset) => <button key={asset.id} className={`reference-catalog-card ${selected === asset.id ? "selected" : ""}`} disabled={asset.status !== "ready"} onClick={() => setSelected(asset.id)}><span className="catalog-thumb"><img src={asset.kind === "image" ? `/api/media/${asset.id}/file` : `/pomoder/${kind === "themes" ? "thumbs-ambient" : "sounds-lofi"}.png`} alt="" /></span><strong>{asset.name}</strong><small>{asset.status}</small></button>)}
+          {items.map(([label, image, locked], index) => {
+            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "curated", key: image }) : { isSelected: selectedItem === image, isPlaying: false, isLoading: false }
+            return (
+              <button key={image} className={`reference-catalog-card ${isSelected ? "selected" : ""} ${locked ? "locked" : ""}`} aria-pressed={kind === "sounds" && !locked ? isSelected : undefined} onClick={() => { if (locked) { window.location.assign("/pricing"); return }; if (kind === "themes") chooseBackground((image === "lofi_girl" ? "lofi" : image) as PomoderBackground); else player.selectSound({ type: "curated", key: image }, label) }}>
+                <span className="catalog-thumb"><img src={`/pomoder/${kind === "themes" ? "thumbs" : "sounds"}-${image}.png`} alt="" />{locked ? <><b>PRO</b><i><LockKeyhole aria-hidden="true" /></i></> : kind === "sounds" ? <i>{isLoading ? <Loader2 className="player-spinner" aria-hidden="true" /> : isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</i> : isSelected ? <i><Check aria-hidden="true" /></i> : null}</span>
+                <strong>{label}</strong><small>{isPlaying ? "playing" : descriptions[index]}</small>
+              </button>
+            )
+          })}
+          {visibleMedia.map((asset) => {
+            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "media", mediaId: asset.id }) : { isSelected: selected === asset.id, isPlaying: false, isLoading: false }
+            return (
+              <button key={asset.id} className={`reference-catalog-card ${isSelected ? "selected" : ""}`} disabled={asset.status !== "ready"} aria-pressed={kind === "sounds" && asset.status === "ready" ? isSelected : undefined} onClick={() => { if (kind === "themes") setSelected(asset.id); else player.selectSound({ type: "media", mediaId: asset.id }, asset.name) }}>
+                <span className="catalog-thumb"><img src={asset.kind === "image" ? `/api/media/${asset.id}/file` : `/pomoder/${kind === "themes" ? "thumbs-ambient" : "sounds-lofi"}.png`} alt="" />{kind === "sounds" && asset.status === "ready" ? <i>{isLoading ? <Loader2 className="player-spinner" aria-hidden="true" /> : isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</i> : null}</span>
+                <strong>{asset.name}</strong><small>{isPlaying ? "playing" : asset.status}</small>
+              </button>
+            )
+          })}
         </div>
         <input ref={fileInput} hidden type="file" accept={kind === "themes" ? "image/png,image/jpeg,image/webp,video/mp4,video/webm" : "audio/mpeg,audio/wav,audio/ogg"} onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; if (!user) { window.location.assign("/login"); return }; const form = new FormData(); form.set("file", file); form.set("name", file.name); setNotice("Uploading…"); const response = await fetch("/api/media", { method: "POST", body: form }); setNotice(response.ok ? "Upload queued for processing." : "Upload could not be accepted."); if (response.ok) reloadMedia(); event.target.value = "" }} />
         <section className="reference-generator"><div className="generator-title"><i><Sparkles aria-hidden="true" /></i><div><h3>Generate your own</h3><p>Describe a {kind === "themes" ? "scene and AI will create an animated background" : "soundscape and AI will mix an ambient loop"} for you.</p></div><b>PRO</b></div>
@@ -251,16 +272,20 @@ export function TasksPage() {
     <div className="reference-view tasks-reference-view"><div className="tasks-reference-inner">
       <header className="reference-page-heading"><h2>Tasks</h2><p>What you’re focusing on today.</p></header>
       {pomodoro.syncError ? <p role="alert">{pomodoro.syncError}</p> : null}
-      <section className="today-tasks-card"><header><h3>Today</h3><span>{completed} / {pomodoro.tasks.length} done</span></header><div>{!pomodoro.tasks.some((task) => !task.completed) ? <p className="task-selection-empty">No active tasks. Add one below to choose your next focus.</p> : null}{pomodoro.tasks.map((task) => <div className={`today-task-row ${pomodoro.selectedTaskId === task.id ? "selected" : ""}`} key={task.id}><button className={task.completed ? "completed" : ""} onClick={() => pomodoro.toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}>{task.completed ? <Check aria-hidden="true" /> : null}</button><button className="task-focus-choice" disabled={task.completed || !pomodoro.canSelectTask} aria-pressed={pomodoro.selectedTaskId === task.id} onClick={() => pomodoro.selectTask(task.id)}><span className={task.completed ? "completed" : ""}>{task.title}</span><small>{task.pomodoros} {task.pomodoros === 1 ? "pomo" : "pomos"}</small></button><button onClick={() => pomodoro.removeTask(task.id)} aria-label={`Remove ${task.title}`}><X aria-hidden="true" /></button></div>)}</div><form onSubmit={(event) => { event.preventDefault(); pomodoro.addTask(title); setTitle("") }}><Plus aria-hidden="true" /><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} placeholder="Add a task, press Enter…" aria-label="New task" /></form></section>
+      <section className="today-tasks-card"><header><h3>Today</h3><span>{completed} / {pomodoro.tasks.length} done</span></header><TodayTaskList pomodoro={pomodoro} /><form onSubmit={(event) => { event.preventDefault(); pomodoro.addTask(title); setTitle("") }}><Plus aria-hidden="true" /><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} placeholder="Add a task, press Enter…" aria-label="New task" /></form></section>
       <section className="archive-section"><header><h2>Archive</h2><span>{archiveItems.length} past tasks</span></header>{archiveGroups.map(([date, tasks]) => <div className="archive-group" key={date}><h3>{date}</h3><div>{tasks?.map((task) => <article key={task.id}><span>{task.title}</span><small>{task.pomodoroCount} {task.pomodoroCount === 1 ? "pomo" : "pomos"}</small><b className={task.status}>{task.status === "carried" ? "Carried over" : task.status === "completed" ? "Completed" : "Abandoned"}</b></article>)}</div></div>)}</section>
     </div>
     </div>
   )
 }
 
+const DEFAULT_ALERT_HELP = "Plays a chime and shows a browser notification when a timer finishes."
+
 export function SettingsPage() {
   const { user } = useRouteContext({ from: "__root__" })
   const pomodoro = usePomodoro(Boolean(user))
+  const player = useSoundPlayer()
+  const [alertHelp, setAlertHelp] = React.useState(DEFAULT_ALERT_HELP)
   const [focus, setFocus] = React.useState(25)
   const [short, setShort] = React.useState(5)
   const [long, setLong] = React.useState(15)
@@ -282,7 +307,7 @@ export function SettingsPage() {
 
   return (
     <div className="settings-layout">
-      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<input type="checkbox" checked={pomodoro.autoStart} onChange={(event) => pomodoro.setAutoStart(event.target.checked)} /></label><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
+      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<input type="checkbox" checked={pomodoro.autoStart} onChange={(event) => pomodoro.setAutoStart(event.target.checked)} /></label><label>Completion alerts<input type="checkbox" checked={player.state.completionAlerts} aria-describedby="completion-alert-help" onChange={(event) => { const enabled = event.target.checked; player.setCompletionAlerts(enabled); if (!enabled) { setAlertHelp(DEFAULT_ALERT_HELP); return }; void enableCompletionAlerts().then((permission) => setAlertHelp(permission === "granted" ? "You'll hear a chime and get a notification when a timer finishes." : permission === "denied" ? "Notifications are blocked in this browser, so you'll only hear the chime." : "You'll hear a chime when a timer finishes.")) }} /></label><span id="completion-alert-help">{alertHelp}</span><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
       {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<input type="checkbox" checked={leaderboard} onChange={(event) => setLeaderboard(event.target.checked)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
       {notice ? <p role="status">{notice}</p> : null}
     </div>

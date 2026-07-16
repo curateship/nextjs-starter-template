@@ -26,10 +26,54 @@ export async function rollOverTasks(userId: string, today: string, database: Pom
   return database.transaction(async (tx) => {
     const previous = await tx.select().from(tasks).where(and(eq(tasks.userId, userId), eq(tasks.status, "active"), lt(tasks.plannedDate, today)))
     for (const task of previous) {
-      const [carried] = await tx.insert(tasks).values({ userId, title: task.title, plannedDate: today, pomodoroCount: task.pomodoroCount }).returning({ id: tasks.id })
+      const [carried] = await tx.insert(tasks).values({ userId, title: task.title, plannedDate: today, pomodoroCount: task.pomodoroCount, priority: task.priority, estimatedPomodoros: task.estimatedPomodoros, sortOrder: task.sortOrder }).returning({ id: tasks.id })
       await tx.update(tasks).set({ status: "carried", carriedToTaskId: carried.id, updatedAt: new Date() }).where(eq(tasks.id, task.id))
     }
     return previous.length
+  })
+}
+
+export type TaskPlanChanges = {
+  title?: string
+  priority?: "low" | "normal" | "high"
+  estimatedPomodoros?: number | null
+}
+
+export async function updateTaskPlan(userId: string, taskId: string, today: string, changes: TaskPlanChanges, database: PomoderDb = db) {
+  const set: TaskPlanChanges & { updatedAt: Date } = { updatedAt: new Date() }
+  if (changes.title !== undefined) set.title = changes.title
+  if (changes.priority !== undefined) set.priority = changes.priority
+  if (changes.estimatedPomodoros !== undefined) set.estimatedPomodoros = changes.estimatedPomodoros
+  const [updated] = await database
+    .update(tasks)
+    .set(set)
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId), eq(tasks.status, "active"), eq(tasks.plannedDate, today)))
+    .returning()
+  if (!updated) throw new Error("TASK_NOT_FOUND")
+  return updated
+}
+
+// Rewrites the order of today's active tasks in one transaction. The payload
+// must name every active task exactly once so concurrent edits either apply a
+// full valid order or fail loudly for the client to reload.
+export async function reorderTodayTasks(userId: string, today: string, orderedTaskIds: readonly string[], database: PomoderDb = db) {
+  return database.transaction(async (tx) => {
+    const active = await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.userId, userId), eq(tasks.status, "active"), eq(tasks.plannedDate, today)))
+      .for("update")
+    const activeIds = new Set(active.map((row) => row.id))
+    const uniqueIds = new Set(orderedTaskIds)
+    const validOrder =
+      uniqueIds.size === orderedTaskIds.length &&
+      uniqueIds.size === activeIds.size &&
+      orderedTaskIds.every((id) => activeIds.has(id))
+    if (!validOrder) throw new Error("TASK_ORDER_MISMATCH")
+    for (const [index, taskId] of orderedTaskIds.entries()) {
+      await tx.update(tasks).set({ sortOrder: index + 1, updatedAt: new Date() }).where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)))
+    }
+    return orderedTaskIds.length
   })
 }
 

@@ -3,7 +3,7 @@ import { Link, useRouteContext } from "@tanstack/react-router"
 import { Check, Plus, RotateCcw, X } from "lucide-react"
 
 import { usePomodoro } from "@/hooks/use-pomodoro"
-import type { TimerMode } from "@/lib/pomodoro"
+import { taskProgressLabel, type TimerMode } from "@/lib/pomodoro"
 
 const modeLabels: Record<TimerMode, string> = {
   focus: "Focus",
@@ -95,7 +95,7 @@ export function PomodoroDashboard() {
                 <button className={task.completed ? "completed" : ""} onClick={() => pomodoro.toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}>
                   {task.completed ? <Check aria-hidden="true" /> : null}
                 </button>
-                <button className="task-focus-choice" disabled={task.completed || !pomodoro.canSelectTask} aria-pressed={pomodoro.selectedTaskId === task.id} onClick={() => pomodoro.selectTask(task.id)}><span className={task.completed ? "completed" : ""}>{task.title}</span><small>{task.pomodoros} {task.pomodoros === 1 ? "pomo" : "pomos"}</small></button>
+                <button className="task-focus-choice" disabled={task.completed || !pomodoro.canSelectTask} aria-pressed={pomodoro.selectedTaskId === task.id} onClick={() => pomodoro.selectTask(task.id)}><span className={task.completed ? "completed" : ""}>{task.title}</span><small>{taskProgressLabel(task)}</small></button>
                 <button className="remove-task" onClick={() => pomodoro.removeTask(task.id)} aria-label={`Remove ${task.title}`}><X aria-hidden="true" /></button>
               </div>
             ))}

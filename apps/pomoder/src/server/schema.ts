@@ -121,7 +121,10 @@ export const userPreferences = pgTable(
     dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
     autoStart: boolean("auto_start").notNull().default(false),
     selectedBackgroundId: uuid("selected_background_id"),
-    selectedSoundId: uuid("selected_sound_id"),
+    selectedSound: varchar("selected_sound", { length: 60 }),
+    soundVolume: integer("sound_volume").notNull().default(70),
+    soundMuted: boolean("sound_muted").notNull().default(false),
+    completionAlerts: boolean("completion_alerts").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -143,6 +146,14 @@ export const userPreferences = pgTable(
       "preferences_daily_goal_check",
       sql`${table.dailyGoalSessions} between 1 and 20`
     ),
+    check(
+      "preferences_sound_volume_check",
+      sql`${table.soundVolume} between 0 and 100`
+    ),
+    check(
+      "preferences_selected_sound_check",
+      sql`${table.selectedSound} is null or ${table.selectedSound} ~ '^(curated:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
+    ),
   ]
 )
 
@@ -157,6 +168,9 @@ export const tasks = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("active"),
     plannedDate: date("planned_date", { mode: "string" }).notNull(),
     pomodoroCount: integer("pomodoro_count").notNull().default(0),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    sortOrder: integer("sort_order").notNull().default(0),
     carriedToTaskId: uuid("carried_to_task_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
@@ -166,6 +180,15 @@ export const tasks = pgTable(
       "tasks_status_check",
       sql`${table.status} in ('active', 'completed', 'carried', 'abandoned')`
     ),
+    check(
+      "tasks_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "tasks_estimated_pomodoros_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check("tasks_sort_order_check", sql`${table.sortOrder} >= 0`),
     index("tasks_user_date_idx").on(table.userId, table.plannedDate),
   ]
 )

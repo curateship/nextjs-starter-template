@@ -37,11 +37,13 @@ const configureContentSecurityPolicy = createIsomorphicFn()
     )
     return nonce
   })
-  .client(
-    () =>
-      document.querySelector<HTMLMetaElement>('meta[property="csp-nonce"]')
-        ?.content
-  )
+  .client(() => {
+    const nonce = document.querySelector<HTMLMetaElement>('meta[property="csp-nonce"]')?.content
+    // Radix's injected scroll-lock styles read this global (via get-nonce), so
+    // portal components pass the strict style-src nonce policy.
+    if (nonce) (window as Window & { __webpack_nonce__?: string }).__webpack_nonce__ = nonce
+    return nonce
+  })
 
 export async function getRouter() {
   const nonce = await configureContentSecurityPolicy()
