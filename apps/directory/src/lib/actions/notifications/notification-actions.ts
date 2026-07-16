@@ -133,6 +133,71 @@ export async function listHubNotificationPage(
   }
 }
 
+// Cross-site variant for the multi-site admin dashboard: all of the user's notifications.
+export async function listHubNotificationsForUser(
+  input?: { limit?: number | null }
+): Promise<HubNotificationListResponse> {
+  try {
+    const user = await requireAdmin()
+    const pageSize = normalizePageSize(input?.limit)
+
+    const rows = await db
+      .select({
+        notification: hubNotifications,
+        siteName: sites.name,
+      })
+      .from(hubNotifications)
+      .innerJoin(sites, eq(sites.id, hubNotifications.siteId))
+      .where(eq(hubNotifications.recipientUserId, user.id))
+      .orderBy(desc(hubNotifications.createdAt), desc(hubNotifications.id))
+      .limit(pageSize)
+
+    const [unreadRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(hubNotifications)
+      .where(and(
+        eq(hubNotifications.recipientUserId, user.id),
+        isNull(hubNotifications.readAt)
+      ))
+
+    return {
+      notifications: rows.map(serializeNotification),
+      next_cursor: null,
+      unread_count: unreadRow?.count ?? 0,
+    }
+  } catch (error) {
+    console.error('Failed to list Hub notifications:', error)
+    throw new Error('Failed to load notifications')
+  }
+}
+
+// Cross-site variant for the multi-site admin dashboard.
+export async function markAllHubNotificationsReadForUser(): Promise<{
+  notificationIds: string[]
+  readAt: string
+}> {
+  try {
+    const user = await requireAdmin()
+    const readAt = new Date()
+    const rows = await db
+      .update(hubNotifications)
+      .set({ readAt })
+      .where(and(
+        eq(hubNotifications.recipientUserId, user.id),
+        isNull(hubNotifications.readAt)
+      ))
+      .returning({ id: hubNotifications.id })
+
+    return {
+      notificationIds: rows.map((row) => row.id),
+      readAt: readAt.toISOString(),
+    }
+  } catch (error) {
+    console.error('Failed to mark Hub notifications read:', error)
+    throw new Error('Failed to update notifications')
+  }
+}
+
 export async function markHubNotificationRead(notificationId: string, siteId: string): Promise<{
   notificationId: string
   readAt: string

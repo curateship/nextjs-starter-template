@@ -13,7 +13,9 @@ import type {
   AutomationGraph,
   AutomationListItem,
   AutomationRunItem,
+  AutomationRunStatus,
   AutomationStatus,
+  AutomationTriggerType,
   AutomationValidationError,
 } from '@/features/automations/domain/types'
 import { getConfiguredAIProviders } from '@/lib/actions/integrations/config-helpers'
@@ -85,6 +87,104 @@ export async function getAutomationsBySite(
   } catch (error) {
     console.error('getAutomationsBySite error:', error)
     return { data: [], total: 0, statusCounts: emptyCounts, error: 'Failed to load automations' }
+  }
+}
+
+export interface DashboardAutomationRun {
+  runId: string
+  automationId: string
+  siteId: string
+  siteName: string
+  name: string
+  status: AutomationRunStatus
+  triggerType: AutomationTriggerType
+  message: string
+  startedAt: string
+}
+
+function summarizeRunMessage(
+  status: AutomationRunStatus,
+  error: string | null,
+  counts: Record<string, number>
+) {
+  const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+  const success = counts.success ?? 0
+  const failed = counts.failed ?? 0
+  if (status === 'running') return total > 0 ? `${success} of ${total} steps completed` : 'Run in progress'
+  if (status === 'noop') return 'No changes detected'
+  if (status === 'failed') {
+    const line = (error ?? '').split('\n')[0]?.trim() ?? ''
+    if (line) return line.length > 90 ? `${line.slice(0, 87)}…` : line
+    return total > 0 ? `${failed} of ${total} steps failed` : 'Run failed'
+  }
+  if (status === 'partial') return `${success} of ${total} steps completed · ${failed} failed`
+  return total > 0 ? `${success} of ${total} steps completed` : 'Completed'
+}
+
+// Recent runs across all of the user's sites for the multi-site admin dashboard.
+export async function getRecentAutomationRunsForUser(limit = 8): Promise<{
+  data: DashboardAutomationRun[]
+  error: string | null
+}> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: [], error: 'Authentication required' }
+    const safeLimit = Math.min(25, Math.max(1, Math.floor(limit) || 8))
+
+    const rows = await db
+      .select({
+        run: siteAutomationRuns,
+        automationName: siteAutomations.name,
+        siteId: sites.id,
+        siteName: sites.name,
+      })
+      .from(siteAutomationRuns)
+      .innerJoin(siteAutomations, eq(siteAutomations.id, siteAutomationRuns.automationId))
+      .innerJoin(sites, eq(sites.id, siteAutomations.siteId))
+      .where(and(eq(sites.userId, user.id), eq(sites.isTemplate, false)))
+      .orderBy(desc(siteAutomationRuns.startedAt))
+      .limit(safeLimit)
+
+    const runIds = rows.map((row) => row.run.id)
+    const stepRows = runIds.length
+      ? await db
+        .select({
+          runId: siteAutomationRunSteps.runId,
+          status: siteAutomationRunSteps.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(siteAutomationRunSteps)
+        .where(inArray(siteAutomationRunSteps.runId, runIds))
+        .groupBy(siteAutomationRunSteps.runId, siteAutomationRunSteps.status)
+      : []
+    const stepCounts = new Map<string, Record<string, number>>()
+    for (const step of stepRows) {
+      const counts = stepCounts.get(step.runId) ?? {}
+      counts[step.status] = step.count
+      stepCounts.set(step.runId, counts)
+    }
+
+    return {
+      data: rows.map((row) => ({
+        runId: row.run.id,
+        automationId: row.run.automationId,
+        siteId: row.siteId,
+        siteName: row.siteName,
+        name: row.automationName,
+        status: row.run.status as AutomationRunStatus,
+        triggerType: row.run.triggerType as AutomationTriggerType,
+        message: summarizeRunMessage(
+          row.run.status as AutomationRunStatus,
+          row.run.error,
+          stepCounts.get(row.run.id) ?? {}
+        ),
+        startedAt: row.run.startedAt.toISOString(),
+      })),
+      error: null,
+    }
+  } catch (error) {
+    console.error('getRecentAutomationRunsForUser error:', error)
+    return { data: [], error: 'Failed to load automation runs' }
   }
 }
 

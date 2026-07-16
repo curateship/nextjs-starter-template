@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils/tailwind"
 const cardVariants = cva("text-card-foreground rounded-md", {
   variants: {
     variant: {
-      default: "bg-card border-transparent ring-1 ring-foreground/7",
+      // Borderless white surfaces on the light gray admin canvas.
+      default: "bg-card",
       soft: "bg-foreground/5",
       mixed: "bg-foreground/5 border border-foreground.5"
     }
@@ -25,7 +26,7 @@ Card.displayName = "Card"
 // CardGroup — wraps a grid or flex of Card elements and applies consistent responsive gap between them
 const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-group" className={cn("gap-3 lg:gap-6", className)} {...props} />
+    <div ref={ref} data-slot="card-group" className={cn("gap-3", className)} {...props} />
   )
 )
 CardGroup.displayName = "CardGroup"
