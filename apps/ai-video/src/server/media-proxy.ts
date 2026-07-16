@@ -40,6 +40,8 @@ type ClaimedFilmstrip = {
   id: string
   user_id: string
   storage_path: string
+  proxy_status: string | null
+  proxy_storage_path: string | null
   filmstrip_attempts: number
   filmstrip_lease_token: string
 }
@@ -156,7 +158,7 @@ async function claimNextFilmstrip(): Promise<ClaimedFilmstrip | null> {
       limit 1
       for update skip locked
     )
-    returning id, user_id, storage_path, filmstrip_attempts, filmstrip_lease_token
+    returning id, user_id, storage_path, proxy_status, proxy_storage_path, filmstrip_attempts, filmstrip_lease_token
   `)
   const row = result.rows[0] as Omit<ClaimedFilmstrip, "kind"> | undefined
   return row ? { kind: "filmstrip", ...row } : null
@@ -283,12 +285,19 @@ async function generateFilmstrip(filmstrip: ClaimedFilmstrip) {
   heartbeat.unref()
 
   const filmstripStoragePath = `filmstrips/${filmstrip.user_id}/${filmstrip.id}/${filmstrip.filmstrip_lease_token}.jpg`
+  // Build the sprite from the small, already-rotated 720p proxy when it exists
+  // (measured ~30× faster to decode than the full-res original, and a far
+  // smaller download); fall back to the original before the proxy is ready.
+  const sourcePath =
+    filmstrip.proxy_status === "ready" && filmstrip.proxy_storage_path
+      ? filmstrip.proxy_storage_path
+      : filmstrip.storage_path
   let uploaded = false
   try {
-    const source = await getFromR2(filmstrip.storage_path)
+    const source = await getFromR2(sourcePath)
     const input = path.join(
       dir,
-      `source${path.extname(filmstrip.storage_path) || ".bin"}`
+      `source${path.extname(sourcePath) || ".bin"}`
     )
     const output = path.join(dir, "filmstrip.jpg")
     await writeBodyToFile(source.Body, input)
@@ -375,45 +384,42 @@ async function reclaimStaleFilmstrips() {
   `)
 }
 
+// Each frame is fitted inside this box preserving the clip's true, already
+// auto-rotated aspect (ffmpeg rotates on decode). Deriving the cell from what
+// ffmpeg actually decodes — instead of forcing `scale=W:H` from a separate
+// ffprobe — is what stops a rotated phone clip from being squished into a
+// mismatched cell when the probe reads rotation differently than the decoder.
+// `force_divisible_by` keeps both axes even for the mjpeg (yuvj420p) encoder.
+const FILMSTRIP_FRAME_MAX_WIDTH = 320
+const FILMSTRIP_FRAME_MAX_HEIGHT = 160
+
 async function createFilmstrip(input: string, output: string) {
-  const metadata = await probeVideo(input)
-  const frameHeight = 160
-  const frameWidth = Math.max(
-    2,
-    Math.min(
-      320,
-      Math.round((frameHeight * metadata.width) / metadata.height / 2) * 2
-    )
-  )
-  const frameCount = Math.min(
-    120,
-    Math.max(1, Math.round(metadata.durationSeconds / 2))
-  )
+  const durationSeconds = await probeVideoDuration(input)
+  const frameCount = Math.min(120, Math.max(1, Math.round(durationSeconds / 2)))
   const columns = Math.min(10, frameCount)
   const rows = Math.ceil(frameCount / columns)
   await runFilmstripFfmpeg(input, output, {
     frameCount,
-    frameWidth,
-    frameHeight,
     columns,
     rows,
-    durationSeconds: metadata.durationSeconds,
+    durationSeconds,
   })
+  // The sprite is a columns×rows grid of identical cells, so the aspect-correct
+  // cell size is just the tiled image divided by the grid.
+  const sprite = await probeImageSize(output)
+  const frameWidth = Math.max(2, Math.round(sprite.width / columns))
+  const frameHeight = Math.max(2, Math.round(sprite.height / rows))
   return {
     frameCount,
     frameWidth,
     frameHeight,
     columns,
-    durationMs: Math.max(1, Math.round(metadata.durationSeconds * 1000)),
+    durationMs: Math.max(1, Math.round(durationSeconds * 1000)),
   }
 }
 
-function probeVideo(input: string) {
-  return new Promise<{
-    width: number
-    height: number
-    durationSeconds: number
-  }>((resolve, reject) => {
+function ffprobeJson(input: string, entries: string) {
+  return new Promise<string>((resolve, reject) => {
     let stdout = ""
     const child = spawn(
       "ffprobe",
@@ -423,7 +429,7 @@ function probeVideo(input: string) {
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=width,height,sample_aspect_ratio:stream_tags=rotate:stream_side_data=rotation:format=duration",
+        entries,
         "-of",
         "json",
         input,
@@ -433,7 +439,7 @@ function probeVideo(input: string) {
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString()
     })
-    child.on("error", (error) => {
+    child.on("error", (error: NodeJS.ErrnoException) => {
       reject(
         new Error(
           error.code === "ENOENT"
@@ -447,52 +453,53 @@ function probeVideo(input: string) {
         reject(new Error("Filmstrip probe failed"))
         return
       }
-      try {
-        const result = JSON.parse(stdout) as {
-          streams?: {
-            width?: unknown
-            height?: unknown
-            sample_aspect_ratio?: unknown
-            tags?: { rotate?: unknown }
-            side_data_list?: { rotation?: unknown }[]
-          }[]
-          format?: { duration?: unknown }
-        }
-        const stream = result.streams?.[0]
-        let width = Number(stream?.width)
-        let height = Number(stream?.height)
-        const rotation = Number(
-          stream?.side_data_list?.find((item) => item.rotation !== undefined)
-            ?.rotation ?? stream?.tags?.rotate
-        )
-        if (Number.isFinite(rotation) && Math.abs(rotation) % 180 === 90) {
-          ;[width, height] = [height, width]
-        }
-        const [sarWidth, sarHeight] = String(
-          stream?.sample_aspect_ratio ?? "1:1"
-        )
-          .split(":")
-          .map(Number)
-        if (sarWidth > 0 && sarHeight > 0) {
-          width *= sarWidth / sarHeight
-        }
-        const durationSeconds = Number(result.format?.duration)
-        if (
-          !Number.isFinite(width) ||
-          width <= 0 ||
-          !Number.isFinite(height) ||
-          height <= 0 ||
-          !Number.isFinite(durationSeconds) ||
-          durationSeconds <= 0
-        ) {
-          throw new Error("Invalid video metadata")
-        }
-        resolve({ width, height, durationSeconds })
-      } catch {
-        reject(new Error("Filmstrip probe failed"))
-      }
+      resolve(stdout)
     })
   })
+}
+
+// Only the duration is read from the source: the frame geometry is measured
+// from the generated sprite instead, so it always matches ffmpeg's own
+// (auto-rotated) decode rather than a probe that may disagree about rotation.
+async function probeVideoDuration(input: string) {
+  try {
+    const result = JSON.parse(await ffprobeJson(input, "format=duration")) as {
+      format?: { duration?: unknown }
+    }
+    const durationSeconds = Number(result.format?.duration)
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error("Invalid video metadata")
+    }
+    return durationSeconds
+  } catch (error) {
+    throw error instanceof Error && error.message === "ffprobe is not installed"
+      ? error
+      : new Error("Filmstrip probe failed")
+  }
+}
+
+async function probeImageSize(input: string) {
+  try {
+    const result = JSON.parse(await ffprobeJson(input, "stream=width,height")) as {
+      streams?: { width?: unknown; height?: unknown }[]
+    }
+    const stream = result.streams?.[0]
+    const width = Number(stream?.width)
+    const height = Number(stream?.height)
+    if (
+      !Number.isFinite(width) ||
+      width <= 0 ||
+      !Number.isFinite(height) ||
+      height <= 0
+    ) {
+      throw new Error("Invalid filmstrip metadata")
+    }
+    return { width, height }
+  } catch (error) {
+    throw error instanceof Error && error.message === "ffprobe is not installed"
+      ? error
+      : new Error("Filmstrip probe failed")
+  }
 }
 
 function runFilmstripFfmpeg(
@@ -500,8 +507,6 @@ function runFilmstripFfmpeg(
   output: string,
   options: {
     frameCount: number
-    frameWidth: number
-    frameHeight: number
     columns: number
     rows: number
     durationSeconds: number
@@ -511,7 +516,7 @@ function runFilmstripFfmpeg(
     let stderr = ""
     const filter = [
       `fps=${options.frameCount}/${options.durationSeconds}`,
-      `scale=${options.frameWidth}:${options.frameHeight}`,
+      `scale=${FILMSTRIP_FRAME_MAX_WIDTH}:${FILMSTRIP_FRAME_MAX_HEIGHT}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
       `tile=${options.columns}x${options.rows}:nb_frames=${options.frameCount}:padding=0:margin=0`,
     ].join(",")
     const child = spawn(
