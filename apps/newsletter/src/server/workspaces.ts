@@ -1,6 +1,10 @@
 import { and, asc, eq } from "drizzle-orm"
 
 import {
+  cleanAutomationPaletteKeys,
+  type AutomationPaletteKey,
+} from "@/lib/automations/palette"
+import {
   createDefaultTopRightNavigation,
   iconMeta,
   type IconKey,
@@ -21,9 +25,39 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  automationFavoriteNodeKeys: AutomationPaletteKey[]
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+}
+
+export async function saveWorkspaceAutomationFavorites(
+  userId: string,
+  favoriteNodeKeys: AutomationPaletteKey[],
+  database: CustomShellDb = db
+) {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  const cleanedKeys = cleanAutomationPaletteKeys(favoriteNodeKeys)
+  const [updated] = await database
+    .update(customShellWorkspaces)
+    .set({
+      settings: {
+        ...settings,
+        automationFavoriteNodeKeys: cleanedKeys,
+      },
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(customShellWorkspaces.id, workspace.id),
+        eq(customShellWorkspaces.userId, userId)
+      )
+    )
+    .returning({ id: customShellWorkspaces.id })
+
+  if (!updated) throw new Error("Workspace not found")
+  return cleanedKeys
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -311,6 +345,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+        settings.automationFavoriteNodeKeys
+      ),
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
         : fallback.topNavigation,
@@ -336,6 +373,9 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+      settings.automationFavoriteNodeKeys
+    ),
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -352,6 +392,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    automationFavoriteNodeKeys: [],
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
@@ -360,6 +401,36 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
+    {
+      id: "section-newsletter",
+      title: "Newsletter",
+      entries: [
+        {
+          type: "item",
+          id: "item-automations",
+          label: "Automations",
+          href: "/automations",
+          icon: "workflow",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-contacts",
+          label: "Contacts",
+          href: "/contacts",
+          icon: "users",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-email-settings",
+          label: "Email settings",
+          href: "/email-settings",
+          icon: "mail",
+          visible: true,
+        },
+      ],
+    },
     {
       id: "section-platform-settings",
       title: "Platform Settings",
