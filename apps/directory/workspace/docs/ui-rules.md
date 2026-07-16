@@ -7,11 +7,11 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Reuse components from `src/components/ui/`, existing app shells, and established chart, toolbar, and card patterns. Do not hand-roll parallel buttons, forms, tables, modals, cards, or scroll areas.
 - Prefer the app's existing shadcn components and keep shared styling in primitives, not repeated page-level classes.
 - Match neighboring screens and use semantic theme tokens instead of hardcoded colors.
-- The default page canvas is `bg-muted/60`. Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
+- The default admin page canvas is a full-height light gray surface (`bg-foreground/8 dark:bg-background`), owned by `AdminLayout` together with the 12px page gutter (`p-3`). Content surfaces are borderless white cards (`bg-card`, no ring/border) floating on that canvas; use shared `Card` and `TableSurface` components instead of restating that shell.
 
 ## Spacing and Page Layout
 
-- The app shell owns page padding. Where an app uses `DashboardContent`, it is the single source of truth for the page gutter and section spacing. In Trading, `src/components/ui/dashboard-content.tsx` defines `p-2 space-y-2 md:p-3 md:space-y-3`, or 8px on narrow screens and 12px on desktop.
+- The app shell owns page padding. In Directory, `AdminLayout` is the single source of truth: a 12px gutter (`p-3`) on the gray canvas, with `CardGroup` providing the matching 12px gap (`gap-3`) between cards. Where an app uses `DashboardContent` (Trading), it defines `p-2 space-y-2 md:p-3 md:space-y-3`.
 - Use the same site gap between page sections, cards, columns, and full-screen workspace panels: `gap-2 md:gap-3` or `space-y-2 md:space-y-3`.
 - Do not add page-level padding wrappers or invent other layout gaps such as `gap-3`, `gap-8`, or ad-hoc margins. Small internal gaps such as `gap-1` and `gap-2` are allowed inside a card.
 - Centralize full-bleed page exceptions in one app-level route predicate instead of wrapping or unwrapping individual routes. In Trading, use `isFullBleedLocation` in `src/lib/full-bleed-location.ts` for the Trade terminal, bot workspace, Automation editor, and backtest chart.
