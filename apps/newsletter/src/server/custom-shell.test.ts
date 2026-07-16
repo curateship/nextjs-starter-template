@@ -166,6 +166,26 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       {
         type: "item",
+        label: "Automations",
+        href: "/automations",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Contacts",
+        href: "/contacts",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Email settings",
+        href: "/email-settings",
+        visible: true,
+      },
+    ])
+    expect(defaultSettings.sections[1]?.entries).toMatchObject([
+      {
+        type: "item",
         label: "Feedback",
         href: "/admin/feedback",
         visible: true,
@@ -208,7 +228,7 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
+    expect(secondSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Feedback",
