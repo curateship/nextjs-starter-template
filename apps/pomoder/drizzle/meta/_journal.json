@@ -50,6 +50,13 @@
       "when": 1784145600000,
       "tag": "0006_daily_goals_and_streaks",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784244000000,
+      "tag": "0007_working_sound_player",
+      "breakpoints": true
     }
   ]
 }

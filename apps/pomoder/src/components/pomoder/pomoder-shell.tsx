@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Menu,
   Palette,
+  Pause,
   Play,
   Settings,
   Sparkles,
@@ -24,6 +25,12 @@ import {
   PomoderBackgroundContext,
   type PomoderBackground,
 } from "@/components/pomoder/pomoder-background"
+import {
+  HeaderSoundPlayer,
+  SoundPlayerProvider,
+  useSoundPlayer,
+} from "@/components/pomoder/sound-player"
+import { curatedSounds, sameSoundReference } from "@/lib/sound-catalog"
 
 export type PomoderPage =
   | "dashboard"
@@ -78,6 +85,7 @@ export function PomoderShell({
   )
 
   return (
+    <SoundPlayerProvider authenticated={Boolean(user)}>
     <div className={`pomoder-app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`pomoder-sidebar ${menuOpen ? "is-open" : ""}`}>
         <Link to="/" className="pomoder-brand" aria-label="Pomoder dashboard">
@@ -108,6 +116,7 @@ export function PomoderShell({
           <button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu aria-hidden="true" /></button>
           <Link to="/" className="workspace-brand">pomoder<span>.</span></Link>
           <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} />
+          <HeaderSoundPlayer />
           <div className="header-actions">{authActions}</div>
         </header>
         <main className="pomoder-content dashboard-content">
@@ -119,6 +128,7 @@ export function PomoderShell({
         </main>
       </div>
     </div>
+    </SoundPlayerProvider>
   )
 }
 
@@ -136,7 +146,6 @@ function QuickControls({
   const navRef = React.useRef<HTMLElement>(null)
   const [durations, setDurations] = React.useState({ focus: 25, short: 5, long: 15 })
   const [autoStart, setAutoStart] = React.useState(false)
-  const [sound, setSound] = React.useState("lofi")
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
     try {
@@ -178,16 +187,39 @@ function QuickControls({
         <button onClick={() => toggle("theme")} aria-expanded={open === "theme"}><Palette aria-hidden="true" />Theme</button>
         {open === "theme" ? <div className="quick-popover theme-popover">
           <h2>Theme</h2><h3>Sound</h3>
-          <div className="quick-sounds">{[
-            ["lofi", "Lofi beats", "Mellow hip-hop loops"], ["rain", "Rain", "Steady rain on a window"], ["cafe", "Café ambience", "Low chatter and cups"], ["none", "Silence", "No sound at all"],
-          ].map(([id, label, description]) => <button className={sound === id ? "selected" : ""} key={id} onClick={() => setSound(id)}>{id === "none" ? <i /> : <span className="sound-play"><Play aria-hidden="true" /></span>}<span><strong>{label}</strong><small>{description}</small></span>{sound === id ? <Check className="selected-check" aria-hidden="true" /> : null}</button>)}</div>
+          <QuickSoundList />
           <QuickActions to="/sounds" />
           <h3 className="background-heading">Background</h3>
-          <div className="quick-backgrounds">{[["lofi", "Lofi girl", "lofi_girl"], ["ambient", "Ambient glow", "ambient"], ["plain", "Plain dark", "plain"]].map(([id, label, image]) => <button className={background === id ? "selected" : ""} key={id} onClick={() => chooseBackground(id)}><span><img src={`/pomoder/thumbs-${image}.png`} alt="" />{background === id ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{label}</strong></button>)}</div>
+          <div className="quick-backgrounds">{([["lofi", "Lofi girl", "lofi_girl"], ["ambient", "Ambient glow", "ambient"], ["plain", "Plain dark", "plain"]] as const).map(([id, label, image]) => <button className={background === id ? "selected" : ""} key={id} onClick={() => chooseBackground(id)}><span><img src={`/pomoder/thumbs-${image}.png`} alt="" />{background === id ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{label}</strong></button>)}</div>
           <QuickActions to="/themes" />
         </div> : null}
       </div>
     </nav>
+  )
+}
+
+function QuickSoundList() {
+  const player = useSoundPlayer()
+  return (
+    <div className="quick-sounds">
+      {curatedSounds.filter((sound) => !sound.locked).map((sound) => {
+        const reference = { type: "curated", key: sound.key } as const
+        const selected = sameSoundReference(player.state.selected, reference)
+        const playing = selected && player.state.status === "playing"
+        return (
+          <button className={selected ? "selected" : ""} key={sound.key} onClick={() => player.selectSound(reference, sound.label)} aria-pressed={selected}>
+            <span className="sound-play">{playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</span>
+            <span><strong>{sound.label}</strong><small>{sound.hint}</small></span>
+            {selected ? <Check className="selected-check" aria-hidden="true" /> : null}
+          </button>
+        )
+      })}
+      <button className={player.state.selected ? "" : "selected"} onClick={() => player.clearSound()} aria-pressed={!player.state.selected}>
+        <i />
+        <span><strong>Silence</strong><small>No sound at all</small></span>
+        {player.state.selected ? null : <Check className="selected-check" aria-hidden="true" />}
+      </button>
+    </div>
   )
 }
 

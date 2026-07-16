@@ -121,7 +121,10 @@ export const userPreferences = pgTable(
     dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
     autoStart: boolean("auto_start").notNull().default(false),
     selectedBackgroundId: uuid("selected_background_id"),
-    selectedSoundId: uuid("selected_sound_id"),
+    selectedSound: varchar("selected_sound", { length: 60 }),
+    soundVolume: integer("sound_volume").notNull().default(70),
+    soundMuted: boolean("sound_muted").notNull().default(false),
+    completionAlerts: boolean("completion_alerts").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -142,6 +145,14 @@ export const userPreferences = pgTable(
     check(
       "preferences_daily_goal_check",
       sql`${table.dailyGoalSessions} between 1 and 20`
+    ),
+    check(
+      "preferences_sound_volume_check",
+      sql`${table.soundVolume} between 0 and 100`
+    ),
+    check(
+      "preferences_selected_sound_check",
+      sql`${table.selectedSound} is null or ${table.selectedSound} ~ '^(curated:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
     ),
   ]
 )

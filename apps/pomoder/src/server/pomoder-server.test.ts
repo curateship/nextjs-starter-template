@@ -21,6 +21,12 @@ import { buildFocusSummary, calculateFocusStreaks, completeProductivitySession, 
 import { enforceRateLimit } from "@/server/rate-limit"
 import { canJoinRoom } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
+import {
+  applySoundPreferences,
+  defaultSoundPreferences,
+  loadSoundPreferences,
+  resolveStorableSoundReference,
+} from "@/server/sound-preferences"
 import type { PomoderDb } from "@/server/db"
 import {
   adminAuditLogs,
@@ -76,6 +82,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0006_daily_goals_and_streaks.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0007_working_sound_player.sql", import.meta.url),
       "utf8"
     )
   )
@@ -310,6 +322,99 @@ describe("media and room policies", () => {
     expect(() =>
       validateUploadContentLength(String(102 * 1024 * 1024))
     ).toThrow("FILE_TOO_LARGE")
+  })
+})
+
+describe("sound preferences", () => {
+  const testDb = () => database as unknown as PomoderDb
+
+  async function createSoundUser(email: string) {
+    const [user] = await database
+      .insert(users)
+      .values({ email, name: "Listener", passwordHash: "hash" })
+      .returning()
+    return user
+  }
+
+  async function createAudioAsset(ownerUserId: string | null, status: string, kind = "audio") {
+    const [asset] = await database
+      .insert(mediaAssets)
+      .values({
+        ownerUserId,
+        kind,
+        source: ownerUserId ? "upload" : "curated",
+        status,
+        name: "Loop",
+        storageKey: `test/${crypto.randomUUID()}.mp3`,
+        mimeType: "audio/mpeg",
+        fileSize: 1_000,
+      })
+      .returning()
+    return asset
+  }
+
+  it("stores curated selections and clamps invalid values to safe defaults", async () => {
+    const user = await createSoundUser("sound@example.com")
+    const saved = await applySoundPreferences(
+      user.id,
+      { selectedSound: "curated:rain", soundVolume: 400, soundMuted: false, completionAlerts: true },
+      testDb()
+    )
+    expect(saved).toEqual({ selectedSound: "curated:rain", soundVolume: 100, soundMuted: false, completionAlerts: true })
+
+    const invalid = await applySoundPreferences(
+      user.id,
+      { selectedSound: "curated:vaporwave", soundVolume: -5, soundMuted: true, completionAlerts: false },
+      testDb()
+    )
+    expect(invalid).toEqual({ selectedSound: null, soundVolume: 0, soundMuted: true, completionAlerts: false })
+  })
+
+  it("only lets a user select ready audio they are authorized to play", async () => {
+    const owner = await createSoundUser("owner@example.com")
+    const stranger = await createSoundUser("stranger@example.com")
+    const readyAudio = await createAudioAsset(owner.id, "ready")
+    const queuedAudio = await createAudioAsset(owner.id, "queued")
+    const readyVideo = await createAudioAsset(owner.id, "ready", "video")
+    const sharedAudio = await createAudioAsset(null, "ready")
+
+    expect(await resolveStorableSoundReference(owner.id, `media:${readyAudio.id}`, testDb())).toBe(`media:${readyAudio.id}`)
+    expect(await resolveStorableSoundReference(owner.id, `media:${sharedAudio.id}`, testDb())).toBe(`media:${sharedAudio.id}`)
+    expect(await resolveStorableSoundReference(owner.id, `media:${queuedAudio.id}`, testDb())).toBeNull()
+    expect(await resolveStorableSoundReference(owner.id, `media:${readyVideo.id}`, testDb())).toBeNull()
+    expect(await resolveStorableSoundReference(stranger.id, `media:${readyAudio.id}`, testDb())).toBeNull()
+    expect(await resolveStorableSoundReference(owner.id, `media:${crypto.randomUUID()}`, testDb())).toBeNull()
+  })
+
+  it("loads defaults for missing rows and silences unknown stored references", async () => {
+    const user = await createSoundUser("fresh@example.com")
+    expect(await loadSoundPreferences(user.id, testDb())).toEqual(defaultSoundPreferences)
+
+    await database.insert(userPreferences).values({ userId: user.id, selectedSound: "curated:zzz", soundVolume: 30 })
+    expect(await loadSoundPreferences(user.id, testDb())).toEqual({
+      selectedSound: null,
+      soundVolume: 30,
+      soundMuted: false,
+      completionAlerts: false,
+    })
+  })
+
+  it("enforces sound bounds in the database and drops the legacy sound column", async () => {
+    const user = await createSoundUser("bounds@example.com")
+    await expect(
+      database.insert(userPreferences).values({ userId: user.id, soundVolume: 150 })
+    ).rejects.toThrow()
+    await expect(
+      database.insert(userPreferences).values({ userId: user.id, selectedSound: "sound:oops" })
+    ).rejects.toThrow()
+    await database.insert(userPreferences).values({ userId: user.id, soundVolume: 100, selectedSound: "curated:rain" })
+
+    const columns = await client.query<{ column_name: string }>(
+      "select column_name from information_schema.columns where table_name = 'user_preferences'"
+    )
+    const names = columns.rows.map((row) => row.column_name)
+    expect(names).toContain("selected_sound")
+    expect(names).not.toContain("selected_sound_id")
   })
 })
 

@@ -12,6 +12,7 @@ import {
   togglePersistentTask,
   updatePreferences,
 } from "@/lib/api/productivity"
+import { completionAlertMessage, fireCompletionAlert } from "@/lib/completion-alerts"
 import {
   createTimer,
   getRemainingSeconds,
@@ -155,6 +156,7 @@ export function usePomodoro(authenticated = false) {
       const nextRemaining = getRemainingSeconds(state.timer)
       setRemainingSeconds(nextRemaining)
       if (nextRemaining === 0) {
+        if (state.timer.targetTimestamp !== null) fireCompletionAlert(`${state.timer.mode}:${state.timer.targetTimestamp}`, completionAlertMessage(state.timer.mode))
         if (authenticated && state.serverSessionId) void completeFocusSession({ sessionId: state.serverSessionId, accumulatedSeconds: state.timer.durationMinutes * 60 }).then((result) => {
           if (!result) return
           const updatedTask = result.task

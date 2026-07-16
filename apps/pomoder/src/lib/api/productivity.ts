@@ -7,10 +7,12 @@ import { requireAppOrigin } from "@/server/origin"
 import { completeProductivitySession, loadFocusSummary, localDateFor, rollOverTasks, startProductivitySession, toggleTaskStatus } from "@/server/productivity"
 import { dailyFocusStats, focusSessions, tasks, userPreferences, users } from "@/server/schema"
 import { requireUser } from "@/server/security"
+import { applySoundPreferences, loadSoundPreferences } from "@/server/sound-preferences"
 
 const taskIdSchema = z.object({ taskId: z.string().uuid() })
 const createTaskSchema = z.object({ title: z.string().trim().min(1).max(160) })
 const productivityPreferenceSchema = z.object({ focusMinutes: z.number().int().min(1).max(90), shortBreakMinutes: z.number().int().min(1).max(90), longBreakMinutes: z.number().int().min(1).max(90), dailyGoalSessions: z.number().int().min(1).max(20), autoStart: z.boolean() })
+const soundPreferenceSchema = z.object({ selectedSound: z.string().max(60).nullable(), soundVolume: z.number().int().min(0).max(100), soundMuted: z.boolean(), completionAlerts: z.boolean() })
 const startSessionSchema = z.object({ mode: z.enum(["focus", "short", "long"]), plannedSeconds: z.number().int().min(60).max(5_400), taskId: z.string().uuid().nullable(), idempotencyKey: z.string().min(8).max(100) })
 const sessionProgressSchema = z.object({ sessionId: z.string().uuid(), accumulatedSeconds: z.number().int().min(0).max(5_400) })
 const resumeSessionSchema = z.object({ sessionId: z.string().uuid(), remainingSeconds: z.number().int().min(1).max(5_400) })
@@ -75,6 +77,17 @@ const updatePreferencesFn = createServerFn({ method: "POST" }).inputValidator(pr
   return preferences
 })
 
+const loadSoundPreferencesFn = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await requireUser()
+  return loadSoundPreferences(user.id)
+})
+
+const saveSoundPreferencesFn = createServerFn({ method: "POST" }).inputValidator(soundPreferenceSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  return applySoundPreferences(user.id, data)
+})
+
 const startSessionFn = createServerFn({ method: "POST" }).inputValidator(startSessionSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
@@ -137,6 +150,8 @@ export const createTask = (title: string) => createTaskFn({ data: { title } })
 export const togglePersistentTask = (taskId: string) => toggleTaskFn({ data: { taskId } })
 export const abandonTask = (taskId: string) => abandonTaskFn({ data: { taskId } })
 export const updatePreferences = (data: z.infer<typeof productivityPreferenceSchema>) => updatePreferencesFn({ data })
+export const loadUserSoundPreferences = () => loadSoundPreferencesFn()
+export const saveUserSoundPreferences = (data: z.infer<typeof soundPreferenceSchema>) => saveSoundPreferencesFn({ data })
 export const startFocusSession = (data: z.infer<typeof startSessionSchema>) => startSessionFn({ data })
 export const pauseFocusSession = (data: z.infer<typeof sessionProgressSchema>) => pauseSessionFn({ data })
 export const resumeFocusSession = (data: z.infer<typeof resumeSessionSchema>) => resumeSessionFn({ data })
