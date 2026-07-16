@@ -1,36 +1,34 @@
 import type { ReactNode } from "react"
 import {
-  createRootRoute,
   HeadContent,
   Outlet,
   Scripts,
+  createRootRoute,
 } from "@tanstack/react-router"
 
 import "@/styles.css"
-import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import NotFound from "@/screens/not-found"
 
 export const Route = createRootRoute({
   head: () => ({
+    links: [{ rel: "icon", href: "/globe.svg" }],
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "directory" },
+      { title: "Directory" },
     ],
   }),
+  notFoundComponent: NotFound,
   component: RootComponent,
 })
 
 function RootComponent() {
   return (
     <RootDocument>
-      <ThemeProvider>
-        <TooltipProvider>
-          <Outlet />
-          <Toaster />
-        </TooltipProvider>
-      </ThemeProvider>
+      <TooltipProvider>
+        <Outlet />
+      </TooltipProvider>
     </RootDocument>
   )
 }
@@ -39,15 +37,9 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}",
-          }}
-        />
         <HeadContent />
       </head>
-      <body>
+      <body className="min-h-screen bg-background font-sans antialiased">
         {children}
         <Scripts />
       </body>

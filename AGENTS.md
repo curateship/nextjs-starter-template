@@ -13,6 +13,7 @@ This file is the orchestrator. Use it to understand the repo shape, then route t
 - For work in `apps/anti-detect/`, read `apps/anti-detect/AGENTS.md` before coding.
 - For work in `apps/ai-agents/`, read `apps/ai-agents/AGENTS.md` before coding.
 - For work in `apps/personal-ide/`, read `apps/personal-ide/AGENTS.md` before coding.
+- For work in `apps/directory/`, read `apps/directory/AGENTS.md` before coding.
 - For shared root files, docs, local scripts, `.agents/`, `packages/`, or `services/`, use this root file.
 
 App-level `AGENTS.md` files override this file when they are more specific.
@@ -48,6 +49,7 @@ Current apps:
 - Antidetect: `apps/anti-detect`
 - AI Agents: `apps/ai-agents`
 - Personal IDE: `apps/personal-ide`
+- Directory: `apps/directory`
 
 ## Root Commands
 
@@ -69,6 +71,7 @@ npm run dev:ai-video
 npm run dev:anti-detect
 npm run dev:ai-agents
 npm run dev:personal-ide
+npm run dev:directory
 ```
 
 Only fix build, lint, or type errors caused by your change unless the user asks for broader cleanup.

@@ -1,0 +1,164 @@
+"use client"
+
+import { useEffect, useMemo } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog } from "@/components/ui/dialog"
+import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
+import type { ModalTabItem } from "@/components/admin/layout/dashboard/modal-tabs"
+import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
+import { PostBlockEditor } from "./PostBlockEditor"
+import type { PostBlock } from "@/lib/actions/posts/post-actions"
+import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
+import type { CoreBlockTab } from "@/components/admin/post-builder/blocks/CoreBlock"
+import type { RelatedPostsBlockTab } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
+import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
+
+interface PostBlockEditorModalProps {
+  block: PostBlock | null
+  content: Record<string, any>
+  siteId: string
+  postTitle: string
+  postData?: Record<string, any>
+  onPostTitleChange: (title: string) => void
+  onContentChange: (field: string, value: any) => void
+  onClose: () => void
+  onSave: () => void
+  saving?: boolean
+  error?: string | null
+  mode?: "post" | "template"
+}
+
+export function PostBlockEditorModal({
+  block,
+  content,
+  siteId,
+  postTitle,
+  postData,
+  onPostTitleChange,
+  onContentChange,
+  onClose,
+  onSave,
+  saving = false,
+  error,
+  mode = "post",
+}: PostBlockEditorModalProps) {
+  if (!block) return null
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <ModalTabsProvider>
+        <PostBlockEditorModalContent
+          block={block}
+          content={content}
+          siteId={siteId}
+          postTitle={postTitle}
+          postData={postData}
+          onPostTitleChange={onPostTitleChange}
+          onContentChange={onContentChange}
+          onClose={onClose}
+          onSave={onSave}
+          saving={saving}
+          error={error}
+          mode={mode}
+        />
+      </ModalTabsProvider>
+    </Dialog>
+  )
+}
+
+function PostBlockEditorModalContent({
+  block,
+  content,
+  siteId,
+  postTitle,
+  postData,
+  onPostTitleChange,
+  onContentChange,
+  onClose,
+  onSave,
+  saving = false,
+  error,
+  mode = "post",
+}: PostBlockEditorModalProps & { block: PostBlock }) {
+  const dock = useModalTabsDock()
+  const canEditPostBlock = mode !== "post" || block.type === "core"
+
+  const modalTabs = useMemo<ModalTabItem[]>(() => {
+    if (!canEditPostBlock) return []
+    if (mode === "post" && block.type === "core") return []
+
+    const coreTabs: Array<{ value: CoreBlockTab; label: string }> = [
+      { value: "content", label: "Content" },
+      { value: "styling", label: "Styling" },
+      { value: "settings", label: "Settings" },
+    ]
+    const tableOfContentsTabs: Array<{ value: TableOfContentsBlockTab; label: string }> = [
+      { value: "content", label: "Content" },
+      { value: "settings", label: "Settings" },
+    ]
+    const relatedPostsTabs: Array<{ value: RelatedPostsBlockTab; label: string }> = [
+      { value: "content", label: "Content" },
+      { value: "styling", label: "Styling" },
+      { value: "settings", label: "Settings" },
+    ]
+
+    if (block.type === "core") return mode === "template"
+      ? coreTabs.filter((tab) => tab.value !== "content")
+      : coreTabs
+    if (block.type === "related-posts") return relatedPostsTabs
+    if (block.type === "table-of-contents") return tableOfContentsTabs
+    return []
+  }, [block.type, canEditPostBlock, mode])
+  const setModalTabs = dock?.setTabs
+  const clearModalTabs = dock?.clearTabs
+  const activeTab = (dock?.activeTab || "content") as CoreBlockTab | RelatedPostsBlockTab | TableOfContentsBlockTab
+
+  useEffect(() => {
+    if (!setModalTabs || !clearModalTabs) return
+
+    setModalTabs(modalTabs, modalTabs[0]?.value || "content")
+    return clearModalTabs
+  }, [setModalTabs, clearModalTabs, modalTabs, block.id])
+
+  if (!canEditPostBlock) return null
+
+  return (
+    <DashboardModalContent
+      title={`Edit ${getBlockName(block.type)}`}
+      titleAccessory={<ModalTabs />}
+      footerClassName="sm:justify-between"
+      footer={
+        <>
+          {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
+          <DashboardModalFooterActions>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DashboardModalFooterActions>
+        </>
+      }
+    >
+      <PostBlockEditor
+        block={block}
+        content={content}
+        onContentChange={onContentChange}
+        siteId={siteId}
+        postTitle={postTitle}
+        postData={postData}
+        onPostTitleChange={onPostTitleChange}
+        coreTab={block.type === "core" ? activeTab as CoreBlockTab : undefined}
+        relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
+        tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
+        mode={mode}
+      />
+    </DashboardModalContent>
+  )
+}

@@ -9,309 +9,255 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
-import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
-import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as RscActionRouteImport } from './routes/rsc-action'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as ContentSitemapRouteImport } from './routes/content-sitemap'
+import { Route as SplatRouteImport } from './routes/$'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
+import { Route as CdnSplatRouteImport } from './routes/cdn/$'
+import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const RscActionRoute = RscActionRouteImport.update({
+  id: '/rsc-action',
+  path: '/rsc-action',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContentSitemapRoute = ContentSitemapRouteImport.update({
+  id: '/content-sitemap',
+  path: '/content-sitemap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
-  id: '/workspaces',
-  path: '/workspaces',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAdminFeedbackRoute =
-  AuthenticatedAdminFeedbackRouteImport.update({
-    id: '/admin/feedback',
-    path: '/admin/feedback',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
-  } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
-  } as any)
-const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
-  id: '/api/v1/media/$mediaId/file',
-  path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
+  id: '/directory-sitemaps/$chunk',
+  path: '/directory-sitemaps/$chunk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CdnSplatRoute = CdnSplatRouteImport.update({
+  id: '/cdn/$',
+  path: '/cdn/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SponsorReportsTokenExportRoute =
+  SponsorReportsTokenExportRouteImport.update({
+    id: '/sponsor-reports/$token/export',
+    path: '/sponsor-reports/$token/export',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedIndexRoute
-  '/login': typeof LoginRoute
-  '/workspaces': typeof AuthenticatedWorkspacesRoute
-  '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRoute
-  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/content-sitemap': typeof ContentSitemapRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/rsc-action': typeof RscActionRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/$': typeof ApiSplatRoute
+  '/cdn/$': typeof CdnSplatRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
-  '/workspaces': typeof AuthenticatedWorkspacesRoute
-  '/': typeof AuthenticatedIndexRoute
-  '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRoute
-  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/content-sitemap': typeof ContentSitemapRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/rsc-action': typeof RscActionRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/$': typeof ApiSplatRoute
+  '/cdn/$': typeof CdnSplatRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/login': typeof LoginRoute
-  '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
-  '/_authenticated/': typeof AuthenticatedIndexRoute
-  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
-  '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/content-sitemap': typeof ContentSitemapRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/rsc-action': typeof RscActionRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/$': typeof ApiSplatRoute
+  '/cdn/$': typeof CdnSplatRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/login'
-    | '/workspaces'
-    | '/admin/feedback'
-    | '/admin/media'
-    | '/admin/notifications'
-    | '/admin/settings'
-    | '/admin/feedback/comments'
-    | '/admin/settings/$tab'
-    | '/api/v1/media/$mediaId/file'
+    | '/$'
+    | '/content-sitemap'
+    | '/robots.txt'
+    | '/rsc-action'
+    | '/sitemap.xml'
+    | '/api/$'
+    | '/cdn/$'
+    | '/directory-sitemaps/$chunk'
+    | '/sponsor-reports/$token/export'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/workspaces'
     | '/'
-    | '/admin/feedback'
-    | '/admin/media'
-    | '/admin/notifications'
-    | '/admin/settings'
-    | '/admin/feedback/comments'
-    | '/admin/settings/$tab'
-    | '/api/v1/media/$mediaId/file'
+    | '/$'
+    | '/content-sitemap'
+    | '/robots.txt'
+    | '/rsc-action'
+    | '/sitemap.xml'
+    | '/api/$'
+    | '/cdn/$'
+    | '/directory-sitemaps/$chunk'
+    | '/sponsor-reports/$token/export'
   id:
     | '__root__'
-    | '/_authenticated'
-    | '/login'
-    | '/_authenticated/workspaces'
-    | '/_authenticated/'
-    | '/_authenticated/admin/feedback'
-    | '/_authenticated/admin/media'
-    | '/_authenticated/admin/notifications'
-    | '/_authenticated/admin/settings'
-    | '/_authenticated/admin/feedback/comments'
-    | '/_authenticated/admin/settings/$tab'
-    | '/api/v1/media/$mediaId/file'
+    | '/'
+    | '/$'
+    | '/content-sitemap'
+    | '/robots.txt'
+    | '/rsc-action'
+    | '/sitemap.xml'
+    | '/api/$'
+    | '/cdn/$'
+    | '/directory-sitemaps/$chunk'
+    | '/sponsor-reports/$token/export'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  LoginRoute: typeof LoginRoute
-  ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
+  ContentSitemapRoute: typeof ContentSitemapRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  RscActionRoute: typeof RscActionRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiSplatRoute: typeof ApiSplatRoute
+  CdnSplatRoute: typeof CdnSplatRoute
+  DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
+  SponsorReportsTokenExportRoute: typeof SponsorReportsTokenExportRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
+    '/rsc-action': {
+      id: '/rsc-action'
+      path: '/rsc-action'
+      fullPath: '/rsc-action'
+      preLoaderRoute: typeof RscActionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/': {
-      id: '/_authenticated/'
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/content-sitemap': {
+      id: '/content-sitemap'
+      path: '/content-sitemap'
+      fullPath: '/content-sitemap'
+      preLoaderRoute: typeof ContentSitemapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/workspaces': {
-      id: '/_authenticated/workspaces'
-      path: '/workspaces'
-      fullPath: '/workspaces'
-      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/directory-sitemaps/$chunk': {
+      id: '/directory-sitemaps/$chunk'
+      path: '/directory-sitemaps/$chunk'
+      fullPath: '/directory-sitemaps/$chunk'
+      preLoaderRoute: typeof DirectorySitemapsChunkRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/cdn/$': {
+      id: '/cdn/$'
+      path: '/cdn/$'
+      fullPath: '/cdn/$'
+      preLoaderRoute: typeof CdnSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/media': {
-      id: '/_authenticated/admin/media'
-      path: '/admin/media'
-      fullPath: '/admin/media'
-      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/feedback': {
-      id: '/_authenticated/admin/feedback'
-      path: '/admin/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
-    }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
-    }
-    '/api/v1/media/$mediaId/file': {
-      id: '/api/v1/media/$mediaId/file'
-      path: '/api/v1/media/$mediaId/file'
-      fullPath: '/api/v1/media/$mediaId/file'
-      preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
+    '/sponsor-reports/$token/export': {
+      id: '/sponsor-reports/$token/export'
+      path: '/sponsor-reports/$token/export'
+      fullPath: '/sponsor-reports/$token/export'
+      preLoaderRoute: typeof SponsorReportsTokenExportRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AuthenticatedAdminFeedbackRouteChildren {
-  AuthenticatedAdminFeedbackCommentsRoute: typeof AuthenticatedAdminFeedbackCommentsRoute
-}
-
-const AuthenticatedAdminFeedbackRouteChildren: AuthenticatedAdminFeedbackRouteChildren =
-  {
-    AuthenticatedAdminFeedbackCommentsRoute:
-      AuthenticatedAdminFeedbackCommentsRoute,
-  }
-
-const AuthenticatedAdminFeedbackRouteWithChildren =
-  AuthenticatedAdminFeedbackRoute._addFileChildren(
-    AuthenticatedAdminFeedbackRouteChildren,
-  )
-
-interface AuthenticatedAdminSettingsRouteChildren {
-  AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
-}
-
-const AuthenticatedAdminSettingsRouteChildren: AuthenticatedAdminSettingsRouteChildren =
-  {
-    AuthenticatedAdminSettingsTabRoute: AuthenticatedAdminSettingsTabRoute,
-  }
-
-const AuthenticatedAdminSettingsRouteWithChildren =
-  AuthenticatedAdminSettingsRoute._addFileChildren(
-    AuthenticatedAdminSettingsRouteChildren,
-  )
-
-interface AuthenticatedRouteChildren {
-  AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
-  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
-  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
-  AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
-  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
-}
-
-const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
-  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
-  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
-  AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
-  AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
-}
-
-const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
-  AuthenticatedRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
-  AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  LoginRoute: LoginRoute,
-  ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
+  ContentSitemapRoute: ContentSitemapRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  RscActionRoute: RscActionRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiSplatRoute: ApiSplatRoute,
+  CdnSplatRoute: CdnSplatRoute,
+  DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
+  SponsorReportsTokenExportRoute: SponsorReportsTokenExportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

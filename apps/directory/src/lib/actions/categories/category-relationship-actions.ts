@@ -1,0 +1,383 @@
+'use server'
+
+import { eq, and, inArray, asc, sql } from 'drizzle-orm'
+import { revalidateTag } from '@/lib/cache'
+import { db } from '@/lib/db'
+import { categories, contentCategoryRelationships, sites, posts, products, pages, events, directories, directoryTemplates } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
+import {
+  getCategoryBreadcrumbItems,
+  getContentBreadcrumbItems,
+  type BreadcrumbContentType,
+  type FrontendBreadcrumbItem,
+} from '@/lib/actions/categories/frontend-breadcrumb-actions'
+
+export type ContentType = 'directory' | 'product' | 'post' | 'event' | 'page'
+
+export interface CategoryInfo {
+  id: string
+  title: string
+  slug: string
+  parent_id: string | null
+  parent_title?: string
+  is_primary?: boolean
+}
+
+export async function getContentBreadcrumbPreviewAction(
+  contentId: string,
+  contentType: BreadcrumbContentType
+): Promise<{ data: FrontendBreadcrumbItem[] | null; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
+      return { data: null, error: 'Invalid content type' }
+    }
+
+    const [content] = await db
+      .select({
+        id: contentTable.id,
+        siteId: contentTable.siteId,
+        title: contentTable.title,
+      })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
+
+    if (!content) {
+      return { data: null, error: 'Content not found' }
+    }
+
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, content.siteId), eq(sites.userId, user.id)),
+      columns: { id: true },
+    })
+
+    if (!site) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
+    let rootCategoryId: string | null = null
+
+    if (contentType === 'directory') {
+      const [templateSettings] = await db
+        .select({
+          rootCategoryId: sql<string | null>`
+            nullif(${directoryTemplates.contentBlocks} #>> '{_settings,default_category_parent_id}', '')
+          `,
+        })
+        .from(directories)
+        .innerJoin(directoryTemplates, and(
+          eq(directoryTemplates.id, directories.templateId),
+          eq(directoryTemplates.siteId, directories.siteId)
+        ))
+        .where(eq(directories.id, content.id))
+        .limit(1)
+
+      rootCategoryId = templateSettings?.rootCategoryId || null
+    }
+
+    const breadcrumbs = await getContentBreadcrumbItems({
+      siteId: content.siteId,
+      contentId: content.id,
+      contentType,
+      currentLabel: content.title,
+      rootCategoryId,
+    })
+
+    return { data: breadcrumbs, error: null }
+  } catch (error) {
+    console.error('Error getting preview breadcrumbs:', error)
+    return { data: null, error: 'Failed to get preview breadcrumbs' }
+  }
+}
+
+export async function getCategoryBreadcrumbPreviewAction(
+  categoryId: string
+): Promise<{ data: FrontendBreadcrumbItem[] | null; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const [category] = await db
+      .select({
+        id: categories.id,
+        siteId: categories.siteId,
+      })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1)
+
+    if (!category) {
+      return { data: null, error: 'Category not found' }
+    }
+
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, category.siteId), eq(sites.userId, user.id)),
+      columns: { id: true },
+    })
+
+    if (!site) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
+    const breadcrumbs = await getCategoryBreadcrumbItems({
+      siteId: category.siteId,
+      categoryId: category.id,
+    })
+
+    return { data: breadcrumbs, error: null }
+  } catch (error) {
+    console.error('Error getting category preview breadcrumbs:', error)
+    return { data: null, error: 'Failed to get category preview breadcrumbs' }
+  }
+}
+
+/**
+ * Get all categories assigned to a piece of content
+ */
+export async function getContentCategoriesAction(contentId: string, contentType: ContentType) {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
+      return { data: null, error: 'Invalid content type' }
+    }
+
+    const [content] = await db
+      .select({ siteId: contentTable.siteId })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
+
+    if (!content) {
+      return { data: null, error: 'Content not found' }
+    }
+
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, content.siteId), eq(sites.userId, user.id)),
+      columns: { id: true },
+    })
+
+    if (!site) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
+    // Get relationships for this content
+    const relationships = await db
+      .select({
+        id: contentCategoryRelationships.id,
+        categoryId: contentCategoryRelationships.categoryId,
+        isPrimary: contentCategoryRelationships.isPrimary,
+      })
+      .from(contentCategoryRelationships)
+      .where(and(
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.contentType, contentType)
+      ))
+      .orderBy(asc(contentCategoryRelationships.createdAt))
+
+    if (relationships.length === 0) {
+      return { data: [], error: null }
+    }
+
+    // Fetch the category details
+    const categoryIds = relationships.map(r => r.categoryId)
+    const categoryRows = await db
+      .select({
+        id: categories.id,
+        title: categories.title,
+        slug: categories.slug,
+        parentId: categories.parentId,
+      })
+      .from(categories)
+      .where(and(
+        inArray(categories.id, categoryIds),
+        eq(categories.siteId, content.siteId),
+        eq(categories.isPublished, true)
+      ))
+
+    // Collect parent IDs and fetch parent titles
+    const parentIds = categoryRows.filter(c => c.parentId).map(c => c.parentId!)
+    let parentTitles: Record<string, string> = {}
+    if (parentIds.length > 0) {
+      const parentRows = await db
+        .select({ id: categories.id, title: categories.title })
+        .from(categories)
+        .where(and(
+          inArray(categories.id, parentIds),
+          eq(categories.siteId, content.siteId),
+          eq(categories.isPublished, true)
+        ))
+
+      parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
+    }
+
+    const categoryMap = Object.fromEntries(categoryRows.map(cat => [cat.id, cat]))
+    const categoriesWithDetails = relationships.reduce<CategoryInfo[]>((result, relationship) => {
+      const cat = categoryMap[relationship.categoryId]
+      if (!cat) return result
+
+      result.push({
+        id: cat.id,
+        title: cat.title,
+        slug: cat.slug,
+        parent_id: cat.parentId,
+        parent_title: cat.parentId ? parentTitles[cat.parentId] : undefined,
+        is_primary: relationship.isPrimary,
+      })
+
+      return result
+    }, [])
+
+    return { data: categoriesWithDetails, error: null }
+  } catch (error) {
+    console.error('Error getting content categories:', error)
+    return { data: null, error: 'Failed to get content categories' }
+  }
+}
+
+/**
+ * Bulk assign multiple categories to content
+ */
+export async function bulkAssignCategoriesToContentAction(
+  contentId: string,
+  contentType: ContentType,
+  categoryIds: string[],
+  primaryCategoryId?: string | null
+) {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
+      return { success: false, error: 'Invalid content type' }
+    }
+
+    const contentRows = await db
+      .select({ id: contentTable.id, siteId: contentTable.siteId })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
+
+    const content = contentRows[0]
+    if (!content) {
+      return { success: false, error: 'Content not found' }
+    }
+
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, content.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const uniqueCategoryIds = [...new Set(categoryIds)]
+    let assignableCategoryIds = uniqueCategoryIds
+
+    if (uniqueCategoryIds.length > 0) {
+      const categoryRows = await db
+        .select({
+          id: categories.id,
+          siteId: categories.siteId,
+          isPublished: categories.isPublished,
+          parentId: categories.parentId,
+        })
+        .from(categories)
+        .where(inArray(categories.id, uniqueCategoryIds))
+
+      if (categoryRows.length !== uniqueCategoryIds.length) {
+        return { success: false, error: 'One or more categories not found' }
+      }
+
+      if (categoryRows.some((category) => category.siteId !== content.siteId)) {
+        return { success: false, error: 'Content and categories must belong to the same site' }
+      }
+
+      if (categoryRows.some((category) => !category.isPublished)) {
+        return { success: false, error: 'Draft categories cannot be assigned to content' }
+      }
+
+      const categoryById = new Map(categoryRows.map((category) => [category.id, category]))
+      assignableCategoryIds = uniqueCategoryIds.filter((categoryId) => {
+        const category = categoryById.get(categoryId)
+        return Boolean(category?.parentId)
+      })
+    }
+
+    const requestedPrimaryCategoryId = primaryCategoryId || null
+    const resolvedPrimaryCategoryId = requestedPrimaryCategoryId && assignableCategoryIds.includes(requestedPrimaryCategoryId)
+      ? requestedPrimaryCategoryId
+      : assignableCategoryIds[0] || null
+
+    const existingRelationships = await db
+      .select({ categoryId: contentCategoryRelationships.categoryId })
+      .from(contentCategoryRelationships)
+      .where(and(
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.contentType, contentType)
+      ))
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(contentCategoryRelationships)
+        .where(and(
+          eq(contentCategoryRelationships.contentId, contentId),
+          eq(contentCategoryRelationships.contentType, contentType)
+        ))
+
+      if (assignableCategoryIds.length > 0) {
+        const newRelationships = assignableCategoryIds.map(catId => ({
+          contentId,
+          contentType,
+          categoryId: catId,
+          isPrimary: catId === resolvedPrimaryCategoryId,
+        }))
+
+        await tx.insert(contentCategoryRelationships).values(newRelationships)
+      }
+    })
+
+    revalidateTag('content-categories')
+    revalidateTag('listing-views')
+    revalidateTag(`${contentType}-${contentId}`)
+    new Set([
+      ...existingRelationships.map((relationship) => relationship.categoryId),
+      ...uniqueCategoryIds,
+      ...assignableCategoryIds,
+    ])
+      .forEach(id => revalidateTag(`category-${id}`))
+
+    return { success: true, error: null }
+  } catch (error) {
+    console.error('Error bulk assigning categories:', error)
+    return { success: false, error: 'Failed to bulk assign categories' }
+  }
+}
+
+function getTableForContentType(contentType: ContentType) {
+  const tableMap = {
+    directory: directories,
+    product: products,
+    post: posts,
+    event: events,
+    page: pages,
+  } as const
+
+  return tableMap[contentType] || null
+}

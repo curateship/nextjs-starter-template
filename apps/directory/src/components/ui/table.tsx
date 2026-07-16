@@ -1,27 +1,15 @@
 "use client"
 
 import * as React from "react"
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  ChevronsUpDownIcon,
-} from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
-  column?: "main" | "meta" | "preview" | "select"
-}
-
-type TableSortDirection = "asc" | "desc"
-
-type TableSortButtonProps = React.ComponentProps<"button"> & {
-  active: boolean
-  direction: TableSortDirection
+  column?: "select" | "main" | "content" | "meta" | "preview"
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
-  column?: "main" | "meta" | "mutedMeta" | "preview" | "select"
+  column?: "select" | "main" | "content" | "meta" | "mutedMeta" | "preview"
 }
 
 type TableStatusIndicatorProps = {
@@ -38,7 +26,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       <table
         data-slot="table"
         className={cn(
-          "w-full caption-bottom text-sm [&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6",
+          "w-full caption-bottom text-sm [&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_td[data-column=select]+td]:pl-2 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_th[data-column=select]+th]:pl-2",
           className
         )}
         {...props}
@@ -83,10 +71,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn(
-        "[&_tr]:border-b-0 [&_tr]:bg-muted/50",
-        className
-      )}
+      className={cn("[&_tr]:border-b-0 [&_tr]:bg-muted/50", className)}
       {...props}
     />
   )
@@ -97,19 +82,6 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
     <tbody
       data-slot="table-body"
       className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
-    />
-  )
-}
-
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn(
-        "border-t border-border bg-muted/50 font-medium [&>tr]:last:border-b-0",
-        className
-      )}
       {...props}
     />
   )
@@ -134,48 +106,20 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
       data-slot="table-head"
       data-column={column}
       className={cn(
-        "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground",
+        column === "select" && "w-11 min-w-11 px-4",
         column === "main" &&
-          "w-full min-w-[320px] text-left text-xs font-medium text-muted-foreground sm:text-sm",
+          "w-full min-w-[320px] text-left text-xs font-medium text-foreground sm:text-sm",
+        column === "content" &&
+          "min-w-[180px] text-left text-xs font-medium text-foreground sm:text-sm",
         column === "meta" &&
-          "w-px whitespace-nowrap text-left text-xs font-medium text-muted-foreground sm:text-sm",
+          "w-px whitespace-nowrap text-left text-xs font-medium text-foreground sm:text-sm",
         column === "preview" &&
-          "hidden w-44 max-w-44 text-left text-xs font-medium text-muted-foreground sm:text-sm md:table-cell",
-        column === "select" && "w-11 min-w-11",
+          "hidden w-44 max-w-44 text-left text-xs font-medium text-foreground sm:text-sm md:table-cell",
         className
       )}
       {...props}
     />
-  )
-}
-
-function TableSortButton({
-  active,
-  children,
-  className,
-  direction,
-  ...props
-}: TableSortButtonProps) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
-        className
-      )}
-      {...props}
-    >
-      <span>{children}</span>
-      <span className="flex size-3.5 items-center justify-center">
-        {!active ? (
-          <ChevronsUpDownIcon className="size-3 opacity-50" />
-        ) : direction === "asc" ? (
-          <ArrowUpIcon className="size-3" />
-        ) : (
-          <ArrowDownIcon className="size-3" />
-        )}
-      </span>
-    </button>
   )
 }
 
@@ -185,29 +129,17 @@ function TableCell({ className, column, ...props }: TableCellProps) {
       data-slot="table-cell"
       data-column={column}
       className={cn(
-        "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-5 py-2 align-middle whitespace-nowrap",
+        column === "select" && "w-11 min-w-11 px-4",
         column === "main" && "min-w-[320px]",
+        column === "content" && "min-w-[180px] whitespace-normal text-left",
         column === "meta" && "whitespace-nowrap text-left",
         column === "mutedMeta" &&
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
         column === "preview" &&
           "hidden w-44 max-w-44 text-left text-xs text-muted-foreground sm:text-sm md:table-cell",
-        column === "select" && "w-11 min-w-11",
         className
       )}
-      {...props}
-    />
-  )
-}
-
-function TableCaption({
-  className,
-  ...props
-}: React.ComponentProps<"caption">) {
-  return (
-    <caption
-      data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
       {...props}
     />
   )
@@ -219,11 +151,7 @@ export {
   TableStatusIndicator,
   TableHeader,
   TableBody,
-  TableFooter,
   TableHead,
-  TableSortButton,
   TableRow,
   TableCell,
-  TableCaption,
 }
-export type { TableSortDirection }

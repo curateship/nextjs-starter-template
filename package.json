@@ -13,6 +13,7 @@
     "dev:ai-agents": "npm run dev --workspace=ai-agents",
     "dev:personal-ide": "npm run tauri:dev --workspace=personal-ide",
     "dev:hub": "npm run dev --workspace=@repo/hub",
+    "dev:directory": "npm run dev --workspace=directory",
     "build": "turbo build",
     "build:custom-shell": "npm run build --workspace=custom-shell",
     "build:ai-video": "npm run build --workspace=ai-video",
@@ -21,6 +22,7 @@
     "build:pomoder": "npm run build --workspace=pomoder",
     "build:ai-agents": "npm run build --workspace=ai-agents",
     "build:personal-ide": "npm run tauri:build --workspace=personal-ide",
+    "build:directory": "npm run build --workspace=directory",
     "lint": "turbo lint"
   },
   "packageManager": "npm@11.3.0",
