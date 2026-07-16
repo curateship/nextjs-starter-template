@@ -529,6 +529,18 @@ function ClipChip({
       controller.abort()
     }
   }, [clip.kind, clip.mediaId, clip.trimStartMs, clip.durationMs])
+
+  // Reveal a freshly added clip. Adds auto-select the new clip, so a clip that
+  // mounts already selected was just inserted — scroll its track into view so a
+  // new bottom track (e.g. a music bed) is never hidden below the timeline fold.
+  // Mount-only: clicking to re-select an existing clip must not yank the view.
+  React.useEffect(() => {
+    if (selected) {
+      ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const drag = React.useRef<null | {
     mode: "move" | "trim-start" | "trim-end"
     startX: number
