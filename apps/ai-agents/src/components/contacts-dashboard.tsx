@@ -370,13 +370,11 @@ export function ContactsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedContacts.length === 0}
+        isEmpty={!loading && paginatedContacts.length === 0}
         emptyText={
-          loading
-            ? "Loading contacts..."
-            : activeListId !== "all"
-              ? "This list is empty. Select contacts and use Add to List, or import a CSV straight into it."
-              : "No contacts yet. Add one manually or import a CSV."
+          activeListId !== "all"
+            ? "This list is empty. Select contacts and use Add to List, or import a CSV straight into it."
+            : "No contacts yet. Add one manually or import a CSV."
         }
         emptyColSpan={6}
         footer={{

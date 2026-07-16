@@ -392,11 +392,9 @@ export function ViralArchiveDashboard({
     "Viral Archive"
   )
 
-  const emptyText = loading
-    ? "Loading videos…"
-    : creator
-      ? "No reels from this creator yet."
-      : "No videos yet. Paste a TikTok or Instagram URL to analyze one."
+  const emptyText = creator
+    ? "No reels from this creator yet."
+    : "No videos yet. Paste a TikTok or Instagram URL to analyze one."
 
   return (
     <div className="w-full pb-8">
@@ -410,7 +408,7 @@ export function ViralArchiveDashboard({
           controls={controls}
           content={
             <div className="px-5 pb-5">
-              {loading || paginatedVideos.length === 0 ? (
+              {loading ? null : paginatedVideos.length === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <FlameIcon className="mx-auto mb-3 size-10" />
@@ -502,7 +500,7 @@ export function ViralArchiveDashboard({
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedVideos.length === 0}
+          isEmpty={!loading && paginatedVideos.length === 0}
           emptyText={emptyText}
           emptyColSpan={11}
           footer={paginationFooter}

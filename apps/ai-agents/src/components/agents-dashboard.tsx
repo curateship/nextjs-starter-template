@@ -224,12 +224,8 @@ export function AgentsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedAgents.length === 0}
-        emptyText={
-          loading
-            ? "Loading agents..."
-            : "No agents yet. Create your first voice agent to start making calls."
-        }
+        isEmpty={!loading && paginatedAgents.length === 0}
+        emptyText="No agents yet. Create your first voice agent to start making calls."
         emptyColSpan={7}
         footer={{
           type: "pagination",

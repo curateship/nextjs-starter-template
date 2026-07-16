@@ -208,12 +208,8 @@ export function UsageDashboard({
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
-        emptyText={
-          loading
-            ? "Loading usage logs..."
-            : "No API usage logged yet. Run keyword research to see requests here."
-        }
+        isEmpty={!loading && rows.length === 0}
+        emptyText="No API usage logged yet. Run keyword research to see requests here."
         emptyColSpan={7}
         footer={{
           type: "pagination",

@@ -542,8 +542,8 @@ export function FirstFrameDashboard() {
           onClearSelection={() => clearSelection()}
           content={
             <div className="px-5 pt-3 pb-5">
-              {loading || paginatedFirstFrames.length === 0 ? (
-                <EmptyFirstFrames loading={loading} onCreate={openCreateModal} />
+              {loading ? null : paginatedFirstFrames.length === 0 ? (
+                <EmptyFirstFrames onCreate={openCreateModal} />
               ) : (
                 <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                   {paginatedFirstFrames.map((item) => (
@@ -633,8 +633,8 @@ export function FirstFrameDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedFirstFrames.length === 0}
-          emptyText={loading ? "Loading first frames..." : "No first frames found."}
+          isEmpty={!loading && paginatedFirstFrames.length === 0}
+          emptyText="No first frames found."
           emptyColSpan={6}
           footer={{
             type: "pagination",
@@ -1133,27 +1133,19 @@ function FirstFrameTags({ tags }: { tags: string[] }) {
 }
 
 function EmptyFirstFrames({
-  loading,
   onCreate,
 }: {
-  loading: boolean
   onCreate: () => void
 }) {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <ImageIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>{loading ? "Loading first frames..." : "No first frames yet."}</p>
-        {!loading ? (
-          <Button type="button" className="mt-4" onClick={onCreate}>
-            <PlusIcon className="size-4" />
-            Create First Frame
-          </Button>
-        ) : null}
+        <ImageIcon className="mx-auto mb-3 size-10" />
+        <p>No first frames yet.</p>
+        <Button type="button" className="mt-4" onClick={onCreate}>
+          <PlusIcon className="size-4" />
+          Create First Frame
+        </Button>
       </div>
     </div>
   )

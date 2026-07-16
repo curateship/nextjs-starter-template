@@ -465,13 +465,11 @@ export function BacklinksDashboard({
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
+        isEmpty={!loading && rows.length === 0}
         emptyText={
-          loading
-            ? "Loading prospects..."
-            : statusFilter !== "all" || debouncedQuery
-              ? "No prospects match the current filters."
-              : 'No prospects yet. Run "Find Prospects" to discover domains that link to your competitors but not to you.'
+          statusFilter !== "all" || debouncedQuery
+            ? "No prospects match the current filters."
+            : 'No prospects yet. Run "Find Prospects" to discover domains that link to your competitors but not to you.'
         }
         emptyColSpan={7}
         footer={{
@@ -662,19 +660,19 @@ function BacklinkSummaryTiles({
         <div className="mb-2 text-xs font-medium text-muted-foreground">
           Outreach pipeline
         </div>
-        {counts ? (
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            {BACKLINK_PROSPECT_STATUSES.map((status) => (
-              <SummaryStat
-                key={status}
-                label={backlinkProspectStatusLabels[status]}
-                value={counts[status]}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        )}
+        <div className="min-h-7">
+          {counts ? (
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {BACKLINK_PROSPECT_STATUSES.map((status) => (
+                <SummaryStat
+                  key={status}
+                  label={backlinkProspectStatusLabels[status]}
+                  value={counts[status]}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )

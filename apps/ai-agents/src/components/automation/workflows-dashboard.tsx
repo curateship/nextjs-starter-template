@@ -160,12 +160,8 @@ export function WorkflowsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || workflows.length === 0}
-        emptyText={
-          loading
-            ? "Loading workflows..."
-            : "No workflows yet. Build one on the canvas to call contacts, hit APIs, and update your CRM automatically."
-        }
+        isEmpty={!loading && workflows.length === 0}
+        emptyText="No workflows yet. Build one on the canvas to call contacts, hit APIs, and update your CRM automatically."
         emptyColSpan={5}
       >
         {workflows.map((workflow) => (

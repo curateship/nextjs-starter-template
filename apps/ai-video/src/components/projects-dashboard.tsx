@@ -450,8 +450,8 @@ export function ProjectsDashboard() {
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {loading || paginatedProjects.length === 0 ? (
-                <EmptyProjects loading={loading} />
+              {loading ? null : paginatedProjects.length === 0 ? (
+                <EmptyProjects />
               ) : (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
                   {paginatedProjects.map((project) => (
@@ -522,8 +522,8 @@ export function ProjectsDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedProjects.length === 0}
-          emptyText={loading ? "Loading projects..." : "No projects found."}
+          isEmpty={!loading && paginatedProjects.length === 0}
+          emptyText="No projects found."
           emptyColSpan={7}
           footer={paginationFooter}
         >
@@ -950,16 +950,12 @@ function ProjectThumbnail({
   return <ClapperboardIcon className={iconClassName} />
 }
 
-function EmptyProjects({ loading }: { loading: boolean }) {
+function EmptyProjects() {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <ClapperboardIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>{loading ? "Loading projects..." : "No projects found."}</p>
+        <ClapperboardIcon className="mx-auto mb-3 size-10" />
+        <p>No projects found.</p>
       </div>
     </div>
   )

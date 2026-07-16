@@ -6,7 +6,6 @@ import {
   CheckCheckIcon,
   ClapperboardIcon,
   GaugeIcon,
-  Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   getNotificationErrorMessage,
   listNotificationPage,
@@ -150,29 +148,6 @@ function NotificationPreview({ item }: { item: NotificationItem }) {
   }
 
   return <>{getFeedbackPreview(item.feedback_message ?? "Deleted feedback")}</>
-}
-
-function NotificationTraySkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div
-          key={index}
-          className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2"
-        >
-          <div className="pt-5">
-            <Skeleton className="size-2 rounded-full" />
-          </div>
-          <Skeleton className="size-10 rounded-full" />
-          <div className="min-w-0 space-y-2">
-            <Skeleton className="h-4 w-3/5" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/5" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function NotificationTabs({
@@ -403,7 +378,7 @@ export function NotificationCenter({
           <ScrollArea className="h-[28rem]">
             <div className="px-4 py-4">
               {loading ? (
-                <NotificationTraySkeleton />
+                null
               ) : visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
                   {visibleNotifications.map((item) => (
@@ -443,12 +418,6 @@ export function NotificationCenter({
               )}
               {error ? (
                 <p className="mt-4 text-sm text-destructive">{error}</p>
-              ) : null}
-              {loadingMore ? (
-                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                  Loading more
-                </div>
               ) : null}
             </div>
           </ScrollArea>

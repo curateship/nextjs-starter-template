@@ -318,8 +318,8 @@ export function CarouselsDashboard() {
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {emptyLoading || carousels.length === 0 ? (
-                <EmptyCarousels loading={emptyLoading} />
+              {emptyLoading ? null : carousels.length === 0 ? (
+                <EmptyCarousels />
               ) : (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
                   {carousels.map((carousel) => (
@@ -397,10 +397,8 @@ export function CarouselsDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={emptyLoading || carousels.length === 0}
-          emptyText={
-            emptyLoading ? "Loading carousels..." : "No carousels found."
-          }
+          isEmpty={!emptyLoading && carousels.length === 0}
+          emptyText="No carousels found."
           emptyColSpan={6}
           footer={paginationFooter}
         >
@@ -721,16 +719,12 @@ function CarouselThumb({
   )
 }
 
-function EmptyCarousels({ loading }: { loading: boolean }) {
+function EmptyCarousels() {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <ImageIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>{loading ? "Loading carousels..." : "No carousels found."}</p>
+        <ImageIcon className="mx-auto mb-3 size-10" />
+        <p>No carousels found.</p>
       </div>
     </div>
   )

@@ -395,8 +395,8 @@ export function ActorDashboard() {
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {loading || paginatedActors.length === 0 ? (
-                <EmptyActors loading={loading} />
+              {loading ? null : paginatedActors.length === 0 ? (
+                <EmptyActors />
               ) : (
                 <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                   {paginatedActors.map((actor) => (
@@ -466,8 +466,8 @@ export function ActorDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedActors.length === 0}
-          emptyText={loading ? "Loading actors..." : "No actors found."}
+          isEmpty={!loading && paginatedActors.length === 0}
+          emptyText="No actors found."
           emptyColSpan={6}
           footer={{
             type: "pagination",
@@ -926,16 +926,12 @@ function ActorTags({ tags }: { tags: string[] }) {
   )
 }
 
-function EmptyActors({ loading }: { loading: boolean }) {
+function EmptyActors() {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <SparklesIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>{loading ? "Loading actors..." : "No actors found."}</p>
+        <SparklesIcon className="mx-auto mb-3 size-10" />
+        <p>No actors found.</p>
       </div>
     </div>
   )

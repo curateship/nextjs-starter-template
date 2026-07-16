@@ -456,8 +456,8 @@ export function TemplatesDashboard() {
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {loading || paginatedTemplates.length === 0 ? (
-                <EmptyTemplates loading={loading} />
+              {loading ? null : paginatedTemplates.length === 0 ? (
+                <EmptyTemplates />
               ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {paginatedTemplates.map((template) => (
@@ -558,12 +558,8 @@ export function TemplatesDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedTemplates.length === 0}
-          emptyText={
-            loading
-              ? "Loading templates..."
-              : "No templates match the current catalog filters."
-          }
+          isEmpty={!loading && paginatedTemplates.length === 0}
+          emptyText="No templates match the current catalog filters."
           emptyColSpan={8}
           footer={paginationFooter}
         >
@@ -1026,20 +1022,12 @@ function TemplateGalleryItem({
   )
 }
 
-function EmptyTemplates({ loading }: { loading: boolean }) {
+function EmptyTemplates() {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <LayoutTemplateIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>
-          {loading
-            ? "Loading templates..."
-            : "No templates match the current catalog filters."}
-        </p>
+        <LayoutTemplateIcon className="mx-auto mb-3 size-10" />
+        <p>No templates match the current catalog filters.</p>
       </div>
     </div>
   )

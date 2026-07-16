@@ -242,12 +242,8 @@ export function ContentPlanDashboard({ project }: { project: ProjectItem }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
-        emptyText={
-          loading
-            ? "Loading content plan..."
-            : "No saved keywords yet. Save keywords from research to build your plan."
-        }
+        isEmpty={!loading && rows.length === 0}
+        emptyText="No saved keywords yet. Save keywords from research to build your plan."
         emptyColSpan={8}
         footer={{
           type: "pagination",
