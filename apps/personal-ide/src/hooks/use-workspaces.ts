@@ -11,6 +11,7 @@ import {
   setWorkspaceVisibility,
 } from "@/app/native/workspaces"
 import { readableError } from "@/app/path"
+import { nextServerPortForNewApp } from "@/app/server"
 import type { WorkspaceList } from "@/app/types"
 import { reorderWorkspaceSubset } from "@/app/workspace-order"
 
@@ -65,7 +66,8 @@ export function useWorkspaces() {
     setWorkspaceBusy(true)
 
     try {
-      const next = await createAppFromCustomShell(appName)
+      const appPort = nextServerPortForNewApp(workspaceList.workspaces, appName)
+      const next = await createAppFromCustomShell(appName, appPort)
       if (!next) return false
 
       setWorkspaceList(next)

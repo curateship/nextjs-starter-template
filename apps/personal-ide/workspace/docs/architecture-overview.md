@@ -79,8 +79,9 @@ When a new app is created:
 3. Rust copies the Custom Shell app into the new app path inside that worktree.
 4. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
 5. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
-6. Rust creates the initial generated-app commit scoped to that app folder.
-7. The generated app is registered as a normal repo-backed workspace, so Sync uses the repo's existing `origin`.
+6. Rust creates the initial generated-app commit containing the app folder and port registry entry.
+7. The app and its assigned web port are registered in `local-apps.json`.
+8. The generated app is registered as a normal repo-backed workspace, so Sync uses the repo's existing `origin`.
 
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
@@ -210,7 +211,7 @@ The terminal can still be visually fragile because PTY apps and shell redraw beh
 
 For web apps, Personal IDE can start a dev server in a workspace terminal and open its localhost URL.
 
-Known web apps use the fixed ports in `local-apps.json`. Web apps not listed there use the next compact generated ports after the highest fixed port, assigned by current workspace list order. Desktop/Tauri workspaces do not reserve ports, and deleted workspace numbers do not create port gaps.
+Known web apps use the fixed ports in `local-apps.json`. Web apps not listed there use the next compact generated ports after the highest fixed port, assigned by current workspace list order. When Personal IDE creates an app, it records that assigned port in `local-apps.json`. Desktop/Tauri workspaces do not reserve ports, and deleted workspace numbers do not create port gaps.
 
 For app folders inside a monorepo, the generated server command is:
 
@@ -230,7 +231,7 @@ CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" CUSTOM_SHELL_
 
 Tauri apps are not started through this web server helper.
 
-Apps created from the Custom Shell scaffold are repo-backed workspaces. Their generated `vite.config.ts` defaults to port `3000`, and the Start Server helper passes the assigned workspace port at runtime.
+Apps created from the Custom Shell scaffold are repo-backed workspaces. Their generated `vite.config.ts` reads the app's assigned port from `local-apps.json`, and the Start Server helper passes the same port at runtime.
 
 Generated Custom Shell apps also get an ignored `.env.local` with local `CUSTOM_SHELL_APP_ORIGINS`, an app-named `CUSTOM_SHELL_DATABASE_URL`, an app-specific `CUSTOM_SHELL_POSTGRES_PORT`, app-branded login copy, and a `predev` database setup script. The setup script starts local Postgres with the app name as the Docker Compose project, creates the app database, applies copied SQL migrations, and seeds the local admin account before the dev server starts.
 

@@ -9,4 +9,4 @@ npm install
 npm run dev
 ```
 
-The local app runs at `http://localhost:3000` by default.
+The local app port is defined in `../../local-apps.json`.

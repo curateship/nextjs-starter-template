@@ -56,6 +56,9 @@ The app-level dev setup and Personal IDE read that file:
   - `server.strictPort = true`
 - `apps/trading/vite.config.ts`
   - `server.port = 3007`
+- `apps/directory/vite.config.ts`
+  - `server.port = localAppPorts.directory`
+  - `server.strictPort = true`
 
 `strictPort: true` is enabled for the TanStack Start apps so they fail instead of silently moving to another port. These apps include their UI and backend in one dev server, so there is no separate Python API dev server.
 

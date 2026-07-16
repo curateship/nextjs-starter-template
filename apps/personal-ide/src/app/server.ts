@@ -29,6 +29,17 @@ export function serverPortsForWorkspaces(workspaces: WorkspaceInfo[]) {
   return ports
 }
 
+export function nextServerPortForNewApp(workspaces: WorkspaceInfo[], appName: string) {
+  const configuredPort = localAppPorts[appName as keyof typeof localAppPorts]
+  if (typeof configuredPort === "number") return configuredPort
+
+  const usedPorts = new Set(Object.values(serverPortsForWorkspaces(workspaces)))
+  let port = Math.max(...Object.values(localAppPorts)) + 1
+
+  while (usedPorts.has(port)) port += 1
+  return port
+}
+
 export function serverPortForWorkspaceInList(workspace: WorkspaceInfo, workspaces: WorkspaceInfo[]) {
   const ports = serverPortsForWorkspaces(workspaces)
   const port = ports[workspace.id]
