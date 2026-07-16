@@ -43,6 +43,7 @@ import { automationSummary } from "@/lib/strategies/strategy-config"
 const EXCHANGES: { id: string; label: string }[] = [
   { id: "hyperliquid", label: "Hyperliquid" },
 ]
+const MAX_QFL_MARKETS = 200
 
 /** Guided bot creation from a valid saved Automation snapshot. */
 type NewBotDialogProps = {
@@ -168,11 +169,12 @@ function NewBotDialogForm({
 
   const config = automation?.compiledConfig ?? null
   const sourceChosen = config != null
+  const isQfl = Boolean(config?.qfl)
+  const maxMarkets = isQfl ? MAX_QFL_MARKETS : 1
   const showMarkets = sourceChosen && exchange !== ""
 
   const availableMarkets = marketRows.filter(
-    (row) =>
-      hasMarketActivity(row) && !selectedMarkets.includes(row.coin)
+    (row) => hasMarketActivity(row) && !selectedMarkets.includes(row.coin)
   )
 
   async function submit() {
@@ -183,8 +185,14 @@ function NewBotDialogForm({
       return setError("Pick a valid Automation.")
     }
     if (!exchange) return setError("Select an exchange.")
-    if (selectedMarkets.length !== 1) {
+    if (selectedMarkets.length === 0) {
+      return setError("Pick at least one market.")
+    }
+    if (!isQfl && selectedMarkets.length !== 1) {
       return setError("Pick exactly one market.")
+    }
+    if (selectedMarkets.length > maxMarkets) {
+      return setError(`Pick no more than ${maxMarkets} markets.`)
     }
     const equity = Number(paperEquity)
     if (mode === "paper" && !(equity > 0)) {
@@ -332,6 +340,7 @@ function NewBotDialogForm({
                     value={selectedAutomationId ?? ""}
                     onValueChange={(id) => {
                       setAutomationId(id)
+                      setSelectedMarkets([])
                       setError(null)
                     }}
                   >
@@ -353,11 +362,8 @@ function NewBotDialogForm({
                     </p>
                   ) : automation?.compiledConfig ? (
                     <p className="text-xs text-muted-foreground">
-                      {automation.compiledConfig.rules.length} action{" "}
-                      {automation.compiledConfig.rules.length === 1
-                        ? "rule"
-                        : "rules"}{" "}
-                      · {automation.interval}
+                      {automationSummary(automation.compiledConfig)} ·{" "}
+                      {automation.interval}
                     </p>
                   ) : null}
                 </div>
@@ -368,7 +374,7 @@ function NewBotDialogForm({
           {sourceChosen ? (
             <Card size="sm">
               <CardHeader>
-                <CardTitle>Market</CardTitle>
+                <CardTitle>{isQfl ? "Markets" : "Market"}</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-2">
@@ -389,7 +395,7 @@ function NewBotDialogForm({
 
                 {showMarkets ? (
                   <div className="grid gap-2">
-                    <Label>Market</Label>
+                    <Label>{isQfl ? "Markets" : "Market"}</Label>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {selectedMarkets.map((coin) => (
                         <Badge
@@ -412,13 +418,21 @@ function NewBotDialogForm({
                         </Badge>
                       ))}
                       {availableMarkets.length > 0 &&
-                      selectedMarkets.length === 0 ? (
+                      selectedMarkets.length < maxMarkets ? (
                         <Select
                           value=""
-                          onValueChange={(coin) => setSelectedMarkets([coin])}
+                          onValueChange={(coin) =>
+                            setSelectedMarkets((current) =>
+                              isQfl ? [...current, coin] : [coin]
+                            )
+                          }
                         >
                           <SelectTrigger className="h-8 w-36">
-                            <SelectValue placeholder="Select market" />
+                            <SelectValue
+                              placeholder={
+                                isQfl ? "Add market" : "Select market"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {availableMarkets.map((row) => (
@@ -430,6 +444,13 @@ function NewBotDialogForm({
                         </Select>
                       ) : null}
                     </div>
+                    {isQfl ? (
+                      <p className="text-xs text-muted-foreground">
+                        QFL shares its maximum exposure across all selected
+                        markets. Choose up to {MAX_QFL_MARKETS}; short
+                        timeframes or long history may allow fewer.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 

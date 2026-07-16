@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import type { AutomationNode } from "@/lib/automations/automation"
+import {
+  DEFAULT_MARKET_SCANNER_SETTINGS,
+  DEFAULT_QFL_SETTINGS,
+} from "@/lib/automations/qfl"
 
 import {
+  canConnectNodes,
   edgePath,
   fitViewport,
   flowBounds,
@@ -20,6 +25,15 @@ const indicator: AutomationNode = {
   x: 100,
   y: 50,
   indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
+}
+
+const longNode: AutomationNode = {
+  id: "long",
+  kind: "action",
+  action: "buy",
+  targetEquityPct: 10,
+  x: 0,
+  y: 0,
 }
 
 describe("Automation canvas model", () => {
@@ -60,6 +74,15 @@ describe("Automation canvas model", () => {
       { id: "bidWall", label: "Bid Wall" },
       { id: "askWall", label: "Ask Wall" },
     ])
+    expect(
+      nodeOutputPorts({
+        id: "scanner",
+        kind: "marketScanner",
+        ...DEFAULT_MARKET_SCANNER_SETTINGS,
+        x: 0,
+        y: 0,
+      })
+    ).toEqual([{ id: "markets", label: "Markets" }])
   })
 
   it("anchors named outputs and inputs to the node edges", () => {
@@ -67,6 +90,39 @@ describe("Automation canvas model", () => {
     expect(portOut(indicator, "trend")).toEqual({ x: 380, y: 94 })
     expect(portOut(indicator, "bearish")).toEqual({ x: 380, y: 114 })
     expect(portIn(indicator)).toEqual({ x: 100, y: 94 })
+  })
+
+  it("allows a Trend input into QFL", () => {
+    const qfl = {
+      id: "qfl",
+      kind: "qfl",
+      ...DEFAULT_QFL_SETTINGS,
+      x: 0,
+      y: 0,
+    } satisfies AutomationNode
+
+    expect(canConnectNodes(indicator, "trend", qfl)).toBe(true)
+    expect(canConnectNodes(indicator, "bullish", qfl)).toBe(false)
+  })
+
+  it("connects Market Scanner only to QFL", () => {
+    const scanner = {
+      id: "scanner",
+      kind: "marketScanner",
+      ...DEFAULT_MARKET_SCANNER_SETTINGS,
+      x: 0,
+      y: 0,
+    } satisfies AutomationNode
+    const qfl = {
+      id: "qfl",
+      kind: "qfl",
+      ...DEFAULT_QFL_SETTINGS,
+      x: 0,
+      y: 0,
+    } satisfies AutomationNode
+
+    expect(canConnectNodes(scanner, "markets", qfl)).toBe(true)
+    expect(canConnectNodes(scanner, "markets", longNode)).toBe(false)
   })
 
   it("builds a curved path and fits nodes from the top-left at 90% zoom", () => {

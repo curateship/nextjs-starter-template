@@ -1,14 +1,18 @@
 import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import type { AutomationConfig } from "@/lib/automations/automation"
+import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
 import type { CustomShellDb } from "@/server/db"
 import * as schema from "@/server/schema"
 import {
   claimNextPendingBacktest,
+  claimPendingBacktestGroup,
+  createUserBacktestGroup,
   failClaimedBacktest,
   resetOrphanedRunning,
 } from "@/server/backtests"
@@ -69,6 +73,38 @@ afterEach(async () => {
 })
 
 describe("backtest worker claiming", () => {
+  it("creates every selected QFL market in one claimable group", async () => {
+    const params: AutomationConfig = {
+      v: 2,
+      kind: "automation",
+      interval: "15m",
+      rules: [],
+      protection: {},
+      qfl: { nodeId: "qfl", ...DEFAULT_QFL_SETTINGS },
+    }
+    const endTime = new Date()
+    const group = await createUserBacktestGroup(
+      "user-1",
+      ["SOL", "DOGE"].map((market) => ({
+        name: "QFL group",
+        market,
+        network: "mainnet" as const,
+        interval: "15m",
+        params,
+        costs: { takerFeeBps: 0, makerFeeBps: 0, slippageBps: 0 },
+        startTime: new Date(endTime.getTime() - 86_400_000),
+        endTime,
+        startingEquity: 10_000,
+      })),
+      database as unknown as CustomShellDb
+    )
+
+    expect(group.rows).toHaveLength(2)
+    expect(new Set(group.rows.map((row) => row.groupId))).toEqual(
+      new Set([group.groupId])
+    )
+  })
+
   it("claims each queued run once across workers", async () => {
     const first = await claimNextPendingBacktest(
       "worker-a",
@@ -87,6 +123,35 @@ describe("backtest worker claiming", () => {
     expect(first).toMatchObject({ attemptCount: 1, progress: 5 })
     expect(second).toMatchObject({ attemptCount: 1, progress: 5 })
     expect(empty).toBeNull()
+  })
+
+  it("claims the remaining markets in a portfolio group for one worker", async () => {
+    await database
+      .update(schema.tradingBacktests)
+      .set({ groupId: "run-1", params: { kind: "automation", qfl: {} } })
+      .where(inArray(schema.tradingBacktests.id, ["run-1", "run-2"]))
+    const first = await claimNextPendingBacktest(
+      "worker-a",
+      database as unknown as CustomShellDb
+    )
+    const competing = await claimNextPendingBacktest(
+      "worker-b",
+      database as unknown as CustomShellDb
+    )
+    const siblings = await claimPendingBacktestGroup(
+      first!.groupId,
+      "worker-a",
+      database as unknown as CustomShellDb
+    )
+
+    expect(first?.id).toBe("run-1")
+    expect(competing).toBeNull()
+    expect(siblings).toHaveLength(1)
+    expect(siblings[0]).toMatchObject({
+      status: "running",
+      claimedBy: "worker-a",
+      attemptCount: 1,
+    })
   })
 
   it("requeues interrupted work and eventually records a terminal error", async () => {

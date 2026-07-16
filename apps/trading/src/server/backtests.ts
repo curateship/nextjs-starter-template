@@ -90,6 +90,40 @@ export async function createUserBacktest(
   return row
 }
 
+/** Inserts every market in one run group atomically before workers can claim it. */
+export async function createUserBacktestGroup(
+  userId: string,
+  inputs: CreateBacktestInput[],
+  database: CustomShellDb = db
+): Promise<{ groupId: string; rows: TradingBacktest[] }> {
+  if (inputs.length === 0) throw new Error("Pick at least one market.")
+  for (const input of inputs) assertBacktestable(input)
+
+  const ids = inputs.map(() => uuid())
+  const groupId = ids[0]
+  const createdAt = now()
+  const rows = await database
+    .insert(tradingBacktests)
+    .values(
+      inputs.map((input, index) => ({
+        id: ids[index],
+        userId,
+        groupId,
+        ...backtestConfigValues(input),
+        status: "pending" as const,
+        startedAt: null,
+        progress: 0,
+        progressStage: "queued",
+        createdAt,
+      }))
+    )
+    .returning()
+  if (rows.length !== inputs.length) {
+    throw new Error("Backtest group was not created")
+  }
+  return { groupId, rows }
+}
+
 /** Saves a result computed by an explicit offline tool without queueing it. */
 export async function createCompletedUserBacktest(
   userId: string,
@@ -191,7 +225,12 @@ export async function claimNextPendingBacktest(
     const [candidate] = await tx
       .select({ id: tradingBacktests.id })
       .from(tradingBacktests)
-      .where(eq(tradingBacktests.status, "pending"))
+      .where(
+        and(
+          eq(tradingBacktests.status, "pending"),
+          sql<boolean>`((${tradingBacktests.params} -> 'qfl') is null or ${tradingBacktests.id} = ${tradingBacktests.groupId})`
+        )
+      )
       .orderBy(asc(tradingBacktests.createdAt))
       .limit(1)
       .for("update", { skipLocked: true })
@@ -210,6 +249,31 @@ export async function claimNextPendingBacktest(
       .returning()
     return row ?? null
   })
+}
+
+/** Claims the still-pending siblings of an already claimed portfolio run. */
+export async function claimPendingBacktestGroup(
+  groupId: string,
+  workerId: string,
+  database: CustomShellDb = db
+): Promise<TradingBacktest[]> {
+  return database
+    .update(tradingBacktests)
+    .set({
+      status: "running",
+      startedAt: now(),
+      attemptCount: sql`${tradingBacktests.attemptCount} + 1`,
+      progress: 5,
+      progressStage: "claimed",
+      claimedBy: workerId,
+    })
+    .where(
+      and(
+        eq(tradingBacktests.groupId, groupId),
+        eq(tradingBacktests.status, "pending")
+      )
+    )
+    .returning()
 }
 
 /**

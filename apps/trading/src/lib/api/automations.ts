@@ -17,6 +17,7 @@ import {
 } from "@/lib/automations/palette"
 import { automationTypeSchema } from "@/lib/automations/automation-types"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import { automationSummary } from "@/lib/strategies/strategy-config"
 import type { TradingAutomation } from "@/server/schema"
 
 export type AutomationListItem = {
@@ -101,14 +102,13 @@ const listAutomationsFn = createServerFn({ method: "GET" }).handler(
           const inspected = inspectAutomation(row)
           const isValid =
             inspected.compiledConfig !== null && inspected.errors.length === 0
-          const rules = inspected.compiledConfig?.rules.length ?? 0
           return {
             id: row.id,
             name: row.name,
             type: row.type,
             interval: row.interval,
             summary: isValid
-              ? `${rules} action ${rules === 1 ? "rule" : "rules"}`
+              ? automationSummary(inspected.compiledConfig!)
               : row.graph.nodes.length === 0
                 ? "Empty draft"
                 : "Needs attention",

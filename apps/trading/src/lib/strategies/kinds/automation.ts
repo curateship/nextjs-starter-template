@@ -3,6 +3,10 @@ import {
   type AutomationConfig,
 } from "@/lib/automations/automation"
 import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
+import {
+  qflHistoryBars,
+  qflRequiredHistoryMonths,
+} from "@/lib/automations/qfl"
 
 function triggersOf(
   condition: AutomationCondition
@@ -18,6 +22,15 @@ export function automationWarmupBars(config: AutomationConfig) {
     INDICATORS[selection.type].warmupBars(selection.params as never) + extra + 5
   return Math.max(
     5,
+    ...(config.qfl
+      ? [
+          qflHistoryBars(
+            config.qfl,
+            config.interval,
+            qflRequiredHistoryMonths(config.qfl, config.marketScanner)
+          ),
+        ]
+      : []),
     ...triggers.flatMap((trigger) => [
       bars(trigger.indicator),
       // A Look Back filter must SEE a signal up to maxAgeBars old, so its
@@ -31,9 +44,15 @@ export function automationWarmupBars(config: AutomationConfig) {
 
 /** One-line settings summary for automation cards and list rows. */
 export function automationSummary(config: AutomationConfig): string {
-  const parts = [
-    `${config.rules.length} ${config.rules.length === 1 ? "action" : "actions"}`,
-  ]
+  const parts = config.qfl
+    ? [
+        `QFL ${config.qfl.totalOrders} buys`,
+        `max ${config.qfl.maxPortfolioExposurePct}%`,
+        `TP ${config.qfl.takeProfitPct}%`,
+      ]
+    : [
+        `${config.rules.length} ${config.rules.length === 1 ? "action" : "actions"}`,
+      ]
   for (const side of ["long", "short"] as const) {
     const levels = config.protection[side]
     const tag = side === "long" ? "Long" : "Short"
@@ -57,6 +76,21 @@ export function automationInputRows(
   return [
     { label: "Type", value: "Automation" },
     { label: "Actions", value: String(config.rules.length) },
+    ...(config.qfl
+      ? [
+          { label: "QFL buys", value: String(config.qfl.totalOrders) },
+          {
+            label: "QFL maximum exposure",
+            value: `${config.qfl.maxPortfolioExposurePct}%`,
+          },
+          {
+            label: "QFL base respect",
+            value: config.qfl.respectFilterEnabled
+              ? `${config.qfl.minRespectPct}% over ${config.qfl.respectLookbackMonths} months`
+              : "off",
+          },
+        ]
+      : []),
     { label: "Long take profit", value: level("long", "takeProfitPct") },
     { label: "Long stop loss", value: level("long", "stopLossPct") },
     { label: "Short take profit", value: level("short", "takeProfitPct") },
@@ -73,6 +107,7 @@ export function automationTakeProfitPct(
   config: AutomationConfig
 ): number | null {
   const values = [
+    config.qfl?.takeProfitPct,
     config.protection.long?.takeProfitPct,
     config.protection.short?.takeProfitPct,
   ].filter((value): value is number => value !== undefined)

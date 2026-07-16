@@ -104,6 +104,8 @@ export type BacktestResult = {
   fills: BacktestFill[]
   openPosition: BacktestOpenPosition
   stats: BacktestStats
+  /** Present when sibling rows are contributions to one shared account. */
+  portfolio?: { sharedAccount: true; marketCount: number }
 }
 
 /**
@@ -190,9 +192,9 @@ export const MAX_RUN_BARS = 5000
 export const MAX_BACKTEST_BARS = 50_000
 
 /**
- * Most additional markets a single config may replay across. The background
- * queue runs them one at a time, so this bounds a run group's total upstream
- * cost. Shared by the run/config validators and the market-picker UI.
+ * Most additional markets a single config may replay across. This bounds a run
+ * group's total history and engine cost. Shared by the run/config validators
+ * and the market-picker UI.
  */
 export const MAX_EXTRA_MARKETS = 50
 
@@ -237,6 +239,19 @@ export function windowBars(
   windowDays: number
 ): number {
   return Math.ceil((windowDays * 86_400_000) / INTERVAL_MS[interval])
+}
+
+/** Full history cost for a grouped run, including strategy warm-up per market. */
+export function totalRunBars(
+  params: unknown,
+  interval: BacktestInterval,
+  windowDays: number,
+  marketCount: number
+): number {
+  return (
+    Math.max(0, marketCount) *
+    (windowBars(interval, windowDays) + warmupBarsFor(params))
+  )
 }
 
 /**

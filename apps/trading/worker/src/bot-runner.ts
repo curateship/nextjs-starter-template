@@ -1,6 +1,12 @@
 import { and, eq } from "drizzle-orm"
+import type { CandleWsEvent } from "@nktkas/hyperliquid"
 
+import {
+  qflHistoryBars,
+  qflRequiredHistoryMonths,
+} from "@/lib/automations/qfl"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
+import { fetchCandleHistory, INTERVAL_MS } from "@/server/backtest/history"
 import { db } from "@/server/db"
 import { buildCloid } from "@/server/hyperliquid/exchange"
 import { getAssetInfo, type AssetInfo } from "@/server/hyperliquid/info"
@@ -29,6 +35,8 @@ import type {
   DesiredOrder,
   Strategy,
   StrategyCtx,
+  QflPortfolioControl,
+  CandleInterval,
 } from "./strategies/contract"
 
 const EVALUATE_DEBOUNCE_MS = 250
@@ -43,6 +51,7 @@ export class BotRunner {
   /** The single market this runner trades; a bot spawns one runner per market. */
   readonly market: string
   private readonly hub: MarketHub
+  private readonly qflPortfolio?: QflPortfolioControl
   private params!: AutomationConfig
   private strategy!: Strategy<never, unknown>
   private asset!: AssetInfo
@@ -56,6 +65,7 @@ export class BotRunner {
     peakEquity: 0,
   }
   private openOrders = new Map<string, ExistingOrder>()
+  private historicalCandles = new Map<CandleInterval, CandleWsEvent[]>()
   private unsubscribers: (() => void)[] = []
   private evaluating = false
   private evaluateQueued = false
@@ -65,10 +75,16 @@ export class BotRunner {
   private paused = false
   private stopped = true
 
-  constructor(bot: TradingBot, market: string, hub: MarketHub = marketHub) {
+  constructor(
+    bot: TradingBot,
+    market: string,
+    hub: MarketHub = marketHub,
+    qflPortfolio?: QflPortfolioControl
+  ) {
     this.bot = bot
     this.market = market
     this.hub = hub
+    this.qflPortfolio = qflPortfolio
   }
 
   get network(): TradingNetwork {
@@ -93,6 +109,7 @@ export class BotRunner {
 
       this.asset = await getAssetInfo(this.botNetwork, this.market)
       await this.loadState()
+      await this.loadQflHistory()
 
       if (this.bot.mode === "paper") {
         const broker = new PaperBroker({
@@ -120,6 +137,11 @@ export class BotRunner {
           onOrderUpdate: (update) => void this.onOrderUpdate(update),
         })
         this.broker = broker
+        if (this.params.qfl) {
+          // A crash can leave base-anchored orders resting. Cancel them before
+          // fill reconciliation, then rebuild the exact ladder from saved state.
+          await broker.cancelOwnedOrders()
+        }
         // Live restarts: local resting rows are stale until reconciled. Scope to
         // this market so sibling markets' orders are left untouched.
         await db
@@ -225,6 +247,9 @@ export class BotRunner {
   async flatten(reason = "Flatten requested") {
     await this.cancelAllOrders("flatten")
     await this.broker?.flatten()
+    if (!this.broker?.positionState()) {
+      this.strategy.onFlatten?.(this.ctx(), this.params as never)
+    }
     await this.persistState(true)
     await this.event("warn", "flatten", reason)
     this.scheduleEvaluate()
@@ -234,6 +259,9 @@ export class BotRunner {
     this.paused = true
     await this.cancelAllOrders("kill")
     await this.broker?.flatten()
+    if (!this.broker?.positionState()) {
+      this.strategy.onFlatten?.(this.ctx(), this.params as never)
+    }
     this.stopped = true
     this.teardown()
     await this.persistState(true)
@@ -288,6 +316,9 @@ export class BotRunner {
     // the backtest runner attached until now.
     fill.purpose = purpose
     this.strategy.onFill?.(this.ctx(), this.params as never, fill)
+    // React to the new state before remote persistence finishes. QFL may have
+    // completed a cycle and must cancel its still-resting deeper buys promptly.
+    this.scheduleEvaluate()
 
     await db
       .update(tradingBotOrders)
@@ -350,7 +381,6 @@ export class BotRunner {
     }
 
     await this.persistState(true)
-    this.scheduleEvaluate()
   }
 
   private async onOrderUpdate(update: BrokerOrderUpdate) {
@@ -573,19 +603,30 @@ export class BotRunner {
 
   private ctx(): StrategyCtx<unknown> {
     const mid = this.hub.mid(this.botNetwork, this.asset.dex, this.market)
+    const localEquity = this.broker?.equity(Number(mid)) ?? 0
+    const startingEquity =
+      Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY
+    if (this.bot.mode === "paper") {
+      this.qflPortfolio?.reportEquity?.(
+        this.market,
+        localEquity,
+        startingEquity
+      )
+    }
+    const sharedEquity =
+      this.bot.mode === "paper"
+        ? (this.qflPortfolio?.equity?.(localEquity) ?? localEquity)
+        : localEquity
     return {
       market: this.market,
       mid,
-      candles: (interval, n) =>
-        this.hub.getCandles(this.botNetwork, this.market, interval, n),
+      candles: (interval, n) => this.candles(interval, n),
       position: this.broker?.positionState() ?? null,
-      equity: String(this.broker?.equity(Number(mid)) ?? 0),
+      equity: String(sharedEquity),
       // Paper bots compound against their configured starting equity; live bots
       // have no tracked baseline, so compounding scaling is a no-op there.
-      startingEquity:
-        this.bot.mode === "paper"
-          ? String(Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY)
-          : "0",
+      startingEquity: this.bot.mode === "paper" ? String(startingEquity) : "0",
+      qflPortfolio: this.qflPortfolio,
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next
@@ -597,6 +638,62 @@ export class BotRunner {
           ...(data && typeof data === "object" ? data : {}),
         }),
       now: Date.now(),
+    }
+  }
+
+  private candles(interval: CandleInterval, n: number): CandleWsEvent[] {
+    const history = this.historicalCandles.get(interval)
+    const live = this.hub.getCandles(this.botNetwork, this.market, interval, n)
+    if (!history?.length) return live
+    // Only the newest n items from either sorted source can survive the final
+    // slice. This keeps ordinary QFL checks small even when six months of
+    // respect history is cached for the rare candidate-scoring pass.
+    const historyTail =
+      history.length <= n ? history : history.slice(history.length - n)
+    const byTime = new Map(historyTail.map((candle) => [candle.t, candle]))
+    for (const candle of live) byTime.set(candle.t, candle)
+    const merged = [...byTime.values()].sort((a, b) => a.t - b.t)
+    return merged.length <= n ? merged : merged.slice(merged.length - n)
+  }
+
+  private async loadQflHistory() {
+    const qfl = this.params.qfl
+    if (!qfl) return
+    const months = qflRequiredHistoryMonths(qfl, this.params.marketScanner)
+    if (months <= 0) return
+
+    const interval = this.params.interval
+    const endMs = Date.now()
+    const bars = qflHistoryBars(qfl, interval, months)
+    try {
+      const history = await fetchCandleHistory(
+        this.market,
+        interval,
+        endMs - bars * INTERVAL_MS[interval],
+        endMs
+      )
+      this.historicalCandles.set(
+        interval,
+        history.map((candle) => ({
+          t: candle.t,
+          T: candle.T,
+          s: this.market,
+          i: interval,
+          o: String(candle.o),
+          h: String(candle.h),
+          l: String(candle.l),
+          c: String(candle.c),
+          v: String(candle.v),
+          n: candle.n,
+        }))
+      )
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "history failed"
+      await this.event(
+        "warn",
+        "qfl_history_warmup",
+        `QFL is waiting for enough history: ${reason.slice(0, 220)}`
+      )
     }
   }
 

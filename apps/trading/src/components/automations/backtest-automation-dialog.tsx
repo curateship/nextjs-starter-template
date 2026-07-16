@@ -41,6 +41,7 @@ import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import { summarizeGroupProgress } from "./backtest-progress"
 
 const POLL_MS = 2000
+const DEFAULT_SELECTED_MARKETS = ["BTC"]
 
 /**
  * The one way to launch a backtest: pick markets + days for a saved
@@ -53,16 +54,25 @@ export function BacktestAutomationDialog({
   automationId,
   automationName,
   interval,
+  isQfl,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   automationId: string
   automationName: string
   interval: AutomationInterval
+  isQfl: boolean
 }) {
   const router = useRouter()
   const markets = useBinanceMarketRows()
-  const [selected, setSelected] = React.useState<string[]>(["BTC"])
+  const [selectedOverride, setSelectedOverride] = React.useState<
+    string[] | null
+  >(null)
+  const selected = selectedOverride ?? DEFAULT_SELECTED_MARKETS
+  const updateSelected = (update: (current: string[]) => string[]) =>
+    setSelectedOverride((current) =>
+      update(current ?? DEFAULT_SELECTED_MARKETS)
+    )
   const [days, setDays] = React.useState("30")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -71,17 +81,6 @@ export function BacktestAutomationDialog({
 
   const maxDays = maxWindowDays(interval)
   const progress = summarizeGroupProgress(runs)
-
-  // Fresh form every time the dialog opens.
-  React.useEffect(() => {
-    if (!open) return
-    setSelected(["BTC"])
-    setDays("30")
-    setBusy(false)
-    setError(null)
-    setGroupId(null)
-    setRuns([])
-  }, [open])
 
   // Progress phase: poll the group until every market lands, then open the
   // result page. Closing the dialog stops polling but never stops the runs —
@@ -170,7 +169,7 @@ export function BacktestAutomationDialog({
           <DialogTitle>Backtest {automationName}</DialogTitle>
           <DialogDescription>
             {groupId
-              ? "Replaying the Automation on each market. You can close this — it keeps running in the background."
+              ? `${isQfl ? "Replaying the QFL portfolio together" : "Replaying the Automation on each market"}. You can close this — it keeps running in the background.`
               : `Pick the markets and how many days to replay. Runs on ${interval} candles with this Automation's saved capital and fees.`}
           </DialogDescription>
         </DialogHeader>
@@ -215,7 +214,11 @@ export function BacktestAutomationDialog({
                   <Label>
                     Selected{" "}
                     <span className="font-normal text-muted-foreground">
-                      (one run per market · max {MAX_EXTRA_MARKETS + 1})
+                      (
+                      {isQfl
+                        ? "one shared QFL portfolio"
+                        : "one run per market"}{" "}
+                      · max {MAX_EXTRA_MARKETS + 1})
                     </span>
                   </Label>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -230,7 +233,7 @@ export function BacktestAutomationDialog({
                           type="button"
                           aria-label={`Remove ${coin}`}
                           onClick={() =>
-                            setSelected((current) =>
+                            updateSelected((current) =>
                               current.filter((c) => c !== coin)
                             )
                           }
@@ -244,7 +247,7 @@ export function BacktestAutomationDialog({
                       <Select
                         value=""
                         onValueChange={(coin) =>
-                          setSelected((current) =>
+                          updateSelected((current) =>
                             current.includes(coin)
                               ? current
                               : [...current, coin]

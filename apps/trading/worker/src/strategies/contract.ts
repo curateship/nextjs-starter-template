@@ -47,6 +47,31 @@ export type PositionState = {
   entryPx: string
 } | null
 
+export type QflPortfolioCandidate = {
+  market: string
+  candleTime: number
+  exposurePct: number
+  respectRate: number | null
+  volumeMultiple: number
+  dailyVolumeUsd: number
+}
+
+export type QflPortfolioControl = {
+  submit: (candidate: QflPortfolioCandidate) => void
+  observe?: (market: string, candleTime: number) => void
+  ready?: (candleTime: number) => boolean
+  reserve: (market: string, candleTime: number, exposurePct: number) => boolean
+  restore: (market: string, exposurePct: number) => boolean
+  release: (market: string) => void
+  reservedPct: () => number
+  reportEquity?: (
+    market: string,
+    equity: number,
+    startingEquity: number
+  ) => void
+  equity?: (fallback: number) => number
+}
+
 export type StrategyCtx<S> = {
   market: string
   /** Latest mid price, "0" until first tick. */
@@ -58,6 +83,8 @@ export type StrategyCtx<S> = {
   equity: string
   /** Equity at the start of the run — the baseline compounding scales against. */
   startingEquity?: string
+  /** Shared exposure gate used by multi-market QFL runners. */
+  qflPortfolio?: QflPortfolioControl
   state: S
   setState: (next: S) => void
   emit: (type: string, message: string, data?: unknown) => void
@@ -185,6 +212,8 @@ export interface Strategy<P, S> {
     remainingSz: string
   ) => void
   onTick?: (ctx: StrategyCtx<S>, params: P) => void
+  /** Called after an operator flatten is confirmed to have left no position. */
+  onFlatten?: (ctx: StrategyCtx<S>, params: P) => void
   /**
    * Price levels at which onTick would request an exit right now (TP / SL /
    * trailing stop), given the current position and state. Pure — must not

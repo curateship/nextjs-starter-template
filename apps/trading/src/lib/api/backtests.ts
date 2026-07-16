@@ -7,7 +7,7 @@ import {
   MAX_RUN_BARS,
   MAX_TOTAL_RUN_BARS,
   maxWindowDays,
-  windowBars,
+  totalRunBars,
   SIGNAL_WARMUP_CANDLES,
   warmupBarsFor,
   type BacktestCosts,
@@ -157,8 +157,7 @@ const runBacktestSchema = z
     market: z.string().min(1).max(20),
     /**
      * Additional markets: the same config is replayed on each (one row per
-     * market). The background queue drains them one at a time, so this bounds a
-     * run group's total upstream cost.
+     * market). This limit bounds a run group's total history and engine cost.
      */
     extraMarkets: z
       .array(z.string().min(1).max(20))
@@ -227,7 +226,7 @@ const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserBacktest } = await import("@/server/backtests")
+    const { createUserBacktestGroup } = await import("@/server/backtests")
     requireAppOrigin()
     const user = await requireUser()
     const run = await resolveAutomationRun(user.id, data.automationId)
@@ -240,23 +239,30 @@ const runBacktestFn = createServerFn({ method: "POST" })
         `That window is too long for ${run.interval} candles — a run covers at most ${maxWindowDays(run.interval)} days at ${run.interval}. Shorten the window or use a coarser timeframe.`
       )
     }
-    const totalBars = markets.length * windowBars(run.interval, data.windowDays)
+    const totalBars = totalRunBars(
+      run.params,
+      run.interval,
+      data.windowDays,
+      markets.length
+    )
     if (totalBars > MAX_TOTAL_RUN_BARS) {
       throw new Error(
-        `This run would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`
+        `This run would pull ~${totalBars.toLocaleString()} candles including required history across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`
       )
     }
 
-    // Enqueue markets as `pending` and return immediately; the background queue
-    // downloads history and runs the engine one market at a time so a big basket
-    // can't hold the request open or flood the candle source.
-    const result = await enqueueRun(user.id, data, run, { createUserBacktest })
+    // Enqueue markets as one atomic pending group and return immediately. The
+    // worker loads their history in the background; QFL replays the group on
+    // one shared clock and account.
+    const result = await enqueueRun(user.id, data, run, {
+      createUserBacktestGroup,
+    })
     return result
   })
 
 type BacktestEnqueueServer = Pick<
   typeof import("@/server/backtests"),
-  "createUserBacktest"
+  "createUserBacktestGroup"
 >
 
 /**
@@ -270,7 +276,7 @@ async function enqueueRun(
   run: ResolvedAutomationRun,
   server: BacktestEnqueueServer
 ): Promise<{ backtestId: string }> {
-  const { createUserBacktest } = server
+  const { createUserBacktestGroup } = server
 
   const markets = [data.market, ...(data.extraMarkets ?? [])]
   const endTime = new Date()
@@ -278,22 +284,20 @@ async function enqueueRun(
   const name =
     data.name?.trim() ||
     `${run.automationName} · ${markets.join(", ")} · ${run.interval}`
-  let mainId: string | null = null
-  for (const market of markets) {
-    const backtest = await createUserBacktest(
-      userId,
+  const group = await createUserBacktestGroup(
+    userId,
+    markets.map((market) =>
       buildRunInput({
         name,
-        groupId: mainId ?? undefined,
+        groupId: undefined,
         market,
         run,
         startTime,
         endTime,
       })
     )
-    mainId = mainId ?? backtest.id
-  }
-  return { backtestId: mainId as string }
+  )
+  return { backtestId: group.groupId }
 }
 
 /** Assembles a CreateBacktestInput from a run's shared config + one market's window. */

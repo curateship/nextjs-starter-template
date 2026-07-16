@@ -20,7 +20,9 @@ import type {
   DesiredOrder,
   Strategy,
   StrategyCtx,
+  QflPortfolioControl,
 } from "../strategies/contract"
+import { QflPortfolio } from "../qfl-portfolio"
 import { BacktestBroker } from "./broker"
 
 export type RunBacktestConfig = {
@@ -35,6 +37,8 @@ export type RunBacktestConfig = {
   interval: CandleInterval
   /** Fee/slippage assumptions in bps. */
   costs: BacktestCosts
+  /** Shared only by synchronized QFL basket runs. */
+  qflPortfolio?: QflPortfolioControl
 }
 
 type PendingFill = { fill: BrokerFill; purpose: string; cloid: string }
@@ -58,6 +62,7 @@ class BacktestRunner {
   private readonly simStartMs: number
   private readonly startingEquity: number
   private readonly market: string
+  private readonly qflPortfolio?: QflPortfolioControl
 
   private readonly broker: BacktestBroker
   private strategyState: unknown
@@ -103,6 +108,7 @@ class BacktestRunner {
     this.simStartMs = cfg.simStartMs
     this.startingEquity = cfg.startingEquity
     this.market = cfg.market
+    this.qflPortfolio = cfg.qflPortfolio
     this.peakEquity = cfg.startingEquity
     this.dailyPnlDate = new Date(cfg.simStartMs).toISOString().slice(0, 10)
 
@@ -132,16 +138,97 @@ class BacktestRunner {
   }
 
   run(): BacktestResult {
-    this.equityCurve.push({ t: this.simStartMs, eq: this.startingEquity })
+    this.begin()
 
     for (let i = 0; i < this.candlesNum.length; i += 1) {
-      this.currentIndex = i
       const candle = this.candlesNum[i]
       // Warmup bars only feed the indicator window; no trading yet.
       if (candle.t < this.simStartMs) continue
-      this.processBar(candle, this.candlesWs[i])
+      this.processBarOpenPath(i)
+      this.processBarCloseSignal(i)
+      this.processBarCloseOrders(i)
     }
 
+    return this.result()
+  }
+
+  begin() {
+    if (this.equityCurve.length === 0) {
+      this.equityCurve.push({ t: this.simStartMs, eq: this.startingEquity })
+    }
+  }
+
+  processBarOpenPath(index: number) {
+    this.currentIndex = index
+    const candle = this.candlesNum[index]
+    if (!candle || candle.t < this.simStartMs) return
+    const szi = Number(this.broker.positionState()?.szi ?? 0)
+    const path =
+      szi < 0 ? [candle.o, candle.h, candle.l] : [candle.o, candle.l, candle.h]
+    this.step(path[0], candle.t, null)
+    this.stepThrough(path[1], candle.t, null)
+    this.stepThrough(path[2], candle.t, null)
+  }
+
+  processBarCloseSignal(index: number) {
+    this.currentIndex = index
+    const candle = this.candlesNum[index]
+    const ws = this.candlesWs[index]
+    if (!candle || !ws || candle.t < this.simStartMs) return
+    this.stepThroughToClose(candle.c, candle.T)
+    this.price = candle.c
+    this.now = candle.T
+    this.broker.setPrice(candle.c)
+    if (!this.stopped) {
+      this.broker.matchBar(candle.c)
+      this.drainFills()
+      this.strategy.onCandleClose?.(
+        this.ctx(),
+        this.params as never,
+        ws as never
+      )
+    }
+    this.drainFills()
+  }
+
+  private stepThroughToClose(target: number, time: number) {
+    for (let guard = 0; guard < 8 && !this.stopped; guard += 1) {
+      const from = this.price
+      const rising = target > from
+      const levels =
+        this.strategy.exitTriggers?.(this.ctx(), this.params as never) ?? []
+      let next: number | null = null
+      for (const level of levels) {
+        if (!Number.isFinite(level)) continue
+        if (
+          rising
+            ? level <= from || level >= target
+            : level >= from || level <= target
+        ) {
+          continue
+        }
+        if (next === null || (rising ? level < next : level > next)) {
+          next = level
+        }
+      }
+      if (next === null) break
+      this.step(next, time, null)
+    }
+  }
+
+  processBarCloseOrders(index: number) {
+    this.currentIndex = index
+    const candle = this.candlesNum[index]
+    if (!candle || candle.t < this.simStartMs) return
+    this.evaluate()
+    this.drainFills()
+    this.equityCurve.push({
+      t: candle.T,
+      eq: round(this.broker.equity(candle.c)),
+    })
+  }
+
+  result(): BacktestResult {
     const pos = this.broker.positionState()
     const openPosition = pos
       ? {
@@ -211,9 +298,7 @@ class BacktestRunner {
       )
     } else if (
       this.trades.some((t) => t.returnPct <= -100) ||
-      this.equityCurve.some(
-        (p) => p.eq < this.startingEquity * 0.05
-      )
+      this.equityCurve.some((p) => p.eq < this.startingEquity * 0.05)
     ) {
       warnings.push(
         "The account came within 5% of total wipeout (or a single trade lost ≥100% of its notional). Liquidation is not modeled — treat this result as unreliable."
@@ -221,18 +306,6 @@ class BacktestRunner {
     }
 
     return warnings
-  }
-
-  private processBar(candle: HistoryCandle, ws: CandleWsEvent) {
-    // Walk the adverse extreme first so intrabar stops trigger conservatively.
-    const szi = Number(this.broker.positionState()?.szi ?? 0)
-    const path = szi < 0 ? [candle.o, candle.h, candle.l] : [candle.o, candle.l, candle.h]
-    // The open is a plain step: a gap across a trigger really fills at the open.
-    this.step(path[0], candle.t, null)
-    this.stepThrough(path[1], candle.t, null)
-    this.stepThrough(path[2], candle.t, null)
-    this.stepThrough(candle.c, candle.T, ws)
-    this.equityCurve.push({ t: candle.T, eq: round(this.broker.equity(candle.c)) })
   }
 
   /**
@@ -257,10 +330,15 @@ class BacktestRunner {
       let next: number | null = null
       for (const level of levels) {
         if (!Number.isFinite(level)) continue
-        if (rising ? level <= from || level >= target : level >= from || level <= target) {
+        if (
+          rising
+            ? level <= from || level >= target
+            : level >= from || level <= target
+        ) {
           continue
         }
-        if (next === null || (rising ? level < next : level > next)) next = level
+        if (next === null || (rising ? level < next : level > next))
+          next = level
       }
       if (next === null) break
       this.step(next, time, null)
@@ -268,7 +346,11 @@ class BacktestRunner {
     this.step(target, time, closingCandle)
   }
 
-  private step(price: number, time: number, closingCandle: CandleWsEvent | null) {
+  private step(
+    price: number,
+    time: number,
+    closingCandle: CandleWsEvent | null
+  ) {
     this.price = price
     this.now = time
     this.broker.setPrice(price)
@@ -294,7 +376,10 @@ class BacktestRunner {
   private evaluate() {
     if (this.stopped) return
 
-    const desired = this.strategy.desiredOrders(this.ctx(), this.params as never)
+    const desired = this.strategy.desiredOrders(
+      this.ctx(),
+      this.params as never
+    )
     const actions = diffOrders(desired, [...this.openOrders.values()])
     for (const action of actions) {
       if (action.kind === "cancel" || action.kind === "replace") {
@@ -449,13 +534,20 @@ class BacktestRunner {
   }
 
   private ctx(): StrategyCtx<unknown> {
+    const localEquity = this.broker.equity(this.price)
+    this.qflPortfolio?.reportEquity?.(
+      this.market,
+      localEquity,
+      this.startingEquity
+    )
     return {
       market: this.market,
       mid: String(this.price),
       candles: (_interval, n) => this.windowCandles(n),
       position: this.broker.positionState(),
-      equity: String(this.broker.equity(this.price)),
+      equity: String(this.qflPortfolio?.equity?.(localEquity) ?? localEquity),
       startingEquity: String(this.startingEquity),
+      qflPortfolio: this.qflPortfolio,
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next
@@ -474,4 +566,68 @@ class BacktestRunner {
 
 export function runBacktest(cfg: RunBacktestConfig): BacktestResult {
   return new BacktestRunner(cfg).run()
+}
+
+/** Replays QFL markets on one clock with one exposure and equity coordinator. */
+export function runQflPortfolioBacktests(
+  configs: RunBacktestConfig[]
+): Map<string, BacktestResult> {
+  if (configs.length === 0) return new Map()
+  const maximum = configs[0].params.qfl?.maxPortfolioExposurePct
+  if (!maximum) throw new Error("A QFL portfolio backtest needs QFL settings.")
+  const portfolio = new QflPortfolio(
+    maximum,
+    configs.map((config) => config.market)
+  )
+  const runners = configs.map(
+    (config) => new BacktestRunner({ ...config, qflPortfolio: portfolio })
+  )
+  for (const runner of runners) runner.begin()
+
+  const times = [
+    ...new Set(
+      configs.flatMap((config) =>
+        config.candles
+          .filter((candle) => candle.t >= config.simStartMs)
+          .map((candle) => candle.t)
+      )
+    ),
+  ].sort((a, b) => a - b)
+  const indexes = configs.map(
+    (config) =>
+      new Map(config.candles.map((candle, index) => [candle.t, index]))
+  )
+
+  for (const time of times) {
+    const due = runners.flatMap((runner, runnerIndex) => {
+      const index = indexes[runnerIndex].get(time)
+      return index === undefined
+        ? []
+        : [{ runner, index, market: configs[runnerIndex].market }]
+    })
+    for (const item of due) item.runner.processBarOpenPath(item.index)
+    // Every market submits its close candidate before any market can reserve.
+    for (const item of due) item.runner.processBarCloseSignal(item.index)
+    const dueMarkets = new Set(due.map((item) => item.market))
+    for (const config of configs) {
+      if (!dueMarkets.has(config.market)) portfolio.observe(config.market, time)
+    }
+    for (const item of due) item.runner.processBarCloseOrders(item.index)
+  }
+
+  return new Map(
+    runners.map((runner, index) => {
+      const result = runner.result()
+      return [
+        configs[index].market,
+        {
+          ...result,
+          portfolio: {
+            sharedAccount: true as const,
+            marketCount: runners.length,
+          },
+        },
+      ]
+    })
+  )
 }

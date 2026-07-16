@@ -1,130 +1,24 @@
 import * as React from "react"
-import {
-  ActivityIcon,
-  OctagonXIcon,
-  PlusIcon,
-  RadarIcon,
-  RepeatIcon,
-  SearchIcon,
-  ShieldXIcon,
-  TargetIcon,
-  TimerIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
-} from "lucide-react"
+import { PlusIcon, SearchIcon } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { AutomationPaletteKey } from "@/lib/automations/palette"
 import {
-  INDICATORS,
-  INDICATOR_IDS,
-  type IndicatorId,
-} from "@/lib/indicators/registry"
+  AUTOMATION_PALETTE_GROUPS,
+  AUTOMATION_PALETTE_ITEMS,
+  type AutomationPaletteKey,
+} from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
 
-export type AutomationPaletteChoice =
-  | { kind: "indicator"; indicatorType: IndicatorId }
-  | { kind: "whaleWall" }
-  | { kind: "lookback" }
-  | { kind: "action"; action: "buy" | "short" | "close" | "reverse" }
-  | { kind: "takeProfit" }
-  | { kind: "stopLoss" }
+import { AutomationNodeIcon } from "./automation-node-icon"
 
-type PaletteItem = {
-  key: AutomationPaletteKey
-  name: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  choice: AutomationPaletteChoice
-}
+type PaletteItem = (typeof AUTOMATION_PALETTE_ITEMS)[number]
 
-const filterItems: PaletteItem[] = [
-  {
-    key: "filter-lookback",
-    name: "Look Back",
-    description: "Incoming signal only counts for a set number of candles",
-    icon: TimerIcon,
-    choice: { kind: "lookback" },
-  },
-]
-
-const scannerItems: PaletteItem[] = [
-  {
-    key: "scanner-whale-wall",
-    name: "Whale Wall",
-    description: "Watch large nearby bid and ask levels in the live order book",
-    icon: RadarIcon,
-    choice: { kind: "whaleWall" },
-  },
-]
-
-const actionItems: PaletteItem[] = [
-  {
-    key: "action-buy",
-    name: "Long",
-    description: "Target a long portfolio percentage",
-    icon: TrendingUpIcon,
-    choice: { kind: "action", action: "buy" },
-  },
-  {
-    key: "action-short",
-    name: "Short",
-    description: "Target a short portfolio percentage",
-    icon: TrendingDownIcon,
-    choice: { kind: "action", action: "short" },
-  },
-  {
-    key: "action-reverse",
-    name: "Reverse Position",
-    description: "Flip to the opposite side in one step (close + open)",
-    icon: RepeatIcon,
-    choice: { kind: "action", action: "reverse" },
-  },
-  {
-    key: "action-close",
-    name: "Close Position",
-    description: "Close the current position completely",
-    icon: ShieldXIcon,
-    choice: { kind: "action", action: "close" },
-  },
-]
-
-const exitItems: PaletteItem[] = [
-  {
-    key: "exit-take-profit",
-    name: "Take Profit",
-    description:
-      "Bank profit at a set % from entry — hang it on a Long or Short",
-    icon: TargetIcon,
-    choice: { kind: "takeProfit" },
-  },
-  {
-    key: "exit-stop-loss",
-    name: "Stop Loss",
-    description:
-      "Cap the loss at a set % from entry — hang it on a Long or Short",
-    icon: OctagonXIcon,
-    choice: { kind: "stopLoss" },
-  },
-]
-
-const indicatorItems: PaletteItem[] = INDICATOR_IDS.map((id) => ({
-  key: `indicator-${id}`,
-  name: INDICATORS[id].label,
-  description: INDICATORS[id].description,
-  icon: ActivityIcon,
-  choice: { kind: "indicator", indicatorType: id },
+const paletteGroups = AUTOMATION_PALETTE_GROUPS.map((label) => ({
+  label,
+  items: AUTOMATION_PALETTE_ITEMS.filter((item) => item.group === label),
 }))
-
-const paletteGroups = [
-  { label: "Indicators", items: indicatorItems },
-  { label: "Scanners", items: scannerItems },
-  { label: "Filters", items: filterItems },
-  { label: "Actions", items: actionItems },
-  { label: "Exits", items: exitItems },
-]
 
 function paletteGroupsFor(
   view: "fav" | "all",
@@ -158,9 +52,9 @@ export function AutomationPalette({
 }: {
   className?: string
   favoriteNodeKeys: AutomationPaletteKey[]
-  onSelect: (choice: AutomationPaletteChoice) => void
-  onAdd: (choice: AutomationPaletteChoice) => void
-  onDragStart: (choice: AutomationPaletteChoice) => void
+  onSelect: (key: AutomationPaletteKey) => void
+  onAdd: (key: AutomationPaletteKey) => void
+  onDragStart: (key: AutomationPaletteKey) => void
   onDragEnd: () => void
 }) {
   const [tab, setTab] = React.useState<"fav" | "all">("fav")
@@ -239,9 +133,9 @@ function PaletteTab({
   value: "fav" | "all"
   groups: Array<{ label: string; items: PaletteItem[] }>
   hasSearch: boolean
-  onSelect: (choice: AutomationPaletteChoice) => void
-  onAdd: (choice: AutomationPaletteChoice) => void
-  onDragStart: (choice: AutomationPaletteChoice) => void
+  onSelect: (key: AutomationPaletteKey) => void
+  onAdd: (key: AutomationPaletteKey) => void
+  onDragStart: (key: AutomationPaletteKey) => void
   onDragEnd: () => void
 }) {
   return (
@@ -299,28 +193,27 @@ function PaletteNodeCard({
   onDragEnd,
 }: {
   item: PaletteItem
-  onSelect: (choice: AutomationPaletteChoice) => void
-  onAdd: (choice: AutomationPaletteChoice) => void
-  onDragStart: (choice: AutomationPaletteChoice) => void
+  onSelect: (key: AutomationPaletteKey) => void
+  onAdd: (key: AutomationPaletteKey) => void
+  onDragStart: (key: AutomationPaletteKey) => void
   onDragEnd: () => void
 }) {
-  const Icon = item.icon
   return (
     <div className="group relative">
       <button
         type="button"
         draggable
-        onClick={() => onSelect(item.choice)}
+        onClick={() => onSelect(item.key)}
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = "copy"
           event.dataTransfer.setData("text/plain", item.name)
-          onDragStart(item.choice)
+          onDragStart(item.key)
         }}
         onDragEnd={onDragEnd}
         className="flex w-full cursor-grab items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))]"
       >
         <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon className="size-3.5" />
+          <AutomationNodeIcon icon={item.icon} className="size-3.5" />
         </span>
         <span className="min-w-0 flex-1 overflow-hidden">
           <span className="block truncate text-xs font-medium">
@@ -337,7 +230,7 @@ function PaletteNodeCard({
       <button
         type="button"
         aria-label={`Add ${item.name} node`}
-        onClick={() => onAdd(item.choice)}
+        onClick={() => onAdd(item.key)}
         className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <PlusIcon className="size-4" />

@@ -4,11 +4,13 @@ import type {
   IndicatorPaint,
 } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
+import { qflBase } from "@/lib/strategies/indicators"
 
 import {
   resolveAutomationActions,
   type AutomationCondition,
   type AutomationConfig,
+  type AutomationFilter,
   type ResolvedAutomationAction,
 } from "./automation"
 
@@ -72,6 +74,32 @@ function mergePaint(
   target.barColors.push(...output.paint.barColors)
 }
 
+export function automationFiltersAllowBuy(
+  candles: IndicatorCandle[],
+  filters: AutomationFilter[]
+): boolean {
+  if (filters.length === 0) return true
+  const lastTime = candles.at(-1)?.t
+  if (lastTime === undefined) return false
+  const indexByTime = new Map(candles.map((candle, index) => [candle.t, index]))
+  const lastIndex = candles.length - 1
+  return filters.every((filter) => {
+    const module = INDICATORS[filter.indicator.type]
+    const params = module.paramsSchema.parse(filter.indicator.params)
+    const latest = module
+      .compute(candles, params as never)
+      .signals.filter((signal) => signal.time <= lastTime)
+      .at(-1)
+    const signalIndex = latest ? indexByTime.get(latest.time) : undefined
+    return (
+      latest?.side === "buy" &&
+      signalIndex !== undefined &&
+      (filter.maxAgeBars === undefined ||
+        lastIndex - signalIndex < filter.maxAgeBars)
+    )
+  })
+}
+
 export function evaluateAutomation(
   candles: IndicatorCandle[],
   config: AutomationConfig
@@ -81,6 +109,22 @@ export function evaluateAutomation(
   const outputBySelection = new Map<string, IndicatorOutput>()
   const outputByNode = new Map<string, IndicatorOutput>()
   const paint = emptyPaint()
+
+  if (config.qfl) {
+    const bases = qflBase(
+      candles,
+      config.qfl.basePeriods,
+      config.qfl.pumpPeriods
+    ).line
+    paint.lines.push({
+      id: `${config.qfl.nodeId}:base`,
+      label: "QFL Base",
+      color: "#14b8a6",
+      points: bases.flatMap((value, index) =>
+        Number.isFinite(value) ? [{ time: candles[index].t, value }] : []
+      ),
+    })
+  }
 
   for (const source of [...triggers, ...filters]) {
     const key = selectionKey(source)
