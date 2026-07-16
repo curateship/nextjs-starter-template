@@ -10,6 +10,14 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import {
+  buildFleetSummaries,
+  pileupKey,
+} from "@/components/bots/fleet-overview"
+import {
+  FleetOverviewStrip,
+  type FleetFilter,
+} from "@/components/bots/fleet-overview-strip"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
@@ -53,6 +61,32 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   const [newBotOpen, setNewBotOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [fleetFilter, setFleetFilter] = React.useState<FleetFilter | null>(null)
+
+  const summaries = React.useMemo(
+    () => buildFleetSummaries(data.bots),
+    [data.bots]
+  )
+  const visibleBots = React.useMemo(
+    () =>
+      fleetFilter
+        ? data.bots.filter((bot) => fleetFilter.botIds.includes(bot.id))
+        : data.bots,
+    [data.bots, fleetFilter]
+  )
+
+  // A pile-up filter can outlive its pile-up (positions close, bots change on
+  // the next poll). Drop it as soon as the pile-up is gone — otherwise the
+  // table stays filtered with no chip left on screen to clear it.
+  React.useEffect(() => {
+    if (!fleetFilter) return
+    const stillExists = summaries.some((summary) =>
+      summary.pileups.some(
+        (pileup) => pileupKey(summary.mode, pileup) === fleetFilter.key
+      )
+    )
+    if (!stillExists) setFleetFilter(null)
+  }, [summaries, fleetFilter])
   async function runCommand(
     bot: BotListItem,
     command: "start" | "stop" | "pause" | "resume" | "flatten"
@@ -113,10 +147,20 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
         </div>
       ) : null}
 
+      {summaries.length > 0 ? (
+        <div className="mb-2 md:mb-3">
+          <FleetOverviewStrip
+            summaries={summaries}
+            filter={fleetFilter}
+            onFilterChange={setFleetFilter}
+          />
+        </div>
+      ) : null}
+
       <DashboardTable
         title="Bots"
         icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={data.bots.length}
+        count={visibleBots.length}
         controls={
           <>
             <DashboardToolbarButton
@@ -157,12 +201,12 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={data.bots.length === 0}
+        isEmpty={visibleBots.length === 0}
         emptyText="No bots yet. Create one to start trading automatically."
         emptyColSpan={7}
-        footer={{ type: "summary", count: data.bots.length, label: "bots" }}
+        footer={{ type: "summary", count: visibleBots.length, label: "bots" }}
       >
-        {data.bots.map((bot) => (
+        {visibleBots.map((bot) => (
           <TableRow key={bot.id}>
             <TableCell column="main">
               <Link
