@@ -35,6 +35,7 @@ The current apps are:
 - `apps/seo` - SEO app
 - `apps/trading` - Trading app
 - `apps/personal-ide` - desktop Personal IDE app
+- `apps/directory` - Vite/TanStack port of Hub
 
 `packages/` is reserved for shared code when a real shared package is needed. `services/` currently contains `traefik-config-writer`.
 
@@ -58,6 +59,7 @@ npm run dev:ai-video
 npm run dev:anti-detect
 npm run dev:ai-agents
 npm run dev:personal-ide
+npm run dev:directory
 ```
 
 Turbo handles `dev`, `build`, and `lint` orchestration. `dev` is persistent and uncached. `build` depends on upstream builds and stores app build outputs.
@@ -66,31 +68,7 @@ Turbo handles `dev`, `build`, and `lint` orchestration. `dev` is persistent and 
 
 Local app ports live in `local-apps.json`:
 
-```json
-{
-  "hub": 3000,
-  "custom-shell": 3002,
-  "core": 3003,
-  "ai-video": 3004,
-  "anti-detect": 3005,
-  "seo": 3009,
-  "ai-agents": 3008,
-  "trading": 3007
-}
-```
-
-The app configs, Personal IDE, and the `localapps` helper read from this file. Change ports there first, then keep app docs in sync.
-
-Current local URLs:
-
-- Hub: `http://localhost:3000`
-- Custom Shell: `http://localhost:3002`
-- Core: `http://localhost:3003`
-- AI Video: `http://localhost:3004`
-- Antidetect: `http://localhost:3005`
-- SEO: `http://localhost:3009`
-- AI Agents: `http://localhost:3008`
-- Trading: `http://localhost:3007`
+The app configs, runtime scripts, tests, Personal IDE, and the `localapps` helper read from this file. Directory also derives its local origin from this registry. Change ports only there; do not duplicate assignments in code or documentation.
 
 ## Personal IDE
 

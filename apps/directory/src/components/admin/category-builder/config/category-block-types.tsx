@@ -1,0 +1,72 @@
+import BadgeInfo from "lucide-react/dist/esm/icons/badge-info.js"
+import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
+import Grid2X2 from "lucide-react/dist/esm/icons/grid-2x2.js"
+import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+
+export type { BlockTypeDefinition }
+
+export const CATEGORY_BLOCK_TYPES: BlockTypeDefinition[] = [
+  {
+    type: CATEGORY_CORE_BLOCK_TYPE,
+    name: 'Core',
+    icon: BadgeInfo,
+    description: 'Category title, featured image and rich text introduction',
+    // Visibility is the only template-owned key; title/image are category row
+    // fields and the rich text body is a per-category value
+    defaultContent: {
+      visibility: {},
+    },
+  },
+  {
+    type: CATEGORY_CHILDREN_GRID_BLOCK_TYPE,
+    name: 'Sub-category Grid',
+    icon: Grid2X2,
+    description: 'Grid of child categories — ideal for parent category pages',
+    defaultContent: {
+      title: '',
+      columns: 3,
+      mobileColumns: 2,
+      imageFit: 'crop',
+      imageQuality: 25,
+      visibility: {},
+    },
+  },
+  {
+    type: CATEGORY_LISTINGS_BLOCK_TYPE,
+    name: 'Listings',
+    icon: LayoutGrid,
+    description: 'Lists content related to the category being viewed',
+    // Template-owned config only; the rendered category is injected at runtime
+    defaultContent: {
+      title: '',
+      subtitle: '',
+      contentType: 'directory',
+      listingStyle: 'directory',
+      imageFit: 'crop',
+      imageQuality: 25,
+      saveIconOpacity: 70,
+      categoryChipParentIds: [],
+      displayMode: 'grid',
+      itemsToShow: 6,
+      columns: 3,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      visibility: {},
+    },
+  },
+]
+
+const CATEGORY_BLOCK_TYPE_SET = new Set(CATEGORY_BLOCK_TYPES.map(blockType => blockType.type))
+
+export function isCategoryBuilderBlockType(type: string | null | undefined) {
+  return !!type && CATEGORY_BLOCK_TYPE_SET.has(type)
+}
+
+export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
+  return findBlockType(CATEGORY_BLOCK_TYPES, type)
+}
+
+export function getBlockName(type: string): string {
+  return _getBlockName(CATEGORY_BLOCK_TYPES, type)
+}

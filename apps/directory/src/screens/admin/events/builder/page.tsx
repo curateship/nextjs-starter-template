@@ -1,0 +1,26 @@
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "@/lib/navigation-client"
+import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+
+export default function EventBuilderRootPage() {
+  const router = useRouter()
+  const { currentSite } = useSiteSwitcher()
+
+  // Redirect to current site event builder if site is available
+  useEffect(() => {
+    if (currentSite) {
+      router.push(`/admin/events/builder/${currentSite.id}`)
+    }
+  }, [currentSite, router])
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <StickyHeader />
+      <BuilderSkeleton />
+    </div>
+  )
+}

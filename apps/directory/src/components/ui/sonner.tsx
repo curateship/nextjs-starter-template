@@ -1,20 +1,25 @@
-import type { CSSProperties } from "react"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+"use client";
 
-import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import type { CSSProperties } from "react";
+import { useTheme } from "next-themes";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-function Toaster({ ...props }: ToasterProps) {
-  const { theme } = useTheme()
+// Configured sonner Toaster shared across hub (admin + frontend sites),
+// matching the rest of the monorepo: top-center, severity colors, a manual
+// close button pinned top-right, and a longer duration. Mounted (client-only)
+// from DeferredScripts. `useTheme` is safe outside a provider — it falls back
+// to "system" — and the `--normal-*` vars keep neutral toasts on-brand via the
+// app's popover tokens.
+export function Toaster({ ...props }: ToasterProps) {
+  const { theme = "system" } = useTheme();
 
   return (
     <Sonner
-      theme={theme}
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       position="top-center"
       duration={10000}
       closeButton
-      // Color toasts by severity: green success, red error, amber warning,
-      // blue info. Neutral `toast()` calls keep the popover styling below.
       richColors
       style={
         {
@@ -30,7 +35,5 @@ function Toaster({ ...props }: ToasterProps) {
       }
       {...props}
     />
-  )
+  );
 }
-
-export { Toaster }

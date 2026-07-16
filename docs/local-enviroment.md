@@ -4,29 +4,8 @@ This document describes the current local dev server setup for the apps in this 
 
 ## Local URLs
 
-- Hub: `http://localhost:3000`
-- Custom Shell: `http://localhost:3002`
-- Core: `http://localhost:3003`
-- AI Video: `http://localhost:3004`
-- Antidetect: `http://localhost:3005`
-- SEO: `http://localhost:3009`
-- AI Agents: `http://localhost:3008`
-- Trading: `http://localhost:3007`
-
-## Why These Ports
-
-The local apps now use a simple fixed port layout so they are easier to remember:
-
-- `3000`
-- `3002`
-- `3003`
-- `3004`
-- `3005`
-- `3007`
-- `3008`
-- `3009`
-
-This replaces the previous mix of `3000`, `5173`, and `5174`.
+- Run `localapps` to print the current local app URLs.
+- Read `local-apps.json` when a configured app is not running.
 
 ## Port Configuration
 
@@ -54,8 +33,9 @@ The app-level dev setup and Personal IDE read that file:
 - `apps/ai-agents/vite.config.ts`
   - `server.port = localAppPorts["ai-agents"]`
   - `server.strictPort = true`
-- `apps/trading/vite.config.ts`
-  - `server.port = 3007`
+- `apps/directory/vite.config.ts`
+  - reads the Directory assignment from `local-apps.json`
+  - `server.strictPort = true`
 
 `strictPort: true` is enabled for the TanStack Start apps so they fail instead of silently moving to another port. These apps include their UI and backend in one dev server, so there is no separate Python API dev server.
 
