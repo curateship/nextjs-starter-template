@@ -395,8 +395,8 @@ export function FeedbackCommentsDashboard() {
               </TableRow>
             </TableHeader>
         }
-        isEmpty={loading || paginatedComments.length === 0}
-        emptyText={loading ? "Loading comments..." : "No comments found matching your filters."}
+        isEmpty={!loading && paginatedComments.length === 0}
+        emptyText="No comments found matching your filters."
         emptyColSpan={7}
         footer={{
           type: "pagination",

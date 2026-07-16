@@ -166,12 +166,8 @@ export function CallsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedCalls.length === 0}
-        emptyText={
-          loading
-            ? "Loading calls..."
-            : "No calls yet. Test-call an agent from its editor, or launch a campaign."
-        }
+        isEmpty={!loading && paginatedCalls.length === 0}
+        emptyText="No calls yet. Test-call an agent from its editor, or launch a campaign."
         emptyColSpan={7}
         footer={{
           type: "pagination",

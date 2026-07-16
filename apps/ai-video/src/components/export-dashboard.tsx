@@ -329,11 +329,7 @@ export function ExportDashboard() {
     </>
   )
 
-  const emptyText = loading
-    ? "Loading exports..."
-    : exports.length === 0
-      ? "No exports yet"
-      : "No exports found."
+  const emptyText = exports.length === 0 ? "No exports yet" : "No exports found."
 
   return (
     <div className="w-full pb-8">
@@ -388,7 +384,7 @@ export function ExportDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedExports.length === 0}
+        isEmpty={!loading && paginatedExports.length === 0}
         emptyText={emptyText}
         emptyColSpan={6}
         footer={{

@@ -196,13 +196,11 @@ export function AlertsDashboard({ project }: { project: ProjectItem }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
+        isEmpty={!loading && rows.length === 0}
         emptyText={
-          loading
-            ? "Loading alerts..."
-            : unreadOnly
-              ? "No unread alerts."
-              : "No alerts yet. Alerts appear when a rank check finds meaningful movement for a tracked keyword."
+          unreadOnly
+            ? "No unread alerts."
+            : "No alerts yet. Alerts appear when a rank check finds meaningful movement for a tracked keyword."
         }
         emptyColSpan={5}
         footer={{

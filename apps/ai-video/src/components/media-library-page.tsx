@@ -262,7 +262,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     ? hasActiveFilters
       ? "No matches."
       : "No media yet."
-    : "Loading media..."
+    : ""
 
   const visibleIds = visibleMedia.map((item) => item.id)
   const {
@@ -499,7 +499,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           controls={mediaControls}
           content={
             <div className="px-5 pb-5">
-              {visibleMedia.length === 0 ? (
+              {data === null ? null : visibleMedia.length === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <ImageIcon className="mx-auto mb-3 size-10" />
@@ -575,7 +575,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={visibleMedia.length === 0}
+          isEmpty={data !== null && visibleMedia.length === 0}
           emptyText={emptyText}
           emptyColSpan={6}
           footer={{

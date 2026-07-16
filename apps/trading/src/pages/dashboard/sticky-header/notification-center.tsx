@@ -9,7 +9,6 @@ import {
   BookOpenIcon,
   ChartNoAxesCombinedIcon,
   CheckCheckIcon,
-  Loader2Icon,
   MessageSquareIcon,
   RadarIcon,
   ShieldAlertIcon,
@@ -918,12 +917,6 @@ export function NotificationCenter({
               ) : null}
               {error ? (
                 <p className="mt-4 text-sm text-destructive">{error}</p>
-              ) : null}
-              {loadingMore ? (
-                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                  Loading more
-                </div>
               ) : null}
             </div>
           </ScrollArea>

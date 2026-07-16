@@ -396,7 +396,7 @@ export function GoogleMapsDashboard() {
           onPageSizeChange: setPageSize,
         }}
       >
-        {loadingRuns ? <GoogleMapsRunsSkeletonRows count={pageSize} /> : visible.map((run) => {
+        {loadingRuns ? null : visible.map((run) => {
           const input = parseRunInput(run.input)
           return (
             <TableRow key={run.id} data-state={selectedRunIds.has(run.id) ? "selected" : undefined}>
@@ -1071,7 +1071,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           onPageSizeChange: setPageSize,
         }}
       >
-        {loadingResults ? <GoogleMapsResultsSkeletonRows count={pageSize} /> : visibleResults.map((result) => {
+        {loadingResults ? null : visibleResults.map((result) => {
           const websiteHref = safeExternalHref(text(result.data.website))
           const mapsHref = safeExternalHref(text(result.data.mapsUrl))
           const featuredImage = safeExternalHref(text(result.data.featuredImage))
@@ -2029,50 +2029,6 @@ function runLocationLabel(input: ReturnType<typeof parseRunInput>) {
 
 function RunField({ id, label, type = "text", value, onChange }: { id: string; label: string; type?: string; value: string | number; onChange: (value: string) => void }) {
   return <div className="grid gap-2"><Label htmlFor={id}>{label}</Label><Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></div>
-}
-
-function GoogleMapsRunsSkeletonRows({ count }: { count: number }) {
-  return Array.from({ length: count }).map((_, index) => (
-    <TableRow key={index}>
-      <TableCell column="select"><Skeleton className="size-4" /></TableCell>
-      <TableCell column="main">
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-44" />
-          <Skeleton className="h-3 w-32" />
-        </div>
-      </TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-5 w-16" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-8 w-24" /></TableCell>
-    </TableRow>
-  ))
-}
-
-function GoogleMapsResultsSkeletonRows({ count }: { count: number }) {
-  return Array.from({ length: count }).map((_, index) => (
-    <TableRow key={index}>
-      <TableCell column="select"><Skeleton className="size-4" /></TableCell>
-      <TableCell column="main">
-        <div className="flex items-center gap-3">
-          <Skeleton className="size-12 shrink-0 rounded-md" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-44" />
-            <Skeleton className="h-3 w-28" />
-          </div>
-        </div>
-      </TableCell>
-      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-7 w-20" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-12" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-28" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-8 w-16" /></TableCell>
-    </TableRow>
-  ))
 }
 
 function FeaturedImageField({

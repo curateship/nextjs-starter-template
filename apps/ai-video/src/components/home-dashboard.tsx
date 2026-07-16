@@ -128,7 +128,7 @@ export function HomeDashboard() {
       {/* Hero — resume cards. Full-width responsive grid, capped small. */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] gap-4 sm:gap-6">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          ? null
           : heroItems.map((item) => (
               <HeroCard
                 key={item.id}
@@ -499,18 +499,6 @@ function MediaPill({
   )
 }
 
-function SkeletonCard() {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="aspect-[2/3] animate-pulse bg-muted" />
-      <div className="space-y-1.5 px-3 py-2.5">
-        <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
-        <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted" />
-      </div>
-    </div>
-  )
-}
-
 // ------------------------------------------------------------- activity ----
 
 const TONE_DOT: Record<Tone, string> = {
@@ -538,11 +526,7 @@ function ActivityCard({
       </div>
 
       {loading ? (
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded bg-muted" />
-          ))}
-        </div>
+        null
       ) : sections.length === 0 ? (
         <p className="mt-6 text-center text-sm text-muted-foreground">No recent activity yet.</p>
       ) : (
@@ -630,11 +614,7 @@ function TrendingCard({
       </div>
 
       {loading ? (
-        Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="border-t border-border/60 px-4 py-2.5">
-            <div className="h-8 animate-pulse rounded bg-muted" />
-          </div>
-        ))
+        null
       ) : rows.length === 0 ? (
         <p className="border-t border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
           No analyzed reels yet.

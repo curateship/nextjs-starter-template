@@ -286,12 +286,8 @@ export function CreatorsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedCreators.length === 0}
-        emptyText={
-          loading
-            ? "Loading creators..."
-            : "No creators yet. Add a creator profile or add videos to the Viral Archive."
-        }
+        isEmpty={!loading && paginatedCreators.length === 0}
+        emptyText="No creators yet. Add a creator profile or add videos to the Viral Archive."
         emptyColSpan={8}
         footer={{
           type: "pagination",

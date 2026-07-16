@@ -110,12 +110,8 @@ export function CampaignsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || campaigns.length === 0}
-        emptyText={
-          loading
-            ? "Loading campaigns..."
-            : "No campaigns yet. A campaign calls every contact on a list with one of your agents."
-        }
+        isEmpty={!loading && campaigns.length === 0}
+        emptyText="No campaigns yet. A campaign calls every contact on a list with one of your agents."
         emptyColSpan={7}
       >
         {campaigns.map((campaign) => (
