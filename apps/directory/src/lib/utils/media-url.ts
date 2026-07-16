@@ -10,3 +10,9 @@ export function resolveMediaUrl(url?: string | null) {
 
   return trimmedUrl
 }
+
+export function resolveMediaPlaybackUrl(url?: string | null) {
+  const trimmedUrl = url?.trim() || ""
+  if (!trimmedUrl || trimmedUrl.startsWith("/")) return trimmedUrl
+  return `/api/media/proxy?url=${encodeURIComponent(trimmedUrl)}`
+}

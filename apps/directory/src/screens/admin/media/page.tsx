@@ -36,6 +36,7 @@ import {
 } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "@/components/app-image"
+import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -438,7 +439,7 @@ export default function ImagesPage() {
                               <div className="relative h-full w-full bg-black">
                                 <video
                                   key={media.id}
-                                  src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                                  src={resolveMediaPlaybackUrl(media.public_url)}
                                   className="h-full w-full object-contain"
                                   muted
                                   playsInline
@@ -695,7 +696,7 @@ export default function ImagesPage() {
                 <div className="space-y-4">
                   {editingImage.file_type === "video" ? (
                     <video
-                      src={`/api/media/proxy?url=${encodeURIComponent(editingImage.public_url)}`}
+                      src={resolveMediaPlaybackUrl(editingImage.public_url)}
                       className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
                       controls
                       muted

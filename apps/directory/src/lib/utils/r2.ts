@@ -10,10 +10,9 @@ const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'site-media'
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL // Optional: if using public access
 const HAS_R2_CREDENTIALS = Boolean(R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY)
 const USE_LOCAL_STORAGE = process.env.NODE_ENV !== 'production' && !HAS_R2_CREDENTIALS
-const LOCAL_STORAGE_ROOT = path.resolve(process.cwd(), '.local-storage', R2_BUCKET_NAME)
-const LOCAL_OBJECT_URL_PREFIX = 'local-'
+const LOCAL_PUBLIC_STORAGE_ROOT = path.resolve(process.cwd(), 'public', 'local-media')
+const LOCAL_PRIVATE_STORAGE_ROOT = path.resolve(process.cwd(), '.local-storage', R2_BUCKET_NAME)
 const MAX_OBJECT_KEY_BYTES = 1024
-const MAX_ENCODED_OBJECT_KEY_LENGTH = Math.ceil(MAX_OBJECT_KEY_BYTES * 4 / 3)
 
 // Create S3 client configured for R2
 const r2Client = HAS_R2_CREDENTIALS
@@ -33,29 +32,10 @@ export function usesLocalObjectStorage() {
 
 export function getLocalObjectUrl(fileName: string) {
   resolveLocalObjectPath(fileName)
-  return `/cdn/${LOCAL_OBJECT_URL_PREFIX}${Buffer.from(fileName).toString('base64url')}`
+  return `/local-media/${fileName.split('/').map(encodeURIComponent).join('/')}`
 }
 
-export function parseLocalObjectUrlPath(objectPath: string) {
-  if (!objectPath.startsWith(LOCAL_OBJECT_URL_PREFIX)) return null
-
-  try {
-    const encodedKey = objectPath.slice(LOCAL_OBJECT_URL_PREFIX.length)
-    if (!encodedKey || encodedKey.length > MAX_ENCODED_OBJECT_KEY_LENGTH || !/^[A-Za-z0-9_-]+$/.test(encodedKey)) return null
-
-    const keyBuffer = Buffer.from(encodedKey, 'base64url')
-    if (keyBuffer.length > MAX_OBJECT_KEY_BYTES || keyBuffer.toString('base64url') !== encodedKey) return null
-
-    const fileName = keyBuffer.toString('utf8')
-    if (!Buffer.from(fileName, 'utf8').equals(keyBuffer)) return null
-    resolveLocalObjectPath(fileName)
-    return fileName
-  } catch {
-    return null
-  }
-}
-
-export function resolveLocalObjectPath(fileName: string, root = LOCAL_STORAGE_ROOT) {
+export function resolveLocalObjectPath(fileName: string, root = LOCAL_PUBLIC_STORAGE_ROOT) {
   const normalizedRoot = path.resolve(root)
   const segments = fileName.split('/')
 
@@ -85,10 +65,19 @@ function requireR2Client() {
   return r2Client
 }
 
-async function writeLocalObject(fileName: string, fileBuffer: Buffer) {
-  const localPath = resolveLocalObjectPath(fileName)
+async function writeLocalObject(fileName: string, fileBuffer: Buffer, root = LOCAL_PUBLIC_STORAGE_ROOT) {
+  const localPath = resolveLocalObjectPath(fileName, root)
   await mkdir(path.dirname(localPath), { recursive: true })
   await writeFile(localPath, fileBuffer)
+}
+
+async function readLocalObject(fileName: string) {
+  try {
+    return await readFile(resolveLocalObjectPath(fileName))
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error
+    return readFile(resolveLocalObjectPath(fileName, LOCAL_PRIVATE_STORAGE_ROOT))
+  }
 }
 
 function getContentType(fileName: string) {
@@ -164,7 +153,7 @@ export async function uploadPrivateToR2(
   contentType: string
 ): Promise<string> {
   if (USE_LOCAL_STORAGE) {
-    await writeLocalObject(fileName, fileBuffer)
+    await writeLocalObject(fileName, fileBuffer, LOCAL_PRIVATE_STORAGE_ROOT)
     return fileName
   }
 
@@ -184,7 +173,10 @@ export async function uploadPrivateToR2(
  */
 export async function deleteFromR2(fileName: string): Promise<void> {
   if (USE_LOCAL_STORAGE) {
-    await rm(resolveLocalObjectPath(fileName), { force: true })
+    await Promise.all([
+      rm(resolveLocalObjectPath(fileName), { force: true }),
+      rm(resolveLocalObjectPath(fileName, LOCAL_PRIVATE_STORAGE_ROOT), { force: true }),
+    ])
     return
   }
 
@@ -201,7 +193,7 @@ export async function deleteFromR2(fileName: string): Promise<void> {
  */
 export async function getFromR2(fileName: string, range?: string | null) {
   if (USE_LOCAL_STORAGE) {
-    const fileBuffer = await readFile(resolveLocalObjectPath(fileName))
+    const fileBuffer = await readLocalObject(fileName)
     const { body, contentRange } = getLocalRange(fileBuffer, range)
     return {
       Body: body,

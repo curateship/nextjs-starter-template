@@ -6,8 +6,8 @@ import {
   deleteFromR2,
   getLocalObjectUrl,
   getFromR2,
-  parseLocalObjectUrlPath,
   resolveLocalObjectPath,
+  uploadPrivateToR2,
   uploadToR2,
   usesLocalObjectStorage,
 } from './r2'
@@ -26,15 +26,9 @@ test('local object paths stay inside the storage root', () => {
   assert.throws(() => resolveLocalObjectPath(`user/${'a'.repeat(1024)}`, root), /Invalid object storage key/)
 })
 
-test('local object URLs keep dotted storage keys out of the development route path', () => {
+test('local public object URLs map to Vite public files', () => {
   const key = 'user/image.png'
-  const url = getLocalObjectUrl(key)
-
-  assert.match(url, /^\/cdn\/local-[A-Za-z0-9_-]+$/)
-  assert.equal(parseLocalObjectUrlPath(url.slice('/cdn/'.length)), key)
-  assert.equal(parseLocalObjectUrlPath('local-not-valid-base64!'), null)
-  assert.equal(parseLocalObjectUrlPath(`local-${'a'.repeat(1367)}`), null)
-  assert.equal(parseLocalObjectUrlPath(`local-${Buffer.from([0xff]).toString('base64url')}`), null)
+  assert.equal(getLocalObjectUrl(key), '/local-media/user/image.png')
 })
 
 test('development object storage writes, reads ranges, and deletes local files', async (context) => {
@@ -61,4 +55,21 @@ test('development object storage writes, reads ranges, and deletes local files',
   }
 
   await assert.rejects(() => getFromR2(key), /ENOENT/)
+})
+
+test('development private objects are readable without receiving a public URL', async (context) => {
+  if (!usesLocalObjectStorage()) {
+    context.skip('Local object storage is disabled when R2 is configured')
+    return
+  }
+
+  const key = `tests/${randomUUID()}.png`
+  const source = Buffer.from('private-local-media')
+
+  try {
+    assert.equal(await uploadPrivateToR2(key, source, 'image/png'), key)
+    assert.deepEqual((await getFromR2(key)).Body, source)
+  } finally {
+    await deleteFromR2(key)
+  }
 })
