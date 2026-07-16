@@ -9,6 +9,12 @@ import {
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 
+export type BotListPosition = {
+  market: string
+  szi: number
+  entry_px: number
+}
+
 export type BotListItem = {
   id: string
   name: string
@@ -21,6 +27,10 @@ export type BotListItem = {
   wallet_label: string
   network: string
   realized_pnl: number
+  /** Realized P&L for the current UTC day, summed across the bot's markets. */
+  daily_realized_pnl: number
+  /** Open per-market positions; persisted for paper brokers only. */
+  positions: BotListPosition[]
   trade_count: number
   created_at: string
   updated_at: string
@@ -161,6 +171,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         automation_id: detail.bot.automationId,
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
+        ...aggregateBotStates(detail.states),
       },
       states: detail.states.map((state) => ({
         market: state.market,
@@ -313,14 +324,49 @@ async function requireUser() {
   return user
 }
 
+/**
+ * Folds a bot's per-market state rows into what the fleet list needs: open
+ * positions (paper brokers only — live brokers persist null) and realized
+ * P&L for the current UTC day (the worker keys dailyPnlDate to UTC).
+ */
+function aggregateBotStates(
+  rows: {
+    market: string
+    paperPosition: unknown
+    dailyRealizedPnl: string | number | null
+    dailyPnlDate: string | null
+  }[]
+): { positions: BotListPosition[]; daily_realized_pnl: number } {
+  const today = new Date().toISOString().slice(0, 10)
+  const positions: BotListPosition[] = []
+  let daily = 0
+  for (const row of rows) {
+    const raw = row.paperPosition as {
+      szi?: unknown
+      entryPx?: unknown
+    } | null
+    const szi = raw ? Number(raw.szi ?? 0) : 0
+    if (szi !== 0) {
+      positions.push({
+        market: row.market,
+        szi,
+        entry_px: Number(raw?.entryPx ?? 0),
+      })
+    }
+    if (row.dailyPnlDate === today) daily += Number(row.dailyRealizedPnl ?? 0)
+  }
+  return { positions, daily_realized_pnl: daily }
+}
+
 async function botListForUser(userId: string): Promise<BotListResponse> {
-  const { listUserBots } = await import("@/server/bots")
+  const { listUserBots, listUserBotStates } = await import("@/server/bots")
   const { desc, sql } = await import("drizzle-orm")
   const { db } = await import("@/server/db")
   const { tradingWorkerHeartbeats } = await import("@/server/schema")
 
-  const [rows, [heartbeat]] = await Promise.all([
+  const [rows, stateRows, [heartbeat]] = await Promise.all([
     listUserBots(userId),
+    listUserBotStates(userId),
     db
       .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
       .from(tradingWorkerHeartbeats)
@@ -329,11 +375,19 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
       .limit(1),
   ])
 
+  const statesByBot = new Map<string, typeof stateRows>()
+  for (const state of stateRows) {
+    const list = statesByBot.get(state.botId)
+    if (list) list.push(state)
+    else statesByBot.set(state.botId, [state])
+  }
+
   return {
     bots: rows.map((row) => ({
       ...serializeBotRow(row.bot, row.walletLabel, row.network),
       realized_pnl: Number(row.realizedPnl),
       trade_count: row.tradeCount,
+      ...aggregateBotStates(statesByBot.get(row.bot.id) ?? []),
     })),
     workerOnline: heartbeat
       ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000

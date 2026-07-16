@@ -100,6 +100,28 @@ export async function listUserBots(
   return rows
 }
 
+/**
+ * Per-market runtime rows for every bot the user owns, for fleet-level
+ * aggregation. Positions are only persisted for paper brokers (live brokers
+ * read theirs from the exchange and store null).
+ */
+export async function listUserBotStates(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  return database
+    .select({
+      botId: tradingBotState.botId,
+      market: tradingBotState.market,
+      paperPosition: tradingBotState.paperPosition,
+      dailyRealizedPnl: tradingBotState.dailyRealizedPnl,
+      dailyPnlDate: tradingBotState.dailyPnlDate,
+    })
+    .from(tradingBotState)
+    .innerJoin(tradingBots, eq(tradingBotState.botId, tradingBots.id))
+    .where(eq(tradingBots.userId, userId))
+}
+
 export async function getUserBot(
   userId: string,
   botId: string,
