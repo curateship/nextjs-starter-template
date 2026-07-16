@@ -79,6 +79,9 @@ delisted markets are picked up by the background refresh.
 
 - Don't paint pre-seed websocket candles. That reintroduces the giant-candle
   flash.
+- Keep indicator signal arrows pinned to their exact price in Lightweight
+  Charts' native marker layer. HTML overlays can read coordinates before a
+  resize or timeframe reflow finishes and visibly detach from their candles.
 - Don't merge cached bars over a fresh snapshot. Stale partial candles would
   permanently overwrite final ones.
 - Keep the cache cap. Unbounded caching across markets adds up quickly at

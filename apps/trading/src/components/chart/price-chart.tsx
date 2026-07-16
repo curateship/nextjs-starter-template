@@ -6,10 +6,12 @@ import type {
   IChartApi,
   IPriceLine,
   ISeriesApi,
+  ISeriesMarkersPluginApi,
   LineData,
   Logical,
   SeriesDefinition,
   SeriesType,
+  Time,
   UTCTimestamp,
 } from "lightweight-charts"
 
@@ -18,6 +20,12 @@ import {
   EMPTY_STRATEGY_OVERLAYS,
   outputToOverlays,
 } from "@/components/chart/indicator-overlays"
+import {
+  CHART_DOWN_COLOR as DOWN_COLOR,
+  CHART_UP_COLOR as UP_COLOR,
+  toNativeSignalMarkers,
+  type ChartMarker,
+} from "@/components/chart/chart-markers"
 import {
   cacheTrendlines,
   DEFAULT_TRENDLINE_COLOR,
@@ -69,8 +77,6 @@ import { sessionsInRange } from "@/lib/trading/sessions"
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
 // the chart stays in recessive text/border tokens.
-const UP_COLOR = "#089981"
-const DOWN_COLOR = "#f23645"
 const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
@@ -122,23 +128,7 @@ export type ChartPriceLine = {
   lineWidth?: 1 | 2
 }
 
-export type ChartMarker = {
-  /** Fill time, ms epoch. */
-  time: number
-  side: "buy" | "sell"
-  /** Chip color, carrying the meaning: green = long, red = short, yellow = flip. */
-  color?: string
-  /** Letter color; defaults to white. Used to keep the flip "F" legible on yellow. */
-  textColor?: string
-  /**
-   * Exact fill price: every marker is a price-pinned O/C/F chip sitting on
-   * the candle at that price (see `letter`). Markers exist only for real
-   * fills — indicator signal arrows were removed July 2026.
-   */
-  price: number
-  /** Chip letter: O = open, C = close, F = flip (close + reopen in one step). */
-  letter?: "O" | "C" | "F"
-}
+export type { ChartMarker } from "@/components/chart/chart-markers"
 
 /** Imperative handle a parent can grab to drive the chart (e.g. Reset View). */
 export type PriceChartHandle = {
@@ -279,7 +269,7 @@ export function PriceChartView({
   /** Identity of the candle series; a change forces a full data reset. */
   dataKey?: string
   priceLines?: ChartPriceLine[]
-  /** Buy/sell arrows at fill times. */
+  /** Trade-fill chips and indicator signal arrows. */
   markers?: ChartMarker[]
   /** Technical-indicator overlays and oscillator sub-panes. */
   indicators?: IndicatorConfig[]
@@ -343,6 +333,8 @@ export function PriceChartView({
     >
   >(new Map())
   const priceLineRefs = React.useRef<Map<string, IPriceLine>>(new Map())
+  const signalMarkersPluginRef =
+    React.useRef<ISeriesMarkersPluginApi<Time> | null>(null)
   const lineSpecsRef = React.useRef<Map<string, ChartPriceLine>>(new Map())
   const draggingRef = React.useRef<{
     id: string
@@ -541,6 +533,7 @@ export function PriceChartView({
     void import("lightweight-charts").then(
       ({
         createChart,
+        createSeriesMarkers,
         CandlestickSeries,
         HistogramSeries,
         LineSeries,
@@ -594,6 +587,10 @@ export function PriceChartView({
         chartRef.current = chart
         candleSeriesRef.current = candleSeries
         volumeSeriesRef.current = volumeSeries
+        signalMarkersPluginRef.current = createSeriesMarkers(candleSeries, [], {
+          autoScale: true,
+          zOrder: "top",
+        })
         setReady(true)
 
         chart.subscribeCrosshairMove((param) => {
@@ -1091,6 +1088,7 @@ export function PriceChartView({
       indicatorSeries.clear()
       overlaySeries.clear()
       seriesCtorsRef.current = null
+      signalMarkersPluginRef.current = null
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
       chartRef.current?.remove()
@@ -1351,16 +1349,20 @@ export function PriceChartView({
     }
   }, [ready, focusPoints, overlayRevision])
 
-  // Pin each priced open/close/flip chip to its exact fill price on the
+  React.useEffect(() => {
+    const plugin = signalMarkersPluginRef.current
+    if (!ready || !plugin) return
+    plugin.setMarkers(toNativeSignalMarkers(markers))
+  }, [ready, markers])
+
+  // Pin each open/close/flip chip to its exact fill price on the
   // candle, re-projecting on pan/zoom/resize and dropping any that scroll off
   // screen so the DOM only ever holds the chips currently visible.
   // Sorted by time so the chips inside any visible window are one contiguous
   // slice we can binary-search to, instead of scanning every trade each frame.
   const pricedMarkers = React.useMemo(
     () =>
-      // A letter is optional: fills carry O/C/F, indicator-signal dots (QQE)
-      // carry none and render as a plain pulsing dot.
-      markers.filter((m) => m.price != null).sort((a, b) => a.time - b.time),
+      markers.filter((marker) => marker.letter).sort((a, b) => a.time - b.time),
     [markers]
   )
   React.useEffect(() => {
@@ -2016,11 +2018,8 @@ export function PriceChartView({
       {markerPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
           {markerPixels.map((m, i) => {
-            // Lettered chips are real fills (O/C/F); letterless ones are
-            // indicator-signal dots (QQE) drawn at half size with a static
-            // white center so they stay visible against dark candles and zones.
-            const ring = m.letter ? 13 : 6.5
-            const dot = m.letter ? 12 : 6
+            const ring = 13
+            const dot = 12
             return (
               <div
                 key={`${m.letter}-${m.x}-${m.y}-${i}`}
@@ -2071,12 +2070,6 @@ export function PriceChartView({
                 >
                   {m.letter}
                 </span>
-                {!m.letter ? (
-                  <span
-                    className="absolute z-10 size-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-                    style={{ left: 0, top: 0 }}
-                  />
-                ) : null}
               </div>
             )
           })}
@@ -2422,8 +2415,8 @@ export function PriceChart({
 
   // QQE is the one pinned chart indicator that renders through the shared
   // paint pipeline (bar-colors, chop zones, swing pivots) instead of a bespoke
-  // series. Its buy/sell signals become letterless pulsing dots (green/red by
-  // side) — the same animated chip the backtest chart uses for fills.
+  // series. Its buy/sell signals become native chart arrows whose tips stay
+  // anchored to their exact signal price through chart reflow.
   const qqe = React.useMemo(() => {
     const cfg = indicators.find((ind) => ind.type === "qqe" && ind.enabled)
     if (!cfg || candles.length === 0) {

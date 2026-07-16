@@ -73,15 +73,19 @@ describe("QQE indicator parity", () => {
     expect(output.signals.length).toBeGreaterThan(0)
   })
 
-  it("consolidation filter off fires on every raw cross", () => {
-    const params = {
-      ...(INDICATORS.qqe.defaultParams as never as Record<string, unknown>),
-      consolidationFilter: false,
-    }
-    const output = INDICATORS.qqe.compute(CANDLES, params as never)
-    const qqe = computeQqeSeries(CANDLES, params as never)
+  it("the chart's off toggle removes consolidation and fires every raw cross", () => {
+    const chartDefault = DEFAULT_INDICATORS.find((ind) => ind.type === "qqe")!
+    const params = INDICATORS.qqe.paramsSchema.parse(
+      qqeChartToModuleParams({
+        ...chartDefault.params,
+        consolidationFilter: 0,
+      })
+    )
+    const output = INDICATORS.qqe.compute(CANDLES, params)
+    const qqe = computeQqeSeries(CANDLES, params)
     const raw = qqe.buy.filter(Boolean).length + qqe.sell.filter(Boolean).length
     expect(output.signals).toHaveLength(raw)
+    expect(output.paint.zones).toEqual([])
   })
 
   it("chart default config maps to the module defaults (chart ↔ module parity)", () => {
