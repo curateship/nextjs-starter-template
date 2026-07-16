@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { CAPTION_ANIMATION_IDS } from "./caption-animations.ts"
 import { SOUND_EFFECT_IDS } from "./sound-effects.ts"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
 
@@ -30,6 +31,9 @@ const clipSchema = z
     color: z.string().max(32).optional(),
     highlightColor: z.string().max(32).optional(),
     words: z.array(clipWordSchema).max(50).optional(),
+    // Entrance animation for the active karaoke word (caption presets).
+    // Absent or "none" = static highlight, so old timelines are unaffected.
+    animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
     x: z.number().min(0).max(1).optional(),
     y: z.number().min(0).max(1).optional(),
     replaceable: z.boolean().optional(),
