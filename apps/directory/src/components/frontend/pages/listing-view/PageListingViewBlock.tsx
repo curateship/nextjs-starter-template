@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import Image from "@/components/app-image"
@@ -11,6 +11,9 @@ import {
   type ListingViewsData,
   type ListingViewsItem
 } from "@/lib/actions/pages/page-listing-views-actions"
+import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/actions/directories/directory-map-core"
+import { getDirectoryMapConfigAction } from "@/lib/actions/directories/directory-map-actions"
+import { ListingMapView, getMappableListings } from "./ListingMapView"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardFooter, CardHeader } from "@/components/ui/card"
@@ -52,7 +55,7 @@ interface ListingViewsBlockProps {
     imageQuality?: number
     saveIconOpacity?: number
     categoryChipParentIds?: string[]
-    displayMode?: "grid" | "list"
+    displayMode?: "grid" | "list" | "map"
     itemsToShow?: number
     mobileColumns?: number
     columns?: number
@@ -116,12 +119,15 @@ export function ListingViewsBlock({
     viewAllLink = "",
     visibility
   } = content
+  // Map mode plots the whole (capped) filtered result set; pagination is ignored.
+  const isMapMode = displayMode === "map" && contentType === "directory"
   const preloadedListingData = preloadedData as ListingViewsData | null | undefined
   const preloadedMatchesPage = Boolean(
-    preloadedListingData && (!isPaginated || preloadedListingData.currentPage === currentPage)
+    preloadedListingData && (isMapMode || !isPaginated || preloadedListingData.currentPage === currentPage)
   )
   const [data, setData] = useState<ListingViewsData | null>(() => preloadedMatchesPage ? preloadedListingData! : null)
   const [loading, setLoading] = useState(!preloadedMatchesPage)
+  const [mapConfig, setMapConfig] = useState<{ apiKey: string | null } | null>(null)
   const categoryIds = Array.isArray(rawCategoryIds) ? rawCategoryIds : []
   const categoryIdsKey = categoryIds.join("|")
   const categoryChipParentIds = Array.isArray(rawCategoryChipParentIds) ? rawCategoryChipParentIds : []
@@ -178,6 +184,11 @@ export function ListingViewsBlock({
   const dataMatchesPage = Boolean(data && (!isPaginated || data.currentPage === currentPage))
   const displayedData = dataMatchesPage ? data : null
   const listingItems = displayedData?.items || displayedData?.products || displayedData?.posts || displayedData?.directories || []
+  // Stable reference so the map only rebuilds markers when the data actually changes.
+  const mappableListings = useMemo(() => {
+    if (!isMapMode) return []
+    return getMappableListings(displayedData?.items || displayedData?.directories || [])
+  }, [isMapMode, displayedData])
   const emptyMessage =
     contentType === "posts"
       ? "No posts available at the moment."
@@ -200,8 +211,8 @@ export function ListingViewsBlock({
       setData(null)
       setLoading(true)
 
-      const limit = isPaginated ? itemsPerPage : itemsToShow
-      const offset = isPaginated ? (currentPage - 1) * itemsPerPage : 0
+      const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
+      const offset = isMapMode || !isPaginated ? 0 : (currentPage - 1) * itemsPerPage
 
       const result = await getListingViewsData({
         site_id: siteId,
@@ -232,14 +243,31 @@ export function ListingViewsBlock({
     itemsToShow,
     itemsPerPage,
     isPaginated,
+    isMapMode,
     currentPage,
     preloadedListingData,
     preloadedMatchesPage
   ])
 
+  useEffect(() => {
+    if (!isMapMode) return
+    let active = true
+    getDirectoryMapConfigAction(siteId)
+      .then((config) => {
+        if (active) setMapConfig(config)
+      })
+      .catch(() => {
+        if (active) setMapConfig({ apiKey: null })
+      })
+    return () => {
+      active = false
+    }
+  }, [isMapMode, siteId])
+
   const mobileGridColumns = Number(mobileColumns) === 2 ? "grid-cols-2" : "grid-cols-1"
   const desktopGridColumns = Number(columns) === 2 ? "lg:grid-cols-2" : Number(columns) === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
-  const gridColumns = displayMode === "grid" ? `${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns}` : "grid-cols-1"
+  // Map mode falls back to the grid layout when the map itself can't render.
+  const gridColumns = displayMode !== "list" ? `${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns}` : "grid-cols-1"
   const mobileImageSize = Number(mobileColumns) === 2 ? "50vw" : "100vw"
   const desktopImageSize = Number(columns) === 2 ? "50vw" : Number(columns) === 4 ? "25vw" : "33vw"
   const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
@@ -472,7 +500,7 @@ export function ListingViewsBlock({
   }
 
   const renderPagination = () => {
-    if (!isPaginated || !displayedData) return null
+    if (isMapMode || !isPaginated || !displayedData) return null
 
     return (
       <div className="flex items-center justify-center gap-2 mt-8">
@@ -514,7 +542,7 @@ export function ListingViewsBlock({
     )
   }
 
-  if (loading || (!displayedData && data && !dataMatchesPage)) {
+  if (loading || (isMapMode && mapConfig === null) || (!displayedData && data && !dataMatchesPage)) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         {renderHeader("mb-6 md:mb-12")}
@@ -532,15 +560,38 @@ export function ListingViewsBlock({
     )
   }
 
+  const showMap = isMapMode && Boolean(mapConfig?.apiKey) && mappableListings.length > 0
+  const hiddenFromMapCount = listingItems.length - mappableListings.length
+
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
       {renderHeader()}
 
-      <div
-        className={`grid ${isCardListingStyle ? `gap-6 ${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns} lg:gap-8` : `${gridColumns} gap-8`}`}
-      >
-        {listingItems.map((item, index) => renderItem(item, index))}
-      </div>
+      {showMap ? (
+        <div className="space-y-3">
+          <ListingMapView
+            apiKey={mapConfig!.apiKey!}
+            listings={mappableListings}
+            urlPrefix={urlPrefix}
+          />
+          {(hiddenFromMapCount > 0 || (displayedData?.totalCount ?? 0) > listingItems.length) && (
+            <p className="text-sm text-muted-foreground">
+              {(displayedData?.totalCount ?? 0) > listingItems.length
+                ? `Showing the first ${listingItems.length} of ${displayedData?.totalCount} listings. `
+                : ""}
+              {hiddenFromMapCount > 0
+                ? `${hiddenFromMapCount} listing${hiddenFromMapCount === 1 ? "" : "s"} without a map location ${hiddenFromMapCount === 1 ? "isn't" : "aren't"} shown on the map.`
+                : ""}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div
+          className={`grid ${isCardListingStyle ? `gap-6 ${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns} lg:gap-8` : `${gridColumns} gap-8`}`}
+        >
+          {listingItems.map((item, index) => renderItem(item, index))}
+        </div>
+      )}
 
       {hasViewAll && (
         <div className="flex justify-center mt-6 md:mt-8 md:hidden">

@@ -28,6 +28,8 @@ const TEMPLATE_PREVIEW_LISTING_ITEMS: ListingViewsItem[] = [1, 2, 3].map((index)
   display_order: index,
   rating: 4.6,
   address: "123 Main Street",
+  latitude: null,
+  longitude: null,
   categories: [
     { id: "preview-category", title: "Sample Category", slug: "sample-category", parent_id: null },
   ],

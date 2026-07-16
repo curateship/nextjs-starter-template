@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, uuid, varchar, text, integer, jsonb, timestamp, uniqueIndex, index, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, doublePrecision, jsonb, timestamp, uniqueIndex, index, pgEnum } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
 import { directoryTemplates } from './directory-templates'
@@ -19,6 +19,11 @@ export const directories = pgTable('directory', {
   featuredImage: text('featured_image'),
   sourceType: varchar('source_type', { length: 50 }),
   sourceId: varchar('source_id', { length: 255 }),
+  // Geocoded from the core block address for map views; geocodedAddress caches the
+  // address that produced the coordinates so unchanged addresses skip re-geocoding.
+  latitude: doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
+  geocodedAddress: text('geocoded_address'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

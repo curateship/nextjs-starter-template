@@ -29,6 +29,8 @@ export interface ListingViewsItem {
   display_order: number
   rating: number | null
   address: string | null
+  latitude: number | null
+  longitude: number | null
   categories: ListingViewsCategory[]
   featured: boolean
 }
@@ -58,8 +60,16 @@ interface ListingViewsRow extends Record<string, unknown> {
   rating?: number | string | null
   address?: string | null
   country?: string | null
+  latitude?: number | string | null
+  longitude?: number | string | null
   categories?: unknown
   featured_priority?: number | null
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function normalizeCategoryIds(categoryIds?: string[]) {
@@ -152,6 +162,8 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       display_order: row.display_order || 0,
       rating: row.rating == null ? null : Number(row.rating),
       address: formatDirectoryAddress(row.address, row.country) || null,
+      latitude: toFiniteNumber(row.latitude),
+      longitude: toFiniteNumber(row.longitude),
       categories: mapListingCategories(row.categories),
       featured: row.featured_priority != null,
     }))
@@ -281,6 +293,8 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         end as rating,
         nullif(core_block.content #>> '{address}', '') as address,
         null as country,
+        d.latitude,
+        d.longitude,
         ${getDirectoryCategoriesSelect(includeCategories)} as categories,
         featured.priority as featured_priority
       from directory d
@@ -328,7 +342,7 @@ const getCachedListingData = unstable_cache(
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v13'],
+  ['listing-data-v14'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']
