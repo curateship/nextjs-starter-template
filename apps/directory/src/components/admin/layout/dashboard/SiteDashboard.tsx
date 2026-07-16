@@ -186,11 +186,6 @@ export function SiteDashboard({
                       : ""
                 }
               />
-              {subdomainStatus.checking && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                </div>
-              )}
               {!subdomainStatus.checking && subdomainStatus.available === true && (
                 <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
               )}
@@ -198,7 +193,9 @@ export function SiteDashboard({
                 <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">This will be the name of your site</p>
+            <p className="text-xs text-muted-foreground" role={subdomainStatus.checking ? "status" : undefined}>
+              {subdomainStatus.checking ? "Checking availability..." : "This will be the name of your site"}
+            </p>
           </div>
 
           {/* Maintenance Mode */}
@@ -235,11 +232,6 @@ export function SiteDashboard({
                         : ""
                   }
                 />
-                {subdomainStatus.checking && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                  </div>
-                )}
                 {!subdomainStatus.checking && subdomainStatus.available === true && (
                   <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
                 )}
@@ -248,6 +240,7 @@ export function SiteDashboard({
                 )}
               </div>
               <div className="text-xs text-muted-foreground space-y-1">
+                {subdomainStatus.checking && <p role="status">Checking availability...</p>}
                 <p>
                   {subdomainManuallyEdited
                     ? "Custom subdomain."

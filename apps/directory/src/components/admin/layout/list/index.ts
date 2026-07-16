@@ -3,7 +3,7 @@ export {
   AdminBulkDeleteButton,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
+  AdminListPending,
   AdminSelectionBanner,
   AdminSortButton,
   AdminTableSummaryFooter,

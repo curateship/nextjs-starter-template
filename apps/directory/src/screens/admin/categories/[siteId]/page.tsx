@@ -31,9 +31,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -305,6 +304,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
             title={categoryTitle}
             icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredCategories.length}
+            loading={loading}
             selectedCount={categorySelection.selectedCount}
             onClearSelection={categorySelection.clearSelection}
             titleActions={
@@ -416,8 +416,8 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={7} rowCount={5} actionCount={3} />
+                  {loading && sortedCategories.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

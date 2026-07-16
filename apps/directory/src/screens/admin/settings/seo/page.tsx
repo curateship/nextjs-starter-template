@@ -7,16 +7,17 @@ import { SeoSettingsPage } from '@/components/admin/seo-settings/SeoSettingsPage
 
 export default function SiteSeoSettingsRoute() {
   const { currentSite, loading, sites } = useSiteSwitcher()
-  const message = loading || sites.length > 0 ? "Loading SEO settings..." : "Choose a site to manage SEO settings."
 
   if (!currentSite) {
     return (
       <>
         <StickyHeader />
         <AdminLayout>
-          <div className="p-8 text-sm text-muted-foreground">
-            {message}
-          </div>
+          {!loading && sites.length === 0 ? (
+            <div className="p-8 text-sm text-muted-foreground">
+              Choose a site to manage SEO settings.
+            </div>
+          ) : null}
         </AdminLayout>
       </>
     )

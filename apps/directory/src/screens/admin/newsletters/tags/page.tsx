@@ -21,9 +21,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -198,6 +197,7 @@ export default function NewsletterContactTagsPage() {
             title="Tags"
             icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={tags.length}
+            loading={loading}
             selectedCount={tagSelection.selectedCount}
             onClearSelection={tagSelection.clearSelection}
             titleActions={
@@ -293,8 +293,8 @@ export default function NewsletterContactTagsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} actionCount={2} />
+                  {loading && sortedTags.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

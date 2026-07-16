@@ -11,10 +11,12 @@ import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-acti
 import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
 
 export async function generateMetadata(): Promise<Metadata> {
+  const defaultMetadata: Metadata = { icons: { icon: "/globe.svg" } }
+
   try {
     const requestHeaders = await headers()
     if (isHubPlatformHost(requestHeaders.get("host"))) {
-      return {}
+      return defaultMetadata
     }
 
     const { success, site } = await getSiteFromHeaders();
@@ -45,13 +47,13 @@ export async function generateMetadata(): Promise<Metadata> {
         }
       }
 
-      return metadata;
+      return Object.keys(metadata).length ? metadata : defaultMetadata;
     }
   } catch (error) {
     // Fallback to default
   }
 
-  return {};
+  return defaultMetadata;
 }
 
 export default async function RootLayout({

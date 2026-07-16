@@ -593,7 +593,7 @@ export default function ContactDashboardPage() {
                           disabled={loadingMore}
                           className="w-full"
                         >
-                          {loadingMore ? "Loading..." : `Load more (${eventsTotal - events.length} remaining)`}
+                          Load more ({eventsTotal - events.length} remaining)
                         </Button>
                       </CardSection>
                     )}

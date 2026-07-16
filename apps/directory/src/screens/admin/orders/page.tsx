@@ -15,10 +15,9 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -256,6 +255,7 @@ function OrdersContent() {
             title="Orders"
             icon={<ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredOrders.length}
+            loading={loading}
             selectedCount={orderSelection.selectedCount}
             onClearSelection={orderSelection.clearSelection}
             titleActions={
@@ -382,8 +382,8 @@ function OrdersContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={8} rowCount={5} showThumbnail={false} />
+                  {loading && sortedOrders.length === 0 ? (
+                    <AdminListPending />
                   ) : filteredOrders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center">

@@ -22,9 +22,8 @@ import {
   ConfirmDestructive,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -218,6 +217,7 @@ export default function DirectorySavedPage() {
             title="Saved Folders"
             icon={<Bookmark className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={total}
+            loading={loading}
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}
             titleActions={selection.selectedCount ? (
@@ -334,8 +334,8 @@ export default function DirectorySavedPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton columns={7} rowCount={5} />
+                  {loading && sortedFolders.length === 0 ? (
+                    <AdminListPending />
                   ) : folders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

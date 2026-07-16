@@ -15,9 +15,8 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   AdminTableSummaryFooter,
   formatShortDate as formatDate,
   useAdminBulkSelection,
@@ -215,6 +214,7 @@ export default function SponsorsPage() {
           title="Sponsors"
           icon={<Handshake className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={filteredSponsors.length}
+          loading={loading}
           selectedCount={sponsorSelection.selectedCount}
           onClearSelection={sponsorSelection.clearSelection}
           titleActions={
@@ -308,8 +308,8 @@ export default function SponsorsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <AdminListSkeleton columns={7} rowCount={5} actionCount={2} />
+                {loading && sortedSponsors.length === 0 ? (
+                  <AdminListPending />
                 ) : error ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center">

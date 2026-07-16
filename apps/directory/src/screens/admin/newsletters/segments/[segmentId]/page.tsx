@@ -621,7 +621,7 @@ export default function SegmentDashboardPage() {
                           disabled={loadingMore}
                           className="w-full"
                         >
-                          {loadingMore ? "Loading..." : `Load more (${contactsTotal - contacts.length} remaining)`}
+                          Load more ({contactsTotal - contacts.length} remaining)
                         </Button>
                       </CardSection>
                     )}

@@ -393,11 +393,7 @@ export function AccountClaimedListingsBlock({
       siteWidth={siteWidth}
       customWidth={customWidth}
     >
-      {loading ? (
-        <Card>
-          <CardContent className="text-sm text-muted-foreground">Loading listings...</CardContent>
-        </Card>
-      ) : items.length === 0 ? (
+      {loading ? null : items.length === 0 ? (
         <Card>
           <CardContent className="text-sm text-muted-foreground">
             {content?.emptyText || "No approved listing claims yet."}

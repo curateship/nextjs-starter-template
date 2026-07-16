@@ -23,14 +23,12 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import { CardGridSkeleton } from "@/components/admin/layout/skeletons"
 import {
   getPaginatedMediaAction,
   deleteMediaAction,
@@ -338,6 +336,7 @@ export default function ImagesPage() {
             title="Media"
             icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={paginatedData?.total ?? 0}
+            loading={isLoading}
             selectedCount={mediaSelection.selectedCount}
             onClearSelection={mediaSelection.clearSelection}
             titleActions={
@@ -411,11 +410,7 @@ export default function ImagesPage() {
           >
 
             {viewMode === "gallery" ? (
-              isLoading ? (
-                <div className="px-5 pb-5">
-                  <CardGridSkeleton />
-                </div>
-              ) : sortedImages.length === 0 ? (
+              isLoading && sortedImages.length === 0 ? null : sortedImages.length === 0 ? (
                 <div className="p-8 text-center">
                   <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                   <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
@@ -558,8 +553,8 @@ export default function ImagesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
-                      <AdminListSkeleton columns={6} rowCount={8} actionCount={3} />
+                    {isLoading && sortedImages.length === 0 ? (
+                      <AdminListPending />
                     ) : images.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="h-32 text-center">

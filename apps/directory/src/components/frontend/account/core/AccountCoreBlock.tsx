@@ -207,13 +207,7 @@ export function AccountCoreBlock({
 
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-      {loading ? (
-        <Card>
-          <CardContent className="flex h-40 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-          </CardContent>
-        </Card>
-      ) : (
+      {loading ? null : (
         <div className="space-y-10">
           {/* Profile header: avatar left, name/bio/socials right */}
           {profile ? (

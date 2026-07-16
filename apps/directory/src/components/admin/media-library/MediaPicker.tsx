@@ -42,6 +42,7 @@ interface MediaPickerProps {
   showVideos?: boolean
   site_id?: string
   siteId?: string
+  onUploadDeferred?: (file: File, altText?: string) => void
   // Legacy props for backward compatibility
   onSelectImage?: (imageUrl: string, altText?: string) => void
   currentImageUrl?: string
@@ -56,7 +57,8 @@ export function MediaPicker({
   currentImageUrl,
   showVideos = true,
   site_id,
-  siteId
+  siteId,
+  onUploadDeferred
 }: MediaPickerProps) {
   const { currentSite, loading: siteLoading } = useSiteSwitcher()
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
@@ -202,6 +204,15 @@ export function MediaPicker({
   const handleUpload = async () => {
     if (!uploadFile) return
     if (!scopedSiteId) {
+      if (onUploadDeferred) {
+        onUploadDeferred(uploadFile, altText.trim() || undefined)
+        setUploadFile(null)
+        setUploadPreview(null)
+        setAltText('')
+        onOpenChange(false)
+        return
+      }
+
       showActionError('Select a site before uploading media')
       return
     }
@@ -407,7 +418,11 @@ export function MediaPicker({
                       disabled={isUploading}
                       className="w-full"
                     >
-                      {isUploading ? 'Uploading...' : 'Upload & Select'}
+                      {isUploading
+                        ? 'Uploading...'
+                        : !scopedSiteId && onUploadDeferred
+                          ? 'Use This File'
+                          : 'Upload & Select'}
                     </Button>
                   </div>
                 </div>

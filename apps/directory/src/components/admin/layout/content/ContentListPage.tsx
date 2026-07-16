@@ -14,9 +14,8 @@ import {
   AdminBulkDeleteButton,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
   AdminSortButton,
-  AdminTableShell,
+  AdminTableShell, AdminListPending,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort,
@@ -297,6 +296,7 @@ export function ContentListPage<TItem extends ContentListItem>({
             title={listLabel}
             icon={<EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
+            loading={loading}
             selectedCount={itemSelection.selectedCount}
             onClearSelection={itemSelection.clearSelection}
             titleActions={
@@ -381,12 +381,8 @@ export function ContentListPage<TItem extends ContentListItem>({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <AdminListSkeleton
-                      columns={renderCategoryColumn ? 6 : 5}
-                      rowCount={columnCount === 5 ? 4 : 5}
-                      actionCount={3}
-                    />
+                  {loading && sortedItems.length === 0 ? (
+                    <AdminListPending />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">
