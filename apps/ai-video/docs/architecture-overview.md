@@ -90,6 +90,35 @@ Finished exports are streamed back through the app route (not the public R2
 URL) so a re-export at the same key can't serve stale bytes from the CDN, and
 the download filename comes from the editor via `?filename=`.
 
+## Automation Canvas
+
+A node-based workflow builder (`/admin/automations`) that chains pipeline
+steps into runnable automations: trigger nodes (Manual, Schedule, Creator
+Posts) feed pipeline nodes (Find New Videos → Download & Analyze → Create
+Template → Create Project). The canvas shell is ported from the trading app's
+automation editor (hand-rolled SVG canvas, registry-driven nodes/ports/rules —
+`src/lib/automations/`, `src/components/automations/`); the graph document
+lives as jsonb on `automations` and is snapshotted onto every run.
+
+Runs are durable, modeled on the render queue: `automation_runs` is the queue
+unit (FIFO claim via `FOR UPDATE SKIP LOCKED`, lease token + heartbeat,
+orphan reclaim on tick, `attempts` capped at 2) and `automation_run_steps`
+holds per-node status/output — a reclaimed run resumes after its completed
+steps. Node executors (`src/server/automation-nodes.ts`) wrap the session-free
+pipeline functions (`listRecentUploads`, `ingestViralVideoForUser`,
+`createTemplateFromViralVideo`, `createProjectFromTemplate`); AI usage is
+metered by those functions, so automations spend the same credits as manual
+use. Data flows between steps as merged upstream outputs
+(`videoUrls`/`videoIds`/`templateIds`/`projectIds`).
+
+The scheduler mirrors creator-watch: opt-in via `AI_VIDEO_AUTOMATIONS_ENABLED=1`,
+a 60s timer enqueues automations whose denormalized `next_run_at` elapsed
+(recomputed on save/toggle from the Schedule trigger's interval). The worker
+itself is always-on (registered in `security.ts`), so manual Run works without
+the flag. The creator watcher fires Creator Posts triggers after ingesting new
+reels (`enqueueCreatorPostedRuns`). Concurrency via
+`AI_VIDEO_AUTOMATION_CONCURRENCY` (default 1).
+
 ## Playback Engine
 
 The editor preview is tuned so playback stays smooth even on modest hardware in

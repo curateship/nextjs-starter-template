@@ -35,6 +35,18 @@ void import("@/server/media-proxy")
     console.error("Media proxy worker registration failed", error)
   })
 
+// Automation runs use the same durable lease/recovery model; the worker is
+// always-on (runs only exist when a user or an enabled trigger created them)
+// while the scheduler is opt-in via AI_VIDEO_AUTOMATIONS_ENABLED=1.
+void import("@/server/automation-engine")
+  .then((module) => {
+    module.registerAutomationWorker()
+    module.registerAutomationScheduler()
+  })
+  .catch((error) => {
+    console.error("Automation worker registration failed", error)
+  })
+
 export const SESSION_COOKIE_NAME = "ai_video_session"
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7
 const SESSION_TTL_HOURS = Number.parseInt(

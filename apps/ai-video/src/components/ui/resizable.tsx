@@ -24,28 +24,48 @@ function ResizablePanel({
   return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
 }
 
-// Drag handle styled for vertical groups: a thin full-width strip with a centered grabber pill.
+// Orientation-aware drag handle. `gap` renders an invisible spacer handle for
+// workspace layouts where panels are separate cards (the site gap is the grip).
 function ResizableHandle({
   withHandle,
+  gap,
   className,
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.Separator> & {
   withHandle?: boolean
+  gap?: boolean
 }) {
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
       className={cn(
-        "relative flex h-2 w-full items-center justify-center bg-border/60 transition-colors hover:bg-border focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
+        "relative flex w-px items-center justify-center bg-border ring-offset-background after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
+        gap &&
+          "w-2 bg-transparent after:hidden md:w-3 aria-[orientation=horizontal]:h-2 md:aria-[orientation=horizontal]:h-3",
         className
       )}
       {...props}
     >
       {withHandle && (
-        <div className="z-10 h-1 w-9 rounded-full bg-muted-foreground/50" />
+        <div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-border" />
       )}
     </ResizablePrimitive.Separator>
   )
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
+// The rounded card shell each workspace panel (palette, canvas, inspector,
+// runs) sits in, matching the app's content-surface treatment.
+function WorkspacePanel({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="workspace-panel"
+      className={cn(
+        "h-full min-h-0 overflow-hidden rounded-xl border border-foreground/5 bg-card",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { ResizablePanelGroup, ResizablePanel, ResizableHandle, WorkspacePanel }

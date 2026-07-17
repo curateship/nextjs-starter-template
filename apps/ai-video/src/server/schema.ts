@@ -787,6 +787,126 @@ export const aiVideoTemplates = pgTable(
   ]
 )
 
+// Automation canvas: user-built node graphs chaining pipeline steps. The
+// graph lives verbatim on the automation row (AutomationGraph jsonb) and is
+// snapshotted onto every run so later edits never corrupt run history.
+export const aiVideoAutomations = pgTable(
+  "automations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    // { nodes, edges, viewport } — see src/lib/automations/automation.ts.
+    graph: jsonb("graph").notNull(),
+    // Master switch for the schedule + creator-posted triggers. Manual runs
+    // work regardless so a disabled automation can still be tested.
+    enabled: boolean("enabled").notNull().default(false),
+    // Denormalized from the graph's Schedule trigger on save/toggle; the
+    // scheduler claims automations where enabled and next_run_at <= now().
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_automations_user_id").on(table.userId),
+    index("ix_automations_next_run").on(table.nextRunAt),
+  ]
+)
+
+// One execution of an automation — the durable queue unit, modeled on
+// render_jobs: leases + attempts + orphan reclaim survive process restarts.
+export const aiVideoAutomationRuns = pgTable(
+  "automation_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoAutomations.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    triggerType: varchar("trigger_type", { length: 20 }).notNull(),
+    // Trigger context, e.g. { creatorId, videoIds } for creator_posted runs.
+    triggerPayload: jsonb("trigger_payload"),
+    // Graph snapshot at enqueue time.
+    nodes: jsonb("nodes").notNull(),
+    edges: jsonb("edges").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    // Running runs hold a lease the worker keeps extending; a lease that
+    // expires marks the run as orphaned (crashed process) for reclaim.
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_runs_status_check",
+      sql`${table.status} in ('queued', 'running', 'completed', 'failed', 'canceled')`
+    ),
+    check(
+      "automation_runs_trigger_type_check",
+      sql`${table.triggerType} in ('manual', 'schedule', 'creator_posted')`
+    ),
+    // One active run per automation — duplicate enqueues become no-op conflicts.
+    uniqueIndex("ux_automation_runs_automation_active")
+      .on(table.automationId)
+      .where(sql`${table.status} in ('queued', 'running')`),
+    index("ix_automation_runs_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+    index("ix_automation_runs_automation_created").on(
+      table.automationId,
+      table.createdAt
+    ),
+    index("ix_automation_runs_user_id").on(table.userId),
+  ]
+)
+
+// One row per graph node a run will execute; the per-node status/output the
+// runs panel shows. unique(run_id, node_id) keeps step creation idempotent.
+export const aiVideoAutomationRunSteps = pgTable(
+  "automation_run_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoAutomationRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    nodeKind: varchar("node_kind", { length: 40 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    // Executor result, e.g. { videoIds: [...], summary: "..." }.
+    output: jsonb("output"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_run_steps_status_check",
+      sql`${table.status} in ('pending', 'running', 'completed', 'failed', 'skipped')`
+    ),
+    unique("automation_run_steps_run_node_unique").on(
+      table.runId,
+      table.nodeId
+    ),
+    index("ix_automation_run_steps_run_status").on(table.runId, table.status),
+  ]
+)
+
 export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoApiUsageLimit = typeof aiVideoApiUsageLimits.$inferSelect
@@ -805,3 +925,7 @@ export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment = typeof aiVideoFeedbackComments.$inferSelect
 export type AiVideoNotification = typeof aiVideoNotifications.$inferSelect
+export type AiVideoAutomation = typeof aiVideoAutomations.$inferSelect
+export type AiVideoAutomationRun = typeof aiVideoAutomationRuns.$inferSelect
+export type AiVideoAutomationRunStep =
+  typeof aiVideoAutomationRunSteps.$inferSelect

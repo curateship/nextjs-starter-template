@@ -179,7 +179,8 @@ export function ShellLayout({
   // projects dashboard at the bare path renders as a normal padded page.
   const isVideoEditorPath =
     currentPath.startsWith("/admin/video-editor/") ||
-    currentPath.startsWith("/admin/carousels/")
+    currentPath.startsWith("/admin/carousels/") ||
+    currentPath.startsWith("/admin/automations/")
 
   const runtime = React.useMemo<ShellRuntime>(
     () => ({

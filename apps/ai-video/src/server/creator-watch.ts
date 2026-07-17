@@ -65,8 +65,9 @@ export async function syncCreatorWatchForCurrentUser(): Promise<WatchSyncResult>
 }
 
 // Stable identity for dedupe: platform URLs for the same reel can differ by
-// query params / trailing slash, so compare host+path only.
-function normalizeReelUrl(url: string) {
+// query params / trailing slash, so compare host+path only. Shared with the
+// automation Find New Videos node, which does the same diff per creator.
+export function normalizeReelUrl(url: string) {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "")
@@ -132,15 +133,37 @@ export async function syncWatchedCreators(
         .slice(0, MAX_INGESTS_PER_CREATOR)
 
       let addedForCreator = 0
+      const ingestedVideoIds: string[] = []
       for (const upload of fresh) {
-        await ingestViralVideoForUser(
+        const ingested = await ingestViralVideoForUser(
           creator.userId,
           upload.sourceUrl,
           upload.download
         )
+        ingestedVideoIds.push(ingested.id)
         existing.add(normalizeReelUrl(upload.sourceUrl))
         added += 1
         addedForCreator += 1
+      }
+
+      if (addedForCreator > 0) {
+        // Fan out to automations with a Creator Posts trigger. Dynamic import
+        // + catch: the watcher must never fail because of automations.
+        void import("@/server/automation-engine")
+          .then((module) =>
+            module.enqueueCreatorPostedRuns(
+              creator.userId,
+              creator.id,
+              ingestedVideoIds
+            )
+          )
+          .catch((error) =>
+            console.error(
+              "Creator watch automation trigger failed",
+              creator.username,
+              error
+            )
+          )
       }
 
       if (addedForCreator > 0) {
