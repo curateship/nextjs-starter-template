@@ -26,11 +26,13 @@ import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes
 import { Route as AuthenticatedAdminTemplatesIndexRouteImport } from './routes/_authenticated/admin/templates/index'
 import { Route as AuthenticatedAdminCreatorsIndexRouteImport } from './routes/_authenticated/admin/creators/index'
 import { Route as AuthenticatedAdminCarouselsIndexRouteImport } from './routes/_authenticated/admin/carousels/index'
+import { Route as AuthenticatedAdminAutomationsIndexRouteImport } from './routes/_authenticated/admin/automations/index'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
 import { Route as AuthenticatedAdminCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/carousels/$carouselId'
+import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations/$automationId'
 import { Route as ApiV1ViralVideosVideoIdThumbnailRouteImport } from './routes/api/v1/viral-videos/$videoId/thumbnail'
 import { Route as ApiV1TemplatesTemplateIdThumbnailRouteImport } from './routes/api/v1/templates/$templateId/thumbnail'
 import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
@@ -137,6 +139,12 @@ const AuthenticatedAdminCarouselsIndexRoute =
     path: '/admin/carousels/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminAutomationsIndexRoute =
+  AuthenticatedAdminAutomationsIndexRouteImport.update({
+    id: '/admin/automations/',
+    path: '/admin/automations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminVideoEditorProjectIdRoute =
   AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
     id: '/admin/video-editor/$projectId',
@@ -165,6 +173,12 @@ const AuthenticatedAdminCarouselsCarouselIdRoute =
   AuthenticatedAdminCarouselsCarouselIdRouteImport.update({
     id: '/admin/carousels/$carouselId',
     path: '/admin/carousels/$carouselId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminAutomationsAutomationIdRoute =
+  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
+    id: '/admin/automations/$automationId',
+    path: '/admin/automations/$automationId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiV1ViralVideosVideoIdThumbnailRoute =
@@ -237,11 +251,13 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/automations/': typeof AuthenticatedAdminAutomationsIndexRoute
   '/admin/carousels/': typeof AuthenticatedAdminCarouselsIndexRoute
   '/admin/creators/': typeof AuthenticatedAdminCreatorsIndexRoute
   '/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
@@ -270,11 +286,13 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/automations': typeof AuthenticatedAdminAutomationsIndexRoute
   '/admin/carousels': typeof AuthenticatedAdminCarouselsIndexRoute
   '/admin/creators': typeof AuthenticatedAdminCreatorsIndexRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesIndexRoute
@@ -305,11 +323,13 @@ export interface FileRoutesById {
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/_authenticated/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/_authenticated/admin/automations/': typeof AuthenticatedAdminAutomationsIndexRoute
   '/_authenticated/admin/carousels/': typeof AuthenticatedAdminCarouselsIndexRoute
   '/_authenticated/admin/creators/': typeof AuthenticatedAdminCreatorsIndexRoute
   '/_authenticated/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
@@ -340,11 +360,13 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin/automations/$automationId'
     | '/admin/carousels/$carouselId'
     | '/admin/creators/$creatorId'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/admin/automations/'
     | '/admin/carousels/'
     | '/admin/creators/'
     | '/admin/templates/'
@@ -373,11 +395,13 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin/automations/$automationId'
     | '/admin/carousels/$carouselId'
     | '/admin/creators/$creatorId'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/admin/automations'
     | '/admin/carousels'
     | '/admin/creators'
     | '/admin/templates'
@@ -407,11 +431,13 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/automations/$automationId'
     | '/_authenticated/admin/carousels/$carouselId'
     | '/_authenticated/admin/creators/$creatorId'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/video-editor/$projectId'
+    | '/_authenticated/admin/automations/'
     | '/_authenticated/admin/carousels/'
     | '/_authenticated/admin/creators/'
     | '/_authenticated/admin/templates/'
@@ -564,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCarouselsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/automations/': {
+      id: '/_authenticated/admin/automations/'
+      path: '/admin/automations'
+      fullPath: '/admin/automations/'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/video-editor/$projectId': {
       id: '/_authenticated/admin/video-editor/$projectId'
       path: '/admin/video-editor/$projectId'
@@ -597,6 +630,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/carousels/$carouselId'
       fullPath: '/admin/carousels/$carouselId'
       preLoaderRoute: typeof AuthenticatedAdminCarouselsCarouselIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/automations/$automationId': {
+      id: '/_authenticated/admin/automations/$automationId'
+      path: '/admin/automations/$automationId'
+      fullPath: '/admin/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/v1/viral-videos/$videoId/thumbnail': {
@@ -712,9 +752,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminCarouselsCarouselIdRoute: typeof AuthenticatedAdminCarouselsCarouselIdRoute
   AuthenticatedAdminCreatorsCreatorIdRoute: typeof AuthenticatedAdminCreatorsCreatorIdRoute
   AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  AuthenticatedAdminAutomationsIndexRoute: typeof AuthenticatedAdminAutomationsIndexRoute
   AuthenticatedAdminCarouselsIndexRoute: typeof AuthenticatedAdminCarouselsIndexRoute
   AuthenticatedAdminCreatorsIndexRoute: typeof AuthenticatedAdminCreatorsIndexRoute
   AuthenticatedAdminTemplatesIndexRoute: typeof AuthenticatedAdminTemplatesIndexRoute
@@ -734,12 +776,16 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminAutomationsAutomationIdRoute:
+    AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminCarouselsCarouselIdRoute:
     AuthenticatedAdminCarouselsCarouselIdRoute,
   AuthenticatedAdminCreatorsCreatorIdRoute:
     AuthenticatedAdminCreatorsCreatorIdRoute,
   AuthenticatedAdminVideoEditorProjectIdRoute:
     AuthenticatedAdminVideoEditorProjectIdRoute,
+  AuthenticatedAdminAutomationsIndexRoute:
+    AuthenticatedAdminAutomationsIndexRoute,
   AuthenticatedAdminCarouselsIndexRoute: AuthenticatedAdminCarouselsIndexRoute,
   AuthenticatedAdminCreatorsIndexRoute: AuthenticatedAdminCreatorsIndexRoute,
   AuthenticatedAdminTemplatesIndexRoute: AuthenticatedAdminTemplatesIndexRoute,
