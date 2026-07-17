@@ -1,12 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { useAccountPageData } from "@/components/admin/account-page-builder/config/useAccountPageData"
 import { useAccountPageBuilder } from "@/components/admin/account-page-builder/config/useAccountPageBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AccountPageSettingsModal } from "@/components/admin/account-page-builder/layout/AccountPageSettingsModal"
@@ -29,7 +33,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<AccountPage[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
 
@@ -41,21 +44,12 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [createPageOpen, setCreatePageOpen] = useState(false)
 
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
-
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const pageQuery = pageFromUrl ? `?page=${encodeURIComponent(pageFromUrl)}` : ''
-      router.push(`/admin/account-pages/builder/${currentSite.id}${pageQuery}`)
-    }
-  }, [currentSite, pageFromUrl, router, setCurrentSite, siteId, sites])
+  useBuilderRouteSiteSync({
+    builderPath: "/admin/account-pages/builder",
+    queryParam: "page",
+    queryValue: pageFromUrl,
+    siteId,
+  })
 
   // Load account pages for the current site.
   useEffect(() => {
@@ -79,34 +73,22 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     loadPages()
   }, [pageFromUrl, siteId])
 
-  useEffect(() => {
-    if (pages.length === 0) return
+  const defaultPageSlug = useMemo(() => pages.find((page) => page.is_default)?.slug, [pages])
 
-    const matchingPage = pages.find((page) => page.slug === pageFromUrl)
-    if (matchingPage) {
-      if (selectedPage !== matchingPage.slug) {
-        setSelectedPage(matchingPage.slug)
-      }
-      return
-    }
-
-    const defaultPage = pages.find((page) => page.is_default) || pages[0]
-    if (selectedPage !== defaultPage.slug) {
-      setSelectedPage(defaultPage.slug)
-    }
-    if (pageFromUrl !== defaultPage.slug) {
-      router.replace(`/admin/account-pages/builder/${siteId}?page=${encodeURIComponent(defaultPage.slug)}`)
-    }
-  }, [pageFromUrl, pages, router, selectedPage, siteId])
+  useSelectedBuilderSlug({
+    builderPath: "/admin/account-pages/builder",
+    defaultSlug: defaultPageSlug,
+    items: pages,
+    queryParam: "page",
+    selectedSlug: selectedPage,
+    setSelectedSlug: setSelectedPage,
+    siteId,
+    slugFromUrl: pageFromUrl,
+  })
 
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, blocksLoading, reloadBlocks } = useAccountPageData(siteId, selectedPage)
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks(blocks)
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks)
 
   // Update pages from hook data when available
   useEffect(() => {

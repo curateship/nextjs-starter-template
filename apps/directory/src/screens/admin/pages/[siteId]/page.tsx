@@ -1,11 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
 import { usePageBuilder } from "@/components/admin/page-builder/config/usePageBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
@@ -31,7 +35,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<Page[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
 
@@ -45,21 +48,19 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, siteLoading, blocksLoading, reloadBlocks } = usePageData(siteId, selectedPage)
 
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
-
-    const routeSite = sites.find((candidate) => candidate.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite && !siteLoading && !site?.is_template) {
-      const pageQuery = pageFromUrl ? `?page=${encodeURIComponent(pageFromUrl)}` : ''
-      router.push(`/admin/pages/${currentSite.id}${pageQuery}`)
-    }
-  }, [currentSite, pageFromUrl, router, setCurrentSite, site, siteId, siteLoading, sites])
+  useBuilderRouteSiteSync({
+    builderPath: "/admin/pages",
+    // The pages list screen also lives under /admin/pages, so guard on the
+    // full builder path to avoid hijacking builder -> list navigation.
+    guardPath: `/admin/pages/${siteId}`,
+    queryParam: "page",
+    queryValue: pageFromUrl,
+    // Template sites are absent from the switcher's site list; while the site
+    // is loading (or is a template) stay put instead of bouncing to the
+    // switcher's current site.
+    redirectEnabled: !siteLoading && !site?.is_template,
+    siteId,
+  })
 
   // Load pages data
   useEffect(() => {
@@ -83,31 +84,21 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     loadPages()
   }, [pageFromUrl, siteId])
 
-  useEffect(() => {
-    if (pages.length === 0) return
+  const homepageSlug = useMemo(() => pages.find((page) => page.is_homepage)?.slug, [pages])
 
-    const matchingPage = pages.find((page) => page.slug === pageFromUrl)
-    if (matchingPage) {
-      if (selectedPage !== matchingPage.slug) {
-        setSelectedPage(matchingPage.slug)
-      }
-      return
-    }
+  useSelectedBuilderSlug({
+    builderPath: "/admin/pages",
+    defaultSlug: homepageSlug,
+    guardPath: `/admin/pages/${siteId}`,
+    items: pages,
+    queryParam: "page",
+    selectedSlug: selectedPage,
+    setSelectedSlug: setSelectedPage,
+    siteId,
+    slugFromUrl: pageFromUrl,
+  })
 
-    const homepage = pages.find((page) => page.is_homepage) || pages[0]
-    if (selectedPage !== homepage.slug) {
-      setSelectedPage(homepage.slug)
-    }
-    if (pageFromUrl !== homepage.slug) {
-      router.replace(`/admin/pages/${siteId}?page=${encodeURIComponent(homepage.slug)}`)
-    }
-  }, [pageFromUrl, pages, router, selectedPage, siteId])
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks(blocks)
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks)
 
   // Update pages from hook data when available
   useEffect(() => {
