@@ -9,11 +9,20 @@ import {
   SquareIcon,
   Trash2Icon,
 } from "lucide-react"
+import { toast } from "sonner"
 
+import {
+  botBadgeState,
+  COMMAND_LABELS,
+  EXPECTED_STATUS,
+  SUCCESS_TEXT,
+} from "@/components/bots/bot-status"
 import {
   buildFleetSummaries,
   pileupKey,
 } from "@/components/bots/fleet-overview"
+import { useBotCommandToasts } from "@/components/bots/use-bot-command-toasts"
+import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { GuardianBanner } from "@/components/bots/guardian-banner"
 import {
   FleetOverviewStrip,
@@ -89,6 +98,8 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
     )
     if (!stillExists) setFleetFilter(null)
   }, [summaries, fleetFilter])
+  const trackCommand = useBotCommandToasts(data.bots)
+
   async function runCommand(
     bot: BotListItem,
     command: "start" | "stop" | "pause" | "resume" | "flatten"
@@ -96,7 +107,24 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
     setBusyBotId(bot.id)
     setError(null)
     try {
-      await sendCommand(bot.id, command)
+      const response = await sendCommand(bot.id, command)
+      const label = COMMAND_LABELS[command]
+      if (!response.workerOnline) {
+        toast(`Worker offline — ${label.toLowerCase()} queued for ${bot.name}.`)
+      } else if (command === "flatten") {
+        // Flatten's real effect (closing the position) isn't visible in the
+        // status when the bot is already paused, so confirm the send instead.
+        toast.success(
+          `Flatten sent — ${bot.name} closes its position and pauses.`
+        )
+      } else {
+        trackCommand(bot.id, {
+          ids: [bot.id],
+          isDone: (watched) => watched.status === EXPECTED_STATUS[command],
+          successText: `${bot.name} ${SUCCESS_TEXT[command]}.`,
+          commandLabel: `${label} for ${bot.name}`,
+        })
+      }
       await refresh()
     } catch (error) {
       setError(getBotErrorMessage(error))
@@ -109,10 +137,33 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
     if (!pendingGlobal) return
     setBusy(true)
     setError(null)
+    const command = pendingGlobal
+    const label = command === "flatten_all" ? "Flatten all" : "Pause all"
+    // The command only touches bots that are running when it lands, so those
+    // are the ones whose convergence proves it worked.
+    const runningIds = data.bots
+      .filter((bot) => bot.status === "running" || bot.status === "starting")
+      .map((bot) => bot.id)
     try {
-      await sendGlobalCommand(pendingGlobal)
-      await refresh()
+      const response = await sendGlobalCommand(command)
       setPendingGlobal(null)
+      if (!response.workerOnline) {
+        toast(`Worker offline — ${label.toLowerCase()} queued.`)
+      } else if (runningIds.length === 0) {
+        toast.success("No bots were running — nothing to do.")
+      } else {
+        trackCommand("global", {
+          ids: runningIds,
+          isDone: (watched) =>
+            watched.status !== "running" && watched.status !== "starting",
+          successText:
+            command === "flatten_all"
+              ? "All bots flattened and paused."
+              : "All bots paused.",
+          commandLabel: label,
+        })
+      }
+      await refresh()
     } catch (error) {
       setError(getBotErrorMessage(error))
     } finally {
@@ -138,10 +189,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
   return (
     <div className="w-full">
       {!data.workerOnline ? (
-        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          Bot worker is offline — commands will queue until it reconnects.
-          Start it with <code>npm run bot-worker:dev</code>.
-        </div>
+        <WorkerOfflineBanner className="mt-4 rounded-md border px-3 py-2 text-sm" />
       ) : null}
       <GuardianBanner guardian={data.guardian} onChanged={refresh} />
       {error ? (
@@ -235,7 +283,16 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
               </Badge>
             </TableCell>
             <TableCell column="meta">
-              <BotStatusBadge status={bot.status} reason={bot.status_reason} />
+              <BotStatusBadge bot={bot} />
+              {(bot.status === "error" || bot.status === "killed") &&
+              bot.status_reason ? (
+                <div
+                  className="mt-1 max-w-52 truncate text-xs text-destructive"
+                  title={bot.status_reason}
+                >
+                  {bot.status_reason}
+                </div>
+              ) : null}
             </TableCell>
             <TableCell column="meta">
               <span
@@ -439,23 +496,29 @@ function MarketChips({ markets }: { markets: string[] }) {
 }
 
 export function BotStatusBadge({
-  status,
-  reason,
+  bot,
 }: {
-  status: string
-  reason: string | null
+  bot: Pick<
+    BotListItem,
+    "status" | "desired_state" | "updated_at" | "status_reason"
+  >
 }) {
-  const variant =
-    status === "running"
+  const view = botBadgeState(bot, Date.now())
+  const variant = view.transient
+    ? "outline"
+    : view.status === "running"
       ? "default"
-      : status === "error" || status === "killed"
+      : view.status === "error" || view.status === "killed"
         ? "destructive"
-        : status === "paused" || status === "starting"
+        : view.status === "paused" || view.status === "starting"
           ? "outline"
           : "secondary"
   return (
-    <Badge variant={variant} title={reason ?? undefined}>
-      {status}
+    <Badge variant={variant} title={bot.status_reason ?? undefined}>
+      {view.transient ? (
+        <Loader2Icon className="size-3 animate-spin" />
+      ) : null}
+      {view.label}
     </Badge>
   )
 }

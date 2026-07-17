@@ -478,15 +478,13 @@ export async function sendBotCommand(
           ? "stopped"
           : null
 
-  // Optimistically flip the visible status so the UI reacts the instant a
-  // lifecycle button is clicked; the worker (async, via notify) then converges
-  // to the real status a moment later. Flatten pauses, so it reads as "paused".
+  // Start/resume flip status to "starting" — an honest in-flight status the
+  // worker converges from (running or error). Pause/flatten/stop leave status
+  // untouched: the worker writes the real "paused"/"stopped" when it actually
+  // happens, and the UI shows "pausing…"/"stopping…" from desired_state until
+  // then. Writing "paused" here would claim the command landed before it did.
   const optimisticStatus =
-    command === "start" || command === "resume"
-      ? "starting"
-      : command === "pause" || command === "flatten"
-        ? "paused"
-        : null
+    command === "start" || command === "resume" ? "starting" : null
 
   if (desiredState) {
     await database

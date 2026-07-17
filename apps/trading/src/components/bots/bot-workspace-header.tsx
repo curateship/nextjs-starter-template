@@ -15,6 +15,7 @@ import {
 } from "@/components/backtest/backtest-format"
 import { IconButton } from "@/components/icon-button"
 import { MarkPriceInline } from "@/components/kpi"
+import { botBadgeState } from "@/components/bots/bot-status"
 import { BotStatusBadge } from "@/components/bots/fleet-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -66,6 +67,11 @@ export function BotWorkspaceHeader({
     `${sourceName} · ${sourceInterval}`,
     `${stats.trade_count} fills`,
   ].join(" · ")
+  // While a command is in flight the lifecycle buttons collapse into one
+  // disabled "Pausing…"-style button, mirroring the badge.
+  const view = botBadgeState(bot, Date.now())
+  const transientLabel =
+    view.label.charAt(0).toUpperCase() + view.label.slice(1)
 
   return (
     <div className="flex items-center gap-3 border-b bg-card px-4 py-2">
@@ -92,7 +98,16 @@ export function BotWorkspaceHeader({
         >
           {bot.mode}
         </Badge>
-        <BotStatusBadge status={bot.status} reason={bot.status_reason} />
+        <BotStatusBadge bot={bot} />
+        {(bot.status === "error" || bot.status === "killed") &&
+        bot.status_reason ? (
+          <span
+            className="max-w-64 truncate text-xs text-destructive"
+            title={bot.status_reason}
+          >
+            {bot.status_reason}
+          </span>
+        ) : null}
       </div>
 
       <div className="h-6 w-px bg-border" />
@@ -126,7 +141,17 @@ export function BotWorkspaceHeader({
         {signedUsd(stats.realized_pnl)}
       </span>
 
-      {bot.status === "running" ? (
+      {view.transient ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 text-xs"
+          disabled
+        >
+          <Loader2Icon className="size-3.5 animate-spin" />
+          {transientLabel}
+        </Button>
+      ) : bot.status === "running" ? (
         <Button
           size="sm"
           variant="outline"
@@ -140,11 +165,6 @@ export function BotWorkspaceHeader({
             <PauseIcon className="size-3.5" />
           )}
           Pause
-        </Button>
-      ) : bot.status === "starting" ? (
-        <Button size="sm" className="h-8 gap-1.5 text-xs" disabled>
-          <Loader2Icon className="size-3.5 animate-spin" />
-          Starting…
         </Button>
       ) : (
         <Button
@@ -170,7 +190,7 @@ export function BotWorkspaceHeader({
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 text-xs"
-          disabled={busy}
+          disabled={busy || view.transient}
           onClick={() => onCommand("flatten")}
           title="Close the position, cancel orders, and pause the bot"
         >

@@ -130,6 +130,8 @@ export type BacktestGroupRun = {
   id: string
   market: string
   status: "pending" | "running" | "done" | "error"
+  /** Why the run failed (queue-recorded), null unless status is "error". */
+  error: string | null
   netPnlPct: number | null
 }
 
@@ -479,6 +481,7 @@ const loadBacktestFn = createServerFn({ method: "POST" })
         id: sibling.id,
         market: sibling.market,
         status: sibling.status as BacktestGroupRun["status"],
+        error: sibling.error,
         netPnlPct:
           sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
       })),
