@@ -48,6 +48,7 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  adminRoute: z.string().catch(""),
   dashboardRowsPerPage: z.number().int().refine((value) =>
     DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
@@ -57,15 +58,6 @@ const shellConfigSchema = z.object({
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   favicon: z.string(),
-  topNavigation: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      href: z.string(),
-      icon: shellIconSchema.optional(),
-      visible: z.boolean(),
-    })
-  ),
   topRightNavigation: z.array(
     z.object({
       id: z.enum(["feedback", "theme", "notifications"]),
@@ -107,7 +99,6 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         workspaceName: workspace.name,
         sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
-        topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
       },
@@ -141,7 +132,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
-            topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
           },
@@ -259,6 +249,10 @@ function parseShellGlobals(value: unknown) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    adminRoute:
+      typeof settings.adminRoute === "string"
+        ? settings.adminRoute
+        : fallback.adminRoute,
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -274,6 +268,7 @@ function pickShellGlobals(settings: ShellConfig) {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
+    adminRoute: settings.adminRoute,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
   }
 }

@@ -81,15 +81,6 @@ const shellConfigSchema = z.object({
     .max(MAX_LIQUIDATION_ALERT_THRESHOLD_PCT)
     .catch(DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT),
   favicon: z.string(),
-  topNavigation: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      href: z.string(),
-      icon: shellIconSchema.optional(),
-      visible: z.boolean(),
-    })
-  ),
   topRightNavigation: z.array(
     z.object({
       id: z.enum(["feedback", "theme", "notifications"]),
@@ -133,7 +124,6 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         workspaceName: workspace.name,
         sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
-        topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
       },
@@ -167,7 +157,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
-            topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
           },

@@ -26,7 +26,6 @@ import {
   type DashboardRange,
   type SiteDashboardMetrics,
 } from "@/lib/actions/analytics/analytics-actions"
-import { isExternalQuickLinkHref, normalizeSiteQuickLinks, resolveSiteQuickLinkHref } from "@/lib/utils/site-quick-links"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 interface PageProps {
@@ -258,26 +257,11 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
   ])
   const cardMetrics = selectedMetrics ?? deriveCardMetricsFromThirtyDay(chartMetrics, selectedRange) ?? emptyMetrics
 
-  const siteSettings = (site?.settings ?? {}) as {
-    quick_links?: unknown
-  }
-
-  const quickLinks = normalizeSiteQuickLinks(siteSettings.quick_links).flatMap((link) => {
-    const href = resolveSiteQuickLinkHref(link, siteId)
-    if (!href) return []
-
-    return [{
-      label: link.label,
-      href,
-      iconName: link.icon,
-      external: isExternalQuickLinkHref(link.href),
-    }]
-  })
   const siteUrl = site ? getSiteUrl(site) : null
 
   return (
     <>
-      <StickyHeader navLinks={quickLinks} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <CardGroup className="grid lg:gap-6">

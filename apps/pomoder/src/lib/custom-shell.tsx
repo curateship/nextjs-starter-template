@@ -224,14 +224,6 @@ export type ShellSection = {
   entries: ShellEntry[]
 }
 
-export type ShellTopNavigationItem = {
-  id: string
-  label: string
-  href: string
-  icon?: ShellIcon
-  visible: boolean
-}
-
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
   "theme",
@@ -251,8 +243,8 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   dashboardRowsPerPage: number
+  adminRoute: string
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -273,8 +265,8 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
+    adminRoute: "",
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }

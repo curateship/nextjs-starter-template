@@ -42,12 +42,6 @@ export interface SiteSettings extends SiteSeoSettings {
   navigation?: Record<string, any>
   footer?: Record<string, any>
   admin_sidebar?: AdminSidebarSettings
-  quick_links?: Array<{
-    id: string
-    label: string
-    href: string
-    icon?: string
-  }>
   breadcrumbs?: Record<string, boolean>
   maintenance?: { enabled?: boolean }
   directory_save_default_collections?: Array<{

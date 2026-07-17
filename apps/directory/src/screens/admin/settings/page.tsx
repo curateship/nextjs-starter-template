@@ -476,8 +476,7 @@ const TABS = [
   { id: "integrations", label: "Integrations" },
   { id: "cron-jobs", label: "Cron Jobs" },
   { id: "ai", label: "AI Providers" },
-  { id: "sidebar", label: "Sidebar" },
-  { id: "dashboard-quick-links", label: "Dashboard Quick Links" }
+  { id: "sidebar", label: "Sidebar" }
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -538,7 +537,7 @@ export default function SiteEditPage() {
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
-  const isAdminSettingsTab = activeTab === "sidebar" || activeTab === "dashboard-quick-links"
+  const isAdminSettingsTab = activeTab === "sidebar"
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveStatus = isAdminSettingsTab ? adminSettingsStatus.saveStatus : saveStatus
@@ -911,15 +910,7 @@ export default function SiteEditPage() {
               )}
 
               {activeTab === "sidebar" && (
-                <SiteAdminSettingsTab siteId={siteId} mode="sidebar" onStatusChange={setAdminSettingsStatus} />
-              )}
-
-              {activeTab === "dashboard-quick-links" && (
-                <SiteAdminSettingsTab
-                  siteId={siteId}
-                  mode="dashboard-quick-links"
-                  onStatusChange={setAdminSettingsStatus}
-                />
+                <SiteAdminSettingsTab siteId={siteId} onStatusChange={setAdminSettingsStatus} />
               )}
             </div>
           </div>

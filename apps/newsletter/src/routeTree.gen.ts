@@ -17,6 +17,7 @@ import { Route as AuthenticatedEmailSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
 import { Route as AuthenticatedBroadcastsIndexRouteImport } from './routes/_authenticated/broadcasts/index'
 import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
 import { Route as AuthenticatedBroadcastsTemplatesRouteImport } from './routes/_authenticated/broadcasts/templates'
 import { Route as AuthenticatedBroadcastsBroadcastIdRouteImport } from './routes/_authenticated/broadcasts/$broadcastId'
@@ -72,6 +73,11 @@ const AuthenticatedAutomationsIndexRoute =
     path: '/automations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiV1UnsubscribeRoute = ApiV1UnsubscribeRouteImport.update({
   id: '/api/v1/unsubscribe',
   path: '/api/v1/unsubscribe',
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
   '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -176,6 +183,7 @@ export interface FileRoutesByTo {
   '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
   '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/broadcasts': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
   '/_authenticated/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/broadcasts/$broadcastId'
     | '/broadcasts/templates'
     | '/api/v1/unsubscribe'
+    | '/admin/'
     | '/automations/'
     | '/broadcasts/'
     | '/admin/feedback/comments'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/broadcasts/$broadcastId'
     | '/broadcasts/templates'
     | '/api/v1/unsubscribe'
+    | '/admin'
     | '/automations'
     | '/broadcasts'
     | '/admin/feedback/comments'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated/broadcasts/$broadcastId'
     | '/_authenticated/broadcasts/templates'
     | '/api/v1/unsubscribe'
+    | '/_authenticated/admin/'
     | '/_authenticated/automations/'
     | '/_authenticated/broadcasts/'
     | '/_authenticated/admin/feedback/comments'
@@ -337,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/automations/'
       preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/v1/unsubscribe': {
@@ -467,6 +486,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
   AuthenticatedBroadcastsBroadcastIdRoute: typeof AuthenticatedBroadcastsBroadcastIdRoute
   AuthenticatedBroadcastsTemplatesRoute: typeof AuthenticatedBroadcastsTemplatesRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
   AuthenticatedBroadcastsIndexRoute: typeof AuthenticatedBroadcastsIndexRoute
 }
@@ -485,6 +505,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBroadcastsBroadcastIdRoute:
     AuthenticatedBroadcastsBroadcastIdRoute,
   AuthenticatedBroadcastsTemplatesRoute: AuthenticatedBroadcastsTemplatesRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
   AuthenticatedBroadcastsIndexRoute: AuthenticatedBroadcastsIndexRoute,
 }

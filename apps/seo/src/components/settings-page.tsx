@@ -3,7 +3,6 @@ import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { ProjectSettings } from "@/components/project-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
-import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -12,7 +11,6 @@ const settingsTabs = [
   { id: "project", label: "Project" },
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
-  { id: "top-navigation", label: "Top Navigation" },
 ] as const
 
 // Tabs that manage SEO project data and save themselves (not the shell config).
@@ -112,14 +110,6 @@ export function SettingsPage({
           ) : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
-          ) : null}
-          {activeTab === "top-navigation" ? (
-            <TopNavigationSettings
               config={config}
               isSaving={isSaving}
               onConfigChange={onConfigChange}

@@ -7,7 +7,6 @@ import {
   isSidebarWidth,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import {
@@ -29,7 +28,6 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   favicon: string
   automationFavoriteNodeKeys: AutomationPaletteKey[]
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -366,9 +364,6 @@ function cleanWorkspaceSettings(
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -384,7 +379,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     automationFavoriteNodeKeys: [],
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
   }

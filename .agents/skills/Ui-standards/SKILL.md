@@ -45,6 +45,8 @@ Use these rules for every new or modified interface, in every app in this monore
 
 - Inputs, selects, and standard buttons use the default height. Icon buttons are square at the matching size.
 - Use component size props; never override heights at individual call sites.
+- A control keeps one height at every breakpoint. Never add responsive height escalations such as `h-8 sm:h-9`; tab groups size the whole control to 32px (`h-
+8 p-[3px]` list, `h-full` triggers).
 - Align a divergent shared primitive in a focused design-system change instead of adding local exceptions.
 
 ## Buttons, Forms, and Action Icons
@@ -61,6 +63,7 @@ Use these rules for every new or modified interface, in every app in this monore
 ## Tabs
 
 - Use the shared `Tabs` default segmented style for tab groups: a rounded muted container with the selected tab on a raised background.
+- Tabs must be h-8
 - The muted tab-list background may fill the available width, but each tab trigger must stay content-width instead of stretching to divide that width.
 - Do not use line, underline, or plain-text tabs for new or modified tab groups unless an app-specific guide explicitly requires that navigation style.
 

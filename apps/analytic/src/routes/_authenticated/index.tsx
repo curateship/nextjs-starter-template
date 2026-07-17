@@ -1,36 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { OverviewDashboard } from "@/components/overview-dashboard"
-import { loadOverview, type OverviewRange } from "@/lib/api/overview"
-import { loadSites } from "@/lib/api/sites"
+import { loadShellSettings } from "@/lib/api/shell-settings"
+import { configuredRouteTarget } from "@/lib/home-route"
 
-const DEFAULT_RANGE: OverviewRange = "7d"
-
+/**
+ * Home forwards to the configured route, or Overview by default.
+ */
 export const Route = createFileRoute("/_authenticated/")({
   loader: async () => {
-    const { sites } = await loadSites()
-    if (sites.length === 0) {
-      return { sites, initialSiteId: null, initialOverview: null }
-    }
-
-    const initialSiteId = sites[0].id
-    const initialOverview = await loadOverview({
-      siteId: initialSiteId,
-      range: DEFAULT_RANGE,
-    })
-    return { sites, initialSiteId, initialOverview }
+    const { settings } = await loadShellSettings()
+    const target = configuredRouteTarget(settings.adminRoute) ?? "/overview"
+    throw redirect({ href: target })
   },
-  component: OverviewRoute,
 })
-
-function OverviewRoute() {
-  const { sites, initialSiteId, initialOverview } = Route.useLoaderData()
-  return (
-    <OverviewDashboard
-      sites={sites}
-      initialSiteId={initialSiteId}
-      initialRange={DEFAULT_RANGE}
-      initialOverview={initialOverview}
-    />
-  )
-}

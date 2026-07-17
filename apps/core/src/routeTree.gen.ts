@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -44,6 +45,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminSettingsRoute =
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/_authenticated/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/proxies'
     | '/admin/settings'
+    | '/admin/'
     | '/admin/datasource/google-maps'
     | '/admin/datasource/settings'
     | '/admin/feedback/comments'
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/proxies'
     | '/admin/settings'
+    | '/admin'
     | '/admin/datasource/google-maps'
     | '/admin/datasource/settings'
     | '/admin/feedback/comments'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/proxies'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/'
     | '/_authenticated/admin/datasource/google-maps'
     | '/_authenticated/admin/datasource/settings'
     | '/_authenticated/admin/feedback/comments'
@@ -271,6 +283,13 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings': {
@@ -452,6 +471,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -464,6 +484,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

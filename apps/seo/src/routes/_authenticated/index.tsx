@@ -1,14 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { ProjectOverviewDashboard } from "@/components/project-overview"
-import { loadCurrentProjectOverview } from "@/lib/api/seo-projects"
+import { loadShellSettings } from "@/lib/api/shell-settings"
+import { configuredRouteTarget } from "@/lib/home-route"
 
+/**
+ * Home forwards to the configured route, or Overview by default.
+ */
 export const Route = createFileRoute("/_authenticated/")({
-  loader: () => loadCurrentProjectOverview(),
-  component: OverviewRoute,
+  loader: async () => {
+    const { settings } = await loadShellSettings()
+    const target = configuredRouteTarget(settings.adminRoute) ?? "/overview"
+    throw redirect({ href: target })
+  },
 })
-
-function OverviewRoute() {
-  const { project, overview } = Route.useLoaderData()
-  return <ProjectOverviewDashboard project={project} overview={overview} />
-}

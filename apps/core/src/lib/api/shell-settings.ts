@@ -50,19 +50,11 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  adminRoute: z.string().catch(""),
   // Per-workspace sidebar width. Always populated with a valid value by the
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   favicon: z.string(),
-  topNavigation: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      href: z.string(),
-      icon: shellIconSchema.optional(),
-      visible: z.boolean(),
-    })
-  ),
   topRightNavigation: z.array(
     z.object({
       id: z.enum(["feedback", "theme", "notifications"]),
@@ -104,7 +96,6 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         workspaceName: workspace.name,
         sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
-        topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
       },
@@ -136,7 +127,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           ...workspaceSettings,
           sidebarWidth: data.sidebarWidth,
           favicon: data.favicon,
-          topNavigation: data.topNavigation,
           topRightNavigation: data.topRightNavigation,
           sections: data.sections,
         },
@@ -255,6 +245,10 @@ function parseShellGlobals(value: unknown) {
       )
         ? settings.dashboardRowsPerPage
         : fallback.dashboardRowsPerPage,
+    adminRoute:
+      typeof settings.adminRoute === "string"
+        ? settings.adminRoute
+        : fallback.adminRoute,
   }
 }
 
@@ -264,5 +258,6 @@ function pickShellGlobals(settings: ShellConfig) {
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
+    adminRoute: settings.adminRoute,
   }
 }

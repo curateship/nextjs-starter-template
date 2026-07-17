@@ -227,14 +227,6 @@ export type ShellSection = {
   entries: ShellEntry[]
 }
 
-export type ShellTopNavigationItem = {
-  id: string
-  label: string
-  href: string
-  icon?: ShellIcon
-  visible: boolean
-}
-
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
   "theme",
@@ -267,7 +259,6 @@ export type ShellConfig = {
    */
   liquidationAlertThresholdPct: number
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -313,7 +304,6 @@ export function createDefaultShellConfig(): ShellConfig {
     orderConfirmation: true,
     liquidationAlertThresholdPct: DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }

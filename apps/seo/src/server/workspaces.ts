@@ -5,7 +5,6 @@ import {
   iconMeta,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import {
@@ -27,7 +26,6 @@ export type WorkspaceSettings = {
   favicon: string
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -322,9 +320,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.sidebarWidth === "number"
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -351,9 +346,6 @@ function cleanWorkspaceSettings(
       typeof settings.sidebarWidth === "number"
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -368,7 +360,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
   }
@@ -384,7 +375,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           type: "item",
           id: "item-overview",
           label: "Overview",
-          href: "/",
+          href: "/overview",
           icon: "layoutDashboard",
           visible: true,
         },

@@ -1,8 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-// Agents is the home screen of the app.
+import { loadShellSettings } from "@/lib/api/shell-settings"
+import { configuredRouteTarget } from "@/lib/home-route"
+
+/**
+ * Home forwards to the configured route, or Agents by default.
+ */
 export const Route = createFileRoute("/_authenticated/")({
-  beforeLoad: () => {
-    throw redirect({ to: "/admin/agents" })
+  loader: async () => {
+    const { settings } = await loadShellSettings()
+    const target = configuredRouteTarget(settings.adminRoute) ?? "/admin/agents"
+    throw redirect({ href: target })
   },
 })
