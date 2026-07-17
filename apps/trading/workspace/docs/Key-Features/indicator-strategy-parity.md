@@ -26,6 +26,9 @@ same settings. Never add a capability to only one side.
   booleans as 0/1). Example: EMA is ONE indicator with `fast/slow/third` +
   `showFast/showSlow/showThird` on both sides — never separate "EMA 20 /
   EMA 50" chart entries next to an "EMA Cross" strategy with different fields.
+  Its settings dialog renders one card PER LINE (period, on/off, color); the
+  per-line colors are display-only (`colors` map) and never part of the
+  strategy's settings.
 - **Independent starting settings.** New Automation indicator nodes use the
   defaults from `src/lib/indicators/registry.ts`. Chart pins and saved chart
   settings never control which Automation nodes are available or how a new
@@ -34,9 +37,13 @@ same settings. Never add a capability to only one side.
   `paint.indicators` must emit the SAME config shape the chart's own overlay
   uses (EMA Cross emits one `type: "ema"` config with all three lines), so an
   automation on the backtest chart draws exactly what the trade chart draws.
-- **No signal arrows.** Charts never paint indicator buy/sell arrows (removed
-  July 2026 — one signal is not a trade). Chips mark real fills; indicator
-  paint is lines/zones/bar-colors only.
+- **Signal arrows are the exception, not the rule.** Chips mark real fills;
+  indicator paint is lines/zones/bar-colors. Two pinned indicators ALSO paint
+  their signals as native chart arrows (green up = long, red down = short):
+  QQE, and the EMA overlay's cross of its two fastest switched-on lines
+  (added July 17, 2026 by request, computed through the same `ema_cross`
+  module). Don't add arrows to other indicators without an explicit ask —
+  one signal is not a trade.
 - **Old saved settings.** When adding a parameter, give it a zod `.default()`
   that preserves the old behavior, and remember editors must display
   schema-PARSED params (see `IndicatorFields` in the automation inspector) so

@@ -176,7 +176,9 @@ export function IndicatorsDashboard({
                   className="inline-block size-3 rounded-full"
                   style={{
                     backgroundColor:
-                      row.color ?? indicatorColor(primaryColorSlot(row), isDark),
+                      (row.type === "ema" ? row.colors?.fast : undefined) ??
+                      row.color ??
+                      indicatorColor(primaryColorSlot(row), isDark),
                   }}
                 />
               )}

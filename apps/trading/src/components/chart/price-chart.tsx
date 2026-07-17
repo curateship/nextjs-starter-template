@@ -1497,12 +1497,14 @@ export function PriceChartView({
     for (const ind of indicators) {
       if (!ind.enabled) continue
       if (ind.type === "ema") {
-        // Up to three lines from one config; a custom color tints line 1.
+        // Up to three lines from one config, each with its own color; the
+        // legacy single `color` still tints line 1 when no per-line color set.
         for (const line of emaLines(ind.params)) {
           addLine(
             `${ind.id}:${line.slot}`,
             line.slot,
-            line.slot === "ema-fast" ? ind.color : undefined,
+            ind.colors?.[line.key] ??
+              (line.key === "fast" ? ind.color : undefined),
             0
           )
         }
@@ -1680,7 +1682,7 @@ export function PriceChartView({
       if (!ind.enabled) continue
       if (ind.type === "ema") {
         for (const line of emaLines(ind.params)) {
-          setLine(`${ind.id}:${line.slot}`, ema(closes, line.period))
+          setLine(`${ind.id}:${line.slot}`, ema(closes, ind.params[line.periodKey]))
         }
       } else if (ind.type === "base") {
         const { line } = qflBase(
@@ -2443,6 +2445,42 @@ export function PriceChart({
     }
   }, [indicators, candles])
 
+  // EMA cross arrows: when the EMA overlay has at least two lines switched
+  // on, the two FASTEST fire a long (up) arrow when the faster crosses above
+  // the slower and a short (down) arrow on the cross back — the same signal
+  // the EMA Cross strategy trades, computed through the same module.
+  const emaCrossMarkers = React.useMemo<ChartMarker[]>(() => {
+    const cfg = indicators.find((ind) => ind.type === "ema" && ind.enabled)
+    if (!cfg || candles.length === 0) return []
+    const periods = emaLines(cfg.params)
+      .map((line) => cfg.params[line.periodKey])
+      .sort((a, b) => a - b)
+    if (periods.length < 2) return []
+    const [fast, slow] = periods
+    if (fast === slow) return []
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.ema_cross.compute(numeric, {
+      fast,
+      slow,
+      third: slow,
+      showFast: true,
+      showSlow: true,
+      showThird: false,
+    } as never)
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    return out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
+  }, [indicators, candles])
+
   // Fair Value Gap draws its imbalance boxes through the same zone pipeline as
   // QQE's chop zones. Per the "no signal arrows" rule its buy/sell aren't
   // painted here — the boxes are the visual.
@@ -2597,7 +2635,7 @@ export function PriceChart({
       loading={loading}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={[...markers, ...qqe.markers]}
+      markers={[...markers, ...qqe.markers, ...emaCrossMarkers]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={[
         ...strategy.overlayLines,

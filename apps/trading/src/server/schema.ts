@@ -454,6 +454,8 @@ export const tradingIndicatorSettings = pgTable(
     params: jsonb("params").$type<Record<string, number>>().notNull(),
     /** #rrggbb line-color override; null = palette default. */
     color: varchar("color", { length: 20 }),
+    /** Per-line #rrggbb overrides for multi-line indicators (EMA). */
+    colors: jsonb("colors").$type<Record<string, string>>(),
     /** Picked session (Sessions indicator only). */
     session: varchar("session", { length: 20 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
