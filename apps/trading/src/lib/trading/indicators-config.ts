@@ -30,6 +30,10 @@ export const QQE_RSI_SOURCES = [
   "close", "open", "high", "low", "hl2", "hlc3", "ohlc4",
 ] as const
 
+/** Bollinger signal modes, stored on the chart as a numeric index (like QQE's
+ * enums). Keep in sync with the module schema in defs/bollinger.ts. */
+export const BOLLINGER_MODES = ["revert", "breakout"] as const
+
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
   id: string
@@ -77,7 +81,9 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "bollinger",
     enabled: false,
     pinned: false,
-    params: { period: 20, k: 2 },
+    // mode indexes BOLLINGER_MODES (0 = revert) — same signal rule the
+    // Bollinger strategy node runs.
+    params: { period: 20, k: 2, mode: 0 },
   },
   {
     id: "rsi",
@@ -185,6 +191,17 @@ export function qqeChartToModuleParams(
     loopbackPeriod: params.loopbackPeriod,
     minConsolidationLen: params.minConsolidationLen,
     swingLookback: params.swingLookback,
+  }
+}
+
+/** Chart Bollinger params (mode as index) → the module's typed params. */
+export function bollingerChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string> {
+  return {
+    period: params.period ?? 20,
+    k: params.k ?? 2,
+    mode: BOLLINGER_MODES[params.mode] ?? "revert",
   }
 }
 
@@ -301,6 +318,14 @@ export const INDICATOR_PARAM_FIELDS: Record<
   bollinger: [
     { key: "period", label: "Period" },
     { key: "k", label: "StdDev", step: 0.5 },
+    {
+      key: "mode",
+      label: "Mode",
+      kind: "select",
+      options: BOLLINGER_MODES,
+      description:
+        "Revert fades a move beyond a band back to the middle; Breakout follows a close through a band.",
+    },
   ],
   rsi: [
     { key: "period", label: "Period" },

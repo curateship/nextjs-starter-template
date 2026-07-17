@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { eq } from "drizzle-orm"
 
 import {
+  BOLLINGER_MODES,
   DEFAULT_INDICATORS,
   EMA_LINES,
   INDICATOR_PARAM_FIELDS,
@@ -112,6 +113,15 @@ export async function upsertUserIndicator(
       ) {
         throw new Error(`Invalid EMA parameter: ${line.periodKey}`)
       }
+    }
+  }
+  if (def.type === "bollinger") {
+    const mode = input.params.mode
+    if (
+      mode !== undefined &&
+      (!Number.isInteger(mode) || mode < 0 || mode >= BOLLINGER_MODES.length)
+    ) {
+      throw new Error("Invalid Bollinger parameter: mode")
     }
   }
   if (def.type === "qqe") {

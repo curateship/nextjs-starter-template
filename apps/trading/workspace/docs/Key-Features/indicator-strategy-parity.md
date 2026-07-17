@@ -37,14 +37,16 @@ same settings. Never add a capability to only one side.
   `paint.indicators` must emit the SAME config shape the chart's own overlay
   uses (EMA Cross emits one `type: "ema"` config with all three lines), so an
   automation on the backtest chart draws exactly what the trade chart draws.
-- **Signal arrows are the exception, not the rule.** Chips mark real fills;
-  indicator paint is lines/zones/bar-colors. Three pinned indicators ALSO
-  paint their signals as native chart arrows (green up = long, red down =
-  short), each computed through its own module so the chart marks exactly
-  what the strategy trades: QQE, the EMA overlay's cross of its two fastest
-  switched-on lines, and Price Action's detected patterns (EMA and Price
-  Action added July 17, 2026 by request). Don't add arrows to other
-  indicators without an explicit ask — one signal is not a trade.
+- **Signal arrows.** Chips mark real fills; indicator paint is
+  lines/zones/bar-colors, and pinned indicators with a signal rule ALSO paint
+  their buy/sells as native chart arrows (green up = long, red down = short),
+  each computed through its own module so the chart marks exactly what the
+  strategy trades. Painting arrows today: QQE, the EMA overlay's cross of its
+  two fastest switched-on lines, Price Action's detected patterns, Bollinger
+  (per its Mode — the chart card carries the same revert/breakout Mode the
+  strategy node has), and Trendline Break (all but QQE added July 17, 2026 by
+  request). Fair Value Gap deliberately stays arrow-less — its boxes are the
+  visual. One signal is still not a trade.
 - **Old saved settings.** When adding a parameter, give it a zod `.default()`
   that preserves the old behavior, and remember editors must display
   schema-PARSED params (see `IndicatorFields` in the automation inspector) so
