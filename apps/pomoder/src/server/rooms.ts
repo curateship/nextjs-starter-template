@@ -1,7 +1,8 @@
 import { and, desc, eq, sql } from "drizzle-orm"
 
 import { db, pool, type PomoderDb } from "@/server/db"
-import { roomBans, roomMemberships, roomMessages, rooms, users, type Room } from "@/server/schema"
+import { enforceRateLimit } from "@/server/rate-limit"
+import { adminAuditLogs, roomBans, roomMemberships, roomMessages, roomReports, rooms, users, type Room } from "@/server/schema"
 
 type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
 
@@ -193,7 +194,7 @@ export type RoomSnapshot = {
   }
   you: { role: "host" | "member" }
   members: { id: string; name: string; role: string; avatarIndex: number; joinedAt: Date }[]
-  messages: { id: string; body: string; authorName: string; mine: boolean; createdAt: Date }[]
+  messages: { id: string; body: string; authorName: string; mine: boolean; deleted: boolean; createdAt: Date }[]
 }
 
 // The snapshot is broadcast over SSE, so it carries only what the room UI
@@ -230,10 +231,10 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
       .where(and(eq(roomMemberships.roomId, roomId), sql`${roomMemberships.leftAt} is null`))
       .orderBy(roomMemberships.joinedAt),
     database
-      .select({ id: roomMessages.id, userId: roomMessages.userId, body: roomMessages.body, createdAt: roomMessages.createdAt, authorName: displayName })
+      .select({ id: roomMessages.id, userId: roomMessages.userId, body: roomMessages.body, deletedAt: roomMessages.deletedAt, createdAt: roomMessages.createdAt, authorName: displayName })
       .from(roomMessages)
       .innerJoin(users, eq(roomMessages.userId, users.id))
-      .where(and(eq(roomMessages.roomId, roomId), sql`${roomMessages.deletedAt} is null`))
+      .where(eq(roomMessages.roomId, roomId))
       .orderBy(roomMessages.createdAt)
       .limit(100),
   ])
@@ -241,7 +242,9 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     room: safeRoom,
     you: { role: membership.role as "host" | "member" },
     members: memberRows.map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId) })),
-    messages: messageRows.map(({ userId: authorUserId, ...message }) => ({ ...message, mine: authorUserId === userId })),
+    // Soft-deleted messages stay in the timeline as empty tombstones so
+    // members see that moderation happened without ever receiving the body.
+    messages: messageRows.map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId })),
   }
 }
 
@@ -281,6 +284,108 @@ export async function notifyRoom(roomId: string, event: string) {
 export async function assertNotBanned(roomId: string, userId: string, database: PomoderDb | PomoderTransaction = db) {
   const banned = await database.select({ id: roomBans.id }).from(roomBans).where(and(eq(roomBans.roomId, roomId), eq(roomBans.userId, userId))).limit(1)
   if (banned.length) throw new Error("ROOM_BANNED")
+}
+
+const REPORT_USER_LIMIT = { maxAttempts: 5, windowSeconds: 600 }
+const REPORT_ROOM_LIMIT = { maxAttempts: 30, windowSeconds: 600 }
+const MODERATE_USER_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
+const MODERATE_ROOM_LIMIT = { maxAttempts: 60, windowSeconds: 60 }
+
+async function requireActiveMembership(roomId: string, userId: string, database: PomoderDb | PomoderTransaction) {
+  const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
+}
+
+// Members may report another member's message with a bounded reason. A repeat
+// report of the same message collapses into the original, and floods are
+// capped per reporter and per room before any row is written.
+export async function reportRoomMessage(slug: string, reporterId: string, messageId: string, reason: string, database: PomoderDb = db) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await requireActiveMembership(room.id, reporterId, database)
+  await enforceRateLimit(`room-report:user:${reporterId}`, REPORT_USER_LIMIT, database)
+  await enforceRateLimit(`room-report:room:${room.id}`, REPORT_ROOM_LIMIT, database)
+  return database.transaction(async (tx) => {
+    const [message] = await tx.select({ id: roomMessages.id, userId: roomMessages.userId }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.userId === reporterId) throw new Error("CANNOT_REPORT_OWN_MESSAGE")
+    const inserted = await tx.insert(roomReports).values({ roomId: room.id, reporterUserId: reporterId, messageId, reason }).onConflictDoNothing().returning({ id: roomReports.id })
+    return { reported: inserted.length > 0 }
+  })
+}
+
+// The host check runs before the rate limit so a non-host cannot burn the
+// room's moderation budget; the transaction re-locks and re-verifies.
+async function requireHostModeration(slug: string, hostId: string, database: PomoderDb) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== hostId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await enforceRateLimit(`room-moderate:user:${hostId}`, MODERATE_USER_LIMIT, database)
+  await enforceRateLimit(`room-moderate:room:${room.id}`, MODERATE_ROOM_LIMIT, database)
+}
+
+async function lockRoomForHost(tx: PomoderTransaction, slug: string, hostId: string) {
+  const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== hostId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  return room
+}
+
+// Soft-deletes a chat message so members only ever see a tombstone while the
+// body stays in the row for authorized admin review. Idempotent on races.
+export async function deleteRoomMessage(slug: string, hostId: string, messageId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.deletedAt) return { room, deleted: false }
+    await tx.update(roomMessages).set({ deletedAt: timestamp }).where(eq(roomMessages.id, messageId))
+    await writeModerationAudit(tx, hostId, "delete_message", [messageId])
+    return { room, deleted: true }
+  })
+}
+
+// Removal targets a membership id because snapshots never expose user ids.
+export async function removeRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
+    const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.id, membershipId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
+    if (ended.length) await writeModerationAudit(tx, hostId, "remove_member", [membership.id])
+    return { room, removed: ended.length > 0 }
+  })
+}
+
+// A ban immediately ends any active membership and blocks rejoining. Banning
+// a member who already left still works, so hosts can stop a rejoin loop.
+export async function banRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
+    await tx.insert(roomBans).values({ roomId: room.id, userId: membership.userId, bannedByUserId: hostId }).onConflictDoNothing()
+    await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, membership.userId), sql`${roomMemberships.leftAt} is null`))
+    await writeModerationAudit(tx, hostId, "ban_member", [membership.id])
+    return { room }
+  })
+}
+
+async function findRoomMembership(tx: PomoderTransaction, roomId: string, membershipId: string, hostId: string) {
+  const [membership] = await tx.select({ id: roomMemberships.id, userId: roomMemberships.userId }).from(roomMemberships).where(and(eq(roomMemberships.id, membershipId), eq(roomMemberships.roomId, roomId))).limit(1)
+  if (!membership) throw new Error("MEMBER_NOT_FOUND")
+  if (membership.userId === hostId) throw new Error("ROOM_SELF_MODERATION")
+  return membership
+}
+
+// Host moderation is privileged, so it lands in the same audit trail the
+// admin surface writes to.
+async function writeModerationAudit(tx: PomoderTransaction, actorId: string, action: string, recordIds: string[]) {
+  await tx.insert(adminAuditLogs).values({ actorUserId: actorId, action, resource: "rooms", recordIds })
 }
 
 export function roomChannel(roomId: string) { return `pomoder_room_${roomId.replaceAll("-", "")}` }

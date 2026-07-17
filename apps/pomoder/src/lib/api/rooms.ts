@@ -9,13 +9,17 @@ import { requireAppOrigin } from "@/server/origin"
 import { enforceRateLimit } from "@/server/rate-limit"
 import {
   applyHostRoomAction,
+  banRoomMember,
   createRoomWithHost,
+  deleteRoomMessage,
   findActiveRoomId,
   joinRoomBySlug,
   leaveRoom,
   listPublicRooms,
   lookupRoomBySlug,
   notifyRoom,
+  removeRoomMember,
+  reportRoomMessage,
   roomSnapshot,
   type RoomHostAction,
 } from "@/server/rooms"
@@ -27,6 +31,9 @@ const createRoomSchema = z.object({ name: z.string().trim().min(2).max(80), visi
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const messageSchema = slugSchema.extend({ body: z.string().trim().min(1).max(500) })
 const actionSchema = slugSchema.extend({ action: z.enum(["start_focus", "start_break", "next_phase", "close"]) })
+const reportSchema = slugSchema.extend({ messageId: z.string().uuid(), reason: z.string().trim().min(3).max(300) })
+const deleteMessageSchema = slugSchema.extend({ messageId: z.string().uuid() })
+const memberSchema = slugSchema.extend({ membershipId: z.string().uuid() })
 
 const listRoomsFn = createServerFn({ method: "GET" }).handler(async () => listPublicRooms())
 
@@ -97,6 +104,38 @@ const sendMessageFn = createServerFn({ method: "POST" }).inputValidator(messageS
   return message
 })
 
+// Reports never notify the room: they are private to the reporter and the
+// operators, so nothing changes in other members' snapshots.
+const reportMessageFn = createServerFn({ method: "POST" }).inputValidator(reportSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  return reportRoomMessage(data.slug, user.id, data.messageId, data.reason)
+})
+
+const deleteMessageFn = createServerFn({ method: "POST" }).inputValidator(deleteMessageSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room } = await deleteRoomMessage(data.slug, user.id, data.messageId)
+  await notifyRoom(room.id, "message")
+  return roomSnapshot(room.id, user.id)
+})
+
+const removeMemberFn = createServerFn({ method: "POST" }).inputValidator(memberSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room } = await removeRoomMember(data.slug, user.id, data.membershipId)
+  await notifyRoom(room.id, "membership")
+  return roomSnapshot(room.id, user.id)
+})
+
+const banMemberFn = createServerFn({ method: "POST" }).inputValidator(memberSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room } = await banRoomMember(data.slug, user.id, data.membershipId)
+  await notifyRoom(room.id, "membership")
+  return roomSnapshot(room.id, user.id)
+})
+
 export const listRooms = () => listRoomsFn()
 export const getCurrentRoom = () => currentRoomFn()
 export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
@@ -105,3 +144,7 @@ export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) => leaveRoomFn({ data: { slug } })
 export const sendRoomMessage = (slug: string, body: string) => sendMessageFn({ data: { slug, body } })
 export const applyRoomAction = (slug: string, action: RoomHostAction) => roomActionFn({ data: { slug, action } })
+export const reportMessage = (slug: string, messageId: string, reason: string) => reportMessageFn({ data: { slug, messageId, reason } })
+export const deleteMessage = (slug: string, messageId: string) => deleteMessageFn({ data: { slug, messageId } })
+export const removeMember = (slug: string, membershipId: string) => removeMemberFn({ data: { slug, membershipId } })
+export const banMember = (slug: string, membershipId: string) => banMemberFn({ data: { slug, membershipId } })

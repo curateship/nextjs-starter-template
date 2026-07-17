@@ -4,14 +4,17 @@ import {
   Check,
   Coffee,
   Copy,
+  Flag,
   Loader2,
   LockKeyhole,
   LogOut,
+  MoreVertical,
   Pause,
   Play,
   Plus,
   SkipForward,
   Sparkles,
+  Trash2,
   Upload,
   Users,
   X,
@@ -23,6 +26,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -42,7 +51,7 @@ import { createBillingPortal, createCheckout } from "@/lib/api/billing"
 import { requestGeneration } from "@/lib/api/generation"
 import { listMedia } from "@/lib/api/pomoder-media"
 import { loadLeaderboard, loadProductivity } from "@/lib/api/productivity"
-import { applyRoomAction, createRoom, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, sendRoomMessage } from "@/lib/api/rooms"
+import { applyRoomAction, banMember, createRoom, deleteMessage, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, removeMember, reportMessage, sendRoomMessage } from "@/lib/api/rooms"
 
 const backgrounds = [
   ["Lofi girl", "lofi_girl", false],
@@ -124,6 +133,25 @@ export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
 
 type RoomSnapshotClient = Awaited<ReturnType<typeof joinRoom>>
 type RoomHostActionClient = Parameters<typeof applyRoomAction>[1]
+type ConfirmRequest = { title: string; description: string; confirmLabel: string; onConfirm: () => void }
+
+// Shared shadcn-based confirmation for room actions — native window.confirm
+// is never used on this page.
+function ConfirmDialog({ confirm, onClose }: { confirm: ConfirmRequest | null; onClose: () => void }) {
+  return (
+    <Dialog open={Boolean(confirm)} onOpenChange={(next) => { if (!next) onClose() }}>
+      {/* The content portals to <body>, outside the always-dark shell. */}
+      <DialogContent className="host-room-dialog confirm-dialog dark">
+        <DialogTitle className="host-room-dialog-title">{confirm?.title}</DialogTitle>
+        <DialogDescription className="host-room-dialog-sub">{confirm?.description}</DialogDescription>
+        <div className="confirm-dialog-actions">
+          <button type="button" className="outline-pill" onClick={onClose}>Cancel</button>
+          <button type="button" className="pill-button" onClick={() => { const action = confirm?.onConfirm; onClose(); action?.() }}>{confirm?.confirmLabel}</button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const ROOM_AVATARS = ["maya", "tomas", "ana", "devon"] as const
 const ROOM_PHASE_LABELS: Record<string, string> = { waiting: "Waiting to start", focus: "Focus", short: "Short break", long: "Long break", closed: "Closed" }
@@ -152,6 +180,7 @@ export function RoomsPage() {
   const [error, setError] = React.useState("")
   const [notice, setNotice] = React.useState("")
   const [reconnecting, setReconnecting] = React.useState(false)
+  const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const activeRoomSlug = activeRoom?.room.slug
 
   const refreshRooms = React.useCallback(() => { void listRooms().then(setRoomRows).catch(() => setError("Rooms could not be loaded.")) }, [])
@@ -190,15 +219,27 @@ export function RoomsPage() {
     return () => { setReconnecting(false); source.close() }
   }, [activeRoomSlug, applySnapshot, refreshRooms])
 
-  const joinBySlug = async (slug: string, demo?: boolean) => {
-    if (!user || demo) { window.location.assign("/login"); return }
-    if (activeRoom?.you.role === "host" && !window.confirm("Joining another room closes the room you host. Continue?")) return
+  const performJoin = async (slug: string) => {
     setError("")
     try { applySnapshot(await joinRoom(slug)) } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       setError(message.includes("ROOM_LOCKED") ? "That room is mid-focus. Join again during its break." : message.includes("ROOM_CLOSED") ? "That room has ended." : message.includes("ROOM_BANNED") ? "You can't join that room." : "This room is not available to join.")
       refreshRooms()
     }
+  }
+
+  const joinBySlug = async (slug: string, demo?: boolean) => {
+    if (!user || demo) { window.location.assign("/login"); return }
+    if (activeRoom?.you.role === "host") {
+      setConfirm({
+        title: "Join another room?",
+        description: "Joining another room closes the room you currently host and ends it for its members.",
+        confirmLabel: "Join room",
+        onConfirm: () => void performJoin(slug),
+      })
+      return
+    }
+    await performJoin(slug)
   }
 
   const realOpenRooms = roomRows.filter(({ room }) => room.phase !== "focus").map((row, index) => roomCard(row, index))
@@ -213,6 +254,7 @@ export function RoomsPage() {
         onOpenChange={setShowHostForm}
         onCreated={(snapshot) => { setShowHostForm(false); applySnapshot(snapshot); refreshRooms() }}
       />
+      <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
       <div className="rooms-view-inner">
         {error ? <p className="room-notice" role="alert">{error}</p> : null}
         {notice ? <p className="room-notice" role="status">{notice}</p> : null}
@@ -300,10 +342,12 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
   const [pending, setPending] = React.useState("")
   const [copied, setCopied] = React.useState(false)
   const [copyFailed, setCopyFailed] = React.useState(false)
+  const [panelNotice, setPanelNotice] = React.useState("")
+  const [reporting, setReporting] = React.useState<{ id: string; authorName: string } | null>(null)
+  const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const inviteUrl = `${window.location.origin}/rooms/${room.slug}`
 
   const runAction = async (action: RoomHostActionClient) => {
-    if (action === "close" && !window.confirm("Close this room for everyone? This cannot be undone.")) return
     onActionError("")
     setPending(action)
     try {
@@ -331,6 +375,48 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
     } catch { setCopyFailed(true) }
   }
 
+  const moderationErrorMessage = (cause: unknown, fallback: string) => {
+    const text = cause instanceof Error ? cause.message : ""
+    if (text.includes("RATE_LIMITED")) return "Too many moderation actions at once. Wait a moment and try again."
+    if (text.includes("ROOM_HOST_REQUIRED")) return "Only the host can do that."
+    return fallback
+  }
+
+  const performModeration = async (key: string, action: () => Promise<RoomSnapshotClient>, successNotice: string, failureNotice: string) => {
+    onActionError("")
+    setPanelNotice("")
+    setPending(key)
+    try {
+      onSnapshot(await action())
+      setPanelNotice(successNotice)
+    } catch (cause) { onActionError(moderationErrorMessage(cause, failureNotice)) } finally { setPending("") }
+  }
+
+  const requestClose = () => setConfirm({
+    title: "Close this room?",
+    description: "This ends the session for everyone in the room and cannot be undone.",
+    confirmLabel: "Close room",
+    onConfirm: () => void runAction("close"),
+  })
+  const runDeleteMessage = (entry: { id: string }) => setConfirm({
+    title: "Delete message?",
+    description: "The message disappears for everyone and members see that it was removed.",
+    confirmLabel: "Delete message",
+    onConfirm: () => void performModeration(`delete-message:${entry.id}`, () => deleteMessage(room.slug, entry.id), "The message was deleted.", "The message could not be deleted."),
+  })
+  const runRemoveMember = (member: { id: string; name: string }) => setConfirm({
+    title: `Remove ${member.name}?`,
+    description: "They leave this room immediately but can join again later.",
+    confirmLabel: "Remove member",
+    onConfirm: () => void performModeration(`remove-member:${member.id}`, () => removeMember(room.slug, member.id), `${member.name} was removed from the room.`, "The member could not be removed."),
+  })
+  const runBanMember = (member: { id: string; name: string }) => setConfirm({
+    title: `Ban ${member.name}?`,
+    description: "They are removed immediately and cannot rejoin this room.",
+    confirmLabel: "Ban member",
+    onConfirm: () => void performModeration(`ban-member:${member.id}`, () => banMember(room.slug, member.id), `${member.name} was banned from the room.`, "The member could not be banned."),
+  })
+
   const detail = room.phase === "focus" ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
     : room.phase === "short" || room.phase === "long" ? (room.autoStart ? `Next: ${room.focusMinutes} min focus starts automatically` : `Next: the host starts the ${room.focusMinutes} min focus`)
     : "The host starts each focus session"
@@ -351,6 +437,7 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
       </header>
       {copyFailed ? <p className="room-notice" role="alert">Copying failed — select the link text above and copy it manually.</p> : null}
       {reconnecting ? <p className="room-notice" role="status">Live updates were interrupted. Reconnecting…</p> : null}
+      {panelNotice ? <p className="room-notice" role="status">{panelNotice}</p> : null}
       <div className="active-room-status">
         <span className={`room-phase-chip phase-${room.phase}`}>{ROOM_PHASE_LABELS[room.phase] ?? room.phase}</span>
         <strong className="room-countdown" aria-label="Time remaining">{countdown ?? "--:--"}</strong>
@@ -361,7 +448,7 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
               <button className="pill-button" disabled={pending !== "" || room.phase === "focus"} onClick={() => void runAction("start_focus")}>{actionIcon("start_focus", <Play aria-hidden="true" />)}Start focus</button>
               <button className="outline-pill" disabled={pending !== "" || room.phase !== "focus"} onClick={() => void runAction("start_break")}>{actionIcon("start_break", <Coffee aria-hidden="true" />)}Start break</button>
               <button className="outline-pill" disabled={pending !== ""} onClick={() => void runAction("next_phase")}>{actionIcon("next_phase", <SkipForward aria-hidden="true" />)}Next phase</button>
-              <button className="outline-pill room-close-button" disabled={pending !== ""} onClick={() => void runAction("close")}>{actionIcon("close", <X aria-hidden="true" />)}Close room</button>
+              <button className="outline-pill room-close-button" disabled={pending !== ""} onClick={requestClose}>{actionIcon("close", <X aria-hidden="true" />)}Close room</button>
             </>
           ) : (
             <button className="outline-pill" disabled={pending !== ""} onClick={() => void leave()}>{actionIcon("leave", <LogOut aria-hidden="true" />)}Leave room</button>
@@ -377,18 +464,40 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
                 <img src={`/pomoder/avatars-${ROOM_AVATARS[member.avatarIndex % ROOM_AVATARS.length]}.png`} alt="" />
                 <span>{member.name}</span>
                 {member.role === "host" ? <b>HOST</b> : null}
+                {isHost && member.role !== "host" ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" className="member-menu-trigger" aria-label={`Moderate ${member.name}`} title={`Moderate ${member.name}`} disabled={pending !== ""}><MoreVertical aria-hidden="true" /></button>
+                    </DropdownMenuTrigger>
+                    {/* The content portals to <body>, outside the always-dark shell. */}
+                    <DropdownMenuContent className="dark" align="end">
+                      <DropdownMenuItem onSelect={() => runRemoveMember(member)}>Remove from room</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onSelect={() => runBanMember(member)}>Ban from room</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </li>
             ))}
           </ul>
         </div>
         <div className="active-room-chat">
           <div className="chat-list">
-            {messages.map((entry) => (
+            {messages.map((entry) => entry.deleted ? (
+              <div className="chat-message deleted" key={entry.id}>
+                <div><span className="chat-tombstone">Message removed by the host</span></div>
+              </div>
+            ) : (
               <div className={`chat-message ${entry.mine ? "mine" : ""}`} key={entry.id}>
                 <div>
                   <p>{entry.authorName}<time>{new Date(entry.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</time></p>
                   <span>{entry.body}</span>
                 </div>
+                {!entry.mine || isHost ? (
+                  <span className="chat-message-actions">
+                    {!entry.mine ? <button type="button" title="Report message" aria-label={`Report message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => setReporting({ id: entry.id, authorName: entry.authorName })}><Flag aria-hidden="true" /></button> : null}
+                    {isHost ? <button type="button" title="Delete message" aria-label={`Delete message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => runDeleteMessage(entry)}><Trash2 aria-hidden="true" /></button> : null}
+                  </span>
+                ) : null}
               </div>
             ))}
             {!messages.length ? <span className="chat-empty">Say hi — messages appear for everyone in the room.</span> : null}
@@ -399,7 +508,54 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
           </form>
         </div>
       </div>
+      <ReportMessageDialog
+        key={reporting?.id ?? "closed"}
+        slug={room.slug}
+        message={reporting}
+        onClose={() => setReporting(null)}
+        onDone={(notice) => { setReporting(null); setPanelNotice(notice) }}
+      />
+      <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
     </section>
+  )
+}
+
+function ReportMessageDialog({ slug, message, onClose, onDone }: { slug: string; message: { id: string; authorName: string } | null; onClose: () => void; onDone: (notice: string) => void }) {
+  const [reason, setReason] = React.useState("")
+  const [sending, setSending] = React.useState(false)
+  const [error, setError] = React.useState("")
+
+  return (
+    <Dialog open={Boolean(message)} onOpenChange={(next) => { if (!next && !sending) onClose() }}>
+      {/* The content portals to <body>, outside the always-dark shell. */}
+      <DialogContent className="host-room-dialog report-dialog dark">
+        <DialogTitle className="host-room-dialog-title">Report message</DialogTitle>
+        <DialogDescription className="host-room-dialog-sub">Tell us what is wrong with {message?.authorName}’s message. Reports go to moderators only — other members never see them.</DialogDescription>
+        <form
+          className="report-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (!message) return
+            setError("")
+            setSending(true)
+            try {
+              const { reported } = await reportMessage(slug, message.id, reason.trim())
+              onDone(reported ? "Report sent. A moderator will review it." : "You already reported this message.")
+            } catch (cause) {
+              const text = cause instanceof Error ? cause.message : ""
+              setError(text.includes("RATE_LIMITED") ? "You have sent too many reports recently. Try again later." : "The report could not be sent. Try again.")
+            } finally { setSending(false) }
+          }}
+        >
+          <label>Reason<textarea required minLength={3} maxLength={300} rows={4} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Harassment, spam, hateful content…" /></label>
+          {error ? <p className="host-room-error" role="alert">{error}</p> : null}
+          <div className="report-form-actions">
+            <button type="button" className="outline-pill" disabled={sending} onClick={onClose}>Cancel</button>
+            <button className="pill-button" disabled={sending || reason.trim().length < 3}>{sending ? "Sending…" : "Send report"}</button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

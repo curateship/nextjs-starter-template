@@ -23,12 +23,16 @@ import { enforceRateLimit } from "@/server/rate-limit"
 import {
   advanceExpiredRoom,
   applyHostRoomAction,
+  banRoomMember,
   canJoinRoom,
   createRoomWithHost,
+  deleteRoomMessage,
   joinRoomBySlug,
   leaveRoom,
   listPublicRooms,
   lookupRoomBySlug,
+  removeRoomMember,
+  reportRoomMessage,
   roomSnapshot,
 } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
@@ -114,6 +118,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0009_complete_room_controls.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0010_room_moderation_tools.sql", import.meta.url),
       "utf8"
     )
   )
@@ -1345,7 +1355,7 @@ describe("Pomoder admin record management", () => {
     )
 
     const result = await loadPomoderAdminData(
-      { section: "tasks", page: 2, pageSize: 10 },
+      { section: "tasks", page: 2, pageSize: 10, sortColumn: 0, sortDirection: "asc", reportStatus: "all" },
       database as unknown as PomoderDb
     )
     expect(result.pagination).toEqual({
@@ -1382,6 +1392,7 @@ describe("Pomoder admin record management", () => {
         pageSize: 10,
         sortColumn: 1,
         sortDirection: "desc",
+        reportStatus: "all",
       },
       database as unknown as PomoderDb
     )
@@ -1531,7 +1542,7 @@ describe("room controls", () => {
     expect(snapshot.you).toEqual({ role: "member" })
     expect(snapshot.members.map((row) => [row.name, row.role])).toEqual([["Host Nick", "host"], ["Member Real Name", "member"]])
     expect(Object.keys(snapshot.members[0]).sort()).toEqual(["avatarIndex", "id", "joinedAt", "name", "role"])
-    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "id", "mine"])
+    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "deleted", "id", "mine"])
     expect(snapshot.messages.map((row) => [row.authorName, row.mine])).toEqual([["Host Nick", false], ["Member Real Name", true]])
     expect(JSON.stringify(snapshot)).not.toContain("@example.com")
     expect(JSON.stringify(snapshot)).not.toContain(host.id)
@@ -1593,5 +1604,206 @@ describe("room controls", () => {
     expect(closedRoomIds).toEqual([roomB.id])
     expect((await database.select().from(rooms).where(eq(rooms.id, roomB.id)))[0].phase).toBe("closed")
     expect(await activeMemberships(member.id)).toHaveLength(0)
+  })
+})
+
+describe("room moderation", () => {
+  const roomDb = () => database as unknown as PomoderDb
+  const baseSettings = { name: "Deep Work", visibility: "public" as const, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, autoStart: false }
+
+  async function seedUser(email: string, name: string, role: "user" | "admin" = "user") {
+    const [user] = await database.insert(users).values({ email, name, role, passwordHash: "hash" }).returning()
+    return user
+  }
+
+  async function seedModeratedRoom(slug: string) {
+    const host = await seedUser(`${slug}-host@example.com`, "Host")
+    const member = await seedUser(`${slug}-member@example.com`, "Member")
+    const { room } = await createRoomWithHost(host.id, slug, baseSettings, roomDb())
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+    const [hostMessage] = await database.insert(roomMessages).values({ roomId: room.id, userId: host.id, body: "Host message" }).returning()
+    const [memberMessage] = await database.insert(roomMessages).values({ roomId: room.id, userId: member.id, body: "Member message" }).returning()
+    return { host, member, room, hostMessage, memberMessage }
+  }
+
+  async function membershipOf(roomId: string, userId: string) {
+    const rows = await database.select().from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
+    return rows.sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime())[0]
+  }
+
+  async function activeMemberships(userId: string) {
+    return database.select().from(roomMemberships).where(and(eq(roomMemberships.userId, userId), isNull(roomMemberships.leftAt)))
+  }
+
+  async function auditActions() {
+    const rows = await database.select().from(adminAuditLogs)
+    return rows.map((row) => row.action)
+  }
+
+  it("only lets active members report someone else's message in an open room", async () => {
+    const { host, member, room, hostMessage, memberMessage } = await seedModeratedRoom("report-room-0001")
+    const stranger = await seedUser("report-stranger@example.com", "Stranger")
+
+    await expect(reportRoomMessage(room.slug, stranger.id, hostMessage.id, "abusive", roomDb())).rejects.toThrow("ROOM_MEMBERSHIP_REQUIRED")
+    await expect(reportRoomMessage(room.slug, member.id, memberMessage.id, "self report", roomDb())).rejects.toThrow("CANNOT_REPORT_OWN_MESSAGE")
+    await expect(reportRoomMessage("missing-room-slug", member.id, hostMessage.id, "abusive", roomDb())).rejects.toThrow("ROOM_NOT_FOUND")
+
+    // A message from another room cannot be reported through this room.
+    const { hostMessage: foreignMessage } = await seedModeratedRoom("report-room-0002")
+    await expect(reportRoomMessage(room.slug, member.id, foreignMessage.id, "abusive", roomDb())).rejects.toThrow("MESSAGE_NOT_FOUND")
+
+    expect(await reportRoomMessage(room.slug, member.id, hostMessage.id, "Harassing me in chat", roomDb())).toEqual({ reported: true })
+    // Repeat reports of the same message collapse into the original.
+    expect(await reportRoomMessage(room.slug, member.id, hostMessage.id, "Harassing me again", roomDb())).toEqual({ reported: false })
+    const reports = await database.select().from(roomReports)
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ roomId: room.id, reporterUserId: member.id, messageId: hostMessage.id, reason: "Harassing me in chat", status: "pending", reviewedByUserId: null, reviewedAt: null })
+
+    await applyHostRoomAction(room.slug, host.id, "close", roomDb())
+    await expect(reportRoomMessage(room.slug, member.id, hostMessage.id, "abusive", roomDb())).rejects.toThrow("ROOM_CLOSED")
+  })
+
+  it("caps report floods per reporter without writing extra rows", async () => {
+    const { host, member, room } = await seedModeratedRoom("report-room-0003")
+    const bodies = ["one", "two", "three", "four", "five", "six"]
+    const messages = await database.insert(roomMessages).values(bodies.map((body) => ({ roomId: room.id, userId: host.id, body }))).returning()
+
+    for (const message of messages.slice(0, 5)) {
+      expect(await reportRoomMessage(room.slug, member.id, message.id, "spamming the chat", roomDb())).toEqual({ reported: true })
+    }
+    await expect(reportRoomMessage(room.slug, member.id, messages[5].id, "spamming the chat", roomDb())).rejects.toThrow("RATE_LIMITED")
+    expect(await database.select().from(roomReports)).toHaveLength(5)
+  })
+
+  it("locks moderation to the host and never allows self-targets", async () => {
+    const { host, member, room, hostMessage } = await seedModeratedRoom("moderate-room-01")
+    const hostMembership = await membershipOf(room.id, host.id)
+    const memberMembership = await membershipOf(room.id, member.id)
+
+    await expect(deleteRoomMessage(room.slug, member.id, hostMessage.id, roomDb())).rejects.toThrow("ROOM_HOST_REQUIRED")
+    await expect(removeRoomMember(room.slug, member.id, hostMembership.id, roomDb())).rejects.toThrow("ROOM_HOST_REQUIRED")
+    await expect(banRoomMember(room.slug, member.id, hostMembership.id, roomDb())).rejects.toThrow("ROOM_HOST_REQUIRED")
+
+    await expect(removeRoomMember(room.slug, host.id, hostMembership.id, roomDb())).rejects.toThrow("ROOM_SELF_MODERATION")
+    await expect(banRoomMember(room.slug, host.id, hostMembership.id, roomDb())).rejects.toThrow("ROOM_SELF_MODERATION")
+    await expect(removeRoomMember(room.slug, host.id, "00000000-0000-4000-8000-000000000000", roomDb())).rejects.toThrow("MEMBER_NOT_FOUND")
+
+    // Nothing above changed memberships or produced privileged audit rows.
+    expect(await activeMemberships(member.id)).toHaveLength(1)
+    expect((await membershipOf(room.id, memberMembership.userId)).leftAt).toBeNull()
+    expect(await auditActions()).toEqual([])
+  })
+
+  it("soft-deletes messages into tombstones while keeping review evidence", async () => {
+    const { host, member, room, memberMessage } = await seedModeratedRoom("moderate-room-02")
+
+    expect(await deleteRoomMessage(room.slug, host.id, memberMessage.id, roomDb())).toMatchObject({ deleted: true })
+    // Repeating the delete is a harmless no-op, not an error.
+    expect(await deleteRoomMessage(room.slug, host.id, memberMessage.id, roomDb())).toMatchObject({ deleted: false })
+
+    const snapshot = await roomSnapshot(room.id, member.id, roomDb())
+    const tombstone = snapshot.messages.find((message) => message.id === memberMessage.id)
+    expect(tombstone).toMatchObject({ deleted: true, body: "" })
+    expect(JSON.stringify(snapshot)).not.toContain("Member message")
+
+    const [stored] = await database.select().from(roomMessages).where(eq(roomMessages.id, memberMessage.id))
+    expect(stored.body).toBe("Member message")
+    expect(stored.deletedAt).not.toBeNull()
+    expect(await auditActions()).toEqual(["delete_message"])
+  })
+
+  it("removal ends the membership but allows rejoining; a ban blocks it", async () => {
+    const { host, member, room } = await seedModeratedRoom("moderate-room-03")
+    const firstMembership = await membershipOf(room.id, member.id)
+
+    const removal = await removeRoomMember(room.slug, host.id, firstMembership.id, roomDb())
+    expect(removal.removed).toBe(true)
+    expect(await activeMemberships(member.id)).toHaveLength(0)
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+    expect(await activeMemberships(member.id)).toHaveLength(1)
+
+    const rejoinedMembership = await membershipOf(room.id, member.id)
+    await banRoomMember(room.slug, host.id, rejoinedMembership.id, roomDb())
+    expect(await activeMemberships(member.id)).toHaveLength(0)
+    expect(await database.select().from(roomBans).where(eq(roomBans.userId, member.id))).toHaveLength(1)
+    await expect(joinRoomBySlug(room.slug, member.id, roomDb())).rejects.toThrow("ROOM_BANNED")
+    expect(await lookupRoomBySlug(room.slug, member.id, roomDb())).toEqual({ status: "banned", name: "Deep Work" })
+
+    // Banning again through a stale membership id stays idempotent.
+    await banRoomMember(room.slug, host.id, firstMembership.id, roomDb())
+    expect(await database.select().from(roomBans).where(eq(roomBans.userId, member.id))).toHaveLength(1)
+    expect(await auditActions()).toEqual(["remove_member", "ban_member", "ban_member"])
+  })
+
+  it("keeps the banned state consistent when a ban races a rejoin", async () => {
+    const { host, member, room } = await seedModeratedRoom("moderate-room-04")
+    await leaveRoom(room.slug, member.id, roomDb())
+    const staleMembership = await membershipOf(room.id, member.id)
+
+    const [banResult, joinResult] = await Promise.allSettled([
+      banRoomMember(room.slug, host.id, staleMembership.id, roomDb()),
+      joinRoomBySlug(room.slug, member.id, roomDb()),
+    ])
+    expect(banResult.status).toBe("fulfilled")
+    // Whichever side won the race, the member ends up banned and outside.
+    if (joinResult.status === "rejected") expect(String(joinResult.reason)).toContain("ROOM_BANNED")
+    expect(await activeMemberships(member.id)).toHaveLength(0)
+    expect(await database.select().from(roomBans).where(eq(roomBans.userId, member.id))).toHaveLength(1)
+    await expect(joinRoomBySlug(room.slug, member.id, roomDb())).rejects.toThrow("ROOM_BANNED")
+  })
+
+  it("records reviewer, timestamp, decision, and audit entries for admin review", async () => {
+    const { member, room, hostMessage } = await seedModeratedRoom("review-room-0001")
+    const admin = await seedUser("review-admin@example.com", "Admin", "admin")
+    await reportRoomMessage(room.slug, member.id, hostMessage.id, "Harassment", roomDb())
+    const [report] = await database.select().from(roomReports)
+
+    await applyPomoderAdminAction(admin.id, { type: "review_report", id: report.id, decision: "resolved" }, roomDb())
+    let [reviewed] = await database.select().from(roomReports)
+    expect(reviewed).toMatchObject({ status: "resolved", reviewedByUserId: admin.id })
+    expect(reviewed.reviewedAt).not.toBeNull()
+
+    await applyPomoderAdminAction(admin.id, { type: "review_report", id: report.id, decision: "dismissed" }, roomDb())
+    ;[reviewed] = await database.select().from(roomReports)
+    expect(reviewed.status).toBe("dismissed")
+
+    // Reopening returns the report to the pending queue with no reviewer.
+    await applyPomoderAdminAction(admin.id, { type: "review_report", id: report.id, decision: "pending" }, roomDb())
+    ;[reviewed] = await database.select().from(roomReports)
+    expect(reviewed).toMatchObject({ status: "pending", reviewedByUserId: null, reviewedAt: null })
+
+    await expect(applyPomoderAdminAction(admin.id, { type: "review_report", id: "00000000-0000-4000-8000-000000000000", decision: "resolved" }, roomDb())).rejects.toThrow("RECORD_NOT_FOUND")
+    expect(await auditActions()).toEqual(["resolve_report", "dismiss_report", "reopen_report"])
+  })
+
+  it("filters admin reports by status and keeps sanitized context after deletion", async () => {
+    const { host, member, room, hostMessage, memberMessage } = await seedModeratedRoom("review-room-0002")
+    const admin = await seedUser("filter-admin@example.com", "Admin", "admin")
+    await reportRoomMessage(room.slug, member.id, hostMessage.id, "Harassment", roomDb())
+    await reportRoomMessage(room.slug, host.id, memberMessage.id, "Spam", roomDb())
+    const spamReport = (await database.select().from(roomReports)).find((row) => row.reason === "Spam")
+    await applyPomoderAdminAction(admin.id, { type: "review_report", id: spamReport!.id, decision: "resolved" }, roomDb())
+    // Soft-deleting the reported message must not erase the admin context.
+    await deleteRoomMessage(room.slug, host.id, hostMessage.id, roomDb())
+
+    const load = { page: 1, pageSize: 25, sortColumn: 0, sortDirection: "asc", section: "reports" } as const
+    const pending = await loadPomoderAdminData({ ...load, reportStatus: "pending" }, roomDb())
+    expect(pending.pagination.total).toBe(1)
+    expect(pending.reports).toHaveLength(1)
+    expect(pending.reports[0]).toMatchObject({
+      roomName: "Deep Work",
+      reporterEmail: "review-room-0002-member@example.com",
+      messageBody: "Host message",
+      messageAuthorEmail: "review-room-0002-host@example.com",
+      reviewerEmail: null,
+    })
+    expect(pending.reports[0].messageDeletedAt).not.toBeNull()
+
+    const resolved = await loadPomoderAdminData({ ...load, reportStatus: "resolved" }, roomDb())
+    expect(resolved.pagination.total).toBe(1)
+    expect(resolved.reports[0]).toMatchObject({ messageBody: "Member message", reviewerEmail: "filter-admin@example.com" })
+
+    const all = await loadPomoderAdminData({ ...load, reportStatus: "all" }, roomDb())
+    expect(all.pagination.total).toBe(2)
   })
 })

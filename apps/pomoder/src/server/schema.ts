@@ -378,22 +378,42 @@ export const roomBans = pgTable(
   ]
 )
 
-export const roomReports = pgTable("room_reports", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  roomId: uuid("room_id")
-    .notNull()
-    .references(() => rooms.id, { onDelete: "cascade" }),
-  reporterUserId: varchar("reporter_user_id", { length: 36 })
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  messageId: uuid("message_id").references(() => roomMessages.id, {
-    onDelete: "set null",
-  }),
-  reason: varchar("reason", { length: 300 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-})
+export const roomReports = pgTable(
+  "room_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    reporterUserId: varchar("reporter_user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => users.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "room_reports_status_check",
+      sql`${table.status} in ('pending', 'resolved', 'dismissed')`
+    ),
+    uniqueIndex("room_reports_reporter_message_unique").on(
+      table.reporterUserId,
+      table.messageId
+    ),
+    index("room_reports_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
 
 export const mediaAssets = pgTable(
   "media_assets",

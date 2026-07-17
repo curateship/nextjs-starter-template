@@ -561,6 +561,9 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .reference-room-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .reference-room-card { display: flex; flex-direction: column; gap: 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 20px; background: #131318; padding: 12px 12px 22px; }
 .reference-room-card.locked { opacity: .75; }
+/* The .75 dim pushes the muted 12-13px labels below 4.5:1 — compensate. */
+.reference-room-card.locked .reference-room-members > span { color: #aaa8ae; }
+.reference-room-card.locked .reference-room-action > span { color: rgba(237,234,230,.8); }
 .room-vibe { position: relative; height: 108px; overflow: hidden; border-radius: 14px; background-size: 200% 200%; animation: pomoVibe 12s ease infinite; }
 .room-vibe::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg,transparent 45%,rgba(11,11,14,.55)); }
 .room-vibe.vibe-0 { background: linear-gradient(135deg,#55313b,#ff775e,#4b272e); }
@@ -871,6 +874,26 @@ button.pill-button { background: #ff5a3c; color: #0b0b0e; }
 .active-room-chat .chat-message time { color: #8a8894; }
 .chat-empty { color: #8a8894; font-size: 12.5px; }
 .chat-message.mine span { color: #edeae6; }
+/* Moderation affordances: per-message actions, tombstones, member menus */
+.chat-message-actions { display: inline-flex; flex: 0 0 auto; gap: 4px; margin-left: auto; opacity: 0; }
+.chat-message:hover .chat-message-actions, .chat-message:focus-within .chat-message-actions { opacity: 1; }
+@media (hover: none) { .chat-message-actions { opacity: 1; } }
+.chat-message-actions button { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 6px; background: transparent; padding: 0; color: #8a8894; }
+.chat-message-actions button:hover { background: rgba(255,255,255,.08); color: #edeae6; }
+.chat-message-actions button:disabled { cursor: not-allowed; opacity: .45; }
+.chat-message-actions svg { width: 13px; height: 13px; }
+.chat-tombstone { color: #8a8894; font-size: 12px; font-style: italic; }
+.member-menu-trigger { display: grid; width: 26px; height: 26px; margin-left: auto; place-items: center; border: 0; border-radius: 8px; background: transparent; padding: 0; color: #8a8894; }
+.member-menu-trigger:hover { background: rgba(255,255,255,.08); color: #edeae6; }
+.member-menu-trigger:disabled { cursor: not-allowed; opacity: .45; }
+.member-menu-trigger svg { width: 15px; height: 15px; }
+.report-dialog { max-width: min(480px, calc(100% - 2rem)); }
+.confirm-dialog { max-width: min(440px, calc(100% - 2rem)); }
+.confirm-dialog-actions { margin-top: 8px; }
+.report-form { display: grid; gap: 14px; }
+.report-form label { display: grid; gap: 6px; color: #8a8894; font-size: 12px; }
+.report-form textarea { min-height: 96px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(14,14,18,.55); padding: 10px 12px; color: #edeae6; font: inherit; font-size: 13.5px; resize: vertical; }
+.report-form-actions, .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 [data-slot="dialog-overlay"]:has(+ .host-room-dialog) { background: rgba(8,8,12,.45); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); }
 .host-room-dialog { max-width: min(560px, calc(100% - 2rem)); gap: 6px; border: 1px solid rgba(255,255,255,.14); border-radius: 22px; background: linear-gradient(160deg, rgba(32,32,40,.72), rgba(14,14,18,.8)); padding: 26px 26px 24px; color: #edeae6; box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(26px) saturate(1.35); -webkit-backdrop-filter: blur(26px) saturate(1.35); }
 .host-room-dialog-title { margin: 0; color: #edeae6; font-size: 21px; font-weight: 750; letter-spacing: -.01em; }

@@ -1,4 +1,5 @@
-import { asc, count, desc, eq, inArray } from "drizzle-orm"
+import { asc, count, desc, eq, inArray, type SQL } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import { db, type PomoderDb } from "@/server/db"
 import type {
@@ -14,6 +15,7 @@ import {
   generationUsage,
   mediaAssets,
   roomBans,
+  roomMessages,
   roomReports,
   rooms,
   sessions,
@@ -32,6 +34,9 @@ const defaultLoad: PomoderAdminLoad = {
   section: "users",
   page: 1,
   pageSize: 25,
+  sortColumn: 0,
+  sortDirection: "asc",
+  reportStatus: "all",
 }
 
 export async function loadPomoderAdminData(
@@ -90,11 +95,22 @@ export async function loadPomoderAdminData(
       generationUsage.id,
     ][query.sortColumn] ?? users.email
   )
+  const reportAuthors = alias(users, "report_message_authors")
+  const reportReviewers = alias(users, "report_reviewers")
   const reportOrder = direction(
-    [rooms.name, users.email, roomReports.reason, roomReports.id][
-      query.sortColumn
-    ] ?? rooms.name
+    [
+      rooms.name,
+      users.email,
+      roomReports.reason,
+      roomReports.status,
+      roomReports.reviewedAt,
+      roomReports.id,
+    ][query.sortColumn] ?? rooms.name
   )
+  const reportFilter =
+    query.reportStatus === "all"
+      ? undefined
+      : eq(roomReports.status, query.reportStatus)
   const [
     userRows,
     taskRows,
@@ -184,10 +200,23 @@ export async function loadPomoderAdminData(
             report: roomReports,
             roomName: rooms.name,
             reporterEmail: users.email,
+            // Sanitized message context for triage: the body survives member
+            // soft-deletes; both joins are null when the row is truly gone.
+            messageBody: roomMessages.body,
+            messageDeletedAt: roomMessages.deletedAt,
+            messageAuthorEmail: reportAuthors.email,
+            reviewerEmail: reportReviewers.email,
           })
           .from(roomReports)
           .innerJoin(rooms, eq(roomReports.roomId, rooms.id))
           .innerJoin(users, eq(roomReports.reporterUserId, users.id))
+          .leftJoin(roomMessages, eq(roomReports.messageId, roomMessages.id))
+          .leftJoin(reportAuthors, eq(roomMessages.userId, reportAuthors.id))
+          .leftJoin(
+            reportReviewers,
+            eq(roomReports.reviewedByUserId, reportReviewers.id)
+          )
+          .where(reportFilter)
           .orderBy(reportOrder, asc(roomReports.id))
           .limit(query.pageSize)
           .offset(offset)
@@ -209,7 +238,7 @@ export async function loadPomoderAdminData(
           .from(rooms)
           .orderBy(rooms.name)
       : Promise.resolve([]),
-    countResource(query.section, database),
+    countResource(query.section, database, reportFilter),
   ])
 
   return {
@@ -272,6 +301,33 @@ export async function applyPomoderAdminAction(
       await writeAuditLog(tx, actorId, "update", action.record.resource, [
         action.id,
       ])
+    })
+    return { ok: true }
+  }
+
+  if (action.type === "review_report") {
+    const timestamp = new Date()
+    // Reopening clears the reviewer so a pending report never carries a
+    // stale decision trail; the audit log keeps the full history.
+    const reopened = action.decision === "pending"
+    await database.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(roomReports)
+        .set({
+          status: action.decision,
+          reviewedByUserId: reopened ? null : actorId,
+          reviewedAt: reopened ? null : timestamp,
+        })
+        .where(eq(roomReports.id, action.id))
+        .returning({ id: roomReports.id })
+      if (!updated) throw new Error("RECORD_NOT_FOUND")
+      const auditAction =
+        action.decision === "resolved"
+          ? "resolve_report"
+          : action.decision === "dismissed"
+            ? "dismiss_report"
+            : "reopen_report"
+      await writeAuditLog(tx, actorId, auditAction, "reports", [action.id])
     })
     return { ok: true }
   }
@@ -654,8 +710,16 @@ async function writeAuditLog(
 
 async function countResource(
   resource: PomoderAdminResource,
-  database: PomoderDb
+  database: PomoderDb,
+  reportFilter?: SQL
 ) {
+  if (resource === "reports") {
+    const [row] = await database
+      .select({ value: count() })
+      .from(roomReports)
+      .where(reportFilter)
+    return row?.value ?? 0
+  }
   const table =
     resource === "users"
       ? users

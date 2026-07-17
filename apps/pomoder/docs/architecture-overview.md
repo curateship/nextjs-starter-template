@@ -19,6 +19,7 @@ PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus 
 - Only the host advances a room through the canonical phase sequence; every timed phase schedules exactly one sequence-guarded worker job, so stale jobs no-op.
 - Every fourth completed focus period earns the long break; a host who leaves or starts hosting elsewhere closes their room and ends all memberships.
 - Room SSE snapshots carry display names, roles, and chat only — never account fields; unlisted rooms resolve by direct slug but never appear in public listings.
+- Moderation is role-scoped per mutation: members report others' messages (deduplicated and rate limited), the host soft-deletes messages and removes or bans members (never themselves), and a ban ends the membership in the same transaction and blocks rejoining. Deleted chat tombstones withhold the body from members but keep it for admin review; report review state changes are admin-only and audited.
 - Leaderboard inclusion requires opt-in and a public display name.
 - Entitlements are calculated server-side from synchronized Stripe state.
 - AI credits are reserved transactionally and refunded on permanent failure.
