@@ -22,6 +22,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   TableCell,
   TableHead,
   TableHeader,
@@ -35,10 +42,15 @@ import {
   type AdminAction,
   type AdminData,
 } from "@/lib/api/admin"
-import type { PomoderAdminSection } from "@/server/admin-contract"
+import {
+  reportStatuses,
+  type PomoderAdminSection,
+  type PomoderReportStatus,
+} from "@/server/admin-contract"
 
 type Act = (key: string, action: AdminAction) => Promise<boolean>
 type Sort = { column: number; direction: TableSortDirection }
+type ReportStatusFilter = "all" | PomoderReportStatus
 
 export function PomoderAdminPage({
   section,
@@ -54,6 +66,8 @@ export function PomoderAdminPage({
     column: 0,
     direction: "asc",
   })
+  const [reportStatus, setReportStatus] =
+    React.useState<ReportStatusFilter>("all")
   const query = React.useMemo(
     () => ({
       section,
@@ -61,12 +75,13 @@ export function PomoderAdminPage({
       pageSize,
       sortColumn: sort.column,
       sortDirection: sort.direction,
+      reportStatus,
     }),
-    [section, page, pageSize, sort]
+    [section, page, pageSize, sort, reportStatus]
   )
 
   const refresh = React.useCallback(
-    async (isActive = () => true) => {
+    async (isActive: () => boolean = () => true) => {
       try {
         const result = await loadAdminData(query)
         if (!isActive()) return
@@ -144,6 +159,11 @@ export function PomoderAdminPage({
           busy={busy}
           act={act}
           sort={sort}
+          reportStatus={reportStatus}
+          onReportStatusChange={(status) => {
+            setPage(1)
+            setReportStatus(status)
+          }}
           onSort={(column) => {
             setPage(1)
             setSort((current) => ({
@@ -171,6 +191,8 @@ function AdminTable({
   busy,
   act,
   sort,
+  reportStatus,
+  onReportStatusChange,
   onSort,
   onPageChange,
   onPageSizeChange,
@@ -180,6 +202,8 @@ function AdminTable({
   busy: string
   act: Act
   sort: Sort
+  reportStatus: ReportStatusFilter
+  onReportStatusChange: (status: ReportStatusFilter) => void
   onSort: (column: number) => void
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
@@ -496,22 +520,113 @@ function AdminTable({
         {...tableProps}
         title="Moderation reports"
         count={data.pagination.total}
-        headers={["Room", "Reporter", "Reason", "Actions"]}
+        headers={["Room", "Reporter", "Report", "Status", "Reviewed", "Actions"]}
+        filters={
+          <Select
+            value={reportStatus}
+            onValueChange={(value) =>
+              onReportStatusChange(value as ReportStatusFilter)
+            }
+          >
+            <SelectTrigger className="w-36" aria-label="Filter by status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value="all">All statuses</SelectItem>
+              {reportStatuses.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {statusLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
       >
-        {data.reports.map(({ report, roomName, reporterEmail }) => (
-          <TableRow key={report.id}>
-            {selectCell(report.id)}
-            <TableCell column="main">{roomName}</TableCell>
-            <TableCell column="meta">{reporterEmail}</TableCell>
-            <TableCell column="meta">{report.reason}</TableCell>
-            <TableCell column="meta">
-              <ActionCell>
-                {editButton(report.id)}
-                {deleteButton(report.id)}
-              </ActionCell>
-            </TableCell>
-          </TableRow>
-        ))}
+        {data.reports.map(
+          ({
+            report,
+            roomName,
+            reporterEmail,
+            messageBody,
+            messageAuthorEmail,
+            reviewerEmail,
+          }) => (
+            <TableRow key={report.id}>
+              {selectCell(report.id)}
+              <TableCell column="main">{roomName}</TableCell>
+              <TableCell column="meta">{reporterEmail}</TableCell>
+              <TableCell column="main">
+                <PrimaryCell
+                  title={report.reason}
+                  detail={
+                    messageBody
+                      ? `“${messageBody}” — ${messageAuthorEmail ?? "unknown author"}`
+                      : "Reported message is no longer available"
+                  }
+                />
+              </TableCell>
+              <TableCell column="meta">{statusLabels[report.status as PomoderReportStatus] ?? report.status}</TableCell>
+              <TableCell column="meta">
+                {reviewerEmail && report.reviewedAt
+                  ? `${reviewerEmail} · ${new Date(report.reviewedAt).toLocaleDateString()}`
+                  : "—"}
+              </TableCell>
+              <TableCell column="meta">
+                <ActionCell>
+                  {report.status === "pending" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy === report.id}
+                        onClick={() =>
+                          void act(report.id, {
+                            type: "review_report",
+                            id: report.id,
+                            decision: "resolved",
+                          })
+                        }
+                      >
+                        Resolve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy === report.id}
+                        onClick={() =>
+                          void act(report.id, {
+                            type: "review_report",
+                            id: report.id,
+                            decision: "dismissed",
+                          })
+                        }
+                      >
+                        Dismiss
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === report.id}
+                      onClick={() =>
+                        void act(report.id, {
+                          type: "review_report",
+                          id: report.id,
+                          decision: "pending",
+                        })
+                      }
+                    >
+                      Reopen
+                    </Button>
+                  )}
+                  {editButton(report.id)}
+                  {deleteButton(report.id)}
+                </ActionCell>
+              </TableCell>
+            </TableRow>
+          )
+        )}
       </ManagementTable>
     )
   }
@@ -596,6 +711,7 @@ type ManagementTableProps = {
   onDeleteSelected: () => void
   onCreate: () => void
   addLabel: string
+  filters?: React.ReactNode
   pagination: AdminData["pagination"]
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
@@ -616,6 +732,7 @@ function ManagementTable({
   onDeleteSelected,
   onCreate,
   addLabel,
+  filters,
   pagination,
   onPageChange,
   onPageSizeChange,
@@ -639,6 +756,7 @@ function ManagementTable({
               Delete ({selectedIds.size})
             </DashboardToolbarButton>
           ) : null}
+          {filters}
           <DashboardToolbarButton type="button" onClick={onCreate}>
             <PlusIcon className="size-4" />
             Add {addLabel}
@@ -709,6 +827,12 @@ const sectionLabels: Record<PomoderAdminSection, string> = {
   billing: "Subscription",
   ai: "AI Usage",
   reports: "Report",
+}
+
+const statusLabels: Record<PomoderReportStatus, string> = {
+  pending: "Pending",
+  resolved: "Resolved",
+  dismissed: "Dismissed",
 }
 
 function getSectionIds(section: PomoderAdminSection, data: AdminData) {
