@@ -139,9 +139,9 @@ export function DashboardTable(props: DashboardTableProps) {
       </DashboardToolbar>
 
       {"content" in props ? (
-        <div className="min-h-72">{props.content}</div>
+        <div>{props.content}</div>
       ) : (
-        <ScrollArea className="min-h-72 w-full">
+        <ScrollArea className="w-full">
           <Table>
             {props.header}
             <TableBody>
