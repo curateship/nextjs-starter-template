@@ -117,6 +117,7 @@ const NOTIFICATION_ICONS: Record<HubNotificationType, typeof Bell> = {
   directory_claim: ShieldCheck,
   directory_owner_edit: ShieldCheck,
   directory_featured: ShoppingCart,
+  directory_featured_expired: TriangleAlert,
   newsletter_paused: TriangleAlert,
 }
 

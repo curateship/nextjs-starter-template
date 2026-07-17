@@ -12,6 +12,7 @@ export type SystemEmailTemplateKey =
   | 'product_email_modal_delivery'
   | 'paid_purchase_delivery'
   | 'pages_hero_email'
+  | 'featured_listing_renewal_reminder'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -59,6 +60,7 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'product_email_modal_delivery',
   'paid_purchase_delivery',
   'pages_hero_email',
+  'featured_listing_renewal_reminder',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -146,6 +148,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       subject: 'Welcome to {{site_name}}',
       bodyHtml: '<p>Thanks for subscribing to {{site_name}}.</p>{{pages_hero_content}}',
       tokens: ['{{pages_hero_content}}', '{{site_name}}', '{{site_url}}', '{{subscriber_email}}', '{{email_form_identifier}}'],
+    }
+  }
+
+  if (templateKey === 'featured_listing_renewal_reminder') {
+    return {
+      name: 'Featured Listing Renewal Reminder',
+      description: 'Sent to a listing owner before their paid Featured placement expires.',
+      scopeLabel: 'Current Site',
+      subject: 'Your featured placement for {{listing_name}} expires {{expires_at}}',
+      bodyHtml: '<p>Your featured placement for <strong>{{listing_name}}</strong> ({{plan_name}}) expires on <strong>{{expires_at}}</strong>.</p><p>Renew now to keep {{listing_name}} showing first with its Featured badge on {{site_name}}.</p><p><a href="{{renewal_url}}">Renew your featured placement</a></p>',
+      tokens: ['{{listing_name}}', '{{plan_name}}', '{{expires_at}}', '{{renewal_url}}', '{{site_name}}', '{{site_url}}'],
     }
   }
 
@@ -238,7 +251,7 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail] = await Promise.all([
+  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('email_change_confirmation'),
@@ -246,9 +259,10 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('product_email_modal_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
     getSystemEmailTemplate('pages_hero_email', siteId),
+    getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
   ])
 
-  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail].map((template) => {
+  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -342,6 +356,9 @@ export async function buildSystemEmailTokens(params: {
   subscriberEmail?: string | null
   emailFormIdentifier?: string | null
   pagesHeroContent?: string | null
+  listingName?: string | null
+  planName?: string | null
+  expiresAt?: string | null
 }) {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
@@ -360,6 +377,10 @@ export async function buildSystemEmailTokens(params: {
     subscriber_email: params.subscriberEmail || '',
     email_form_identifier: params.emailFormIdentifier || '',
     pages_hero_content: params.pagesHeroContent || '',
+    listing_name: params.listingName || '',
+    plan_name: params.planName || '',
+    expires_at: params.expiresAt || '',
+    renewal_url: '',
   }
 
   if (params.siteId) {
@@ -380,6 +401,8 @@ export async function buildSystemEmailTokens(params: {
         subdomain: site.subdomain,
         customDomain: site.customDomain,
       })
+      // Owners renew from the default account page, which hosts the claimed-listings block.
+      tokens.renewal_url = `${tokens.site_url}/account`
       if (!tokens.app_name) tokens.app_name = site.name
       if (params.productSlug) {
         tokens.product_url = `${tokens.site_url}/products/${params.productSlug}`

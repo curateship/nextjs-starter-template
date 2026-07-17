@@ -9,6 +9,7 @@ import { sites } from './sites'
 export const directoryFeaturedEntitlementStatusEnum = pgEnum('directory_featured_entitlement_status_enum', [
   'active',
   'revoked',
+  'expired',
 ])
 
 export const directoryFeaturedPlans = pgTable('directory_featured_plans', {
@@ -41,6 +42,8 @@ export const directoryFeaturedEntitlements = pgTable('directory_featured_entitle
   status: directoryFeaturedEntitlementStatusEnum('status').notNull().default('active'),
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  // Smallest reminder threshold (days) already emailed, so each threshold sends once.
+  reminderThresholdDays: integer('reminder_threshold_days'),
   revokedByUserId: text('revoked_by_user_id').references(() => authUsers.id, { onDelete: 'set null' }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   revokeNote: text('revoke_note'),
