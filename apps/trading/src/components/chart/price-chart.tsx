@@ -67,6 +67,7 @@ import {
   fairValueGapChartToModuleParams,
   indicatorColor,
   OSCILLATORS,
+  priceActionChartToModuleParams,
   qqeChartToModuleParams,
   trendlineChartToModuleParams,
   type IndicatorConfig,
@@ -2481,6 +2482,33 @@ export function PriceChart({
     })
   }, [indicators, candles])
 
+  // Price Action arrows: each detected pattern prints a long (up) or short
+  // (down) arrow at its candle — the same detector the Price Action strategy
+  // trades, computed through the same module.
+  const priceActionMarkers = React.useMemo<ChartMarker[]>(() => {
+    const cfg = indicators.find(
+      (ind) => ind.type === "priceAction" && ind.enabled
+    )
+    if (!cfg || candles.length === 0) return []
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.price_action.compute(
+      numeric,
+      priceActionChartToModuleParams(cfg.params) as never
+    )
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    return out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
+  }, [indicators, candles])
+
   // Fair Value Gap draws its imbalance boxes through the same zone pipeline as
   // QQE's chop zones. Per the "no signal arrows" rule its buy/sell aren't
   // painted here — the boxes are the visual.
@@ -2635,7 +2663,12 @@ export function PriceChart({
       loading={loading}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={[...markers, ...qqe.markers, ...emaCrossMarkers]}
+      markers={[
+        ...markers,
+        ...qqe.markers,
+        ...emaCrossMarkers,
+        ...priceActionMarkers,
+      ]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={[
         ...strategy.overlayLines,
