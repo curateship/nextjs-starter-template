@@ -217,7 +217,7 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/60">
+      <div className="min-h-screen bg-muted/60 dark:bg-background">
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
