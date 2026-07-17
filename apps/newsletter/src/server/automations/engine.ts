@@ -7,6 +7,7 @@ import {
 } from "@/lib/automations/compiled-config"
 import { nodeExecutors } from "@/server/automations/nodes"
 import type { ExecutorResult } from "@/server/automations/types"
+import { processDueBroadcasts } from "@/server/broadcasts/send"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   newsletterAutomationRuns,
@@ -78,7 +79,16 @@ export async function runTick(database: CustomShellDb = db) {
     }
   }
 
-  return { processed, failed }
+  // Broadcast sending shares the tick: claim due broadcasts the same way
+  // this loop claims runs, and deliver one batch per broadcast per pass.
+  const broadcasts = await processDueBroadcasts(database)
+
+  return {
+    processed,
+    failed,
+    broadcastsProcessed: broadcasts.processed,
+    broadcastsFailed: broadcasts.failed,
+  }
 }
 
 async function processRun(

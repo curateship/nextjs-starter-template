@@ -370,6 +370,80 @@ export const newsletterAutomationRunSteps = pgTable(
   ]
 )
 
+export const newsletterBroadcasts = pgTable(
+  "newsletter_broadcasts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    preheader: text("preheader").notNull().default(""),
+    fromName: varchar("from_name", { length: 255 }),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    renderedHtml: text("rendered_html"),
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    audienceFilter: jsonb("audience_filter")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    dripConfig: jsonb("drip_config")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    nextBatchAt: timestamp("next_batch_at", { withTimezone: true }),
+    batchesSent: integer("batches_sent").notNull().default(0),
+    pausedReason: text("paused_reason"),
+    totalRecipients: integer("total_recipients").notNull().default(0),
+    totalSent: integer("total_sent").notNull().default(0),
+    totalFailed: integer("total_failed").notNull().default(0),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "newsletter_broadcasts_status_check",
+      sql`${table.status} in ('draft', 'scheduled', 'sending', 'paused', 'sent')`
+    ),
+    index("ix_newsletter_broadcasts_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_newsletter_broadcasts_status_next_batch").on(
+      table.status,
+      table.nextBatchAt
+    ),
+  ]
+)
+
+export const newsletterBroadcastTemplates = pgTable(
+  "newsletter_broadcast_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_newsletter_broadcast_templates_workspace").on(table.workspaceId),
+    uniqueIndex("ux_newsletter_broadcast_templates_default")
+      .on(table.workspaceId)
+      .where(sql`${table.isDefault}`),
+  ]
+)
+
 export const newsletterDeliveries = pgTable(
   "newsletter_deliveries",
   {
@@ -379,6 +453,10 @@ export const newsletterDeliveries = pgTable(
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     runId: varchar("run_id", { length: 36 }).references(
       () => newsletterAutomationRuns.id,
+      { onDelete: "set null" }
+    ),
+    broadcastId: varchar("broadcast_id", { length: 36 }).references(
+      () => newsletterBroadcasts.id,
       { onDelete: "set null" }
     ),
     contactId: varchar("contact_id", { length: 36 })
@@ -401,6 +479,10 @@ export const newsletterDeliveries = pgTable(
       table.createdAt
     ),
     index("ix_newsletter_deliveries_contact").on(table.contactId),
+    index("ix_newsletter_deliveries_broadcast").on(table.broadcastId),
+    uniqueIndex("ux_newsletter_deliveries_broadcast_contact")
+      .on(table.broadcastId, table.contactId)
+      .where(sql`${table.broadcastId} is not null`),
   ]
 )
 
@@ -431,5 +513,8 @@ export type NewsletterAutomationRun =
 export type NewsletterAutomationRunStep =
   typeof newsletterAutomationRunSteps.$inferSelect
 export type NewsletterDelivery = typeof newsletterDeliveries.$inferSelect
+export type NewsletterBroadcast = typeof newsletterBroadcasts.$inferSelect
+export type NewsletterBroadcastTemplate =
+  typeof newsletterBroadcastTemplates.$inferSelect
 export type NewsletterEmailSettings =
   typeof newsletterEmailSettings.$inferSelect

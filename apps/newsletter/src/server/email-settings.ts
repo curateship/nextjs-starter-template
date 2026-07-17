@@ -72,7 +72,12 @@ export async function saveEmailSettings(
 export async function getSendableEmailConfig(
   workspaceId: string,
   database: CustomShellDb = db
-): Promise<{ apiKey: string; from: string } | null> {
+): Promise<{
+  apiKey: string
+  from: string
+  fromEmail: string
+  fromName: string | null
+} | null> {
   const settings = await getEmailSettings(workspaceId, database)
   if (!settings?.resendApiKeyEncrypted || !settings.fromEmail) return null
 
@@ -83,5 +88,10 @@ export async function getSendableEmailConfig(
     ? `${settings.fromName} <${settings.fromEmail}>`
     : settings.fromEmail
 
-  return { apiKey, from }
+  return {
+    apiKey,
+    from,
+    fromEmail: settings.fromEmail,
+    fromName: settings.fromName,
+  }
 }

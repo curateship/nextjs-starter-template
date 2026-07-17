@@ -407,6 +407,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       entries: [
         {
           type: "item",
+          id: "item-broadcasts",
+          label: "Broadcasts",
+          href: "/broadcasts",
+          icon: "send",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-automations",
           label: "Automations",
           href: "/automations",

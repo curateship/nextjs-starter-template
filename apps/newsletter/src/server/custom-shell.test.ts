@@ -166,6 +166,12 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
       {
         type: "item",
+        label: "Broadcasts",
+        href: "/broadcasts",
+        visible: true,
+      },
+      {
+        type: "item",
         label: "Automations",
         href: "/automations",
         visible: true,

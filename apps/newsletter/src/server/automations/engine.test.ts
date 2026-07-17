@@ -39,6 +39,7 @@ beforeEach(async () => {
     "0000_custom_shell_baseline.sql",
     "0003_custom_shell_workspaces.sql",
     "0004_newsletter_core.sql",
+    "0005_newsletter_broadcasts.sql",
   ]) {
     const migration = await readFile(
       new URL(`../../../drizzle/${file}`, import.meta.url),
@@ -273,7 +274,7 @@ describe("runTick", () => {
     await enrollContact(workspaceId, contact, "ai-trading", database)
 
     const result = await runTick(database)
-    expect(result).toEqual({ processed: 1, failed: 0 })
+    expect(result).toMatchObject({ processed: 1, failed: 0 })
 
     const [run] = await database.select().from(newsletterAutomationRuns)
     expect(run.status).toBe("completed")
@@ -410,7 +411,7 @@ describe("runTick", () => {
     expect(Math.abs(run.wakeAt.getTime() - expectedWake)).toBeLessThan(10_000)
 
     // Not due yet — a tick claims nothing.
-    expect(await runTick(database)).toEqual({ processed: 0, failed: 0 })
+    expect(await runTick(database)).toMatchObject({ processed: 0, failed: 0 })
 
     await backdateRuns()
     await runTick(database)
