@@ -13,9 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type {
-  AutomationNode,
-  AutomationValidationError,
+import {
+  automationIntervalRatio,
+  type AutomationInterval,
+  type AutomationNode,
+  type AutomationValidationError,
 } from "@/lib/automations/automation"
 import {
   automationNodeDescription,
@@ -33,6 +35,7 @@ export function AutomationInspector({
   errors,
   favorite,
   savingFavorite,
+  interval,
   onNodeChange,
   onToggleFavorite,
   onAddNode,
@@ -43,6 +46,8 @@ export function AutomationInspector({
   errors: AutomationValidationError[]
   favorite?: boolean
   savingFavorite?: boolean
+  /** The automation's own timeframe — enables the indicator Timeframe field. */
+  interval?: AutomationInterval
   onNodeChange: (node: AutomationNode) => void
   onToggleFavorite?: () => void
   onAddNode?: (node: AutomationNode) => void
@@ -110,7 +115,11 @@ export function AutomationInspector({
           ) : null}
 
           {selectedNode ? (
-            <NodeFields node={selectedNode} onChange={onNodeChange} />
+            <NodeFields
+              node={selectedNode}
+              interval={interval}
+              onChange={onNodeChange}
+            />
           ) : null}
 
           {selectedNode ? (
@@ -145,14 +154,21 @@ export function AutomationInspector({
 
 function NodeFields({
   node,
+  interval,
   onChange,
 }: {
   node: AutomationNode
+  interval?: AutomationInterval
   onChange: (node: AutomationNode) => void
 }) {
   const inspector = automationNodeInspector(node)
   if (inspector === "indicator" && node.kind === "indicator") {
     return <IndicatorFields node={node} onChange={onChange} />
+  }
+  if (inspector === "timeframe" && node.kind === "timeframe") {
+    return (
+      <TimeframeFields node={node} interval={interval} onChange={onChange} />
+    )
   }
   if (inspector === "action" && node.kind === "action") {
     return <ActionFields node={node} onChange={onChange} />
@@ -696,6 +712,77 @@ function LookbackFields({
   )
 }
 
+const ALL_INTERVALS: AutomationInterval[] = [
+  "1m",
+  "5m",
+  "15m",
+  "1h",
+  "4h",
+  "1d",
+]
+
+/**
+ * Settings for the Timeframe node: which higher timeframe the indicators
+ * feeding it evaluate on. Only strictly-higher clean multiples of the
+ * automation's interval are offered; the compiler enforces the rest (one
+ * higher timeframe per graph, no Look Back on the same wire).
+ */
+function TimeframeFields({
+  node,
+  interval,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "timeframe" }>
+  interval?: AutomationInterval
+  onChange: (node: AutomationNode) => void
+}) {
+  const higher = interval
+    ? ALL_INTERVALS.filter(
+        (candidate) => automationIntervalRatio(interval, candidate) !== null
+      )
+    : ALL_INTERVALS
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={`timeframe-${node.id}`} className="text-xs">
+        Higher timeframe
+      </Label>
+      {higher.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          No timeframe exists above the automation's {interval}. Lower the
+          automation's timeframe in Settings to use this node.
+        </p>
+      ) : (
+        <>
+          <Select
+            value={node.interval}
+            onValueChange={(value) =>
+              onChange({ ...node, interval: value as AutomationInterval })
+            }
+          >
+            <SelectTrigger id={`timeframe-${node.id}`} className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {higher.map((candidate) => (
+                <SelectItem key={candidate} value={candidate}>
+                  {candidate}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Every indicator feeding this node watches closed {node.interval}{" "}
+            candles instead of the bot's timeframe. Its opinion updates one
+            bot-timeframe candle after each {node.interval} candle closes —
+            never before. Wire it between an indicator's Trend output and the
+            entry indicator it should gate.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ProtectionNodeFields({
   node,
   onChange,
@@ -705,28 +792,92 @@ function ProtectionNodeFields({
 }) {
   const isTp = node.kind === "takeProfit"
   const max = isTp ? 1000 : 100
+  const trailing = node.kind === "stopLoss" && node.mode === "trailing"
   return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`protection-${node.id}`} className="text-xs">
-        {isTp ? "Take profit %" : "Stop loss %"}
-      </Label>
-      <Input
-        id={`protection-${node.id}`}
-        type="number"
-        min={0}
-        max={max}
-        step={0.1}
-        value={node.pct}
-        className="h-8 text-xs"
-        onChange={(event) =>
-          onChange({ ...node, pct: Number(event.target.value) })
-        }
-      />
-      <p className="text-[11px] text-muted-foreground">
-        {isTp
-          ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
-          : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
-      </p>
+    <div className="grid gap-3">
+      {node.kind === "stopLoss" ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`protection-mode-${node.id}`} className="text-xs">
+            Stop behavior
+          </Label>
+          <Select
+            value={node.mode ?? "fixed"}
+            onValueChange={(mode) =>
+              onChange({
+                ...node,
+                mode: mode === "trailing" ? "trailing" : "fixed",
+              })
+            }
+          >
+            <SelectTrigger
+              id={`protection-mode-${node.id}`}
+              className="h-8 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value="fixed">Fixed — stays at the entry</SelectItem>
+              <SelectItem value="trailing">
+                Trailing — follows the best price
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      <div className="grid gap-1.5">
+        <Label htmlFor={`protection-${node.id}`} className="text-xs">
+          {isTp ? "Take profit %" : trailing ? "Trail distance %" : "Stop loss %"}
+        </Label>
+        <Input
+          id={`protection-${node.id}`}
+          type="number"
+          min={0}
+          max={max}
+          step={0.1}
+          value={node.pct}
+          className="h-8 text-xs"
+          onChange={(event) =>
+            onChange({ ...node, pct: Number(event.target.value) })
+          }
+        />
+        <p className="text-[11px] text-muted-foreground">
+          {isTp
+            ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
+            : trailing
+              ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
+              : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
+        </p>
+      </div>
+      {trailing ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`protection-activation-${node.id}`} className="text-xs">
+            Start trailing after +% (optional)
+          </Label>
+          <Input
+            id={`protection-activation-${node.id}`}
+            type="number"
+            min={0}
+            max={1000}
+            step={0.1}
+            value={node.activationPct ?? ""}
+            placeholder="0 — trail right away"
+            className="h-8 text-xs"
+            onChange={(event) =>
+              onChange({
+                ...node,
+                activationPct:
+                  event.target.value === ""
+                    ? undefined
+                    : Number(event.target.value),
+              })
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Wait until the trade is up this much before the stop starts to
+            follow. Until then it waits at the fixed distance below the entry.
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }

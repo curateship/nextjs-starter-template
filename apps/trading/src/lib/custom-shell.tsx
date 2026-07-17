@@ -5,6 +5,7 @@ import {
 } from "lucide-react/dynamic"
 
 import { DEFAULT_MAX_CANDLES } from "@/lib/backtest/types"
+import { DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT } from "@/lib/trading/liquidation-risk"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -259,6 +260,12 @@ export type ShellConfig = {
   /** Route the /admin URL loads; empty = the default overview at the home route. */
   adminRoute: string
   orderConfirmation: boolean
+  /**
+   * Alert when a position's distance to liquidation drops to this percent of
+   * mark price. 0 turns the alert off. Evaluated by the bot worker's
+   * snapshot poller once a minute.
+   */
+  liquidationAlertThresholdPct: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -304,6 +311,7 @@ export function createDefaultShellConfig(): ShellConfig {
     maxCandles: DEFAULT_MAX_CANDLES,
     adminRoute: "",
     orderConfirmation: true,
+    liquidationAlertThresholdPct: DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

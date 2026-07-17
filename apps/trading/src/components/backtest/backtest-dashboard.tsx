@@ -50,6 +50,7 @@ import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { BacktestHeader } from "./backtest-header"
 import {
   buildRunMarkers,
+  buildTrailingStopOverlays,
   type StrategyChartOverlays,
 } from "./backtest-overlays"
 import { BacktestSummary } from "./backtest-summary"
@@ -464,9 +465,23 @@ export function BacktestDashboard({
     return configOverlays(runConfig, candles)
   }, [runConfig, candles])
 
+  // A trailing-stop run paints its per-trade stop path (dashed red) so the
+  // ratchet is visible. Only meaningful on the run's own candles.
+  const trailingStopLines = React.useMemo(
+    () =>
+      result && runConfig && runMatchesConfig && candles.length
+        ? buildTrailingStopOverlays(runConfig.protection, result, candles)
+        : [],
+    [result, runConfig, runMatchesConfig, candles]
+  )
+  const chartOverlayLines = React.useMemo(
+    () => [...overlays.overlayLines, ...trailingStopLines],
+    [overlays.overlayLines, trailingStopLines]
+  )
+
   // Legend chips only for named lines (channels, bands). Unlabeled marks like
   // the 100s of swing pivots would otherwise flood the toolbar with dashes.
-  const labeledOverlayLines = overlays.overlayLines.filter((line) => line.label)
+  const labeledOverlayLines = chartOverlayLines.filter((line) => line.label)
 
   // Open/close chips for the run's real fills. They need only fill times and
   // prices, so they stay correct at any display timeframe.
@@ -599,7 +614,7 @@ export function BacktestDashboard({
                     loading={chartLoading}
                     dataKey={chartReq?.key ?? "pending"}
                     indicators={overlays.indicators}
-                    overlayLines={overlays.overlayLines}
+                    overlayLines={chartOverlayLines}
                     priceLines={overlays.priceLines}
                     zones={overlays.zones}
                     barColors={overlays.barColors}

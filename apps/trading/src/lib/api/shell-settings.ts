@@ -14,6 +14,11 @@ import {
   MAX_CANDLES_LIMIT,
   MIN_CANDLES,
 } from "@/lib/backtest/types"
+import {
+  clampLiquidationAlertThreshold,
+  DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
+  MAX_LIQUIDATION_ALERT_THRESHOLD_PCT,
+} from "@/lib/trading/liquidation-risk"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
@@ -68,6 +73,13 @@ const shellConfigSchema = z.object({
     .catch(MAX_CANDLES_LIMIT),
   adminRoute: z.string().catch(""),
   orderConfirmation: z.boolean(),
+  // Lenient: settings saved before the liquidation alert existed fall back
+  // to the default instead of failing to parse.
+  liquidationAlertThresholdPct: z
+    .number()
+    .min(0)
+    .max(MAX_LIQUIDATION_ALERT_THRESHOLD_PCT)
+    .catch(DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -283,6 +295,9 @@ export function parseShellGlobals(value: unknown) {
         ? settings.adminRoute
         : fallback.adminRoute,
     orderConfirmation: requireOrderConfirmation(settings.orderConfirmation),
+    liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
+      settings.liquidationAlertThresholdPct
+    ),
   }
 }
 
@@ -302,5 +317,8 @@ function pickShellGlobals(settings: ShellConfig) {
     maxCandles: clampMaxCandles(settings.maxCandles),
     adminRoute: settings.adminRoute,
     orderConfirmation: settings.orderConfirmation,
+    liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
+      settings.liquidationAlertThresholdPct
+    ),
   }
 }

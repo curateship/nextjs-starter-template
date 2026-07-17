@@ -42,6 +42,26 @@ The page shows online state, leader or standby role, heartbeat, uptime, current
 activity, workload counts, and safe error summaries. It never returns keys,
 secrets, private network details, or order payloads.
 
+## Liquidation-risk alerts
+
+The Bot Worker's snapshot poller already fetches every active wallet's account
+state from the exchange once a minute (that data feeds the equity curves).
+The same fresh data now powers a liquidation warning: if any position's
+distance to its forced-liquidation price drops to the threshold saved in
+**Settings → Trading → Liquidation warning** (percent of current price,
+0 = off, default 10%), the poller files a "close to liquidation" notice in
+the notification bell.
+
+A position hovering at the threshold alerts at most once every 30 minutes.
+The database also dedupes by a time-bucketed event key, so a worker restart
+cannot double-alert inside the same window. The distance itself is visible in
+two places without waiting for an alert: the trade workspace's positions
+table has a color-graded "Liq. distance" column, and the Wallets page has a
+"Margin health" card showing each wallet's margin usage, withdrawable
+balance, and its riskiest position's distance. Positions the exchange reports
+with no liquidation price (and flat wallets) show an em-dash instead of a
+made-up number.
+
 ## Worker-down watchdog
 
 Every worker also keeps an eye on the other four. Once a minute-ish (every 30

@@ -66,6 +66,288 @@ describe("Automation through the real backtest runner", () => {
     expect(result.stats.fees).toBeGreaterThan(0)
   })
 
+  it("a trailing stop exits at the exact ratcheted level, above the fixed stop", () => {
+    const trailingConfig: AutomationConfig = {
+      ...config,
+      protection: { long: { stopLossPct: 5, stopLossMode: "trailing" } },
+    }
+    // Entry near 13, bar 4 ratchets the high-water mark to 14.5, bar 5 pulls
+    // back through 14.5 · 0.95 = 13.775 — the honest intrabar pause price.
+    const history: HistoryCandle[] = [
+      ...candles,
+      {
+        t: STEP * 5,
+        T: STEP * 6 - 1,
+        o: 14,
+        h: 14.2,
+        l: 13.2,
+        c: 13.4,
+        v: 1,
+        n: 1,
+      },
+    ]
+    const result = run(trailingConfig, history)
+    const entry = result.fills.find(
+      (fill) => fill.purpose === "auto:target-entry"
+    )
+    const exit = result.fills.find((fill) => fill.purpose === "auto:close")
+
+    expect(entry).toBeDefined()
+    expect(exit).toBeDefined()
+    expect(exit!.px).toBeCloseTo(14.5 * 0.95, 8)
+    // The ratchet locked in profit far above the entry-based fixed stop.
+    expect(exit!.px).toBeGreaterThan(entry!.px * 0.95)
+  })
+
+  it("an unmet activation threshold keeps the trailing stop at the fixed level", () => {
+    const gatedConfig: AutomationConfig = {
+      ...config,
+      protection: {
+        long: {
+          stopLossPct: 5,
+          stopLossMode: "trailing",
+          trailActivationPct: 20,
+        },
+      },
+    }
+    // Same tape as above: the best move (~11.5% from entry) never reaches
+    // +20%, so the stop stays at entry · 0.95 and the pullback cannot hit it.
+    const history: HistoryCandle[] = [
+      ...candles,
+      {
+        t: STEP * 5,
+        T: STEP * 6 - 1,
+        o: 14,
+        h: 14.2,
+        l: 13.2,
+        c: 13.4,
+        v: 1,
+        n: 1,
+      },
+    ]
+    const result = run(gatedConfig, history)
+    expect(
+      result.fills.find((fill) => fill.purpose === "auto:close")
+    ).toBeUndefined()
+  })
+
+  it("gates entries with a higher-timeframe filter, without lookahead", () => {
+    const H1 = 3_600_000
+    const htfConfig: AutomationConfig = {
+      ...config,
+      protection: {},
+      rules: [
+        {
+          id: "buy",
+          action: "buy",
+          targetEquityPct: 25,
+          condition: {
+            kind: "trigger",
+            nodeId: "entry",
+            indicator: { type: "breakout", params: { lookback: 3 } },
+            side: "buy",
+            filters: [
+              {
+                nodeId: "gate",
+                indicator: { type: "breakout", params: { lookback: 3 } },
+                interval: "1h",
+              },
+            ],
+          },
+        },
+      ],
+    }
+    // Strictly rising 15m closes: the entry breakout fires on every bar ≥ 3.
+    const base: HistoryCandle[] = Array.from({ length: 40 }, (_, i) => ({
+      t: i * STEP,
+      T: (i + 1) * STEP - 1,
+      o: 100 + i,
+      h: 100 + i,
+      l: 100 + i,
+      c: 100 + i,
+      v: 1,
+      n: 1,
+    }))
+    // Flat 1h candles until candle 6 breaks out (opens 6h, closes 7h). The
+    // series deliberately includes candles beyond the base window — the
+    // runner must never surface one before its close.
+    const htf: HistoryCandle[] = Array.from({ length: 10 }, (_, k) => {
+      const value = k < 6 ? 50 : 60
+      return {
+        t: k * H1,
+        T: (k + 1) * H1 - 1,
+        o: value,
+        h: value,
+        l: value,
+        c: value,
+        v: 1,
+        n: 1,
+      }
+    })
+
+    const strategy = resolveStrategy(htfConfig)
+    if (!strategy) throw new Error("Automation strategy did not resolve")
+    const result = runBacktest({
+      strategy,
+      params: htfConfig,
+      candles: base,
+      simStartMs: 0,
+      startingEquity: 10_000,
+      market: "TEST",
+      interval: "15m",
+      costs: DEFAULT_BACKTEST_COSTS,
+      htfCandles: { interval: "1h", candles: htf },
+    })
+
+    const entry = result.fills.find(
+      (fill) => fill.purpose === "auto:target-entry"
+    )
+    expect(entry).toBeDefined()
+    // The 1h breakout closes at 7h; the first gated base bar OPENS at 7h
+    // (bar 28) and fills at that bar's close price, 128 — one bar earlier
+    // would mean the engine saw the 1h candle before it closed.
+    expect(entry!.px).toBe(128)
+  })
+
+  it("live candle path gates on the same bar as the backtest (HTF parity)", () => {
+    const H1 = 3_600_000
+    const htfConfig: AutomationConfig = {
+      ...config,
+      protection: {},
+      rules: [
+        {
+          id: "buy",
+          action: "buy",
+          targetEquityPct: 25,
+          condition: {
+            kind: "trigger",
+            nodeId: "entry",
+            indicator: { type: "breakout", params: { lookback: 3 } },
+            side: "buy",
+            filters: [
+              {
+                nodeId: "gate",
+                indicator: { type: "breakout", params: { lookback: 3 } },
+                interval: "1h",
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const strategy = resolveStrategy(htfConfig)
+    if (!strategy?.onCandleClose) throw new Error("Strategy did not resolve")
+    expect(strategy.warmup(htfConfig as never).candleIntervals).toEqual([
+      "15m",
+      "1h",
+    ])
+
+    const baseWs = Array.from({ length: 40 }, (_, i) => ({
+      t: i * STEP,
+      T: (i + 1) * STEP - 1,
+      s: "TEST",
+      i: "15m",
+      o: String(100 + i),
+      h: String(100 + i),
+      l: String(100 + i),
+      c: String(100 + i),
+      v: "1",
+      n: 1,
+    }))
+    const htfWs = Array.from({ length: 10 }, (_, k) => {
+      const value = String(k < 6 ? 50 : 60)
+      return {
+        t: k * H1,
+        T: (k + 1) * H1 - 1,
+        s: "TEST",
+        i: "1h",
+        o: value,
+        h: value,
+        l: value,
+        c: value,
+        v: "1",
+        n: 1,
+      }
+    })
+
+    // Drive the LIVE candle-close path bar by bar, the hub serving whatever
+    // exists at each moment (the strategy clips to closed candles itself).
+    let state = strategy.init(htfConfig as never)
+    const actionBars: number[] = []
+    for (let barIndex = 3; barIndex < 40; barIndex += 1) {
+      const now = (barIndex + 1) * STEP - 1
+      const ctx = {
+        market: "TEST",
+        mid: String(100 + barIndex),
+        candles: (interval: string, n: number) => {
+          const source = interval === "1h" ? htfWs : baseWs
+          const visible = source.filter((candle) => candle.t <= now)
+          return visible.slice(Math.max(0, visible.length - n), visible.length)
+        },
+        position: null,
+        equity: "10000",
+        startingEquity: "10000",
+        get state() {
+          return state
+        },
+        setState: (next: typeof state) => {
+          state = next
+        },
+        emit: () => {},
+        now,
+      }
+      strategy.onCandleClose(ctx as never, htfConfig as never, undefined as never)
+      if ((state as { pendingAction: unknown }).pendingAction) {
+        actionBars.push(barIndex)
+        break
+      }
+    }
+    // Same bar the backtest entered on: the first 15m candle opening at the
+    // 1h close (bar 28). Live and simulated evaluation agree exactly.
+    expect(actionBars).toEqual([28])
+  })
+
+  it("live tick path exits a trailing stop at the same price as the backtest", () => {
+    const trailingConfig: AutomationConfig = {
+      ...config,
+      protection: { long: { stopLossPct: 5, stopLossMode: "trailing" } },
+    }
+    const strategy = resolveStrategy(trailingConfig)
+    if (!strategy?.onTick) throw new Error("Automation strategy did not resolve")
+
+    let state = strategy.init()
+    const exits: number[] = []
+    let mid = "13"
+    const ctx = {
+      market: "TEST",
+      get mid() {
+        return mid
+      },
+      candles: () => [],
+      position: { szi: "1", entryPx: "13" },
+      equity: "10000",
+      startingEquity: "10000",
+      get state() {
+        return state
+      },
+      setState: (next: typeof state) => {
+        state = next
+      },
+      emit: (type: string) => {
+        if (type === "exit") exits.push(Number(mid))
+      },
+      now: 0,
+    }
+
+    // The same price path the backtest's intrabar walk visits for bars 4–5:
+    // open, low, high, close, next open, then the ratcheted stop level.
+    for (const px of [13, 12.9, 14.5, 14, 14, 14.5 * 0.95]) {
+      mid = String(px)
+      strategy.onTick(ctx as never, undefined as never)
+    }
+    expect(exits).toEqual([14.5 * 0.95])
+  })
+
   it("exits at the exact stop-loss trigger", () => {
     const stopHistory = [
       ...candles.slice(0, 4),

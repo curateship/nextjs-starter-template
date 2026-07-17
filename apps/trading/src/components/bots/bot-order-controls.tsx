@@ -32,6 +32,7 @@ export function BotOrderControls({
   busy,
   error,
   mid,
+  trailingStop,
   state,
   stats,
   openOrders,
@@ -45,6 +46,8 @@ export function BotOrderControls({
   busy: boolean
   error: string | null
   mid: number
+  /** The active side's stop is trailing — the % edited is the trail distance. */
+  trailingStop?: boolean
   state: BotMarketState | null
   stats: BotDetailResponse["stats"]
   openOrders: BotDetailResponse["open_orders"]
@@ -181,7 +184,9 @@ export function BotOrderControls({
                 )}
                 {pctInput(
                   "stopLossPct",
-                  "Stop loss % (empty = none)",
+                  trailingStop
+                    ? "Trailing stop distance % (empty = none)"
+                    : "Stop loss % (empty = none)",
                   targetHint("stopLossPct", !long)
                 )}
                 {error ? (

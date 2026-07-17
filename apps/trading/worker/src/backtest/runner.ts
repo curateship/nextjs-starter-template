@@ -39,6 +39,12 @@ export type RunBacktestConfig = {
   costs: BacktestCosts
   /** Shared only by synchronized QFL basket runs. */
   qflPortfolio?: QflPortfolioControl
+  /**
+   * The automation's higher-timeframe series (ascending, with its own
+   * warmup). Served through ctx.candles(interval) with a strict
+   * closed-before-now cursor so the strategy can never see a future candle.
+   */
+  htfCandles?: { interval: CandleInterval; candles: HistoryCandle[] }
 }
 
 type PendingFill = { fill: BrokerFill; purpose: string; cloid: string }
@@ -100,6 +106,9 @@ class BacktestRunner {
   private price = 0
   private currentIndex = 0
   private cloidSeq = 0
+  private htfInterval: CandleInterval | null = null
+  private htfCandlesWs: CandleWsEvent[] = []
+  private htfCursor = 0
 
   constructor(cfg: RunBacktestConfig) {
     this.strategy = cfg.strategy
@@ -117,6 +126,20 @@ class BacktestRunner {
       T: c.T,
       s: cfg.market,
       i: cfg.interval,
+      o: String(c.o),
+      c: String(c.c),
+      h: String(c.h),
+      l: String(c.l),
+      v: String(c.v),
+      n: c.n,
+    }))
+
+    this.htfInterval = cfg.htfCandles?.interval ?? null
+    this.htfCandlesWs = (cfg.htfCandles?.candles ?? []).map((c) => ({
+      t: c.t,
+      T: c.T,
+      s: cfg.market,
+      i: cfg.htfCandles!.interval,
       o: String(c.o),
       c: String(c.c),
       h: String(c.h),
@@ -543,7 +566,10 @@ class BacktestRunner {
     return {
       market: this.market,
       mid: String(this.price),
-      candles: (_interval, n) => this.windowCandles(n),
+      candles: (interval, n) =>
+        this.htfInterval !== null && interval === this.htfInterval
+          ? this.htfWindowCandles(n)
+          : this.windowCandles(n),
       position: this.broker.positionState(),
       equity: String(this.qflPortfolio?.equity?.(localEquity) ?? localEquity),
       startingEquity: String(this.startingEquity),
@@ -561,6 +587,22 @@ class BacktestRunner {
     const end = this.currentIndex + 1
     const start = Math.max(0, end - n)
     return this.candlesWs.slice(start, end)
+  }
+
+  /**
+   * Higher-timeframe candles closed at or before the sim clock. `now` only
+   * moves forward, so a monotone cursor keeps this O(1) per call — and the
+   * strategy can never be handed a candle from its own future.
+   */
+  private htfWindowCandles(n: number): CandleWsEvent[] {
+    while (
+      this.htfCursor < this.htfCandlesWs.length &&
+      this.htfCandlesWs[this.htfCursor].T <= this.now
+    ) {
+      this.htfCursor += 1
+    }
+    const start = Math.max(0, this.htfCursor - n)
+    return this.htfCandlesWs.slice(start, this.htfCursor)
   }
 }
 

@@ -314,7 +314,7 @@ export const tradingNotifications = pgTable(
   (table) => [
     check(
       "trading_notifications_kind_check",
-      sql`${table.kind} in ('position_opened', 'take_profit', 'stop_loss')`
+      sql`${table.kind} in ('position_opened', 'take_profit', 'stop_loss', 'liquidation_risk')`
     ),
     check(
       "trading_notifications_side_check",

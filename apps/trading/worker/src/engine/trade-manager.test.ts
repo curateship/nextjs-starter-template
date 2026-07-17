@@ -42,4 +42,35 @@ describe("exitLevels / tickExit — the one TP/SL implementation", () => {
     expect(tickExit(s, position(-1), FLAT_STATE, 102)).toBe("sl")
     expect(tickExit(s, position(-1), FLAT_STATE, 100)).toBeNull()
   })
+
+  it("a trailing stop's level follows the ratcheted extreme", () => {
+    const s: ProtectionSettings = {
+      takeProfitPct: 10,
+      stopLossPct: 2,
+      stopLossMode: "trailing",
+    }
+    const ratcheted = {
+      exitRequested: false,
+      trail: { dir: 1 as const, extremePx: 105 },
+    }
+    // TP stays entry-based; the stop moved up to 105 · 0.98 = 102.9.
+    const levels = exitLevels(s, position(1), ratcheted)
+    expect(levels[0]).toBeCloseTo(110, 10)
+    expect(levels[1]).toBeCloseTo(102.9, 10)
+    expect(tickExit(s, position(1), ratcheted, 102.89)).toBe("sl")
+    expect(tickExit(s, position(1), ratcheted, 102.95)).toBeNull()
+    // Without a ratchet yet the trailing stop sits at the fixed distance.
+    expect(exitLevels(s, position(1), FLAT_STATE)[1]).toBe(98)
+    expect(tickExit(s, position(1), FLAT_STATE, 98)).toBe("sl")
+  })
+
+  it("fixed-mode behavior is untouched by a stray trail state", () => {
+    const s: ProtectionSettings = { takeProfitPct: 5, stopLossPct: 2 }
+    const withTrail = {
+      exitRequested: false,
+      trail: { dir: 1 as const, extremePx: 200 },
+    }
+    expect(exitLevels(s, position(1), withTrail)).toEqual([105, 98])
+    expect(tickExit(s, position(1), withTrail, 98)).toBe("sl")
+  })
 })

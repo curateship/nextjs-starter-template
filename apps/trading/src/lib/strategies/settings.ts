@@ -9,4 +9,16 @@ export type ProtectionSettings = {
   takeProfitPct?: number
   /** Optional hard stop-loss, percent from entry. */
   stopLossPct?: number
+  /**
+   * How the stop behaves. Absent or "fixed": stays `stopLossPct` from entry
+   * (today's behavior). "trailing": follows the best price seen since entry at
+   * `stopLossPct` distance, only ever moving in the trade's favor.
+   */
+  stopLossMode?: "fixed" | "trailing"
+  /**
+   * Trailing only: start following the best price after it has moved this
+   * percent in the trade's favor. Unset or 0 trails immediately. Until
+   * activation the stop waits at the fixed entry distance.
+   */
+  trailActivationPct?: number
 }

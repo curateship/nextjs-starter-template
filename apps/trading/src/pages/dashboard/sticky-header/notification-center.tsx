@@ -14,6 +14,7 @@ import {
   ShieldAlertIcon,
   TargetIcon,
   ThumbsUpIcon,
+  TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -246,6 +247,12 @@ function tradingVisual(item: TradingNotificationItem) {
         className: "bg-red-100 text-red-800",
         title: `${item.coin} stop loss filled`,
       }
+    case "liquidation_risk":
+      return {
+        Icon: TriangleAlertIcon,
+        className: "bg-amber-100 text-amber-800",
+        title: `${item.coin} ${item.side} close to liquidation`,
+      }
   }
 }
 
@@ -265,7 +272,9 @@ function TradingRow({ item }: { item: TradingNotificationItem }) {
           {visual.title}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {item.size} {item.coin} at ${Number(item.price).toLocaleString()}
+          {item.kind === "liquidation_risk"
+            ? `${item.size} ${item.coin} — liquidates near $${Number(item.price).toLocaleString()}`
+            : `${item.size} ${item.coin} at $${Number(item.price).toLocaleString()}`}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">

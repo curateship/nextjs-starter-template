@@ -7,6 +7,8 @@ import type {
 } from "@/components/chart/price-chart"
 import { CHIP_COLORS } from "@/components/chart/trade-chips"
 import type { BacktestResult } from "@/lib/backtest/types"
+import type { AutomationProtection } from "@/lib/automations/automation"
+import { trailingStopPath } from "@/lib/strategies/trailing-stop"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 
 export type StrategyChartOverlays = {
@@ -96,4 +98,75 @@ export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
     }
   }
   return markers
+}
+
+/**
+ * Dashed red stop-path segments for a run that used a trailing stop — one
+ * line per trade so the ratchet is visible bar by bar. Fixed-stop and no-stop
+ * runs return nothing. The per-bar levels come from the same shared math the
+ * engine's exits use.
+ */
+export function buildTrailingStopOverlays(
+  protection: AutomationProtection | undefined,
+  result: BacktestResult,
+  candles: { t: number; h: string | number; l: string | number }[]
+): ChartOverlayLine[] {
+  if (
+    !protection ||
+    (protection.long?.stopLossMode !== "trailing" &&
+      protection.short?.stopLossMode !== "trailing")
+  ) {
+    return []
+  }
+  const bars = candles.map((candle) => ({
+    t: candle.t,
+    h: Number(candle.h),
+    l: Number(candle.l),
+  }))
+  const lines: ChartOverlayLine[] = []
+  const segments = [
+    ...result.trades.map((trade) => ({
+      side: trade.side,
+      entryPx: trade.entryPx,
+      from: trade.entryTime,
+      to: trade.exitTime,
+    })),
+    ...(result.openPosition
+      ? [
+          {
+            side: result.openPosition.side,
+            entryPx: result.openPosition.entryPx,
+            from: result.openPosition.entryTime,
+            to: Number.POSITIVE_INFINITY,
+          },
+        ]
+      : []),
+  ]
+  for (const [index, segment] of segments.entries()) {
+    const settings =
+      segment.side === "long" ? protection.long : protection.short
+    if (!settings?.stopLossPct || settings.stopLossMode !== "trailing") {
+      continue
+    }
+    const window = bars.filter(
+      (bar) => bar.t >= segment.from && bar.t <= segment.to
+    )
+    const points = trailingStopPath(
+      settings,
+      segment.side,
+      segment.entryPx,
+      window
+    )
+    if (points.length > 0) {
+      lines.push({
+        id: `trailing-stop-${index}`,
+        // Label only the first segment so the chart legend shows one chip.
+        label: index === 0 ? "Trailing stop" : "",
+        color: "#f23645",
+        dashed: true,
+        points,
+      })
+    }
+  }
+  return lines
 }

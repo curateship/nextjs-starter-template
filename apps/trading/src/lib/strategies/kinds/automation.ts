@@ -1,4 +1,7 @@
 import {
+  AUTOMATION_MAX_WINDOW_BARS,
+  automationHtfInterval,
+  automationIntervalRatio,
   type AutomationCondition,
   type AutomationConfig,
 } from "@/lib/automations/automation"
@@ -35,10 +38,45 @@ export function automationWarmupBars(config: AutomationConfig) {
       bars(trigger.indicator),
       // A Look Back filter must SEE a signal up to maxAgeBars old, so its
       // indicator needs its own warmup that far back in the window.
-      ...(trigger.filters ?? []).map((filter) =>
-        bars(filter.indicator, filter.maxAgeBars ?? 0)
-      ),
+      // Higher-timeframe filters warm up on their OWN series (see
+      // automationHtfWindowBars), not the base window.
+      ...(trigger.filters ?? [])
+        .filter((filter) => !filter.interval)
+        .map((filter) => bars(filter.indicator, filter.maxAgeBars ?? 0)),
     ])
+  )
+}
+
+/**
+ * Bars of the automation's higher timeframe the engine must hold: the HTF
+ * indicators' warmup plus enough HTF bars to cover the base evaluation
+ * window, so every base bar has an HTF opinion. 0 when no HTF filter exists.
+ */
+export function automationHtfWindowBars(config: AutomationConfig): number {
+  const htf = automationHtfInterval(config)
+  if (!htf) return 0
+  const ratio = automationIntervalRatio(config.interval, htf)
+  if (!ratio) return 0
+  const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
+  const warmup = Math.max(
+    0,
+    ...triggers.flatMap((trigger) =>
+      (trigger.filters ?? [])
+        .filter((filter) => filter.interval === htf)
+        .map((filter) =>
+          INDICATORS[filter.indicator.type].warmupBars(
+            filter.indicator.params as never
+          )
+        )
+    )
+  )
+  const baseWindow = Math.min(
+    automationWarmupBars(config),
+    AUTOMATION_MAX_WINDOW_BARS
+  )
+  return Math.min(
+    AUTOMATION_MAX_WINDOW_BARS,
+    warmup + Math.ceil(baseWindow / ratio) + 5
   )
 }
 
@@ -57,7 +95,13 @@ export function automationSummary(config: AutomationConfig): string {
     const levels = config.protection[side]
     const tag = side === "long" ? "Long" : "Short"
     if (levels?.takeProfitPct) parts.push(`${tag} TP ${levels.takeProfitPct}%`)
-    if (levels?.stopLossPct) parts.push(`${tag} SL ${levels.stopLossPct}%`)
+    if (levels?.stopLossPct) {
+      const sl =
+        levels.stopLossMode === "trailing"
+          ? `trailing SL ${levels.stopLossPct}%`
+          : `SL ${levels.stopLossPct}%`
+      parts.push(`${tag} ${sl}`)
+    }
   }
   return parts.join(" · ")
 }
@@ -70,8 +114,16 @@ export function automationInputRows(
     side: "long" | "short",
     key: "takeProfitPct" | "stopLossPct"
   ) => {
-    const value = config.protection[side]?.[key]
-    return value ? `${value}%` : "off"
+    const levels = config.protection[side]
+    const value = levels?.[key]
+    if (!value) return "off"
+    if (key !== "stopLossPct" || levels?.stopLossMode !== "trailing") {
+      return `${value}%`
+    }
+    const activation = levels.trailActivationPct
+    return activation
+      ? `${value}% trailing after +${activation}%`
+      : `${value}% trailing`
   }
   return [
     { label: "Type", value: "Automation" },

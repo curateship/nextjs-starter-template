@@ -1,20 +1,29 @@
 import type { ProtectionSettings } from "@/lib/strategies/settings"
+import { effectiveStopPx, type TrailState } from "@/lib/strategies/trailing-stop"
 
 /**
  * THE trade manager: the only TP/SL implementation in the system. Pure
  * functions consumed by the automation engine's live tick path AND the
  * backtest runner's intrabar `exitTriggers` pause — written once, so live and
- * simulated exits can never drift apart.
+ * simulated exits can never drift apart. The stop-price math (fixed and
+ * trailing) lives in `@/lib/strategies/trailing-stop` so the chart painters
+ * draw the exact levels enforced here.
  */
 
 type Position = { szi: number; entryPx: number } | null
 
-type ExitState = { exitRequested: boolean }
+type ExitState = {
+  exitRequested: boolean
+  /** Trailing-stop extreme, ratcheted by the strategy's tick handler. */
+  trail?: TrailState | null
+}
 
 /**
  * The TP/SL price levels for the current position. The backtest runner pauses
  * its intrabar price path at each of these so threshold exits fill exactly at
  * their trigger; the live tick path checks the same numbers via `tickExit`.
+ * A trailing stop's level moves with `state.trail`, so the runner re-reading
+ * this after every pause sees the freshly ratcheted stop.
  */
 export function exitLevels(
   settings: ProtectionSettings,
@@ -29,9 +38,8 @@ export function exitLevels(
   if (settings.takeProfitPct) {
     levels.push(entry * (1 + (sign * settings.takeProfitPct) / 100))
   }
-  if (settings.stopLossPct) {
-    levels.push(entry * (1 - (sign * settings.stopLossPct) / 100))
-  }
+  const stop = effectiveStopPx(settings, position, state.trail)
+  if (stop !== null) levels.push(stop)
   return levels
 }
 
@@ -51,9 +59,7 @@ export function tickExit(
     const tp = entry * (1 + ((long ? 1 : -1) * settings.takeProfitPct) / 100)
     if (long ? mid >= tp : mid <= tp) return "tp"
   }
-  if (settings.stopLossPct) {
-    const sl = entry * (1 - ((long ? 1 : -1) * settings.stopLossPct) / 100)
-    if (long ? mid <= sl : mid >= sl) return "sl"
-  }
+  const sl = effectiveStopPx(settings, position, state.trail)
+  if (sl !== null && (long ? mid <= sl : mid >= sl)) return "sl"
   return null
 }

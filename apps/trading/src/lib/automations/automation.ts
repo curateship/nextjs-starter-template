@@ -20,6 +20,8 @@ import {
   type QflSettings,
 } from "./qfl"
 
+export type { AutomationInterval }
+
 export type AutomationIndicatorNode = {
   id: string
   kind: "indicator"
@@ -58,6 +60,19 @@ export type AutomationLookbackNode = {
 }
 
 /**
+ * Moves the signal path onto a higher timeframe: every indicator upstream of
+ * this node evaluates on `interval` (closed candles only) instead of the
+ * automation's own timeframe. Sits on a Trend wire, like Look Back.
+ */
+export type AutomationTimeframeNode = {
+  id: string
+  kind: "timeframe"
+  interval: AutomationInterval
+  x: number
+  y: number
+}
+
+/**
  * A protective exit hung on a Long or Short entry: `pct` is the take-profit
  * distance from entry. The runtime picks it by the open position's side.
  */
@@ -69,11 +84,18 @@ export type AutomationTakeProfitNode = {
   y: number
 }
 
-/** Stop-loss twin of {@link AutomationTakeProfitNode}. */
+/**
+ * Stop-loss twin of {@link AutomationTakeProfitNode}. `mode` defaults to
+ * "fixed" (stop stays `pct` from entry); "trailing" follows the best price
+ * since entry at `pct` distance, optionally waiting until price has moved
+ * `activationPct` in the trade's favor before it starts to follow.
+ */
 export type AutomationStopLossNode = {
   id: string
   kind: "stopLoss"
   pct: number
+  mode?: "fixed" | "trailing"
+  activationPct?: number
   x: number
   y: number
 }
@@ -112,6 +134,7 @@ export type AutomationNode =
   | AutomationLogicNode
   | AutomationActionNode
   | AutomationLookbackNode
+  | AutomationTimeframeNode
   | AutomationTakeProfitNode
   | AutomationStopLossNode
   | AutomationWhaleWallNode
@@ -124,6 +147,61 @@ export type AutomationNode =
  * never be seen — compile rejects such configs instead of silently blocking.
  */
 export const AUTOMATION_MAX_WINDOW_BARS = 1400
+
+/** Milliseconds per automation interval — the one shared conversion table. */
+export const AUTOMATION_INTERVAL_MS: Record<AutomationInterval, number> = {
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
+}
+
+/**
+ * Whole number of base bars per higher-timeframe bar, or null unless `htf`
+ * is strictly higher than `base` and a clean multiple of it.
+ */
+export function automationIntervalRatio(
+  base: AutomationInterval,
+  htf: AutomationInterval
+): number | null {
+  const baseMs = AUTOMATION_INTERVAL_MS[base]
+  const htfMs = AUTOMATION_INTERVAL_MS[htf]
+  if (!(htfMs > baseMs) || htfMs % baseMs !== 0) return null
+  return htfMs / baseMs
+}
+
+/**
+ * The one higher timeframe a compiled automation watches (the compiler caps
+ * graphs at a single distinct HTF), or null when everything runs on the
+ * automation's own interval.
+ */
+export function automationHtfInterval(
+  config: AutomationConfig
+): AutomationInterval | null {
+  const scan = (condition: AutomationCondition): AutomationInterval | null => {
+    if (condition.kind === "liveWall") return null
+    if (condition.kind !== "trigger") {
+      for (const child of condition.children) {
+        const found = scan(child)
+        if (found) return found
+      }
+      return null
+    }
+    for (const filter of condition.filters ?? []) {
+      if (filter.interval && filter.interval !== config.interval) {
+        return filter.interval
+      }
+    }
+    return null
+  }
+  for (const rule of config.rules) {
+    const found = scan(rule.condition)
+    if (found) return found
+  }
+  return null
+}
 
 export type AutomationSourcePort = string
 
@@ -144,6 +222,10 @@ export type AutomationGraph = {
 export type ProtectionLevels = {
   takeProfitPct?: number
   stopLossPct?: number
+  /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
+  stopLossMode?: "fixed" | "trailing"
+  /** Trailing only: start following after this % move in the trade's favor. */
+  trailActivationPct?: number
 }
 
 /**
@@ -173,6 +255,12 @@ export type AutomationFilter = {
   indicator: IndicatorSelection
   /** Look Back cap: the latched signal only counts for this many candles. */
   maxAgeBars?: number
+  /**
+   * Higher timeframe the filter evaluates on. Absent = the automation's
+   * interval. Its signals only take effect after their candle CLOSES —
+   * see workspace/docs/Key-Features/higher-timeframe-filter.md.
+   */
+  interval?: AutomationInterval
 }
 
 export type AutomationCondition =
@@ -243,6 +331,7 @@ export type AutomationValidationError = {
     | "action_input"
     | "invalid_lookback"
     | "lookback_input"
+    | "invalid_timeframe"
     | "invalid_scanner"
     | "invalid_strategy"
     | "empty"
@@ -309,6 +398,13 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     id: idSchema,
+    kind: z.literal("timeframe"),
+    interval: intervalSchema,
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
     kind: z.literal("takeProfit"),
     pct: z.number().finite(),
     x: z.number().finite(),
@@ -318,6 +414,8 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("stopLoss"),
     pct: z.number().finite(),
+    mode: z.enum(["fixed", "trailing"]).optional(),
+    activationPct: z.number().finite().optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -350,6 +448,8 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
 const protectionLevelsSchema = z.object({
   takeProfitPct: z.number().positive().max(1000).optional(),
   stopLossPct: z.number().positive().max(100).optional(),
+  stopLossMode: z.enum(["fixed", "trailing"]).optional(),
+  trailActivationPct: z.number().min(0).max(1000).optional(),
 })
 
 /**
@@ -449,6 +549,7 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
               .min(1)
               .max(AUTOMATION_MAX_WINDOW_BARS)
               .optional(),
+            interval: intervalSchema.optional(),
           })
         )
         .max(100)
@@ -812,6 +913,22 @@ export function compileAutomationGraph(input: {
         })
       }
     }
+    if (node.kind === "timeframe") {
+      if (automationIntervalRatio(input.interval, node.interval) === null) {
+        addError({
+          code: "invalid_timeframe",
+          nodeId: node.id,
+          message: `The Timeframe node must be higher than the automation's ${input.interval} (and the automation's timeframe must divide evenly into it).`,
+        })
+      }
+      if (count < 1) {
+        addError({
+          code: "invalid_timeframe",
+          nodeId: node.id,
+          message: "Timeframe needs a Trend input from an indicator.",
+        })
+      }
+    }
     if (node.kind === "takeProfit" || node.kind === "stopLoss") {
       const label = node.kind === "takeProfit" ? "Take Profit" : "Stop Loss"
       const maxPct = node.kind === "takeProfit" ? 1000 : 100
@@ -820,6 +937,19 @@ export function compileAutomationGraph(input: {
           code: "invalid_protection",
           nodeId: node.id,
           message: `${label} must be greater than 0% and no more than ${maxPct}%.`,
+        })
+      }
+      if (
+        node.kind === "stopLoss" &&
+        node.mode === "trailing" &&
+        node.activationPct !== undefined &&
+        !(node.activationPct >= 0 && node.activationPct <= 1000)
+      ) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message:
+            "The trailing stop's activation must be between 0% and 1000%.",
         })
       }
       const port = node.kind === "takeProfit" ? "tp" : "sl"
@@ -917,36 +1047,70 @@ export function compileAutomationGraph(input: {
   // ancestor reaches the trigger over several paths (diamonds, nested caps),
   // the strictest (smallest) cap wins — a capped path AND an uncapped one
   // still means capped. Nodes re-walk only when their cap improves, so shared
-  // subgraphs stay linear instead of exploding per path.
+  // subgraphs stay linear instead of exploding per path. A Timeframe node
+  // works the same way in the other dimension: every indicator upstream of it
+  // evaluates on its higher interval.
+  const timeframeConflicts = new Set<string>()
   const collectFilters = (triggerId: string): AutomationFilter[] => {
     const INF = Number.POSITIVE_INFINITY
     const bestCap = new Map<string, number>()
-    const walk = (nodeId: string, cap: number) => {
+    const intervalByNode = new Map<string, AutomationInterval | undefined>()
+    const walk = (
+      nodeId: string,
+      cap: number,
+      interval: AutomationInterval | undefined
+    ) => {
       for (const edge of incoming.get(nodeId) ?? []) {
         const upstream = nodeById.get(edge.from)
         if (!upstream || upstream.id === triggerId) continue
         const nextCap =
           upstream.kind === "lookback" ? Math.min(cap, upstream.bars) : cap
-        if (upstream.kind !== "lookback" && upstream.kind !== "indicator") {
+        const nextInterval =
+          upstream.kind === "timeframe" ? upstream.interval : interval
+        if (
+          upstream.kind !== "lookback" &&
+          upstream.kind !== "indicator" &&
+          upstream.kind !== "timeframe"
+        ) {
           continue
         }
+        // Ambiguity guard: the same ancestor reaching ONE entry both through
+        // a Timeframe node and around it would gate that entry on two clocks
+        // at once — there is no right answer, so it is rejected. (Different
+        // entries, or trigger-role vs filter-role, may use different clocks.)
+        if (
+          intervalByNode.has(upstream.id) &&
+          intervalByNode.get(upstream.id) !== nextInterval &&
+          !timeframeConflicts.has(upstream.id)
+        ) {
+          timeframeConflicts.add(upstream.id)
+          addError({
+            code: "invalid_timeframe",
+            nodeId: upstream.id,
+            message:
+              "This node gates the same entry on two timeframes at once — give each timeframe its own copy of the node.",
+          })
+        }
+        intervalByNode.set(upstream.id, nextInterval)
         // Absent means unvisited — an uncapped visit still has to be
         // recorded, so "already at least as strict" only applies once seen.
         const seenCap = bestCap.get(upstream.id)
         if (seenCap !== undefined && seenCap <= nextCap) continue
         bestCap.set(upstream.id, nextCap)
-        walk(upstream.id, nextCap)
+        walk(upstream.id, nextCap, nextInterval)
       }
     }
-    walk(triggerId, INF)
+    walk(triggerId, INF, undefined)
     const filters: AutomationFilter[] = []
     for (const [nodeId, cap] of bestCap) {
       const node = nodeById.get(nodeId)
       if (!node || node.kind !== "indicator") continue
+      const interval = intervalByNode.get(nodeId)
       filters.push({
         nodeId,
         indicator: node.indicator,
         ...(cap < INF ? { maxAgeBars: cap } : {}),
+        ...(interval && interval !== input.interval ? { interval } : {}),
       })
     }
     return filters
@@ -1033,15 +1197,64 @@ export function compileAutomationGraph(input: {
     }
     protection[side] = { ...protection[side], [key]: pct }
   }
+  // A stop's behavior (fixed vs trailing + activation) folds alongside its
+  // percent; two stops on one side must agree on behavior like they must on
+  // percent. Only trailing is stored — absent mode means fixed, so configs
+  // compiled before trailing existed stay byte-identical.
+  const stopBehavior: Partial<
+    Record<"long" | "short", { trailing: boolean; activationPct?: number }>
+  > = {}
+  const setStopBehavior = (
+    side: "long" | "short",
+    node: AutomationStopLossNode
+  ) => {
+    const behavior = {
+      trailing: node.mode === "trailing",
+      ...(node.mode === "trailing" && node.activationPct
+        ? { activationPct: node.activationPct }
+        : {}),
+    }
+    const existing = stopBehavior[side]
+    if (
+      existing &&
+      (existing.trailing !== behavior.trailing ||
+        existing.activationPct !== behavior.activationPct)
+    ) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different behavior (fixed vs trailing).`,
+      })
+      return
+    }
+    stopBehavior[side] = behavior
+  }
   for (const node of nodes) {
     if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
     const key = node.kind === "takeProfit" ? "takeProfitPct" : "stopLossPct"
     for (const edge of incoming.get(node.id) ?? []) {
       const parent = nodeById.get(edge.from)
       if (parent?.kind !== "action") continue
-      if (parent.action === "buy") setLevel("long", key, node.pct, node.id)
-      else if (parent.action === "short")
+      if (parent.action === "buy") {
+        setLevel("long", key, node.pct, node.id)
+        if (node.kind === "stopLoss") setStopBehavior("long", node)
+      } else if (parent.action === "short") {
         setLevel("short", key, node.pct, node.id)
+        if (node.kind === "stopLoss") setStopBehavior("short", node)
+      }
+    }
+  }
+  for (const side of ["long", "short"] as const) {
+    const behavior = stopBehavior[side]
+    if (!behavior?.trailing || protection[side]?.stopLossPct === undefined) {
+      continue
+    }
+    protection[side] = {
+      ...protection[side],
+      stopLossMode: "trailing",
+      ...(behavior.activationPct !== undefined
+        ? { trailActivationPct: behavior.activationPct }
+        : {}),
     }
   }
 
@@ -1051,6 +1264,43 @@ export function compileAutomationGraph(input: {
   const checkedCaps = new Set<string>()
   const checkFilters = (filters: AutomationFilter[]) => {
     for (const filter of filters) {
+      // v1: a Look Back's "N candles" would be ambiguous between the two
+      // clocks, so it cannot share a signal path with a Timeframe node.
+      if (filter.interval && filter.maxAgeBars !== undefined) {
+        addError({
+          code: "invalid_lookback",
+          nodeId: filter.nodeId,
+          message:
+            "Look Back can't cap a higher-timeframe signal yet — remove the Look Back or the Timeframe node.",
+        })
+        continue
+      }
+      // Warmup fit for the higher-timeframe series: the HTF indicator's
+      // warmup plus coverage of a worst-case (1400-bar) base window must fit
+      // inside the same per-series ceiling.
+      if (filter.interval) {
+        const key = `${filter.nodeId}:htf`
+        if (checkedCaps.has(key)) continue
+        checkedCaps.add(key)
+        const ratio = automationIntervalRatio(input.interval, filter.interval)
+        const module = INDICATORS[filter.indicator.type]
+        const parsed = module.paramsSchema.safeParse(filter.indicator.params)
+        if (ratio !== null && parsed.success) {
+          const warmup = module.warmupBars(parsed.data as never)
+          const maxWarmup =
+            AUTOMATION_MAX_WINDOW_BARS -
+            Math.ceil(AUTOMATION_MAX_WINDOW_BARS / ratio) -
+            5
+          if (warmup > maxWarmup) {
+            addError({
+              code: "invalid_timeframe",
+              nodeId: filter.nodeId,
+              message: `${module.label} needs ${warmup} warm-up candles on ${filter.interval} — more than the engine can hold next to the ${input.interval} window (at most ${Math.max(1, maxWarmup)}).`,
+            })
+          }
+        }
+        continue
+      }
       if (filter.maxAgeBars === undefined) continue
       const key = `${filter.nodeId}:${filter.maxAgeBars}`
       if (checkedCaps.has(key)) continue
@@ -1079,6 +1329,29 @@ export function compileAutomationGraph(input: {
   }
   for (const rule of rules) triggersOf(rule.condition)
   checkFilters(qfl?.filters ?? [])
+  for (const filter of qfl?.filters ?? []) {
+    if (filter.interval) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: filter.nodeId,
+        message:
+          "QFL can't use a higher-timeframe filter yet — remove the node's timeframe.",
+      })
+    }
+  }
+  // v1 cap: one distinct higher timeframe per graph keeps live subscriptions
+  // and backtest data volume sane.
+  const timeframeNodes = nodes.filter(
+    (node): node is AutomationTimeframeNode => node.kind === "timeframe"
+  )
+  const distinctHtf = [...new Set(timeframeNodes.map((node) => node.interval))]
+  if (distinctHtf.length > 1) {
+    addError({
+      code: "invalid_timeframe",
+      nodeId: timeframeNodes[timeframeNodes.length - 1].id,
+      message: `An automation can watch at most one higher timeframe — this graph mixes ${distinctHtf.join(" and ")}.`,
+    })
+  }
   if (errors.length > 0) return { config: null, errors }
 
   return {
@@ -1110,11 +1383,23 @@ export function automationCapabilities(config: AutomationConfig): {
 }
 
 /**
- * Latched trend per filter node id: the side of its most recent signal and
+ * Latched trend per filter state key: the side of its most recent signal and
  * how many candles ago it fired (0 = this candle).
  */
 export type AutomationFilterLatch = { side: "buy" | "sell"; age: number }
 export type AutomationFilterState = ReadonlyMap<string, AutomationFilterLatch>
+
+/**
+ * The latch-map key for a filter. One node can gate on the bot timeframe AND
+ * on a higher one (e.g. its Bullish fires entries while its Trend feeds a
+ * Timeframe node), so the clock is part of the identity — the evaluator and
+ * the resolver must build keys the same way.
+ */
+export function automationFilterStateKey(
+  filter: Pick<AutomationFilter, "nodeId" | "interval">
+): string {
+  return filter.interval ? `${filter.nodeId}@${filter.interval}` : filter.nodeId
+}
 
 const NO_FILTER_STATE: AutomationFilterState = new Map()
 
@@ -1128,7 +1413,7 @@ function conditionMatches(
     return (
       fired.has(`${condition.nodeId}:${condition.side}`) &&
       (condition.filters ?? []).every((filter) => {
-        const latch = filterState.get(filter.nodeId)
+        const latch = filterState.get(automationFilterStateKey(filter))
         return (
           latch !== undefined &&
           latch.side === condition.side &&

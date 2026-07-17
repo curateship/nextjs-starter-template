@@ -17,6 +17,13 @@ import {
 } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -59,6 +66,7 @@ import {
   getOnboardingErrorMessage,
   verifyAgentApproval,
 } from "@/lib/api/agent-onboarding"
+import { liquidationDistanceClass } from "@/lib/trading/liquidation-risk"
 import { shortAddress } from "@/components/scanner/format"
 import { ConnectWalletFlow } from "@/components/trading/connect-wallet-flow"
 import { NewWalletDialog } from "@/components/trading/new-wallet-dialog"
@@ -225,6 +233,8 @@ export function WalletsUnified({
           <ErrorMessage>{error}</ErrorMessage>
         </div>
       ) : null}
+
+      <MarginHealthCard wallets={wallets} />
 
       <DashboardTable
         title="Wallets"
@@ -437,6 +447,80 @@ export function WalletsUnified({
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+/**
+ * Live margin health for every exchange wallet: margin in use, withdrawable,
+ * and the wallet's riskiest position's distance to forced liquidation. Flat
+ * wallets and failed lookups show an em-dash rather than a fake zero.
+ */
+function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
+  if (wallets.length === 0) return null
+  const money = (value: number | null | undefined) =>
+    typeof value === "number" ? `$${value.toFixed(2)}` : "—"
+  return (
+    <Card className="mb-2 md:mb-3">
+      <CardHeader>
+        <CardTitle>Margin health</CardTitle>
+        <CardDescription>
+          Live from the exchange: how much margin each wallet is using and how
+          far its riskiest position sits from forced liquidation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y divide-foreground/5">
+        {wallets.map((wallet) => {
+          const marginPct =
+            typeof wallet.margin_used === "number" &&
+            typeof wallet.equity === "number" &&
+            wallet.equity > 0
+              ? (wallet.margin_used / wallet.equity) * 100
+              : null
+          const worst = wallet.worst_liq_distance_pct ?? null
+          return (
+            <div
+              key={wallet.id}
+              className="grid grid-cols-2 gap-2 py-2 first:pt-0 last:pb-0 sm:grid-cols-4"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">
+                  {wallet.label}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {wallet.network}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Margin used</div>
+                <div className="font-mono text-sm">
+                  {marginPct === null
+                    ? "—"
+                    : `${marginPct.toFixed(1)}% (${money(wallet.margin_used)})`}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Withdrawable
+                </div>
+                <div className="font-mono text-sm">
+                  {money(wallet.withdrawable)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Closest to liquidation
+                </div>
+                <div
+                  className={`font-mono text-sm ${liquidationDistanceClass(worst) ?? ""}`}
+                >
+                  {worst === null ? "—" : `${worst.toFixed(1)}% away`}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
   )
 }
 

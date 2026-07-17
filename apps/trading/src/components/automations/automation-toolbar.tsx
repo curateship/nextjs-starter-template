@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ArrowLeftIcon,
@@ -17,11 +18,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+/**
+ * Disabled buttons swallow pointer events, so the tooltip trigger wraps them
+ * in a focusable span. Rendered only while a reason exists; enabled buttons
+ * stay unwrapped.
+ */
+function DisabledReasonTooltip({
+  reason,
+  children,
+}: {
+  reason: string | undefined
+  children: React.ReactNode
+}) {
+  if (!reason) return children
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="hidden rounded-md xl:inline-flex">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{reason}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function AutomationToolbar({
   name,
   runnable,
   backtestDisabledReason,
+  runnableDisabledReason,
   dirty,
   saving,
   onNameChange,
@@ -35,6 +67,7 @@ export function AutomationToolbar({
   name: string
   runnable: boolean
   backtestDisabledReason?: string
+  runnableDisabledReason?: string
   dirty: boolean
   saving: boolean
   onNameChange: (name: string) => void
@@ -72,39 +105,44 @@ export function AutomationToolbar({
         />
       </div>
       <div className="ml-auto" />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="hidden h-8 xl:inline-flex"
-        disabled={!runnable || Boolean(backtestDisabledReason)}
-        title={backtestDisabledReason}
-        aria-label={
-          backtestDisabledReason
-            ? `Backtest unavailable: ${backtestDisabledReason}`
-            : "Backtest"
-        }
-        onClick={onBacktest}
+      <DisabledReasonTooltip
+        reason={backtestDisabledReason ?? runnableDisabledReason}
       >
-        <FlaskConicalIcon className="size-3.5" />
-        Backtest
-      </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="hidden h-8 xl:inline-flex"
+          disabled={!runnable || Boolean(backtestDisabledReason)}
+          aria-label={
+            backtestDisabledReason
+              ? `Backtest unavailable: ${backtestDisabledReason}`
+              : "Backtest"
+          }
+          onClick={onBacktest}
+        >
+          <FlaskConicalIcon className="size-3.5" />
+          Backtest
+        </Button>
+      </DisabledReasonTooltip>
       {backtestDisabledReason ? (
         <span className="hidden max-w-48 text-[10px] leading-3 text-muted-foreground 2xl:inline">
           Backtest unavailable: live order-book data has no historical replay.
         </span>
       ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="hidden h-8 xl:inline-flex"
-        disabled={!runnable}
-        onClick={onCreateBot}
-      >
-        <BotIcon className="size-3.5" />
-        Create Bot
-      </Button>
+      <DisabledReasonTooltip reason={runnableDisabledReason}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="hidden h-8 xl:inline-flex"
+          disabled={!runnable}
+          onClick={onCreateBot}
+        >
+          <BotIcon className="size-3.5" />
+          Create Bot
+        </Button>
+      </DisabledReasonTooltip>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -121,12 +159,16 @@ export function AutomationToolbar({
           <DropdownMenuItem
             disabled={!runnable || Boolean(backtestDisabledReason)}
             onSelect={onBacktest}
-            title={backtestDisabledReason}
+            title={backtestDisabledReason ?? runnableDisabledReason}
           >
             <FlaskConicalIcon className="size-4" />
             {backtestDisabledReason ? "Backtest unavailable" : "Backtest"}
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={!runnable} onSelect={onCreateBot}>
+          <DropdownMenuItem
+            disabled={!runnable}
+            onSelect={onCreateBot}
+            title={runnableDisabledReason}
+          >
             <BotIcon className="size-4" />
             Create Bot
           </DropdownMenuItem>

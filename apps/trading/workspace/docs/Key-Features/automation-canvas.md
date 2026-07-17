@@ -23,10 +23,10 @@ canvas files.
 - **Indicator** — computes signals from candles. Three outputs:
   - **Bullish / Bearish** (edges): the indicator's one-candle buy/sell
     signals. Connect only to actions.
-  - **Trend** (middle): chains into another indicator (or a Look Back) as a
-    filter. The downstream trigger only fires when this indicator's most
-    recent signal side agrees with the trigger's direction. The latch is
-    same-candle inclusive and holds until the opposite signal.
+  - **Trend** (middle): chains into another indicator (or a Look Back /
+    Timeframe) as a filter. The downstream trigger only fires when this
+    indicator's most recent signal side agrees with the trigger's direction.
+    The latch is same-candle inclusive and holds until the opposite signal.
 - **Look Back** (filter) — sits on a Trend wire and puts an expiry on the
   signal flowing through it: the latched signal only counts for N candles
   after it fires (the signal candle is bar 1), then goes stale and blocks
@@ -34,6 +34,20 @@ canvas files.
   feeds through it; nested Look Backs keep the strictest cap. It cannot wire
   directly into an action (that would re-fire the action on every candle in
   the window).
+- **Timeframe** (filter) — sits on a Trend wire, like Look Back, and moves
+  everything upstream of it onto ONE higher timeframe — the classic "only
+  take 15m entries while the 4h trend is bullish" is
+  `EMA → Timeframe (4h) → entry indicator`. Every indicator feeding through
+  it evaluates on closed candles of that timeframe, and its opinion takes
+  effect one bot-timeframe candle after the big candle closes — never
+  before. At most one distinct higher timeframe per graph, it can only
+  output to an indicator (never straight to an action or QFL), and it cannot
+  share a signal path with a Look Back (v1). The same indicator may fire
+  entries on the bot timeframe AND gate through a Timeframe node — the
+  engine simply computes it on both clocks. Only gating the SAME entry on
+  two clocks at once (reaching it both through the Timeframe node and around
+  it) is rejected as ambiguous. Full rules and the no-lookahead design:
+  `higher-timeframe-filter.md`.
 - **Market Scanner** (scanner) — checks whether markets already chosen in the
   bot or Backtest meet a daily-volume floor and, optionally, have enough price
   history. It never chooses, adds, removes, or replaces markets. Its
@@ -54,6 +68,22 @@ canvas files.
   them fires it". The **Then** output is visual-flow only: it chains an
   action onward to its exit watcher (e.g. Long → EMA → Close) and compiles
   to nothing.
+- **Take Profit / Stop Loss** — protective exits hung on a Long or Short
+  entry's hooks; each guards only the side it's attached to. The Stop Loss
+  node has a **Stop behavior** setting: **Fixed** (default — the stop stays
+  its percent from the entry) or **Trailing** (the stop follows the best
+  price seen since entry at that percent distance and only ever moves in the
+  trade's favor — a pullback of that size from the best price exits).
+  Trailing can optionally wait until the trade is up a set percent before it
+  starts to follow; until then it waits at the fixed distance. Live ticks and
+  backtests share the same trade-manager math, and the backtest fills the
+  trailing exit at the exact ratcheted stop price via the honest intrabar
+  pause path (adverse extreme first, so a same-bar stop-out beats a same-bar
+  ratchet). The bot chart draws the live stop as a dashed red "Trailing stop"
+  line (not draggable — the ratchet owns it), and the backtest chart draws
+  each trade's stop path the same way. If the worker is down, the trail stops
+  moving: the stop stays protective at its last level but goes stale until
+  the worker returns.
 - **AND/OR (legacy)** — removed. Old drafts still load but must delete the
   node; running bots keep their frozen snapshots working.
 
@@ -74,7 +104,9 @@ canvas files.
 
 ## Rules the compiler enforces
 
-- Trend → indicator, Look Back, or QFL. Look Back → indicator or QFL.
+- Trend → indicator, Look Back, Timeframe, or QFL. Look Back → indicator or
+  QFL. Timeframe → indicator only, needs a Trend input, and must be strictly
+  higher than the automation's timeframe.
 - Market Scanner Markets → QFL only. QFL accepts at most one Market Scanner.
 - Bullish/Bearish → action only. Then → indicator only.
 - Bid Wall → Long only. Ask Wall → Short only. A Whale Wall automation cannot

@@ -17,6 +17,17 @@ export type WalletItem = {
   updated_at: string
   /** Live perps equity on the exchange; only the wallets list fetches it. */
   equity?: number | null
+  /** Live margin in use (USD); null when the exchange lookup fails. */
+  margin_used?: number | null
+  /** Live withdrawable balance (USD); null when the lookup fails. */
+  withdrawable?: number | null
+  /** Open perps positions right now; null when the lookup fails. */
+  positions_count?: number | null
+  /**
+   * Smallest distance to liquidation across the wallet's positions, percent
+   * of mark. Null when flat or when no position reports a liquidation price.
+   */
+  worst_liq_distance_pct?: number | null
 }
 
 export type WalletListResponse = {
