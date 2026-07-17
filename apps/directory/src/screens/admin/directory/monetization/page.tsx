@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
-import Archive from "lucide-react/dist/esm/icons/archive.js"
 import ArchiveRestore from "lucide-react/dist/esm/icons/archive-restore.js"
 import BadgeDollarSign from "lucide-react/dist/esm/icons/badge-dollar-sign.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
+import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
 
 import {
@@ -23,6 +24,7 @@ import {
   type DirectoryFeaturedPlanItem
 } from "@/lib/actions/directories/directory-monetization-actions"
 import { formatCentsAmount } from "@/lib/actions/directories/directory-featured-helpers"
+import { MonetizationRevenueSummary } from "@/screens/admin/directory/monetization/revenue-summary"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
@@ -31,15 +33,17 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminSortButton, AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate, useAdminSort } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CardGroup } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
 const ENTITLEMENT_FILTERS = [
@@ -67,6 +71,9 @@ const EMPTY_PLAN_DRAFT: PlanDraft = {
   priority: "0",
   displayOrder: "0",
 }
+
+type PlanSortColumn = "name" | "price" | "duration" | "priority" | "status"
+type EntitlementSortColumn = "listing" | "owner" | "plan" | "started" | "expires"
 
 function entitlementStatusBadge(status: DirectoryFeaturedEntitlementStatus) {
   switch (status) {
@@ -115,6 +122,8 @@ export default function DirectoryMonetizationPage() {
   const [selectedEntitlement, setSelectedEntitlement] = useState<DirectoryFeaturedEntitlementListItem | null>(null)
   const [revokeNote, setRevokeNote] = useState("")
   const [revoking, setRevoking] = useState(false)
+  const planSort = useAdminSort<PlanSortColumn>()
+  const entitlementSort = useAdminSort<EntitlementSortColumn>()
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -164,6 +173,36 @@ export default function DirectoryMonetizationPage() {
     const tab = ENTITLEMENT_FILTERS.find((item) => item.value === entitlementStatus)
     return `No ${tab?.label.toLowerCase() || ""} featured listings.`
   }, [activeView, entitlementStatus])
+
+  const sortedPlans = useMemo(() => {
+    const column = planSort.sortColumn
+    if (!column) return plans
+    const direction = planSort.sortDirection === "asc" ? 1 : -1
+    return [...plans].sort((a, b) => {
+      if (column === "name") return a.name.localeCompare(b.name) * direction
+      if (column === "price") return a.stripe_price_id.localeCompare(b.stripe_price_id) * direction
+      if (column === "duration") return (a.duration_days - b.duration_days) * direction
+      if (column === "priority") return (a.priority - b.priority) * direction
+      return (Number(a.is_active) - Number(b.is_active)) * direction
+    })
+  }, [plans, planSort.sortColumn, planSort.sortDirection])
+
+  const sortedEntitlements = useMemo(() => {
+    const column = entitlementSort.sortColumn
+    if (!column) return entitlements
+    const direction = entitlementSort.sortDirection === "asc" ? 1 : -1
+    return [...entitlements].sort((a, b) => {
+      if (column === "listing") return a.directory_title.localeCompare(b.directory_title) * direction
+      if (column === "owner") {
+        return (a.owner_name || a.owner_email).localeCompare(b.owner_name || b.owner_email) * direction
+      }
+      if (column === "plan") return a.plan_name.localeCompare(b.plan_name) * direction
+      if (column === "started") {
+        return (new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()) * direction
+      }
+      return (new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime()) * direction
+    })
+  }, [entitlements, entitlementSort.sortColumn, entitlementSort.sortDirection])
 
   const handleSavePlan = async () => {
     if (!currentSite?.id || !planDraft) return
@@ -231,6 +270,30 @@ export default function DirectoryMonetizationPage() {
 
   const activeRowsCount = activeView === "plans" ? plans.length : entitlements.length
 
+  function renderPlanSortHeader(column: PlanSortColumn, label: string) {
+    return (
+      <AdminSortButton
+        active={planSort.sortColumn === column}
+        direction={planSort.sortDirection}
+        onClick={() => planSort.toggleSort(column)}
+      >
+        {label}
+      </AdminSortButton>
+    )
+  }
+
+  function renderEntitlementSortHeader(column: EntitlementSortColumn, label: string) {
+    return (
+      <AdminSortButton
+        active={entitlementSort.sortColumn === column}
+        direction={entitlementSort.sortDirection}
+        onClick={() => entitlementSort.toggleSort(column)}
+      >
+        {label}
+      </AdminSortButton>
+    )
+  }
+
   return (
     <>
       <StickyHeader />
@@ -238,196 +301,210 @@ export default function DirectoryMonetizationPage() {
         <div className="w-full">
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Monetization" }]} />
 
-          <AdminTableShell
-            title={activeView === "plans" ? "Featured Plans" : "Featured Listings"}
-            icon={activeView === "plans"
-              ? <BadgeDollarSign className="size-4 text-muted-foreground sm:size-[18px]" />
-              : <Star className="size-4 text-muted-foreground sm:size-[18px]" />
-            }
-            count={activeRowsCount}
-            loading={loading}
-            controls={
-              <TableRightActions>
-                <Button
-                  type="button"
-                  variant={activeView === "plans" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveView("plans")}
-                >
-                  Plans
-                </Button>
-                <Button
-                  type="button"
-                  variant={activeView === "featured" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveView("featured")}
-                >
-                  Featured Listings
-                </Button>
-                {activeView === "plans" ? (
+          <CardGroup className="grid min-w-0">
+            <MonetizationRevenueSummary siteId={currentSite?.id ?? null} siteLoading={siteLoading} />
+
+            <AdminTableShell
+              title={activeView === "plans" ? "Featured Plans" : "Featured Listings"}
+              icon={activeView === "plans"
+                ? <BadgeDollarSign className="size-4 text-muted-foreground sm:size-[18px]" />
+                : <Star className="size-4 text-muted-foreground sm:size-[18px]" />
+              }
+              count={activeRowsCount}
+              loading={loading}
+              controls={
+                <TableRightActions>
+                  {activeView === "featured" ? (
+                    <Select value={entitlementStatus} onValueChange={(value) => setEntitlementStatus(value as DirectoryFeaturedEntitlementStatus)}>
+                      <TableRightActionsSelectTrigger aria-label="Featured listing status filter">
+                        <SelectValue />
+                      </TableRightActionsSelectTrigger>
+                      {/* popper: the item-aligned default detaches from the trigger under browser zoom */}
+                      <SelectContent position="popper">
+                        {ENTITLEMENT_FILTERS.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label} ({entitlementCounts[item.value as DirectoryFeaturedEntitlementStatus] || 0})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  <Tabs value={activeView} onValueChange={(value) => setActiveView(value as "plans" | "featured")}>
+                    <TabsList className="h-8 p-0.5">
+                      <TabsTrigger value="plans" className="h-7 px-2.5 text-xs">
+                        Plans
+                      </TabsTrigger>
+                      <TabsTrigger value="featured" className="h-7 px-2.5 text-xs">
+                        Featured Listings
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                   <Button type="button" size="sm" onClick={() => { setPlanError(null); setPlanDraft(EMPTY_PLAN_DRAFT) }}>
                     <Plus className="mr-1 h-4 w-4" />
                     New Plan
                   </Button>
-                ) : (
-                  <Select value={entitlementStatus} onValueChange={(value) => setEntitlementStatus(value as DirectoryFeaturedEntitlementStatus)}>
-                    <TableRightActionsSelectTrigger aria-label="Featured listing status filter">
-                      <SelectValue />
-                    </TableRightActionsSelectTrigger>
-                    <SelectContent>
-                      {ENTITLEMENT_FILTERS.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label} ({entitlementCounts[item.value as DirectoryFeaturedEntitlementStatus] || 0})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </TableRightActions>
-            }
-            footer={!loading ? <AdminTableSummaryFooter count={activeRowsCount} label={activeView === "plans" ? "plans" : "featured listings"} /> : null}
-          >
-            <ScrollArea className="w-full">
-              <Table>
-                <TableHeader>
-                  {activeView === "plans" ? (
-                    <TableRow>
-                      <TableHead column="main">Plan</TableHead>
-                      <TableHead column="content">Stripe Price</TableHead>
-                      <TableHead column="content">Duration</TableHead>
-                      <TableHead column="meta">Priority</TableHead>
-                      <TableHead column="meta">Status</TableHead>
-                      <TableHead column="meta">Actions</TableHead>
-                    </TableRow>
-                  ) : (
-                    <TableRow>
-                      <TableHead column="main">Listing</TableHead>
-                      <TableHead column="content">Owner</TableHead>
-                      <TableHead column="content">Plan</TableHead>
-                      <TableHead column="meta">Started</TableHead>
-                      <TableHead column="meta">Expires</TableHead>
-                      <TableHead column="meta">Actions</TableHead>
-                    </TableRow>
-                  )}
-                </TableHeader>
-                <TableBody>
-                  {loading && activeRowsCount === 0 ? (
-                    <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ) : activeRowsCount === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center">
-                        {activeView === "plans"
-                          ? <BadgeDollarSign className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                          : <Star className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        }
-                        <p className="text-muted-foreground">{emptyText}</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : activeView === "plans" ? (
-                    plans.map((plan) => (
-                      <TableRow key={plan.id} className="group">
-                        <TableCell column="main">
-                          <h4 className="truncate font-medium">{plan.name}</h4>
-                          {plan.description ? (
-                            <p className="truncate text-sm text-muted-foreground">{plan.description}</p>
-                          ) : null}
+                </TableRightActions>
+              }
+              footer={!loading ? <AdminTableSummaryFooter count={activeRowsCount} label={activeView === "plans" ? "plans" : "featured listings"} /> : null}
+            >
+              <ScrollArea className="w-full">
+                <Table>
+                  <TableHeader>
+                    {activeView === "plans" ? (
+                      <TableRow>
+                        <TableHead column="main">{renderPlanSortHeader("name", "Plan")}</TableHead>
+                        <TableHead column="content">{renderPlanSortHeader("price", "Stripe Price")}</TableHead>
+                        <TableHead column="content">{renderPlanSortHeader("duration", "Duration")}</TableHead>
+                        <TableHead column="meta">{renderPlanSortHeader("priority", "Priority")}</TableHead>
+                        <TableHead column="meta">{renderPlanSortHeader("status", "Status")}</TableHead>
+                        <TableHead column="meta">Actions</TableHead>
+                      </TableRow>
+                    ) : (
+                      <TableRow>
+                        <TableHead column="main">{renderEntitlementSortHeader("listing", "Listing")}</TableHead>
+                        <TableHead column="content">{renderEntitlementSortHeader("owner", "Owner")}</TableHead>
+                        <TableHead column="content">{renderEntitlementSortHeader("plan", "Plan")}</TableHead>
+                        <TableHead column="meta">{renderEntitlementSortHeader("started", "Started")}</TableHead>
+                        <TableHead column="meta">{renderEntitlementSortHeader("expires", "Expires")}</TableHead>
+                        <TableHead column="meta">Actions</TableHead>
+                      </TableRow>
+                    )}
+                  </TableHeader>
+                  <TableBody>
+                    {loading && activeRowsCount === 0 ? (
+                      <AdminListPending />
+                    ) : error ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center">
+                          <p className="mb-4 text-red-600">{error}</p>
+                          <Button onClick={loadRows} variant="outline" size="sm">
+                            Try Again
+                          </Button>
                         </TableCell>
-                        <TableCell column="content">
-                          <span className="truncate font-mono text-sm">{plan.stripe_price_id}</span>
-                        </TableCell>
-                        <TableCell column="content">
-                          <span className="text-sm">{plan.duration_days} days</span>
-                        </TableCell>
-                        <TableCell column="meta">
-                          <span className="text-sm">{plan.priority}</span>
-                        </TableCell>
-                        <TableCell column="meta">
-                          {plan.is_active
-                            ? <Badge className="bg-green-100 text-green-800">Active</Badge>
-                            : <Badge variant="secondary">Archived</Badge>
+                      </TableRow>
+                    ) : activeRowsCount === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center">
+                          {activeView === "plans"
+                            ? <BadgeDollarSign className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                            : <Star className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                           }
-                        </TableCell>
-                        <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button variant="outline" size="sm" onClick={() => { setPlanError(null); setPlanDraft(planToDraft(plan)) }}>
-                              Edit
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleArchivePlan(plan)}
-                              disabled={archivingPlanId === plan.id}
-                              title={plan.is_active ? "Archive plan" : "Restore plan"}
-                            >
-                              {plan.is_active ? <Archive className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
-                            </Button>
-                          </div>
+                          <p className="text-muted-foreground">{emptyText}</p>
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    entitlements.map((entitlement) => (
-                      <TableRow key={entitlement.id} className="group">
-                        <TableCell column="main">
-                          <Link href={`/directory/${entitlement.directory_slug}`} className="block hover:opacity-80">
-                            <h4 className="truncate font-medium hover:underline">{entitlement.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directory/{entitlement.directory_slug}</p>
-                          </Link>
-                        </TableCell>
-                        <TableCell column="content">
-                          <div className="truncate text-sm">{entitlement.owner_name || "Unknown"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{entitlement.owner_email}</div>
-                        </TableCell>
-                        <TableCell column="content">
-                          <div className="truncate text-sm">{entitlement.plan_name}</div>
-                          <div className="truncate text-sm text-muted-foreground">{formatAmount(entitlement.amount_total, entitlement.currency)}</div>
-                        </TableCell>
-                        <TableCell column="meta">
-                          <div className="text-sm text-muted-foreground">{formatDate(entitlement.starts_at)}</div>
-                        </TableCell>
-                        <TableCell column="meta">
-                          <div className="space-y-2">
-                            {entitlementStatusBadge(entitlement.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(entitlement.ends_at)}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a
-                                href={`/directory/${entitlement.directory_slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View Listing"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                <span className="sr-only">View Listing</span>
-                              </a>
-                            </Button>
-                            {entitlement.status === "active" ? (
-                              <Button variant="outline" size="sm" onClick={() => setSelectedEntitlement(entitlement)}>
-                                Revoke
-                              </Button>
+                    ) : activeView === "plans" ? (
+                      sortedPlans.map((plan) => (
+                        <TableRow key={plan.id} className="group">
+                          <TableCell column="main">
+                            <h4 className="truncate font-medium">{plan.name}</h4>
+                            {plan.description ? (
+                              <p className="truncate text-sm text-muted-foreground">{plan.description}</p>
                             ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </AdminTableShell>
+                          </TableCell>
+                          <TableCell column="content">
+                            <span className="truncate font-mono text-sm">{plan.stripe_price_id}</span>
+                          </TableCell>
+                          <TableCell column="content">
+                            <span className="text-sm">{plan.duration_days} days</span>
+                          </TableCell>
+                          <TableCell column="meta">
+                            <span className="text-sm">{plan.priority}</span>
+                          </TableCell>
+                          <TableCell column="meta">
+                            {plan.is_active
+                              ? <Badge className="bg-green-100 text-green-800">Active</Badge>
+                              : <Badge variant="secondary">Archived</Badge>
+                            }
+                          </TableCell>
+                          <TableCell column="meta">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => { setPlanError(null); setPlanDraft(planToDraft(plan)) }}
+                                title="Plan settings"
+                              >
+                                <Settings className="h-4 w-4" />
+                                <span className="sr-only">Plan settings</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleArchivePlan(plan)}
+                                disabled={archivingPlanId === plan.id}
+                                title={plan.is_active ? "Archive plan" : "Restore plan"}
+                              >
+                                {plan.is_active ? <Trash2 className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
+                                <span className="sr-only">{plan.is_active ? "Archive plan" : "Restore plan"}</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      sortedEntitlements.map((entitlement) => (
+                        <TableRow key={entitlement.id} className="group">
+                          <TableCell column="main">
+                            <Link href={`/directory/${entitlement.directory_slug}`} className="block hover:opacity-80">
+                              <h4 className="truncate font-medium hover:underline">{entitlement.directory_title}</h4>
+                              <p className="truncate text-sm text-muted-foreground">/directory/{entitlement.directory_slug}</p>
+                            </Link>
+                          </TableCell>
+                          <TableCell column="content">
+                            <div className="truncate text-sm">{entitlement.owner_name || "Unknown"}</div>
+                            <div className="truncate text-sm text-muted-foreground">{entitlement.owner_email}</div>
+                          </TableCell>
+                          <TableCell column="content">
+                            <div className="truncate text-sm">{entitlement.plan_name}</div>
+                            <div className="truncate text-sm text-muted-foreground">{formatAmount(entitlement.amount_total, entitlement.currency)}</div>
+                          </TableCell>
+                          <TableCell column="meta">
+                            <div className="text-sm text-muted-foreground">{formatDate(entitlement.starts_at)}</div>
+                          </TableCell>
+                          <TableCell column="meta">
+                            <div className="space-y-2">
+                              {entitlementStatusBadge(entitlement.status)}
+                              <div className="text-sm text-muted-foreground">{formatDate(entitlement.ends_at)}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell column="meta">
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                                <a
+                                  href={`/directory/${entitlement.directory_slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="View Listing"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  <span className="sr-only">View Listing</span>
+                                </a>
+                              </Button>
+                              {entitlement.status === "active" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => setSelectedEntitlement(entitlement)}
+                                  title="Revoke placement"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Revoke placement</span>
+                                </Button>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </AdminTableShell>
+          </CardGroup>
         </div>
       </AdminLayout>
 

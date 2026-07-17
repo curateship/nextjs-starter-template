@@ -1,7 +1,7 @@
 'use server'
 
 import Stripe from 'stripe'
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, lte, sql } from 'drizzle-orm'
 
 import {
   activateDirectoryFeaturedEntitlement,
@@ -10,6 +10,12 @@ import {
   revalidateDirectoryFeaturedCaches,
 } from '@/lib/actions/directories/directory-featured-activation'
 import { sanitizeReturnPath } from '@/lib/actions/directories/directory-featured-helpers'
+import {
+  buildDirectoryRevenueCurrencySummaries,
+  EXPIRING_SOON_DAYS,
+  revenueChartWindowStart,
+  type DirectoryRevenueCurrencySummary,
+} from '@/lib/actions/directories/directory-revenue-summary'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -316,6 +322,125 @@ export async function getDirectoryFeaturedEntitlementsAction(siteId: string, sta
       revoked_at: nowIso(row.entitlement.revokedAt),
       revoke_note: row.entitlement.revokeNote,
       created_at: row.entitlement.createdAt?.toISOString() ?? '',
+    })),
+  }
+}
+
+export interface DirectoryFeaturedExpiringItem {
+  id: string
+  directory_id: string
+  directory_title: string
+  directory_slug: string
+  owner_email: string
+  owner_name: string | null
+  plan_name: string
+  amount_total: number | null
+  currency: string | null
+  ends_at: string
+}
+
+export interface DirectoryFeaturedRevenueSummary {
+  currencies: DirectoryRevenueCurrencySummary[]
+  activeCount: number
+  expiringCount: number
+  expiringSoon: DirectoryFeaturedExpiringItem[]
+  error: string | null
+}
+
+const EXPIRING_SOON_LIMIT = 50
+
+export async function getDirectoryFeaturedRevenueSummaryAction(siteId: string): Promise<DirectoryFeaturedRevenueSummary> {
+  const empty = { currencies: [], activeCount: 0, expiringCount: 0, expiringSoon: [] }
+
+  if (!UUID_REGEX.test(siteId)) return { ...empty, error: 'Invalid site ID' }
+
+  const user = await requireSuperAdmin()
+  if (!user) return { ...empty, error: 'Access denied' }
+
+  const now = new Date()
+  // Revenue counts every completed purchase (revoked placements stay counted;
+  // refunds are handled manually in Stripe and never recorded here).
+  const monthExpr = sql<string>`to_char(${directoryFeaturedEntitlements.createdAt} at time zone 'UTC', 'YYYY-MM')`
+  const paidSaleConditions = [
+    eq(directoryFeaturedEntitlements.siteId, siteId),
+    sql`${directoryFeaturedEntitlements.amountTotal} is not null`,
+  ]
+  // Matches derivedEntitlementStatus 'active' so the stat agrees with the table counts.
+  const activeConditions = [
+    eq(directoryFeaturedEntitlements.siteId, siteId),
+    eq(directoryFeaturedEntitlements.status, 'active'),
+    gt(directoryFeaturedEntitlements.endsAt, sql`now()`),
+  ]
+
+  const [monthlyRows, totalRows, [countsRow], expiringRows] = await Promise.all([
+    db
+      .select({
+        month: monthExpr,
+        currency: directoryFeaturedEntitlements.currency,
+        revenue: sql<number>`sum(${directoryFeaturedEntitlements.amountTotal})::int`,
+        purchases: sql<number>`count(*)::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .where(and(...paidSaleConditions, gte(directoryFeaturedEntitlements.createdAt, revenueChartWindowStart(now))))
+      .groupBy(monthExpr, directoryFeaturedEntitlements.currency),
+    db
+      .select({
+        currency: directoryFeaturedEntitlements.currency,
+        revenue: sql<number>`sum(${directoryFeaturedEntitlements.amountTotal})::int`,
+        purchases: sql<number>`count(*)::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .where(and(...paidSaleConditions))
+      .groupBy(directoryFeaturedEntitlements.currency),
+    db
+      .select({
+        active: sql<number>`count(*)::int`,
+        expiring: sql<number>`count(*) filter (where ${directoryFeaturedEntitlements.endsAt} <= now() + make_interval(days => ${EXPIRING_SOON_DAYS}))::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .where(and(...activeConditions)),
+    db
+      .select({
+        id: directoryFeaturedEntitlements.id,
+        directoryId: directoryFeaturedEntitlements.directoryId,
+        directoryTitle: directories.title,
+        directorySlug: directories.slug,
+        ownerEmail: authUsers.email,
+        ownerName: authUsers.name,
+        ownerDisplayName: authUsers.displayName,
+        planName: directoryFeaturedPlans.name,
+        amountTotal: directoryFeaturedEntitlements.amountTotal,
+        currency: directoryFeaturedEntitlements.currency,
+        endsAt: directoryFeaturedEntitlements.endsAt,
+      })
+      .from(directoryFeaturedEntitlements)
+      .innerJoin(directories, eq(directories.id, directoryFeaturedEntitlements.directoryId))
+      .innerJoin(authUsers, eq(authUsers.id, directoryFeaturedEntitlements.userId))
+      .innerJoin(directoryFeaturedPlans, eq(directoryFeaturedPlans.id, directoryFeaturedEntitlements.planId))
+      .where(and(
+        ...activeConditions,
+        lte(directoryFeaturedEntitlements.endsAt, sql`now() + make_interval(days => ${EXPIRING_SOON_DAYS})`)
+      ))
+      .orderBy(asc(directoryFeaturedEntitlements.endsAt))
+      .limit(EXPIRING_SOON_LIMIT),
+  ])
+
+  return {
+    currencies: buildDirectoryRevenueCurrencySummaries({ monthlyRows, totalRows, now }),
+    activeCount: countsRow?.active ?? 0,
+    expiringCount: countsRow?.expiring ?? 0,
+    error: null,
+    expiringSoon: expiringRows.map((row) => ({
+      id: row.id,
+      directory_id: row.directoryId,
+      directory_title: row.directoryTitle,
+      directory_slug: row.directorySlug,
+      owner_email: row.ownerEmail,
+      owner_name: row.ownerDisplayName ?? row.ownerName ?? null,
+      plan_name: row.planName,
+      amount_total: row.amountTotal,
+      currency: row.currency,
+      ends_at: row.endsAt.toISOString(),
     })),
   }
 }
