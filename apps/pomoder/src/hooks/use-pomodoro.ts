@@ -69,7 +69,9 @@ const initialState: GuestState = {
   selectedTaskId: null,
 }
 
-function canChangeSelectedTask(state: GuestState) {
+// "Idle" means fully stopped: not running, no live server session, and not
+// paused midway. Task selection and preset application both require it.
+function timerIsIdle(state: GuestState) {
   return !state.timer.running && state.serverSessionId === null && state.timer.remainingSeconds === state.timer.durationMinutes * 60
 }
 
@@ -147,13 +149,29 @@ export function usePomodoro(authenticated = false) {
 
   React.useEffect(() => {
     const update = (event: Event) => {
-      const { durations, autoStart } = (event as CustomEvent<{ durations: Record<TimerMode, number>; autoStart: boolean }>).detail
-      if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, dailyGoalSessions: state.dailyGoalSessions, autoStart }).catch(() => undefined)
-      setState((current) => ({ ...current, durations, autoStart, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }))
+      const { durations, autoStart, preset } = (event as CustomEvent<{ durations: Record<TimerMode, number>; autoStart: boolean; preset?: boolean }>).detail
+      setState((current) => {
+        // Preset application never silently changes a running or paused
+        // timer; the shell disables its buttons, this is the backstop.
+        if (preset && !timerIsIdle(current)) return current
+        if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, dailyGoalSessions: current.dailyGoalSessions, autoStart }).catch(() => undefined)
+        return { ...current, durations, autoStart, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }
+      })
     }
     window.addEventListener("pomoder:preferences", update)
     return () => window.removeEventListener("pomoder:preferences", update)
-  }, [authenticated, state.dailyGoalSessions])
+  }, [authenticated])
+
+  // The shell's quick controls live outside this hook, so the hook announces
+  // its timer state (and answers explicit requests) over window events.
+  const timerIdle = timerIsIdle(state)
+  React.useEffect(() => {
+    const detail = { stopped: timerIdle, durations: state.durations, autoStart: state.autoStart }
+    const respond = () => window.dispatchEvent(new CustomEvent("pomoder:timer-state", { detail }))
+    respond()
+    window.addEventListener("pomoder:timer-state-request", respond)
+    return () => window.removeEventListener("pomoder:timer-state-request", respond)
+  }, [timerIdle, state.durations, state.autoStart])
 
   React.useEffect(() => {
     if (!state.timer.running) {
@@ -293,10 +311,25 @@ export function usePomodoro(authenticated = false) {
 
   const selectTask = React.useCallback((taskId: string | null) => {
     setState((current) => {
-      if (!canChangeSelectedTask(current)) return current
+      if (!timerIsIdle(current)) return current
       return { ...current, selectedTaskId: taskId === null ? null : resolveSelectedTaskId(current.tasks, taskId) }
     })
   }, [])
+
+  // Presets and direct preference editing share this one update path: apply
+  // all four values, reset the (idle) timer for the current mode, and persist
+  // through the canonical preference mutation. Returns false — applying
+  // nothing — when a timer is running or paused.
+  const applyPreset = (values: { focusMinutes: number; shortBreakMinutes: number; longBreakMinutes: number; autoStart: boolean }) => {
+    if (!timerIsIdle(state)) return false
+    const durations = { focus: values.focusMinutes, short: values.shortBreakMinutes, long: values.longBreakMinutes }
+    setState((current) => {
+      if (!timerIsIdle(current)) return current
+      if (authenticated) void updatePreferences({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, dailyGoalSessions: current.dailyGoalSessions, autoStart: values.autoStart }).catch(() => setSyncError("The preset could not be synced."))
+      return { ...current, durations, autoStart: values.autoStart, timer: createTimer(current.timer.mode, durations[current.timer.mode]), serverSessionId: null }
+    })
+    return true
+  }
 
   const setAutoStart = React.useCallback((autoStart: boolean) => {
     setState((current) => {
@@ -313,5 +346,5 @@ export function usePomodoro(authenticated = false) {
 
   const selectedTask = state.tasks.find((task) => task.id === state.selectedTaskId && !task.completed) ?? null
 
-  return { ...state, remainingSeconds, selectedTask, canSelectTask: canChangeSelectedTask(state), syncError, selectTask, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, updateTaskDetails, reorderActiveTasks, setAutoStart, setDurations }
+  return { ...state, remainingSeconds, selectedTask, canSelectTask: timerIdle, canApplyPreset: timerIdle, syncError, selectTask, selectMode, toggleTimer, reset, addTask, toggleTask: toggleGuestTask, removeTask, updateTaskDetails, reorderActiveTasks, applyPreset, setAutoStart, setDurations }
 }

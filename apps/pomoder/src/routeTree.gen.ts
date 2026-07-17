@@ -27,6 +27,7 @@ import { Route as PomoderSettingsRouteImport } from './routes/_pomoder/settings'
 import { Route as PomoderRoomsRouteImport } from './routes/_pomoder/rooms'
 import { Route as PomoderPricingRouteImport } from './routes/_pomoder/pricing'
 import { Route as PomoderLeaderboardRouteImport } from './routes/_pomoder/leaderboard'
+import { Route as PomoderHistoryRouteImport } from './routes/_pomoder/history'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiMediaIndexRouteImport } from './routes/api/media/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -134,6 +135,11 @@ const PomoderPricingRoute = PomoderPricingRouteImport.update({
 const PomoderLeaderboardRoute = PomoderLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderHistoryRoute = PomoderHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => PomoderRoute,
 } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
@@ -255,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/history': typeof PomoderHistoryRoute
   '/leaderboard': typeof PomoderLeaderboardRoute
   '/pricing': typeof PomoderPricingRoute
   '/rooms': typeof PomoderRoomsRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/history': typeof PomoderHistoryRoute
   '/leaderboard': typeof PomoderLeaderboardRoute
   '/pricing': typeof PomoderPricingRoute
   '/rooms': typeof PomoderRoomsRoute
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/_pomoder/history': typeof PomoderHistoryRoute
   '/_pomoder/leaderboard': typeof PomoderLeaderboardRoute
   '/_pomoder/pricing': typeof PomoderPricingRoute
   '/_pomoder/rooms': typeof PomoderRoomsRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/workspaces'
+    | '/history'
     | '/leaderboard'
     | '/pricing'
     | '/rooms'
@@ -411,6 +421,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/workspaces'
+    | '/history'
     | '/leaderboard'
     | '/pricing'
     | '/rooms'
@@ -449,6 +460,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/_authenticated/workspaces'
+    | '/_pomoder/history'
     | '/_pomoder/leaderboard'
     | '/_pomoder/pricing'
     | '/_pomoder/rooms'
@@ -625,6 +637,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/leaderboard'
       preLoaderRoute: typeof PomoderLeaderboardRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/history': {
+      id: '/_pomoder/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof PomoderHistoryRouteImport
       parentRoute: typeof PomoderRoute
     }
     '/_authenticated/workspaces': {
@@ -841,6 +860,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface PomoderRouteChildren {
+  PomoderHistoryRoute: typeof PomoderHistoryRoute
   PomoderLeaderboardRoute: typeof PomoderLeaderboardRoute
   PomoderPricingRoute: typeof PomoderPricingRoute
   PomoderRoomsRoute: typeof PomoderRoomsRoute
@@ -854,6 +874,7 @@ interface PomoderRouteChildren {
 }
 
 const PomoderRouteChildren: PomoderRouteChildren = {
+  PomoderHistoryRoute: PomoderHistoryRoute,
   PomoderLeaderboardRoute: PomoderLeaderboardRoute,
   PomoderPricingRoute: PomoderPricingRoute,
   PomoderRoomsRoute: PomoderRoomsRoute,

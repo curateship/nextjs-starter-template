@@ -157,6 +157,42 @@ export const userPreferences = pgTable(
   ]
 )
 
+export const userTimerPresets = pgTable(
+  "user_timer_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull(),
+    shortBreakMinutes: integer("short_break_minutes").notNull(),
+    longBreakMinutes: integer("long_break_minutes").notNull(),
+    autoStart: boolean("auto_start").notNull().default(false),
+    ...timestamps,
+  },
+  (table) => [
+    unique("user_timer_presets_user_name_unique").on(table.userId, table.name),
+    check(
+      "user_timer_presets_name_check",
+      sql`length(trim(${table.name})) between 1 and 60`
+    ),
+    check(
+      "user_timer_presets_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "user_timer_presets_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "user_timer_presets_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    index("user_timer_presets_user_idx").on(table.userId, table.createdAt),
+  ]
+)
+
 export const tasks = pgTable(
   "tasks",
   {

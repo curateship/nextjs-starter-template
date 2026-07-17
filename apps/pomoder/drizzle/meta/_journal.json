@@ -78,6 +78,13 @@
       "when": 1784419200000,
       "tag": "0010_room_moderation_tools",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784505600000,
+      "tag": "0011_focus_rhythm_presets",
+      "breakpoints": true
     }
   ]
 }
