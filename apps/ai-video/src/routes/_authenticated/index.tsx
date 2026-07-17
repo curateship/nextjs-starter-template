@@ -9,7 +9,7 @@ import { configuredRouteTarget } from "@/lib/home-route"
 export const Route = createFileRoute("/_authenticated/")({
   loader: async () => {
     const { settings } = await loadShellSettings()
-    const target = configuredRouteTarget(settings.adminRoute) ?? "/home"
+    const target = configuredRouteTarget(settings.adminRoute) ?? "/admin/home"
     throw redirect({ href: target })
   },
 })
