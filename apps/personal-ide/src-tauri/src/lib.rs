@@ -516,8 +516,10 @@ fn add_workspace_for_new_app(
         app_name.to_string(),
         |app_root| {
             copy_scaffold_dir(scaffold_root, app_root)?;
-            register_local_app_port(app_root, app_name, app_port)?;
-            rewrite_scaffold_metadata(app_root, app_name, app_port, database_port)?;
+            // Use the port the registry actually assigned (it may differ from
+            // the requested one if that collided) so scaffold metadata matches.
+            let assigned_port = register_local_app_port(app_root, app_name, app_port)?;
+            rewrite_scaffold_metadata(app_root, app_name, assigned_port, database_port)?;
             commit_generated_app_scaffold(app_root, app_name)
         },
     )
@@ -536,11 +538,7 @@ fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), 
     Ok(())
 }
 
-fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Result<(), String> {
-    if app_port < 1024 {
-        return Err("Generated app port must be at least 1024.".to_string());
-    }
-
+fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Result<u16, String> {
     let worktree_root = git_root_for(app_root)?;
     let path = worktree_root.join(LOCAL_APPS_FILE);
     let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
@@ -550,22 +548,27 @@ fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Re
         return Err(format!("{LOCAL_APPS_FILE} must contain a JSON object."));
     };
 
-    if let Some(existing_port) = ports.get(app_name) {
-        if existing_port.as_u64() == Some(u64::from(app_port)) {
-            return Ok(());
-        }
-        return Err(format!(
-            "{app_name} already has a different registered port."
-        ));
+    // Idempotent: if this app already has a registered port, keep it.
+    if let Some(existing_port) = ports.get(app_name).and_then(|value| value.as_u64()) {
+        return Ok(existing_port as u16);
     }
 
-    if ports
-        .iter()
-        .any(|(_, port)| port.as_u64() == Some(u64::from(app_port)))
-    {
-        return Err(format!(
-            "Port {app_port} is already registered to another app."
-        ));
+    // The requested port is computed from a bundled (build-time) copy of this
+    // file, which can be stale and disagree with the live file we validate
+    // against here. Rather than failing when it collides — which used to leave
+    // the new app with no registered port at all — fall back to the next free
+    // port so registration always succeeds with a unique value.
+    let used: std::collections::BTreeSet<u64> = ports
+        .values()
+        .filter_map(|value| value.as_u64())
+        .collect();
+
+    let mut port = u64::from(app_port);
+    if port < 1024 || used.contains(&port) {
+        port = used.iter().copied().max().unwrap_or(1023).max(1023) + 1;
+        while used.contains(&port) {
+            port += 1;
+        }
     }
 
     let closing_brace = contents
@@ -575,8 +578,9 @@ fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Re
     let suffix = &contents[closing_brace + 1..];
     let separator = if ports.is_empty() { "" } else { "," };
     let key = serde_json::to_string(app_name).map_err(|error| error.to_string())?;
-    let updated = format!("{before_closing}{separator}\n  {key}: {app_port}\n}}{suffix}");
-    fs::write(path, updated).map_err(|error| error.to_string())
+    let updated = format!("{before_closing}{separator}\n  {key}: {port}\n}}{suffix}");
+    fs::write(path, updated).map_err(|error| error.to_string())?;
+    Ok(port as u16)
 }
 
 #[tauri::command]
@@ -3314,13 +3318,24 @@ mod tests {
         )
         .expect("write port registry");
 
-        register_local_app_port(&app_root, "app-name", 3_012).expect("register app port");
+        let app_port =
+            register_local_app_port(&app_root, "app-name", 3_012).expect("register app port");
+        assert_eq!(app_port, 3_012);
 
         assert_eq!(
             fs::read_to_string(root.join("local-apps.json")).expect("read port registry"),
             "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002,\n  \"app-name\": 3012\n}\n"
         );
-        assert!(register_local_app_port(&app_root, "other-app", 3_012).is_err());
+
+        // A requested port that collides is reassigned to the next free port
+        // instead of failing, so the app always gets a unique registered entry.
+        let reassigned =
+            register_local_app_port(&app_root, "other-app", 3_012).expect("reassign colliding port");
+        assert_eq!(reassigned, 3_013);
+        assert_eq!(
+            fs::read_to_string(root.join("local-apps.json")).expect("read port registry"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002,\n  \"app-name\": 3012,\n  \"other-app\": 3013\n}\n"
+        );
 
         fs::remove_dir_all(root).expect("remove temp repo");
     }
