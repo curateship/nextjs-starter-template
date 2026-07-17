@@ -520,7 +520,7 @@ export function AccountClaimedListingsBlock({
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   {featuredState?.featuredUntil
-                    ? `Current status: Featured until ${formatFeaturedDate(featuredState.featuredUntil)}${featuredState.activePlanName ? ` (${featuredState.activePlanName})` : ""}.`
+                    ? `Current status: Featured until ${formatFeaturedDate(featuredState.featuredUntil)}${featuredState.activePlanName ? ` (${featuredState.activePlanName})` : ""}. Renew below to extend it before it expires.`
                     : "Current status: Not featured. Buy an upgrade to show this listing first with a Featured badge."}
                 </p>
 
@@ -557,7 +557,7 @@ export function AccountClaimedListingsBlock({
                       disabled={upgradePending || !selectedPlanId || isPreview}
                     >
                       {upgradePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Buy Upgrade
+                      {featuredState?.featuredUntil ? "Renew Featured Placement" : "Buy Upgrade"}
                     </Button>
                   </>
                 ) : null}

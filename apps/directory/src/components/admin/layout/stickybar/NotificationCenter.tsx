@@ -41,6 +41,7 @@ const notificationIcons: Record<HubNotificationItem["type"], LucideIcon> = {
   directory_claim: ShieldCheck,
   directory_owner_edit: ShieldCheck,
   directory_featured: ShoppingCart,
+  directory_featured_expired: AlertTriangle,
   newsletter_paused: AlertTriangle,
 }
 
