@@ -4,6 +4,7 @@ Monorepo-wide guidance for agents. App-specific rules live in each app's own `ap
 
 ## Dev Servers
 
+- **Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**
 - Every new app must receive one unused port under its app key in `local-apps.json` when the app is created.
 - **`local-apps.json` is the only place where an app port may be assigned. Never duplicate or hardcode the port in app code, scripts, tests, environment defaults, Dockerfiles, or documentation; those consumers must read it from `local-apps.json`.**
 - Never use another port or change an existing assignment unless the user explicitly requests that exact reassignment.

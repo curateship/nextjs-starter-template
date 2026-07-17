@@ -76,6 +76,10 @@ npm run dev:directory
 
 Only fix build, lint, or type errors caused by your change unless the user asks for broader cleanup.
 
+## Dev Servers
+
+**Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**
+
 ## Local Ports
 
 Local ports are defined in `local-apps.json`.
