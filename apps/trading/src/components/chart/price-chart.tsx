@@ -82,8 +82,6 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
-/** Canvas label room reserved for the overlaid cancel button. */
-const LINE_ACTION_TITLE_PADDING = "     "
 /** Pulsing pointer that locates a focused trade's entry/exit on the chart. */
 const FOCUS_COLOR = "#2962ff"
 const TRENDLINE_COLORS = [
@@ -1787,10 +1785,11 @@ export function PriceChartView({
       }
 
       const current = existing.get(spec.id)
-      const title =
-        lineCancelEnabled && spec.draggable
-          ? `${spec.title}${LINE_ACTION_TITLE_PADDING}`
-          : spec.title
+      // Cancelable lines render their label as an HTML chip (with the ×)
+      // pinned to the line, so the canvas title stays empty — the library
+      // shifts its title chip to dodge axis labels, which would desync it
+      // from the overlaid button.
+      const title = lineCancelEnabled && spec.draggable ? "" : spec.title
       if (current) {
         current.applyOptions({
           price,
@@ -2142,20 +2141,25 @@ export function PriceChartView({
       ) : null}
       {onLineCancel
         ? lineActionPixels.map((action) => (
-            <button
+            <div
               key={action.id}
-              type="button"
-              aria-label={`Cancel ${action.title}`}
-              className="absolute z-40 flex size-4 -translate-y-1/2 items-center justify-center text-white shadow-sm outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="pointer-events-none absolute z-40 flex -translate-y-1/2 items-center gap-0.5 rounded-l-sm py-px pl-1.5 text-[11px] font-medium text-white shadow-sm"
               style={{
                 top: action.y,
                 right: action.right,
                 backgroundColor: action.color,
               }}
-              onClick={() => onLineCancel(action.id)}
             >
-              <XIcon className="size-3" aria-hidden="true" />
-            </button>
+              <span className="whitespace-nowrap">{action.title}</span>
+              <button
+                type="button"
+                aria-label={`Cancel ${action.title}`}
+                className="pointer-events-auto flex size-4 items-center justify-center outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                onClick={() => onLineCancel(action.id)}
+              >
+                <XIcon className="size-3" aria-hidden="true" />
+              </button>
+            </div>
           ))
         : null}
       {resetMenu ? (
