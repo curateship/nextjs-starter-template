@@ -61,7 +61,6 @@ import {
   macd,
   qflBase,
   rsi,
-  vwap,
 } from "@/lib/strategies/indicators"
 import {
   emaLines,
@@ -1507,8 +1506,6 @@ export function PriceChartView({
             0
           )
         }
-      } else if (ind.type === "vwap") {
-        addLine("vwap", "vwap", ind.color, 0)
       } else if (ind.type === "base") {
         // Rendered as separate per-mark series in the data effect below.
       } else if (ind.type === "bollinger") {
@@ -1685,8 +1682,6 @@ export function PriceChartView({
         for (const line of emaLines(ind.params)) {
           setLine(`${ind.id}:${line.slot}`, ema(closes, line.period))
         }
-      } else if (ind.type === "vwap") {
-        setLine("vwap", vwap(candles))
       } else if (ind.type === "base") {
         const { line } = qflBase(
           candles,

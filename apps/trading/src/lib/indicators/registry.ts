@@ -10,14 +10,12 @@ import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
 import { trendlineIndicator } from "./defs/trendline"
-import { vwapCrossIndicator } from "./defs/vwap-cross"
 
 export const INDICATOR_IDS = [
   "qqe",
   "ema_cross",
   "rsi_levels",
   "macd_cross",
-  "vwap_cross",
   "breakout",
   "bollinger",
   "price_action",
@@ -42,7 +40,6 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   ema_cross: erase(emaCrossIndicator),
   rsi_levels: erase(rsiLevelsIndicator),
   macd_cross: erase(macdCrossIndicator),
-  vwap_cross: erase(vwapCrossIndicator),
   breakout: erase(breakoutIndicator),
   bollinger: erase(bollingerIndicator),
   price_action: erase(priceActionIndicator),

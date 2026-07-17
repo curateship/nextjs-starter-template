@@ -20,8 +20,6 @@ import {
   smma,
   stddev,
   tema,
-  vwap,
-  vwapBands,
   vwma,
   wma,
 } from "./indicators"
@@ -118,44 +116,6 @@ describe("indicators", () => {
     expect(line.at(-1)).toBeCloseTo(0, 10)
     expect(signal.at(-1)).toBeCloseTo(0, 10)
     expect(hist.at(-1)).toBeCloseTo(0, 10)
-  })
-
-  it("anchors VWAP per UTC day and resets at the boundary", () => {
-    const day = 86_400_000
-    const candles = [
-      { t: 0, h: 10, l: 10, c: 10, v: 1 },
-      { t: 60_000, h: 20, l: 20, c: 20, v: 1 },
-      { t: day, h: 30, l: 30, c: 30, v: 1 }, // new UTC day → reset
-      { t: day + 60_000, h: 50, l: 50, c: 50, v: 1 },
-    ]
-    const series = vwap(candles)
-    expect(series[0]).toBeCloseTo(10, 10)
-    expect(series[1]).toBeCloseTo(15, 10) // (10+20)/2
-    expect(series[2]).toBeCloseTo(30, 10) // reset to new day
-    expect(series[3]).toBeCloseTo(40, 10) // (30+50)/2
-  })
-
-  it("accepts string OHLCV fields in VWAP (matching candle payloads)", () => {
-    const series = vwap([{ t: 0, h: "10", l: "10", c: "10", v: "2" }])
-    expect(series[0]).toBeCloseTo(10, 10)
-  })
-
-  it("brackets VWAP with volume-weighted σ bands that reset per UTC day", () => {
-    const day = 86_400_000
-    const candles = [
-      { t: 0, h: 10, l: 10, c: 10, v: 1 },
-      { t: 60_000, h: 20, l: 20, c: 20, v: 1 },
-      { t: day, h: 30, l: 30, c: 30, v: 1 }, // new UTC day → reset, σ = 0
-    ]
-    const { mid, upper, lower } = vwapBands(candles, 2)
-    // Two equal-weight points at 10 and 20: mean 15, σ = 5, ±2σ = 5 / 25.
-    expect(mid[1]).toBeCloseTo(15, 10)
-    expect(upper[1]).toBeCloseTo(25, 10)
-    expect(lower[1]).toBeCloseTo(5, 10)
-    // Day boundary resets the accumulator: a lone point has zero spread.
-    expect(mid[2]).toBeCloseTo(30, 10)
-    expect(upper[2]).toBeCloseTo(30, 10)
-    expect(lower[2]).toBeCloseTo(30, 10)
   })
 })
 

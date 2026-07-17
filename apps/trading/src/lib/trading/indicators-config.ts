@@ -7,7 +7,6 @@ import { sessionLabel, type SessionKey } from "@/lib/trading/sessions"
 
 export type IndicatorType =
   | "ema"
-  | "vwap"
   | "bollinger"
   | "rsi"
   | "macd"
@@ -69,7 +68,6 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
       showThird: 1,
     },
   },
-  { id: "vwap", type: "vwap", enabled: false, pinned: false, params: {} },
   {
     id: "bollinger",
     type: "bollinger",
@@ -263,7 +261,6 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "slow", label: "EMA 2 period" },
     { key: "third", label: "EMA 3 period" },
   ],
-  vwap: [],
   bollinger: [
     { key: "period", label: "Period" },
     { key: "k", label: "StdDev", step: 0.5 },
@@ -379,7 +376,6 @@ export const INDICATOR_PARAM_FIELDS: Record<
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   ema: "EMA",
-  vwap: "VWAP",
   bollinger: "Bollinger",
   rsi: "RSI",
   macd: "MACD",
@@ -456,7 +452,6 @@ const PALETTE: Record<string, ThemeHex> = {
   "ema-fast": { light: "#2563eb", dark: "#60a5fa" },
   "ema-slow": { light: "#ea580c", dark: "#fb923c" },
   "ema-third": { light: "#16a34a", dark: "#4ade80" },
-  vwap: { light: "#7c3aed", dark: "#a78bfa" },
   "bollinger-mid": { light: "#0891b2", dark: "#22d3ee" },
   "bollinger-band": { light: "#94a3b8", dark: "#64748b" },
   rsi: { light: "#7c3aed", dark: "#a78bfa" },

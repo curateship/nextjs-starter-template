@@ -12,7 +12,7 @@ export type ChartLegendFlags = {
   chips?: boolean
 }
 
-/** A colored-line legend entry (e.g. a breakout channel or VWAP band). */
+/** A colored-line legend entry (e.g. a breakout channel line). */
 export type ChartLegendLine = { id: string; color: string; label: string }
 
 function LegendChip({

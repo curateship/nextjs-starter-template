@@ -4,7 +4,6 @@ import {
   crossedAbove,
   crossedBelow,
   ema,
-  vwap,
 } from "@/lib/strategies/indicators"
 import { computeConsolidation, computeQqeSeries } from "@/lib/strategies/qqe"
 import {
@@ -132,30 +131,6 @@ describe("EMA-cross parity with legacy momentum ema_cross", () => {
       const s = ema(window, slow)
       if (crossedAbove(f, s)) expected.push({ time: CANDLES[i].t, side: "buy" })
       else if (crossedBelow(f, s)) expected.push({ time: CANDLES[i].t, side: "sell" })
-    }
-    expect(output.signals).toEqual(expected)
-    expect(output.signals.length).toBeGreaterThan(0)
-  })
-})
-
-describe("VWAP-cross parity with legacy vwap cross mode", () => {
-  it("matches the worker's day-window close×VWAP crosses", () => {
-    const output = INDICATORS.vwap_cross.compute(CANDLES, { bandK: 0 } as never)
-
-    // Legacy vwap.ts cross mode: dayWindow slice (96+5 bars at 15m), then
-    // crossedAbove/Below(closes, vwap(candles)).
-    const dayWindow = Math.ceil(86_400_000 / 900_000) + 5
-    const expected: IndicatorSignal[] = []
-    for (let i = 0; i < CANDLES.length; i += 1) {
-      const window = CANDLES.slice(Math.max(0, i + 1 - dayWindow), i + 1)
-      if (window.length < 3) continue
-      const line = vwap(window)
-      const closes = window.map((c) => c.c)
-      if (crossedAbove(closes, line)) {
-        expected.push({ time: CANDLES[i].t, side: "buy" })
-      } else if (crossedBelow(closes, line)) {
-        expected.push({ time: CANDLES[i].t, side: "sell" })
-      }
     }
     expect(output.signals).toEqual(expected)
     expect(output.signals.length).toBeGreaterThan(0)
