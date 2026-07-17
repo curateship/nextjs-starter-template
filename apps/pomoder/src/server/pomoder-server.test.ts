@@ -12,6 +12,7 @@ import {
   type PomoderAdminAction,
   type PomoderAdminCreateRecord,
 } from "@/server/admin-contract"
+import { loadFocusReport, loadFocusReportSessions, localDateStartInstant, REPORT_SESSION_PAGE_SIZE } from "@/server/focus-report"
 import { generationLimit } from "@/server/generation"
 import {
   finalizeProcessedUpload,
@@ -42,6 +43,12 @@ import {
   loadSoundPreferences,
   resolveStorableSoundReference,
 } from "@/server/sound-preferences"
+import {
+  createTimerPreset,
+  deleteTimerPreset,
+  listTimerPresets,
+  updateTimerPreset,
+} from "@/server/timer-presets"
 import type { PomoderDb } from "@/server/db"
 import {
   adminAuditLogs,
@@ -124,6 +131,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0010_room_moderation_tools.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0011_focus_rhythm_presets.sql", import.meta.url),
       "utf8"
     )
   )
@@ -254,6 +267,166 @@ describe("focus task attribution", () => {
     expect(duplicate).toBeNull()
     expect((await database.select().from(tasks))[0]?.pomodoroCount).toBe(1)
     expect((await database.select().from(dailyFocusStats))[0]).toMatchObject({ focusSessions: 1, focusSeconds: 1_500 })
+  })
+})
+
+describe("timer presets", () => {
+  const values = { name: "Writing", focusMinutes: 45, shortBreakMinutes: 8, longBreakMinutes: 20, autoStart: true }
+
+  async function seedPresetUser(email: string) {
+    const [user] = await database.insert(users).values({ email, name: "Presets", passwordHash: "hash" }).returning()
+    return user
+  }
+
+  it("scopes preset listing and mutations to their owner", async () => {
+    const owner = await seedPresetUser("preset-owner@example.com")
+    const other = await seedPresetUser("preset-other@example.com")
+    const created = await createTimerPreset(owner.id, values, database as unknown as PomoderDb)
+    expect(created).toMatchObject(values)
+
+    expect(await listTimerPresets(owner.id, database as unknown as PomoderDb)).toHaveLength(1)
+    expect(await listTimerPresets(other.id, database as unknown as PomoderDb)).toHaveLength(0)
+    await expect(updateTimerPreset(other.id, created.id, values, database as unknown as PomoderDb)).rejects.toThrow("PRESET_NOT_FOUND")
+    await expect(deleteTimerPreset(other.id, created.id, database as unknown as PomoderDb)).rejects.toThrow("PRESET_NOT_FOUND")
+
+    const renamed = await updateTimerPreset(owner.id, created.id, { ...values, name: "Writing v2", autoStart: false }, database as unknown as PomoderDb)
+    expect(renamed).toMatchObject({ name: "Writing v2", autoStart: false })
+
+    await deleteTimerPreset(owner.id, created.id, database as unknown as PomoderDb)
+    expect(await listTimerPresets(owner.id, database as unknown as PomoderDb)).toHaveLength(0)
+    await expect(deleteTimerPreset(owner.id, created.id, database as unknown as PomoderDb)).rejects.toThrow("PRESET_NOT_FOUND")
+  })
+
+  it("rejects duplicate names per user, case-insensitively", async () => {
+    const user = await seedPresetUser("preset-names@example.com")
+    const neighbor = await seedPresetUser("preset-neighbor@example.com")
+    const first = await createTimerPreset(user.id, values, database as unknown as PomoderDb)
+    await expect(createTimerPreset(user.id, { ...values, name: "wRiTing" }, database as unknown as PomoderDb)).rejects.toThrow("PRESET_NAME_TAKEN")
+    // The same name is fine on another account.
+    await createTimerPreset(neighbor.id, values, database as unknown as PomoderDb)
+
+    const second = await createTimerPreset(user.id, { ...values, name: "Reading" }, database as unknown as PomoderDb)
+    await expect(updateTimerPreset(user.id, second.id, { ...values, name: "WRITING" }, database as unknown as PomoderDb)).rejects.toThrow("PRESET_NAME_TAKEN")
+    // Renaming a preset to its own name stays allowed.
+    await updateTimerPreset(user.id, first.id, values, database as unknown as PomoderDb)
+  })
+
+  it("enforces the ten-preset limit inside the transaction", async () => {
+    const user = await seedPresetUser("preset-limit@example.com")
+    for (let index = 0; index < 10; index += 1) {
+      await createTimerPreset(user.id, { ...values, name: `Preset ${index}` }, database as unknown as PomoderDb)
+    }
+    await expect(createTimerPreset(user.id, { ...values, name: "One too many" }, database as unknown as PomoderDb)).rejects.toThrow("PRESET_LIMIT_REACHED")
+    expect(await listTimerPresets(user.id, database as unknown as PomoderDb)).toHaveLength(10)
+  })
+
+  it("lets the database reject out-of-bounds durations and blank names", async () => {
+    const user = await seedPresetUser("preset-bounds@example.com")
+    await expect(database.insert(schema.userTimerPresets).values({ userId: user.id, name: "Bad", focusMinutes: 0, shortBreakMinutes: 5, longBreakMinutes: 15 })).rejects.toThrow()
+    await expect(database.insert(schema.userTimerPresets).values({ userId: user.id, name: "Bad", focusMinutes: 25, shortBreakMinutes: 91, longBreakMinutes: 15 })).rejects.toThrow()
+    await expect(database.insert(schema.userTimerPresets).values({ userId: user.id, name: "   ", focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15 })).rejects.toThrow()
+  })
+})
+
+describe("focus history report", () => {
+  it("computes the instant a local date starts in a timezone", () => {
+    expect(localDateStartInstant("UTC", "2026-07-10").toISOString()).toBe("2026-07-10T00:00:00.000Z")
+    expect(localDateStartInstant("America/New_York", "2026-07-10").toISOString()).toBe("2026-07-10T04:00:00.000Z")
+    expect(localDateStartInstant("America/New_York", "2026-01-10").toISOString()).toBe("2026-01-10T05:00:00.000Z")
+    expect(localDateStartInstant("Asia/Tokyo", "2026-07-10").toISOString()).toBe("2026-07-09T15:00:00.000Z")
+  })
+
+  it("reports only completed focus sessions inside the local range with task attribution", async () => {
+    const timezone = "America/New_York"
+    const today = "2026-07-16"
+    const [user] = await database.insert(users).values({ email: "history@example.com", name: "History", passwordHash: "hash", timezone }).returning()
+    const [kept] = await database.insert(tasks).values({ userId: user.id, title: "Deep work", plannedDate: "2026-07-15" }).returning()
+    const [removed] = await database.insert(tasks).values({ userId: user.id, title: "Removed later", plannedDate: "2026-07-15" }).returning()
+
+    const completed = (key: string, completedAt: string, accumulatedSeconds: number, taskId: string | null = null) =>
+      ({ userId: user.id, taskId, mode: "focus", status: "completed", plannedSeconds: 1_500, accumulatedSeconds, completedAt: new Date(completedAt), idempotencyKey: key })
+    await database.insert(focusSessions).values([
+      // Range starts at 2026-07-10T04:00:00Z in New York; the first row falls
+      // on July 9 local time and must stay out of the report.
+      completed("before-range", "2026-07-10T03:59:59Z", 1_500, kept.id),
+      completed("range-start", "2026-07-10T04:00:00Z", 1_500, kept.id),
+      completed("mid-range", "2026-07-15T13:30:00Z", 1_200, kept.id),
+      completed("removed-task", "2026-07-15T18:00:00Z", 900, removed.id),
+      completed("no-task", "2026-07-16T10:00:00Z", 600),
+      { userId: user.id, taskId: kept.id, mode: "focus", status: "cancelled", plannedSeconds: 1_500, accumulatedSeconds: 300, completedAt: null, idempotencyKey: "cancelled" },
+      { userId: user.id, taskId: kept.id, mode: "focus", status: "running", plannedSeconds: 1_500, accumulatedSeconds: 0, completedAt: null, idempotencyKey: "running" },
+      { userId: user.id, taskId: kept.id, mode: "focus", status: "paused", plannedSeconds: 1_500, accumulatedSeconds: 700, completedAt: null, idempotencyKey: "paused" },
+      { userId: user.id, taskId: null, mode: "short", status: "completed", plannedSeconds: 300, accumulatedSeconds: 300, completedAt: new Date("2026-07-15T14:00:00Z"), idempotencyKey: "break" },
+    ])
+    await database.delete(tasks).where(eq(tasks.id, removed.id))
+    await database.insert(dailyFocusStats).values([
+      { userId: user.id, localDate: "2026-07-09", focusSessions: 1, focusSeconds: 1_500, tasksCompleted: 0 },
+      { userId: user.id, localDate: "2026-07-10", focusSessions: 1, focusSeconds: 1_500, tasksCompleted: 1 },
+      { userId: user.id, localDate: "2026-07-15", focusSessions: 2, focusSeconds: 2_100, tasksCompleted: 2 },
+      { userId: user.id, localDate: "2026-07-16", focusSessions: 1, focusSeconds: 600, tasksCompleted: 0 },
+    ])
+
+    const report = await loadFocusReport(user.id, "7d", today, timezone, 0, database as unknown as PomoderDb)
+
+    expect(report).toMatchObject({ startDate: "2026-07-10", endDate: "2026-07-16" })
+    // Aggregate totals line up with the session-level rows in range.
+    expect(report.totals).toEqual({ focusSeconds: 4_200, focusSessions: 4, tasksCompleted: 3, activeDays: 3 })
+    expect(report.sessions.totalRows).toBe(report.totals.focusSessions)
+    expect(report.sessions.rows.reduce((total, row) => total + row.accumulatedSeconds, 0)).toBe(report.totals.focusSeconds)
+    expect(report.days.map((day) => day.localDate)).toEqual(["2026-07-10", "2026-07-15", "2026-07-16"])
+
+    expect(report.topTasks[0]).toMatchObject({ taskId: kept.id, title: "Deep work", sessions: 2, focusSeconds: 2_700 })
+    const neutral = report.topTasks.filter((task) => task.taskId === null)
+    expect(neutral).toHaveLength(1)
+    expect(neutral[0]).toMatchObject({ title: null, sessions: 2, focusSeconds: 1_500 })
+
+    const newest = report.sessions.rows[0]
+    expect(newest).toMatchObject({ taskTitle: null, accumulatedSeconds: 600, localDate: "2026-07-16", localTime: "06:00" })
+    expect(report.sessions.rows.map((row) => row.localDate)).toEqual(["2026-07-16", "2026-07-15", "2026-07-15", "2026-07-10"])
+    expect(report.sessions.rows[1]).toMatchObject({ taskTitle: null, accumulatedSeconds: 900 })
+    expect(report.sessions.rows[2]).toMatchObject({ taskTitle: "Deep work", localTime: "09:30" })
+
+    const exportable = await loadFocusReportSessions(user.id, "7d", today, timezone, database as unknown as PomoderDb)
+    expect(exportable.rows).toHaveLength(4)
+    expect(exportable.rows[0]).toMatchObject({ localDate: "2026-07-10", taskTitle: "Deep work" })
+    expect(exportable.rows.at(-1)).toMatchObject({ localDate: "2026-07-16", taskTitle: null })
+  })
+
+  it("paginates session detail without losing rows", async () => {
+    const [user] = await database.insert(users).values({ email: "pages@example.com", name: "Pages", passwordHash: "hash", timezone: "UTC" }).returning()
+    await database.insert(focusSessions).values(Array.from({ length: 25 }, (_, index) => ({
+      userId: user.id,
+      taskId: null,
+      mode: "focus",
+      status: "completed",
+      plannedSeconds: 1_500,
+      accumulatedSeconds: 1_500,
+      completedAt: new Date(Date.UTC(2026, 6, 16, 8, index)),
+      idempotencyKey: `page-${index}`,
+    })))
+
+    const first = await loadFocusReport(user.id, "7d", "2026-07-16", "UTC", 0, database as unknown as PomoderDb)
+    const second = await loadFocusReport(user.id, "7d", "2026-07-16", "UTC", 1, database as unknown as PomoderDb)
+
+    expect(first.sessions.rows).toHaveLength(REPORT_SESSION_PAGE_SIZE)
+    expect(second.sessions.rows).toHaveLength(5)
+    expect(first.sessions.totalRows).toBe(25)
+    expect(second.sessions.totalRows).toBe(25)
+    const seen = new Set([...first.sessions.rows, ...second.sessions.rows].map((row) => row.id))
+    expect(seen.size).toBe(25)
+    expect(first.sessions.rows[0].localTime).toBe("08:24")
+  })
+
+  it("never returns another user's sessions", async () => {
+    const [owner] = await database.insert(users).values({ email: "owner@example.com", name: "Owner", passwordHash: "hash", timezone: "UTC" }).returning()
+    const [other] = await database.insert(users).values({ email: "other@example.com", name: "Other", passwordHash: "hash", timezone: "UTC" }).returning()
+    await database.insert(focusSessions).values({ userId: other.id, taskId: null, mode: "focus", status: "completed", plannedSeconds: 1_500, accumulatedSeconds: 1_500, completedAt: new Date("2026-07-15T10:00:00Z"), idempotencyKey: "other-session" })
+    await database.insert(dailyFocusStats).values({ userId: other.id, localDate: "2026-07-15", focusSessions: 1, focusSeconds: 1_500, tasksCompleted: 0 })
+
+    const report = await loadFocusReport(owner.id, "7d", "2026-07-16", "UTC", 0, database as unknown as PomoderDb)
+    expect(report.totals).toEqual({ focusSeconds: 0, focusSessions: 0, tasksCompleted: 0, activeDays: 0 })
+    expect(report.sessions.totalRows).toBe(0)
+    expect(report.topTasks).toHaveLength(0)
   })
 })
 

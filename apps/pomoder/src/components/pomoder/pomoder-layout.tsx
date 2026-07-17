@@ -7,6 +7,7 @@ import {
 
 const pageDetails: Record<string, { page: PomoderPage; title: string }> = {
   "/": { page: "dashboard", title: "Ready to focus?" },
+  "/history": { page: "history", title: "Focus history" },
   "/leaderboard": { page: "leaderboard", title: "Leaderboard" },
   "/pricing": { page: "pricing", title: "Pricing" },
   "/rooms": { page: "rooms", title: "Focus rooms" },

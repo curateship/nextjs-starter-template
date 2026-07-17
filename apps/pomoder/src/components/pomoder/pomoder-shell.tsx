@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Clock3,
   Headphones,
+  History,
   LayoutDashboard,
   Menu,
   Palette,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react"
 
 import { logout } from "@/lib/api/auth"
+import { loadTimerPresets } from "@/lib/api/timer-presets"
 import {
   PomoderBackgroundContext,
   type PomoderBackground,
@@ -31,6 +33,13 @@ import {
   useSoundPlayer,
 } from "@/components/pomoder/sound-player"
 import { curatedSounds, sameSoundReference } from "@/lib/sound-catalog"
+import {
+  builtinTimerPresets,
+  loadGuestTimerPresets,
+  matchTimerPreset,
+  presetSummary,
+  type CustomTimerPreset,
+} from "@/lib/timer-presets"
 
 export type PomoderPage =
   | "dashboard"
@@ -39,6 +48,7 @@ export type PomoderPage =
   | "themes"
   | "sounds"
   | "leaderboard"
+  | "history"
   | "pricing"
   | "settings"
 
@@ -49,6 +59,7 @@ const links = [
   { page: "themes", label: "Theme", to: "/themes", icon: Palette },
   { page: "sounds", label: "Sounds", to: "/sounds", icon: Headphones },
   { page: "leaderboard", label: "Leaderboard", to: "/leaderboard", icon: BarChart3 },
+  { page: "history", label: "History", to: "/history", icon: History },
   { page: "tasks", label: "Tasks", to: "/tasks", icon: CheckSquare2 },
 ] as const
 
@@ -116,7 +127,7 @@ export function PomoderShell({
         <header className="pomoder-header dashboard-header">
           <button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu aria-hidden="true" /></button>
           <Link to="/" className="workspace-brand">pomoder<span>.</span></Link>
-          <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} />
+          <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} authenticated={Boolean(user)} />
           <HeaderSoundPlayer />
           <div className="header-actions">{authActions}</div>
         </header>
@@ -138,15 +149,21 @@ function QuickControls({
   chooseBackground,
   open,
   setOpen,
+  authenticated,
 }: {
   background: PomoderBackground
   chooseBackground: (id: PomoderBackground) => void
   open: "timer" | "leaderboard" | "theme" | null
   setOpen: React.Dispatch<React.SetStateAction<"timer" | "leaderboard" | "theme" | null>>
+  authenticated: boolean
 }) {
   const navRef = React.useRef<HTMLElement>(null)
   const [durations, setDurations] = React.useState({ focus: 25, short: 5, long: 15 })
   const [autoStart, setAutoStart] = React.useState(false)
+  const [customPresets, setCustomPresets] = React.useState<CustomTimerPreset[]>([])
+  // null = no page hosting the timer answered; presets need a live timer.
+  const [timerStopped, setTimerStopped] = React.useState<boolean | null>(null)
+  const hostAnsweredRef = React.useRef(false)
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
     try {
@@ -162,12 +179,43 @@ function QuickControls({
     window.addEventListener("pointerdown", close)
     return () => window.removeEventListener("pointerdown", close)
   }, [setOpen])
+  // usePomodoro broadcasts its state and answers requests synchronously, so
+  // the quick controls mirror the live timer instead of stale storage.
+  React.useEffect(() => {
+    const onTimerState = (event: Event) => {
+      const detail = (event as CustomEvent<{ stopped: boolean; durations: { focus: number; short: number; long: number }; autoStart: boolean }>).detail
+      hostAnsweredRef.current = true
+      setTimerStopped(detail.stopped)
+      setDurations(detail.durations)
+      setAutoStart(detail.autoStart)
+    }
+    window.addEventListener("pomoder:timer-state", onTimerState)
+    return () => window.removeEventListener("pomoder:timer-state", onTimerState)
+  }, [])
+  const probeTimerHost = React.useCallback(() => {
+    hostAnsweredRef.current = false
+    window.dispatchEvent(new CustomEvent("pomoder:timer-state-request"))
+    if (!hostAnsweredRef.current) setTimerStopped(null)
+  }, [])
+  React.useEffect(() => {
+    if (open !== "timer") return
+    probeTimerHost()
+    if (!authenticated) { setCustomPresets(loadGuestTimerPresets()); return }
+    let cancelled = false
+    void loadTimerPresets().then((rows) => { if (!cancelled) setCustomPresets(rows) }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [open, authenticated, probeTimerHost])
   const toggle = (menu: typeof open) => setOpen((current) => current === menu ? null : menu)
-  const publishTimer = (nextDurations: typeof durations, nextAutoStart: boolean) => {
+  const publishTimer = (nextDurations: typeof durations, nextAutoStart: boolean, preset = false) => {
     setDurations(nextDurations); setAutoStart(nextAutoStart)
-    window.dispatchEvent(new CustomEvent("pomoder:preferences", { detail: { durations: nextDurations, autoStart: nextAutoStart } }))
+    window.dispatchEvent(new CustomEvent("pomoder:preferences", { detail: { durations: nextDurations, autoStart: nextAutoStart, preset } }))
   }
   const changeDuration = (key: keyof typeof durations, delta: number) => publishTimer({ ...durations, [key]: Math.min(90, Math.max(1, durations[key] + delta)) }, autoStart)
+  const matchedPreset = matchTimerPreset({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, autoStart }, customPresets)
+  const canApplyPreset = timerStopped === true
+  const presetNote = timerStopped === null
+    ? "Open the dashboard, tasks, or settings page to apply a preset."
+    : timerStopped ? "" : "Reset or finish the timer to switch presets."
   return (
     <nav ref={navRef} className="quick-nav" aria-label="Quick controls">
       <div className="quick-control">
@@ -176,6 +224,20 @@ function QuickControls({
           <h2>Timer settings</h2>
           {([['focus', 'Focus'], ['short', 'Short break'], ['long', 'Long break']] as const).map(([key, label]) => <div className="duration-row" key={key}><span>{label}</span><button onClick={() => changeDuration(key, -1)}>−</button><b>{durations[key]} min</b><button onClick={() => changeDuration(key, 1)}>+</button></div>)}
           <div className="quick-toggle-row"><span>Auto-start next</span><button className={autoStart ? "on" : ""} onClick={() => publishTimer(durations, !autoStart)} aria-pressed={autoStart}><i /></button></div>
+          <h3 className="quick-preset-heading">Presets</h3>
+          <div className="quick-presets">
+            {[...builtinTimerPresets, ...customPresets].map((preset) => {
+              const selected = matchedPreset?.id === preset.id
+              return (
+                <button key={preset.id} className={selected ? "selected" : ""} disabled={!canApplyPreset} aria-pressed={selected} onClick={() => publishTimer({ focus: preset.focusMinutes, short: preset.shortBreakMinutes, long: preset.longBreakMinutes }, preset.autoStart, true)}>
+                  <span><strong>{preset.name}</strong><small>{presetSummary(preset)}</small></span>
+                  {selected ? <Check className="selected-check" aria-hidden="true" /> : null}
+                </button>
+              )
+            })}
+          </div>
+          {presetNote ? <p className="quick-preset-note">{presetNote}</p> : null}
+          {!matchedPreset ? <p className="quick-preset-note">Current values are custom.</p> : null}
         </div> : null}
       </div>
       <div className="quick-control">

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ import {
 } from "@/components/ui/select"
 
 import { usePomodoro } from "@/hooks/use-pomodoro"
+import { ConfirmDialog, type ConfirmRequest } from "@/components/pomoder/confirm-dialog"
+import { FocusRhythmPresets } from "@/components/pomoder/focus-rhythm-presets"
 import { usePomoderBackground, type PomoderBackground } from "@/components/pomoder/pomoder-background"
 import { useSoundPlayer } from "@/components/pomoder/sound-player"
 import { TodayTaskList } from "@/components/pomoder/task-plan-list"
@@ -133,25 +136,6 @@ export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
 
 type RoomSnapshotClient = Awaited<ReturnType<typeof joinRoom>>
 type RoomHostActionClient = Parameters<typeof applyRoomAction>[1]
-type ConfirmRequest = { title: string; description: string; confirmLabel: string; onConfirm: () => void }
-
-// Shared shadcn-based confirmation for room actions — native window.confirm
-// is never used on this page.
-function ConfirmDialog({ confirm, onClose }: { confirm: ConfirmRequest | null; onClose: () => void }) {
-  return (
-    <Dialog open={Boolean(confirm)} onOpenChange={(next) => { if (!next) onClose() }}>
-      {/* The content portals to <body>, outside the always-dark shell. */}
-      <DialogContent className="host-room-dialog confirm-dialog dark">
-        <DialogTitle className="host-room-dialog-title">{confirm?.title}</DialogTitle>
-        <DialogDescription className="host-room-dialog-sub">{confirm?.description}</DialogDescription>
-        <div className="confirm-dialog-actions">
-          <button type="button" className="outline-pill" onClick={onClose}>Cancel</button>
-          <button type="button" className="pill-button" onClick={() => { const action = confirm?.onConfirm; onClose(); action?.() }}>{confirm?.confirmLabel}</button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 const ROOM_AVATARS = ["maya", "tomas", "ana", "devon"] as const
 const ROOM_PHASE_LABELS: Record<string, string> = { waiting: "Waiting to start", focus: "Focus", short: "Short break", long: "Long break", closed: "Closed" }
@@ -319,7 +303,7 @@ function HostRoomDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
           <label>Focus minutes<input type="number" min={1} max={90} value={focusMinutes} onChange={(event) => setFocusMinutes(event.target.valueAsNumber)} /></label>
           <label>Short break<input type="number" min={1} max={90} value={shortBreakMinutes} onChange={(event) => setShortBreakMinutes(event.target.valueAsNumber)} /></label>
           <label>Long break<input type="number" min={1} max={90} value={longBreakMinutes} onChange={(event) => setLongBreakMinutes(event.target.valueAsNumber)} /></label>
-          <label className="host-room-check"><input type="checkbox" checked={autoStart} onChange={(event) => setAutoStart(event.target.checked)} />Auto-start the next focus after each break</label>
+          <label className="host-room-check"><Checkbox checked={autoStart} onCheckedChange={(state) => setAutoStart(state === true)} />Auto-start the next focus after each break</label>
           {error ? <p className="host-room-error" role="alert">{error}</p> : null}
           <button className="reference-primary" disabled={creating || !validDurations}>{creating ? "Creating…" : "Create room"}</button>
         </form>
@@ -788,8 +772,8 @@ export function SettingsPage() {
 
   return (
     <div className="settings-layout">
-      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<input type="checkbox" checked={pomodoro.autoStart} onChange={(event) => pomodoro.setAutoStart(event.target.checked)} /></label><label>Completion alerts<input type="checkbox" checked={player.state.completionAlerts} aria-describedby="completion-alert-help" onChange={(event) => { const enabled = event.target.checked; player.setCompletionAlerts(enabled); if (!enabled) { setAlertHelp(DEFAULT_ALERT_HELP); return }; void enableCompletionAlerts().then((permission) => setAlertHelp(permission === "granted" ? "You'll hear a chime and get a notification when a timer finishes." : permission === "denied" ? "Notifications are blocked in this browser, so you'll only hear the chime." : "You'll hear a chime when a timer finishes.")) }} /></label><span id="completion-alert-help">{alertHelp}</span><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
-      {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<input type="checkbox" checked={leaderboard} onChange={(event) => setLeaderboard(event.target.checked)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
+      <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><FocusRhythmPresets pomodoro={pomodoro} authenticated={Boolean(user)} /><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<Checkbox checked={pomodoro.autoStart} onCheckedChange={(state) => pomodoro.setAutoStart(state === true)} /></label><label>Completion alerts<Checkbox checked={player.state.completionAlerts} aria-describedby="completion-alert-help" onCheckedChange={(state) => { const enabled = state === true; player.setCompletionAlerts(enabled); if (!enabled) { setAlertHelp(DEFAULT_ALERT_HELP); return }; void enableCompletionAlerts().then((permission) => setAlertHelp(permission === "granted" ? "You'll hear a chime and get a notification when a timer finishes." : permission === "denied" ? "Notifications are blocked in this browser, so you'll only hear the chime." : "You'll hear a chime when a timer finishes.")) }} /></label><span id="completion-alert-help">{alertHelp}</span><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
+      {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<Checkbox checked={leaderboard} onCheckedChange={(state) => setLeaderboard(state === true)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
       {notice ? <p role="status">{notice}</p> : null}
     </div>
   )

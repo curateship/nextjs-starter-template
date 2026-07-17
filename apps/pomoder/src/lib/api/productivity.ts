@@ -2,10 +2,14 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
+import { isLongRangeReport, reportRanges } from "@/lib/focus-history"
+import { buildFocusHistoryCsv, focusHistoryFileName } from "@/lib/report-csv"
 import { db } from "@/server/db"
+import { getEntitlements } from "@/server/entitlements"
+import { loadFocusReport, loadFocusReportSessions } from "@/server/focus-report"
 import { requireAppOrigin } from "@/server/origin"
 import { completeProductivitySession, loadFocusSummary, localDateFor, reorderTodayTasks, rollOverTasks, startProductivitySession, toggleTaskStatus, updateTaskPlan } from "@/server/productivity"
-import { dailyFocusStats, focusSessions, tasks, userPreferences, users } from "@/server/schema"
+import { dailyFocusStats, focusSessions, subscriptions, tasks, userPreferences, users } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import { applySoundPreferences, loadSoundPreferences } from "@/server/sound-preferences"
 
@@ -154,6 +158,29 @@ const completeSessionFn = createServerFn({ method: "POST" }).inputValidator(sess
   return { ...completion, today, summary: await loadFocusSummary(user.id, today, preferences.dailyGoalSessions) }
 })
 
+const focusHistorySchema = z.object({ range: z.enum(reportRanges), page: z.number().int().min(0).max(1_000).default(0) })
+const focusExportSchema = z.object({ range: z.enum(reportRanges) })
+
+async function longRangeReportsUnlocked(userId: string) {
+  const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1)
+  return getEntitlements(subscription || null).canUseLongRangeReports
+}
+
+const loadFocusHistoryFn = createServerFn({ method: "GET" }).inputValidator(focusHistorySchema).handler(async ({ data }) => {
+  const user = await requireUser()
+  const longRangeUnlocked = await longRangeReportsUnlocked(user.id)
+  if (isLongRangeReport(data.range) && !longRangeUnlocked) throw new Error("PRO_REQUIRED")
+  const report = await loadFocusReport(user.id, data.range, localDateFor(user.timezone), user.timezone, data.page)
+  return { ...report, longRangeUnlocked }
+})
+
+const exportFocusHistoryFn = createServerFn({ method: "GET" }).inputValidator(focusExportSchema).handler(async ({ data }) => {
+  const user = await requireUser()
+  if (isLongRangeReport(data.range) && !(await longRangeReportsUnlocked(user.id))) throw new Error("PRO_REQUIRED")
+  const report = await loadFocusReportSessions(user.id, data.range, localDateFor(user.timezone), user.timezone)
+  return { fileName: focusHistoryFileName(data.range, report.startDate, report.endDate), csv: buildFocusHistoryCsv(report.rows) }
+})
+
 const leaderboardFn = createServerFn({ method: "GET" }).handler(async () => {
   return db.select({ id: users.id, name: users.publicDisplayName, focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`, focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int` }).from(users).leftJoin(dailyFocusStats, eq(dailyFocusStats.userId, users.id)).where(and(eq(users.leaderboardOptIn, true), sql`${users.publicDisplayName} is not null`)).groupBy(users.id).orderBy(desc(sql`sum(${dailyFocusStats.focusSeconds})`)).limit(100)
 })
@@ -186,5 +213,7 @@ export const pauseFocusSession = (data: z.infer<typeof sessionProgressSchema>) =
 export const resumeFocusSession = (data: z.infer<typeof resumeSessionSchema>) => resumeSessionFn({ data })
 export const cancelFocusSession = (sessionId: string) => cancelSessionFn({ data: { sessionId } })
 export const completeFocusSession = (data: z.infer<typeof sessionProgressSchema>) => completeSessionFn({ data })
+export const loadFocusHistory = (data: z.infer<typeof focusHistorySchema>) => loadFocusHistoryFn({ data })
+export const exportFocusHistory = (range: z.infer<typeof focusExportSchema>["range"]) => exportFocusHistoryFn({ data: { range } })
 export const loadLeaderboard = () => leaderboardFn()
 export const importGuestState = (data: z.infer<typeof guestImportSchema>) => importGuestStateFn({ data })
