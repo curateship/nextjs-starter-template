@@ -19,7 +19,11 @@ const pageDetails: Record<string, { page: PomoderPage; title: string }> = {
 
 export function PomoderLayout() {
   const pathname = useLocation({ select: (location) => location.pathname })
-  const details = pageDetails[pathname]
+  const details =
+    pageDetails[pathname] ??
+    (pathname.startsWith("/rooms/")
+      ? { page: "rooms" as const, title: "Join this focus room" }
+      : undefined)
   if (!details) throw new Error(`Unknown Pomoder route: ${pathname}`)
 
   return (

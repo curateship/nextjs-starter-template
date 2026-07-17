@@ -64,6 +64,13 @@
       "when": 1784268000000,
       "tag": "0008_advanced_task_planning",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784332800000,
+      "tag": "0009_complete_room_controls",
+      "breakpoints": true
     }
   ]
 }

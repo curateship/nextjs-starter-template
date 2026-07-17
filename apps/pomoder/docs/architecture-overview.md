@@ -16,6 +16,9 @@ PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus 
 - Previous-day active tasks are archived and cloned once.
 - A user has at most one active room membership.
 - Room phases use server timestamps; joins are locked during focus.
+- Only the host advances a room through the canonical phase sequence; every timed phase schedules exactly one sequence-guarded worker job, so stale jobs no-op.
+- Every fourth completed focus period earns the long break; a host who leaves or starts hosting elsewhere closes their room and ends all memberships.
+- Room SSE snapshots carry display names, roles, and chat only — never account fields; unlisted rooms resolve by direct slug but never appear in public listings.
 - Leaderboard inclusion requires opt-in and a public display name.
 - Entitlements are calculated server-side from synchronized Stripe state.
 - AI credits are reserved transactionally and refunded on permanent failure.

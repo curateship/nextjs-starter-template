@@ -33,6 +33,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
 import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
+import { Route as PomoderRoomsSlugRouteImport } from './routes/_pomoder/rooms_.$slug'
 import { Route as PomoderBillingSuccessRouteImport } from './routes/_pomoder/billing/success'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminPomoderRouteImport } from './routes/_authenticated/admin/pomoder'
@@ -165,6 +166,11 @@ const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
   path: '/api/health/live',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PomoderRoomsSlugRoute = PomoderRoomsSlugRouteImport.update({
+  id: '/rooms_/$slug',
+  path: '/rooms/$slug',
+  getParentRoute: () => PomoderRoute,
+} as any)
 const PomoderBillingSuccessRoute = PomoderBillingSuccessRouteImport.update({
   id: '/billing/success',
   path: '/billing/success',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/admin/pomoder': typeof AuthenticatedAdminPomoderRouteWithChildren
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/billing/success': typeof PomoderBillingSuccessRoute
+  '/rooms/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/billing/success': typeof PomoderBillingSuccessRoute
+  '/rooms/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -339,6 +347,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pomoder': typeof AuthenticatedAdminPomoderRouteWithChildren
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_pomoder/billing/success': typeof PomoderBillingSuccessRoute
+  '/_pomoder/rooms_/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/admin/pomoder'
     | '/admin/settings'
     | '/billing/success'
+    | '/rooms/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/billing/success'
+    | '/rooms/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pomoder'
     | '/_authenticated/admin/settings'
     | '/_pomoder/billing/success'
+    | '/_pomoder/rooms_/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
@@ -657,6 +669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_pomoder/rooms_/$slug': {
+      id: '/_pomoder/rooms_/$slug'
+      path: '/rooms/$slug'
+      fullPath: '/rooms/$slug'
+      preLoaderRoute: typeof PomoderRoomsSlugRouteImport
+      parentRoute: typeof PomoderRoute
+    }
     '/_pomoder/billing/success': {
       id: '/_pomoder/billing/success'
       path: '/billing/success'
@@ -831,6 +850,7 @@ interface PomoderRouteChildren {
   PomoderThemesRoute: typeof PomoderThemesRoute
   PomoderIndexRoute: typeof PomoderIndexRoute
   PomoderBillingSuccessRoute: typeof PomoderBillingSuccessRoute
+  PomoderRoomsSlugRoute: typeof PomoderRoomsSlugRoute
 }
 
 const PomoderRouteChildren: PomoderRouteChildren = {
@@ -843,6 +863,7 @@ const PomoderRouteChildren: PomoderRouteChildren = {
   PomoderThemesRoute: PomoderThemesRoute,
   PomoderIndexRoute: PomoderIndexRoute,
   PomoderBillingSuccessRoute: PomoderBillingSuccessRoute,
+  PomoderRoomsSlugRoute: PomoderRoomsSlugRoute,
 }
 
 const PomoderRouteWithChildren =

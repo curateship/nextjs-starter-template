@@ -1,30 +1,46 @@
 import { randomBytes } from "node:crypto"
 import { createServerFn } from "@tanstack/react-start"
-import { and, desc, eq, getTableColumns, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
 import { getEntitlements } from "@/server/entitlements"
 import { requireAppOrigin } from "@/server/origin"
 import { enforceRateLimit } from "@/server/rate-limit"
-import { assertNotBanned, canJoinRoom, notifyRoom, roomSnapshot } from "@/server/rooms"
-import { roomMemberships, roomMessages, rooms, subscriptions, users } from "@/server/schema"
-import { requireUser } from "@/server/security"
+import {
+  applyHostRoomAction,
+  createRoomWithHost,
+  findActiveRoomId,
+  joinRoomBySlug,
+  leaveRoom,
+  listPublicRooms,
+  lookupRoomBySlug,
+  notifyRoom,
+  roomSnapshot,
+  type RoomHostAction,
+} from "@/server/rooms"
+import { enqueueRoomTransition } from "@/server/queue"
+import { roomMemberships, roomMessages, rooms, subscriptions } from "@/server/schema"
+import { findCurrentUser, requireUser } from "@/server/security"
 
 const createRoomSchema = z.object({ name: z.string().trim().min(2).max(80), visibility: z.enum(["public", "unlisted"]), focusMinutes: z.number().int().min(1).max(90).default(25), shortBreakMinutes: z.number().int().min(1).max(90).default(5), longBreakMinutes: z.number().int().min(1).max(90).default(15), autoStart: z.boolean().default(false) })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const messageSchema = slugSchema.extend({ body: z.string().trim().min(1).max(500) })
-const phaseSchema = slugSchema.extend({ phase: z.enum(["waiting", "focus", "short", "long", "closed"]) })
+const actionSchema = slugSchema.extend({ action: z.enum(["start_focus", "start_break", "next_phase", "close"]) })
 
-const listRoomsFn = createServerFn({ method: "GET" }).handler(async () => db
-  .select({ room: getTableColumns(rooms), hostName: users.name, memberCount: sql<number>`count(${roomMemberships.id})::int` })
-  .from(rooms)
-  .innerJoin(users, eq(rooms.hostUserId, users.id))
-  .leftJoin(roomMemberships, and(eq(roomMemberships.roomId, rooms.id), sql`${roomMemberships.leftAt} is null`))
-  .where(and(eq(rooms.visibility, "public"), sql`${rooms.closedAt} is null`))
-  .groupBy(rooms.id, users.name)
-  .orderBy(desc(rooms.createdAt))
-  .limit(50))
+const listRoomsFn = createServerFn({ method: "GET" }).handler(async () => listPublicRooms())
+
+const currentRoomFn = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await findCurrentUser()
+  if (!user) return null
+  const roomId = await findActiveRoomId(user.id)
+  return roomId ? roomSnapshot(roomId, user.id) : null
+})
+
+const lookupRoomFn = createServerFn({ method: "GET" }).inputValidator(slugSchema).handler(async ({ data }) => {
+  const user = await findCurrentUser()
+  return lookupRoomBySlug(data.slug, user?.id ?? null)
+})
 
 const createRoomFn = createServerFn({ method: "POST" }).inputValidator(createRoomSchema).handler(async ({ data }) => {
   requireAppOrigin()
@@ -32,27 +48,39 @@ const createRoomFn = createServerFn({ method: "POST" }).inputValidator(createRoo
   const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id)).limit(1)
   if (!getEntitlements(subscription || null).canHostRooms) throw new Error("PRO_REQUIRED")
   const slug = randomBytes(18).toString("base64url")
-  const room = await db.transaction(async (tx) => {
-    await tx.update(roomMemberships).set({ leftAt: new Date() }).where(and(eq(roomMemberships.userId, user.id), sql`${roomMemberships.leftAt} is null`))
-    const [created] = await tx.insert(rooms).values({ ...data, hostUserId: user.id, slug }).returning()
-    await tx.insert(roomMemberships).values({ roomId: created.id, userId: user.id, role: "host" })
-    return created
-  })
+  const { room, closedRoomIds } = await createRoomWithHost(user.id, slug, data)
+  for (const closedRoomId of closedRoomIds) await notifyRoom(closedRoomId, "phase")
   return roomSnapshot(room.id, user.id)
 })
 
 const joinRoomFn = createServerFn({ method: "POST" }).inputValidator(slugSchema).handler(async ({ data }) => {
   requireAppOrigin()
   const user = await requireUser()
-  const [room] = await db.select().from(rooms).where(eq(rooms.slug, data.slug)).limit(1)
-  if (!room || room.closedAt) throw new Error("ROOM_NOT_FOUND")
-  if (!canJoinRoom(room.phase)) throw new Error("ROOM_LOCKED")
-  await assertNotBanned(room.id, user.id)
-  await db.transaction(async (tx) => {
-    await tx.update(roomMemberships).set({ leftAt: new Date() }).where(and(eq(roomMemberships.userId, user.id), sql`${roomMemberships.leftAt} is null`))
-    await tx.insert(roomMemberships).values({ roomId: room.id, userId: user.id }).onConflictDoNothing()
-  })
+  await enforceRateLimit(`room-join:${user.id}`, { maxAttempts: 20, windowSeconds: 60 })
+  const { room, closedRoomIds } = await joinRoomBySlug(data.slug, user.id)
+  for (const closedRoomId of closedRoomIds) await notifyRoom(closedRoomId, "phase")
   await notifyRoom(room.id, "membership")
+  return roomSnapshot(room.id, user.id)
+})
+
+const leaveRoomFn = createServerFn({ method: "POST" }).inputValidator(slugSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room, closed, left } = await leaveRoom(data.slug, user.id)
+  // Only broadcast when a membership actually ended; otherwise anyone with a
+  // slug could ping the room's channel by spamming leave.
+  if (closed || left) await notifyRoom(room.id, closed ? "phase" : "membership")
+  return { closed }
+})
+
+const roomActionFn = createServerFn({ method: "POST" }).inputValidator(actionSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room, transitionAt } = await applyHostRoomAction(data.slug, user.id, data.action)
+  // Broadcast the committed phase before scheduling the follow-up job so
+  // members see accurate state even if scheduling fails.
+  await notifyRoom(room.id, "phase")
+  if (transitionAt) await enqueueRoomTransition(room.id, room.sequence, transitionAt)
   return roomSnapshot(room.id, user.id)
 })
 
@@ -64,25 +92,16 @@ const sendMessageFn = createServerFn({ method: "POST" }).inputValidator(messageS
   const membership = await db.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, user.id), sql`${roomMemberships.leftAt} is null`)).limit(1)
   if (!membership.length) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
   await enforceRateLimit(`room-chat:${room.id}:${user.id}`, { maxAttempts: 20, windowSeconds: 60 })
-  const [message] = await db.insert(roomMessages).values({ roomId: room.id, userId: user.id, body: data.body }).returning()
+  const [message] = await db.insert(roomMessages).values({ roomId: room.id, userId: user.id, body: data.body }).returning({ id: roomMessages.id, body: roomMessages.body, createdAt: roomMessages.createdAt })
   await notifyRoom(room.id, "message")
   return message
 })
 
-const setPhaseFn = createServerFn({ method: "POST" }).inputValidator(phaseSchema).handler(async ({ data }) => {
-  requireAppOrigin()
-  const user = await requireUser()
-  const [room] = await db.select().from(rooms).where(and(eq(rooms.slug, data.slug), eq(rooms.hostUserId, user.id))).limit(1)
-  if (!room) throw new Error("ROOM_NOT_FOUND")
-  const duration = data.phase === "focus" ? room.focusMinutes : data.phase === "short" ? room.shortBreakMinutes : data.phase === "long" ? room.longBreakMinutes : 0
-  const timestamp = new Date()
-  const [updated] = await db.update(rooms).set({ phase: data.phase, sequence: room.sequence + 1, phaseStartedAt: duration ? timestamp : null, phaseEndsAt: duration ? new Date(timestamp.getTime() + duration * 60_000) : null, closedAt: data.phase === "closed" ? timestamp : null, updatedAt: timestamp }).where(eq(rooms.id, room.id)).returning()
-  await notifyRoom(room.id, "phase")
-  return updated
-})
-
 export const listRooms = () => listRoomsFn()
+export const getCurrentRoom = () => currentRoomFn()
+export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
 export const createRoom = (data: z.infer<typeof createRoomSchema>) => createRoomFn({ data })
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
+export const leaveActiveRoom = (slug: string) => leaveRoomFn({ data: { slug } })
 export const sendRoomMessage = (slug: string, body: string) => sendMessageFn({ data: { slug, body } })
-export const setRoomPhase = (slug: string, phase: z.infer<typeof phaseSchema>["phase"]) => setPhaseFn({ data: { slug, phase } })
+export const applyRoomAction = (slug: string, action: RoomHostAction) => roomActionFn({ data: { slug, action } })
