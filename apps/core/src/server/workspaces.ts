@@ -16,7 +16,6 @@ import {
   type IconKey,
   type ShellChildItem,
   type ShellSection,
-  type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/core"
 
@@ -33,7 +32,6 @@ export type WorkspaceSettings = {
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -298,9 +296,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
       favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -328,9 +323,6 @@ function cleanWorkspaceSettings(
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
     favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -347,7 +339,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
   }

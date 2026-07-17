@@ -14,7 +14,9 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
+import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedAudienceRouteImport } from './routes/_authenticated/audience'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiV1TrackRouteImport } from './routes/api/v1/track'
 import { Route as AuthenticatedSitesSiteIdRouteImport } from './routes/_authenticated/sites/$siteId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
@@ -49,9 +51,19 @@ const AuthenticatedSitesRoute = AuthenticatedSitesRouteImport.update({
   path: '/sites',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedOverviewRoute = AuthenticatedOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAudienceRoute = AuthenticatedAudienceRouteImport.update({
   id: '/audience',
   path: '/audience',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const ApiV1TrackRoute = ApiV1TrackRouteImport.update({
@@ -110,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/audience': typeof AuthenticatedAudienceRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -118,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
   '/api/v1/track': typeof ApiV1TrackRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -125,6 +139,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audience': typeof AuthenticatedAudienceRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
@@ -134,6 +149,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
   '/api/v1/track': typeof ApiV1TrackRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -143,6 +159,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audience': typeof AuthenticatedAudienceRoute
+  '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -152,6 +169,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
   '/api/v1/track': typeof ApiV1TrackRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -162,6 +180,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audience'
+    | '/overview'
     | '/sites'
     | '/workspaces'
     | '/admin/feedback'
@@ -170,6 +189,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/sites/$siteId'
     | '/api/v1/track'
+    | '/admin/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -177,6 +197,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/audience'
+    | '/overview'
     | '/sites'
     | '/workspaces'
     | '/'
@@ -186,6 +207,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/sites/$siteId'
     | '/api/v1/track'
+    | '/admin'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -194,6 +216,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audience'
+    | '/_authenticated/overview'
     | '/_authenticated/sites'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
@@ -203,6 +226,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/sites/$siteId'
     | '/api/v1/track'
+    | '/_authenticated/admin/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -252,11 +276,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSitesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/overview': {
+      id: '/_authenticated/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AuthenticatedOverviewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/audience': {
       id: '/_authenticated/audience'
       path: '/audience'
       fullPath: '/audience'
       preLoaderRoute: typeof AuthenticatedAudienceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/v1/track': {
@@ -367,6 +405,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAudienceRoute: typeof AuthenticatedAudienceRoute
+  AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -374,10 +413,12 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAudienceRoute: AuthenticatedAudienceRoute,
+  AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
@@ -385,6 +426,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -400,12 +442,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

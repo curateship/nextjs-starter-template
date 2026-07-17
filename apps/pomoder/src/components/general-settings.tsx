@@ -81,6 +81,27 @@ export function GeneralSettings({
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="admin-route">Home route</Label>
+            <Input
+              id="admin-route"
+              value={config.adminRoute}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  adminRoute: event.target.value,
+                })
+              }
+              placeholder="Leave empty for Pomoder admin"
+            />
+            <p className="text-xs text-muted-foreground">
+              Where <code>/admin</code> opens (e.g. <code>/admin/rooms</code>).
+              Empty opens the Pomoder admin dashboard. Must be a real route —
+              an unknown path will 404.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
             <Label htmlFor="dashboard-rows-per-page">
               Default dashboard rows per page
             </Label>

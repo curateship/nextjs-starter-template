@@ -9,7 +9,6 @@ import {
   iconMeta,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -26,7 +25,6 @@ export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
   automationFavoriteNodeKeys: AutomationPaletteKey[]
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -348,9 +346,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -376,9 +371,6 @@ function cleanWorkspaceSettings(
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -393,7 +385,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
     automationFavoriteNodeKeys: [],
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
   }

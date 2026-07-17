@@ -3,7 +3,6 @@ import { AppearanceSettings } from "@/components/appearance-settings"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
-import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { TradingSettings } from "@/components/trading-settings"
 import { OneClickOrderSettings } from "@/components/one-click-order-settings"
 import { WorkersSettings } from "@/components/workers-settings"
@@ -18,7 +17,6 @@ const settingsTabs = [
   { id: "workers", label: "Workers" },
   { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
-  { id: "top-navigation", label: "Top Navigation" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -140,14 +138,6 @@ export function SettingsPage({
           {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
-          ) : null}
-          {activeTab === "top-navigation" ? (
-            <TopNavigationSettings
               config={config}
               isSaving={isSaving}
               onConfigChange={onConfigChange}

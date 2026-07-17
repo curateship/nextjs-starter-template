@@ -246,14 +246,6 @@ export type ShellSection = {
   entries: ShellEntry[]
 }
 
-export type ShellTopNavigationItem = {
-  id: string
-  label: string
-  href: string
-  icon?: ShellIcon
-  visible: boolean
-}
-
 export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
   "feedback",
   "theme",
@@ -273,10 +265,11 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   dashboardRowsPerPage: number
+  // Where the home page ("/") and "/admin" forward. Empty opens Agents.
+  adminRoute: string
   // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
   sidebarWidth: number
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
@@ -297,9 +290,9 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
+    adminRoute: "",
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }

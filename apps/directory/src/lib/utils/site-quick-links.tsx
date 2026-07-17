@@ -137,13 +137,6 @@ const QUICK_LINK_ICONS = {
 export type QuickLinkIconName = keyof typeof QUICK_LINK_ICONS
 export type QuickLinkIconValue = QuickLinkIconName | string
 
-export interface SiteQuickLink {
-  id: string
-  label: string
-  href: string
-  icon?: QuickLinkIconValue
-}
-
 export interface QuickLinkIconOption {
   value: QuickLinkIconName
   label: string
@@ -218,17 +211,12 @@ export const QUICK_LINK_ICON_OPTIONS: QuickLinkIconOption[] = [
 ]
 
 const DEFAULT_ICON: QuickLinkIconName = "imagePlus"
-const EXTERNAL_PROTOCOL_PATTERN = /^https?:\/\//i
 const dynamicLucideIconNames = new Set<string>(Object.keys(dynamicIconImports))
 type DynamicLucideIconName = keyof typeof dynamicIconImports
 const dynamicLucideIconComponentCache = new Map<
   DynamicLucideIconName,
   ReturnType<typeof lazy<LucideIcon>>
 >()
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
-}
 
 export function getQuickLinkIcon(icon?: string): LucideIcon {
   if (typeof icon === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, icon)) {
@@ -321,65 +309,4 @@ export function renderQuickLinkIcon(icon: QuickLinkIconValue | undefined, classN
     )
   }
   return null
-}
-
-export function normalizeSiteQuickLinks(value: unknown): SiteQuickLink[] {
-  if (!Array.isArray(value)) return []
-
-  return value
-    .map((item, index) => normalizeSiteQuickLink(item, index))
-    .filter((item): item is SiteQuickLink => item !== null)
-}
-
-function normalizeSiteQuickLink(item: unknown, index: number): SiteQuickLink | null {
-  if (!isRecord(item)) return null
-
-  const label = typeof item.label === "string" ? item.label.trim() : ""
-  const href = typeof item.href === "string" ? item.href.trim() : ""
-
-  if (!label || !href || !isValidQuickLinkHref(href)) return null
-
-  const icon = isQuickLinkIconValue(item.icon)
-    ? item.icon
-    : undefined
-
-  return {
-    id: typeof item.id === "string" && item.id.trim()
-      ? item.id
-      : `quick-link-${index}`,
-    label,
-    href,
-    ...(icon ? { icon } : {}),
-  }
-}
-
-export function isExternalQuickLinkHref(href: string): boolean {
-  return EXTERNAL_PROTOCOL_PATTERN.test(href.trim())
-}
-
-function isInternalQuickLinkHref(href: string): boolean {
-  return href.trim().startsWith("/")
-}
-
-function isValidQuickLinkHref(href: string): boolean {
-  return isInternalQuickLinkHref(href) || isExternalQuickLinkHref(href)
-}
-
-export function resolveSiteQuickLinkHref(link: Pick<SiteQuickLink, "href">, siteId: string): string | null {
-  const href = link.href.trim()
-  if (!href) return null
-
-  if (isExternalQuickLinkHref(href)) {
-    return href
-  }
-
-  if (!isInternalQuickLinkHref(href)) {
-    return null
-  }
-
-  if (href.startsWith("/admin")) {
-    return href
-  }
-
-  return `/admin/sites/${siteId}${href}`
 }

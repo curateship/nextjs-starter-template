@@ -13,6 +13,7 @@ export interface AdminSettings {
     default_theme?: 'system' | 'light' | 'dark'
     dashboard_page_size?: number
     sidebar_width?: number
+    home_route?: string
   }
   created_at: string
   updated_at: string
@@ -22,6 +23,7 @@ export interface UpdateAdminSettingsData {
   default_theme?: 'system' | 'light' | 'dark'
   dashboard_page_size?: number
   sidebar_width?: number
+  home_route?: string
 }
 
 const DEFAULT_ADMIN_SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
@@ -101,6 +103,14 @@ export async function updateAdminSettingsAction(
         success: false,
         error: `Invalid sidebar width. Must be between ${MIN_ADMIN_SIDEBAR_WIDTH} and ${MAX_ADMIN_SIDEBAR_WIDTH} pixels.`
       }
+    }
+
+    if (settingsData.home_route !== undefined && typeof settingsData.home_route !== 'string') {
+      return { success: false, error: 'Invalid home route.' }
+    }
+
+    if (typeof settingsData.home_route === 'string') {
+      settingsData = { ...settingsData, home_route: settingsData.home_route.trim() }
     }
 
     const currentSettings = await getOrCreateAdminSettings()

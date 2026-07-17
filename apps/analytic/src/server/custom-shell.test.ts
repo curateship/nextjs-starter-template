@@ -165,7 +165,7 @@ describe("custom shell workspaces", () => {
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
     // Analytics section is prepended ahead of Platform Settings.
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
-      { type: "item", label: "Overview", href: "/", visible: true },
+      { type: "item", label: "Overview", href: "/overview", visible: true },
       { type: "item", label: "Sites", href: "/sites", visible: true },
       { type: "item", label: "Audience", href: "/audience", visible: true },
     ])

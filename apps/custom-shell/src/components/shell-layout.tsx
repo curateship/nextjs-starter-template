@@ -265,10 +265,8 @@ function normalizeConfig(settings: ShellConfig | null) {
     sidebarWidth: clampSidebarWidth(
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),
+    adminRoute: settings.adminRoute ?? fallback.adminRoute,
     favicon: settings.favicon ?? fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),
@@ -316,11 +314,6 @@ function getShellItems(config: ShellConfig) {
   )
 }
 
-function isDashboardPath(config: ShellConfig, currentPath: string) {
-  const dashboardPaths = config.topNavigation.map((item) => item.href)
-  return currentPath === "/" || dashboardPaths.includes(currentPath)
-}
-
 function isActivePath(href: string, currentPath: string) {
   return (
     href === currentPath ||
@@ -337,20 +330,9 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
   )
 }
 
+// The header's top-left nav mirrors the sidebar: the active section item and
+// its children (or the single active item when it has none).
 function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
-  if (isDashboardPath(config, currentPath)) {
-    return config.topNavigation
-      .filter((item) => item.visible)
-      .map((item) => ({
-        label: item.label,
-        href: item.href,
-        icon: item.icon
-          ? renderShellIcon(item.icon, "h-3.5 w-3.5")
-          : undefined,
-        active: currentPath === item.href,
-      }))
-  }
-
   const items = getShellItems(config)
   const activeSectionItem = findActiveSectionItem(items, currentPath)
   const activeItem = items.find((item) => isActivePath(item.href, currentPath))
