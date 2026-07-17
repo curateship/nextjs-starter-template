@@ -365,13 +365,15 @@ export function BotWorkspace({
     }
     const takeProfitPct = num(protective.takeProfitPct)
     const stopLossPct = num(protective.stopLossPct)
-    // Only the open side's levels change; the other side is left intact.
+    // Only the open side's levels change; the other side is left intact, and
+    // so is the stop's behavior (fixed vs trailing + activation) — editing a
+    // percent must never silently flip a trailing stop back to fixed.
     const base = protection ?? {}
     const nextConfig = {
       ...botConfig,
       protection: {
         ...base,
-        [activeSide]: { takeProfitPct, stopLossPct },
+        [activeSide]: { ...base[activeSide], takeProfitPct, stopLossPct },
       },
     }
     const parsed = automationConfigSchema.safeParse(nextConfig)
@@ -586,6 +588,7 @@ export function BotWorkspace({
                       busy={slTpBusy}
                       error={slTpError}
                       mid={markPrice}
+                      trailingStop={activeLevels?.stopLossMode === "trailing"}
                       state={state}
                       stats={stats}
                       openOrders={openOrders}

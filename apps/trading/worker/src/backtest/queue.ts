@@ -1,9 +1,11 @@
 import { runFailureMessage } from "@/lib/backtest/run-error"
+import { automationHtfInterval } from "@/lib/automations/automation"
 import {
   warmupBarsFor,
   type BacktestCosts,
   type BacktestInterval,
 } from "@/lib/backtest/types"
+import { automationHtfWindowBars } from "@/lib/strategies/kinds/automation"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import {
   claimNextPendingBacktest,
@@ -147,6 +149,28 @@ export class BacktestQueueWorker implements WorkerService {
       if (candles.length === 0) {
         throw new Error(`No candle history for ${row.market} in that window.`)
       }
+      // A higher-timeframe filter needs its own series, with its own warmup
+      // reaching back far enough for the HTF indicators.
+      const htfInterval = automationHtfInterval(params)
+      const htfCandles = htfInterval
+        ? {
+            interval: htfInterval,
+            candles: await fetchCandleHistory(
+              row.market,
+              htfInterval,
+              simStartMs -
+                automationHtfWindowBars(params) * INTERVAL_MS[htfInterval],
+              endMs
+            ),
+          }
+        : undefined
+      if (htfInterval && htfCandles?.candles.length === 0) {
+        // An empty gate series would silently block every entry — fail the
+        // run loudly instead of reporting a fake zero-trade result.
+        throw new Error(
+          `No ${htfInterval} candle history for ${row.market} in that window.`
+        )
+      }
       const strategy = resolveStrategy(row.params)
       if (!strategy) {
         throw new Error(`Strategy "${row.strategyType}" can't be backtested.`)
@@ -162,6 +186,7 @@ export class BacktestQueueWorker implements WorkerService {
         market: row.market,
         interval,
         costs: row.costs as BacktestCosts,
+        htfCandles,
       })
       await this.progress(row, 95, "Saving results")
       await finishClaimedBacktest(row.id, this.workerId, result)

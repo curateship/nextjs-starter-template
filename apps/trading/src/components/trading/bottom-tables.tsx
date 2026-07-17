@@ -35,6 +35,10 @@ import {
 import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
 import {
+  liquidationDistanceClass,
+  liquidationDistancePct,
+} from "@/lib/trading/liquidation-risk"
+import {
   describeOpenOrder,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
@@ -120,6 +124,7 @@ export function PositionsTable({
           "Entry",
           "Mark",
           "Liq. price",
+          "Liq. distance",
           "uPnL (ROE)",
           "Margin",
           "Actions",
@@ -129,6 +134,14 @@ export function PositionsTable({
           const szi = Number(position.szi)
           const upnl = Number(position.unrealizedPnl)
           const roe = Number(position.returnOnEquity) * 100
+          // Gap between mark and forced liquidation, graded by how close it is.
+          const liqDistance = liquidationDistancePct({
+            szi,
+            markPx: Number(mids[position.coin] ?? 0),
+            liquidationPx: position.liquidationPx
+              ? Number(position.liquidationPx)
+              : null,
+          })
           return (
             <TableRow key={position.coin}>
               <TableCell className="font-medium">
@@ -146,6 +159,9 @@ export function PositionsTable({
                 {position.liquidationPx
                   ? formatPriceDisplay(position.liquidationPx)
                   : "—"}
+              </MonoCell>
+              <MonoCell className={liquidationDistanceClass(liqDistance)}>
+                {liqDistance === null ? "—" : `${liqDistance.toFixed(1)}%`}
               </MonoCell>
               <MonoCell className={upnl >= 0 ? "text-emerald-600" : "text-red-500"}>
                 {upnl >= 0 ? "+" : ""}

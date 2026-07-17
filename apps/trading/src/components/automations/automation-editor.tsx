@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useBlocker } from "@tanstack/react-router"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
@@ -10,6 +11,15 @@ import { AutomationInspector } from "@/components/automations/automation-inspect
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { AutomationToolbar } from "@/components/automations/automation-toolbar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -180,6 +190,18 @@ export function AutomationEditor({
     backtestSettings
   )
   const dirty = currentSerialized !== lastSaved
+
+  // Guard navigation while the graph has unsaved edits. Keyed on `dirty`
+  // alone: a save in flight keeps `dirty` true until it succeeds, and after a
+  // successful save the programmatic create-bot/backtest navigations pass
+  // through unprompted. `enableBeforeUnload` covers refresh/close natively.
+  const shouldBlockNavigation = React.useCallback(() => dirty, [dirty])
+  const blocker = useBlocker({
+    shouldBlockFn: shouldBlockNavigation,
+    enableBeforeUnload: shouldBlockNavigation,
+    withResolver: true,
+  })
+
   const selectedNode =
     previewNode ??
     (selectedNodeId
@@ -382,6 +404,7 @@ export function AutomationEditor({
     <AutomationInspector
       selectedNode={selectedNode}
       errors={compiled.errors}
+      interval={interval}
       favorite={
         selectedPaletteKey
           ? favoriteNodeKeys.includes(selectedPaletteKey)
@@ -478,6 +501,13 @@ export function AutomationEditor({
           !automationCapabilities(compiled.config).supportsHistoricalBacktest
             ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
             : undefined
+        }
+        runnableDisabledReason={
+          compiled.config === null
+            ? "Fix the automation's issues to enable."
+            : dirty || saving
+              ? "Save the automation to enable."
+              : undefined
         }
         dirty={dirty}
         saving={saving}
@@ -601,6 +631,43 @@ export function AutomationEditor({
           {inspector}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={blocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.()
+        }}
+      >
+        <DialogContent variant="admin" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              Leaving discards the edits made since the last save.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You have unsaved changes — leave without saving?
+            </p>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => blocker.reset?.()}
+            >
+              Stay
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => blocker.proceed?.()}
+            >
+              Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

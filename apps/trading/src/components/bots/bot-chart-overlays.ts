@@ -3,6 +3,7 @@ import type { ChartMarker, ChartPriceLine } from "@/components/chart/price-chart
 import { CHIP_COLORS } from "@/components/chart/trade-chips"
 import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
 import type { ProtectionSettings } from "@/lib/strategies/settings"
+import { effectiveStopPx, type TrailState } from "@/lib/strategies/trailing-stop"
 
 /** Profit/loss colors for the draggable take-profit / stop-loss lines. */
 const GREEN = "#089981"
@@ -125,6 +126,19 @@ function pctOff(px: number, ref: number, above: boolean): string {
 }
 
 /**
+ * The trailing extreme the worker persists in the bot's strategy state.
+ * Read defensively — old bots and non-automation states won't carry it.
+ */
+function readTrailState(strategyState: unknown): TrailState | null {
+  if (!strategyState || typeof strategyState !== "object") return null
+  const trail = (strategyState as { trail?: unknown }).trail
+  if (!trail || typeof trail !== "object") return null
+  const { dir, extremePx } = trail as { dir?: unknown; extremePx?: unknown }
+  if ((dir !== 1 && dir !== -1) || typeof extremePx !== "number") return null
+  return extremePx > 0 ? { dir, extremePx } : null
+}
+
+/**
  * Bot chart lines: entry marker plus draggable TP/SL derived from the
  * Automation's protection block, drawn once positioned. Drag targets write
  * back to protection.takeProfitPct / stopLossPct.
@@ -166,21 +180,35 @@ export function buildBotProtectionOverlays(
     toValue: (px) => pctOff(px, entryPx, long),
   }
   if (settings.stopLossPct) {
-    lines.push({
-      id: "stop-loss",
-      price: long
+    const trailing = settings.stopLossMode === "trailing"
+    const stopPx = trailing
+      ? effectiveStopPx(
+          settings,
+          { szi, entryPx },
+          readTrailState(state?.strategy_state)
+        )
+      : long
         ? entryPx * (1 - settings.stopLossPct / 100)
-        : entryPx * (1 + settings.stopLossPct / 100),
-      color: RED,
-      title: "Stop loss",
-      lineStyle: "solid",
-      lineWidth: 2,
-      draggable: true,
-    })
+        : entryPx * (1 + settings.stopLossPct / 100)
+    if (stopPx !== null) {
+      lines.push({
+        id: "stop-loss",
+        price: stopPx,
+        color: RED,
+        title: trailing ? "Trailing stop" : "Stop loss",
+        // The ratchet owns a trailing stop's level, so the line is dashed and
+        // not draggable — dragging would fight the worker's next tick.
+        lineStyle: trailing ? "dashed" : "solid",
+        lineWidth: 2,
+        draggable: !trailing,
+      })
+    }
   }
-  targets["stop-loss"] = {
-    key: "stopLossPct",
-    toValue: (px) => pctOff(px, entryPx, !long),
+  if (settings.stopLossMode !== "trailing") {
+    targets["stop-loss"] = {
+      key: "stopLossPct",
+      toValue: (px) => pctOff(px, entryPx, !long),
+    }
   }
   return { lines, targets }
 }

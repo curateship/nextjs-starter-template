@@ -1,6 +1,55 @@
 import { describe, expect, it } from "vitest"
 
-import { buildBotFillMarkers } from "./bot-chart-overlays"
+import {
+  buildBotFillMarkers,
+  buildBotProtectionOverlays,
+} from "./bot-chart-overlays"
+
+describe("buildBotProtectionOverlays", () => {
+  const state = (trail?: unknown) =>
+    ({
+      paper_position: { szi: 1, entryPx: 100 },
+      strategy_state: trail ? { trail } : {},
+    }) as never
+
+  it("draws a fixed stop at the entry distance, draggable", () => {
+    const { lines, targets } = buildBotProtectionOverlays(
+      { stopLossPct: 2 },
+      state()
+    )
+    const stop = lines.find((line) => line.id === "stop-loss")
+    expect(stop).toMatchObject({
+      price: 98,
+      title: "Stop loss",
+      draggable: true,
+      lineStyle: "solid",
+    })
+    expect(targets["stop-loss"]).toBeDefined()
+  })
+
+  it("draws a trailing stop at the ratcheted level, dashed and not draggable", () => {
+    const { lines, targets } = buildBotProtectionOverlays(
+      { stopLossPct: 2, stopLossMode: "trailing" },
+      state({ dir: 1, extremePx: 110 })
+    )
+    const stop = lines.find((line) => line.id === "stop-loss")
+    expect(stop?.price).toBeCloseTo(107.8, 10)
+    expect(stop).toMatchObject({
+      title: "Trailing stop",
+      draggable: false,
+      lineStyle: "dashed",
+    })
+    expect(targets["stop-loss"]).toBeUndefined()
+  })
+
+  it("waits at the entry distance when no trail state is persisted yet", () => {
+    const { lines } = buildBotProtectionOverlays(
+      { stopLossPct: 2, stopLossMode: "trailing" },
+      state()
+    )
+    expect(lines.find((line) => line.id === "stop-loss")?.price).toBe(98)
+  })
+})
 
 describe("buildBotFillMarkers", () => {
   const fill = (overrides: Partial<{ closed_pnl: string | null; side: string }>) => ({

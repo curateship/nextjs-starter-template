@@ -34,6 +34,17 @@ const indicator = (
       : { type, params: { period: 14, buyBelow: 30, sellAbove: 70 } },
 })
 
+const timeframe = (
+  id: string,
+  interval: "1h" | "4h" | "15m" = "4h"
+): AutomationNode => ({
+  id,
+  kind: "timeframe",
+  interval,
+  x: 0,
+  y: 0,
+})
+
 const logic = (id: string, op: "and" | "or"): AutomationNode => ({
   id,
   kind: "logic",
@@ -941,6 +952,289 @@ describe("Automation schemas", () => {
           edge("e1", "ema", "bullish", "buy"),
           edge("e2", "buy", "tp", "tp-a"),
           edge("e3", "buy", "tp", "tp-b"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_protection"
+    )
+  })
+
+  it("compiles a Timeframe node, moving its upstream filter to that interval", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("gate"),
+          timeframe("tf", "4h"),
+          indicator("entry"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "gate", "trend", "tf"),
+          edge("e2", "tf", "trend", "entry"),
+          edge("e3", "entry", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.errors).toEqual([])
+    const condition = result.config?.rules[0].condition
+    expect(condition?.kind === "trigger" && condition.filters).toEqual([
+      expect.objectContaining({ nodeId: "gate", interval: "4h" }),
+    ])
+  })
+
+  it("rejects a Timeframe node wired into an action", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("gate"),
+          timeframe("tf", "4h"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "gate", "trend", "tf"),
+          edge("e2", "tf", "trend", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+  })
+
+  it("rejects a Timeframe at or below the automation's own interval", () => {
+    const result = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          indicator("gate"),
+          timeframe("tf", "15m"),
+          indicator("entry"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "gate", "trend", "tf"),
+          edge("e2", "tf", "trend", "entry"),
+          edge("e3", "entry", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_timeframe"
+    )
+  })
+
+  it("rejects a Timeframe node with no Trend input", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          timeframe("tf", "4h"),
+          indicator("entry"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "tf", "trend", "entry"),
+          edge("e2", "entry", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_timeframe"
+    )
+  })
+
+  it("rejects two distinct higher timeframes in one graph", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("gate-a"),
+          indicator("gate-b", "rsi_levels"),
+          timeframe("tf-a", "1h"),
+          timeframe("tf-b", "4h"),
+          indicator("entry"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "gate-a", "trend", "tf-a"),
+          edge("e2", "tf-a", "trend", "entry"),
+          edge("e3", "gate-b", "trend", "tf-b"),
+          edge("e4", "tf-b", "trend", "entry"),
+          edge("e5", "entry", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(
+      result.errors.some((error) =>
+        error.message.includes("at most one higher timeframe")
+      )
+    ).toBe(true)
+  })
+
+  it("lets one node trigger on the bot timeframe AND gate through a Timeframe node", () => {
+    // The flagship shape: the EMA's Bullish/Bearish fire entries directly
+    // while its Trend feeds a Timeframe node that gates another entry.
+    const result = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          indicator("ema"),
+          timeframe("tf", "4h"),
+          indicator("entry", "rsi_levels"),
+          action("long", "buy", 10),
+          action("exit", "close"),
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "long"),
+          edge("e2", "ema", "bearish", "exit"),
+          edge("e3", "ema", "trend", "tf"),
+          edge("e4", "tf", "trend", "entry"),
+          edge("e5", "entry", "bullish", "long"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.errors).toEqual([])
+    const gated = result.config?.rules
+      .flatMap((rule) =>
+        rule.condition.kind === "or"
+          ? rule.condition.children
+          : [rule.condition]
+      )
+      .find(
+        (condition) =>
+          condition.kind === "trigger" && condition.nodeId === "entry"
+      )
+    expect(gated?.kind === "trigger" && gated.filters).toEqual([
+      expect.objectContaining({ nodeId: "ema", interval: "4h" }),
+    ])
+  })
+
+  it("rejects one node gating the same entry on two timeframes", () => {
+    // `gate` reaches the SAME entry both through the Timeframe node and
+    // around it — ambiguous, there is no right clock for that gate.
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("gate"),
+          timeframe("tf", "4h"),
+          indicator("entry"),
+          action("buy", "buy", 25),
+        ],
+        edges: [
+          edge("e1", "gate", "trend", "tf"),
+          edge("e2", "tf", "trend", "entry"),
+          edge("e3", "gate", "trend", "entry"),
+          edge("e4", "entry", "bullish", "buy"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_timeframe"
+    )
+  })
+
+  it("folds a trailing Stop Loss's mode and activation into protection", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("buy", "buy", 25),
+          {
+            ...stopLoss("long-sl", 2),
+            mode: "trailing",
+            activationPct: 1.5,
+          } as AutomationNode,
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "long-sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.config?.protection).toEqual({
+      long: {
+        stopLossPct: 2,
+        stopLossMode: "trailing",
+        trailActivationPct: 1.5,
+      },
+    })
+  })
+
+  it("a fixed Stop Loss compiles to the exact pre-trailing shape", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [indicator("ema"), action("buy", "buy", 25), stopLoss("sl", 1)],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    // No stopLossMode key at all — old saved configs stay byte-identical.
+    expect(result.config?.protection).toEqual({ long: { stopLossPct: 1 } })
+  })
+
+  it("flags two stops on one side that disagree on fixed vs trailing", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("buy", "buy", 25),
+          stopLoss("sl-a", 2),
+          { ...stopLoss("sl-b", 2), mode: "trailing" } as AutomationNode,
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "sl-a"),
+          edge("e3", "buy", "sl", "sl-b"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_protection"
+    )
+  })
+
+  it("rejects a trailing activation outside 0–1000%", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          indicator("ema"),
+          action("buy", "buy", 25),
+          {
+            ...stopLoss("sl", 2),
+            mode: "trailing",
+            activationPct: -1,
+          } as AutomationNode,
+        ],
+        edges: [
+          edge("e1", "ema", "bullish", "buy"),
+          edge("e2", "buy", "sl", "sl"),
         ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },

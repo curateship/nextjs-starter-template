@@ -19,6 +19,7 @@ export type AutomationPaletteKey =
   | "scanner-whale-wall"
   | "strategy-qfl"
   | "filter-lookback"
+  | "filter-timeframe"
   | "action-buy"
   | "action-short"
   | "action-reverse"
@@ -45,6 +46,7 @@ export type AutomationNodeInspectorKind =
   | "indicator"
   | "legacy"
   | "lookback"
+  | "timeframe"
   | "marketScanner"
   | "protection"
   | "qfl"
@@ -129,9 +131,10 @@ function indicatorDefinition(id: IndicatorId): AutomationNodeDefinition {
       if (sourcePort === "trend") {
         return target.kind === "indicator" ||
           target.kind === "lookback" ||
+          target.kind === "timeframe" ||
           target.kind === "qfl"
           ? null
-          : "The Trend output can only connect to an indicator, Look Back, or QFL node."
+          : "The Trend output can only connect to an indicator, Look Back, Timeframe, or QFL node."
       }
       return target.kind === "action"
         ? null
@@ -172,6 +175,27 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
       target.kind === "indicator" || target.kind === "qfl"
         ? null
         : "A Look Back node can only connect to an indicator or QFL.",
+  },
+  {
+    palette: {
+      key: "filter-timeframe",
+      group: "Filters",
+      description: "Evaluates the signal feeding it on a higher timeframe",
+    },
+    matches: (node) => node.kind === "timeframe",
+    create: ({ id, x, y }) => ({ id, kind: "timeframe", interval: "4h", x, y }),
+    name: () => "Timeframe",
+    description: (node) =>
+      node.kind === "timeframe"
+        ? `The indicators feeding it watch closed ${node.interval} candles instead of the bot's timeframe.`
+        : "",
+    icon: "layers",
+    inspector: "timeframe",
+    outputPorts: [{ id: "trend", label: "Trend" }],
+    connectionError: (_sourcePort, target) =>
+      target.kind === "indicator"
+        ? null
+        : "A Timeframe node can only connect to an indicator.",
   },
   {
     palette: {
@@ -388,8 +412,11 @@ function protectionDefinition(
     name: () => name,
     description: (node) => {
       if (node.kind !== kind) return ""
-      return kind === "takeProfit"
-        ? `Banks profit ${node.pct}% from the entry on the side it's attached to.`
+      if (kind === "takeProfit") {
+        return `Banks profit ${node.pct}% from the entry on the side it's attached to.`
+      }
+      return node.kind === "stopLoss" && node.mode === "trailing"
+        ? `Trails the best price by ${node.pct}%, locking in gains on the side it's attached to.`
         : `Caps the loss ${node.pct}% from the entry on the side it's attached to.`
     },
     icon,

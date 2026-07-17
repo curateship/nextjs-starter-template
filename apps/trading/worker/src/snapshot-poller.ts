@@ -1,11 +1,22 @@
 import { eq } from "drizzle-orm"
 
 import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import {
+  evaluateLiquidationAlerts,
+  LIQUIDATION_ALERT_COOLDOWN_MS,
+  liquidationAlertThresholdFromSettings,
+  positionMarkPx,
+} from "@/lib/trading/liquidation-risk"
 import { db } from "@/server/db"
 import { getInfoClient } from "@/server/hyperliquid/info"
 import { isMainnetEnabled } from "@/server/hyperliquid/transport"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
-import { tradingAccountSnapshots, tradingWallets } from "@/server/schema"
+import {
+  customShellSettings,
+  tradingAccountSnapshots,
+  tradingNotifications,
+  tradingWallets,
+} from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
 const SNAPSHOT_INTERVAL_MS = 60_000
@@ -13,11 +24,16 @@ const SNAPSHOT_INTERVAL_MS = 60_000
 /**
  * Polls clearinghouseState for every active wallet and appends an
  * account_snapshots row — the data source for equity curves and the
- * portfolio page.
+ * portfolio page. The same fresh data feeds the liquidation-proximity alert:
+ * a position whose distance to liquidation drops inside the saved threshold
+ * writes a `liquidation_risk` trading notification, rate-limited per
+ * position and deduped in the database so restarts cannot double-alert.
  */
 export class SnapshotPoller {
   private timer: NodeJS.Timeout | null = null
   private running = false
+  /** walletId:coin → last alert time, the in-memory alert rate limit. */
+  private lastLiquidationAlertAt = new Map<string, number>()
 
   start() {
     void this.tick()
@@ -37,6 +53,7 @@ export class SnapshotPoller {
         .select()
         .from(tradingWallets)
         .where(eq(tradingWallets.isActive, true))
+      const thresholdPct = await this.liquidationThresholdPct()
 
       for (const wallet of wallets) {
         const network = wallet.network as TradingNetwork
@@ -69,6 +86,12 @@ export class SnapshotPoller {
               uPnl: position.unrealizedPnl,
             })),
           })
+          await this.alertLiquidationRisk(
+            wallet.id,
+            wallet.userId,
+            state.assetPositions,
+            thresholdPct
+          )
         } catch (error) {
           console.error(
             `snapshot failed for wallet ${wallet.label}:`,
@@ -79,5 +102,80 @@ export class SnapshotPoller {
     } finally {
       this.running = false
     }
+  }
+
+  /** The saved alert threshold (percent, 0 = off), lenient on old rows. */
+  private async liquidationThresholdPct(): Promise<number> {
+    try {
+      const [row] = await db
+        .select({ settings: customShellSettings.settings })
+        .from(customShellSettings)
+        .where(eq(customShellSettings.key, "default"))
+        .limit(1)
+      return liquidationAlertThresholdFromSettings(row?.settings)
+    } catch (error) {
+      // Alerts stay off for this tick, but never silently.
+      console.error(
+        "snapshot poller: could not read the liquidation alert threshold:",
+        error instanceof Error ? error.message.slice(0, 200) : error
+      )
+      return 0
+    }
+  }
+
+  private async alertLiquidationRisk(
+    walletId: string,
+    userId: string,
+    assetPositions: {
+      position: {
+        coin: string
+        szi: string
+        positionValue: string
+        liquidationPx: string | null
+      }
+    }[],
+    thresholdPct: number
+  ) {
+    const nowMs = Date.now()
+    const drafts = evaluateLiquidationAlerts({
+      walletId,
+      thresholdPct,
+      now: nowMs,
+      lastAlertAt: this.lastLiquidationAlertAt,
+      positions: assetPositions.map(({ position }) => ({
+        coin: position.coin,
+        szi: Number(position.szi),
+        liquidationPx: position.liquidationPx
+          ? Number(position.liquidationPx)
+          : null,
+        markPx: positionMarkPx(position.positionValue, position.szi),
+      })),
+    })
+    if (drafts.length === 0) return
+    // The event key buckets time by the cooldown, so even across worker
+    // restarts (which reset the in-memory rate limit) one window can only
+    // ever produce one row per position — the unique (user, event) index
+    // swallows duplicates.
+    const bucket = Math.floor(nowMs / LIQUIDATION_ALERT_COOLDOWN_MS)
+    await db
+      .insert(tradingNotifications)
+      .values(
+        drafts.map((draft) => ({
+          id: uuid(),
+          userId,
+          walletId,
+          eventKey: `liq:${walletId}:${draft.coin}:${bucket}`,
+          kind: "liquidation_risk",
+          coin: draft.coin,
+          side: draft.side,
+          price: String(draft.liquidationPx),
+          size: String(draft.size),
+          occurredAt: now(),
+          createdAt: now(),
+        }))
+      )
+      .onConflictDoNothing({
+        target: [tradingNotifications.userId, tradingNotifications.eventKey],
+      })
   }
 }

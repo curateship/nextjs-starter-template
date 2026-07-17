@@ -259,6 +259,62 @@ describe("createAutomationStrategy", () => {
     expect(strategy.exitTriggers?.(ctx, undefined as never)).toEqual([96, 103])
   })
 
+  it("trailing stop: ticks ratchet the extreme so exitTriggers rise, never fall", () => {
+    const trailingConfig: AutomationConfig = {
+      ...config,
+      protection: { long: { stopLossPct: 2, stopLossMode: "trailing" } },
+    }
+    const strategy = createAutomationStrategy(trailingConfig)
+    let state: AutomationState = {
+      pendingAction: null,
+      exitRequested: false,
+      lastEvaluatedCandleTime: null,
+    }
+    const events: string[] = []
+    let mid = "100"
+    const ctx: StrategyCtx<AutomationState> = {
+      market: "TEST",
+      get mid() {
+        return mid
+      },
+      candles: () => candles as never,
+      position: { szi: "1", entryPx: "100" },
+      equity: "10000",
+      startingEquity: "10000",
+      get state() {
+        return state
+      },
+      setState: (next) => {
+        state = next
+      },
+      emit: (type) => events.push(type),
+      now: 4,
+    }
+
+    // Fresh position: the stop waits at the fixed 2% distance.
+    strategy.onTick?.(ctx, undefined as never)
+    expect(strategy.exitTriggers?.(ctx, undefined as never)).toEqual([98])
+    // Price runs to 110: the stop follows at 2% below the high-water mark.
+    mid = "110"
+    strategy.onTick?.(ctx, undefined as never)
+    expect(state.trail).toEqual({ dir: 1, extremePx: 110 })
+    expect(
+      strategy.exitTriggers?.(ctx, undefined as never)[0]
+    ).toBeCloseTo(107.8, 10)
+    // A pullback above the stop neither exits nor lowers the level.
+    mid = "108"
+    strategy.onTick?.(ctx, undefined as never)
+    expect(state.exitRequested).toBe(false)
+    expect(
+      strategy.exitTriggers?.(ctx, undefined as never)[0]
+    ).toBeCloseTo(107.8, 10)
+    // Touching the ratcheted stop exits.
+    mid = "107.8"
+    strategy.onTick?.(ctx, undefined as never)
+    expect(state.exitRequested).toBe(true)
+    expect(events).toContain("exit")
+  })
+
   const wallConfig: AutomationConfig = {
     v: 2,
     kind: "automation",
