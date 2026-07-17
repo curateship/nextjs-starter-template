@@ -26,7 +26,7 @@ export async function enqueueMediaProcessing(assetId: string) {
 
 export async function enqueueRoomTransition(roomId: string, sequence: number, runAt: Date) {
   const boss = await getBoss()
-  return boss.sendAfter(ROOM_TRANSITION_QUEUE, { roomId, sequence }, { singletonKey: `${roomId}:${sequence}` }, runAt)
+  return boss.sendAfter(ROOM_TRANSITION_QUEUE, { roomId, sequence }, { singletonKey: `${roomId}:${sequence}`, retryLimit: 3, retryDelay: 10 }, runAt)
 }
 
 async function startBoss() {

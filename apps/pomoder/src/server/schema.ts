@@ -213,6 +213,7 @@ export const rooms = pgTable(
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     autoStart: boolean("auto_start").notNull().default(false),
+    cycleFocusCount: integer("cycle_focus_count").notNull().default(0),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -220,6 +221,10 @@ export const rooms = pgTable(
     check(
       "rooms_visibility_check",
       sql`${table.visibility} in ('public', 'unlisted')`
+    ),
+    check(
+      "rooms_cycle_focus_count_check",
+      sql`${table.cycleFocusCount} between 0 and 4`
     ),
     check(
       "rooms_phase_check",

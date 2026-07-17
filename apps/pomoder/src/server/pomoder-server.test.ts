@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -20,7 +20,17 @@ import {
 } from "@/server/pomoder-media"
 import { buildFocusSummary, calculateFocusStreaks, completeProductivitySession, loadFocusSummary, reorderTodayTasks, rollOverTasks, startProductivitySession, toggleTaskStatus, updateTaskPlan } from "@/server/productivity"
 import { enforceRateLimit } from "@/server/rate-limit"
-import { canJoinRoom } from "@/server/rooms"
+import {
+  advanceExpiredRoom,
+  applyHostRoomAction,
+  canJoinRoom,
+  createRoomWithHost,
+  joinRoomBySlug,
+  leaveRoom,
+  listPublicRooms,
+  lookupRoomBySlug,
+  roomSnapshot,
+} from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
 import {
   applySoundPreferences,
@@ -37,6 +47,9 @@ import {
   generationUsage,
   mediaAssets,
   rateLimits,
+  roomBans,
+  roomMemberships,
+  roomMessages,
   roomReports,
   rooms,
   sessions,
@@ -95,6 +108,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0008_advanced_task_planning.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0009_complete_room_controls.sql", import.meta.url),
       "utf8"
     )
   )
@@ -1379,5 +1398,200 @@ describe("Pomoder admin record management", () => {
       "Task G",
       "Task F",
     ])
+  })
+})
+
+describe("room controls", () => {
+  const roomDb = () => database as unknown as PomoderDb
+  const baseSettings = { name: "Deep Work", visibility: "public" as const, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, autoStart: false }
+
+  async function seedRoomUser(email: string, name: string, publicDisplayName: string | null = null) {
+    const [user] = await database.insert(users).values({ email, name, publicDisplayName, passwordHash: "hash" }).returning()
+    return user
+  }
+
+  async function activeMemberships(userId: string) {
+    return database.select().from(roomMemberships).where(and(eq(roomMemberships.userId, userId), isNull(roomMemberships.leftAt)))
+  }
+
+  it("lets only the host advance phases and guards worker jobs by sequence", async () => {
+    const host = await seedRoomUser("host@example.com", "Host")
+    const member = await seedRoomUser("member@example.com", "Member")
+    const { room } = await createRoomWithHost(host.id, "deep-work-room-1", baseSettings, roomDb())
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+
+    await expect(applyHostRoomAction(room.slug, member.id, "start_focus", roomDb())).rejects.toThrow("ROOM_HOST_REQUIRED")
+
+    const startedAt = new Date("2026-07-16T10:00:00Z")
+    const started = await applyHostRoomAction(room.slug, host.id, "start_focus", roomDb(), startedAt)
+    expect(started.room).toMatchObject({ phase: "focus", sequence: 1, cycleFocusCount: 0 })
+    expect(started.transitionAt?.getTime()).toBe(startedAt.getTime() + 25 * 60_000)
+
+    const stale = await advanceExpiredRoom(room.id, 0, roomDb(), new Date("2026-07-16T10:30:00Z"))
+    expect(stale.kind).toBe("stale")
+    const [unchanged] = await database.select().from(rooms).where(eq(rooms.id, room.id))
+    expect(unchanged).toMatchObject({ phase: "focus", sequence: 1 })
+
+    const early = await advanceExpiredRoom(room.id, 1, roomDb(), new Date("2026-07-16T10:10:00Z"))
+    expect(early.kind).toBe("not_due")
+
+    const due = await advanceExpiredRoom(room.id, 1, roomDb(), new Date("2026-07-16T10:25:00Z"))
+    if (due.kind !== "advanced") throw new Error(`expected advance, got ${due.kind}`)
+    expect(due.room).toMatchObject({ phase: "short", sequence: 2, cycleFocusCount: 1 })
+    expect(due.transitionAt?.getTime()).toBe(new Date("2026-07-16T10:30:00Z").getTime())
+  })
+
+  it("gives the fourth focus period a long break and resets after it", async () => {
+    const host = await seedRoomUser("cycle-host@example.com", "Host")
+    const { room: created } = await createRoomWithHost(host.id, "cadence-room-01", { ...baseSettings, autoStart: true }, roomDb())
+    const started = await applyHostRoomAction(created.slug, host.id, "start_focus", roomDb(), new Date("2026-07-16T09:00:00Z"))
+
+    let room = started.room
+    const phases: string[] = []
+    for (let step = 0; step < 8; step += 1) {
+      const advanced = await advanceExpiredRoom(room.id, room.sequence, roomDb(), room.phaseEndsAt as Date)
+      if (advanced.kind !== "advanced") throw new Error(`expected advance at step ${step}, got ${advanced.kind}`)
+      room = advanced.room
+      phases.push(room.phase)
+      expect(advanced.transitionAt?.getTime()).toBe(room.phaseEndsAt?.getTime())
+    }
+
+    expect(phases).toEqual(["short", "focus", "short", "focus", "short", "focus", "long", "focus"])
+    expect(room.cycleFocusCount).toBe(0)
+  })
+
+  it("waits for the host after a break when autoStart is off", async () => {
+    const host = await seedRoomUser("manual-host@example.com", "Host")
+    const { room: created } = await createRoomWithHost(host.id, "manual-room-001", baseSettings, roomDb())
+    const started = await applyHostRoomAction(created.slug, host.id, "start_focus", roomDb(), new Date("2026-07-16T09:00:00Z"))
+
+    const toBreak = await advanceExpiredRoom(created.id, started.room.sequence, roomDb(), started.room.phaseEndsAt as Date)
+    if (toBreak.kind !== "advanced") throw new Error("expected the focus phase to advance")
+    expect(toBreak.room.phase).toBe("short")
+    expect(toBreak.transitionAt).not.toBeNull()
+
+    const toWaiting = await advanceExpiredRoom(created.id, toBreak.room.sequence, roomDb(), toBreak.room.phaseEndsAt as Date)
+    if (toWaiting.kind !== "advanced") throw new Error("expected the break to advance")
+    expect(toWaiting.room).toMatchObject({ phase: "waiting", phaseEndsAt: null })
+    expect(toWaiting.transitionAt).toBeNull()
+
+    const idle = await advanceExpiredRoom(created.id, toWaiting.room.sequence, roomDb(), new Date("2026-07-16T12:00:00Z"))
+    expect(idle.kind).toBe("stale")
+
+    const restarted = await applyHostRoomAction(created.slug, host.id, "start_focus", roomDb())
+    expect(restarted.room.phase).toBe("focus")
+  })
+
+  it("closing ends memberships and blocks further actions; host leave closes the room", async () => {
+    const host = await seedRoomUser("close-host@example.com", "Host")
+    const member = await seedRoomUser("close-member@example.com", "Member")
+    const { room } = await createRoomWithHost(host.id, "closing-room-01", baseSettings, roomDb())
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+
+    const closed = await applyHostRoomAction(room.slug, host.id, "close", roomDb())
+    expect(closed.room.phase).toBe("closed")
+    expect(closed.room.closedAt).not.toBeNull()
+    expect(closed.transitionAt).toBeNull()
+    expect(await activeMemberships(host.id)).toHaveLength(0)
+    expect(await activeMemberships(member.id)).toHaveLength(0)
+
+    const snapshot = await roomSnapshot(room.id, member.id, roomDb())
+    expect(snapshot.room.phase).toBe("closed")
+    expect(snapshot.members).toEqual([])
+    expect(snapshot.messages).toEqual([])
+    await expect(applyHostRoomAction(room.slug, host.id, "start_focus", roomDb())).rejects.toThrow("ROOM_CLOSED")
+
+    const { room: second } = await createRoomWithHost(host.id, "leaving-room-01", baseSettings, roomDb())
+    await joinRoomBySlug(second.slug, member.id, roomDb())
+    const memberLeave = await leaveRoom(second.slug, member.id, roomDb())
+    expect(memberLeave).toMatchObject({ closed: false, left: true })
+    expect(await activeMemberships(member.id)).toHaveLength(0)
+
+    // Leaving again is a no-op, so callers know not to broadcast anything.
+    const repeatLeave = await leaveRoom(second.slug, member.id, roomDb())
+    expect(repeatLeave).toMatchObject({ closed: false, left: false })
+    expect((await database.select().from(rooms).where(eq(rooms.id, second.id)))[0].phase).toBe("waiting")
+
+    const hostLeave = await leaveRoom(second.slug, host.id, roomDb())
+    expect(hostLeave.closed).toBe(true)
+    expect(hostLeave.room.phase).toBe("closed")
+    expect(await activeMemberships(host.id)).toHaveLength(0)
+  })
+
+  it("snapshots expose only safe member fields and mark your own messages", async () => {
+    const host = await seedRoomUser("snap-host@example.com", "Hosting Human", "Host Nick")
+    const member = await seedRoomUser("snap-member@example.com", "Member Real Name")
+    const stranger = await seedRoomUser("snap-stranger@example.com", "Stranger")
+    const { room } = await createRoomWithHost(host.id, "snapshot-room-1", baseSettings, roomDb())
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+    await database.insert(roomMessages).values({ roomId: room.id, userId: host.id, body: "Welcome" })
+    await database.insert(roomMessages).values({ roomId: room.id, userId: member.id, body: "Hello" })
+
+    const snapshot = await roomSnapshot(room.id, member.id, roomDb())
+    expect(snapshot.you).toEqual({ role: "member" })
+    expect(snapshot.members.map((row) => [row.name, row.role])).toEqual([["Host Nick", "host"], ["Member Real Name", "member"]])
+    expect(Object.keys(snapshot.members[0]).sort()).toEqual(["avatarIndex", "id", "joinedAt", "name", "role"])
+    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "id", "mine"])
+    expect(snapshot.messages.map((row) => [row.authorName, row.mine])).toEqual([["Host Nick", false], ["Member Real Name", true]])
+    expect(JSON.stringify(snapshot)).not.toContain("@example.com")
+    expect(JSON.stringify(snapshot)).not.toContain(host.id)
+
+    await expect(roomSnapshot(room.id, stranger.id, roomDb())).rejects.toThrow("ROOM_MEMBERSHIP_REQUIRED")
+  })
+
+  it("keeps unlisted rooms out of the public list while direct slugs resolve", async () => {
+    const publicHost = await seedRoomUser("public-host@example.com", "Public Host")
+    const unlistedHost = await seedRoomUser("unlisted-host@example.com", "Unlisted Host")
+    const member = await seedRoomUser("lookup-member@example.com", "Member")
+    const banned = await seedRoomUser("banned-member@example.com", "Banned")
+    await createRoomWithHost(publicHost.id, "public-room-001", baseSettings, roomDb())
+    const { room: unlisted } = await createRoomWithHost(unlistedHost.id, "unlisted-room-01", { ...baseSettings, visibility: "unlisted" }, roomDb())
+    await database.insert(roomBans).values({ roomId: unlisted.id, userId: banned.id, bannedByUserId: unlistedHost.id })
+
+    const listed = await listPublicRooms(roomDb())
+    expect(listed.map((row) => row.room.slug)).toEqual(["public-room-001"])
+
+    expect(await lookupRoomBySlug("missing-room-slug", null, roomDb())).toEqual({ status: "not_found" })
+    expect(await lookupRoomBySlug(unlisted.slug, null, roomDb())).toMatchObject({ status: "joinable", name: "Deep Work", memberCount: 1 })
+    expect(await lookupRoomBySlug(unlisted.slug, banned.id, roomDb())).toEqual({ status: "banned", name: "Deep Work" })
+    await expect(joinRoomBySlug(unlisted.slug, banned.id, roomDb())).rejects.toThrow("ROOM_BANNED")
+
+    await joinRoomBySlug(unlisted.slug, member.id, roomDb())
+    expect(await lookupRoomBySlug(unlisted.slug, member.id, roomDb())).toMatchObject({ status: "member", memberCount: 2 })
+
+    await applyHostRoomAction(unlisted.slug, unlistedHost.id, "start_focus", roomDb())
+    expect(await lookupRoomBySlug(unlisted.slug, null, roomDb())).toMatchObject({ status: "locked" })
+    const outsider = await seedRoomUser("outsider@example.com", "Outsider")
+    await expect(joinRoomBySlug(unlisted.slug, outsider.id, roomDb())).rejects.toThrow("ROOM_LOCKED")
+
+    await applyHostRoomAction(unlisted.slug, unlistedHost.id, "close", roomDb())
+    expect(await lookupRoomBySlug(unlisted.slug, null, roomDb())).toEqual({ status: "closed", name: "Deep Work" })
+    await expect(joinRoomBySlug(unlisted.slug, outsider.id, roomDb())).rejects.toThrow("ROOM_CLOSED")
+  })
+
+  it("keeps one active room per user across joining and hosting", async () => {
+    const hostA = await seedRoomUser("host-a@example.com", "Host A")
+    const hostB = await seedRoomUser("host-b@example.com", "Host B")
+    const member = await seedRoomUser("mover@example.com", "Mover")
+    const { room: roomA } = await createRoomWithHost(hostA.id, "one-room-a-0001", baseSettings, roomDb())
+    const { room: roomB } = await createRoomWithHost(hostB.id, "one-room-b-0001", baseSettings, roomDb())
+
+    await joinRoomBySlug(roomA.slug, member.id, roomDb())
+    await joinRoomBySlug(roomB.slug, member.id, roomDb())
+    const memberships = await activeMemberships(member.id)
+    expect(memberships).toHaveLength(1)
+    expect(memberships[0].roomId).toBe(roomB.id)
+
+    // A host joining elsewhere abandons their own room, which closes it.
+    const hostAJoin = await joinRoomBySlug(roomB.slug, hostA.id, roomDb())
+    expect(hostAJoin.closedRoomIds).toEqual([roomA.id])
+    expect((await database.select().from(rooms).where(eq(rooms.id, roomA.id)))[0].phase).toBe("closed")
+    expect((await activeMemberships(hostA.id))[0]).toMatchObject({ roomId: roomB.id, role: "member" })
+
+    // Hosting a new room closes the room the user previously hosted.
+    const { closedRoomIds } = await createRoomWithHost(hostB.id, "one-room-c-0001", baseSettings, roomDb())
+    expect(closedRoomIds).toEqual([roomB.id])
+    expect((await database.select().from(rooms).where(eq(rooms.id, roomB.id)))[0].phase).toBe("closed")
+    expect(await activeMemberships(member.id)).toHaveLength(0)
   })
 })

@@ -1,15 +1,35 @@
 import * as React from "react"
-import { Link, useRouteContext } from "@tanstack/react-router"
+import { Link, useNavigate, useParams, useRouteContext } from "@tanstack/react-router"
 import {
   Check,
+  Coffee,
+  Copy,
   Loader2,
   LockKeyhole,
+  LogOut,
   Pause,
   Play,
   Plus,
+  SkipForward,
   Sparkles,
   Upload,
+  Users,
+  X,
 } from "lucide-react"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import { usePomodoro } from "@/hooks/use-pomodoro"
 import { usePomoderBackground, type PomoderBackground } from "@/components/pomoder/pomoder-background"
@@ -22,7 +42,7 @@ import { createBillingPortal, createCheckout } from "@/lib/api/billing"
 import { requestGeneration } from "@/lib/api/generation"
 import { listMedia } from "@/lib/api/pomoder-media"
 import { loadLeaderboard, loadProductivity } from "@/lib/api/productivity"
-import { createRoom, joinRoom, listRooms, sendRoomMessage } from "@/lib/api/rooms"
+import { applyRoomAction, createRoom, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, sendRoomMessage } from "@/lib/api/rooms"
 
 const backgrounds = [
   ["Lofi girl", "lofi_girl", false],
@@ -102,26 +122,84 @@ export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
   )
 }
 
+type RoomSnapshotClient = Awaited<ReturnType<typeof joinRoom>>
+type RoomHostActionClient = Parameters<typeof applyRoomAction>[1]
+
+const ROOM_AVATARS = ["maya", "tomas", "ana", "devon"] as const
+const ROOM_PHASE_LABELS: Record<string, string> = { waiting: "Waiting to start", focus: "Focus", short: "Short break", long: "Long break", closed: "Closed" }
+
+// Countdowns derive from the server's phaseEndsAt on every tick, so they stay
+// correct after tab backgrounding or an SSE reconnect.
+function useRoomCountdown(phaseEndsAt: Date | string | null) {
+  const endsAtTime = phaseEndsAt ? new Date(phaseEndsAt).getTime() : null
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    if (!endsAtTime) return
+    setNow(Date.now())
+    const interval = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(interval)
+  }, [endsAtTime])
+  if (!endsAtTime) return null
+  const totalSeconds = Math.max(0, Math.ceil((endsAtTime - now) / 1000))
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`
+}
+
 export function RoomsPage() {
   const { user } = useRouteContext({ from: "__root__" })
   const [roomRows, setRoomRows] = React.useState<Awaited<ReturnType<typeof listRooms>>>([])
-  const [activeRoom, setActiveRoom] = React.useState<Awaited<ReturnType<typeof joinRoom>> | null>(null)
+  const [activeRoom, setActiveRoom] = React.useState<RoomSnapshotClient | null>(null)
   const [showHostForm, setShowHostForm] = React.useState(false)
-  const [roomName, setRoomName] = React.useState("")
-  const [message, setMessage] = React.useState("")
   const [error, setError] = React.useState("")
+  const [notice, setNotice] = React.useState("")
+  const [reconnecting, setReconnecting] = React.useState(false)
   const activeRoomSlug = activeRoom?.room.slug
 
   const refreshRooms = React.useCallback(() => { void listRooms().then(setRoomRows).catch(() => setError("Rooms could not be loaded.")) }, [])
   React.useEffect(refreshRooms, [refreshRooms])
+  React.useEffect(() => { if (user) void getCurrentRoom().then((snapshot) => { if (snapshot) setActiveRoom((current) => current ?? snapshot) }).catch(() => undefined) }, [user])
+
+  // The SSE broadcast and a mutation's own response race in either order, so
+  // only a deliberate action (force) may overwrite an existing closed notice;
+  // the broadcast just fills the notice in when nothing explained the close.
+  const applySnapshot = React.useCallback((snapshot: RoomSnapshotClient, closedNotice = "This room has ended.", forceClosedNotice = false) => {
+    if (snapshot.room.phase === "closed") {
+      setActiveRoom(null)
+      setNotice((current) => (forceClosedNotice ? closedNotice : current || closedNotice))
+      refreshRooms()
+      return
+    }
+    setNotice("")
+    setActiveRoom(snapshot)
+  }, [refreshRooms])
+
   React.useEffect(() => {
     if (!activeRoomSlug) return
     const source = new EventSource(`/api/rooms/${activeRoomSlug}/events`)
-    const update = (event: Event) => setActiveRoom(JSON.parse((event as MessageEvent<string>).data) as Awaited<ReturnType<typeof joinRoom>>)
-    source.addEventListener("snapshot", update)
-    source.onerror = () => setError("Live room updates were interrupted. Reconnecting…")
-    return () => source.close()
-  }, [activeRoomSlug])
+    source.addEventListener("snapshot", (event) => {
+      setReconnecting(false)
+      applySnapshot(JSON.parse((event as MessageEvent<string>).data) as RoomSnapshotClient)
+    })
+    source.addEventListener("room_gone", () => {
+      setActiveRoom(null)
+      // A deliberate leave/close already explained itself; only fill the
+      // notice when the membership ended from the other side.
+      setNotice((current) => current || "You are no longer in this room.")
+      refreshRooms()
+    })
+    source.onerror = () => setReconnecting(true)
+    return () => { setReconnecting(false); source.close() }
+  }, [activeRoomSlug, applySnapshot, refreshRooms])
+
+  const joinBySlug = async (slug: string, demo?: boolean) => {
+    if (!user || demo) { window.location.assign("/login"); return }
+    if (activeRoom?.you.role === "host" && !window.confirm("Joining another room closes the room you host. Continue?")) return
+    setError("")
+    try { applySnapshot(await joinRoom(slug)) } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ""
+      setError(message.includes("ROOM_LOCKED") ? "That room is mid-focus. Join again during its break." : message.includes("ROOM_CLOSED") ? "That room has ended." : message.includes("ROOM_BANNED") ? "You can't join that room." : "This room is not available to join.")
+      refreshRooms()
+    }
+  }
 
   const realOpenRooms = roomRows.filter(({ room }) => room.phase !== "focus").map((row, index) => roomCard(row, index))
   const realLiveRooms = roomRows.filter(({ room }) => room.phase === "focus").map((row, index) => roomCard(row, index + realOpenRooms.length))
@@ -130,13 +208,260 @@ export function RoomsPage() {
 
   return (
     <div className="reference-view rooms-view">
-      {showHostForm ? <form className="reference-host-form" onSubmit={async (event) => { event.preventDefault(); setError(""); try { const created = await createRoom({ name: roomName, visibility: "public", focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, autoStart: false }); setRoomName(""); setShowHostForm(false); setActiveRoom(created); refreshRooms() } catch (cause) { setError(cause instanceof Error && cause.message.includes("PRO_REQUIRED") ? "Hosting rooms requires Pomoder Pro." : "The room could not be created.") } }}><label>Room name<input required minLength={2} maxLength={80} value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="Morning deep work" /></label><button className="reference-primary">Create room</button></form> : null}
-      {error ? <p role="alert">{error}</p> : null}
-      {activeRoom ? <section className="surface-card settings-card"><p>Current room · {activeRoom.room.phase}</p><h2>{activeRoom.room.name}</h2><span>{activeRoom.members.length} people connected</span><div className="chat-list">{activeRoom.messages.map((roomMessage) => <div className="chat-message" key={roomMessage.id}><div><span>{roomMessage.body}</span></div></div>)}</div><form className="chat-form" onSubmit={async (event) => { event.preventDefault(); if (!message.trim()) return; await sendRoomMessage(activeRoom.room.slug, message); setMessage("") }}><input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} placeholder="Send encouragement…" aria-label="Room message" /><button aria-label="Send message" disabled={!message.trim()}>Send</button></form></section> : null}
+      <HostRoomDialog
+        open={showHostForm && !activeRoom}
+        onOpenChange={setShowHostForm}
+        onCreated={(snapshot) => { setShowHostForm(false); applySnapshot(snapshot); refreshRooms() }}
+      />
       <div className="rooms-view-inner">
-        <RoomGroup title="Open to join" subtitle="on break · waiting to start" rooms={openRooms} open onHost={user ? () => setShowHostForm((value) => !value) : undefined} onJoin={async (slug, demo) => { if (!user || demo) { window.location.assign("/login"); return }; setError(""); try { setActiveRoom(await joinRoom(slug)) } catch { setError("This room is not available to join.") } }} />
+        {error ? <p className="room-notice" role="alert">{error}</p> : null}
+        {notice ? <p className="room-notice" role="status">{notice}</p> : null}
+        {activeRoom ? (
+          <ActiveRoomPanel
+            snapshot={activeRoom}
+            reconnecting={reconnecting}
+            onSnapshot={applySnapshot}
+            onLeft={(message) => { setActiveRoom(null); setNotice(message); refreshRooms() }}
+            onActionError={setError}
+          />
+        ) : null}
+        <RoomGroup title="Open to join" subtitle="on break · waiting to start" rooms={openRooms} open onHost={user && !activeRoom ? () => setShowHostForm((value) => !value) : undefined} onJoin={joinBySlug} />
         <RoomGroup title="In session" subtitle="focused · joins locked until break" rooms={liveRooms} open={false} onJoin={async () => undefined} />
       </div>
+    </div>
+  )
+}
+
+function HostRoomDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (snapshot: RoomSnapshotClient) => void }) {
+  const [roomName, setRoomName] = React.useState("")
+  const [visibility, setVisibility] = React.useState<"public" | "unlisted">("public")
+  const [focusMinutes, setFocusMinutes] = React.useState(25)
+  const [shortBreakMinutes, setShortBreakMinutes] = React.useState(5)
+  const [longBreakMinutes, setLongBreakMinutes] = React.useState(15)
+  const [autoStart, setAutoStart] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
+  const [error, setError] = React.useState("")
+  const validDurations = [focusMinutes, shortBreakMinutes, longBreakMinutes].every((value) => Number.isInteger(value) && value >= 1 && value <= 90)
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!creating) { setError(""); onOpenChange(next) } }}>
+      {/* The content portals to <body>, outside the always-dark shell. */}
+      <DialogContent className="host-room-dialog dark">
+        <DialogTitle className="host-room-dialog-title">Host a room</DialogTitle>
+        <DialogDescription className="host-room-dialog-sub">Pick the vibe and timers — you control the session once people join.</DialogDescription>
+        <form
+          className="host-room-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            setError("")
+            setCreating(true)
+            try {
+              const created = await createRoom({ name: roomName, visibility, focusMinutes, shortBreakMinutes, longBreakMinutes, autoStart })
+              setRoomName("")
+              onCreated(created)
+            } catch (cause) {
+              setError(cause instanceof Error && cause.message.includes("PRO_REQUIRED") ? "Hosting rooms requires Pomoder Pro." : "The room could not be created.")
+            } finally { setCreating(false) }
+          }}
+        >
+          <label className="host-room-name">Room name<input required minLength={2} maxLength={80} value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="Morning deep work" /></label>
+          <label className="host-room-visibility">Visibility
+            <Select value={visibility} onValueChange={(value) => setVisibility(value as "public" | "unlisted")}>
+              <SelectTrigger aria-label="Visibility"><SelectValue /></SelectTrigger>
+              <SelectContent className="dark">
+                <SelectItem value="public">Public — listed for everyone</SelectItem>
+                <SelectItem value="unlisted">Unlisted — invite link only</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+          <label>Focus minutes<input type="number" min={1} max={90} value={focusMinutes} onChange={(event) => setFocusMinutes(event.target.valueAsNumber)} /></label>
+          <label>Short break<input type="number" min={1} max={90} value={shortBreakMinutes} onChange={(event) => setShortBreakMinutes(event.target.valueAsNumber)} /></label>
+          <label>Long break<input type="number" min={1} max={90} value={longBreakMinutes} onChange={(event) => setLongBreakMinutes(event.target.valueAsNumber)} /></label>
+          <label className="host-room-check"><input type="checkbox" checked={autoStart} onChange={(event) => setAutoStart(event.target.checked)} />Auto-start the next focus after each break</label>
+          {error ? <p className="host-room-error" role="alert">{error}</p> : null}
+          <button className="reference-primary" disabled={creating || !validDurations}>{creating ? "Creating…" : "Create room"}</button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionError }: {
+  snapshot: RoomSnapshotClient
+  reconnecting: boolean
+  onSnapshot: (snapshot: RoomSnapshotClient, closedNotice?: string, forceClosedNotice?: boolean) => void
+  onLeft: (message: string) => void
+  onActionError: (message: string) => void
+}) {
+  const { room, you, members, messages } = snapshot
+  const isHost = you.role === "host"
+  const countdown = useRoomCountdown(room.phaseEndsAt)
+  const [message, setMessage] = React.useState("")
+  const [pending, setPending] = React.useState("")
+  const [copied, setCopied] = React.useState(false)
+  const [copyFailed, setCopyFailed] = React.useState(false)
+  const inviteUrl = `${window.location.origin}/rooms/${room.slug}`
+
+  const runAction = async (action: RoomHostActionClient) => {
+    if (action === "close" && !window.confirm("Close this room for everyone? This cannot be undone.")) return
+    onActionError("")
+    setPending(action)
+    try {
+      onSnapshot(await applyRoomAction(room.slug, action), "You closed the room.", true)
+    } catch (cause) {
+      onActionError(cause instanceof Error && cause.message.includes("ROOM_HOST_REQUIRED") ? "Only the host can control the room." : "The room could not be updated.")
+    } finally { setPending("") }
+  }
+
+  const leave = async () => {
+    onActionError("")
+    setPending("leave")
+    try {
+      const result = await leaveActiveRoom(room.slug)
+      onLeft(result.closed ? "You closed the room." : "You left the room.")
+    } catch { onActionError("Leaving the room failed. Try again.") } finally { setPending("") }
+  }
+
+  const copyInvite = async () => {
+    setCopyFailed(false)
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2_000)
+    } catch { setCopyFailed(true) }
+  }
+
+  const detail = room.phase === "focus" ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
+    : room.phase === "short" || room.phase === "long" ? (room.autoStart ? `Next: ${room.focusMinutes} min focus starts automatically` : `Next: the host starts the ${room.focusMinutes} min focus`)
+    : "The host starts each focus session"
+  const actionIcon = (action: string, icon: React.ReactNode) => pending === action ? <Loader2 className="player-spinner" aria-hidden="true" /> : icon
+
+  return (
+    <section className="active-room-card" aria-label={`Your room: ${room.name}`}>
+      <header className="active-room-heading">
+        <div>
+          <p>Current room · {room.visibility === "unlisted" ? "Unlisted" : "Public"}</p>
+          <h2>{room.name}</h2>
+          <span><Users aria-hidden="true" />{members.length} {members.length === 1 ? "person" : "people"} in the room</span>
+        </div>
+        <div className="active-room-invite">
+          <code>{inviteUrl}</code>
+          <button className="outline-pill" onClick={() => void copyInvite()}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "Copied" : "Copy invite link"}</button>
+        </div>
+      </header>
+      {copyFailed ? <p className="room-notice" role="alert">Copying failed — select the link text above and copy it manually.</p> : null}
+      {reconnecting ? <p className="room-notice" role="status">Live updates were interrupted. Reconnecting…</p> : null}
+      <div className="active-room-status">
+        <span className={`room-phase-chip phase-${room.phase}`}>{ROOM_PHASE_LABELS[room.phase] ?? room.phase}</span>
+        <strong className="room-countdown" aria-label="Time remaining">{countdown ?? "--:--"}</strong>
+        <small>{detail}</small>
+        <div className="active-room-actions">
+          {isHost ? (
+            <>
+              <button className="pill-button" disabled={pending !== "" || room.phase === "focus"} onClick={() => void runAction("start_focus")}>{actionIcon("start_focus", <Play aria-hidden="true" />)}Start focus</button>
+              <button className="outline-pill" disabled={pending !== "" || room.phase !== "focus"} onClick={() => void runAction("start_break")}>{actionIcon("start_break", <Coffee aria-hidden="true" />)}Start break</button>
+              <button className="outline-pill" disabled={pending !== ""} onClick={() => void runAction("next_phase")}>{actionIcon("next_phase", <SkipForward aria-hidden="true" />)}Next phase</button>
+              <button className="outline-pill room-close-button" disabled={pending !== ""} onClick={() => void runAction("close")}>{actionIcon("close", <X aria-hidden="true" />)}Close room</button>
+            </>
+          ) : (
+            <button className="outline-pill" disabled={pending !== ""} onClick={() => void leave()}>{actionIcon("leave", <LogOut aria-hidden="true" />)}Leave room</button>
+          )}
+        </div>
+      </div>
+      <div className="active-room-columns">
+        <div className="active-room-members">
+          <h3>In the room</h3>
+          <ul>
+            {members.map((member) => (
+              <li key={member.id}>
+                <img src={`/pomoder/avatars-${ROOM_AVATARS[member.avatarIndex % ROOM_AVATARS.length]}.png`} alt="" />
+                <span>{member.name}</span>
+                {member.role === "host" ? <b>HOST</b> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="active-room-chat">
+          <div className="chat-list">
+            {messages.map((entry) => (
+              <div className={`chat-message ${entry.mine ? "mine" : ""}`} key={entry.id}>
+                <div>
+                  <p>{entry.authorName}<time>{new Date(entry.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</time></p>
+                  <span>{entry.body}</span>
+                </div>
+              </div>
+            ))}
+            {!messages.length ? <span className="chat-empty">Say hi — messages appear for everyone in the room.</span> : null}
+          </div>
+          <form className="chat-form" onSubmit={async (event) => { event.preventDefault(); const body = message.trim(); if (!body) return; setMessage(""); try { await sendRoomMessage(room.slug, body) } catch { onActionError("The message could not be sent."); setMessage(body) } }}>
+            <input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} placeholder="Send encouragement…" aria-label="Room message" />
+            <button aria-label="Send message" disabled={!message.trim()}>Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function RoomInvitePage() {
+  const { user } = useRouteContext({ from: "__root__" })
+  const { slug } = useParams({ from: "/_pomoder/rooms_/$slug" })
+  const navigate = useNavigate()
+  const [lookup, setLookup] = React.useState<Awaited<ReturnType<typeof lookupRoom>> | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  const [joining, setJoining] = React.useState(false)
+  const [error, setError] = React.useState("")
+
+  const refresh = React.useCallback(() => {
+    setFailed(false)
+    if (slug.length < 12 || slug.length > 80) { setLookup({ status: "not_found" }); return }
+    lookupRoom(slug).then(setLookup).catch(() => setFailed(true))
+  }, [slug])
+  React.useEffect(() => { refresh() }, [refresh])
+
+  const join = async () => {
+    setJoining(true)
+    setError("")
+    try {
+      await joinRoom(slug)
+      void navigate({ to: "/rooms" })
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ""
+      setError(message.includes("ROOM_LOCKED") ? "The room just started a focus session. Try again during the break." : message.includes("ROOM_CLOSED") ? "This room has ended." : message.includes("ROOM_BANNED") ? "You can't join this room." : "Joining failed. Try again.")
+      refresh()
+      setJoining(false)
+    }
+  }
+
+  return (
+    <div className="reference-view room-invite-view">
+      <section className="room-invite-card" aria-label="Room invite">
+        {failed ? (
+          <><h2>Something went wrong</h2><p>The invite could not be checked.</p><button className="pill-button" onClick={refresh}>Try again</button></>
+        ) : !lookup ? (
+          <p role="status">Checking this invite…</p>
+        ) : lookup.status === "not_found" ? (
+          <><h2>Invite not found</h2><p>This invite link isn’t valid. Check that it was copied completely.</p><Link className="outline-pill" to="/rooms">Browse rooms</Link></>
+        ) : lookup.status === "closed" ? (
+          <><h2>{lookup.name}</h2><p>This room has ended.</p><Link className="outline-pill" to="/rooms">Browse rooms</Link></>
+        ) : lookup.status === "banned" ? (
+          <><h2>{lookup.name}</h2><p>You can’t join this room.</p><Link className="outline-pill" to="/rooms">Browse rooms</Link></>
+        ) : lookup.status === "member" ? (
+          <><h2>{lookup.name}</h2><p>You’re already in this room.</p><Link className="pill-button" to="/rooms">Go to your room</Link></>
+        ) : lookup.status === "locked" ? (
+          <><h2>{lookup.name}</h2><p><LockKeyhole aria-hidden="true" />{lookup.memberCount} focusing right now — joins unlock at the next break.</p>{error ? <p role="alert">{error}</p> : null}<button className="pill-button" onClick={refresh}>Check again</button><Link className="outline-pill" to="/rooms">Browse rooms</Link></>
+        ) : (
+          <>
+            <p className="room-invite-kicker">You’re invited</p>
+            <h2>{lookup.name}</h2>
+            <p><Users aria-hidden="true" />{lookup.memberCount} in the room · {lookup.focusMinutes} min focus sessions</p>
+            {error ? <p role="alert">{error}</p> : null}
+            {user
+              ? <button className="pill-button" disabled={joining} onClick={() => void join()}>{joining ? "Joining…" : "Join room"}</button>
+              : <><p>Sign in to join, then open this invite again.</p><Link className="pill-button" to="/login">Sign in to join</Link><Link className="outline-pill" to="/register">Create free account</Link></>}
+          </>
+        )}
+      </section>
     </div>
   )
 }
@@ -153,7 +478,7 @@ const demoRooms: RoomCard[] = [
 function roomCard({ room, memberCount }: Awaited<ReturnType<typeof listRooms>>[number], index: number): RoomCard {
   const end = room.phaseEndsAt ? new Date(room.phaseEndsAt).getTime() : 0
   const remaining = Math.max(0, Math.ceil((end - Date.now()) / 60_000))
-  return { id: room.id, slug: room.slug, name: room.name, status: room.phase === "waiting" ? "waiting to start" : `${remaining}:00 left`, detail: room.phase === "focus" ? `Session ${room.sequence + 1} of 4` : `Next: ${room.focusMinutes} min focus`, memberCount, avatars: ["maya", "tomas", "ana"].slice(0, Math.min(3, Math.max(1, memberCount))), vibe: index % 4 }
+  return { id: room.id, slug: room.slug, name: room.name, status: room.phase === "waiting" ? "waiting to start" : `${remaining} min left`, detail: room.phase === "focus" ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4` : `Next: ${room.focusMinutes} min focus`, memberCount, avatars: ["maya", "tomas", "ana"].slice(0, Math.min(3, Math.max(1, memberCount))), vibe: index % 4 }
 }
 
 function RoomGroup({ title, subtitle, rooms, open, onJoin, onHost }: { title: string; subtitle: string; rooms: RoomCard[]; open: boolean; onJoin: (slug: string, demo?: boolean) => Promise<void>; onHost?: () => void }) {
