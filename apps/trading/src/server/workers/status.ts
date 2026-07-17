@@ -1,7 +1,8 @@
-import { desc, eq, sql } from "drizzle-orm"
+import { desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
   WORKER_KINDS,
+  WORKER_LABELS,
   safeWorkerError,
   type WorkerKind,
   type WorkerStatus,
@@ -10,6 +11,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { getMarketScannerPaused } from "@/server/market-scanner"
 import {
+  scannerAlerts,
   tradingBacktests,
   tradingBotState,
   tradingBots,
@@ -20,28 +22,13 @@ import { listWorkerControls } from "./control"
 
 const ONLINE_WINDOW_MS = 30_000
 
-const DETAILS: Record<WorkerKind, { label: string; description: string }> = {
-  bot: {
-    label: "Bot Worker",
-    description: "Runs live and paper bots and their direct market feeds.",
-  },
-  "whale-scanner": {
-    label: "Whale Scanner",
-    description:
-      "Collects whale trades, wallets, positions, and research alerts.",
-  },
-  "market-scanner": {
-    label: "Market Scanner",
-    description: "Evaluates saved market rules and creates market alerts.",
-  },
-  alert: {
-    label: "Alert Worker",
-    description: "Watches Trade alert rules against its own live market feed.",
-  },
-  backtest: {
-    label: "Backtest Worker",
-    description: "Runs queued historical simulations and saves their results.",
-  },
+const DESCRIPTIONS: Record<WorkerKind, string> = {
+  bot: "Runs live and paper bots and their direct market feeds.",
+  "whale-scanner":
+    "Collects whale trades, wallets, positions, and research alerts.",
+  "market-scanner": "Evaluates saved market rules and creates market alerts.",
+  alert: "Watches Trade alert rules against its own live market feed.",
+  backtest: "Runs queued historical simulations and saves their results.",
 }
 
 type SafeMeta = Record<string, unknown>
@@ -61,6 +48,7 @@ export async function getWorkersDashboard(
     userPaused,
     whaleActivity,
     botActivity,
+    watchdogAlerts,
   ] = await Promise.all([
     listWorkerControls(database),
     database
@@ -128,6 +116,16 @@ export async function getWorkersDashboard(
         lastEvaluatedAt: sql<Date | null>`max(${tradingBotState.lastEvalAt})`,
       })
       .from(tradingBotState),
+    database
+      .select({
+        type: scannerAlerts.type,
+        data: scannerAlerts.data,
+        createdAt: scannerAlerts.createdAt,
+      })
+      .from(scannerAlerts)
+      .where(inArray(scannerAlerts.type, ["worker_down", "worker_recovered"]))
+      .orderBy(desc(scannerAlerts.createdAt))
+      .limit(50),
   ])
 
   const latestWhaleActivity = whaleActivity.rows[0]
@@ -180,12 +178,23 @@ export async function getWorkersDashboard(
               ? null
               : isoOf(backtests[0]?.lastCompletedAt)
 
+    const lastDown = watchdogAlerts.find(
+      (alert) =>
+        alert.type === "worker_down" && watchdogAlertKind(alert.data) === kind
+    )
+    const lastRecovered = watchdogAlerts.find(
+      (alert) =>
+        alert.type === "worker_recovered" &&
+        watchdogAlertKind(alert.data) === kind
+    )
+
     return {
       kind,
       enabled: control.enabled,
       paused: control.paused,
       updatedAt: control.updatedAt.toISOString(),
-      ...DETAILS[kind],
+      label: WORKER_LABELS[kind],
+      description: DESCRIPTIONS[kind],
       state,
       online,
       active,
@@ -201,6 +210,12 @@ export async function getWorkersDashboard(
       currentActivity,
       latestError: safeWorkerError(meta.latestError),
       userPaused: kind === "market-scanner" ? userPaused : null,
+      watchdogLastCheckAt: online ? safeIso(meta.watchdogLastCheckAt) : null,
+      lastIncidentAt: lastDown?.createdAt.toISOString() ?? null,
+      lastIncidentOngoing:
+        lastDown !== undefined &&
+        (lastRecovered === undefined ||
+          lastRecovered.createdAt < lastDown.createdAt),
       metrics: metricsFor(
         kind,
         meta,
@@ -316,6 +331,11 @@ function metricsFor(
       value: isoOf(backtests?.lastCompletedAt) ?? "Never",
     },
   ]
+}
+
+function watchdogAlertKind(data: unknown) {
+  const kind = metaOf(data).workerKind
+  return typeof kind === "string" ? kind : null
 }
 
 function metaOf(value: unknown): SafeMeta {

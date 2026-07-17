@@ -20,6 +20,9 @@ const worker = {
   currentActivity: "Running",
   latestError: null,
   userPaused: null,
+  watchdogLastCheckAt: "2026-07-15T11:59:30.000Z",
+  lastIncidentAt: "2026-07-14T09:00:00.000Z",
+  lastIncidentOngoing: false,
   metrics: [{ label: "Running", value: "1" }],
 }
 
@@ -74,5 +77,8 @@ describe("WorkersSettings", () => {
     expect(markup).toContain("Pause my rules")
     expect(markup.match(/Turn off/g)).toHaveLength(5)
     expect(markup.match(/>Pause</g)).toHaveLength(5)
+    expect(markup.match(/Watchdog check/g)).toHaveLength(5)
+    expect(markup.match(/Last incident/g)).toHaveLength(5)
+    expect(markup).toContain("recovered")
   })
 })
