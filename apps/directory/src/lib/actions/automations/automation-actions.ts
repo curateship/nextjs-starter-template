@@ -188,6 +188,74 @@ export async function getRecentAutomationRunsForUser(limit = 8): Promise<{
   }
 }
 
+// Recent runs for a single site, for the per-site scoped dashboard. Mirrors the cross-site
+// variant but constrains to one owned site.
+export async function getRecentAutomationRunsForSite(siteId: string, limit = 8): Promise<{
+  data: DashboardAutomationRun[]
+  error: string | null
+}> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { data: [], error: 'Invalid site ID' }
+    await requireSiteOwnership(siteId)
+    const safeLimit = Math.min(25, Math.max(1, Math.floor(limit) || 8))
+
+    const rows = await db
+      .select({
+        run: siteAutomationRuns,
+        automationName: siteAutomations.name,
+        siteId: sites.id,
+        siteName: sites.name,
+      })
+      .from(siteAutomationRuns)
+      .innerJoin(siteAutomations, eq(siteAutomations.id, siteAutomationRuns.automationId))
+      .innerJoin(sites, eq(sites.id, siteAutomations.siteId))
+      .where(eq(siteAutomations.siteId, siteId))
+      .orderBy(desc(siteAutomationRuns.startedAt))
+      .limit(safeLimit)
+
+    const runIds = rows.map((row) => row.run.id)
+    const stepRows = runIds.length
+      ? await db
+        .select({
+          runId: siteAutomationRunSteps.runId,
+          status: siteAutomationRunSteps.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(siteAutomationRunSteps)
+        .where(inArray(siteAutomationRunSteps.runId, runIds))
+        .groupBy(siteAutomationRunSteps.runId, siteAutomationRunSteps.status)
+      : []
+    const stepCounts = new Map<string, Record<string, number>>()
+    for (const step of stepRows) {
+      const counts = stepCounts.get(step.runId) ?? {}
+      counts[step.status] = step.count
+      stepCounts.set(step.runId, counts)
+    }
+
+    return {
+      data: rows.map((row) => ({
+        runId: row.run.id,
+        automationId: row.run.automationId,
+        siteId: row.siteId,
+        siteName: row.siteName,
+        name: row.automationName,
+        status: row.run.status as AutomationRunStatus,
+        triggerType: row.run.triggerType as AutomationTriggerType,
+        message: summarizeRunMessage(
+          row.run.status as AutomationRunStatus,
+          row.run.error,
+          stepCounts.get(row.run.id) ?? {}
+        ),
+        startedAt: row.run.startedAt.toISOString(),
+      })),
+      error: null,
+    }
+  } catch (error) {
+    console.error('getRecentAutomationRunsForSite error:', error)
+    return { data: [], error: 'Failed to load automation runs' }
+  }
+}
+
 export async function getAutomationEditorData(automationId: string): Promise<{
   data: AutomationEditorData | null
   error: string | null

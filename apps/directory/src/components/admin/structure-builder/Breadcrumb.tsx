@@ -169,7 +169,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
             items={[
               {
                 label: site?.name || "Site",
-                href: `/admin/sites/${siteId}/dashboard`
+                href: `/admin/dashboard/${siteId}`
               },
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
               { label: "Breadcrumbs" }

@@ -86,7 +86,7 @@ export function SiteSwitcherMenu() {
     )
   }
 
-  const dashboardHref = currentSite ? `/admin/sites/${currentSite.id}/dashboard` : "/admin"
+  const dashboardHref = currentSite ? `/admin/dashboard/${currentSite.id}` : "/admin"
 
   return (
     <SidebarMenu>
@@ -131,7 +131,7 @@ export function SiteSwitcherMenu() {
                     key={site.id}
                     onClick={() => {
                       setCurrentSite(site)
-                      router.push(`/admin/sites/${site.id}/dashboard`)
+                      router.push(`/admin/dashboard/${site.id}`)
                     }}
                     className="gap-2 p-2"
                   >

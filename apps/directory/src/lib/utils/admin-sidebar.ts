@@ -46,7 +46,7 @@ export type AdminSidebarNavLink = {
   external?: boolean
 }
 
-const SITE_ID_PATTERN = /\/admin\/(?:sites|pages|account-pages(?:\/builder)?|categories(?:\/builder)?|posts\/builder|products\/builder|directories\/builder|events\/builder)\/([0-9a-f-]{36})(?:\/|$)/i
+const SITE_ID_PATTERN = /\/admin\/(?:sites|pages|account-pages(?:\/builder)?|categories(?:\/builder)?|posts\/builder|products\/builder|directories\/builder|events\/builder|dashboard)\/([0-9a-f-]{36})(?:\/|$)/i
 
 export function getAdminSidebarSiteIdFromPathname(pathname?: string | null) {
   if (!pathname) return null
@@ -93,12 +93,37 @@ function child(
   }
 }
 
+// Overview section: the all-sites "Dashboard" plus its "Current Site" child (this site's scoped
+// dashboard). Kept as parent+child so the sticky header renders both as pills together, exactly
+// like every other section-driven nav — the per-site link uses the site id, like the rest of the
+// admin.
+export const OVERVIEW_SECTION_ID = "section-overview"
+export const DASHBOARD_ITEM_ID = "item-dashboard"
+
+function createOverviewSection(siteId: string | null): AdminSidebarSection {
+  return {
+    id: OVERVIEW_SECTION_ID,
+    title: "Overview",
+    entries: [
+      item(DASHBOARD_ITEM_ID, "Dashboard", "/admin/dashboard", "grid", [
+        child(
+          "child-dashboard-current-site",
+          "Current Site",
+          sitePath(siteId, (id) => `/admin/dashboard/${id}`),
+          "home"
+        ),
+      ]),
+    ],
+  }
+}
+
 export function createDefaultAdminSidebarSettings(siteId?: string | null): AdminSidebarSettings {
   const resolvedSiteId = siteId ?? null
 
   return {
     version: 1,
     sections: [
+      createOverviewSection(resolvedSiteId),
       {
         id: "section-content-management",
         title: "Content Management",
@@ -437,9 +462,19 @@ export function resolveAdminSidebarSettings(
   const settings = normalizeSettings(value) ?? createDefaultAdminSidebarSettings(siteId)
   const metadata = getDefaultMetadata(siteId)
 
+  // Stored configs predate the Overview section (Dashboard + Current Site). Inject it up front so
+  // existing sidebars pick it up, the same way newer default children are back-filled below.
+  const hasOverview = settings.sections.some((section) =>
+    getAliasedDefaultId(section.id) === OVERVIEW_SECTION_ID ||
+    section.entries.some((entry) => getAliasedDefaultId(entry.id) === DASHBOARD_ITEM_ID)
+  )
+  const baseSections = hasOverview
+    ? settings.sections
+    : [createOverviewSection(siteId), ...settings.sections]
+
   return {
     version: 1,
-    sections: settings.sections.map((section) => ({
+    sections: baseSections.map((section) => ({
       ...section,
       id: getAliasedDefaultId(section.id),
       entries: section.entries.flatMap((entry) => {
