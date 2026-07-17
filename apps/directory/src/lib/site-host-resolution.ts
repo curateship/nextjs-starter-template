@@ -21,6 +21,29 @@ function getSubdomainFromHost(host: string) {
   return isReservedPlatformSubdomain(subdomain) ? null : subdomain
 }
 
+function canUseDevelopmentSiteFallback(hostname: string) {
+  if (process.env.NODE_ENV === 'production') return false
+  const host = normalizeSiteHost(hostname)
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+// Public endpoints hit by localhost in development have no matching site host;
+// fall back to the first active site so they stay testable locally.
+export async function resolveSiteByHostWithDevFallback(hostname: string) {
+  const site = await resolveSiteByHostInternal(hostname)
+  if (site || !canUseDevelopmentSiteFallback(hostname)) return site
+
+  const [firstSite] = await db
+    .select({ id: sites.id, subdomain: sites.subdomain, customDomain: sites.customDomain })
+    .from(sites)
+    .where(eq(sites.status, 'active'))
+    .limit(1)
+
+  return firstSite
+    ? { id: firstSite.id, subdomain: firstSite.subdomain, custom_domain: firstSite.customDomain }
+    : null
+}
+
 export async function resolveSiteByHostInternal(hostname: string) {
   const host = normalizeSiteHost(hostname)
   const subdomain = getSubdomainFromHost(host)

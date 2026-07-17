@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from '@/lib/web-response'
 import { db } from '@/lib/db'
-import { campaigns, sites, sponsors } from '@/lib/db/schema'
+import { campaigns, sponsors } from '@/lib/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { resolveSiteByHostInternal } from '@/lib/site-host-resolution'
+import { resolveSiteByHostWithDevFallback } from '@/lib/site-host-resolution'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { pagePathHasWidgetReferral, WIDGET_REFERRER_LABEL } from '@/lib/widgets/listing-widget'
 
 interface TrackEvent {
   type: string
@@ -34,12 +35,6 @@ interface DailyPageviewGroup {
 
 function normalizeHost(host: string): string {
   return host.split(':')[0]?.replace(/^www\./, '').toLowerCase() || ''
-}
-
-function canUseDevelopmentSiteFallback(host: string) {
-  if (process.env.NODE_ENV === 'production') return false
-  const hostname = normalizeHost(host)
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 }
 
 function extractReferrerDomain(url: string | undefined, requestHost: string): string | null {
@@ -190,15 +185,7 @@ async function persistCampaignCounters(siteId: string, events: TrackEvent[]) {
 export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get('host') || ''
-    let site = await resolveSiteByHostInternal(host)
-    if (!site && canUseDevelopmentSiteFallback(host)) {
-      const [firstSite] = await db
-        .select({ id: sites.id, subdomain: sites.subdomain, customDomain: sites.customDomain })
-        .from(sites)
-        .where(eq(sites.status, 'active'))
-        .limit(1)
-      if (firstSite) site = { id: firstSite.id, subdomain: firstSite.subdomain, custom_domain: firstSite.customDomain }
-    }
+    const site = await resolveSiteByHostWithDevFallback(host)
     if (!site) return new NextResponse(null, { status: 204 })
 
     const contentLength = Number(request.headers.get('content-length') || 0)
@@ -243,8 +230,12 @@ export async function POST(request: NextRequest) {
         countedDailyVisitorDays.add(day)
       }
 
-      const referrerDomain = extractReferrerDomain(event.referrer, host)
-      if (referrerDomain) incrementCounter(group.referrers, referrerDomain)
+      // Widget click-throughs land same-site (the iframe is served from this site),
+      // so the ?ref=widget tag is the only attribution signal — prefer it
+      const referrerLabel = pagePathHasWidgetReferral(event.page_path)
+        ? WIDGET_REFERRER_LABEL
+        : extractReferrerDomain(event.referrer, host)
+      if (referrerLabel) incrementCounter(group.referrers, referrerLabel)
 
       groups.set(day, group)
     }

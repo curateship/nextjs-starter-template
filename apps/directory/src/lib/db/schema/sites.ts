@@ -58,6 +58,7 @@ export interface SiteSettings extends SiteSeoSettings {
   newsletter_cold_threshold_emails?: number
   tracking_scripts?: string
   custom_analytics_enabled?: boolean
+  listing_widgets_enabled?: boolean   // Embeddable listing widgets; enabled unless explicitly false
   [key: string]: any  // Allow other dynamic settings
 }
 

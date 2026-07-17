@@ -109,6 +109,7 @@ export function AccountClaimedListingsBlock({
                   { key: "links", label: "Links" },
                   { key: "map", label: "Map" },
                   { key: "hours", label: "Opening Hours" },
+                  { key: "embed", label: "Embed Widget" },
                 ]}
               />
               <VisibilitySettings
