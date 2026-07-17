@@ -11,6 +11,7 @@ import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Copy from "lucide-react/dist/esm/icons/copy.js"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
+import { ListingWidgetsSettingsCard } from "@/components/admin/layout/settings/ListingWidgetsSettingsCard"
 import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
 
@@ -22,6 +23,7 @@ interface SiteDashboardProps {
   customDomain?: string
   trackingScripts?: string
   customAnalyticsEnabled?: boolean
+  listingWidgetsEnabled?: boolean
   isEditMode?: boolean
   maintenanceEnabled?: boolean
   loading?: boolean
@@ -33,6 +35,7 @@ interface SiteDashboardProps {
   onCustomDomainChange?: (value: string) => void
   onTrackingScriptsChange?: (value: string) => void
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
+  onListingWidgetsEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
 }
 
@@ -44,6 +47,7 @@ export function SiteDashboard({
   customDomain = "",
   trackingScripts = "",
   customAnalyticsEnabled = false,
+  listingWidgetsEnabled = true,
   isEditMode = false,
   maintenanceEnabled = false,
   loading = false,
@@ -55,6 +59,7 @@ export function SiteDashboard({
   onCustomDomainChange,
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
+  onListingWidgetsEnabledChange,
   onMaintenanceChange
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
@@ -363,6 +368,13 @@ export function SiteDashboard({
           customAnalyticsEnabled={customAnalyticsEnabled}
           onTrackingScriptsChange={onTrackingScriptsChange}
           onCustomAnalyticsEnabledChange={onCustomAnalyticsEnabledChange}
+        />
+      )}
+
+      {onListingWidgetsEnabledChange && (
+        <ListingWidgetsSettingsCard
+          listingWidgetsEnabled={listingWidgetsEnabled}
+          onListingWidgetsEnabledChange={onListingWidgetsEnabledChange}
         />
       )}
 

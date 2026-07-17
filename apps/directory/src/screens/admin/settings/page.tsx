@@ -510,6 +510,9 @@ export default function SiteEditPage() {
   const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(
     !!contextSite?.settings?.custom_analytics_enabled
   )
+  const [listingWidgetsEnabled, setListingWidgetsEnabled] = useState(
+    contextSite?.settings?.listing_widgets_enabled !== false
+  )
   const [siteWidth, setSiteWidth] = useState<"full" | "custom">(contextSite?.settings?.site_width || "custom")
   const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
   const [defaultTheme, setDefaultTheme] = useState<"system" | "light" | "dark">(
@@ -559,6 +562,7 @@ export default function SiteEditPage() {
     setFavicon(contextSite.settings?.favicon || "")
     setTrackingScripts(contextSite.settings?.tracking_scripts || "")
     setCustomAnalyticsEnabled(!!contextSite.settings?.custom_analytics_enabled)
+    setListingWidgetsEnabled(contextSite.settings?.listing_widgets_enabled !== false)
     setSiteWidth(contextSite.settings?.site_width || "custom")
     setCustomWidth(contextSite.settings?.custom_width)
     setDefaultTheme(contextSite.settings?.default_theme || "system")
@@ -626,6 +630,7 @@ export default function SiteEditPage() {
             favicon: favicon === "" ? "" : favicon || undefined,
             tracking_scripts: trackingScripts,
             custom_analytics_enabled: customAnalyticsEnabled,
+            listing_widgets_enabled: listingWidgetsEnabled,
             site_width: siteWidth,
             custom_width: customWidth,
             default_theme: defaultTheme
@@ -783,6 +788,7 @@ export default function SiteEditPage() {
                     siteTag={siteTag}
                     trackingScripts={trackingScripts}
                     customAnalyticsEnabled={customAnalyticsEnabled}
+                    listingWidgetsEnabled={listingWidgetsEnabled}
                     maintenanceEnabled={maintenanceEnabled}
                     customDomainError={error}
                     isEditMode={true}
@@ -794,6 +800,7 @@ export default function SiteEditPage() {
                     onSiteTagChange={setSiteTag}
                     onTrackingScriptsChange={setTrackingScripts}
                     onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
+                    onListingWidgetsEnabledChange={setListingWidgetsEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
                 </form>

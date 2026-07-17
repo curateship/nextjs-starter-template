@@ -3,11 +3,15 @@ import {
   createMiddleware,
   createStart,
 } from "@tanstack/react-start"
-import { setResponseHeader } from "@tanstack/react-start/server"
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server"
 
 const securityHeaders = createMiddleware().server(async ({ next }) => {
+  // Widget embed pages (/embed/*) exist to be framed by third-party sites; they
+  // ship their own locked-down CSP, so skip the global frame-blocking headers
+  const isEmbeddableWidget = new URL(getRequest().url).pathname.startsWith("/embed/")
+
   setResponseHeader("X-DNS-Prefetch-Control", "on")
-  setResponseHeader("X-Frame-Options", "SAMEORIGIN")
+  if (!isEmbeddableWidget) setResponseHeader("X-Frame-Options", "SAMEORIGIN")
   setResponseHeader("X-Content-Type-Options", "nosniff")
   setResponseHeader("Referrer-Policy", "origin-when-cross-origin")
   setResponseHeader(
@@ -20,7 +24,7 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
       "Strict-Transport-Security",
       "max-age=63072000; includeSubDomains; preload"
     )
-    setResponseHeader(
+    if (!isEmbeddableWidget) setResponseHeader(
       "Content-Security-Policy",
       [
         "default-src 'self'",

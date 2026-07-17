@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import Copy from "lucide-react/dist/esm/icons/copy.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
@@ -19,6 +20,13 @@ import {
 import { formatCentsAmount } from "@/lib/actions/directories/directory-featured-helpers"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
+import {
+  buildListingWidgetEmbedPath,
+  buildListingWidgetSnippet,
+  LISTING_WIDGET_SIZES,
+  type ListingWidgetTheme,
+  type ListingWidgetVariant
+} from "@/lib/widgets/listing-widget"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
@@ -159,6 +167,11 @@ export function AccountClaimedListingsBlock({
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const [upgradePending, setUpgradePending] = useState(false)
   const confirmAttempted = useRef(false)
+  const [embedVariant, setEmbedVariant] = useState<ListingWidgetVariant>("badge")
+  const [embedTheme, setEmbedTheme] = useState<ListingWidgetTheme>("light")
+  const [embedOrigin, setEmbedOrigin] = useState("")
+  const [embedCopied, setEmbedCopied] = useState(false)
+  const embedCodeRef = useRef<HTMLTextAreaElement | null>(null)
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || null, [items, selectedId])
 
@@ -264,6 +277,38 @@ export function AccountClaimedListingsBlock({
       })
       .finally(() => setUpgradePending(false))
   }, [isPreview, siteId])
+
+  useEffect(() => {
+    setEmbedOrigin(window.location.origin)
+  }, [])
+
+  const embedSnippet = useMemo(() => {
+    if (!selectedItem || !embedOrigin) return ""
+    return buildListingWidgetSnippet({
+      origin: embedOrigin,
+      directoryId: selectedItem.id,
+      listingTitle: selectedItem.title,
+      variant: embedVariant,
+      theme: embedTheme,
+    })
+  }, [selectedItem, embedOrigin, embedVariant, embedTheme])
+
+  useEffect(() => {
+    setEmbedCopied(false)
+  }, [embedSnippet])
+
+  const handleCopyEmbedCode = async () => {
+    if (!embedSnippet) return
+    try {
+      await navigator.clipboard.writeText(embedSnippet)
+      setEmbedCopied(true)
+      setTimeout(() => setEmbedCopied(false), 2000)
+    } catch {
+      // Clipboard unavailable (e.g. insecure context) — select the code for manual copy
+      embedCodeRef.current?.focus()
+      embedCodeRef.current?.select()
+    }
+  }
 
   const handleBuyUpgrade = async () => {
     if (!selectedItem || !selectedPlanId || isPreview) return
@@ -564,6 +609,77 @@ export function AccountClaimedListingsBlock({
 
                 {upgradeMessage ? <p className="text-sm text-green-700">{upgradeMessage}</p> : null}
                 {upgradeError ? <p className="text-sm text-red-600">{upgradeError}</p> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {visibility.embed !== false && selectedItem ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Embed on Your Website</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Add a badge or mini-card to your own website that links visitors back to this listing.
+                </p>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Style</Label>
+                    <Select value={embedVariant} onValueChange={(value) => setEmbedVariant(value as ListingWidgetVariant)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="badge">Badge</SelectItem>
+                        <SelectItem value="card">Mini Card</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Theme</Label>
+                    <Select value={embedTheme} onValueChange={(value) => setEmbedTheme(value as ListingWidgetTheme)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Light</SelectItem>
+                        <SelectItem value="dark">Dark</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="claimed-embed-code">Embed Code</Label>
+                  <Textarea
+                    id="claimed-embed-code"
+                    ref={embedCodeRef}
+                    value={embedSnippet}
+                    readOnly
+                    rows={3}
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                  <Button type="button" variant="outline" onClick={handleCopyEmbedCode} disabled={!embedSnippet}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {embedCopied ? "Copied" : "Copy Code"}
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Preview</Label>
+                  <div>
+                    <iframe
+                      key={`${selectedItem.id}-${embedVariant}-${embedTheme}`}
+                      src={buildListingWidgetEmbedPath(selectedItem.id, embedVariant, embedTheme)}
+                      width={LISTING_WIDGET_SIZES[embedVariant].width}
+                      height={LISTING_WIDGET_SIZES[embedVariant].height}
+                      style={{ border: 0, overflow: "hidden" }}
+                      title={`${selectedItem.title} listing widget preview`}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ) : null}

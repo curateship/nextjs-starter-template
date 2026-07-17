@@ -19,6 +19,7 @@ import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-s
 import { Route as CdnSplatRouteImport } from './routes/cdn/$'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
+import { Route as EmbedListingDirectoryIdRouteImport } from './routes/embed/listing/$directoryId'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -71,6 +72,11 @@ const SponsorReportsTokenExportRoute =
     path: '/sponsor-reports/$token/export',
     getParentRoute: () => rootRouteImport,
   } as any)
+const EmbedListingDirectoryIdRoute = EmbedListingDirectoryIdRouteImport.update({
+  id: '/embed/listing/$directoryId',
+  path: '/embed/listing/$directoryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/api/$': typeof ApiSplatRoute
   '/cdn/$': typeof CdnSplatRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesByTo {
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/api/$': typeof ApiSplatRoute
   '/cdn/$': typeof CdnSplatRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesById {
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/api/$': typeof ApiSplatRoute
   '/cdn/$': typeof CdnSplatRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
+  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRouteTypes {
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/cdn/$'
     | '/directory-sitemaps/$chunk'
+    | '/embed/listing/$directoryId'
     | '/sponsor-reports/$token/export'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/cdn/$'
     | '/directory-sitemaps/$chunk'
+    | '/embed/listing/$directoryId'
     | '/sponsor-reports/$token/export'
   id:
     | '__root__'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/cdn/$'
     | '/directory-sitemaps/$chunk'
+    | '/embed/listing/$directoryId'
     | '/sponsor-reports/$token/export'
   fileRoutesById: FileRoutesById
 }
@@ -158,6 +170,7 @@ export interface RootRouteChildren {
   ApiSplatRoute: typeof ApiSplatRoute
   CdnSplatRoute: typeof CdnSplatRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
+  EmbedListingDirectoryIdRoute: typeof EmbedListingDirectoryIdRoute
   SponsorReportsTokenExportRoute: typeof SponsorReportsTokenExportRoute
 }
 
@@ -233,6 +246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SponsorReportsTokenExportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/listing/$directoryId': {
+      id: '/embed/listing/$directoryId'
+      path: '/embed/listing/$directoryId'
+      fullPath: '/embed/listing/$directoryId'
+      preLoaderRoute: typeof EmbedListingDirectoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -246,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSplatRoute: ApiSplatRoute,
   CdnSplatRoute: CdnSplatRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
+  EmbedListingDirectoryIdRoute: EmbedListingDirectoryIdRoute,
   SponsorReportsTokenExportRoute: SponsorReportsTokenExportRoute,
 }
 export const routeTree = rootRouteImport
