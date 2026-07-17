@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
+import { Route as AuthenticatedAudienceRouteImport } from './routes/_authenticated/audience'
 import { Route as ApiV1TrackRouteImport } from './routes/api/v1/track'
 import { Route as AuthenticatedSitesSiteIdRouteImport } from './routes/_authenticated/sites/$siteId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
@@ -46,6 +47,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const AuthenticatedSitesRoute = AuthenticatedSitesRouteImport.update({
   id: '/sites',
   path: '/sites',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAudienceRoute = AuthenticatedAudienceRouteImport.update({
+  id: '/audience',
+  path: '/audience',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const ApiV1TrackRoute = ApiV1TrackRouteImport.update({
@@ -103,6 +109,7 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/audience': typeof AuthenticatedAudienceRoute
   '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -117,6 +124,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/audience': typeof AuthenticatedAudienceRoute
   '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/audience': typeof AuthenticatedAudienceRoute
   '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/audience'
     | '/sites'
     | '/workspaces'
     | '/admin/feedback'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/audience'
     | '/sites'
     | '/workspaces'
     | '/'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/audience'
     | '/_authenticated/sites'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
@@ -238,6 +250,13 @@ declare module '@tanstack/react-router' {
       path: '/sites'
       fullPath: '/sites'
       preLoaderRoute: typeof AuthenticatedSitesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/audience': {
+      id: '/_authenticated/audience'
+      path: '/audience'
+      fullPath: '/audience'
+      preLoaderRoute: typeof AuthenticatedAudienceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/v1/track': {
@@ -347,6 +366,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAudienceRoute: typeof AuthenticatedAudienceRoute
   AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -357,6 +377,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAudienceRoute: AuthenticatedAudienceRoute,
   AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,

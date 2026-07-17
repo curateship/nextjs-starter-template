@@ -30,6 +30,18 @@ export const batchSchema = z.object({
 
 export type RawEvent = z.infer<typeof rawEventSchema>
 
+// Audience dimensions derived once per request (the whole batch comes from
+// one browser): device class + browser family from the user-agent header,
+// country from the Cloudflare header. Country is null when unknown.
+export type EventDimensions = {
+  device: string
+  browser: string
+  country: string | null
+}
+
+// Rollup key for visitors whose country header is missing or unusable.
+const UNKNOWN_COUNTRY = "Unknown"
+
 function normalizeHost(host: string) {
   return host.split(":")[0]?.replace(/^www\./i, "").toLowerCase() || ""
 }
@@ -90,6 +102,9 @@ type DailyGroup = {
   visitors: number
   pages: Record<string, number>
   referrers: Record<string, number>
+  devices: Record<string, number>
+  browsers: Record<string, number>
+  countries: Record<string, number>
 }
 
 type PreparedEvent = {
@@ -110,6 +125,7 @@ export type IngestResult = {
 export function prepareBatch(
   events: RawEvent[],
   siteDomain: string,
+  dimensions: EventDimensions,
   reference: Date = new Date()
 ): { prepared: PreparedEvent[]; groups: Map<string, DailyGroup>; rejected: number } {
   const prepared: PreparedEvent[] = []
@@ -150,6 +166,9 @@ export function prepareBatch(
       visitors: 0,
       pages: {},
       referrers: {},
+      devices: {},
+      browsers: {},
+      countries: {},
     }
     group.pageViews += 1
     group.pages[pagePath] = (group.pages[pagePath] ?? 0) + 1
@@ -157,9 +176,17 @@ export function prepareBatch(
       group.referrers[referrerDomain] =
         (group.referrers[referrerDomain] ?? 0) + 1
     }
-    // At most one unique-visitor increment per request per day.
+    // At most one unique-visitor increment per request per day. Dimension
+    // counters count visitors (not views) and the batch shares one browser,
+    // so they increment here — each map's sum stays equal to visitors.
     if (event.daily_visitor === true && !countedVisitorDays.has(day)) {
       group.visitors += 1
+      group.devices[dimensions.device] =
+        (group.devices[dimensions.device] ?? 0) + 1
+      group.browsers[dimensions.browser] =
+        (group.browsers[dimensions.browser] ?? 0) + 1
+      const country = dimensions.country ?? UNKNOWN_COUNTRY
+      group.countries[country] = (group.countries[country] ?? 0) + 1
       countedVisitorDays.add(day)
     }
     groups.set(day, group)
@@ -191,12 +218,14 @@ export async function ingestBatch(
   siteId: string,
   siteDomain: string,
   events: RawEvent[],
+  dimensions: EventDimensions,
   database: CustomShellDb = db,
   reference: Date = new Date()
 ): Promise<IngestResult> {
   const { prepared, groups, rejected } = prepareBatch(
     events,
     siteDomain,
+    dimensions,
     reference
   )
 
@@ -214,6 +243,9 @@ export async function ingestBatch(
       pagePath: event.pagePath,
       referrerDomain: event.referrerDomain,
       visitorCode: event.visitorCode,
+      device: dimensions.device,
+      browser: dimensions.browser,
+      country: dimensions.country,
       occurredAt: event.occurredAt,
       createdAt,
     }))
@@ -230,6 +262,9 @@ export async function ingestBatch(
         visitors: group.visitors,
         pages: group.pages,
         referrers: group.referrers,
+        devices: group.devices,
+        browsers: group.browsers,
+        countries: group.countries,
         createdAt,
         updatedAt: createdAt,
       })
@@ -242,6 +277,18 @@ export async function ingestBatch(
           referrers: mergeCounters(
             analyticDailySiteStats.referrers,
             group.referrers
+          ),
+          devices: mergeCounters(
+            analyticDailySiteStats.devices,
+            group.devices
+          ),
+          browsers: mergeCounters(
+            analyticDailySiteStats.browsers,
+            group.browsers
+          ),
+          countries: mergeCounters(
+            analyticDailySiteStats.countries,
+            group.countries
           ),
           updatedAt: createdAt,
         },

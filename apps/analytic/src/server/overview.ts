@@ -47,18 +47,19 @@ function enumerateDays(from: string, to: string): string[] {
   return days
 }
 
-function asCounterMap(value: unknown): Record<string, number> {
+export function asCounterMap(value: unknown): Record<string, number> {
   if (!value || typeof value !== "object") return {}
   return value as Record<string, number>
 }
 
-function topFromCounter(
-  totals: Map<string, number>
+export function topFromCounter(
+  totals: Map<string, number>,
+  limit: number = BREAKDOWN_LIMIT
 ): OverviewBreakdownItem[] {
   return [...totals.entries()]
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
-    .slice(0, BREAKDOWN_LIMIT)
+    .slice(0, limit)
 }
 
 // Returns headline totals (with the previous equal-length period for deltas),
