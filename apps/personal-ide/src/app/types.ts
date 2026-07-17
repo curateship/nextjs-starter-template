@@ -133,6 +133,7 @@ export type WorkspaceStatus = "running" | "waiting"
 
 export type EditorSettings = {
   defaultTaskTemplate: string
+  startTaskPrompt: string
 }
 
 export type SettingsSaveStatus = "idle" | "saving" | "saved"

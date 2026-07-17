@@ -166,12 +166,16 @@ function App() {
   })
 
   const {
+    draftStartTaskPrompt,
     draftTaskTemplate,
+    editorSettings,
+    resetStartTaskPrompt,
     resetTaskTemplate,
     saveEditorSettings,
     settingsDirty,
     settingsError,
     settingsSaveStatus,
+    updateDraftStartTaskPrompt,
     updateDraftTaskTemplate,
   } = useEditorSettings()
 
@@ -441,9 +445,14 @@ function App() {
   async function startTask(task: TaskItem) {
     const taskSkill = task.skill ? skills.find((skill) => skill.slug === task.skill) : undefined
     const skill = taskSkill ? ` Use the ${taskSkill.name} skill from ${taskSkill.path}.` : ""
-    await pasteTerminalPrompt(
-      `Work on task "${task.title}" from ${task.path}.${skill} Update the task status frontmatter as progress changes.`
-    )
+    const prompt = editorSettings.startTaskPrompt
+      .split("{{title}}")
+      .join(task.title)
+      .split("{{path}}")
+      .join(task.path)
+      .split("{{skill}}")
+      .join(skill)
+    await pasteTerminalPrompt(prompt)
   }
 
   function pinSkill(slug: string) {
@@ -750,10 +759,13 @@ function App() {
                         settingsPanel={
                           <SettingsPage
                             draftTaskTemplate={draftTaskTemplate}
+                            draftStartTaskPrompt={draftStartTaskPrompt}
                             error={settingsError}
                             saveStatus={settingsSaveStatus}
                             onDraftTaskTemplateChange={updateDraftTaskTemplate}
+                            onDraftStartTaskPromptChange={updateDraftStartTaskPrompt}
                             onResetTaskTemplate={resetTaskTemplate}
+                            onResetStartTaskPrompt={resetStartTaskPrompt}
                             onSave={saveEditorSettings}
                           />
                         }

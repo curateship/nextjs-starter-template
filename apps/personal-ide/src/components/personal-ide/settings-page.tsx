@@ -6,17 +6,23 @@ import { Textarea } from "@/components/ui/textarea"
 
 export function SettingsPage({
   draftTaskTemplate,
+  draftStartTaskPrompt,
   error,
   saveStatus,
   onDraftTaskTemplateChange,
+  onDraftStartTaskPromptChange,
   onResetTaskTemplate,
+  onResetStartTaskPrompt,
   onSave,
 }: {
   draftTaskTemplate: string
+  draftStartTaskPrompt: string
   error: string
   saveStatus: SettingsSaveStatus
   onDraftTaskTemplateChange: (value: string) => void
+  onDraftStartTaskPromptChange: (value: string) => void
   onResetTaskTemplate: () => void
+  onResetStartTaskPrompt: () => void
   onSave: () => void | Promise<void>
 }) {
   const isSaving = saveStatus === "saving"
@@ -65,7 +71,7 @@ export function SettingsPage({
 
         <form
           id="editor-settings-form"
-          className="min-w-0"
+          className="min-w-0 space-y-6"
           onSubmit={(event) => {
             event.preventDefault()
             void onSave()
@@ -98,6 +104,41 @@ export function SettingsPage({
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" onClick={onResetTaskTemplate} disabled={isSaving}>
+                  <RefreshCw />
+                  Reset to default
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border bg-background">
+            <div className="border-b px-6 py-5">
+              <h2 className="text-lg font-semibold">Start Task Prompt</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Set the text sent to the terminal when you start a task.
+              </p>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-2">
+                <label htmlFor="start-task-prompt" className="text-sm font-medium">
+                  Start-task prompt
+                </label>
+                <Textarea
+                  id="start-task-prompt"
+                  value={draftStartTaskPrompt}
+                  disabled={isSaving}
+                  onChange={(event) => onDraftStartTaskPromptChange(event.target.value)}
+                  className="min-h-[160px] resize-y font-mono text-xs leading-5"
+                  spellCheck={false}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use {"{{title}}"} for the task title, {"{{path}}"} for its file path, and{" "}
+                  {"{{skill}}"} for the skill instruction (blank when the task has no skill).
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" onClick={onResetStartTaskPrompt} disabled={isSaving}>
                   <RefreshCw />
                   Reset to default
                 </Button>

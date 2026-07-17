@@ -34,6 +34,7 @@ const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
 const LOCAL_APPS_FILE: &str = "local-apps.json";
 const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
+const DEFAULT_START_TASK_PROMPT: &str = "Work on task \"{{title}}\" from {{path}}.{{skill}} Update the task status frontmatter as progress changes.";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
     "Use lowercase letters, numbers, hyphens, or underscores for the app name.";
 static ANSI_ESCAPE_PATTERN: LazyLock<Regex> =
@@ -68,12 +69,15 @@ struct AppState {
 struct EditorSettings {
     #[serde(default = "default_task_template")]
     default_task_template: String,
+    #[serde(default = "default_start_task_prompt")]
+    start_task_prompt: String,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
         Self {
             default_task_template: default_task_template(),
+            start_task_prompt: default_start_task_prompt(),
         }
     }
 }
@@ -2629,6 +2633,10 @@ fn default_task_template() -> String {
     DEFAULT_TASK_TEMPLATE.to_string()
 }
 
+fn default_start_task_prompt() -> String {
+    DEFAULT_START_TASK_PROMPT.to_string()
+}
+
 fn render_task_template(template: &str, title: &str) -> String {
     let mut contents = template.replace("{{title}}", title);
     if !contents.is_empty() && !contents.ends_with('\n') {
@@ -2641,6 +2649,13 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
     if settings.default_task_template.len() > MAX_TASK_TEMPLATE_SIZE {
         return Err(format!(
             "Default task template must be {} KB or smaller",
+            MAX_TASK_TEMPLATE_SIZE / 1024
+        ));
+    }
+
+    if settings.start_task_prompt.len() > MAX_TASK_TEMPLATE_SIZE {
+        return Err(format!(
+            "Start task prompt must be {} KB or smaller",
             MAX_TASK_TEMPLATE_SIZE / 1024
         ));
     }
@@ -2660,7 +2675,7 @@ mod tests {
         render_task_template, reorder_workspace_records, rewrite_scaffold_metadata, run_git,
         should_skip_scaffold_entry, sync_workspace_branch, validate_editor_settings,
         validate_new_app_name, DiffHunk, EditorSettings, GitFile, WorkspaceRecord,
-        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        DEFAULT_START_TASK_PROMPT, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2834,6 +2849,14 @@ mod tests {
     }
 
     #[test]
+    fn editor_settings_default_uses_start_task_prompt() {
+        assert_eq!(
+            EditorSettings::default().start_task_prompt,
+            DEFAULT_START_TASK_PROMPT
+        );
+    }
+
+    #[test]
     fn render_task_template_replaces_title_placeholder() {
         let template = "# {{title}}\n\nNotes";
 
@@ -2872,6 +2895,17 @@ mod tests {
     fn validate_editor_settings_rejects_oversized_task_template() {
         let settings = EditorSettings {
             default_task_template: "x".repeat(MAX_TASK_TEMPLATE_SIZE + 1),
+            ..EditorSettings::default()
+        };
+
+        assert!(validate_editor_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn validate_editor_settings_rejects_oversized_start_task_prompt() {
+        let settings = EditorSettings {
+            start_task_prompt: "x".repeat(MAX_TASK_TEMPLATE_SIZE + 1),
+            ..EditorSettings::default()
         };
 
         assert!(validate_editor_settings(&settings).is_err());
