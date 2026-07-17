@@ -3,12 +3,15 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
@@ -211,6 +214,78 @@ export const customShellMedia = pgTable(
     ),
   ]
 )
+
+// A site (website/app) registered by a user. The public_id is the non-secret
+// token embedded in the tracking snippet and sent with every event batch.
+export const analyticSites = pgTable(
+  "sites",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    domain: varchar("domain", { length: 255 }).notNull(),
+    publicId: varchar("public_id", { length: 32 }).notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_sites_user_id").on(table.userId),
+    index("ix_sites_public_id").on(table.publicId),
+  ]
+)
+
+// Raw event records. Kept (not summaries-only) so later features — realtime,
+// funnels, filters, new-vs-returning — can reconstruct visitor journeys.
+// occurred_at is stored in UTC; the "day" boundary everywhere is UTC.
+export const analyticEvents = pgTable(
+  "events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    siteId: varchar("site_id", { length: 36 })
+      .notNull()
+      .references(() => analyticSites.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 50 }).notNull(),
+    pagePath: text("page_path").notNull(),
+    referrerDomain: varchar("referrer_domain", { length: 255 }),
+    visitorCode: varchar("visitor_code", { length: 64 }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    data: jsonb("data").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_events_site_occurred").on(table.siteId, table.occurredAt),
+    index("ix_events_site_type").on(table.siteId, table.type),
+  ]
+)
+
+// Pre-aggregated daily totals per site. Dashboards read these so they stay fast
+// no matter how many raw events exist. One row per (site, UTC day).
+export const analyticDailySiteStats = pgTable(
+  "daily_site_stats",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    siteId: varchar("site_id", { length: 36 })
+      .notNull()
+      .references(() => analyticSites.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    pageViews: integer("page_views").notNull().default(0),
+    visitors: integer("visitors").notNull().default(0),
+    pages: jsonb("pages").notNull().default({}),
+    referrers: jsonb("referrers").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_daily_site_stats_site_day").on(table.siteId, table.day),
+    index("ix_daily_site_stats_site_day").on(table.siteId, table.day),
+  ]
+)
+
+export type AnalyticSite = typeof analyticSites.$inferSelect
+export type AnalyticEvent = typeof analyticEvents.$inferSelect
+export type AnalyticDailySiteStats = typeof analyticDailySiteStats.$inferSelect
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellWorkspace = typeof customShellWorkspaces.$inferSelect

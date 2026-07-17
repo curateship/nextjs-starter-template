@@ -13,6 +13,9 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
+import { Route as ApiV1TrackRouteImport } from './routes/api/v1/track'
+import { Route as AuthenticatedSitesSiteIdRouteImport } from './routes/_authenticated/sites/$siteId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -40,6 +43,22 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSitesRoute = AuthenticatedSitesRouteImport.update({
+  id: '/sites',
+  path: '/sites',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiV1TrackRoute = ApiV1TrackRouteImport.update({
+  id: '/api/v1/track',
+  path: '/api/v1/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedSitesSiteIdRoute =
+  AuthenticatedSitesSiteIdRouteImport.update({
+    id: '/$siteId',
+    path: '/$siteId',
+    getParentRoute: () => AuthenticatedSitesRoute,
+  } as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -84,23 +103,29 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
+  '/api/v1/track': typeof ApiV1TrackRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
+  '/api/v1/track': typeof ApiV1TrackRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -109,12 +134,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/sites/$siteId': typeof AuthenticatedSitesSiteIdRoute
+  '/api/v1/track': typeof ApiV1TrackRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -124,23 +152,29 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/sites'
     | '/workspaces'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/sites/$siteId'
+    | '/api/v1/track'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/sites'
     | '/workspaces'
     | '/'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/sites/$siteId'
+    | '/api/v1/track'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -148,12 +182,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/sites'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/sites/$siteId'
+    | '/api/v1/track'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
@@ -162,6 +199,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiV1TrackRoute: typeof ApiV1TrackRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
@@ -194,6 +232,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/sites': {
+      id: '/_authenticated/sites'
+      path: '/sites'
+      fullPath: '/sites'
+      preLoaderRoute: typeof AuthenticatedSitesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/v1/track': {
+      id: '/api/v1/track'
+      path: '/api/v1/track'
+      fullPath: '/api/v1/track'
+      preLoaderRoute: typeof ApiV1TrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/sites/$siteId': {
+      id: '/_authenticated/sites/$siteId'
+      path: '/$siteId'
+      fullPath: '/sites/$siteId'
+      preLoaderRoute: typeof AuthenticatedSitesSiteIdRouteImport
+      parentRoute: typeof AuthenticatedSitesRoute
     }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
@@ -247,6 +306,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedSitesRouteChildren {
+  AuthenticatedSitesSiteIdRoute: typeof AuthenticatedSitesSiteIdRoute
+}
+
+const AuthenticatedSitesRouteChildren: AuthenticatedSitesRouteChildren = {
+  AuthenticatedSitesSiteIdRoute: AuthenticatedSitesSiteIdRoute,
+}
+
+const AuthenticatedSitesRouteWithChildren =
+  AuthenticatedSitesRoute._addFileChildren(AuthenticatedSitesRouteChildren)
+
 interface AuthenticatedAdminFeedbackRouteChildren {
   AuthenticatedAdminFeedbackCommentsRoute: typeof AuthenticatedAdminFeedbackCommentsRoute
 }
@@ -277,6 +347,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -286,6 +357,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
@@ -301,6 +373,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiV1TrackRoute: ApiV1TrackRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport
