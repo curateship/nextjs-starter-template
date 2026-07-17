@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   Area,
@@ -17,17 +16,18 @@ import {
   PlusIcon,
 } from "lucide-react"
 
+import { BreakdownTable } from "@/components/breakdown-table"
 import { DashboardRow } from "@/components/demo/dashboard-content"
 import {
   DashboardToolbar,
   DashboardToolbarControls,
-  DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
-  dashboardToolbarSegmentedButtonActiveClassName,
-  dashboardToolbarSegmentedButtonClassName,
-  dashboardToolbarSegmentedButtonInactiveClassName,
-  dashboardToolbarSegmentedGroupClassName,
 } from "@/components/dashboard-toolbar"
+import {
+  CustomRangeFields,
+  SiteRangeControls,
+} from "@/components/site-range-controls"
+import { useSiteRangeQuery } from "@/hooks/use-site-range-query"
 import { Button } from "@/components/ui/button"
 import {
   ChartContainer,
@@ -37,22 +37,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSurface,
-} from "@/components/ui/table"
+import { TableSurface } from "@/components/ui/table"
 import {
   getOverviewErrorMessage,
   loadOverview,
@@ -66,13 +51,6 @@ const chartConfig = {
   pageViews: { label: "Page views", color: "var(--chart-2)" },
   visitors: { label: "Visitors", color: "var(--chart-4)" },
 } satisfies ChartConfig
-
-const RANGE_PRESETS: { value: Exclude<OverviewRange, "custom">; label: string }[] =
-  [
-    { value: "today", label: "Today" },
-    { value: "7d", label: "7 days" },
-    { value: "30d", label: "30 days" },
-  ]
 
 const numberFormat = new Intl.NumberFormat()
 
@@ -121,63 +99,26 @@ function OverviewBody({
   initialRange: OverviewRange
   initialOverview: SiteOverview
 }) {
-  const [siteId, setSiteId] = React.useState(initialSiteId)
-  const [range, setRange] = React.useState<OverviewRange>(initialRange)
-  const [custom, setCustom] = React.useState<{ from: string; to: string }>({
-    from: initialOverview.from,
-    to: initialOverview.to,
+  const {
+    siteId,
+    range,
+    custom,
+    data: overview,
+    loading,
+    error,
+    selectSite,
+    selectRange,
+    changeCustom,
+  } = useSiteRangeQuery<SiteOverview>({
+    initialSiteId,
+    initialRange,
+    initialCustom: { from: initialOverview.from, to: initialOverview.to },
+    initialData: initialOverview,
+    load: loadOverview,
+    errorMessage: getOverviewErrorMessage,
   })
-  const [overview, setOverview] = React.useState<SiteOverview>(initialOverview)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
 
   const activeSite = sites.find((site) => site.id === siteId) ?? sites[0]
-
-  // The loader supplies the initial data, so fetches happen in response to the
-  // user changing the site or range — not via a state-watching effect. A
-  // monotonic token guards against out-of-order responses when changes race.
-  const requestSeq = React.useRef(0)
-
-  async function refresh(
-    nextSiteId: string,
-    nextRange: OverviewRange,
-    nextCustom: { from: string; to: string }
-  ) {
-    // Custom needs both dates before it can resolve.
-    if (nextRange === "custom" && (!nextCustom.from || !nextCustom.to)) return
-
-    const seq = (requestSeq.current += 1)
-    setLoading(true)
-    setError(null)
-    try {
-      const next = await loadOverview({
-        siteId: nextSiteId,
-        range: nextRange,
-        from: nextRange === "custom" ? nextCustom.from : undefined,
-        to: nextRange === "custom" ? nextCustom.to : undefined,
-      })
-      if (seq === requestSeq.current) setOverview(next)
-    } catch (err) {
-      if (seq === requestSeq.current) setError(getOverviewErrorMessage(err))
-    } finally {
-      if (seq === requestSeq.current) setLoading(false)
-    }
-  }
-
-  function selectSite(nextSiteId: string) {
-    setSiteId(nextSiteId)
-    void refresh(nextSiteId, range, custom)
-  }
-
-  function selectRange(nextRange: OverviewRange) {
-    setRange(nextRange)
-    void refresh(siteId, nextRange, custom)
-  }
-
-  function changeCustom(next: { from: string; to: string }) {
-    setCustom(next)
-    void refresh(siteId, "custom", next)
-  }
 
   const hasData = overview.totals.pageViews > 0 || overview.totals.visitors > 0
 
@@ -200,78 +141,18 @@ function OverviewBody({
           </DashboardToolbarTitle>
 
           <DashboardToolbarControls>
-            <Select value={siteId} onValueChange={selectSite}>
-              <DashboardToolbarSelectTrigger className="min-w-40">
-                <SelectValue />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className={dashboardToolbarSegmentedGroupClassName}>
-              {RANGE_PRESETS.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => selectRange(preset.value)}
-                  className={cn(
-                    dashboardToolbarSegmentedButtonClassName,
-                    range === preset.value
-                      ? dashboardToolbarSegmentedButtonActiveClassName
-                      : dashboardToolbarSegmentedButtonInactiveClassName
-                  )}
-                >
-                  {preset.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => selectRange("custom")}
-                className={cn(
-                  dashboardToolbarSegmentedButtonClassName,
-                  range === "custom"
-                    ? dashboardToolbarSegmentedButtonActiveClassName
-                    : dashboardToolbarSegmentedButtonInactiveClassName
-                )}
-              >
-                Custom
-              </button>
-            </div>
+            <SiteRangeControls
+              sites={sites}
+              siteId={siteId}
+              range={range}
+              onSiteChange={selectSite}
+              onRangeChange={selectRange}
+            />
           </DashboardToolbarControls>
         </DashboardToolbar>
 
         {range === "custom" ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 text-sm">
-            <label className="flex items-center gap-2">
-              <span className="text-muted-foreground">From</span>
-              <Input
-                type="date"
-                value={custom.from}
-                max={custom.to}
-                className="h-8 w-auto"
-                onChange={(event) =>
-                  changeCustom({ ...custom, from: event.target.value })
-                }
-              />
-            </label>
-            <label className="flex items-center gap-2">
-              <span className="text-muted-foreground">To</span>
-              <Input
-                type="date"
-                value={custom.to}
-                min={custom.from}
-                className="h-8 w-auto"
-                onChange={(event) =>
-                  changeCustom({ ...custom, to: event.target.value })
-                }
-              />
-            </label>
-          </div>
+          <CustomRangeFields custom={custom} onChange={changeCustom} />
         ) : null}
 
         <div className="grid gap-px bg-border sm:grid-cols-2">
@@ -415,75 +296,6 @@ function TrendChart({ series }: { series: SiteOverview["series"] }) {
   )
 }
 
-function BreakdownTable({
-  title,
-  columnLabel,
-  icon,
-  items,
-  emptyText,
-}: {
-  title: string
-  columnLabel: string
-  icon: React.ReactNode
-  items: { key: string; count: number }[]
-  emptyText: string
-}) {
-  const max = items.reduce((acc, item) => Math.max(acc, item.count), 0)
-
-  return (
-    <TableSurface className="flex-1">
-      <DashboardToolbar>
-        <DashboardToolbarTitle>
-          {icon}
-          <span className="text-sm font-medium sm:text-base">{title}</span>
-        </DashboardToolbarTitle>
-      </DashboardToolbar>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead column="main">{columnLabel}</TableHead>
-            <TableHead column="meta">Views</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={2}
-                className="h-24 text-center text-sm text-muted-foreground"
-              >
-                {emptyText}
-              </TableCell>
-            </TableRow>
-          ) : (
-            items.map((item) => (
-              <TableRow key={item.key}>
-                <TableCell column="main">
-                  <div className="relative flex items-center">
-                    <span
-                      aria-hidden
-                      className="absolute inset-y-1 left-0 rounded-sm bg-muted"
-                      style={{
-                        width: max ? `${(item.count / max) * 100}%` : "0%",
-                      }}
-                    />
-                    <span className="relative truncate px-1 font-medium">
-                      {item.key}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell column="meta" className="tabular-nums">
-                  {numberFormat.format(item.count)}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </TableSurface>
-  )
-}
-
 function EmptyDataState({ site }: { site: SiteItem }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
@@ -505,7 +317,8 @@ function EmptyDataState({ site }: { site: SiteItem }) {
   )
 }
 
-function NoSitesState() {
+// Shared by the report screens (Overview, Audience) when no site exists yet.
+export function NoSitesState() {
   return (
     <div className="flex w-full flex-col items-center justify-center gap-4 py-24 text-center">
       <div className="flex size-12 items-center justify-center rounded-full border border-border bg-muted/40">

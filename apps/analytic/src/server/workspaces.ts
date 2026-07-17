@@ -395,6 +395,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           icon: "globe",
           visible: true,
         },
+        {
+          type: "item",
+          id: "item-audience",
+          label: "Audience",
+          href: "/audience",
+          icon: "users",
+          visible: true,
+        },
       ],
     },
     {

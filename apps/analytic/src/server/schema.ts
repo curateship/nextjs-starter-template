@@ -250,6 +250,12 @@ export const analyticEvents = pgTable(
     pagePath: text("page_path").notNull(),
     referrerDomain: varchar("referrer_domain", { length: 255 }),
     visitorCode: varchar("visitor_code", { length: 64 }),
+    // Audience dimensions derived server-side from the ingest request
+    // (user-agent header + Cloudflare country header). Country is ISO 3166-1
+    // alpha-2, null when unknown.
+    device: varchar("device", { length: 16 }),
+    browser: varchar("browser", { length: 32 }),
+    country: varchar("country", { length: 2 }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -274,6 +280,12 @@ export const analyticDailySiteStats = pgTable(
     visitors: integer("visitors").notNull().default(0),
     pages: jsonb("pages").notNull().default({}),
     referrers: jsonb("referrers").notNull().default({}),
+    // Visitor counts per audience dimension. Unlike pages/referrers (which
+    // count views), these increment once per unique visitor per day, so each
+    // map's sum lines up with the visitors column.
+    devices: jsonb("devices").notNull().default({}),
+    browsers: jsonb("browsers").notNull().default({}),
+    countries: jsonb("countries").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

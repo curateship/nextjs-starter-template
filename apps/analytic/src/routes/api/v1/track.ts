@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { batchSchema, ingestBatch, MAX_BODY_BYTES } from "@/server/ingest"
 import { getClientIp, isRateLimited } from "@/server/rate-limit"
 import { resolveSiteByPublicId } from "@/server/sites"
+import { parseUserAgent, readCountryCode } from "@/server/user-agent"
 
 const RATE_LIMIT = 120
 const RATE_WINDOW_MS = 60_000
@@ -69,7 +70,18 @@ export const Route = createFileRoute("/api/v1/track")({
             return noContent()
           }
 
-          await ingestBatch(site.id, site.domain, validation.data.events)
+          // One browser per request, so audience dimensions derive once here.
+          const dimensions = {
+            ...parseUserAgent(request.headers.get("user-agent")),
+            country: readCountryCode(request.headers),
+          }
+
+          await ingestBatch(
+            site.id,
+            site.domain,
+            validation.data.events,
+            dimensions
+          )
           return noContent()
         } catch {
           // Swallow everything — tracking must never break the host page.
