@@ -1,4 +1,5 @@
 import MoveRight from "lucide-react/dist/esm/icons/move-right.js"
+import Link from "@/components/app-link";
 import { Button } from "@/components/ui/button";
 
 interface ViewAllButtonProps {
@@ -12,11 +13,19 @@ export function ViewAllButton({
   href = "#",
   className = ""
 }: ViewAllButtonProps) {
+  const label = (
+    <>
+      {text} <MoveRight className="w-4 h-4" />
+    </>
+  );
+
   const buttonElement = (
     <Button className={`gap-4 ${className}`} asChild>
-      <a href={href}>
-        {text} <MoveRight className="w-4 h-4" />
-      </a>
+      {href.startsWith("/") && !href.startsWith("//") ? (
+        <Link href={href}>{label}</Link>
+      ) : (
+        <a href={href}>{label}</a>
+      )}
     </Button>
   );
 

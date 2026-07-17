@@ -26,6 +26,7 @@ import {
   TableRow
 } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBuilderRouteState"
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
@@ -61,7 +62,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
+  const { pageSize: contextPageSize } = useSiteSwitcher()
   const [categories, setCategories] = useState<Category[]>([])
   const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({})
   const [childCounts, setChildCounts] = useState<Record<string, number>>({})
@@ -69,6 +70,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const [allCategories, setAllCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -86,12 +88,14 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const currentParent = parentPath[parentPath.length - 1] || null
   const currentParentId = currentParent?.id || null
 
-  // Redirect when site changes in sidebar
-  useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/categories/${currentSite.id}`)
-    }
-  }, [currentSite, siteId, router])
+  // Keep the sidebar site switcher and the route's siteId reconciled (the
+  // route wins; a guarded redirect only fires when the route site is unknown).
+  useBuilderRouteSiteSync({
+    builderPath: "/admin/categories",
+    queryParam: "parent",
+    queryValue: "",
+    siteId,
+  })
 
   useEffect(() => {
     setCurrentPage(1)
@@ -101,7 +105,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   // Load categories and assignment counts in a single server action
   const loadedRef = useRef<string | null>(null)
   useEffect(() => {
-    const key = `${siteId}-${currentPage}-${pageSize}-${parentSlug}`
+    const key = `${siteId}-${currentPage}-${pageSize}-${parentSlug}-${reloadNonce}`
     if (loadedRef.current === key) return
     loadedRef.current = key
 
@@ -149,7 +153,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     }
 
     loadData()
-  }, [siteId, currentPage, pageSize, parentSlug])
+  }, [siteId, currentPage, pageSize, parentSlug, reloadNonce])
 
   const handleCategoryCreated = (newCategory: Category, continueToBuilder?: boolean) => {
     setAllCategories((prev) => [...prev, newCategory])
@@ -422,7 +426,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+                        <Button onClick={() => setReloadNonce((nonce) => nonce + 1)} variant="outline" size="sm">
                           Try Again
                         </Button>
                       </TableCell>

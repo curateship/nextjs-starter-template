@@ -1,6 +1,7 @@
 "use client"
 
 import ArrowRight from "lucide-react/dist/esm/icons/arrow-right.js"
+import Link from "@/components/app-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -101,7 +102,7 @@ export const PostArchiveBlock = () => {
         {/* Posts Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
           {DUMMY_POSTS.map((post) => (
-            <a key={post.id} href="/themes/marketplace/posts" className="block">
+            <Link key={post.id} href="/themes/marketplace/posts" className="block">
               <Card className="grid grid-rows-[auto_auto_1fr_auto]">
                 <div className="aspect-video overflow-hidden rounded-t-lg">
                   <img
@@ -136,7 +137,7 @@ export const PostArchiveBlock = () => {
                   </div>
                 </CardFooter>
               </Card>
-            </a>
+            </Link>
           ))}
         </div>
 

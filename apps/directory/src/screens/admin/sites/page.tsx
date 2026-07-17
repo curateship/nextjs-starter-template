@@ -112,8 +112,10 @@ export default function SitesPage() {
   useEffect(() => {
     if (searchParams.get("create") === "1") {
       setShowCreateModal(true)
+      // Consume the param so later search changes can't re-open the modal.
+      router.replace("/admin/sites")
     }
-  }, [searchParams])
+  }, [router, searchParams])
 
   const loadSites = useCallback(async () => {
     try {

@@ -46,6 +46,24 @@ function AdminDocumentMeta() {
   const { currentSite } = useSiteSwitcher()
   const pathname = usePathname()
 
+  // setAdminIcon removes whatever favicon links the document started with, so
+  // snapshot them on mount and put them back when leaving the admin area —
+  // otherwise a site's custom favicon sticks around on frontend routes.
+  useEffect(() => {
+    const originalIcons = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]')
+    )
+
+    return () => {
+      document.head
+        .querySelectorAll('link[data-admin-site-icon]')
+        .forEach((link) => link.remove())
+      originalIcons.forEach((link) => {
+        if (!document.head.contains(link)) document.head.appendChild(link)
+      })
+    }
+  }, [])
+
   useEffect(() => {
     if (!currentSite) {
       document.title = "Admin"

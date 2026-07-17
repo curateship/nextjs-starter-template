@@ -1,5 +1,6 @@
 import ArrowRight from "lucide-react/dist/esm/icons/arrow-right.js"
 
+import Link from "@/components/app-link"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ViewAllButton } from "@/components/ui/view-all-button"
@@ -31,7 +32,7 @@ const PostGridBlock = ({
         <ViewAllButton text={buttonText} href={buttonUrl} />
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
-        <a href="/themes/marketplace/posts" className="block">
+        <Link href="/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
@@ -49,9 +50,9 @@ const PostGridBlock = ({
               </div>
             </CardFooter>
           </Card>
-        </a>
+        </Link>
 
-        <a href="/themes/marketplace/posts" className="block">
+        <Link href="/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
@@ -69,9 +70,9 @@ const PostGridBlock = ({
               </div>
             </CardFooter>
           </Card>
-        </a>
+        </Link>
 
-        <a href="/themes/marketplace/posts" className="block">
+        <Link href="/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
@@ -91,7 +92,7 @@ const PostGridBlock = ({
               </div>
             </CardFooter>
           </Card>
-        </a>
+        </Link>
       </div>
     </BlockContainer>
   )
