@@ -40,7 +40,7 @@ function HubPlatformHome() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href="/admin"
+              href="/admin/dashboard"
               className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-medium text-zinc-950 transition hover:bg-zinc-200"
             >
               Open admin
