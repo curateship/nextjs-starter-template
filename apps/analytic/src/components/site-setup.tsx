@@ -8,6 +8,7 @@ import {
   DashboardToolbar,
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSurface } from "@/components/ui/table"
 import { getSiteInstallStatus, type SiteDetailResponse } from "@/lib/api/sites"
 
@@ -54,8 +55,8 @@ export function SiteSetup({ detail }: { detail: SiteDetailResponse }) {
   }
 
   return (
-    <div className="w-full pb-8">
-      <div className="mb-4">
+    <div className="w-full space-y-2 md:space-y-3">
+      <div>
         <Button variant="ghost" size="sm" asChild>
           <Link to="/sites">
             <ArrowLeftIcon className="size-4" />
@@ -92,9 +93,12 @@ export function SiteSetup({ detail }: { detail: SiteDetailResponse }) {
               visits start showing up here.
             </p>
             <div className="relative">
-              <pre className="overflow-x-auto rounded-md border border-border bg-muted/50 p-4 pr-12 font-mono text-xs leading-relaxed">
-                {snippet}
-              </pre>
+              <ScrollArea className="rounded-md border border-border bg-muted/50">
+                <pre className="p-4 pr-12 font-mono text-xs leading-relaxed">
+                  {snippet}
+                </pre>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
               <Button
                 type="button"
                 variant="outline"

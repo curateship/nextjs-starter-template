@@ -35,7 +35,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
@@ -286,7 +285,7 @@ export function FeedbackCommentsDashboard() {
   }
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       {error ? (
         <div
           role="alert"

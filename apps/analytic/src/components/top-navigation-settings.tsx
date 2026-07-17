@@ -147,7 +147,7 @@ function SortableTopNavigationItem({
         <Button
           type="button"
           variant="ghost"
-          className="h-9 max-w-[240px] justify-start gap-2 px-3 text-sm font-medium"
+          className="h-8 max-w-[240px] justify-start gap-2 px-3 text-sm font-medium"
           onClick={() => setDialogOpen(true)}
           aria-label={`Edit settings for ${item.label || "top navigation link"}`}
         >
@@ -165,7 +165,7 @@ function SortableTopNavigationItem({
         </Button>
 
         <label
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
           title={item.visible ? "Visible" : "Hidden"}
         >
           <Checkbox
@@ -280,7 +280,7 @@ function SortableTopRightNavigationItem({
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <div className="flex h-9 max-w-[240px] items-center gap-2 px-3 text-sm font-medium">
+        <div className="flex h-8 max-w-[240px] items-center gap-2 px-3 text-sm font-medium">
           <Icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{meta.label}</span>
           {!item.visible ? (
@@ -290,7 +290,7 @@ function SortableTopRightNavigationItem({
           ) : null}
         </div>
         <label
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
           title={item.visible ? "Visible" : "Hidden"}
         >
           <Checkbox

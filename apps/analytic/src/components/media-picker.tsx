@@ -9,7 +9,7 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { MediaGridSkeleton } from "@/components/loading-skeleton"
+import { PanelLoading } from "@/components/loading-state"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -298,7 +298,7 @@ export function MediaPicker({
 
             <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
               {loading ? (
-                <MediaGridSkeleton count={8} />
+                <PanelLoading className="min-h-56" />
               ) : mediaItems.length === 0 ? (
                 <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                   <div>

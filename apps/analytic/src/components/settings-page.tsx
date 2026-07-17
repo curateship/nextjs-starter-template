@@ -41,7 +41,7 @@ export function SettingsPage({
   const isSaving = saveStatus === "saving"
 
   return (
-    <div className="w-full pb-8">
+    <div className="w-full">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">Settings</h1>

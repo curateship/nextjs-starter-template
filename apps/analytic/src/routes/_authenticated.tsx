@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { ShellLoadingSkeleton } from "@/components/loading-skeleton"
+import { FullPageLoading } from "@/components/loading-state"
 import { ShellLayout } from "@/components/shell-layout"
 import { loadCurrentUser } from "@/lib/api/auth"
 import { loadShellSettings } from "@/lib/api/shell-settings"
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated")({
     const workspaces = await loadWorkspaces()
     return { user, settings, workspaces }
   },
-  pendingComponent: ShellLoadingSkeleton,
+  pendingComponent: FullPageLoading,
   component: AuthenticatedLayout,
 })
 
