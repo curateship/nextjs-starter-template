@@ -17,6 +17,7 @@ export const ALERT_TYPE_LABELS: Record<string, string> = {
   thin_book: "Thin book",
   worker_down: "Worker down",
   worker_recovered: "Worker back",
+  guardian_tripped: "Guardian",
 }
 
 export function isWorkerAlert(type: string) {
@@ -43,7 +44,8 @@ export function alertRoute(type: string): ScannerRoute {
 
 /**
  * Click-through target for any scanner_alerts row. Watchdog alerts go to
- * Settings → Workers; everything else goes to its scanner page.
+ * Settings → Workers, a guardian trip goes to the bots page (where the
+ * re-arm banner lives); everything else goes to its scanner page.
  */
 export function alertTarget(type: string) {
   if (isWorkerAlert(type)) {
@@ -51,6 +53,9 @@ export function alertTarget(type: string) {
       to: "/admin/settings/$tab",
       params: { tab: "workers" },
     } as const
+  }
+  if (type === "guardian_tripped") {
+    return { to: "/bots" } as const
   }
   return { to: alertRoute(type) } as const
 }
