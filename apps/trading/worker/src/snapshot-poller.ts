@@ -19,6 +19,8 @@ import {
 } from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
+import { GuardianMonitor, type GuardianReading } from "./guardian-monitor"
+
 const SNAPSHOT_INTERVAL_MS = 60_000
 
 /**
@@ -28,12 +30,15 @@ const SNAPSHOT_INTERVAL_MS = 60_000
  * a position whose distance to liquidation drops inside the saved threshold
  * writes a `liquidation_risk` trading notification, rate-limited per
  * position and deduped in the database so restarts cannot double-alert.
+ * The per-tick equity readings also drive the bot guardian — the automatic
+ * account-level kill switch (see guardian-monitor.ts).
  */
 export class SnapshotPoller {
   private timer: NodeJS.Timeout | null = null
   private running = false
   /** walletId:coin → last alert time, the in-memory alert rate limit. */
   private lastLiquidationAlertAt = new Map<string, number>()
+  private readonly guardian = new GuardianMonitor()
 
   start() {
     void this.tick()
@@ -54,6 +59,7 @@ export class SnapshotPoller {
         .from(tradingWallets)
         .where(eq(tradingWallets.isActive, true))
       const thresholdPct = await this.liquidationThresholdPct()
+      const guardianReadings: GuardianReading[] = []
 
       for (const wallet of wallets) {
         const network = wallet.network as TradingNetwork
@@ -92,13 +98,35 @@ export class SnapshotPoller {
             state.assetPositions,
             thresholdPct
           )
+          // A malformed equity string must read as a failed snapshot, not a
+          // NaN that silently poisons the guardian's account total.
+          const equity = Number(accountState.equity)
+          guardianReadings.push({
+            userId: wallet.userId,
+            walletId: wallet.id,
+            equity: Number.isFinite(equity) ? equity : null,
+          })
         } catch (error) {
           console.error(
             `snapshot failed for wallet ${wallet.label}:`,
             error instanceof Error ? error.message.slice(0, 200) : error
           )
+          // A failed wallet still counts — the guardian must know this tick's
+          // account total is incomplete rather than mistake it for a loss.
+          guardianReadings.push({
+            userId: wallet.userId,
+            walletId: wallet.id,
+            equity: null,
+          })
         }
       }
+      await this.guardian.check(guardianReadings).catch((error: unknown) => {
+        // The kill switch failing silently would be the worst failure mode.
+        console.error(
+          "guardian check failed:",
+          error instanceof Error ? error.message.slice(0, 200) : error
+        )
+      })
     } finally {
       this.running = false
     }

@@ -14,6 +14,7 @@ import {
   buildFleetSummaries,
   pileupKey,
 } from "@/components/bots/fleet-overview"
+import { GuardianBanner } from "@/components/bots/guardian-banner"
 import {
   FleetOverviewStrip,
   type FleetFilter,
@@ -47,6 +48,7 @@ import {
   type BotListItem,
   type BotListResponse,
 } from "@/lib/api/bots"
+import { guardianTableStatus } from "@/lib/trading/guardian"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { cn } from "@/lib/utils"
 
@@ -141,6 +143,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
           Start it with <code>npm run bot-worker:dev</code>.
         </div>
       ) : null}
+      <GuardianBanner guardian={data.guardian} onChanged={refresh} />
       {error ? (
         <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -161,6 +164,7 @@ export function FleetDashboard({ initial }: { initial: BotListResponse }) {
         title="Bots"
         icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={visibleBots.length}
+        status={guardianTableStatus(data.guardian)}
         controls={
           <>
             <DashboardToolbarButton

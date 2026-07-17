@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
+import type { GuardianStatus } from "@/lib/api/guardian"
 import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
 import {
   normalizeAutomationConfig,
@@ -39,6 +40,8 @@ export type BotListItem = {
 export type BotListResponse = {
   bots: BotListItem[]
   workerOnline: boolean
+  /** Account-level kill-switch state, shown as the bots-page banner. */
+  guardian: GuardianStatus
 }
 
 export type BotMarketState = {
@@ -360,11 +363,12 @@ function aggregateBotStates(
 
 async function botListForUser(userId: string): Promise<BotListResponse> {
   const { listUserBots, listUserBotStates } = await import("@/server/bots")
+  const { getGuardianStatus } = await import("@/server/guardian")
   const { desc, sql } = await import("drizzle-orm")
   const { db } = await import("@/server/db")
   const { tradingWorkerHeartbeats } = await import("@/server/schema")
 
-  const [rows, stateRows, [heartbeat]] = await Promise.all([
+  const [rows, stateRows, [heartbeat], guardian] = await Promise.all([
     listUserBots(userId),
     listUserBotStates(userId),
     db
@@ -373,6 +377,7 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
       .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
       .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
       .limit(1),
+    getGuardianStatus(userId),
   ])
 
   const statesByBot = new Map<string, typeof stateRows>()
@@ -392,6 +397,7 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
     workerOnline: heartbeat
       ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000
       : false,
+    guardian,
   }
 }
 

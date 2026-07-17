@@ -1,3 +1,4 @@
+import { GuardianSettings } from "@/components/guardian-settings"
 import {
   Card,
   CardContent,
@@ -100,6 +101,7 @@ export function TradingSettings({
           </div>
         </CardContent>
       </Card>
+      <GuardianSettings />
     </CardGroup>
   )
 }

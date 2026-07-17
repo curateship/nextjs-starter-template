@@ -52,6 +52,13 @@ distance to its forced-liquidation price drops to the threshold saved in
 0 = off, default 10%), the poller files a "close to liquidation" notice in
 the notification bell.
 
+The same once-a-minute readings also drive the **bot guardian** — the
+account-level automatic kill switch that pauses (or flattens) all bots when
+a saved daily-loss or drawdown limit stays crossed for three consecutive
+readings. Its rules and behavior are documented in `bots.md`; if the Bot
+Worker is down, the guardian is down too, which is exactly the gap the
+worker-down watchdog below covers.
+
 A position hovering at the threshold alerts at most once every 30 minutes.
 The database also dedupes by a time-bucketed event key, so a worker restart
 cannot double-alert inside the same window. The distance itself is visible in

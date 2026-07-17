@@ -513,22 +513,26 @@ export async function sendBotCommand(
 export async function sendGlobalBotCommand(
   userId: string,
   command: "pause_all" | "flatten_all",
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  // Shown verbatim as each affected bot's pause reason and event message —
+  // how a guardian trip stays distinguishable from a manual "Pause all".
+  reason: string | null = null
 ) {
-  await enqueueCommand(database, null, command, userId)
+  await enqueueCommand(database, null, command, userId, reason)
 }
 
 async function enqueueCommand(
   database: CustomShellDb,
   botId: string | null,
   command: string,
-  userId: string
+  userId: string,
+  reason: string | null = null
 ) {
   await database.insert(tradingBotCommands).values({
     id: uuid(),
     botId,
     command,
-    payload: null,
+    payload: reason ? { reason } : null,
     status: "pending",
     createdByUserId: userId,
     createdAt: now(),

@@ -169,7 +169,7 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
 
 // Group scanner alerts by their source page so the icon/colour reads at a glance.
 function alertVisual(type: string) {
-  if (type === "worker_down") {
+  if (type === "worker_down" || type === "guardian_tripped") {
     return { Icon: ShieldAlertIcon, className: "bg-red-100 text-red-800" }
   }
   if (type === "worker_recovered") {

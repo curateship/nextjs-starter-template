@@ -715,6 +715,40 @@ export const tradingBotCommands = pgTable(
   ]
 )
 
+/**
+ * Account-level kill switch: one row per user holding the limits, the
+ * worker's between-tick watch state, and the tripped latch. Config columns
+ * are written by the settings UI; watch/tripped columns by the bot worker's
+ * guardian monitor. A tripped guardian stays tripped across worker restarts
+ * until the user re-arms it.
+ */
+export const tradingBotGuardians = pgTable(
+  "bot_guardian",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    dailyLossLimitUsd: numeric("daily_loss_limit_usd"),
+    dailyLossLimitPct: numeric("daily_loss_limit_pct"),
+    maxDrawdownPct: numeric("max_drawdown_pct"),
+    action: varchar("action", { length: 20 }).notNull().default("pause_all"),
+    dayDate: date("day_date"),
+    dayStartEquity: numeric("day_start_equity"),
+    peakEquity: numeric("peak_equity"),
+    breachStreak: integer("breach_streak").notNull().default(0),
+    trippedAt: timestamp("tripped_at", { withTimezone: true }),
+    trippedReason: text("tripped_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "bot_guardian_action_check",
+      sql`${table.action} in ('pause_all', 'flatten_all')`
+    ),
+  ]
+)
+
 export const tradingBacktests = pgTable(
   "backtests",
   {
