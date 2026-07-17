@@ -726,7 +726,7 @@ export default function SiteEditPage() {
             items={[
               {
                 label: siteName || "Site",
-                href: `/admin/sites/${siteId}/dashboard`
+                href: `/admin/dashboard/${siteId}`
               },
               { label: activeTabConfig.label }
             ]}

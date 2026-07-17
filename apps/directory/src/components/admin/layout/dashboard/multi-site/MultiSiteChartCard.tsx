@@ -13,7 +13,7 @@ import type { DashboardRange, MultiSiteDashboardData } from "@/lib/actions/analy
 
 // The 1b design's chart card: the four metric stats fold into the top of the chart
 // card as clickable cells (active cell = underline) that drive the chart metric,
-// with the range tabs living in the chart header. Chart internals mirror ChartGroup7.
+// with the range tabs living in the chart header.
 
 type DashboardMetric = "visitors" | "contacts" | "orders" | "revenue"
 
@@ -85,16 +85,19 @@ const fallbackPoint = {
 interface MultiSiteChartCardProps {
   metrics: MultiSiteDashboardData
   rangeControl: React.ReactNode
+  // Chart caption subject: "Combined across all sites" for the multi-site view, or the
+  // site name when the dashboard is scoped to a single site.
+  subject?: string
 }
 
-export function MultiSiteChartCard({ metrics, rangeControl }: MultiSiteChartCardProps) {
+export function MultiSiteChartCard({ metrics, rangeControl, subject = "Combined across all sites" }: MultiSiteChartCardProps) {
   const [activeMetric, setActiveMetric] = useState<DashboardMetric>("visitors")
   const [isMobile, setIsMobile] = useState(false)
   const displayData = metrics.chartData.length > 0 ? metrics.chartData : [fallbackPoint]
   const chartDisplayData = isMobile ? displayData.slice(-7) : displayData
   const chartDescription = metrics.range === "365d"
-    ? "Combined across all sites · monthly totals, last 365 days"
-    : `Combined across all sites · daily totals, last ${isMobile ? 7 : 30} days`
+    ? `${subject} · monthly totals, last 365 days`
+    : `${subject} · daily totals, last ${isMobile ? 7 : 30} days`
 
   const stats = useMemo(
     () =>

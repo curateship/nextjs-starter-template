@@ -52,7 +52,10 @@ import type { Site } from "@/lib/actions/sites/site-actions"
 import type { DashboardRange, MultiSiteDashboardData } from "@/lib/actions/analytics/analytics-actions"
 import type { HubNotificationItem } from "@/lib/actions/notifications/notification-actions"
 import type { HubNotificationType } from "@/lib/actions/notifications/notification-service"
-import { markAllHubNotificationsReadForUser } from "@/lib/actions/notifications/notification-actions"
+import {
+  markAllHubNotificationsRead,
+  markAllHubNotificationsReadForUser,
+} from "@/lib/actions/notifications/notification-actions"
 import type { DashboardAutomationRun } from "@/lib/actions/automations/automation-actions"
 import { MultiSiteChartCard } from "./MultiSiteChartCard"
 import { SiteTrendSparkline } from "./SiteTrendSparkline"
@@ -61,11 +64,31 @@ import { SiteTrendSparkline } from "./SiteTrendSparkline"
 // combined stats + chart, Automations and Notifications panels, and a dense sortable sites
 // table — built on the app's existing chart and table patterns.
 
+// Scope controls what the shared dashboard is measuring: every site (the /admin view) or a
+// single site (the per-site /admin/dashboard/<siteId> view). Only the chart, automations,
+// notifications, range links, and mark-all-read narrow to the site — the "Your sites" table
+// always spans every site so the user keeps an at-a-glance view of their whole portfolio.
+export type DashboardScope =
+  | { kind: "all" }
+  | { kind: "site"; siteId: string; siteName: string }
+
 interface MultiSiteDashboardProps {
   sites: Site[]
   metrics: MultiSiteDashboardData
   notifications: { items: HubNotificationItem[]; unreadCount: number }
   automationRuns: DashboardAutomationRun[]
+  scope?: DashboardScope
+}
+
+// The per-site dashboard lives at /admin/dashboard/<siteId>; the all-sites view at /admin.
+function siteDashboardHref(siteId: string) {
+  return `/admin/dashboard/${siteId}`
+}
+
+function rangeHref(scope: DashboardScope, range: DashboardRange) {
+  return scope.kind === "site"
+    ? `${siteDashboardHref(scope.siteId)}?range=${range}`
+    : `/admin?range=${range}`
 }
 
 type StatusFilter = "all" | "active" | "inactive" | "draft"
@@ -161,7 +184,7 @@ function getStatusPill(status: string) {
   )
 }
 
-function DashboardRangeDropdown({ value }: { value: DashboardRange }) {
+function DashboardRangeDropdown({ scope, value }: { scope: DashboardScope; value: DashboardRange }) {
   const selectedOption = rangeOptions.find((option) => option.value === value) ?? rangeOptions[0]
 
   return (
@@ -175,7 +198,7 @@ function DashboardRangeDropdown({ value }: { value: DashboardRange }) {
       <DropdownMenuContent align="start">
         {rangeOptions.map((option) => (
           <DropdownMenuItem key={option.value} asChild>
-            <Link className="justify-between" href={`/admin?range=${option.value}`} scroll={false}>
+            <Link className="justify-between" href={rangeHref(scope, option.value)} scroll={false}>
               {option.label}
               {option.value === value ? <Check className="h-4 w-4" /> : null}
             </Link>
@@ -186,13 +209,13 @@ function DashboardRangeDropdown({ value }: { value: DashboardRange }) {
   )
 }
 
-function DashboardRangeTabs({ value }: { value: DashboardRange }) {
+function DashboardRangeTabs({ scope, value }: { scope: DashboardScope; value: DashboardRange }) {
   return (
     <Tabs value={value}>
       <TabsList className="h-8">
         {rangeOptions.map((option) => (
           <TabsTrigger key={option.value} value={option.value} asChild className="h-6 px-2 text-sm">
-            <Link href={`/admin?range=${option.value}`} scroll={false}>
+            <Link href={rangeHref(scope, option.value)} scroll={false}>
               {option.label}
             </Link>
           </TabsTrigger>
@@ -206,7 +229,7 @@ function PanelEmptyState({ children }: { children: React.ReactNode }) {
   return <p className="px-2 py-6 text-center text-sm text-muted-foreground">{children}</p>
 }
 
-export function MultiSiteDashboard({ sites, metrics, notifications, automationRuns }: MultiSiteDashboardProps) {
+export function MultiSiteDashboard({ sites, metrics, notifications, automationRuns, scope = { kind: "all" } }: MultiSiteDashboardProps) {
   const router = useRouter()
   const [notifFilter, setNotifFilter] = useState<"unread" | "all">("all")
   const [autoFilter, setAutoFilter] = useState<"all" | "attention">("all")
@@ -266,7 +289,9 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
     if (markingRead) return
     setMarkingRead(true)
     try {
-      const { readAt } = await markAllHubNotificationsReadForUser()
+      const { readAt } = scope.kind === "site"
+        ? await markAllHubNotificationsRead(scope.siteId)
+        : await markAllHubNotificationsReadForUser()
       setReadAllAt(readAt)
     } catch {
       showActionError("Failed to mark notifications as read")
@@ -279,13 +304,14 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
     <CardGroup className="grid w-full min-w-0 gap-3">
       <MultiSiteChartCard
         metrics={metrics}
+        subject={scope.kind === "site" ? scope.siteName : undefined}
         rangeControl={
           <>
             <div className="sm:hidden">
-              <DashboardRangeDropdown value={metrics.range} />
+              <DashboardRangeDropdown scope={scope} value={metrics.range} />
             </div>
             <div className="hidden sm:block">
-              <DashboardRangeTabs value={metrics.range} />
+              <DashboardRangeTabs scope={scope} value={metrics.range} />
             </div>
           </>
         }
@@ -527,7 +553,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                     <TableCell column="meta">{getStatusPill(row.site.status)}</TableCell>
                     <TableCell column="main">
                       <Link
-                        href={`/admin/sites/${row.site.id}/dashboard`}
+                        href={siteDashboardHref(row.site.id)}
                         className="flex min-w-0 items-center gap-3 transition-opacity hover:opacity-80"
                       >
                         <div
