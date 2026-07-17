@@ -188,6 +188,26 @@ export function qqeChartToModuleParams(
   }
 }
 
+/** Chart Price Action params (0/1 pattern flags) → the module's typed params. */
+export function priceActionChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | boolean> {
+  return {
+    bullHammer: (params.bullHammer ?? 1) !== 0,
+    bearShootingStar: (params.bearShootingStar ?? 1) !== 0,
+    bullEngulfing: (params.bullEngulfing ?? 1) !== 0,
+    bearEngulfing: (params.bearEngulfing ?? 1) !== 0,
+    bullSweep: (params.bullSweep ?? 1) !== 0,
+    bearSweep: (params.bearSweep ?? 1) !== 0,
+    bullBos: (params.bullBos ?? 1) !== 0,
+    bearBos: (params.bearBos ?? 1) !== 0,
+    wickBodyRatio: params.wickBodyRatio ?? 2,
+    extremeLookback: params.extremeLookback ?? 5,
+    sweepLookback: params.sweepLookback ?? 20,
+    swingLookback: params.swingLookback ?? 5,
+  }
+}
+
 /** Chart Fair Value Gap params (numeric form) → the FVG module's typed params. */
 export function fairValueGapChartToModuleParams(
   params: Record<string, number>
