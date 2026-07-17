@@ -13,8 +13,6 @@ import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 import { cn } from '@/lib/utils/tailwind'
 import Download from "lucide-react/dist/esm/icons/download.js"
 
-export const dynamic = 'force-dynamic'
-
 export const metadata: Metadata = {
   title: 'Sponsor Report',
   robots: { index: false, follow: false },

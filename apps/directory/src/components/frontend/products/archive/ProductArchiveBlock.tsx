@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "@/components/app-link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
@@ -91,7 +92,7 @@ export const ProductArchiveBlock = () => {
         {/* Products Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {DUMMY_PRODUCTS.map((product) => (
-            <a key={product.id} href="/themes/marketplace/products" className="block">
+            <Link key={product.id} href="/themes/marketplace/products" className="block">
               <Card className="overflow-hidden">
                 <div className="aspect-square overflow-hidden">
                   <img
@@ -116,7 +117,7 @@ export const ProductArchiveBlock = () => {
                   </Button>
                 </CardContent>
               </Card>
-            </a>
+            </Link>
           ))}
         </div>
 

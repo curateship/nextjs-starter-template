@@ -1,3 +1,4 @@
+import Link from "@/components/app-link";
 import { BlockContainer } from "@/components/frontend/layout/block-container";
 import { ViewAllButton } from "@/components/ui/view-all-button";
 
@@ -24,7 +25,7 @@ const ProductGridBlock = (_props: ProductGridBlockProps) => (
     </div>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      <a href="/themes/marketplace/products" className="block">
+      <Link href="/themes/marketplace/products" className="block">
         <div className="flex flex-col gap-2 hover:opacity-75 cursor-pointer">
           <div className="bg-muted rounded-md aspect-video mb-4"></div>
           <h3 className="text-xl tracking-tight">Pay supplier invoices</h3>
@@ -32,8 +33,8 @@ const ProductGridBlock = (_props: ProductGridBlockProps) => (
             Our goal is to streamline SMB trade, making it easier and faster than ever.
           </p>
         </div>
-      </a>
-      <a href="/themes/marketplace/products" className="block">
+      </Link>
+      <Link href="/themes/marketplace/products" className="block">
         <div className="flex flex-col gap-2 hover:opacity-75 cursor-pointer">
           <div className="bg-muted rounded-md aspect-video mb-4"></div>
           <h3 className="text-xl tracking-tight">Pay supplier invoices</h3>
@@ -41,8 +42,8 @@ const ProductGridBlock = (_props: ProductGridBlockProps) => (
             Our goal is to streamline SMB trade, making it easier and faster than ever.
           </p>
         </div>
-      </a>
-      <a href="/themes/marketplace/products" className="block">
+      </Link>
+      <Link href="/themes/marketplace/products" className="block">
         <div className="flex flex-col gap-2 hover:opacity-75 cursor-pointer">
           <div className="bg-muted rounded-md aspect-video mb-4"></div>
           <h3 className="text-xl tracking-tight">Pay supplier invoices</h3>
@@ -50,7 +51,7 @@ const ProductGridBlock = (_props: ProductGridBlockProps) => (
             Our goal is to streamline SMB trade, making it easier and faster than ever.
           </p>
         </div>
-      </a>
+      </Link>
     </div>
   </BlockContainer>
 );

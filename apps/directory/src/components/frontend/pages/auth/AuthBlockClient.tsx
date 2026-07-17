@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { usePathname, useSearchParams } from "@/lib/navigation-client"
+import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
 import { authClient } from "@/lib/actions/auth/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,6 +57,7 @@ export function AuthBlock({
   const showRegisterTab = visibility?.showRegisterTab !== false
   const [view, setView] = useState<"auth" | "reset">("auth")
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const resetToken = searchParams.get("token") || ""
 
@@ -70,6 +71,17 @@ export function AuthBlock({
       setActiveTab(tabParam)
     }
   }, [searchParams])
+
+  // Tab state and ?tab= must stay in sync both ways: the effect above follows
+  // the URL, and user tab switches write the URL back — otherwise any later
+  // search change would revert the visible tab.
+  const switchTab = (tab: "login" | "register") => {
+    setActiveTab(tab)
+    if (searchParams.get("tab") === tab) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", tab)
+    router.replace(`${pathname}?${params.toString()}`)
+  }
 
   useEffect(() => {
     if (resetToken) {
@@ -164,7 +176,7 @@ export function AuthBlock({
     )
     setLoginError(null)
     setRegisterError(null)
-    setActiveTab("login")
+    switchTab("login")
   }
 
   const clearVerificationState = () => {
@@ -395,7 +407,7 @@ export function AuthBlock({
               className="w-full"
               onClick={() => {
                 clearVerificationState()
-                setActiveTab(showLoginTab ? "login" : "register")
+                switchTab(showLoginTab ? "login" : "register")
               }}
             >
               {showLoginTab ? "Back to Login" : "Use a different email"}
@@ -545,7 +557,7 @@ export function AuthBlock({
   return (
     <div className="flex min-h-[400px] items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")}>
+        <Tabs value={activeTab} onValueChange={(v) => switchTab(v as "login" | "register")}>
           {showLoginTab && showRegisterTab && (
             <CardHeader>
               <TabsList className="grid w-full grid-cols-2">

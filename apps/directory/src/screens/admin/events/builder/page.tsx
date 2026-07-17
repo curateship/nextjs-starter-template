@@ -8,14 +8,23 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function EventBuilderRootPage() {
   const router = useRouter()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, loading } = useSiteSwitcher()
 
-  // Redirect to current site event builder if site is available
+  // Bounce to the current site's event builder. Uses replace so this
+  // transient screen never lands in history (push would trap the Back button).
   useEffect(() => {
-    if (currentSite) {
-      router.push(`/admin/events/builder/${currentSite.id}`)
+    if (loading) {
+      return
     }
-  }, [currentSite, router])
+
+    if (currentSite) {
+      router.replace(`/admin/events/builder/${currentSite.id}`)
+    } else if (sites.length > 0) {
+      router.replace(`/admin/events/builder/${sites[0].id}`)
+    } else {
+      router.replace('/admin/sites')
+    }
+  }, [currentSite, loading, sites, router])
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
