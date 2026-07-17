@@ -7,12 +7,18 @@ import {
   BookOpenIcon,
   MessageSquareIcon,
   RadarIcon,
+  ShieldAlertIcon,
   ThumbsUpIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
 
-import { alertRoute, ALERT_TYPE_LABELS } from "@/components/scanner/alert-meta"
+import {
+  alertRoute,
+  alertTarget,
+  ALERT_TYPE_LABELS,
+  isWorkerAlert,
+} from "@/components/scanner/alert-meta"
 import { Badge } from "@/components/ui/badge"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -175,6 +181,7 @@ function rowSource(row: UnifiedRow): string {
 
 function AlertGlyph({ type }: { type: string }) {
   const className = "size-4 text-muted-foreground"
+  if (isWorkerAlert(type)) return <ShieldAlertIcon className={className} />
   switch (alertRoute(type)) {
     case "/scanner/positions":
       return <ArrowRightLeftIcon className={className} />
@@ -473,7 +480,7 @@ export function NotificationsPage({
         // navigate anyway; the read state will reconcile on next load
       }
     }
-    void navigate({ to: alertRoute(row.alert.type) })
+    void navigate(alertTarget(row.alert.type))
   }
 
   async function loadMore() {

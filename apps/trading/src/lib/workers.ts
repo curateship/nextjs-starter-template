@@ -8,6 +8,14 @@ export const WORKER_KINDS = [
 
 export type WorkerKind = (typeof WORKER_KINDS)[number]
 
+export const WORKER_LABELS: Record<WorkerKind, string> = {
+  bot: "Bot Worker",
+  "whale-scanner": "Whale Scanner",
+  "market-scanner": "Market Scanner",
+  alert: "Alert Worker",
+  backtest: "Backtest Worker",
+}
+
 export type WorkerControl = {
   kind: WorkerKind
   enabled: boolean
@@ -31,6 +39,12 @@ export type WorkerStatus = WorkerControl & {
   currentActivity: string
   latestError: string | null
   userPaused: boolean | null
+  /** When this worker's own watchdog last swept the other workers. */
+  watchdogLastCheckAt: string | null
+  /** When a watchdog last reported THIS worker down, if ever. */
+  lastIncidentAt: string | null
+  /** True while that incident has no matching recovery notice yet. */
+  lastIncidentOngoing: boolean
   metrics: Array<{ label: string; value: string }>
 }
 

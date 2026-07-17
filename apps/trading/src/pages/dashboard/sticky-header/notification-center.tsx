@@ -17,7 +17,11 @@ import {
   UsersIcon,
 } from "lucide-react"
 
-import { alertRoute, ALERT_TYPE_LABELS } from "@/components/scanner/alert-meta"
+import {
+  alertRoute,
+  alertTarget,
+  ALERT_TYPE_LABELS,
+} from "@/components/scanner/alert-meta"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -164,6 +168,15 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
 
 // Group scanner alerts by their source page so the icon/colour reads at a glance.
 function alertVisual(type: string) {
+  if (type === "worker_down") {
+    return { Icon: ShieldAlertIcon, className: "bg-red-100 text-red-800" }
+  }
+  if (type === "worker_recovered") {
+    return {
+      Icon: ShieldAlertIcon,
+      className: "bg-emerald-100 text-emerald-800",
+    }
+  }
   switch (alertRoute(type)) {
     case "/scanner/positions":
       return {
@@ -767,7 +780,7 @@ export function NotificationCenter({
       }
     }
     setOpen(false)
-    void navigate({ to: alertRoute(item.type) })
+    void navigate(alertTarget(item.type))
   }
 
   async function openTradingNotification(item: TradingNotificationItem) {

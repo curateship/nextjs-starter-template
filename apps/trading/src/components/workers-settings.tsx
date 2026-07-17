@@ -194,6 +194,24 @@ function WorkerCard({
             label="Last successful work"
             value={formatTime(worker.lastSuccessfulWorkAt)}
           />
+          <Info
+            label="Watchdog check"
+            value={
+              worker.watchdogLastCheckAt
+                ? formatTime(worker.watchdogLastCheckAt)
+                : worker.online
+                  ? "Waiting for first check"
+                  : "Not running"
+            }
+          />
+          <Info
+            label="Last incident"
+            value={
+              worker.lastIncidentAt
+                ? `${formatTime(worker.lastIncidentAt)}${worker.lastIncidentOngoing ? " · ongoing" : " · recovered"}`
+                : "None"
+            }
+          />
         </dl>
 
         {worker.latestError ? (

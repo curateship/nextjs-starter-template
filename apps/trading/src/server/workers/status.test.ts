@@ -139,7 +139,17 @@ describe("worker status", () => {
         alertCoins: 1,
         alertSubscriptions: 288,
         lastSuccessfulWorkAt: "2026-07-15T12:34:56.000Z",
+        watchdogLastCheckAt: "2026-07-15T12:35:00.000Z",
       },
+    })
+    await database.insert(schema.scannerAlerts).values({
+      id: "watchdog-down-1",
+      type: "worker_down",
+      title: "Backtest Worker is down",
+      body: "No heartbeat since 2026-07-15T11:00:00.000Z.",
+      data: { workerKind: "backtest", urgent: false, exposure: false },
+      dedupeKey: "worker-down:backtest:1",
+      createdAt: timestamp,
     })
     await database.insert(schema.tradingWorkerHeartbeats).values({
       id: "alert-worker-standby",
@@ -193,6 +203,9 @@ describe("worker status", () => {
       state: "running",
       currentActivity: "Watching Trade alerts",
       lastSuccessfulWorkAt: "2026-07-15T12:34:56.000Z",
+      watchdogLastCheckAt: "2026-07-15T12:35:00.000Z",
+      lastIncidentAt: null,
+      lastIncidentOngoing: false,
       metrics: [
         { label: "Alert rules", value: "2" },
         { label: "Markets", value: "1" },
@@ -211,6 +224,8 @@ describe("worker status", () => {
       state: "offline",
       currentActivity: "Not connected",
       role: null,
+      lastIncidentAt: timestamp.toISOString(),
+      lastIncidentOngoing: true,
     })
     expect(result.overview.pausedOrOff).toBe(1)
     await expect(

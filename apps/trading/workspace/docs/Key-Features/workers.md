@@ -42,6 +42,35 @@ The page shows online state, leader or standby role, heartbeat, uptime, current
 activity, workload counts, and safe error summaries. It never returns keys,
 secrets, private network details, or order payloads.
 
+## Worker-down watchdog
+
+Every worker also keeps an eye on the other four. Once a minute-ish (every 30
+seconds by default), each leader worker checks the others' heartbeats. If a
+worker's heartbeat is older than three times its beat rate (with a one-minute
+floor) while its Settings switch says it should be running, the survivor files
+one alert in the notification bell: **"URGENT: Bot Worker is down with live
+positions open"** when the dead worker is the Bot Worker and the account still
+has open live positions or working live orders, or a calmer "worker is down"
+notice otherwise. Workers turned Off or Paused in Settings never count as dead.
+
+Each outage produces exactly one alert no matter how many workers spot it or
+how long it lasts (the alert is keyed to the moment the heartbeat stopped).
+When the heartbeat comes back, one "back online" notice follows — the Bot
+Worker already rechecks its bots and orders against the exchange on startup,
+so recovery needs no extra cleanup. The first sweep waits one staleness window
+after a worker boots so a cold start of the whole stack does not misread
+last session's old heartbeats.
+
+Settings → Workers shows each worker's own "Watchdog check" time and the
+"Last incident" a watchdog ever filed against it (ongoing or recovered).
+Thresholds are tunable with the `WORKER_WATCHDOG_INTERVAL_MS`,
+`WORKER_WATCHDOG_STALE_MULTIPLIER`, and `WORKER_WATCHDOG_MIN_STALE_MS`
+environment variables.
+
+**Residual risk:** the watchdog is mutual, so it goes silent if every worker
+dies at once (for example the whole machine goes down). Catching that needs an
+external uptime ping from outside the box — deliberately out of scope here.
+
 Backtest requests only validate and enqueue work. The Backtest worker uses a
 locked database claim so replicas cannot run the same row. Interrupted rows are
 requeued on the next leader start and become a clear error after three failed
