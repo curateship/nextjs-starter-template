@@ -233,10 +233,10 @@ describe("upsertUserIndicator", () => {
     const userA = await createTestUser()
     const userB = await createTestUser()
     await upsertUserIndicator(userA, {
-      id: "vwap",
+      id: "bollinger",
       enabled: true,
       pinned: true,
-      params: {},
+      params: { period: 20, k: 2 },
     })
 
     expect(await listUserIndicators(userB)).toEqual(DEFAULT_INDICATORS)

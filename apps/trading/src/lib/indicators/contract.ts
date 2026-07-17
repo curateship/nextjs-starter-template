@@ -24,7 +24,7 @@ export type IndicatorSignal = { time: number; side: "buy" | "sell" }
 
 /**
  * Chart-agnostic paint. `indicators` rides the existing theme-aware
- * IndicatorConfig render path (EMA/VWAP/Bollinger/base overlays and the
+ * IndicatorConfig render path (EMA/Bollinger/base overlays and the
  * RSI/MACD sub-panes); lines/zones/barColors are raw series for anything
  * that path can't express (channels, consolidation zones, bar recoloring).
  */
