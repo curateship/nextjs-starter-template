@@ -11,10 +11,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
   TableSurface,
+  type TableSortDirection,
 } from "@/components/ui/table"
 
 const numberFormat = new Intl.NumberFormat()
+
+type BreakdownSortColumn = "key" | "count"
 
 // Ranked list with a proportional bar behind each label — the house form for
 // "top N by count" breakdowns (pages, referrers, devices, countries, ...).
@@ -35,7 +39,32 @@ export function BreakdownTable({
   emptyText: string
   formatKey?: (key: string) => string
 }) {
+  const [sortColumn, setSortColumn] =
+    React.useState<BreakdownSortColumn>("count")
+  const [sortDirection, setSortDirection] =
+    React.useState<TableSortDirection>("desc")
+
   const max = items.reduce((acc, item) => Math.max(acc, item.count), 0)
+
+  const sortedItems = React.useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1
+    const label = (item: { key: string }) =>
+      formatKey ? formatKey(item.key) : item.key
+    return [...items].sort((a, b) =>
+      sortColumn === "count"
+        ? (a.count - b.count) * direction
+        : label(a).localeCompare(label(b)) * direction
+    )
+  }, [items, sortColumn, sortDirection, formatKey])
+
+  function toggleSort(column: BreakdownSortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortColumn(column)
+    setSortDirection(column === "count" ? "desc" : "asc")
+  }
 
   return (
     <TableSurface className="flex-1">
@@ -48,12 +77,28 @@ export function BreakdownTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead column="main">{columnLabel}</TableHead>
-            <TableHead column="meta">{countLabel}</TableHead>
+            <TableHead column="main">
+              <TableSortButton
+                active={sortColumn === "key"}
+                direction={sortDirection}
+                onClick={() => toggleSort("key")}
+              >
+                {columnLabel}
+              </TableSortButton>
+            </TableHead>
+            <TableHead column="meta">
+              <TableSortButton
+                active={sortColumn === "count"}
+                direction={sortDirection}
+                onClick={() => toggleSort("count")}
+              >
+                {countLabel}
+              </TableSortButton>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.length === 0 ? (
+          {sortedItems.length === 0 ? (
             <TableRow>
               <TableCell
                 colSpan={2}
@@ -63,7 +108,7 @@ export function BreakdownTable({
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => (
+            sortedItems.map((item) => (
               <TableRow key={item.key}>
                 <TableCell column="main">
                   <div className="relative flex items-center">

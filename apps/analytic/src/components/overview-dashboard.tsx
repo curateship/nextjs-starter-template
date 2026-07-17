@@ -123,7 +123,7 @@ function OverviewBody({
   const hasData = overview.totals.pageViews > 0 || overview.totals.visitors > 0
 
   return (
-    <div className="w-full space-y-4 pb-8 sm:space-y-6">
+    <div className="w-full space-y-2 md:space-y-3">
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -208,7 +208,7 @@ function StatTile({
 }) {
   const delta = computeDelta(value, previous)
   return (
-    <div className="bg-background p-4 sm:p-6">
+    <div className="bg-card p-4 sm:p-6">
       <div className="text-sm text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="text-2xl font-semibold tabular-nums sm:text-3xl">

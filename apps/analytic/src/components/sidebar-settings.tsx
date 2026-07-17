@@ -284,7 +284,7 @@ function SortableSidebarItem({
           type="button"
           {...attributes}
           {...listeners}
-          className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
           aria-label={`Reorder ${item.label || "sidebar link"}`}
         >
           <GripVertical className="h-4 w-4" />
@@ -316,7 +316,7 @@ function SortableSidebarItem({
         </button>
 
         <label
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
           title={item.visible ? "Visible" : "Hidden"}
         >
           <Checkbox

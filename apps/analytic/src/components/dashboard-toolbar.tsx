@@ -43,15 +43,15 @@ function DashboardToolbarControls({
 }
 
 const dashboardToolbarSegmentedGroupClassName =
-  "flex items-center gap-1 rounded-lg bg-muted p-1"
+  "flex h-8 items-center gap-1 rounded-lg bg-muted p-[3px]"
 const dashboardToolbarSegmentedButtonClassName =
-  "inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all sm:h-9 sm:text-sm"
+  "inline-flex h-full items-center gap-2 rounded-md px-3 text-xs font-medium transition-all sm:text-sm"
 const dashboardToolbarSegmentedButtonActiveClassName =
   "bg-card text-foreground shadow-sm"
 const dashboardToolbarSegmentedButtonInactiveClassName =
   "text-muted-foreground hover:text-foreground"
 const dashboardToolbarButtonGroupClassName =
-  "flex h-8 overflow-hidden rounded-lg border sm:h-9"
+  "flex h-8 overflow-hidden rounded-lg border"
 const dashboardToolbarButtonGroupItemClassName =
   "h-full border-0 first:rounded-r-none last:rounded-l-none"
 const dashboardToolbarButtonActiveClassName =
@@ -82,7 +82,7 @@ function DashboardToolbarSearch({
         inputMode="search"
         autoComplete="off"
         className={cn(
-          "h-8 w-full pr-8 pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]",
+          "h-8 w-full pr-8 pl-9 text-sm sm:w-[180px] sm:pl-10 lg:w-[240px]",
           inputClassName
         )}
         {...props}
@@ -116,7 +116,7 @@ function DashboardToolbarSelectTrigger({
 }) {
   return (
     <SelectTrigger
-      className={cn("h-8 w-fit text-xs sm:h-9 sm:text-sm", className)}
+      className={cn("h-8 w-fit text-xs sm:text-sm", className)}
       {...props}
     />
   )
@@ -129,7 +129,7 @@ function DashboardToolbarButton({
   return (
     <Button
       size="sm"
-      className={cn("h-8 w-fit gap-2 sm:h-9", className)}
+      className={cn("h-8 w-fit gap-2", className)}
       {...props}
     />
   )

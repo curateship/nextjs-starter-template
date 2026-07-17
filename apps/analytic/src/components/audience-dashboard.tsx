@@ -99,7 +99,7 @@ function AudienceBody({
   })
 
   return (
-    <div className="w-full space-y-4 pb-8 sm:space-y-6">
+    <div className="w-full space-y-2 md:space-y-3">
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
