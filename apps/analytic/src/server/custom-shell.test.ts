@@ -163,7 +163,12 @@ describe("custom shell workspaces", () => {
     })
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
+    // Analytics section is prepended ahead of Platform Settings.
     expect(defaultSettings.sections[0]?.entries).toMatchObject([
+      { type: "item", label: "Overview", href: "/", visible: true },
+      { type: "item", label: "Sites", href: "/sites", visible: true },
+    ])
+    expect(defaultSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Feedback",
@@ -208,7 +213,7 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
+    expect(secondSettings.sections[1]?.entries).toMatchObject([
       {
         type: "item",
         label: "Feedback",

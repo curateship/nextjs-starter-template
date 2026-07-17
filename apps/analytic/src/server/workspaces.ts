@@ -376,6 +376,28 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
     {
+      id: "section-analytics",
+      title: "Analytics",
+      entries: [
+        {
+          type: "item",
+          id: "item-overview",
+          label: "Overview",
+          href: "/",
+          icon: "barChart3",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-sites",
+          label: "Sites",
+          href: "/sites",
+          icon: "globe",
+          visible: true,
+        },
+      ],
+    },
+    {
       id: "section-platform-settings",
       title: "Platform Settings",
       entries: [
