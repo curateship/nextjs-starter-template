@@ -25,6 +25,7 @@ beforeEach(async () => {
     "../../drizzle/0000_custom_shell_baseline.sql",
     "../../drizzle/0018_indicator_settings.sql",
     "../../drizzle/0019_indicator_pinned.sql",
+    "../../drizzle/0048_ema_line_colors.sql",
   ]) {
     await applyMigration(client, file)
   }
@@ -167,6 +168,28 @@ describe("upsertUserIndicator", () => {
     expect(rows).toHaveLength(1)
   })
 
+  it("round-trips per-line EMA colors and drops unknown/invalid ones", async () => {
+    const userId = await createTestUser()
+    const saved = await upsertUserIndicator(userId, {
+      id: "ema",
+      enabled: true,
+      pinned: false,
+      params: {},
+      colors: {
+        fast: "#ff0000",
+        third: "#0000ff",
+        bogus: "#00ff00",
+        slow: "not-a-color",
+      },
+    })
+
+    expect(saved.colors).toEqual({ fast: "#ff0000", third: "#0000ff" })
+    const listed = (await listUserIndicators(userId)).find(
+      (ind) => ind.id === "ema"
+    )
+    expect(listed?.colors).toEqual({ fast: "#ff0000", third: "#0000ff" })
+  })
+
   it("drops params keys the indicator type does not define", async () => {
     const userId = await createTestUser()
     await upsertUserIndicator(userId, {
@@ -195,6 +218,7 @@ describe("upsertUserIndicator", () => {
       { showFast: 2 },
       { fast: 0 },
       { slow: 10.5 },
+      { third: 500 },
     ]
     for (const params of invalidParams) {
       await expect(

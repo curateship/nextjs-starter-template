@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm"
 
 import {
   DEFAULT_INDICATORS,
-  EMA_TOGGLES,
+  EMA_LINES,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
   QQE_MA_TYPES,
@@ -31,6 +31,9 @@ function overlay(def: IndicatorConfig, row: IndicatorRow): IndicatorConfig {
   }
   if (row.name) config.name = row.name
   if (row.color) config.color = row.color
+  if (row.colors && Object.keys(row.colors).length > 0) {
+    config.colors = row.colors
+  }
   if (def.type === "session") {
     config.session = isSessionKey(row.session) ? row.session : (def.session as SessionKey)
   }
@@ -60,8 +63,11 @@ export type UpsertIndicatorInput = {
   params: Record<string, number>
   name?: string
   color?: string
+  colors?: Record<string, string>
   session?: SessionKey
 }
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
 
 /** Creates or updates the user's row for one known indicator. */
 export async function upsertUserIndicator(
@@ -91,19 +97,20 @@ export async function upsertUserIndicator(
     }
   }
   if (def.type === "ema") {
-    for (const toggle of EMA_TOGGLES) {
-      const value = input.params[toggle.key]
-      if (value !== undefined && value !== 0 && value !== 1) {
-        throw new Error(`Invalid EMA parameter: ${toggle.key}`)
+    for (const line of EMA_LINES) {
+      const toggle = input.params[line.toggleKey]
+      if (toggle !== undefined && toggle !== 0 && toggle !== 1) {
+        throw new Error(`Invalid EMA parameter: ${line.toggleKey}`)
       }
-    }
-    for (const field of INDICATOR_PARAM_FIELDS.ema) {
-      const value = input.params[field.key]
+      const period = input.params[line.periodKey]
       if (
-        value !== undefined &&
-        (!Number.isFinite(value) || value < 2 || !Number.isInteger(value))
+        period !== undefined &&
+        (!Number.isFinite(period) ||
+          period < 2 ||
+          period > 400 ||
+          !Number.isInteger(period))
       ) {
-        throw new Error(`Invalid EMA parameter: ${field.key}`)
+        throw new Error(`Invalid EMA parameter: ${line.periodKey}`)
       }
     }
   }
@@ -185,13 +192,23 @@ export async function upsertUserIndicator(
     ...(def.type === "priceAction"
       ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
       : []),
-    ...(def.type === "ema" ? EMA_TOGGLES.map((toggle) => toggle.key) : []),
+    ...(def.type === "ema"
+      ? EMA_LINES.flatMap((line) => [line.periodKey, line.toggleKey])
+      : []),
   ]
   const params = Object.fromEntries(
     paramKeys
       .filter((key) => input.params[key] !== undefined)
       .map((key) => [key, input.params[key]])
   )
+  // Per-line colors: only the keys this type defines, only valid hex.
+  const colorEntries =
+    def.type === "ema" && input.colors
+      ? EMA_LINES.flatMap((line) => {
+          const value = input.colors?.[line.key]
+          return value && HEX_COLOR.test(value) ? [[line.key, value]] : []
+        })
+      : []
   const values = {
     userId,
     indicatorId: def.id,
@@ -201,6 +218,8 @@ export async function upsertUserIndicator(
     pinned: input.pinned,
     params,
     color: input.color ?? null,
+    colors:
+      colorEntries.length > 0 ? Object.fromEntries(colorEntries) : null,
     session: def.type === "session" ? (input.session ?? "nyse") : null,
     updatedAt: now(),
   }

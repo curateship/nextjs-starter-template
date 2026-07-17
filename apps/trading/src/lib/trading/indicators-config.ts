@@ -47,13 +47,17 @@ export type IndicatorConfig = {
   params: Record<string, number>
   /** Optional override for the indicator's primary line color. */
   color?: string
+  /** Per-line color overrides for multi-line indicators (EMA: fast/slow/third). */
+  colors?: Record<string, string>
   /** Which session the Sessions indicator draws (type "session" only). */
   session?: SessionKey
 }
 
 export const DEFAULT_INDICATORS: IndicatorConfig[] = [
   // One EMA indicator with up to three lines — the SAME settings shape the
-  // EMA Cross strategy uses, so chart and strategy always match.
+  // EMA Cross strategy uses, so chart and strategy always match. Each line
+  // gets its own settings card and its own color (the `colors` map); the two
+  // fastest switched-on lines drive the chart's cross arrows.
   {
     id: "ema",
     type: "ema",
@@ -205,25 +209,40 @@ export function trendlineChartToModuleParams(
   }
 }
 
-/** The EMA indicator's per-line on/off switches (stored as 0/1). */
-export const EMA_TOGGLES = [
-  { key: "showFast", periodKey: "fast", label: "EMA 1" },
-  { key: "showSlow", periodKey: "slow", label: "EMA 2" },
-  { key: "showThird", periodKey: "third", label: "EMA 3" },
+/** The EMA indicator's three lines: per-line period/toggle params, the color
+ * key in `config.colors`, and the palette slot each line defaults to. */
+export const EMA_LINES = [
+  {
+    key: "fast",
+    toggleKey: "showFast",
+    periodKey: "fast",
+    slot: "ema-fast",
+    label: "EMA 1",
+  },
+  {
+    key: "slow",
+    toggleKey: "showSlow",
+    periodKey: "slow",
+    slot: "ema-slow",
+    label: "EMA 2",
+  },
+  {
+    key: "third",
+    toggleKey: "showThird",
+    periodKey: "third",
+    slot: "ema-third",
+    label: "EMA 3",
+  },
 ] as const
 
-/** The chart lines an EMA config draws: switched-on entries with the palette
- * slot each line colors from. */
-export function emaLines(
-  params: Record<string, number>
-): { slot: "ema-fast" | "ema-slow" | "ema-third"; period: number }[] {
-  const slots = ["ema-fast", "ema-slow", "ema-third"] as const
-  return EMA_TOGGLES.flatMap((toggle, index) => {
-    const period = params[toggle.periodKey]
-    const on = (params[toggle.key] ?? 1) !== 0
+export type EmaLineDef = (typeof EMA_LINES)[number]
+
+/** The chart lines an EMA config draws: switched-on entries with a valid period. */
+export function emaLines(params: Record<string, number>): EmaLineDef[] {
+  return EMA_LINES.filter((line) => {
+    const period = params[line.periodKey]
+    const on = (params[line.toggleKey] ?? 1) !== 0
     return on && Number.isFinite(period) && period >= 2
-      ? [{ slot: slots[index], period }]
-      : []
   })
 }
 
@@ -256,11 +275,9 @@ export const INDICATOR_PARAM_FIELDS: Record<
   IndicatorType,
   IndicatorParamFieldDef[]
 > = {
-  ema: [
-    { key: "fast", label: "EMA 1 period" },
-    { key: "slow", label: "EMA 2 period" },
-    { key: "third", label: "EMA 3 period" },
-  ],
+  // EMA renders its own per-line cards in the settings dialog (EMA_LINES),
+  // not this generic field list.
+  ema: [],
   bollinger: [
     { key: "period", label: "Period" },
     { key: "k", label: "StdDev", step: 0.5 },
@@ -393,7 +410,7 @@ export function indicatorDisplayName(config: IndicatorConfig): string {
   if (custom) return custom
   const label = INDICATOR_LABELS[config.type]
   if (config.type !== "ema") return label
-  const periods = emaLines(config.params).map((line) => line.period)
+  const periods = emaLines(config.params).map((line) => config.params[line.periodKey])
   return periods.length > 0 ? `${label} ${periods.join("/")}` : label
 }
 
@@ -403,7 +420,7 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
   if (config.type === "ema") {
     const lines = emaLines(config.params)
     return lines.length > 0
-      ? lines.map((line) => `EMA ${line.period}`).join(" · ")
+      ? lines.map((line) => `EMA ${config.params[line.periodKey]}`).join(" · ")
       : "All lines off"
   }
   if (config.type === "priceAction") {
