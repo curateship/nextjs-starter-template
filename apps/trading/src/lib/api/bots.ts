@@ -99,6 +99,7 @@ export type BotDetailResponse = {
     wins: number
     losses: number
   }
+  workerOnline: boolean
 }
 
 const createBotSchema = z.object({
@@ -153,7 +154,10 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<BotDetailResponse> => {
     const user = await requireUser()
     const { getBotDetail } = await import("@/server/bots")
-    const detail = await getBotDetail(user.id, data.botId)
+    const [detail, workerOnline] = await Promise.all([
+      getBotDetail(user.id, data.botId),
+      botWorkerOnline(),
+    ])
 
     return {
       bot: {
@@ -225,6 +229,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         wins: Number(detail.aggregates?.wins ?? 0),
         losses: Number(detail.aggregates?.losses ?? 0),
       },
+      workerOnline,
     }
   })
 
@@ -361,22 +366,30 @@ function aggregateBotStates(
   return { positions, daily_realized_pnl: daily }
 }
 
-async function botListForUser(userId: string): Promise<BotListResponse> {
-  const { listUserBots, listUserBotStates } = await import("@/server/bots")
-  const { getGuardianStatus } = await import("@/server/guardian")
+/** True while the bot worker's newest heartbeat is fresh (last 30s). */
+async function botWorkerOnline(): Promise<boolean> {
   const { desc, sql } = await import("drizzle-orm")
   const { db } = await import("@/server/db")
   const { tradingWorkerHeartbeats } = await import("@/server/schema")
+  const [heartbeat] = await db
+    .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
+    .from(tradingWorkerHeartbeats)
+    .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
+    .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
+    .limit(1)
+  return heartbeat
+    ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000
+    : false
+}
 
-  const [rows, stateRows, [heartbeat], guardian] = await Promise.all([
+async function botListForUser(userId: string): Promise<BotListResponse> {
+  const { listUserBots, listUserBotStates } = await import("@/server/bots")
+  const { getGuardianStatus } = await import("@/server/guardian")
+
+  const [rows, stateRows, workerOnline, guardian] = await Promise.all([
     listUserBots(userId),
     listUserBotStates(userId),
-    db
-      .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
-      .from(tradingWorkerHeartbeats)
-      .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
-      .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
-      .limit(1),
+    botWorkerOnline(),
     getGuardianStatus(userId),
   ])
 
@@ -394,9 +407,7 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
       trade_count: row.tradeCount,
       ...aggregateBotStates(statesByBot.get(row.bot.id) ?? []),
     })),
-    workerOnline: heartbeat
-      ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000
-      : false,
+    workerOnline,
     guardian,
   }
 }

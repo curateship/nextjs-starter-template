@@ -1,5 +1,35 @@
 # Bots
 
+## Command feedback (honest buttons)
+
+Bot commands are queued for the worker, and the UI never pretends they
+already happened:
+
+- **In-flight badges.** While `desired_state` disagrees with `status`, the
+  badge shows a spinner with "pausing…", "stopping…", "resuming…" or
+  "starting…" instead of the stale status. The pure rules live in
+  `src/components/bots/bot-status.ts` (unit-tested): an `error`/`killed`
+  status always wins over a transient label, and a mismatch older than 30
+  seconds falls back to the real status (the command likely failed or the
+  worker is off). The server only pre-writes `starting` for start/resume;
+  pause/flatten/stop leave `status` alone until the worker really did it.
+- **One toast per command.** When the poll shows the status actually
+  converged, a single success toast fires ("Bot paused."); if the bot lands
+  in `error`/`killed` or nothing happens for 30 seconds, an error toast
+  fires instead. Tracking lives in
+  `src/components/bots/use-bot-command-toasts.ts` — a settled command is
+  removed immediately, so repeated polls can never re-toast. Global
+  Pause all / Flatten all watch every bot that was running when sent and
+  toast once when all of them left `running`. Flatten confirms the send
+  instead (its position-close isn't visible in the status when the bot is
+  already paused).
+- **Readable failures.** On `error`/`killed`, the `status_reason` shows as
+  plain text next to the badge (fleet rows and the bot header), not just in
+  a hover tooltip.
+- **Worker offline.** The fleet page and the bot detail page share the same
+  offline banner (`worker-offline-banner.tsx`); commands sent while it's
+  offline toast "Worker offline — … queued" and skip convergence tracking.
+
 ## Bot guardian (automatic kill switch)
 
 An account-level safety rule so an unattended bad day has a bounded cost.

@@ -82,9 +82,10 @@ export function BacktestAutomationDialog({
   const maxDays = maxWindowDays(interval)
   const progress = summarizeGroupProgress(runs)
 
-  // Progress phase: poll the group until every market lands, then open the
-  // result page. Closing the dialog stops polling but never stops the runs —
-  // the server queue keeps draining in the background.
+  // Progress phase: poll the group until every market lands. All-success
+  // opens the result page; any failure keeps the dialog here so the reasons
+  // don't scroll past unseen. Closing the dialog stops polling but never
+  // stops the runs — the server queue keeps draining in the background.
   React.useEffect(() => {
     if (!open || !groupId) return
     let cancelled = false
@@ -98,11 +99,13 @@ export function BacktestAutomationDialog({
           if (status.allTerminal) {
             cancelled = true
             clearInterval(timer)
-            onOpenChange(false)
-            void router.navigate({
-              to: "/backtest/$groupId",
-              params: { groupId },
-            })
+            if (status.failed === 0) {
+              onOpenChange(false)
+              void router.navigate({
+                to: "/backtest/$groupId",
+                params: { groupId },
+              })
+            }
           }
         })
         .catch(() => {
@@ -122,7 +125,16 @@ export function BacktestAutomationDialog({
     }
   }, [groupId, onOpenChange, open, router])
 
+  // Closing after the group finished resets to a fresh launch form; closing
+  // mid-run keeps the progress view so reopening shows it again.
+  React.useEffect(() => {
+    if (open || !groupId || !progress.allTerminal) return
+    setGroupId(null)
+    setRuns([])
+  }, [open, groupId, progress.allTerminal])
+
   const availableMarkets = markets.filter((row) => !selected.includes(row.coin))
+  const finishedWithFailures = progress.allTerminal && progress.failed > 0
 
   const submit = async () => {
     if (busy) return
@@ -169,7 +181,9 @@ export function BacktestAutomationDialog({
           <DialogTitle>Backtest {automationName}</DialogTitle>
           <DialogDescription>
             {groupId
-              ? `${isQfl ? "Replaying the QFL portfolio together" : "Replaying the Automation on each market"}. You can close this — it keeps running in the background.`
+              ? finishedWithFailures
+                ? "Some markets failed — each failed row shows why. The finished markets are saved in this group."
+                : `${isQfl ? "Replaying the QFL portfolio together" : "Replaying the Automation on each market"}. You can close this — it keeps running in the background.`
               : `Pick the markets and how many days to replay. Runs on ${interval} candles with this Automation's saved capital and fees.`}
           </DialogDescription>
         </DialogHeader>
@@ -178,8 +192,9 @@ export function BacktestAutomationDialog({
             <Card size="sm">
               <CardHeader>
                 <CardTitle>
-                  {progress.done} of {progress.total} market
-                  {progress.total === 1 ? "" : "s"} complete
+                  {finishedWithFailures
+                    ? `${progress.done - progress.failed} of ${progress.total} completed, ${progress.failed} failed`
+                    : `${progress.done} of ${progress.total} market${progress.total === 1 ? "" : "s"} complete`}
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-2">
@@ -190,15 +205,22 @@ export function BacktestAutomationDialog({
                   </div>
                 ) : (
                   runs.map((run) => (
-                    <div
-                      key={run.id}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <RunStatusIcon status={run.status} />
-                      <span className="font-mono">{run.market}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {STATUS_LABELS[run.status]}
-                      </span>
+                    <div key={run.id} className="grid gap-0.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <RunStatusIcon status={run.status} />
+                        <span className="font-mono">{run.market}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {STATUS_LABELS[run.status]}
+                        </span>
+                      </div>
+                      {run.status === "error" && run.error ? (
+                        <p
+                          className="line-clamp-2 pl-6 text-xs break-words text-destructive"
+                          title={run.error}
+                        >
+                          {run.error}
+                        </p>
+                      ) : null}
                     </div>
                   ))
                 )}
@@ -307,13 +329,37 @@ export function BacktestAutomationDialog({
         </DialogBody>
         <DialogFooter>
           {groupId ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Close — keeps running in the background
-            </Button>
+            finishedWithFailures ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onOpenChange(false)
+                    void router.navigate({
+                      to: "/backtest/$groupId",
+                      params: { groupId },
+                    })
+                  }}
+                >
+                  View results
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Close — keeps running in the background
+              </Button>
+            )
           ) : (
             <>
               <Button

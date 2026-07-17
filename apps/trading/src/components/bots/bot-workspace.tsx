@@ -20,9 +20,16 @@ import {
 import { BotMarketsPanel } from "@/components/bots/bot-markets-panel"
 import { BotOrderControls } from "@/components/bots/bot-order-controls"
 import {
+  COMMAND_LABELS,
+  EXPECTED_STATUS,
+  SUCCESS_TEXT,
+} from "@/components/bots/bot-status"
+import {
   BotWorkspaceHeader,
   type BotCommand,
 } from "@/components/bots/bot-workspace-header"
+import { useBotCommandToasts } from "@/components/bots/use-bot-command-toasts"
+import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import {
   PriceChart,
@@ -335,12 +342,30 @@ export function BotWorkspace({
     [refresh]
   )
 
+  const trackCommand = useBotCommandToasts(
+    React.useMemo(() => [bot], [bot])
+  )
+
   async function run(command: BotCommand) {
     setBusy(true)
     try {
-      await sendCommand(botId, command)
-      if (command === "flatten") {
+      const response = await sendCommand(botId, command)
+      if (!response.workerOnline) {
+        toast(
+          `Worker offline — ${COMMAND_LABELS[command].toLowerCase()} queued until it reconnects.`
+        )
+      } else if (command === "flatten") {
+        // Flatten's real effect (closing the position) isn't visible in the
+        // status when the bot is already paused, so confirm the send instead.
         notify("Flatten sent — closing the position and pausing the bot.", "ok")
+      } else {
+        // One toast when the poll shows the worker actually carried it out.
+        trackCommand(bot.id, {
+          ids: [bot.id],
+          isDone: (watched) => watched.status === EXPECTED_STATUS[command],
+          successText: `Bot ${SUCCESS_TEXT[command]}.`,
+          commandLabel: COMMAND_LABELS[command],
+        })
       }
       await refresh()
     } catch (error) {
@@ -522,6 +547,9 @@ export function BotWorkspace({
         onCommand={(command) => void run(command)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+      {!data.workerOnline ? (
+        <WorkerOfflineBanner className="border-b px-4 py-1.5 text-xs" />
+      ) : null}
       <ClientOnly fallback={null}>
         <div className="min-h-0 flex-1 p-2 md:p-3">
           <ResizablePanelGroup

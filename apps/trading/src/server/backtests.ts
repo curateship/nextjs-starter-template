@@ -534,6 +534,7 @@ export async function listGroupRuns(
       id: tradingBacktests.id,
       market: tradingBacktests.market,
       status: tradingBacktests.status,
+      error: tradingBacktests.error,
       netPnlPct: sql<
         string | null
       >`(${tradingBacktests.result} #>> '{stats,netPnlPct}')`,
