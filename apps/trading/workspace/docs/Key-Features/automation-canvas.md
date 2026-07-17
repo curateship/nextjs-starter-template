@@ -102,6 +102,30 @@ canvas files.
   filters whichever tab is open. Select a card to preview it, or drag/use `+`
   to add it to the canvas.
 
+## Visualize mode
+
+- A **Visualize** button floats over the canvas's top-right corner (July 17,
+  2026) and swaps the center canvas for a live price chart; a **Canvas**
+  button in the same top-right spot of the chart header swaps back. The
+  palette and inspector stay put in both modes.
+- The chart shows a picked mainnet market (saved per browser, default BTC) at
+  the automation's interval, with the compiled automation's indicator paint —
+  exactly what the backtest chart would draw. While the graph has validation
+  issues, the chart still renders but shows a "fix issues" notice instead of
+  indicator paint.
+- Settings that map to a price level render as dashed lines, and dragging a
+  dashed line rewrites that node's setting exactly like typing it in the
+  inspector (the graph goes dirty; Save persists):
+  - **Take Profit / Stop Loss** — drawn ±pct from the latest closed candle's
+    close, marked by a gray "Entry (now)" guide line. Dropping a line sets the
+    node's pct (clamped: TP 0.1–1000, SL 0.1–95, rounded to 2 decimals).
+  - **QFL** — the amber "QFL buy 1" line sits `crackPct` below the current
+    confirmed base and is draggable (clamped 0.1–50); the rest of the buy
+    ladder paints as faint non-draggable dotted lines from `qflDeviations`.
+- Lines anchor to the last CLOSED candle so they don't wobble on every tick.
+- Implementation: `automation-visualize-panel.tsx`; drag→setting math is the
+  pure `nodeAfterLineDrag` (unit-tested in `automation-visualize.test.ts`).
+
 ## Rules the compiler enforces
 
 - Trend → indicator, Look Back, Timeframe, or QFL. Look Back → indicator or

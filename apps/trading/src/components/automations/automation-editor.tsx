@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
-import { ChevronsUpIcon, XIcon } from "lucide-react"
+import { ChartCandlestickIcon, ChevronsUpIcon, XIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -10,6 +10,7 @@ import { AutomationFlowCanvas } from "@/components/automations/automation-flow-c
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { AutomationToolbar } from "@/components/automations/automation-toolbar"
+import { AutomationVisualizePanel } from "@/components/automations/automation-visualize-panel"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -94,6 +95,7 @@ export function AutomationEditor({
     width: 0,
     height: 0,
   })
+  const [visualize, setVisualize] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -421,25 +423,45 @@ export function AutomationEditor({
       onDeleteNode={deleteNode}
     />
   )
-  const canvas = (
-    <AutomationFlowCanvas
+  const centerPanel = visualize ? (
+    <AutomationVisualizePanel
       graph={graph}
-      errors={compiled.errors}
-      selectedNodeId={selectedNodeId}
-      selectedEdgeId={selectedEdgeId}
-      onGraphChange={handleCanvasGraphChange}
-      onSelectNode={selectCanvasNode}
-      onSelectEdge={setSelectedEdgeId}
-      onSizeChange={setCanvasSize}
-      onDropNode={
-        draggedNodeKey
-          ? (position) => {
-              addNode(draggedNodeKey, position)
-              setDraggedNodeKey(null)
-            }
-          : undefined
-      }
+      config={compiled.config}
+      interval={interval}
+      onNodeChange={updateNode}
+      onExit={() => setVisualize(false)}
     />
+  ) : (
+    <div className="relative flex min-h-0 min-w-0 flex-1">
+      <AutomationFlowCanvas
+        graph={graph}
+        errors={compiled.errors}
+        selectedNodeId={selectedNodeId}
+        selectedEdgeId={selectedEdgeId}
+        onGraphChange={handleCanvasGraphChange}
+        onSelectNode={selectCanvasNode}
+        onSelectEdge={setSelectedEdgeId}
+        onSizeChange={setCanvasSize}
+        onDropNode={
+          draggedNodeKey
+            ? (position) => {
+                addNode(draggedNodeKey, position)
+                setDraggedNodeKey(null)
+              }
+            : undefined
+        }
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute top-3 right-3 z-10 h-8 shadow-sm"
+        onClick={() => setVisualize(true)}
+      >
+        <ChartCandlestickIcon className="size-3.5" />
+        Visualize
+      </Button>
+    </div>
   )
   const workspace = desktop ? (
     <ResizablePanelGroup
@@ -471,7 +493,7 @@ export function AutomationEditor({
       </ResizablePanel>
       <ResizableHandle gap />
       <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
-        <WorkspacePanel className="flex">{canvas}</WorkspacePanel>
+        <WorkspacePanel className="flex">{centerPanel}</WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap />
       <ResizablePanel
@@ -488,7 +510,7 @@ export function AutomationEditor({
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
-    <WorkspacePanel className="flex">{canvas}</WorkspacePanel>
+    <WorkspacePanel className="flex">{centerPanel}</WorkspacePanel>
   )
 
   return (

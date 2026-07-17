@@ -63,6 +63,7 @@ import {
   rsi,
 } from "@/lib/strategies/indicators"
 import {
+  bollingerChartToModuleParams,
   emaLines,
   fairValueGapChartToModuleParams,
   indicatorColor,
@@ -2240,6 +2241,7 @@ export function PriceChart({
   onLineClick,
   onLineCancel,
   onChartContextMenu,
+  onCandlesChange,
   registerApi,
   trendlineDrawing,
   onTrendlineDrawingChange,
@@ -2272,6 +2274,8 @@ export function PriceChart({
   onLineCancel?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
+  /** Fired with the merged (history + live) candle window whenever it changes. */
+  onCandlesChange?: (candles: ChartCandle[]) => void
   /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
   registerApi?: (api: PriceChartHandle | null) => void
   /** Activates the chart's one-shot trendline drawing tool. */
@@ -2365,6 +2369,12 @@ export function PriceChart({
     for (const candle of liveCandles) byTime.set(candle.t, candle)
     return [...byTime.values()].sort((a, b) => a.t - b.t)
   }, [liveCandles, history, dataKey])
+
+  // Mirrors the merged candle window to the parent (e.g. the Automation
+  // visualize panel derives its draggable price levels from it).
+  React.useEffect(() => {
+    onCandlesChange?.(candles)
+  }, [candles, onCandlesChange])
 
   const handleVisibleRange = React.useCallback(
     (fromSec: number) => {
@@ -2536,7 +2546,9 @@ export function PriceChart({
     const cfg = indicators.find(
       (ind) => ind.type === "trendline" && ind.enabled
     )
-    if (!cfg || candles.length === 0) return { overlayLines: [] }
+    if (!cfg || candles.length === 0) {
+      return { overlayLines: [], markers: [] as ChartMarker[] }
+    }
     const numeric = candles.map((c) => ({
       t: c.t,
       o: Number(c.o),
@@ -2549,7 +2561,39 @@ export function PriceChart({
       numeric,
       trendlineChartToModuleParams(cfg.params) as never
     )
-    return { overlayLines: outputToOverlays(out).overlayLines }
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    const markers: ChartMarker[] = out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
+    return { overlayLines: outputToOverlays(out).overlayLines, markers }
+  }, [indicators, candles])
+
+  // Bollinger arrows: the bands themselves render from the chart's own
+  // config; the buy/sell arrows come from the module so the chart marks
+  // exactly what the Bollinger strategy node (same mode) would trade.
+  const bollingerMarkers = React.useMemo<ChartMarker[]>(() => {
+    const cfg = indicators.find(
+      (ind) => ind.type === "bollinger" && ind.enabled
+    )
+    if (!cfg || candles.length === 0) return []
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.bollinger.compute(
+      numeric,
+      bollingerChartToModuleParams(cfg.params) as never
+    )
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    return out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
   }, [indicators, candles])
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
@@ -2668,6 +2712,8 @@ export function PriceChart({
         ...qqe.markers,
         ...emaCrossMarkers,
         ...priceActionMarkers,
+        ...bollingerMarkers,
+        ...trendline.markers,
       ]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={[

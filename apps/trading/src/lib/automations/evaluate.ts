@@ -4,7 +4,6 @@ import type {
   IndicatorPaint,
 } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
-import { qflBase } from "@/lib/strategies/indicators"
 
 import {
   AUTOMATION_INTERVAL_MS,
@@ -214,18 +213,17 @@ export function evaluateAutomation(
     : []
 
   if (config.qfl) {
-    const bases = qflBase(
-      candles,
-      config.qfl.basePeriods,
-      config.qfl.pumpPeriods
-    ).line
-    paint.lines.push({
+    // Emit the chart's own Base indicator config (NOT a line series): the
+    // chart draws each base as its own short horizontal dash, exactly like
+    // the pinned Base overlay — a connected line would ramp between bases.
+    paint.indicators.push({
       id: `${config.qfl.nodeId}:base`,
-      label: "QFL Base",
-      color: "#14b8a6",
-      points: bases.flatMap((value, index) =>
-        Number.isFinite(value) ? [{ time: candles[index].t, value }] : []
-      ),
+      type: "base",
+      enabled: true,
+      params: {
+        basePeriods: config.qfl.basePeriods,
+        pumpPeriods: config.qfl.pumpPeriods,
+      },
     })
   }
 
