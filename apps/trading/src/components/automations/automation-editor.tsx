@@ -514,7 +514,7 @@ export function AutomationEditor({
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-muted/60">
+    <div className="flex h-full min-h-0 flex-col bg-muted/60 dark:bg-background">
       <AutomationToolbar
         name={name}
         runnable={compiled.config !== null && !dirty && !saving}

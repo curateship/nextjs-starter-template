@@ -7,7 +7,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Reuse components from `src/components/ui/`, existing app shells, and established chart, toolbar, and card patterns. Do not hand-roll parallel buttons, forms, tables, modals, cards, or scroll areas.
 - Prefer the app's existing shadcn components and keep shared styling in primitives, not repeated page-level classes.
 - Match neighboring screens and use semantic theme tokens instead of hardcoded colors.
-- The default page canvas is `bg-muted/60`. Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
+- The default page canvas is `bg-muted/60 dark:bg-background`. In dark mode the canvas must track the true Background color (near black at 0% dark-theme brightness) so it matches the Appearance settings preview and darkens with the brightness slider; translucent muted stays light-gray and does not. Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
 
 ## Spacing and Page Layout
 

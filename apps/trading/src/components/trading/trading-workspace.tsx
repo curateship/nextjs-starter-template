@@ -654,7 +654,7 @@ export function TradingWorkspace({
           : null
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
       <AccountStrip
         options={options}
         selectedValue={selectedValue}
