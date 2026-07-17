@@ -13,7 +13,8 @@ Use these rules for every new or modified interface, in every app in this monore
 - Reuse components from `src/components/ui/`, existing app shells, and established chart, toolbar, and card patterns. Do not hand-roll parallel buttons, forms, tables, modals, cards, or scroll areas.
 - Prefer the app's existing shadcn components and keep shared styling in primitives, not repeated page-level classes.
 - Match neighboring screens and use semantic theme tokens instead of hardcoded colors.
-- The default page canvas is `bg-muted/60`. Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
+- The default page canvas is `bg-muted/60` — in every app, not just Trading. Both the app-shell root wrapper (`min-h-screen bg-muted/60`) and the `DashboardContent` main region use `bg-muted/60`; never `bg-background` for the shell or main content area. `bg-background` is reserved for surfaces that deliberately sit on the base (e.g. sidebars, popovers), not the page canvas.
+- Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
 
 ## Spacing and Page Layout
 
