@@ -135,6 +135,9 @@ export const shellGlobalsSchema = z
         )
       ),
     mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
+    // Lenient: settings saved before the home route existed fall back to the
+    // default (empty = Home dashboard) instead of failing to parse.
+    adminRoute: z.string().catch(""),
   })
   .strict()
 
@@ -154,8 +157,6 @@ export const shellConfigSchema = shellGlobalsSchema
       .max(MAX_SIDEBAR_WIDTH),
     // Per-workspace "duck under voice" amount in dB; loader always populates it.
     duckingDb: z.number().min(DUCK_DB_MIN).max(DUCK_DB_MAX),
-    // Route the app opens to on the app root; loader always populates it.
-    defaultRoute: z.string().min(1).max(2048),
     favicon: z.string(),
     brandKit: brandKitConfigSchema,
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),

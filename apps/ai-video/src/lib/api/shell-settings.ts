@@ -63,7 +63,6 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         defaultApiUsageMonthlyCredits,
         sidebarWidth: workspaceSettings.sidebarWidth,
         duckingDb: workspaceSettings.duckingDb,
-        defaultRoute: workspaceSettings.defaultRoute,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topRightNavigation: workspaceSettings.topRightNavigation,
@@ -103,7 +102,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             duckingDb: data.duckingDb,
-            defaultRoute: data.defaultRoute,
             favicon: data.favicon,
             brandKit,
             topRightNavigation: data.topRightNavigation,
@@ -212,6 +210,7 @@ function pickShellGlobals(settings: ShellConfig) {
       API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     mediaUploadMaxMb: settings.mediaUploadMaxMb,
+    adminRoute: settings.adminRoute,
   }
 }
 

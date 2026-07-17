@@ -4,7 +4,6 @@ import { z } from "zod"
 import {
   createDefaultBrandKitConfig,
   createDefaultTopRightNavigation,
-  DEFAULT_ADMIN_ROUTE,
   iconMeta,
   type BrandKitConfig,
   type IconKey,
@@ -42,8 +41,6 @@ export type WorkspaceSettings = {
   brandKit: BrandKitConfig
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
-  // Route the app opens to when a user lands on the app root ("/" = home).
-  defaultRoute: string
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   // How far a ducked ("music") track drops under voice on export, in dB
@@ -62,8 +59,6 @@ const workspaceSettingsSchema = z
     brandKit: brandKitConfigSchema,
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
-    // Default fills rows saved before the landing route was configurable.
-    defaultRoute: z.string().min(1).max(2048).default(DEFAULT_ADMIN_ROUTE),
     // Default fills rows saved before this field existed.
     sidebarWidth: z
       .number()
@@ -387,26 +382,31 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   return parsed.data
 }
 
-// Removes the retired `topNavigation` key from persisted workspace settings.
+// Removes retired keys (`topNavigation`, `defaultRoute`) from persisted
+// workspace settings.
 //
 // Why this exists: the settings schema is `.strict()`, so a row saved while
-// `topNavigation` was still a field would otherwise fail to parse and reset the
+// these were still fields would otherwise fail to parse and reset the
 // workspace to default settings on load. This repo's migrations are applied by
 // hand out-of-band, so a strict reject would break every existing workspace in
 // the window between deploying this code and running that cleanup.
 //
-// Narrow and temporary: it strips only this one named key, and every settings
-// save rewrites the row without it. Delete once no workspace row still carries
-// `topNavigation`.
+// Narrow and temporary: it strips only these named keys, and every settings
+// save rewrites the row without them. Delete once no workspace row still
+// carries them.
+const LEGACY_SETTINGS_KEYS = ["topNavigation", "defaultRoute"] as const
+
 function stripLegacySettings(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value
   }
-  if (!("topNavigation" in value)) {
+  if (!LEGACY_SETTINGS_KEYS.some((key) => key in value)) {
     return value
   }
   const rest = { ...(value as Record<string, unknown>) }
-  delete rest.topNavigation
+  for (const key of LEGACY_SETTINGS_KEYS) {
+    delete rest[key]
+  }
   return rest
 }
 

@@ -13,6 +13,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -61,6 +63,16 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminSettingsRoute =
@@ -242,6 +254,7 @@ const AuthenticatedAdminVideoEditorTemplateTemplateIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
   '/admin/api-usage': typeof AuthenticatedAdminApiUsageRoute
@@ -251,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
@@ -276,6 +290,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
@@ -286,6 +301,7 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
@@ -313,6 +329,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/actor': typeof AuthenticatedAdminActorRoute
@@ -323,6 +340,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/carousels/$carouselId': typeof AuthenticatedAdminCarouselsCarouselIdRoute
   '/_authenticated/admin/creators/$creatorId': typeof AuthenticatedAdminCreatorsCreatorIdRoute
@@ -351,6 +369,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/home'
     | '/workspaces'
     | '/admin/actor'
     | '/admin/api-usage'
@@ -360,6 +379,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin/'
     | '/admin/automations/$automationId'
     | '/admin/carousels/$carouselId'
     | '/admin/creators/$creatorId'
@@ -385,6 +405,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/home'
     | '/workspaces'
     | '/'
     | '/admin/actor'
@@ -395,6 +416,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/admin'
     | '/admin/automations/$automationId'
     | '/admin/carousels/$carouselId'
     | '/admin/creators/$creatorId'
@@ -421,6 +443,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/actor'
@@ -431,6 +454,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/'
     | '/_authenticated/admin/automations/$automationId'
     | '/_authenticated/admin/carousels/$carouselId'
     | '/_authenticated/admin/creators/$creatorId'
@@ -497,6 +521,20 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings': {
@@ -742,6 +780,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminActorRoute: typeof AuthenticatedAdminActorRoute
@@ -752,6 +791,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminCarouselsCarouselIdRoute: typeof AuthenticatedAdminCarouselsCarouselIdRoute
   AuthenticatedAdminCreatorsCreatorIdRoute: typeof AuthenticatedAdminCreatorsCreatorIdRoute
@@ -766,6 +806,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminActorRoute: AuthenticatedAdminActorRoute,
@@ -776,6 +817,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminCarouselsCarouselIdRoute:

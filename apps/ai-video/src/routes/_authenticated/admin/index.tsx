@@ -4,9 +4,10 @@ import { loadShellSettings } from "@/lib/api/shell-settings"
 import { configuredRouteTarget } from "@/lib/home-route"
 
 /**
- * Home forwards to the configured route, or the Home dashboard by default.
+ * `/admin` forwards to the configured home route, or the Home dashboard by
+ * default.
  */
-export const Route = createFileRoute("/_authenticated/")({
+export const Route = createFileRoute("/_authenticated/admin/")({
   loader: async () => {
     const { settings } = await loadShellSettings()
     const target = configuredRouteTarget(settings.adminRoute) ?? "/home"
