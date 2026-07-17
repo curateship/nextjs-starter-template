@@ -15,7 +15,11 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedEmailSettingsRouteImport } from './routes/_authenticated/email-settings'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
+import { Route as AuthenticatedBroadcastsIndexRouteImport } from './routes/_authenticated/broadcasts/index'
 import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
+import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
+import { Route as AuthenticatedBroadcastsTemplatesRouteImport } from './routes/_authenticated/broadcasts/templates'
+import { Route as AuthenticatedBroadcastsBroadcastIdRouteImport } from './routes/_authenticated/broadcasts/$broadcastId'
 import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -56,10 +60,33 @@ const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBroadcastsIndexRoute =
+  AuthenticatedBroadcastsIndexRouteImport.update({
+    id: '/broadcasts/',
+    path: '/broadcasts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAutomationsIndexRoute =
   AuthenticatedAutomationsIndexRouteImport.update({
     id: '/automations/',
     path: '/automations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const ApiV1UnsubscribeRoute = ApiV1UnsubscribeRouteImport.update({
+  id: '/api/v1/unsubscribe',
+  path: '/api/v1/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedBroadcastsTemplatesRoute =
+  AuthenticatedBroadcastsTemplatesRouteImport.update({
+    id: '/broadcasts/templates',
+    path: '/broadcasts/templates',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedBroadcastsBroadcastIdRoute =
+  AuthenticatedBroadcastsBroadcastIdRouteImport.update({
+    id: '/broadcasts/$broadcastId',
+    path: '/broadcasts/$broadcastId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAutomationsAutomationIdRoute =
@@ -125,7 +152,11 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
+  '/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
@@ -142,7 +173,11 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/automations': typeof AuthenticatedAutomationsIndexRoute
+  '/broadcasts': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
@@ -161,7 +196,11 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/_authenticated/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/_authenticated/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
+  '/_authenticated/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
@@ -180,7 +219,11 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/automations/$automationId'
+    | '/broadcasts/$broadcastId'
+    | '/broadcasts/templates'
+    | '/api/v1/unsubscribe'
     | '/automations/'
+    | '/broadcasts/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/contacts/ingest'
@@ -197,7 +240,11 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/automations/$automationId'
+    | '/broadcasts/$broadcastId'
+    | '/broadcasts/templates'
+    | '/api/v1/unsubscribe'
     | '/automations'
+    | '/broadcasts'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/api/v1/contacts/ingest'
@@ -215,7 +262,11 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
     | '/_authenticated/automations/$automationId'
+    | '/_authenticated/broadcasts/$broadcastId'
+    | '/_authenticated/broadcasts/templates'
+    | '/api/v1/unsubscribe'
     | '/_authenticated/automations/'
+    | '/_authenticated/broadcasts/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/contacts/ingest'
@@ -225,6 +276,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiV1UnsubscribeRoute: typeof ApiV1UnsubscribeRoute
   ApiV1ContactsIngestRoute: typeof ApiV1ContactsIngestRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
@@ -273,11 +325,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContactsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/broadcasts/': {
+      id: '/_authenticated/broadcasts/'
+      path: '/broadcasts'
+      fullPath: '/broadcasts/'
+      preLoaderRoute: typeof AuthenticatedBroadcastsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/automations/': {
       id: '/_authenticated/automations/'
       path: '/automations'
       fullPath: '/automations/'
       preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/v1/unsubscribe': {
+      id: '/api/v1/unsubscribe'
+      path: '/api/v1/unsubscribe'
+      fullPath: '/api/v1/unsubscribe'
+      preLoaderRoute: typeof ApiV1UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/broadcasts/templates': {
+      id: '/_authenticated/broadcasts/templates'
+      path: '/broadcasts/templates'
+      fullPath: '/broadcasts/templates'
+      preLoaderRoute: typeof AuthenticatedBroadcastsTemplatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/broadcasts/$broadcastId': {
+      id: '/_authenticated/broadcasts/$broadcastId'
+      path: '/broadcasts/$broadcastId'
+      fullPath: '/broadcasts/$broadcastId'
+      preLoaderRoute: typeof AuthenticatedBroadcastsBroadcastIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/automations/$automationId': {
@@ -385,7 +465,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
+  AuthenticatedBroadcastsBroadcastIdRoute: typeof AuthenticatedBroadcastsBroadcastIdRoute
+  AuthenticatedBroadcastsTemplatesRoute: typeof AuthenticatedBroadcastsTemplatesRoute
   AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
+  AuthenticatedBroadcastsIndexRoute: typeof AuthenticatedBroadcastsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -399,7 +482,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAutomationsAutomationIdRoute:
     AuthenticatedAutomationsAutomationIdRoute,
+  AuthenticatedBroadcastsBroadcastIdRoute:
+    AuthenticatedBroadcastsBroadcastIdRoute,
+  AuthenticatedBroadcastsTemplatesRoute: AuthenticatedBroadcastsTemplatesRoute,
   AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
+  AuthenticatedBroadcastsIndexRoute: AuthenticatedBroadcastsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -409,6 +496,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiV1UnsubscribeRoute: ApiV1UnsubscribeRoute,
   ApiV1ContactsIngestRoute: ApiV1ContactsIngestRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
