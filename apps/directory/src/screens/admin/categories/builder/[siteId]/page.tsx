@@ -5,7 +5,11 @@ import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  useBuilderRouteSiteSync,
+  useSelectedBuilderSlug,
+  useSyncedBuilderBlocks,
+} from "@/components/admin/layout/builder/useBuilderRouteState"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
@@ -21,7 +25,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [categories, setCategories] = useState<Category[]>([])
 
   // Get category from URL params
@@ -30,21 +33,12 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
   const [blockListOpen, setBlockListOpen] = useState(false)
 
-  // Keep the site switcher aligned with the route before redirecting.
-  useEffect(() => {
-    if (currentSite?.id === siteId) return
-
-    const routeSite = sites.find((site) => site.id === siteId)
-    if (routeSite) {
-      setCurrentSite(routeSite)
-      return
-    }
-
-    if (currentSite) {
-      const categoryQuery = urlCategory ? `?category=${encodeURIComponent(urlCategory)}` : ''
-      router.push(`/admin/categories/builder/${currentSite.id}${categoryQuery}`)
-    }
-  }, [currentSite, router, setCurrentSite, siteId, sites, urlCategory])
+  useBuilderRouteSiteSync({
+    builderPath: "/admin/categories/builder",
+    queryParam: "category",
+    queryValue: urlCategory,
+    siteId,
+  })
 
   // Load categories (raw rows — settings modal needs row-level _settings)
   useEffect(() => {
@@ -65,34 +59,19 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     loadCategories()
   }, [siteId, urlCategory])
 
-  useEffect(() => {
-    if (categories.length === 0) return
-
-    const matchingCategory = categories.find((category) => category.slug === urlCategory)
-    if (matchingCategory) {
-      if (selectedCategory !== matchingCategory.slug) {
-        setSelectedCategory(matchingCategory.slug)
-      }
-      return
-    }
-
-    const firstCategory = categories[0]
-    if (selectedCategory !== firstCategory.slug) {
-      setSelectedCategory(firstCategory.slug)
-    }
-    if (urlCategory !== firstCategory.slug) {
-      router.replace(`/admin/categories/builder/${siteId}?category=${encodeURIComponent(firstCategory.slug)}`)
-    }
-  }, [categories, router, selectedCategory, siteId, urlCategory])
+  useSelectedBuilderSlug({
+    builderPath: "/admin/categories/builder",
+    items: categories,
+    queryParam: "category",
+    selectedSlug: selectedCategory,
+    setSelectedSlug: setSelectedCategory,
+    siteId,
+    slugFromUrl: urlCategory,
+  })
 
   // Custom hooks for data and state management (blocks are template-merged)
   const { site, blocks, blocksLoading } = useCategoryData(siteId, selectedCategory)
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks({ ...blocks })
-  }, [blocks])
+  const [localBlocks, setLocalBlocks] = useSyncedBuilderBlocks(blocks, { shallowCopy: true })
 
   const builderState = useCategoryBuilder({
     blocks: localBlocks,
