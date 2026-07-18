@@ -1,5 +1,5 @@
 import { betterAuth } from 'better-auth'
-import { admin } from 'better-auth/plugins'
+import { admin, magicLink, oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Pool } from 'pg'
 import * as bcrypt from 'bcryptjs'
@@ -31,7 +31,10 @@ type VerificationEmailConfig = {
   providerType: 'resend'
 }
 
-type AuthEmailTemplateKey = Extract<SystemEmailTemplateKey, 'email_verification' | 'email_change_confirmation'>
+type AuthEmailTemplateKey = Extract<
+  SystemEmailTemplateKey,
+  'email_verification' | 'email_change_confirmation' | 'magic_link'
+>
 
 type ResolvedRequestSite = {
   id: string
@@ -343,6 +346,35 @@ async function sendAuthVerificationEmail(email: string, url: string, request?: R
   })
 }
 
+// Dev only: baseURL is pinned to the local origin (VITE_DIRECTORY_ORIGIN), so
+// rewrite the console link's host to the tenant host that made the request. The
+// verify response then sets the session cookie on that same host.
+function rewriteMagicLinkHostForDev(url: string, request?: Request) {
+  const hostHeader = request?.headers.get('x-forwarded-host') || request?.headers.get('host')
+  if (!hostHeader) return url
+
+  try {
+    const parsed = new URL(url)
+    parsed.host = hostHeader.split(',')[0].trim()
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+async function sendAuthMagicLinkEmail(email: string, url: string, request?: Request) {
+  await sendAuthSystemEmail({
+    to: email,
+    request,
+    templateKey: 'magic_link',
+    tokens: await buildSystemEmailTokens({
+      magicLinkUrl: url,
+    }),
+    configError: 'Magic-link sign-in requires a configured Resend sender',
+    deliveryError: 'Failed to send magic-link email',
+  })
+}
+
 async function sendAuthChangeEmailConfirmation(email: string, newEmail: string, url: string, request?: Request) {
   await sendAuthSystemEmail({
     to: email,
@@ -424,9 +456,31 @@ async function getSessionCookieCacheVersion(
   ])
 }
 
+const googleClientId = process.env.GOOGLE_CLIENT_ID
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+
+/**
+ * Google sign-in stays dormant until a platform-level Google OAuth app is
+ * configured. Both env vars must be present for the provider to register and
+ * for the "Continue with Google" button to appear on the login block.
+ */
+export function isGoogleAuthEnabled() {
+  return Boolean(googleClientId && googleClientSecret)
+}
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || import.meta.env.VITE_APP_URL || import.meta.env.VITE_DIRECTORY_ORIGIN,
   database: pool,
+  ...(googleClientId && googleClientSecret
+    ? {
+        socialProviders: {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          },
+        },
+      }
+    : {}),
   trustedOrigins: getTrustedOrigins,
   databaseHooks: {
     user: {
@@ -468,6 +522,13 @@ export const auth = betterAuth({
   },
   account: {
     modelName: 'user_auth_paths',
+    accountLinking: {
+      enabled: true,
+      // Google verifies email ownership, so a Google sign-in on an address that
+      // already has a password account links into that same user instead of
+      // creating a duplicate.
+      trustedProviders: ['google'],
+    },
   },
   verification: {
     modelName: 'user_verifications',
@@ -502,5 +563,44 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [admin(), tanstackStartCookies()],
+  plugins: [
+    admin(),
+    magicLink({
+      // Deliver the sign-in link through the same per-site Resend sender that
+      // powers email verification, so each tenant keeps its own from-address.
+      async sendMagicLink({ email, url }, ctx) {
+        try {
+          await sendAuthMagicLinkEmail(email, url, ctx?.request)
+        } catch (error) {
+          // Local dev without a configured email sender: print the link to the
+          // server console instead of failing, mirroring the password-reset
+          // route's dev fallback. The URL never leaves the server. The send
+          // error is included so a real misconfiguration (bad key, unverified
+          // domain) is visible rather than silently masked.
+          if (process.env.NODE_ENV !== 'production') {
+            const reason = error instanceof Error ? error.message : 'unknown error'
+            const devUrl = rewriteMagicLinkHostForDev(url, ctx?.request)
+            console.info(`[magic-link] Email delivery failed (${reason}); sign-in link for ${email}: ${devUrl}`)
+            return
+          }
+          throw error
+        }
+      },
+    }),
+    // Every tenant host shares one Google app: the OAuth proxy sends Google to a
+    // single registered callback on the platform origin, then bounces the signed
+    // session back to whichever tenant host started the flow.
+    ...(googleClientId && googleClientSecret
+      ? [
+          oAuthProxy({
+            productionURL:
+              process.env.OAUTH_PROXY_PRODUCTION_URL ||
+              process.env.BETTER_AUTH_URL ||
+              getHubPlatformOrigin(),
+          }),
+        ]
+      : []),
+    // The cookie plugin must stay last so it wraps every other plugin's response.
+    tanstackStartCookies(),
+  ],
 })

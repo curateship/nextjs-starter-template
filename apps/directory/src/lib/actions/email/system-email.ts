@@ -8,6 +8,7 @@ export type SystemEmailTemplateKey =
   | 'password_reset'
   | 'email_verification'
   | 'email_change_confirmation'
+  | 'magic_link'
   | 'lead_magnet_delivery'
   | 'product_email_modal_delivery'
   | 'paid_purchase_delivery'
@@ -56,6 +57,7 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'password_reset',
   'email_verification',
   'email_change_confirmation',
+  'magic_link',
   'lead_magnet_delivery',
   'product_email_modal_delivery',
   'paid_purchase_delivery',
@@ -64,7 +66,12 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
-  return templateKey === 'password_reset' || templateKey === 'email_verification' || templateKey === 'email_change_confirmation'
+  return (
+    templateKey === 'password_reset' ||
+    templateKey === 'email_verification' ||
+    templateKey === 'email_change_confirmation' ||
+    templateKey === 'magic_link'
+  )
 }
 
 function buildDefaultBlocks(htmlContent: string) {
@@ -115,6 +122,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       subject: 'Confirm your email change',
       bodyHtml: '<p>Confirm that you want to change your email from {{current_email}} to {{new_email}}.</p><p><a href="{{confirmation_url}}">Confirm email change</a></p><p>If you did not request this change, you can ignore this email.</p>',
       tokens: ['{{app_name}}', '{{current_email}}', '{{new_email}}', '{{confirmation_url}}'],
+    }
+  }
+
+  if (templateKey === 'magic_link') {
+    return {
+      name: 'Magic Link Sign-in',
+      description: 'Sent when a user requests a one-click sign-in link.',
+      scopeLabel: 'App-wide',
+      subject: 'Your sign-in link',
+      bodyHtml: '<p>Click the link below to sign in. It expires shortly and can only be used once.</p><p><a href="{{magic_link_url}}">Sign in</a></p><p>If you did not request this, you can ignore this email.</p>',
+      tokens: ['{{app_name}}', '{{magic_link_url}}'],
     }
   }
 
@@ -251,10 +269,11 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder] = await Promise.all([
+  const [passwordReset, emailVerification, emailChangeConfirmation, magicLink, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('email_change_confirmation'),
+    getSystemEmailTemplate('magic_link'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
     getSystemEmailTemplate('product_email_modal_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
@@ -262,7 +281,7 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
   ])
 
-  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder].map((template) => {
+  return [passwordReset, emailVerification, emailChangeConfirmation, magicLink, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -345,6 +364,7 @@ export async function buildSystemEmailTokens(params: {
   resetUrl?: string | null
   verificationUrl?: string | null
   confirmationUrl?: string | null
+  magicLinkUrl?: string | null
   currentEmail?: string | null
   newEmail?: string | null
   productId?: string | null
@@ -365,6 +385,7 @@ export async function buildSystemEmailTokens(params: {
     reset_url: params.resetUrl || '',
     verification_url: params.verificationUrl || '',
     confirmation_url: params.confirmationUrl || '',
+    magic_link_url: params.magicLinkUrl || '',
     current_email: params.currentEmail || '',
     new_email: params.newEmail || '',
     site_name: '',

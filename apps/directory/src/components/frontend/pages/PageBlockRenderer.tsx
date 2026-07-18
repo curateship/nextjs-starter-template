@@ -30,6 +30,9 @@ interface BlockRendererProps {
   publicProfileContext?: Pick<PublicProfileData, "profile" | "collections">
   renderRichTextBody?: (block: SiteWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: SiteWithBlocks["blocks"][number]) => ReactNode
+  // Whether a platform Google OAuth app is configured. Computed server-side by
+  // the caller and forwarded to any auth block so the client never reads secrets.
+  googleEnabled?: boolean
 }
 
 export function BlockRenderer({
@@ -40,6 +43,7 @@ export function BlockRenderer({
   publicProfileContext,
   renderRichTextBody,
   renderBlockOverlay,
+  googleEnabled = false,
 }: BlockRendererProps) {
   const { blocks = [] } = site
   const siteChrome = resolveSiteChrome(site.settings)
@@ -216,6 +220,7 @@ export function BlockRenderer({
                 <AuthBlock
                   {...blockContent}
                   siteId={site.id}
+                  googleEnabled={googleEnabled}
                 />
               </Suspense>
             </div>

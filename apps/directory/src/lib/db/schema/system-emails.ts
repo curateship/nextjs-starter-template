@@ -11,6 +11,7 @@ export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum
   'paid_purchase_delivery',
   'pages_hero_email',
   'featured_listing_renewal_reminder',
+  'magic_link',
 ])
 
 export const emailSystemTemplates = pgTable('email_system_templates', {
