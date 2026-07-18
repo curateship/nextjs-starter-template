@@ -35,6 +35,7 @@ import {
   removeRoomMember,
   reportRoomMessage,
   roomSnapshot,
+  toggleRoomReaction,
 } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
 import {
@@ -65,6 +66,7 @@ import {
   rateLimits,
   roomBans,
   roomMemberships,
+  roomMessageReactions,
   roomMessages,
   roomReports,
   rooms,
@@ -154,6 +156,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0013_working_custom_backgrounds.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0014_room_chat_reactions.sql", import.meta.url),
       "utf8"
     )
   )
@@ -1817,8 +1825,9 @@ describe("room controls", () => {
     expect(snapshot.you).toEqual({ role: "member" })
     expect(snapshot.members.map((row) => [row.name, row.role])).toEqual([["Host Nick", "host"], ["Member Real Name", "member"]])
     expect(Object.keys(snapshot.members[0]).sort()).toEqual(["avatarIndex", "id", "joinedAt", "name", "role"])
-    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "deleted", "id", "mine"])
+    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "deleted", "id", "mine", "reactions"])
     expect(snapshot.messages.map((row) => [row.authorName, row.mine])).toEqual([["Host Nick", false], ["Member Real Name", true]])
+    expect(snapshot.messages.every((row) => Array.isArray(row.reactions))).toBe(true)
     expect(JSON.stringify(snapshot)).not.toContain("@example.com")
     expect(JSON.stringify(snapshot)).not.toContain(host.id)
 
@@ -2080,5 +2089,78 @@ describe("room moderation", () => {
 
     const all = await loadPomoderAdminData({ ...load, reportStatus: "all" }, roomDb())
     expect(all.pagination.total).toBe(2)
+  })
+
+  const reactionsFor = (snapshot: Awaited<ReturnType<typeof roomSnapshot>>, messageId: string) =>
+    snapshot.messages.find((message) => message.id === messageId)?.reactions ?? []
+
+  it("tallies reactions per person, toggles them off, and keeps the palette order", async () => {
+    const { host, member, room, hostMessage, memberMessage } = await seedModeratedRoom("reaction-room-01")
+    const stranger = await seedUser("reaction-stranger@example.com", "Stranger")
+
+    expect(await toggleRoomReaction(room.slug, host.id, memberMessage.id, "🔥", roomDb())).toMatchObject({ added: true })
+    expect(await toggleRoomReaction(room.slug, member.id, memberMessage.id, "🔥", roomDb())).toMatchObject({ added: true })
+
+    // Both people see the same total; each sees their own reaction flagged.
+    expect(reactionsFor(await roomSnapshot(room.id, member.id, roomDb()), memberMessage.id)).toEqual([{ emoji: "🔥", count: 2, mine: true }])
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), memberMessage.id)).toEqual([{ emoji: "🔥", count: 2, mine: true }])
+
+    // Toggling off removes only your own reaction; the other person's remains.
+    expect(await toggleRoomReaction(room.slug, host.id, memberMessage.id, "🔥", roomDb())).toMatchObject({ added: false })
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), memberMessage.id)).toEqual([{ emoji: "🔥", count: 1, mine: false }])
+    expect(reactionsFor(await roomSnapshot(room.id, member.id, roomDb()), memberMessage.id)).toEqual([{ emoji: "🔥", count: 1, mine: true }])
+
+    // A second emoji sorts into the fixed palette order (thumbs up before fire).
+    await toggleRoomReaction(room.slug, member.id, memberMessage.id, "👍", roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, member.id, roomDb()), memberMessage.id)).toEqual([
+      { emoji: "👍", count: 1, mine: true },
+      { emoji: "🔥", count: 1, mine: true },
+    ])
+
+    // Only the palette is accepted, and only for a real message in this room.
+    await expect(toggleRoomReaction(room.slug, member.id, memberMessage.id, "🎉", roomDb())).rejects.toThrow("INVALID_REACTION")
+    await expect(toggleRoomReaction(room.slug, stranger.id, memberMessage.id, "🔥", roomDb())).rejects.toThrow("ROOM_MEMBERSHIP_REQUIRED")
+    const { memberMessage: foreignMessage } = await seedModeratedRoom("reaction-room-02")
+    await expect(toggleRoomReaction(room.slug, member.id, foreignMessage.id, "🔥", roomDb())).rejects.toThrow("MESSAGE_NOT_FOUND")
+
+    // A deleted message drops its reactions and refuses new ones.
+    await deleteRoomMessage(room.slug, host.id, memberMessage.id, roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, member.id, roomDb()), memberMessage.id)).toEqual([])
+    await expect(toggleRoomReaction(room.slug, member.id, memberMessage.id, "🔥", roomDb())).rejects.toThrow("MESSAGE_DELETED")
+
+    // The host's own message is unaffected.
+    await toggleRoomReaction(room.slug, host.id, hostMessage.id, "❤️", roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), hostMessage.id)).toEqual([{ emoji: "❤️", count: 1, mine: true }])
+  })
+
+  it("drops reactions from members who are removed or banned, and restores them on rejoin", async () => {
+    const { host, member, room, hostMessage } = await seedModeratedRoom("reaction-room-03")
+
+    await toggleRoomReaction(room.slug, host.id, hostMessage.id, "🔥", roomDb())
+    await toggleRoomReaction(room.slug, member.id, hostMessage.id, "🔥", roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), hostMessage.id)).toEqual([{ emoji: "🔥", count: 2, mine: true }])
+
+    // Removing the member hides their reaction without deleting the row.
+    const membership = await membershipOf(room.id, member.id)
+    await removeRoomMember(room.slug, host.id, membership.id, roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), hostMessage.id)).toEqual([{ emoji: "🔥", count: 1, mine: true }])
+    expect(await database.select().from(roomMessageReactions)).toHaveLength(2)
+
+    // Rejoining restores it: the reaction belongs to an active member again.
+    await joinRoomBySlug(room.slug, member.id, roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), hostMessage.id)).toEqual([{ emoji: "🔥", count: 2, mine: true }])
+
+    // A ban ends the membership for good, so their reaction stays gone.
+    const rejoined = await membershipOf(room.id, member.id)
+    await banRoomMember(room.slug, host.id, rejoined.id, roomDb())
+    expect(reactionsFor(await roomSnapshot(room.id, host.id, roomDb()), hostMessage.id)).toEqual([{ emoji: "🔥", count: 1, mine: true }])
+  })
+
+  it("rate-limits reaction spam per person like chat", async () => {
+    const { member, room, hostMessage } = await seedModeratedRoom("reaction-room-04")
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await toggleRoomReaction(room.slug, member.id, hostMessage.id, "🔥", roomDb())
+    }
+    await expect(toggleRoomReaction(room.slug, member.id, hostMessage.id, "🔥", roomDb())).rejects.toThrow("RATE_LIMITED")
   })
 })

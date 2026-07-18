@@ -21,17 +21,20 @@ import {
   removeRoomMember,
   reportRoomMessage,
   roomSnapshot,
+  toggleRoomReaction,
   type RoomHostAction,
 } from "@/server/rooms"
 import { enqueueRoomTransition } from "@/server/queue"
 import { roomMemberships, roomMessages, rooms, subscriptions } from "@/server/schema"
 import { findCurrentUser, requireUser } from "@/server/security"
+import { ROOM_REACTION_EMOJIS, type RoomReactionEmoji } from "@/lib/room-reactions"
 
 const createRoomSchema = z.object({ name: z.string().trim().min(2).max(80), visibility: z.enum(["public", "unlisted"]), focusMinutes: z.number().int().min(1).max(90).default(25), shortBreakMinutes: z.number().int().min(1).max(90).default(5), longBreakMinutes: z.number().int().min(1).max(90).default(15), autoStart: z.boolean().default(false) })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const messageSchema = slugSchema.extend({ body: z.string().trim().min(1).max(500) })
 const actionSchema = slugSchema.extend({ action: z.enum(["start_focus", "start_break", "next_phase", "close"]) })
 const reportSchema = slugSchema.extend({ messageId: z.string().uuid(), reason: z.string().trim().min(3).max(300) })
+const reactionSchema = slugSchema.extend({ messageId: z.string().uuid(), emoji: z.enum(ROOM_REACTION_EMOJIS) })
 const deleteMessageSchema = slugSchema.extend({ messageId: z.string().uuid() })
 const memberSchema = slugSchema.extend({ membershipId: z.string().uuid() })
 
@@ -104,6 +107,16 @@ const sendMessageFn = createServerFn({ method: "POST" }).inputValidator(messageS
   return message
 })
 
+// Toggling a reaction just flips one row; the refreshed counts reach everyone
+// through the same SSE snapshot broadcast the rest of the room relies on.
+const toggleReactionFn = createServerFn({ method: "POST" }).inputValidator(reactionSchema).handler(async ({ data }) => {
+  requireAppOrigin()
+  const user = await requireUser()
+  const { room, added } = await toggleRoomReaction(data.slug, user.id, data.messageId, data.emoji)
+  await notifyRoom(room.id, "reaction")
+  return { added }
+})
+
 // Reports never notify the room: they are private to the reporter and the
 // operators, so nothing changes in other members' snapshots.
 const reportMessageFn = createServerFn({ method: "POST" }).inputValidator(reportSchema).handler(async ({ data }) => {
@@ -143,6 +156,10 @@ export const createRoom = (data: z.infer<typeof createRoomSchema>) => createRoom
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) => leaveRoomFn({ data: { slug } })
 export const sendRoomMessage = (slug: string, body: string) => sendMessageFn({ data: { slug, body } })
+// Callers pass a raw string (from the palette or a message's own reaction
+// summary); the server re-validates the emoji, so narrowing here is a boundary
+// cast, not a trust assumption.
+export const toggleReaction = (slug: string, messageId: string, emoji: string) => toggleReactionFn({ data: { slug, messageId, emoji: emoji as RoomReactionEmoji } })
 export const applyRoomAction = (slug: string, action: RoomHostAction) => roomActionFn({ data: { slug, action } })
 export const reportMessage = (slug: string, messageId: string, reason: string) => reportMessageFn({ data: { slug, messageId, reason } })
 export const deleteMessage = (slug: string, messageId: string) => deleteMessageFn({ data: { slug, messageId } })

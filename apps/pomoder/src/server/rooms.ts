@@ -1,8 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { db, pool, type PomoderDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/rate-limit"
-import { adminAuditLogs, roomBans, roomMemberships, roomMessages, roomReports, rooms, users, type Room } from "@/server/schema"
+import { adminAuditLogs, roomBans, roomMemberships, roomMessageReactions, roomMessages, roomReports, rooms, users, type Room } from "@/server/schema"
+import { isRoomReactionEmoji, roomReactionOrder } from "@/lib/room-reactions"
 
 type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
 
@@ -194,8 +195,12 @@ export type RoomSnapshot = {
   }
   you: { role: "host" | "member" }
   members: { id: string; name: string; role: string; avatarIndex: number; joinedAt: Date }[]
-  messages: { id: string; body: string; authorName: string; mine: boolean; deleted: boolean; createdAt: Date }[]
+  messages: { id: string; body: string; authorName: string; mine: boolean; deleted: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
 }
+
+// Per-emoji tally for one message. `mine` marks the emoji the viewer has
+// toggled on, so the client can highlight it and tapping toggles it back off.
+export type RoomReactionSummary = { emoji: string; count: number; mine: boolean }
 
 // The snapshot is broadcast over SSE, so it carries only what the room UI
 // renders: display names, roles, and chat bodies — never account fields.
@@ -238,14 +243,45 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
       .orderBy(roomMessages.createdAt)
       .limit(100),
   ])
+  // Reactions are only ever shown on live messages from people still in the
+  // room, so we skip tombstones here and join to active memberships below.
+  const reactionsByMessage = await loadMessageReactions(roomId, userId, messageRows.filter((message) => !message.deletedAt).map((message) => message.id), database)
   return {
     room: safeRoom,
     you: { role: membership.role as "host" | "member" },
     members: memberRows.map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId) })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
     // members see that moderation happened without ever receiving the body.
-    messages: messageRows.map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId })),
+    messages: messageRows.map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId, reactions: deletedAt ? [] : reactionsByMessage.get(message.id) ?? [] })),
   }
+}
+
+// Tallies reactions per emoji for the given messages. A reaction only counts
+// while its author still holds an active membership in this room, so a member
+// who leaves, is removed, or is banned takes their reactions with them without
+// any extra cleanup. `mine` marks the viewer's own toggled reactions.
+async function loadMessageReactions(roomId: string, userId: string, messageIds: string[], database: PomoderDb = db): Promise<Map<string, RoomReactionSummary[]>> {
+  const grouped = new Map<string, RoomReactionSummary[]>()
+  if (!messageIds.length) return grouped
+  const rows = await database
+    .select({
+      messageId: roomMessageReactions.messageId,
+      emoji: roomMessageReactions.emoji,
+      count: sql<number>`count(*)::int`,
+      mine: sql<boolean>`bool_or(${roomMessageReactions.userId} = ${userId})`,
+    })
+    .from(roomMessageReactions)
+    .innerJoin(roomMemberships, and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, roomMessageReactions.userId), sql`${roomMemberships.leftAt} is null`))
+    .where(inArray(roomMessageReactions.messageId, messageIds))
+    .groupBy(roomMessageReactions.messageId, roomMessageReactions.emoji)
+  for (const row of rows) {
+    const list = grouped.get(row.messageId) ?? []
+    list.push({ emoji: row.emoji, count: row.count, mine: Boolean(row.mine) })
+    grouped.set(row.messageId, list)
+  }
+  // Fixed palette order keeps chips from reshuffling as counts change.
+  for (const list of grouped.values()) list.sort((a, b) => roomReactionOrder(a.emoji) - roomReactionOrder(b.emoji))
+  return grouped
 }
 
 export type RoomLookup =
@@ -290,6 +326,10 @@ const REPORT_USER_LIMIT = { maxAttempts: 5, windowSeconds: 600 }
 const REPORT_ROOM_LIMIT = { maxAttempts: 30, windowSeconds: 600 }
 const MODERATE_USER_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
 const MODERATE_ROOM_LIMIT = { maxAttempts: 60, windowSeconds: 60 }
+// Reactions share chat's ceiling (20 per minute per person, per room). A toggle
+// is a single attempt whether it adds or removes, which is plenty for genuine
+// use while still stopping a reaction flood.
+const REACTION_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
 
 async function requireActiveMembership(roomId: string, userId: string, database: PomoderDb | PomoderTransaction) {
   const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
@@ -312,6 +352,27 @@ export async function reportRoomMessage(slug: string, reporterId: string, messag
     if (message.userId === reporterId) throw new Error("CANNOT_REPORT_OWN_MESSAGE")
     const inserted = await tx.insert(roomReports).values({ roomId: room.id, reporterUserId: reporterId, messageId, reason }).onConflictDoNothing().returning({ id: roomReports.id })
     return { reported: inserted.length > 0 }
+  })
+}
+
+// Toggles the caller's reaction on a message: a matching row is removed, or a
+// new one is inserted. Only active members may react, so closed rooms and
+// non-members are rejected the same way chat is. Reacting to a deleted message
+// is refused because its reactions are never shown.
+export async function toggleRoomReaction(slug: string, reactorId: string, messageId: string, emoji: string, database: PomoderDb = db) {
+  if (!isRoomReactionEmoji(emoji)) throw new Error("INVALID_REACTION")
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, reactorId, database)
+  await enforceRateLimit(`room-reaction:${room.id}:${reactorId}`, REACTION_LIMIT, database)
+  return database.transaction(async (tx) => {
+    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.deletedAt) throw new Error("MESSAGE_DELETED")
+    const removed = await tx.delete(roomMessageReactions).where(and(eq(roomMessageReactions.messageId, messageId), eq(roomMessageReactions.userId, reactorId), eq(roomMessageReactions.emoji, emoji))).returning({ id: roomMessageReactions.id })
+    if (removed.length) return { room, added: false }
+    await tx.insert(roomMessageReactions).values({ messageId, userId: reactorId, emoji }).onConflictDoNothing()
+    return { room, added: true }
   })
 }
 

@@ -1104,6 +1104,25 @@ button.pill-button { background: var(--p-accent); color: var(--p-on-accent); }
 .chat-message-actions button:disabled { cursor: not-allowed; opacity: .45; }
 .chat-message-actions svg { width: 13px; height: 13px; }
 .chat-tombstone { color: var(--p-text-subtle); font-size: 12px; font-style: italic; }
+/* Chat reactions: always-visible count chips under a message, plus the picker
+   revealed from the hover actions. Keep the actions visible while the picker is
+   open so the trigger does not vanish under the cursor. */
+.chat-message-actions:has([data-state="open"]) { opacity: 1; }
+.chat-reactions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.chat-reaction { display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(var(--p-fg-rgb),.12); border-radius: 999px; background: rgba(var(--p-fg-rgb),.05); padding: 2px 8px; color: var(--p-text-muted); line-height: 1.35; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.chat-reaction:hover:not(:disabled) { border-color: rgba(var(--p-fg-rgb),.22); background: rgba(var(--p-fg-rgb),.09); }
+.chat-reaction.mine { border-color: rgba(255,90,60,.45); background: rgba(255,90,60,.13); color: var(--p-accent-2); }
+.chat-reaction span { font-size: 13px; line-height: 1; color: inherit; }
+.chat-reaction b { font: 600 11px "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+.chat-reaction:disabled { cursor: default; opacity: .5; }
+.chat-reaction:focus-visible { outline: 2px solid var(--p-accent-2); outline-offset: 1px; }
+.reaction-picker { align-items: center; }
+.reaction-option { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid transparent; border-radius: 9px; background: transparent; padding: 0; font-size: 19px; line-height: 1; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.reaction-option span { line-height: 1; }
+.reaction-option:hover:not(:disabled) { background: rgba(var(--p-fg-rgb),.08); }
+.reaction-option.active { border-color: rgba(255,90,60,.45); background: rgba(255,90,60,.14); }
+.reaction-option:disabled { cursor: default; opacity: .5; }
+.reaction-option:focus-visible { outline: 2px solid var(--p-accent-2); outline-offset: 1px; }
 .member-menu-trigger { display: grid; width: 26px; height: 26px; margin-left: auto; place-items: center; border: 0; border-radius: 8px; background: transparent; padding: 0; color: var(--p-text-subtle); }
 .member-menu-trigger:hover { background: rgba(var(--p-fg-rgb),.08); color: var(--p-text); }
 .member-menu-trigger:disabled { cursor: not-allowed; opacity: .45; }

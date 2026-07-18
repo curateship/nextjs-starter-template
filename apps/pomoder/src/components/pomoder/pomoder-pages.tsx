@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   SkipForward,
+  SmilePlus,
   Sparkles,
   Trash2,
   Upload,
@@ -33,6 +34,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -56,7 +62,8 @@ import { createBillingPortal, createCheckout, loadEntitlements } from "@/lib/api
 import { requestGeneration } from "@/lib/api/generation"
 import { listMedia } from "@/lib/api/pomoder-media"
 import { loadLeaderboard, loadProductivity } from "@/lib/api/productivity"
-import { applyRoomAction, banMember, createRoom, deleteMessage, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, removeMember, reportMessage, sendRoomMessage } from "@/lib/api/rooms"
+import { applyRoomAction, banMember, createRoom, deleteMessage, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, removeMember, reportMessage, sendRoomMessage, toggleReaction } from "@/lib/api/rooms"
+import { ROOM_REACTION_EMOJIS, roomReactionLabel } from "@/lib/room-reactions"
 
 export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
   const { user } = useRouteContext({ from: "__root__" })
@@ -324,6 +331,7 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
   const [panelNotice, setPanelNotice] = React.useState("")
   const [reporting, setReporting] = React.useState<{ id: string; authorName: string } | null>(null)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
+  const [reactionPending, setReactionPending] = React.useState<ReadonlySet<string>>(() => new Set())
   const inviteUrl = `${window.location.origin}/rooms/${room.slug}`
 
   const runAction = async (action: RoomHostActionClient) => {
@@ -369,6 +377,23 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
       onSnapshot(await action())
       setPanelNotice(successNotice)
     } catch (cause) { onActionError(moderationErrorMessage(cause, failureNotice)) } finally { setPending("") }
+  }
+
+  // Refreshed reaction counts reach everyone through the SSE snapshot, so we
+  // only guard against firing the same toggle twice while one is in flight.
+  const toggleMessageReaction = async (messageId: string, emoji: string) => {
+    const key = `${messageId}:${emoji}`
+    if (reactionPending.has(key)) return
+    onActionError("")
+    setReactionPending((current) => new Set(current).add(key))
+    try {
+      await toggleReaction(room.slug, messageId, emoji)
+    } catch (cause) {
+      const text = cause instanceof Error ? cause.message : ""
+      onActionError(text.includes("RATE_LIMITED") ? "You’re reacting a little fast. Wait a moment and try again." : "Your reaction didn’t go through. Try again.")
+    } finally {
+      setReactionPending((current) => { const next = new Set(current); next.delete(key); return next })
+    }
   }
 
   const requestClose = () => setConfirm({
@@ -470,13 +495,36 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
                 <div>
                   <p>{entry.authorName}<time>{new Date(entry.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</time></p>
                   <span>{entry.body}</span>
+                  {entry.reactions.length ? (
+                    <div className="chat-reactions">
+                      {entry.reactions.map((reaction) => (
+                        <button
+                          key={reaction.emoji}
+                          type="button"
+                          className={`chat-reaction ${reaction.mine ? "mine" : ""}`}
+                          aria-pressed={reaction.mine}
+                          aria-label={`${roomReactionLabel(reaction.emoji)}, ${reaction.count} ${reaction.count === 1 ? "reaction" : "reactions"}${reaction.mine ? ", including you. Tap to remove your reaction" : ". Tap to react"}`}
+                          disabled={reactionPending.has(`${entry.id}:${reaction.emoji}`)}
+                          onClick={() => void toggleMessageReaction(entry.id, reaction.emoji)}
+                        >
+                          <span aria-hidden="true">{reaction.emoji}</span>
+                          <b>{reaction.count}</b>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                {!entry.mine || isHost ? (
-                  <span className="chat-message-actions">
-                    {!entry.mine ? <button type="button" title="Report message" aria-label={`Report message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => setReporting({ id: entry.id, authorName: entry.authorName })}><Flag aria-hidden="true" /></button> : null}
-                    {isHost ? <button type="button" title="Delete message" aria-label={`Delete message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => runDeleteMessage(entry)}><Trash2 aria-hidden="true" /></button> : null}
-                  </span>
-                ) : null}
+                <span className="chat-message-actions">
+                  <ReactionPicker
+                    messageId={entry.id}
+                    activeEmojis={new Set(entry.reactions.filter((reaction) => reaction.mine).map((reaction) => reaction.emoji))}
+                    reactionPending={reactionPending}
+                    disabled={pending !== ""}
+                    onToggle={(emoji) => void toggleMessageReaction(entry.id, emoji)}
+                  />
+                  {!entry.mine ? <button type="button" title="Report message" aria-label={`Report message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => setReporting({ id: entry.id, authorName: entry.authorName })}><Flag aria-hidden="true" /></button> : null}
+                  {isHost ? <button type="button" title="Delete message" aria-label={`Delete message from ${entry.authorName}`} disabled={pending !== ""} onClick={() => runDeleteMessage(entry)}><Trash2 aria-hidden="true" /></button> : null}
+                </span>
               </div>
             ))}
             {!messages.length ? <span className="chat-empty">Say hi — messages appear for everyone in the room.</span> : null}
@@ -496,6 +544,45 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
       />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
     </section>
+  )
+}
+
+// The fixed emoji palette, revealed on demand from a single "add reaction"
+// button so the chat stays calm by default. Selecting an emoji toggles it and
+// closes the palette; a checked emoji is one you have already reacted with.
+function ReactionPicker({ messageId, activeEmojis, reactionPending, onToggle, disabled }: {
+  messageId: string
+  activeEmojis: ReadonlySet<string>
+  reactionPending: ReadonlySet<string>
+  onToggle: (emoji: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" title="Add reaction" aria-label="Add reaction" disabled={disabled}><SmilePlus aria-hidden="true" /></button>
+      </PopoverTrigger>
+      {/* Portaled to <body>; inherits the active theme from <html>. */}
+      <PopoverContent align="end" sideOffset={6} className="reaction-picker w-auto min-w-0 flex-row gap-1 p-1.5" role="group" aria-label="React with an emoji">
+        {ROOM_REACTION_EMOJIS.map((emoji) => {
+          const active = activeEmojis.has(emoji)
+          return (
+            <button
+              key={emoji}
+              type="button"
+              className={`reaction-option ${active ? "active" : ""}`}
+              aria-pressed={active}
+              aria-label={`React with ${roomReactionLabel(emoji)}`}
+              disabled={reactionPending.has(`${messageId}:${emoji}`)}
+              onClick={() => { onToggle(emoji); setOpen(false) }}
+            >
+              <span aria-hidden="true">{emoji}</span>
+            </button>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
   )
 }
 
