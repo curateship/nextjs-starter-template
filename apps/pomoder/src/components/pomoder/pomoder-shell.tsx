@@ -32,6 +32,7 @@ import {
   SoundPlayerProvider,
   useSoundPlayer,
 } from "@/components/pomoder/sound-player"
+import { ThemeToggle } from "@/components/pomoder/theme-toggle"
 import { curatedSounds, sameSoundReference } from "@/lib/sound-catalog"
 import {
   builtinTimerPresets,
@@ -97,8 +98,9 @@ export function PomoderShell({
 
   return (
     <SoundPlayerProvider authenticated={Boolean(user)}>
-    {/* The product shell is always dark, so shadcn primitives inside it use dark tokens. */}
-    <div className={`pomoder-app dark ${collapsed ? "sidebar-collapsed" : ""}`}>
+    {/* The product surface follows the active theme; its custom tokens and the
+        shadcn primitives inside it are both defined per-theme in styles.css. */}
+    <div className={`pomoder-app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`pomoder-sidebar ${menuOpen ? "is-open" : ""}`}>
         <Link to="/" className="pomoder-brand" aria-label="Pomoder dashboard">
           <TomatoMark />
@@ -129,7 +131,10 @@ export function PomoderShell({
           <Link to="/" className="workspace-brand">pomoder<span>.</span></Link>
           <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} authenticated={Boolean(user)} />
           <HeaderSoundPlayer />
-          <div className="header-actions">{authActions}</div>
+          <div className="header-actions">
+            <ThemeToggle />
+            {authActions}
+          </div>
         </header>
         <main className="pomoder-content dashboard-content">
           <h1 className="visually-hidden">{title}</h1>

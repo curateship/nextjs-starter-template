@@ -47,6 +47,7 @@ import { FocusRhythmPresets } from "@/components/pomoder/focus-rhythm-presets"
 import { usePomoderBackground, type PomoderBackground } from "@/components/pomoder/pomoder-background"
 import { useSoundPlayer } from "@/components/pomoder/sound-player"
 import { TodayTaskList } from "@/components/pomoder/task-plan-list"
+import { ThemeToggle } from "@/components/pomoder/theme-toggle"
 import { enableCompletionAlerts } from "@/lib/completion-alerts"
 import { curatedSounds, sameSoundReference, type SoundReference } from "@/lib/sound-catalog"
 import { deleteAccount, updateProfile } from "@/lib/api/auth"
@@ -271,8 +272,8 @@ function HostRoomDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!creating) { setError(""); onOpenChange(next) } }}>
-      {/* The content portals to <body>, outside the always-dark shell. */}
-      <DialogContent className="host-room-dialog dark">
+      {/* Portaled to <body>; inherits the active theme from <html>. */}
+      <DialogContent className="host-room-dialog">
         <DialogTitle className="host-room-dialog-title">Host a room</DialogTitle>
         <DialogDescription className="host-room-dialog-sub">Pick the vibe and timers — you control the session once people join.</DialogDescription>
         <form
@@ -294,7 +295,7 @@ function HostRoomDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
           <label className="host-room-visibility">Visibility
             <Select value={visibility} onValueChange={(value) => setVisibility(value as "public" | "unlisted")}>
               <SelectTrigger aria-label="Visibility"><SelectValue /></SelectTrigger>
-              <SelectContent className="dark">
+              <SelectContent>
                 <SelectItem value="public">Public — listed for everyone</SelectItem>
                 <SelectItem value="unlisted">Unlisted — invite link only</SelectItem>
               </SelectContent>
@@ -453,8 +454,8 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
                     <DropdownMenuTrigger asChild>
                       <button type="button" className="member-menu-trigger" aria-label={`Moderate ${member.name}`} title={`Moderate ${member.name}`} disabled={pending !== ""}><MoreVertical aria-hidden="true" /></button>
                     </DropdownMenuTrigger>
-                    {/* The content portals to <body>, outside the always-dark shell. */}
-                    <DropdownMenuContent className="dark" align="end">
+                    {/* Portaled to <body>; inherits the active theme from <html>. */}
+                    <DropdownMenuContent align="end">
                       <DropdownMenuItem onSelect={() => runRemoveMember(member)}>Remove from room</DropdownMenuItem>
                       <DropdownMenuItem variant="destructive" onSelect={() => runBanMember(member)}>Ban from room</DropdownMenuItem>
                     </DropdownMenuContent>
@@ -511,8 +512,8 @@ function ReportMessageDialog({ slug, message, onClose, onDone }: { slug: string;
 
   return (
     <Dialog open={Boolean(message)} onOpenChange={(next) => { if (!next && !sending) onClose() }}>
-      {/* The content portals to <body>, outside the always-dark shell. */}
-      <DialogContent className="host-room-dialog report-dialog dark">
+      {/* Portaled to <body>; inherits the active theme from <html>. */}
+      <DialogContent className="host-room-dialog report-dialog">
         <DialogTitle className="host-room-dialog-title">Report message</DialogTitle>
         <DialogDescription className="host-room-dialog-sub">Tell us what is wrong with {message?.authorName}’s message. Reports go to moderators only — other members never see them.</DialogDescription>
         <form
@@ -772,6 +773,7 @@ export function SettingsPage() {
 
   return (
     <div className="settings-layout">
+      <section className="surface-card settings-card"><p>Appearance</p><h2>Theme</h2><div className="theme-setting-row"><div className="theme-setting-copy"><strong>Light or dark</strong><span>Pick the look that feels calm to you. Your choice is saved{user ? " to your account and synced across devices" : " on this device"}.</span></div><ThemeToggle showLabel /></div></section>
       <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><FocusRhythmPresets pomodoro={pomodoro} authenticated={Boolean(user)} /><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<Checkbox checked={pomodoro.autoStart} onCheckedChange={(state) => pomodoro.setAutoStart(state === true)} /></label><label>Completion alerts<Checkbox checked={player.state.completionAlerts} aria-describedby="completion-alert-help" onCheckedChange={(state) => { const enabled = state === true; player.setCompletionAlerts(enabled); if (!enabled) { setAlertHelp(DEFAULT_ALERT_HELP); return }; void enableCompletionAlerts().then((permission) => setAlertHelp(permission === "granted" ? "You'll hear a chime and get a notification when a timer finishes." : permission === "denied" ? "Notifications are blocked in this browser, so you'll only hear the chime." : "You'll hear a chime when a timer finishes.")) }} /></label><span id="completion-alert-help">{alertHelp}</span><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
       {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<Checkbox checked={leaderboard} onCheckedChange={(state) => setLeaderboard(state === true)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
       {notice ? <p role="status">{notice}</p> : null}

@@ -144,8 +144,8 @@ export function FocusRhythmPresets({ pomodoro, authenticated }: { pomodoro: Pomo
       <label className="preset-select-label">Preset
         <Select value={matched?.id ?? ""} onValueChange={(id) => { const preset = allPresets.find((candidate) => candidate.id === id); if (preset) apply(preset) }} disabled={!pomodoro.canApplyPreset}>
           <SelectTrigger aria-label="Focus rhythm preset"><SelectValue placeholder="Custom" /></SelectTrigger>
-          {/* The content portals to <body>, outside the always-dark shell. */}
-          <SelectContent className="dark" position="popper">
+          {/* Portaled to <body>; inherits the active theme from <html>. */}
+          <SelectContent position="popper">
             <SelectGroup>
               <SelectLabel>Built-in</SelectLabel>
               {builtinTimerPresets.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.name} · {presetSummary(preset)}</SelectItem>)}

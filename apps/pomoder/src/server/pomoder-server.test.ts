@@ -140,6 +140,12 @@ beforeEach(async () => {
       "utf8"
     )
   )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0012_light_dark_mode.sql", import.meta.url),
+      "utf8"
+    )
+  )
   database = drizzle(client, { schema })
 })
 

@@ -125,11 +125,13 @@ export const userPreferences = pgTable(
     soundVolume: integer("sound_volume").notNull().default(70),
     soundMuted: boolean("sound_muted").notNull().default(false),
     completionAlerts: boolean("completion_alerts").notNull().default(false),
+    theme: varchar("theme", { length: 10 }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    check("preferences_theme_check", sql`${table.theme} in ('dark', 'light')`),
     check(
       "preferences_focus_check",
       sql`${table.focusMinutes} between 1 and 90`

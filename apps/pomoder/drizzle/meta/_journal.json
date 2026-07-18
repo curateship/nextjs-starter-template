@@ -85,6 +85,13 @@
       "when": 1784505600000,
       "tag": "0011_focus_rhythm_presets",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784592000000,
+      "tag": "0012_light_dark_mode",
+      "breakpoints": true
     }
   ]
 }
