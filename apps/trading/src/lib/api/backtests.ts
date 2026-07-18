@@ -6,12 +6,14 @@ import {
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
   MAX_TOTAL_RUN_BARS,
+  PREVIOUS_RUN_NAME_PREFIX,
   maxWindowDays,
   totalRunBars,
   SIGNAL_WARMUP_CANDLES,
   warmupBarsFor,
   type BacktestCosts,
   type BacktestResult,
+  type BacktestTimeline,
   type GroupCombinedCurve,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
@@ -228,10 +230,13 @@ const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserBacktestGroup } = await import("@/server/backtests")
+    const { createUserBacktestGroup, deleteReplaceableAutomationRuns } =
+      await import("@/server/backtests")
     requireAppOrigin()
     const user = await requireUser()
     const run = await resolveAutomationRun(user.id, data.automationId)
+    // This run replaces the automation's unnamed, unpinned previous run.
+    await deleteReplaceableAutomationRuns(user.id, data.automationId)
 
     // The window limits depend on the automation's interval, so they're
     // checked here rather than in the schema.
@@ -283,9 +288,12 @@ async function enqueueRun(
   const markets = [data.market, ...(data.extraMarkets ?? [])]
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
-  const name =
+  // Unnamed runs carry the replaceable marker: the next backtest of this
+  // automation deletes them. Naming a run afterwards makes it a keeper.
+  const name = (
     data.name?.trim() ||
-    `${run.automationName} · ${markets.join(", ")} · ${run.interval}`
+    `${PREVIOUS_RUN_NAME_PREFIX} · ${run.automationName} · ${markets.join(", ")} · ${data.windowDays}d ${run.interval}`
+  ).slice(0, 255)
   const group = await createUserBacktestGroup(
     userId,
     markets.map((market) =>
@@ -488,6 +496,71 @@ const loadBacktestFn = createServerFn({ method: "POST" })
     }
   })
 
+const latestAutomationBacktestSchema = z.object({
+  automationId: z.string().min(1),
+})
+
+/** The automation's most recent run group — rehydrates the editor's mode. */
+const loadLatestAutomationBacktestFn = createServerFn({ method: "POST" })
+  .inputValidator(latestAutomationBacktestSchema)
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      groupId: string
+      name: string
+      runs: BacktestGroupRun[]
+    } | null> => {
+      const { getLatestAutomationBacktestGroup, listGroupRuns } =
+        await import("@/server/backtests")
+      const user = await requireUser()
+      const latest = await getLatestAutomationBacktestGroup(
+        user.id,
+        data.automationId
+      )
+      if (!latest) return null
+      const siblings = await listGroupRuns(user.id, latest.groupId)
+      return {
+        groupId: latest.groupId,
+        name: latest.name,
+        runs: siblings.map((sibling) => ({
+          id: sibling.id,
+          market: sibling.market,
+          status: sibling.status as BacktestGroupRun["status"],
+          error: sibling.error,
+          netPnlPct:
+            sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
+        })),
+      }
+    }
+  )
+
+const renameBacktestGroupSchema = z.object({
+  groupId: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
+})
+
+/** Names a run group — a named group is a keeper the next run won't replace. */
+const renameBacktestGroupFn = createServerFn({ method: "POST" })
+  .inputValidator(renameBacktestGroupSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { renameUserBacktestGroup } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+    await renameUserBacktestGroup(user.id, data.groupId, data.name)
+    return { ok: true }
+  })
+
+const loadBacktestTimelineFn = createServerFn({ method: "POST" })
+  .inputValidator(backtestIdSchema)
+  .handler(async ({ data }): Promise<BacktestTimeline | null> => {
+    const { getUserBacktestTimeline } = await import("@/server/backtests")
+    const user = await requireUser()
+    const timeline = await getUserBacktestTimeline(user.id, data.backtestId)
+    return (timeline as BacktestTimeline | null) ?? null
+  })
+
 /** Run candles, optionally re-sampled at a chosen display interval. */
 const backtestCandlesSchema = z.object({
   backtestId: z.string().min(1),
@@ -652,6 +725,21 @@ export function pollBacktestProgress(ids: string[]) {
 
 export function loadBacktest(backtestId: string) {
   return loadBacktestFn({ data: { backtestId } })
+}
+
+/** The run's replay tape — fetched lazily, only when someone replays. */
+export function loadBacktestTimeline(backtestId: string) {
+  return loadBacktestTimelineFn({ data: { backtestId } })
+}
+
+/** The automation's most recent run group, for editor-mode rehydration. */
+export function loadLatestAutomationBacktest(automationId: string) {
+  return loadLatestAutomationBacktestFn({ data: { automationId } })
+}
+
+/** Names a run group so the next run keeps it instead of replacing it. */
+export function renameBacktestGroup(groupId: string, name: string) {
+  return renameBacktestGroupFn({ data: { groupId, name } })
 }
 
 export function loadBacktestCandles(

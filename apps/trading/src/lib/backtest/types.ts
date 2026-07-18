@@ -106,7 +106,47 @@ export type BacktestResult = {
   stats: BacktestStats
   /** Present when sibling rows are contributions to one shared account. */
   portfolio?: { sharedAccount: true; marketCount: number }
+  /**
+   * Replay tape. Stripped into its own DB column at save time and loaded
+   * lazily by the replay chart — never part of the always-loaded blob.
+   */
+  timeline?: BacktestTimeline
 }
+
+/**
+ * One recorded change in the engine's order state — what the replay chart
+ * folds into "what was resting on the book at this moment". Deltas only,
+ * appended once per bar after orders settle; fills of resting orders close
+ * their line with op "fill" (the fill itself is already in `fills`).
+ */
+export type BacktestTimelineEvent =
+  | {
+      t: number
+      k: "order"
+      op: "place" | "move" | "cancel" | "fill"
+      purpose: string
+      side: "buy" | "sell"
+      px: number
+      sz: number
+    }
+  | { t: number; k: "protect"; stopPx: number | null; tpPx: number | null }
+  | {
+      t: number
+      k: "qfl"
+      base: number | null
+      stopPx: number | null
+      rungs: { i: number; px: number; filled: number; target: number }[]
+    }
+  | { t: number; k: "note"; type: string; message: string }
+
+export type BacktestTimeline = {
+  events: BacktestTimelineEvent[]
+  /** True when the event cap was hit; later events were dropped. */
+  truncated?: boolean
+}
+
+/** Hard cap on recorded events per run — keeps the tape column bounded. */
+export const MAX_TIMELINE_EVENTS = 20_000
 
 /**
  * Whole-basket risk for a run group, measured on the *combined* equity curve
@@ -180,6 +220,12 @@ export const INTERVAL_MS: Record<BacktestInterval, number> = {
  * backtest candles come from Binance (years of history), not Hyperliquid.
  */
 export const MAX_RUN_BARS = 5000
+
+/**
+ * Auto-name prefix marking a run group as replaceable: the next backtest of
+ * the same automation deletes it. Naming (or pinning) a group keeps it.
+ */
+export const PREVIOUS_RUN_NAME_PREFIX = "Previous run"
 
 /**
  * Ceiling on candles in a single backtest run window. Backtest history comes

@@ -1,6 +1,10 @@
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
-import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
+import {
+  PREVIOUS_RUN_NAME_PREFIX,
+  type BacktestCosts,
+  type BacktestResult,
+} from "@/lib/backtest/types"
 import {
   automationCapabilities,
   LIVE_BOOK_BACKTEST_UNAVAILABLE,
@@ -47,8 +51,12 @@ function backtestConfigValues(input: CreateBacktestInput) {
 }
 
 function backtestResultValues(result: BacktestResult) {
+  // The replay tape gets its own column so run-open payloads stay lean —
+  // the chart fetches it lazily, only when someone actually replays.
+  const { timeline, ...rest } = result
   return {
-    result,
+    result: rest,
+    timeline: timeline ?? null,
     resultStats: {
       ...result.stats,
       firstEntryMs: result.trades[0]?.entryTime ?? null,
@@ -565,4 +573,86 @@ export async function getUserBacktest(
     )
     .limit(1)
   return row ?? null
+}
+
+/**
+ * Deletes the automation's replaceable groups — unnamed ("Previous run …")
+ * and unpinned. Called when a new run of the same automation replaces them;
+ * named or pinned groups are keepers and are never touched.
+ */
+export async function deleteReplaceableAutomationRuns(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+) {
+  await database
+    .delete(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.automationId, automationId),
+        eq(tradingBacktests.pinned, false),
+        sql`${tradingBacktests.name} like ${`${PREVIOUS_RUN_NAME_PREFIX} ·%`}`
+      )
+    )
+}
+
+/** Names a run group — a named group is a keeper the next run won't replace. */
+export async function renameUserBacktestGroup(
+  userId: string,
+  groupId: string,
+  name: string,
+  database: CustomShellDb = db
+) {
+  await database
+    .update(tradingBacktests)
+    .set({ name })
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.groupId, groupId)
+      )
+    )
+}
+
+/** The automation's most recent run group, for editor-mode rehydration. */
+export async function getLatestAutomationBacktestGroup(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+): Promise<{ groupId: string; name: string } | null> {
+  const [row] = await database
+    .select({
+      groupId: tradingBacktests.groupId,
+      name: tradingBacktests.name,
+    })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.automationId, automationId)
+      )
+    )
+    .orderBy(desc(tradingBacktests.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
+/** The replay tape alone — the heavy result blob stays unloaded. */
+export async function getUserBacktestTimeline(
+  userId: string,
+  backtestId: string,
+  database: CustomShellDb = db
+): Promise<unknown | null> {
+  const [row] = await database
+    .select({ timeline: tradingBacktests.timeline })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.id, backtestId),
+        eq(tradingBacktests.userId, userId)
+      )
+    )
+    .limit(1)
+  return row?.timeline ?? null
 }

@@ -44,7 +44,6 @@ import {
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -61,11 +60,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -114,12 +108,9 @@ import {
 } from "@/lib/hl/hooks"
 import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import {
-  indicatorDisplayName,
-  type IndicatorConfig,
-} from "@/lib/trading/indicators-config"
+import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import { saveIndicator } from "@/lib/api/indicators"
-import { OverlaySettingsDialog } from "@/components/indicators/indicator-settings-dialog"
+import { IndicatorsMenu } from "@/components/chart/indicators-menu"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { usePersistedState } from "@/lib/use-persisted-state"
@@ -1329,80 +1320,3 @@ function MarketStat({ label, value }: { label: string; value: string }) {
  * painted chart lines; clicking a name opens the shared settings modal. Lives
  * next to the timeframe buttons; strategy signals are picked separately.
  */
-function IndicatorsMenu({
-  indicators,
-  onUpdate,
-}: {
-  indicators: IndicatorConfig[]
-  onUpdate: (id: string, patch: Partial<IndicatorConfig>) => void
-}) {
-  const activeCount = indicators.filter((ind) => ind.enabled).length
-  const [editingId, setEditingId] = React.useState<string | null>(null)
-  const editing = indicators.find((ind) => ind.id === editingId) ?? null
-
-  return (
-    <>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-          >
-            Indicators{activeCount ? ` (${activeCount})` : ""}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-60 gap-1 p-2">
-          {indicators.length === 0 ? (
-            <div className="px-1 py-1 text-xs text-muted-foreground">
-              No pinned indicators — pin them on the{" "}
-              <a href="/indicators" className="underline underline-offset-2">
-                Indicators
-              </a>{" "}
-              page.
-            </div>
-          ) : null}
-          {indicators.map((ind) => (
-            <div
-              key={ind.id}
-              className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
-            >
-              <Checkbox
-                id={`ind-${ind.id}`}
-                checked={ind.enabled}
-                onCheckedChange={(checked) =>
-                  onUpdate(ind.id, { enabled: checked === true })
-                }
-              />
-              <button
-                type="button"
-                className="flex-1 cursor-pointer text-left text-xs font-medium"
-                title="Indicator settings"
-                onClick={() => setEditingId(ind.id)}
-              >
-                {indicatorDisplayName(ind)}
-              </button>
-            </div>
-          ))}
-        </PopoverContent>
-      </Popover>
-      {editing ? (
-        <OverlaySettingsDialog
-          indicator={editing}
-          open={editingId !== null}
-          draggable
-          onOpenChange={(open) => {
-            if (!open) setEditingId(null)
-          }}
-          onSave={(next) => {
-            // Local flip is instant; persistence is the same fire-and-forget
-            // path the checkboxes use (failures surface via the notify strip).
-            onUpdate(next.id, next)
-            return Promise.resolve()
-          }}
-        />
-      ) : null}
-    </>
-  )
-}

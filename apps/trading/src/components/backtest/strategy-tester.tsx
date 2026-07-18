@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { TradeTable, type TradeTableRow } from "@/components/trade-table"
 import {
   Area,
   AreaChart,
@@ -10,7 +9,6 @@ import {
   YAxis,
 } from "recharts"
 
-import { Card, CardContent } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,14 +24,8 @@ import type {
 } from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
 
-import {
-  num,
-  pct,
-  profitFactor,
-  signedUsd,
-  toneClass,
-  usd,
-} from "./backtest-format"
+import { BacktestTradesTable } from "./backtest-trades-table"
+import { num, profitFactor, signedUsd, toneClass, usd } from "./backtest-format"
 
 const UP = "#089981"
 const DOWN = "#f23645"
@@ -53,9 +45,6 @@ export function StrategyTester({
   /** Row click — null when the selected trade is clicked again. */
   onSelectTrade?: (trade: BacktestTrade | null) => void
 }) {
-  const stats = result?.stats
-  const net = stats?.netPnl ?? 0
-
   return (
     <Tabs defaultValue="trades" className="flex h-full min-h-0 flex-col gap-0">
       <div className="flex items-center gap-4 bg-muted/50 px-4">
@@ -77,22 +66,11 @@ export function StrategyTester({
             </TabsTrigger>
           ))}
         </TabsList>
-        <div className="flex-1" />
-        <div className="flex gap-4 py-2 text-[11px]">
-          <span className="flex gap-1.5">
-            <span className="text-muted-foreground">Net Profit</span>
-            <span className={cn("font-mono", toneClass(net))}>{signedUsd(net)}</span>
-          </span>
-          <span className="flex gap-1.5">
-            <span className="text-muted-foreground">Closed Trades</span>
-            <span className="font-mono">{stats?.all.trades ?? 0}</span>
-          </span>
-        </div>
       </div>
 
       <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
         <TabsContent value="trades" className="m-0">
-          <TradesTable
+          <BacktestTradesTable
             result={result}
             markPrice={markPrice}
             selectedTradeN={selectedTradeN}
@@ -103,7 +81,7 @@ export function StrategyTester({
           <Overview result={result} startingEquity={startingEquity} />
         </TabsContent>
         <TabsContent value="performance" className="m-0">
-          <PerformanceSummary stats={stats ?? null} />
+          <PerformanceSummary stats={result?.stats ?? null} />
         </TabsContent>
       </ScrollArea>
     </Tabs>
@@ -125,121 +103,83 @@ function Overview({
   const positive = (stats?.netPnl ?? 0) >= 0
 
   return (
-    <div className="flex flex-col gap-4 p-4 lg:flex-row">
-      <div className="grid flex-none grid-cols-3 gap-2.5 lg:w-[520px]">
-        <MetricCard
-          label="Net Profit"
-          value={stats ? pct(stats.netPnlPct) : "—"}
-          sub={stats ? signedUsd(stats.netPnl) : ""}
-          tone={stats?.netPnl}
-        />
-        <MetricCard
-          label="Closed Trades"
-          value={stats ? String(stats.all.trades) : "—"}
-          sub={result?.openPosition ? "1 open" : "all flat"}
-        />
-        <MetricCard
-          label="Percent Profitable"
-          value={stats ? `${(stats.all.winRate * 100).toFixed(1)}%` : "—"}
-          sub={stats ? `${stats.all.wins} of ${stats.all.trades}` : ""}
-        />
-        <MetricCard
-          label="Profit Factor"
-          value={stats ? profitFactor(stats.all.profitFactor) : "—"}
-          sub={stats ? `GP ${usd(stats.all.grossProfit)}` : ""}
-        />
-        <MetricCard
-          label="Max Drawdown"
-          value={stats ? usd(-stats.maxDrawdownUsd) : "—"}
-          sub={stats ? `-${stats.maxDrawdownPct.toFixed(2)}%` : ""}
-          tone={stats ? -1 : undefined}
-        />
-        <MetricCard
-          label="Avg Trade"
-          value={stats ? signedUsd(stats.all.avgTrade) : "—"}
-          sub={stats ? `B&H ${pct(stats.buyHoldPct)}` : ""}
-          tone={stats?.all.avgTrade}
-        />
+    <div className="flex flex-col gap-1.5 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-foreground/80">
+          Equity Curve
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <span className="inline-block h-0 w-3.5 border-t border-dashed border-muted-foreground" />
+          Initial capital
+        </span>
       </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-foreground/80">
-            Equity Curve
-          </span>
-          <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="inline-block h-0 w-3.5 border-t border-dashed border-muted-foreground" />
-            Initial capital
-          </span>
+      {equity.length < 2 ? (
+        <div className="flex h-[200px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
+          Not enough data to plot equity
         </div>
-        {equity.length < 2 ? (
-          <div className="flex h-[200px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
-            Not enough data to plot equity
-          </div>
-        ) : (
-          <ChartContainer
-            config={{ eq: { label: "Equity" } }}
-            className="h-[200px] w-full rounded-lg border bg-muted/30"
-          >
-            <AreaChart data={equity} margin={{ left: 8, right: 8, top: 8, bottom: 4 }}>
-              <defs>
-                <linearGradient id="bt-equity-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={positive ? UP : DOWN} stopOpacity={0.25} />
-                  <stop offset="100%" stopColor={positive ? UP : DOWN} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} strokeOpacity={0.3} />
-              <XAxis
-                dataKey="t"
-                tickLine={false}
-                axisLine={false}
-                minTickGap={40}
-                tickFormatter={(value: number) =>
-                  new Date(value).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
-                }
-              />
-              <YAxis
-                width={60}
-                tickLine={false}
-                axisLine={false}
-                domain={["auto", "auto"]}
-                tickFormatter={(value: number) => `$${Math.round(value).toLocaleString()}`}
-              />
-              <ReferenceLine
-                y={startingEquity}
-                strokeDasharray="5 4"
-                stroke="currentColor"
-                strokeOpacity={0.4}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(_, payload) =>
-                      payload?.[0]
-                        ? new Date(
-                            payload[0].payload.t as number
-                          ).toLocaleString("en-US", { hour12: false })
-                        : ""
-                    }
-                  />
-                }
-              />
-              <Area
-                dataKey="eq"
-                type="monotone"
-                stroke={positive ? UP : DOWN}
-                strokeWidth={2}
-                fill="url(#bt-equity-fill)"
-                dot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ChartContainer>
-        )}
-      </div>
+      ) : (
+        <ChartContainer
+          config={{ eq: { label: "Equity" } }}
+          className="h-[200px] w-full rounded-lg border bg-muted/30"
+        >
+          <AreaChart data={equity} margin={{ left: 8, right: 8, top: 8, bottom: 4 }}>
+            <defs>
+              <linearGradient id="bt-equity-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={positive ? UP : DOWN} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={positive ? UP : DOWN} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} strokeOpacity={0.3} />
+            <XAxis
+              dataKey="t"
+              tickLine={false}
+              axisLine={false}
+              minTickGap={40}
+              tickFormatter={(value: number) =>
+                new Date(value).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              }
+            />
+            <YAxis
+              width={60}
+              tickLine={false}
+              axisLine={false}
+              domain={["auto", "auto"]}
+              tickFormatter={(value: number) => `$${Math.round(value).toLocaleString()}`}
+            />
+            <ReferenceLine
+              y={startingEquity}
+              strokeDasharray="5 4"
+              stroke="currentColor"
+              strokeOpacity={0.4}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]
+                      ? new Date(
+                          payload[0].payload.t as number
+                        ).toLocaleString("en-US", { hour12: false })
+                      : ""
+                  }
+                />
+              }
+            />
+            <Area
+              dataKey="eq"
+              type="monotone"
+              stroke={positive ? UP : DOWN}
+              strokeWidth={2}
+              fill="url(#bt-equity-fill)"
+              dot={false}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ChartContainer>
+      )}
     </div>
   )
 }
@@ -313,102 +253,6 @@ function PerfCell({ value, tone }: { value: string; tone?: number }) {
   )
 }
 
-/** Adapts BacktestResult trades (+ open position) to the shared trade table. */
-function TradesTable({
-  result,
-  markPrice,
-  selectedTradeN,
-  onSelectTrade,
-}: {
-  result: BacktestResult | null
-  markPrice: number
-  selectedTradeN: number | null
-  onSelectTrade?: (trade: BacktestTrade | null) => void
-}) {
-  const trades = result?.trades ?? []
-  const rows = React.useMemo<TradeTableRow[]>(
-    () =>
-      trades.map((trade) => ({
-        id: String(trade.n),
-        n: trade.n,
-        side: trade.side,
-        entryTime: trade.entryTime,
-        exitTime: trade.exitTime,
-        amount: trade.entryPx * trade.qty,
-        pnl: trade.pnl,
-        returnPct: trade.returnPct,
-        cumPnl: trade.cumPnl,
-      })),
-    [trades]
-  )
-  const open = result?.openPosition ?? null
-  const openRow = React.useMemo<TradeTableRow | null>(() => {
-    if (!open) return null
-    const pnl = markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
-    return {
-      id: "open",
-      n: 0,
-      side: open.side,
-      entryTime: open.entryTime,
-      exitTime: null,
-      amount: open.entryPx * Math.abs(open.szi),
-      pnl,
-      returnPct: null,
-      cumPnl: null,
-    }
-  }, [open, markPrice])
-
-  if (!result || (trades.length === 0 && !open)) {
-    return (
-      <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
-        No trades — run a backtest or adjust the strategy.
-      </div>
-    )
-  }
-
-  return (
-    <TradeTable
-      rows={rows}
-      openRow={openRow}
-      selectedId={selectedTradeN != null ? String(selectedTradeN) : null}
-      onSelect={(id) => {
-        const trade = id ? trades.find((t) => String(t.n) === id) ?? null : null
-        onSelectTrade?.(trade)
-      }}
-      emptyText="No trades — run a backtest or adjust the strategy."
-    />
-  )
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: number
-}) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-lg font-semibold",
-            tone !== undefined ? toneClass(tone) : undefined
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[10px] text-muted-foreground">{sub}</span>
-      </CardContent>
-    </Card>
-  )
-}
-
 function Empty({ text }: { text: string }) {
   return (
     <div className="flex h-40 items-center justify-center text-center text-xs text-muted-foreground">
@@ -416,7 +260,6 @@ function Empty({ text }: { text: string }) {
     </div>
   )
 }
-
 
 /** Strides an array down to at most `max` points, keeping the last. */
 function downsample<T>(points: T[], max: number): T[] {

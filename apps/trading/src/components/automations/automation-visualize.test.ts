@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest"
 import type { AutomationNode } from "@/lib/automations/automation"
 import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
 
-import { nodeAfterLineDrag } from "./automation-visualize-panel"
+import {
+  nodeAfterLineDrag,
+  nodeAfterTuneDrag,
+} from "./automation-visualize-panel"
 
 const tp: AutomationNode = { id: "tp1", kind: "takeProfit", pct: 2, x: 0, y: 0 }
 const sl: AutomationNode = { id: "sl1", kind: "stopLoss", pct: 1.5, x: 0, y: 0 }
@@ -64,6 +67,58 @@ describe("nodeAfterLineDrag", () => {
     expect(nodeAfterLineDrag(nodes, "viz:qfl-1:q1", 150, 100, bases)).toBeNull()
     expect(
       nodeAfterLineDrag(nodes, "viz:qfl-crack:q1", 190, 100, new Map())
+    ).toBeNull()
+  })
+})
+
+describe("nodeAfterTuneDrag", () => {
+  it("maps long-side stop/TP drags against the entry anchor", () => {
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "tp", price: 105, anchor: 100, side: "long" })
+    ).toEqual({ ...tp, pct: 5 })
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "sl", price: 95, anchor: 100, side: "long" })
+    ).toEqual({ ...sl, pct: 5 })
+  })
+
+  it("inverts the math for short positions", () => {
+    // A short takes profit BELOW entry and stops out ABOVE it.
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "tp", price: 95, anchor: 100, side: "short" })
+    ).toEqual({ ...tp, pct: 5 })
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "sl", price: 103, anchor: 100, side: "short" })
+    ).toEqual({ ...sl, pct: 3 })
+  })
+
+  it("maps a first-ladder drag back to the crack percentage", () => {
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 190, base: 200 })
+    ).toEqual({ ...qfl, crackPct: 5 })
+  })
+
+  it("clamps to each setting's schema bounds", () => {
+    // Dragging the stop to the wrong side of entry clamps at the 0.1 floor.
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "sl", price: 150, anchor: 100, side: "long" })
+    ).toEqual({ ...sl, pct: 0.1 })
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 10, base: 200 })
+    ).toEqual({ ...qfl, crackPct: 50 })
+  })
+
+  it("returns null without a matching node, anchor, or valid price", () => {
+    expect(
+      nodeAfterTuneDrag([qfl], { kind: "tp", price: 105, anchor: 100, side: "long" })
+    ).toBeNull()
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "tp", price: 105, anchor: 0, side: "long" })
+    ).toBeNull()
+    expect(
+      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 0, base: 200 })
+    ).toBeNull()
+    expect(
+      nodeAfterTuneDrag([tp, sl], { kind: "qflCrack", price: 190, base: 200 })
     ).toBeNull()
   })
 })

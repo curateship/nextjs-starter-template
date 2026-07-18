@@ -493,6 +493,22 @@ export function createQflAutomationStrategy(
         ? [active.stopPx]
         : []
     },
+    snapshot: (ctx) => {
+      const active = ctx.state.active
+      if (!active || active.closingReason) return null
+      return {
+        qfl: {
+          base: active.base,
+          stopPx: active.stopPx,
+          rungs: active.levels.map((level) => ({
+            i: level.index,
+            px: level.plannedPx,
+            filled: level.filledSz,
+            target: level.targetSz,
+          })),
+        },
+      }
+    },
     desiredOrders: (ctx) => {
       let state = ctx.state
       if (!state.active && state.candidate) {

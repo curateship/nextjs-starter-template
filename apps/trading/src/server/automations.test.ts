@@ -158,6 +158,7 @@ beforeEach(async () => {
     "../../drizzle/0042_market_scanner_runtime_control.sql"
   )
   await applyMigration(client, "../../drizzle/0043_dedicated_workers.sql")
+  await applyMigration(client, "../../drizzle/0049_backtest_timeline.sql")
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })

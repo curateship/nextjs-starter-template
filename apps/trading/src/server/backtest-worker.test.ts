@@ -32,6 +32,7 @@ beforeEach(async () => {
     "../../drizzle/0020_trading_automations.sql",
     "../../drizzle/0042_market_scanner_runtime_control.sql",
     "../../drizzle/0043_dedicated_workers.sql",
+    "../../drizzle/0049_backtest_timeline.sql",
   ]) {
     await client.exec(await readFile(new URL(file, import.meta.url), "utf8"))
   }

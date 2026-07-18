@@ -1,12 +1,14 @@
 import type { CandleWsEvent } from "@nktkas/hyperliquid"
 
 import { computeBacktestStats } from "@/lib/backtest/stats"
-import type {
-  BacktestCosts,
-  BacktestFill,
-  BacktestHalt,
-  BacktestResult,
-  BacktestTrade,
+import {
+  MAX_TIMELINE_EVENTS,
+  type BacktestCosts,
+  type BacktestFill,
+  type BacktestHalt,
+  type BacktestResult,
+  type BacktestTimelineEvent,
+  type BacktestTrade,
 } from "@/lib/backtest/types"
 import {
   automationTakeProfitPct,
@@ -81,6 +83,23 @@ class BacktestRunner {
   private readonly trades: BacktestTrade[] = []
   private totalFees = 0
   private cumPnl = 0
+
+  // Replay tape: order/protection/strategy deltas, recorded once per bar.
+  private readonly timeline: BacktestTimelineEvent[] = []
+  private timelineTruncated = false
+  /** What the tape currently shows resting, keyed by purpose. */
+  private readonly loggedOrders = new Map<
+    string,
+    { side: "buy" | "sell"; px: number; sz: number }
+  >()
+  /** Resting orders that filled since the last tape entry. */
+  private readonly barFilledOrders = new Map<
+    string,
+    { px: number; sz: number }
+  >()
+  private prevStopPx: number | null = null
+  private prevTpPx: number | null = null
+  private prevSnapshotJson = "null"
 
   // Round-trip tracking, driven off fill deltas.
   private legSzi = 0
@@ -245,10 +264,106 @@ class BacktestRunner {
     if (!candle || candle.t < this.simStartMs) return
     this.evaluate()
     this.drainFills()
+    this.recordTimeline(candle)
     this.equityCurve.push({
       t: candle.T,
       eq: round(this.broker.equity(candle.c)),
     })
+  }
+
+  /**
+   * Appends this bar's deltas to the replay tape. Runs once per bar after
+   * orders settle, so the tape shows end-of-bar state; orders placed and
+   * filled within a single bar never rest visibly and are skipped (their
+   * fills are already in `fills`).
+   */
+  private recordTimeline(candle: HistoryCandle) {
+    const t = candle.t
+
+    // Resting-order deltas vs what the tape already shows.
+    for (const [purpose, order] of this.openOrders) {
+      const px = Number(order.px ?? 0)
+      const sz = Number(order.remainingSz)
+      const logged = this.loggedOrders.get(purpose)
+      if (
+        !logged ||
+        logged.px !== px ||
+        logged.sz !== sz ||
+        logged.side !== order.side
+      ) {
+        this.pushTimelineEvent({
+          t,
+          k: "order",
+          op: logged ? "move" : "place",
+          purpose,
+          side: order.side,
+          px,
+          sz,
+        })
+        this.loggedOrders.set(purpose, { side: order.side, px, sz })
+      }
+    }
+    for (const [purpose, logged] of this.loggedOrders) {
+      if (this.openOrders.has(purpose)) continue
+      const filled = this.barFilledOrders.get(purpose)
+      this.pushTimelineEvent({
+        t,
+        k: "order",
+        op: filled ? "fill" : "cancel",
+        purpose,
+        side: logged.side,
+        px: filled?.px ?? logged.px,
+        sz: filled?.sz ?? logged.sz,
+      })
+      this.loggedOrders.delete(purpose)
+    }
+    this.barFilledOrders.clear()
+
+    // TP/stop levels, classified against the close: the stop sits on the
+    // adverse side of the current price, the take-profit on the winning side.
+    const szi = Number(this.broker.positionState()?.szi ?? 0)
+    let stopPx: number | null = null
+    let tpPx: number | null = null
+    if (szi !== 0) {
+      const levels =
+        this.strategy.exitTriggers?.(this.ctx(false), this.params as never) ??
+        []
+      for (const level of levels) {
+        if (!Number.isFinite(level)) continue
+        const below = level < candle.c
+        if ((szi > 0 && below) || (szi < 0 && !below)) stopPx = level
+        else tpPx = level
+      }
+    }
+    if (stopPx !== this.prevStopPx || tpPx !== this.prevTpPx) {
+      this.pushTimelineEvent({ t, k: "protect", stopPx, tpPx })
+      this.prevStopPx = stopPx
+      this.prevTpPx = tpPx
+    }
+
+    // Strategy-owned replay state (the QFL ladder), on change only.
+    const snapshot =
+      this.strategy.snapshot?.(this.ctx(false), this.params as never) ?? null
+    const json = JSON.stringify(snapshot) ?? "null"
+    if (json !== this.prevSnapshotJson) {
+      this.prevSnapshotJson = json
+      const qfl = snapshot?.qfl
+      this.pushTimelineEvent({
+        t,
+        k: "qfl",
+        base: qfl?.base ?? null,
+        stopPx: qfl?.stopPx ?? null,
+        rungs: qfl?.rungs ?? [],
+      })
+    }
+  }
+
+  private pushTimelineEvent(event: BacktestTimelineEvent) {
+    if (this.timeline.length >= MAX_TIMELINE_EVENTS) {
+      this.timelineTruncated = true
+      return
+    }
+    this.timeline.push(event)
   }
 
   result(): BacktestResult {
@@ -283,6 +398,10 @@ class BacktestRunner {
       fills: this.fills,
       openPosition,
       stats,
+      timeline: {
+        events: this.timeline,
+        truncated: this.timelineTruncated || undefined,
+      },
     }
   }
 
@@ -449,6 +568,12 @@ class BacktestRunner {
       if (order.cloid === cloid) {
         this.openOrders.delete(key)
         purpose = order.purpose
+        // A resting order the tape shows just filled — close its line as a
+        // fill, not a cancel, when the bar's deltas are recorded.
+        this.barFilledOrders.set(order.purpose, {
+          px: Number(fill.px),
+          sz: Number(fill.sz),
+        })
         break
       }
     }
@@ -556,13 +681,21 @@ class BacktestRunner {
     this.openLeg = null
   }
 
-  private ctx(): StrategyCtx<unknown> {
+  /**
+   * @param report Whether to report this market's equity to the QFL portfolio
+   *   coordinator. True for the strategy callbacks that drive the run; false
+   *   for read-only recording (exitTriggers/snapshot in recordTimeline), so
+   *   observing the tape can never shift a portfolio sibling's exposure math.
+   */
+  private ctx(report = true): StrategyCtx<unknown> {
     const localEquity = this.broker.equity(this.price)
-    this.qflPortfolio?.reportEquity?.(
-      this.market,
-      localEquity,
-      this.startingEquity
-    )
+    if (report) {
+      this.qflPortfolio?.reportEquity?.(
+        this.market,
+        localEquity,
+        this.startingEquity
+      )
+    }
     return {
       market: this.market,
       mid: String(this.price),
@@ -578,7 +711,15 @@ class BacktestRunner {
       setState: (next) => {
         this.strategyState = next
       },
-      emit: () => {},
+      // Strategy events land on the replay tape, stamped at the bar's open
+      // time so they line up with the candles (fills are stamped the same way).
+      emit: (type, message) =>
+        this.pushTimelineEvent({
+          t: this.candlesNum[this.currentIndex]?.t ?? this.now,
+          k: "note",
+          type,
+          message,
+        }),
       now: this.now,
     }
   }

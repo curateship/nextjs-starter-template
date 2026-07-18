@@ -1,16 +1,32 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
-import { ChartCandlestickIcon, ChevronsUpIcon, XIcon } from "lucide-react"
+import {
+  ChartCandlestickIcon,
+  ChevronsUpIcon,
+  WorkflowIcon,
+  XIcon,
+} from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
+import { AutomationBacktestParamsPanel } from "@/components/automations/automation-backtest-params-panel"
+import { AutomationBacktestSidePanel } from "@/components/automations/automation-backtest-side-panel"
+import { AutomationBacktestTradesPanel } from "@/components/automations/automation-backtest-trades-panel"
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { AutomationToolbar } from "@/components/automations/automation-toolbar"
-import { AutomationVisualizePanel } from "@/components/automations/automation-visualize-panel"
+import {
+  AutomationVisualizePanel,
+  nodeAfterTuneDrag,
+} from "@/components/automations/automation-visualize-panel"
+import {
+  BacktestRunChart,
+  type BacktestTuneDrag,
+} from "@/components/backtest/backtest-run-chart"
+import { maxWindowDays } from "@/lib/backtest/types"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -59,17 +75,16 @@ import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
+import { useAutomationBacktest } from "./use-automation-backtest"
 
 export function AutomationEditor({
   initial,
   initialFavoriteNodeKeys,
   onCreateBot,
-  onBacktest,
 }: {
   initial: AutomationDetail
   initialFavoriteNodeKeys: AutomationPaletteKey[]
   onCreateBot?: () => void
-  onBacktest?: () => void
 }) {
   const [name, setName] = React.useState(initial.name)
   const [type, setType] = React.useState(initial.type)
@@ -110,6 +125,8 @@ export function AutomationEditor({
     initialFavoriteNodeKeys
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
+  const backtest = useAutomationBacktest(initial.id)
+  const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -157,7 +174,11 @@ export function AutomationEditor({
         name: nextName,
         type: nextType,
         interval: nextInterval,
-        graph: nextGraph,
+        // The camera is not a strategy change: pan/zoom/fit write
+        // graph.viewport, and counting that as dirty blocked backtesting
+        // with "nothing to save". The viewport still persists as a side
+        // effect of the next real save.
+        graph: { ...nextGraph, viewport: null },
         backtest: nextBacktest,
       }),
     []
@@ -347,7 +368,7 @@ export function AutomationEditor({
   )
 
   const handleSave = React.useCallback(async () => {
-    if (saving) return
+    if (saving) return false
     setSaving(true)
     setSaveError(null)
     const payload = {
@@ -381,12 +402,14 @@ export function AutomationEditor({
           ? "Saved Automation. It is ready to run."
           : "Saved draft with validation issues."
       )
+      return Boolean(saved.compiledConfig)
     } catch (error) {
       setSaveError(
         error instanceof Error
           ? error.message
           : "Could not save this automation."
       )
+      return false
     } finally {
       setSaving(false)
     }
@@ -401,6 +424,71 @@ export function AutomationEditor({
     serialize,
     type,
   ])
+
+  // Whale Wall gate + save gate, shared by the toolbar and the backtest panel.
+  const backtestDisabledReason =
+    compiled.config &&
+    !automationCapabilities(compiled.config).supportsHistoricalBacktest
+      ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
+      : undefined
+  const runnableNow = compiled.config !== null && !dirty && !saving
+  const runnableDisabledReason =
+    compiled.config === null
+      ? "Fix the automation's issues to enable."
+      : dirty || saving
+        ? "Save the automation to enable."
+        : undefined
+
+  const handleBacktestToggle = () => {
+    if (backtest.open) {
+      backtest.exit()
+      return
+    }
+    setVisualize(false)
+    backtest.enter()
+    if (desktop) {
+      palettePanelRef.current?.expand()
+      inspectorPanelRef.current?.expand()
+    } else {
+      setInspectorOpen(true)
+    }
+  }
+
+  const selectedBacktestRun =
+    backtest.open && backtest.selectedRun?.status === "done"
+      ? backtest.selectedRun
+      : null
+  const selectedBacktestResult = selectedBacktestRun?.result ?? null
+
+  // A dropped tune line rewrites the matching node's setting — the rule, not
+  // that one order. The graph goes dirty like any inspector edit.
+  const handleTuneDrag = React.useCallback(
+    (change: BacktestTuneDrag) => {
+      const next = nodeAfterTuneDrag(graphRef.current.nodes, change)
+      if (!next) return
+      updateNode(next)
+      record("Adjusted a setting by dragging on the backtest chart.")
+    },
+    [record, updateNode]
+  )
+
+  const handleSaveAndRerun = async () => {
+    const saved = await handleSave()
+    if (!saved) return
+    const windowDays = Number(backtest.days)
+    await backtest.start(
+      Math.min(
+        Number.isInteger(windowDays) && windowDays >= 1 ? windowDays : 30,
+        maxWindowDays(interval)
+      )
+    )
+  }
+
+  // Selecting a market surfaces its trades in the bottom panel.
+  const selectedBacktestRunId = backtest.selectedRunId
+  React.useEffect(() => {
+    if (selectedBacktestRunId) setLogOpen(true)
+  }, [selectedBacktestRunId])
 
   const inspector = (
     <AutomationInspector
@@ -423,7 +511,31 @@ export function AutomationEditor({
       onDeleteNode={deleteNode}
     />
   )
-  const centerPanel = visualize ? (
+  const centerPanel =
+    selectedBacktestRun && selectedBacktestResult ? (
+      <BacktestRunChart
+        key={selectedBacktestRun.id}
+        run={selectedBacktestRun}
+        focusedTrade={backtest.focusedTrade}
+        onLastCloseChange={setRunLastClose}
+        toolbarLeading={
+          <span className="text-sm font-bold">{selectedBacktestRun.market}</span>
+        }
+        toolbarActions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => backtest.selectRun(null)}
+          >
+            <WorkflowIcon className="size-3.5" />
+            Canvas
+          </Button>
+        }
+        onTuneDrag={handleTuneDrag}
+      />
+    ) : visualize ? (
     <AutomationVisualizePanel
       graph={graph}
       config={compiled.config}
@@ -451,18 +563,53 @@ export function AutomationEditor({
             : undefined
         }
       />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="absolute top-3 right-3 z-10 h-8 shadow-sm"
-        onClick={() => setVisualize(true)}
-      >
-        <ChartCandlestickIcon className="size-3.5" />
-        Visualize
-      </Button>
+      {backtest.open ? null : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="absolute top-3 right-3 z-10 h-8 shadow-sm"
+          onClick={() => setVisualize(true)}
+        >
+          <ChartCandlestickIcon className="size-3.5" />
+          Visualize
+        </Button>
+      )}
     </div>
   )
+
+  const palette = (
+    <AutomationPalette
+      favoriteNodeKeys={favoriteNodeKeys}
+      onSelect={previewPaletteNode}
+      onAdd={addNode}
+      onDragStart={setDraggedNodeKey}
+      onDragEnd={() => setDraggedNodeKey(null)}
+    />
+  )
+  const sidePanel = (
+    <AutomationBacktestSidePanel
+      backtest={backtest}
+      interval={interval}
+      isQfl={Boolean(compiled.config?.qfl)}
+      runnable={runnableNow && !backtestDisabledReason}
+      disabledReason={backtestDisabledReason ?? runnableDisabledReason}
+      canSaveAndRerun={dirty && compiled.config !== null && !saving}
+      onSaveAndRerun={() => void handleSaveAndRerun()}
+      onExit={backtest.exit}
+    />
+  )
+  const paramsPanel = (
+    <AutomationBacktestParamsPanel
+      selectedRun={selectedBacktestRun}
+      interval={interval}
+      days={backtest.days}
+      backtestSettings={backtestSettings}
+      config={compiled.config}
+    />
+  )
+  const leftPanel = backtest.open ? paramsPanel : palette
+  const rightPanel = backtest.open ? sidePanel : inspector
   const workspace = desktop ? (
     <ResizablePanelGroup
       key={horizontalLayout.layoutKey}
@@ -481,15 +628,7 @@ export function AutomationEditor({
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel>
-          <AutomationPalette
-            favoriteNodeKeys={favoriteNodeKeys}
-            onSelect={previewPaletteNode}
-            onAdd={addNode}
-            onDragStart={setDraggedNodeKey}
-            onDragEnd={() => setDraggedNodeKey(null)}
-          />
-        </WorkspacePanel>
+        <WorkspacePanel>{leftPanel}</WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap />
       <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
@@ -506,7 +645,7 @@ export function AutomationEditor({
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel>{inspector}</WorkspacePanel>
+        <WorkspacePanel>{rightPanel}</WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -517,20 +656,10 @@ export function AutomationEditor({
     <div className="flex h-full min-h-0 flex-col bg-muted/60 dark:bg-background">
       <AutomationToolbar
         name={name}
-        runnable={compiled.config !== null && !dirty && !saving}
-        backtestDisabledReason={
-          compiled.config &&
-          !automationCapabilities(compiled.config).supportsHistoricalBacktest
-            ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
-            : undefined
-        }
-        runnableDisabledReason={
-          compiled.config === null
-            ? "Fix the automation's issues to enable."
-            : dirty || saving
-              ? "Save the automation to enable."
-              : undefined
-        }
+        runnable={runnableNow}
+        backtestDisabledReason={backtestDisabledReason}
+        runnableDisabledReason={runnableDisabledReason}
+        backtestActive={backtest.open}
         dirty={dirty}
         saving={saving}
         onNameChange={setName}
@@ -539,7 +668,7 @@ export function AutomationEditor({
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
         onCreateBot={onCreateBot}
-        onBacktest={onBacktest}
+        onBacktest={handleBacktestToggle}
       />
       {saveError ? (
         <div
@@ -570,15 +699,31 @@ export function AutomationEditor({
               maxSize="45%"
             >
               <WorkspacePanel>
-                <AutomationActivityLog
-                  entries={logEntries}
-                  onCollapse={() => setLogOpen(false)}
-                  showPanelToggles={desktop}
-                  paletteCollapsed={paletteCollapsed}
-                  inspectorCollapsed={inspectorCollapsed}
-                  onTogglePalette={togglePalette}
-                  onToggleInspector={toggleInspector}
-                />
+                {selectedBacktestRun && selectedBacktestResult ? (
+                  <AutomationBacktestTradesPanel
+                    market={selectedBacktestRun.market}
+                    result={selectedBacktestResult}
+                    markPrice={runLastClose ?? 0}
+                    focusedTradeN={backtest.focusedTrade?.n ?? null}
+                    onSelectTrade={backtest.setFocusedTrade}
+                    onCollapse={() => setLogOpen(false)}
+                    showPanelToggles={desktop}
+                    paletteCollapsed={paletteCollapsed}
+                    inspectorCollapsed={inspectorCollapsed}
+                    onTogglePalette={togglePalette}
+                    onToggleInspector={toggleInspector}
+                  />
+                ) : (
+                  <AutomationActivityLog
+                    entries={logEntries}
+                    onCollapse={() => setLogOpen(false)}
+                    showPanelToggles={desktop}
+                    paletteCollapsed={paletteCollapsed}
+                    inspectorCollapsed={inspectorCollapsed}
+                    onTogglePalette={togglePalette}
+                    onToggleInspector={toggleInspector}
+                  />
+                )}
               </WorkspacePanel>
             </ResizablePanel>
           ) : null}
@@ -586,10 +731,14 @@ export function AutomationEditor({
         {!logOpen ? (
           <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
             <span className="text-xs font-semibold tracking-wide uppercase">
-              Activity log
+              {selectedBacktestRun
+                ? `Trades — ${selectedBacktestRun.market}`
+                : "Activity log"}
             </span>
             <span className="ml-2 text-xs text-muted-foreground">
-              {logEntries.length} {logEntries.length === 1 ? "event" : "events"}
+              {selectedBacktestRun && selectedBacktestResult
+                ? `${selectedBacktestResult.trades.length} closed`
+                : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {desktop ? (
@@ -633,14 +782,10 @@ export function AutomationEditor({
           showCloseButton={false}
           className="w-[min(90vw,320px)] gap-0 p-0"
         >
-          <SheetPanelHeader title="Add a node" />
-          <AutomationPalette
-            favoriteNodeKeys={favoriteNodeKeys}
-            onSelect={previewPaletteNode}
-            onAdd={addNode}
-            onDragStart={setDraggedNodeKey}
-            onDragEnd={() => setDraggedNodeKey(null)}
+          <SheetPanelHeader
+            title={backtest.open ? "Backtest params" : "Add a node"}
           />
+          {leftPanel}
         </SheetContent>
       </Sheet>
       <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>
@@ -649,8 +794,10 @@ export function AutomationEditor({
           showCloseButton={false}
           className="w-[min(90vw,360px)] gap-0 p-0"
         >
-          <SheetPanelHeader title="Automation inspector" />
-          {inspector}
+          <SheetPanelHeader
+            title={backtest.open ? "Backtest" : "Automation inspector"}
+          />
+          {rightPanel}
         </SheetContent>
       </Sheet>
 
