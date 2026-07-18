@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
+import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import {
   Area,
   AreaChart,
@@ -9,11 +10,18 @@ import {
   YAxis,
 } from "recharts"
 import {
+  ArrowLeftIcon,
   ChevronDownIcon,
+  ChevronsDownIcon,
+  ChevronsUpIcon,
   HistoryIcon,
   ListFilterIcon,
   ListIcon,
   Loader2Icon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
   PinIcon,
   PinOffIcon,
   Trash2Icon,
@@ -22,7 +30,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,6 +37,16 @@ import {
 } from "@/components/ui/chart"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
+import { IconButton } from "@/components/icon-button"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  WorkspacePanel,
+} from "@/components/ui/resizable"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { BacktestRunChart } from "./backtest-run-chart"
+import { StrategyTester } from "./strategy-tester"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -60,11 +77,14 @@ import {
 } from "@/components/ui/table"
 import {
   deleteBacktests,
+  loadBacktest,
   pollBacktestProgress,
   updateRunStatus,
+  type BacktestDetail,
   type BacktestListItem,
 } from "@/lib/api/backtests"
 import type {
+  BacktestTrade,
   GroupCombinedCurve,
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
@@ -79,17 +99,65 @@ import {
   usd,
   windowDaysOf,
 } from "./backtest-format"
+import {
+  BacktestMarketsTable,
+  sortHead,
+  sortMarketRows,
+  type MarketSort,
+} from "./backtest-markets-table"
 import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 /** Short calendar date (e.g. "Mar 23, 2025") for stat-card context lines. */
-const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
+/** Month + day only — keeps the narrow group-summary rows readable. */
+const compactDateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
-  year: "numeric",
 })
 const BACKTEST_PROGRESS_BATCH_SIZE = 100
+
+/**
+ * Persist a resizable layout in localStorage, matching the automation editor:
+ * the saved layout captures panel widths AND which panels are collapsed (a
+ * collapsed panel has size 0). Read after mount (never during render — that
+ * would mismatch hydration); `layoutKey` remounts the group once the saved
+ * layout loads so it applies cleanly, and the `loaded` guard avoids saving the
+ * pre-load default over it.
+ */
+function usePanelLayout(key: string) {
+  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
+  const [loaded, setLoaded] = React.useState(false)
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem(key)
+      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
+    } catch {
+      setDefaultLayout(undefined)
+    } finally {
+      setLoaded(true)
+    }
+  }, [key])
+
+  const onLayoutChanged = React.useCallback(
+    (layout: Layout) => {
+      if (!loaded) return
+      try {
+        localStorage.setItem(key, JSON.stringify(layout))
+      } catch {
+        // Storage blocked — resizing still works for this session.
+      }
+    },
+    [key, loaded]
+  )
+
+  return {
+    defaultLayout,
+    onLayoutChanged,
+    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
+  }
+}
 
 /** Keeps only changing run fields live; the full route refreshes once at completion. */
 function useLiveBacktestRuns(
@@ -411,28 +479,6 @@ function DeleteSelectedButton({
         onDone={onDone}
       />
     </>
-  )
-}
-
-function sortHead<Column extends string>(
-  label: string,
-  column: Column,
-  state: {
-    sortColumn: Column
-    sortDirection: TableSortDirection
-    toggleSort: (c: Column) => void
-  }
-) {
-  return (
-    <TableHead column="meta" key={column}>
-      <TableSortButton
-        active={state.sortColumn === column}
-        direction={state.sortDirection}
-        onClick={() => state.toggleSort(column)}
-      >
-        {label}
-      </TableSortButton>
-    </TableHead>
   )
 }
 
@@ -973,8 +1019,6 @@ export function RunGroupsDashboard({
 // /backtest/$groupId — one result row per market of a run group.
 // ---------------------------------------------------------------------------
 
-type MarketSort = "market" | "net" | "dd" | "win" | "sharpe" | "trades"
-
 /** Trading polarity pair, consistent with the price + equity charts. */
 const CHART_UP = "#089981"
 const CHART_DOWN = "#f23645"
@@ -1004,36 +1048,19 @@ export function RunHistoryDashboard({
     marketRuns.find((run) => run.id === groupId) ?? marketRuns[0] ?? null
   const runName = main?.name ?? "Run"
 
-  // Client-side filter (by market symbol) + sort, then paginate with the
-  // shared table footer — the same table UI as every other dashboard.
-  const filtered = React.useMemo(() => {
-    const query = state.search.trim().toLowerCase()
-    const direction = state.sortDirection === "asc" ? 1 : -1
-    const num = (value: number | null) => value ?? -Infinity
-    const matches = query
-      ? marketRuns.filter((run) => run.market.toLowerCase().includes(query))
-      : marketRuns
-    return [...matches].sort((a, b) => {
-      if (state.sortColumn === "market")
-        return a.market.localeCompare(b.market) * direction
-      if (state.sortColumn === "dd")
-        return (num(a.maxDrawdownPct) - num(b.maxDrawdownPct)) * direction
-      if (state.sortColumn === "win")
-        return (num(a.winRate) - num(b.winRate)) * direction
-      if (state.sortColumn === "sharpe")
-        return (num(a.sharpe) - num(b.sharpe)) * direction
-      if (state.sortColumn === "trades")
-        return (num(a.tradeCount) - num(b.tradeCount)) * direction
-      return (num(a.netPnlPct) - num(b.netPnlPct)) * direction
-    })
-  }, [marketRuns, state.search, state.sortColumn, state.sortDirection])
-
-  const { rows: pageRows, totalPages } = paginate(
-    filtered,
-    state.page,
-    state.pageSize
+  // Client-side filter (by market symbol) + sort with the shared comparator —
+  // the same table the editor's backtest mode renders.
+  const filtered = React.useMemo(
+    () =>
+      sortMarketRows(
+        marketRuns,
+        state.sortColumn,
+        state.sortDirection,
+        state.search
+      ),
+    [marketRuns, state.search, state.sortColumn, state.sortDirection]
   )
-  const visibleIds = pageRows.map((run) => run.id)
+
   const metrics = groupMetrics[groupId] ?? null
 
   // This run's headline stats, blended across its completed markets.
@@ -1064,7 +1091,7 @@ export function RunHistoryDashboard({
       tone: metrics ? metrics.combinedDrawdownPct : null,
       sub:
         metrics && metrics.drawdownAt !== null
-          ? shortDateFormatter.format(metrics.drawdownAt)
+          ? compactDateFormatter.format(metrics.drawdownAt)
           : undefined,
     },
     {
@@ -1077,7 +1104,7 @@ export function RunHistoryDashboard({
       tone: metrics ? metrics.bucketLowPct : null,
       sub:
         metrics && metrics.bucketLowPct < 0 && metrics.bucketLowAt !== null
-          ? shortDateFormatter.format(metrics.bucketLowAt)
+          ? compactDateFormatter.format(metrics.bucketLowAt)
           : undefined,
     },
   ]
@@ -1091,333 +1118,451 @@ export function RunHistoryDashboard({
       : true
   const rangeLabel =
     chartData.length > 1
-      ? `${shortDateFormatter.format(chartData[0].t)} – ${shortDateFormatter.format(chartData[chartData.length - 1].t)}`
+      ? `${compactDateFormatter.format(chartData[0].t)} – ${compactDateFormatter.format(chartData[chartData.length - 1].t)}`
       : null
 
-  return (
-    <div className="w-full">
-      <div className="grid grid-cols-1 items-start gap-2 md:gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* LEFT — per-market results table (standard dashboard table). */}
-        <DashboardTable
-          title={
-            <Breadcrumbs
-              crumbs={[
-                { label: "Backtest", to: "/backtest" },
-                { label: truncateWords(runName, 10) },
-              ]}
-            />
-          }
-          icon={
-            <HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-          }
-          count={marketRuns.length}
-          selectedCount={selection.selected.size}
-          onClearSelection={selection.clear}
-          controls={
-            <>
-              <DashboardToolbarSearch
-                name="market-search"
-                aria-label="Filter markets"
-                placeholder="Filter markets..."
-                className="sm:mr-auto"
-                value={state.search}
-                onChange={(event) => state.setSearch(event.target.value)}
-              />
-              {selection.selected.size ? (
-                <DeleteSelectedButton
-                  count={selection.selected.size}
-                  description={`This permanently deletes ${selection.selected.size} market ${selection.selected.size === 1 ? "result" : "results"} from this run.`}
-                  onDelete={async () => {
-                    await deleteBacktests({ ids: [...selection.selected] })
-                  }}
-                  onDone={selection.clear}
-                />
-              ) : null}
-            </>
-          }
-          header={
-            <TableHeader>
-              <TableRow>
-                <TableHead column="select">
-                  <Checkbox
-                    checked={selection.headerState(visibleIds)}
-                    onCheckedChange={(checked) =>
-                      selection.toggleVisible(visibleIds, checked === true)
-                    }
-                    aria-label="Select visible markets"
-                  />
-                </TableHead>
-                {sortHead("Market", "market", state)}
-                {sortHead("Net P&L", "net", state)}
-                {sortHead("Max DD", "dd", state)}
-                {sortHead("Win rate", "win", state)}
-                {sortHead("Sharpe", "sharpe", state)}
-                {sortHead("Trades", "trades", state)}
-              </TableRow>
-            </TableHeader>
-          }
-          isEmpty={pageRows.length === 0}
-          emptyText="No market results in this run."
-          emptyColSpan={7}
-          footer={{
-            type: "pagination",
-            page: state.page,
-            pageSize: state.pageSize,
-            total: filtered.length,
-            totalPages,
-            pageSizeOptions,
-            onPageChange: state.setPage,
-            onPageSizeChange: state.setPageSize,
-          }}
-        >
-          {pageRows.map((run) => (
-            <TableRow
-              key={run.id}
-              className="cursor-pointer"
-              onClick={() =>
-                void navigate({ to: "/backtest", search: { run: run.id } })
-              }
-            >
-              <TableCell
-                column="select"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <Checkbox
-                  checked={selection.selected.has(run.id)}
-                  onCheckedChange={() => selection.toggle(run.id)}
-                  aria-label={`Select ${run.market}`}
-                />
-              </TableCell>
-              {/* Coin symbols are short — skip main's 320px floor. */}
-              <TableCell column="main" className="min-w-0">
-                <span className="font-medium">{run.market}</span>
-              </TableCell>
-              <TableCell
-                column="meta"
-                className={cn(
-                  "font-mono tabular-nums",
-                  run.netPnl !== null ? toneClass(run.netPnl) : undefined
-                )}
-              >
-                {run.status === "done" && run.netPnl !== null
-                  ? `${signedUsd(run.netPnl)}${run.netPnlPct !== null ? ` (${pct(run.netPnlPct)})` : ""}`
-                  : "—"}
-              </TableCell>
-              <TableCell
-                column="meta"
-                className="font-mono text-red-500 tabular-nums"
-              >
-                {run.maxDrawdownPct !== null
-                  ? `-${run.maxDrawdownPct.toFixed(2)}%`
-                  : "—"}
-              </TableCell>
-              <TableCell column="meta" className="font-mono tabular-nums">
-                {run.winRate !== null
-                  ? `${(run.winRate * 100).toFixed(1)}%`
-                  : "—"}
-              </TableCell>
-              <TableCell
-                column="meta"
-                className={cn(
-                  "font-mono tabular-nums",
-                  run.sharpe !== null
-                    ? toneClass(run.sharpe)
-                    : "text-muted-foreground"
-                )}
-              >
-                {run.sharpe !== null ? run.sharpe.toFixed(2) : "—"}
-              </TableCell>
-              <TableCell column="meta" className="font-mono tabular-nums">
-                {run.tradeCount ?? "—"}
-              </TableCell>
-            </TableRow>
-          ))}
-        </DashboardTable>
+  // The market whose chart + trades fill the workspace, defaulting to the
+  // group's main market (else the first finished one). Clicking a market row
+  // loads it in place — the same flow as the single-result dashboard.
+  const doneMarkets = marketRuns.filter((run) => run.status === "done")
+  const [selectedRunId, setSelectedRunId] = React.useState<string | null>(null)
+  const resolvedRunId =
+    selectedRunId && doneMarkets.some((run) => run.id === selectedRunId)
+      ? selectedRunId
+      : (doneMarkets.find((run) => run.id === groupId)?.id ??
+        doneMarkets[0]?.id ??
+        null)
+  const [detail, setDetail] = React.useState<{
+    id: string
+    run: BacktestDetail | null
+  }>({ id: "", run: null })
+  const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
+  const [focusedTrade, setFocusedTrade] = React.useState<BacktestTrade | null>(
+    null
+  )
 
-        {/* RIGHT — combined summary + P&L curve. */}
-        <div className="flex flex-col gap-2 md:gap-3">
-          <Card className="gap-4 py-5">
-            <CardHeader className="px-5">
-              <CardTitle className="text-sm font-semibold">Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4 px-5">
-              <div className="flex items-end justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">
-                    Total P&L
-                  </span>
-                  <span
-                    className={cn(
-                      "font-mono text-3xl leading-none font-semibold tabular-nums",
-                      summary.netPnl != null
-                        ? toneClass(summary.netPnl)
-                        : "text-foreground"
-                    )}
-                  >
-                    {summary.netPnl !== null ? signedUsd(summary.netPnl) : "—"}
-                  </span>
-                  {summary.startEquity !== null ? (
-                    <span className="text-[11px] text-muted-foreground">
-                      from {usd(summary.startEquity)}
-                    </span>
-                  ) : null}
-                </div>
-                {summary.netPnlPct !== null ? (
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums",
-                      summary.netPnlPct >= 0
-                        ? "bg-emerald-500/10 text-emerald-600"
-                        : "bg-red-500/10 text-red-500"
-                    )}
-                  >
-                    {summary.netPnlPct >= 0 ? "▲" : "▼"}{" "}
-                    {pct(summary.netPnlPct)}
-                  </span>
-                ) : null}
-              </div>
-              <div className="h-px bg-border" />
-              <div className="flex flex-col">
-                {summaryRows.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-baseline justify-between gap-3 py-1.5"
-                  >
-                    <span className="text-sm text-muted-foreground">
-                      {row.label}
-                    </span>
-                    <div className="flex items-baseline gap-2">
-                      {row.sub ? (
-                        <span className="text-[11px] text-muted-foreground/70">
-                          {row.sub}
-                        </span>
-                      ) : null}
-                      <span
-                        className={cn(
-                          "font-mono text-sm tabular-nums",
-                          row.tone != null
-                            ? toneClass(row.tone)
-                            : "text-foreground"
+  React.useEffect(() => {
+    if (!resolvedRunId) return
+    let cancelled = false
+    setFocusedTrade(null)
+    void loadBacktest(resolvedRunId)
+      .then((response) => {
+        if (!cancelled && response.backtest) {
+          setDetail({ id: resolvedRunId, run: response.backtest })
+        }
+      })
+      .catch(() => {
+        // Transient — the row stays selectable and a re-click retries.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [resolvedRunId])
+
+  const loadedRun = detail.id === resolvedRunId ? detail.run : null
+  const loadedResult =
+    loadedRun && loadedRun.status === "done" ? loadedRun.result : null
+
+  // Collapsible side + bottom panels, the same pattern as the automation
+  // editor: each collapses to zero via its ref, and the layout (widths +
+  // collapsed state) is remembered per browser.
+  const summaryPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const [summaryCollapsed, setSummaryCollapsed] = React.useState(false)
+  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
+  const [tradesCollapsed, setTradesCollapsed] = React.useState(false)
+  const horizontalLayout = usePanelLayout("group-workspace-horizontal")
+  const verticalLayout = usePanelLayout("group-workspace-vertical")
+  const togglePanel = (
+    ref: React.RefObject<PanelImperativeHandle | null>
+  ) => {
+    const panel = ref.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
+      <div className="flex items-center gap-3 border-b bg-card px-4 py-2">
+        <IconButton
+          label="Back to backtests"
+          onClick={() => void navigate({ to: "/backtest" })}
+        >
+          <ArrowLeftIcon className="size-4" />
+        </IconButton>
+        <Breadcrumbs
+          crumbs={[
+            { label: "Backtest", to: "/backtest" },
+            { label: truncateWords(runName, 12) },
+          ]}
+        />
+        <div className="flex-1" />
+        <Badge variant="secondary" className="font-medium">
+          {marketRuns.length} {marketRuns.length === 1 ? "market" : "markets"}
+        </Badge>
+        <div className="ml-1 flex items-center gap-0.5">
+          <IconButton
+            label={summaryCollapsed ? "Show summary panel" : "Hide summary panel"}
+            onClick={() => togglePanel(summaryPanelRef)}
+          >
+            {summaryCollapsed ? (
+              <PanelLeftOpenIcon className="size-4" />
+            ) : (
+              <PanelLeftCloseIcon className="size-4" />
+            )}
+          </IconButton>
+          <IconButton
+            label={marketsCollapsed ? "Show markets panel" : "Hide markets panel"}
+            onClick={() => togglePanel(marketsPanelRef)}
+          >
+            {marketsCollapsed ? (
+              <PanelRightOpenIcon className="size-4" />
+            ) : (
+              <PanelRightCloseIcon className="size-4" />
+            )}
+          </IconButton>
+          <IconButton
+            label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
+            onClick={() => togglePanel(tradesPanelRef)}
+          >
+            {tradesCollapsed ? (
+              <ChevronsUpIcon className="size-4" />
+            ) : (
+              <ChevronsDownIcon className="size-4" />
+            )}
+          </IconButton>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 p-2 md:p-3">
+        <ResizablePanelGroup
+          key={verticalLayout.layoutKey}
+          orientation="vertical"
+          defaultLayout={verticalLayout.defaultLayout}
+          onLayoutChanged={verticalLayout.onLayoutChanged}
+        >
+          <ResizablePanel id="main" defaultSize="68%" minSize="35%">
+            <ResizablePanelGroup
+              key={horizontalLayout.layoutKey}
+              orientation="horizontal"
+              defaultLayout={horizontalLayout.defaultLayout}
+              onLayoutChanged={horizontalLayout.onLayoutChanged}
+            >
+              {/* LEFT — group summary + combined P&L curve. */}
+              <ResizablePanel
+                id="summary"
+                panelRef={summaryPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="21%"
+                minSize="21%"
+                maxSize="36%"
+                onResize={(size) =>
+                  setSummaryCollapsed(size.asPercentage < 0.5)
+                }
+              >
+                <WorkspacePanel>
+                  <ScrollArea className="h-full">
+                    <div className="flex min-w-0 flex-col gap-5 p-4">
+                      <div className="flex flex-col gap-3">
+                        <span className="text-xs font-bold">Summary</span>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              Total P&L
+                            </span>
+                            <span
+                              className={cn(
+                                "font-mono text-2xl leading-none font-semibold tabular-nums",
+                                summary.netPnl != null
+                                  ? toneClass(summary.netPnl)
+                                  : "text-foreground"
+                              )}
+                            >
+                              {summary.netPnl !== null
+                                ? signedUsd(summary.netPnl)
+                                : "—"}
+                            </span>
+                            {summary.startEquity !== null ? (
+                              <span className="text-[11px] text-muted-foreground">
+                                from {usd(summary.startEquity)}
+                              </span>
+                            ) : null}
+                          </div>
+                          {summary.netPnlPct !== null ? (
+                            <span
+                              className={cn(
+                                "inline-flex w-fit items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums",
+                                summary.netPnlPct >= 0
+                                  ? "bg-emerald-500/10 text-emerald-600"
+                                  : "bg-red-500/10 text-red-500"
+                              )}
+                            >
+                              {summary.netPnlPct >= 0 ? "▲" : "▼"}{" "}
+                              {pct(summary.netPnlPct)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="h-px bg-border" />
+                        <div className="flex flex-col">
+                          {summaryRows.map((row) => (
+                            <div
+                              key={row.label}
+                              className="flex items-baseline justify-between gap-3 py-1.5"
+                            >
+                              <span className="text-sm text-muted-foreground">
+                                {row.label}
+                              </span>
+                              <div className="flex items-baseline gap-2">
+                                {row.sub ? (
+                                  <span className="text-[11px] text-muted-foreground/70">
+                                    {row.sub}
+                                  </span>
+                                ) : null}
+                                <span
+                                  className={cn(
+                                    "font-mono text-sm tabular-nums",
+                                    row.tone != null
+                                      ? toneClass(row.tone)
+                                      : "text-foreground"
+                                  )}
+                                >
+                                  {row.value}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-0 flex-col gap-1.5">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs font-bold">P&L curve</span>
+                          {rangeLabel ? (
+                            <span className="text-[11px] text-muted-foreground">
+                              {rangeLabel}
+                            </span>
+                          ) : null}
+                        </div>
+                        {chartData.length < 2 ? (
+                          <div className="flex h-[184px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
+                            Not enough data to plot the P&L curve
+                          </div>
+                        ) : (
+                          <ChartContainer
+                            config={{ eq: { label: "Equity" } }}
+                            className="aspect-auto h-[184px] w-full min-w-0"
+                          >
+                            <AreaChart
+                              data={chartData}
+                              margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
+                            >
+                              <defs>
+                                <linearGradient
+                                  id="group-pnl-fill"
+                                  x1="0"
+                                  y1="0"
+                                  x2="0"
+                                  y2="1"
+                                >
+                                  <stop
+                                    offset="0%"
+                                    stopColor={
+                                      positiveCurve ? CHART_UP : CHART_DOWN
+                                    }
+                                    stopOpacity={0.2}
+                                  />
+                                  <stop
+                                    offset="100%"
+                                    stopColor={
+                                      positiveCurve ? CHART_UP : CHART_DOWN
+                                    }
+                                    stopOpacity={0}
+                                  />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid
+                                vertical={false}
+                                strokeOpacity={0.3}
+                              />
+                              <XAxis
+                                dataKey="t"
+                                tickLine={false}
+                                axisLine={false}
+                                minTickGap={40}
+                                tickFormatter={(value: number) =>
+                                  new Date(value).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                }
+                              />
+                              <YAxis
+                                width={54}
+                                tickLine={false}
+                                axisLine={false}
+                                domain={["auto", "auto"]}
+                                tickFormatter={(value: number) =>
+                                  `$${Math.round(value).toLocaleString()}`
+                                }
+                              />
+                              {groupCurve ? (
+                                <ReferenceLine
+                                  y={groupCurve.startEquity}
+                                  strokeDasharray="5 4"
+                                  stroke="currentColor"
+                                  strokeOpacity={0.4}
+                                />
+                              ) : null}
+                              <ChartTooltip
+                                content={
+                                  <ChartTooltipContent
+                                    labelFormatter={(_, payload) =>
+                                      payload?.[0]
+                                        ? new Date(
+                                            payload[0].payload.t as number
+                                          ).toLocaleDateString("en-US", {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                          })
+                                        : ""
+                                    }
+                                  />
+                                }
+                              />
+                              <Area
+                                dataKey="eq"
+                                type="monotone"
+                                stroke={positiveCurve ? CHART_UP : CHART_DOWN}
+                                strokeWidth={2}
+                                fill="url(#group-pnl-fill)"
+                                dot={false}
+                                isAnimationActive={false}
+                              />
+                            </AreaChart>
+                          </ChartContainer>
                         )}
-                      >
-                        {row.value}
-                      </span>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </WorkspacePanel>
+              </ResizablePanel>
+
+              <ResizableHandle gap />
+
+              {/* CENTER — the selected market's replay chart. */}
+              <ResizablePanel id="chart" defaultSize="51%" minSize="24%">
+                <WorkspacePanel className="flex flex-col">
+                  {loadedRun && loadedResult ? (
+                    <BacktestRunChart
+                      key={loadedRun.id}
+                      run={loadedRun}
+                      focusedTrade={focusedTrade}
+                      onLastCloseChange={setRunLastClose}
+                      toolbarLeading={
+                        <span className="text-sm font-bold">
+                          {loadedRun.market}
+                        </span>
+                      }
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                      {marketRuns.length === 0
+                        ? "No market results in this run."
+                        : doneMarkets.length === 0
+                          ? "This run is still processing — results appear as each market finishes."
+                          : "Select a market to view its chart."}
+                    </div>
+                  )}
+                </WorkspacePanel>
+              </ResizablePanel>
+
+              <ResizableHandle gap />
+
+              {/* RIGHT — every market in the run; click one to load it. */}
+              <ResizablePanel
+                id="markets"
+                panelRef={marketsPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="28%"
+                minSize="20%"
+                maxSize="48%"
+                onResize={(size) =>
+                  setMarketsCollapsed(size.asPercentage < 0.5)
+                }
+              >
+                <WorkspacePanel className="flex flex-col">
+                  <div className="flex min-h-10 shrink-0 items-center gap-2 border-b p-3">
+                    <HistoryIcon className="size-4 text-muted-foreground" />
+                    <h2 className="text-xs font-semibold tracking-wide uppercase">
+                      Markets
+                    </h2>
+                    <span className="text-xs text-muted-foreground">
+                      {marketRuns.length}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      {selection.selected.size ? (
+                        <DeleteSelectedButton
+                          count={selection.selected.size}
+                          description={`This permanently deletes ${selection.selected.size} market ${selection.selected.size === 1 ? "result" : "results"} from this run.`}
+                          onDelete={async () => {
+                            await deleteBacktests({
+                              ids: [...selection.selected],
+                            })
+                          }}
+                          onDone={selection.clear}
+                        />
+                      ) : null}
+                      <DashboardToolbarSearch
+                        name="market-search"
+                        aria-label="Filter markets"
+                        placeholder="Filter markets..."
+                        value={state.search}
+                        onChange={(event) => state.setSearch(event.target.value)}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <ScrollArea className="min-h-0 flex-1">
+                    <BacktestMarketsTable
+                      rows={filtered}
+                      state={state}
+                      selectedId={resolvedRunId}
+                      onSelect={(row) => setSelectedRunId(row.id)}
+                      selection={selection}
+                    />
+                  </ScrollArea>
+                </WorkspacePanel>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ResizablePanel>
 
-          <Card className="gap-2 py-5">
-            <CardHeader className="px-5">
-              <div className="flex items-baseline justify-between gap-2">
-                <CardTitle className="text-sm font-semibold">
-                  P&L curve
-                </CardTitle>
-                {rangeLabel ? (
-                  <span className="text-[11px] text-muted-foreground">
-                    {rangeLabel}
-                  </span>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="px-5">
-              {chartData.length < 2 ? (
-                <div className="flex h-[184px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
-                  Not enough data to plot the P&L curve
-                </div>
-              ) : (
-                <ChartContainer
-                  config={{ eq: { label: "Equity" } }}
-                  className="h-[184px] w-full"
-                >
-                  <AreaChart
-                    data={chartData}
-                    margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="group-pnl-fill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor={positiveCurve ? CHART_UP : CHART_DOWN}
-                          stopOpacity={0.2}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={positiveCurve ? CHART_UP : CHART_DOWN}
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} strokeOpacity={0.3} />
-                    <XAxis
-                      dataKey="t"
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={40}
-                      tickFormatter={(value: number) =>
-                        new Date(value).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      }
-                    />
-                    <YAxis
-                      width={54}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={["auto", "auto"]}
-                      tickFormatter={(value: number) =>
-                        `$${Math.round(value).toLocaleString()}`
-                      }
-                    />
-                    {groupCurve ? (
-                      <ReferenceLine
-                        y={groupCurve.startEquity}
-                        strokeDasharray="5 4"
-                        stroke="currentColor"
-                        strokeOpacity={0.4}
-                      />
-                    ) : null}
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(_, payload) =>
-                            payload?.[0]
-                              ? new Date(
-                                  payload[0].payload.t as number
-                                ).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })
-                              : ""
-                          }
-                        />
-                      }
-                    />
-                    <Area
-                      dataKey="eq"
-                      type="monotone"
-                      stroke={positiveCurve ? CHART_UP : CHART_DOWN}
-                      strokeWidth={2}
-                      fill="url(#group-pnl-fill)"
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </AreaChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          <ResizableHandle gap />
+
+          {/* BOTTOM — the selected market's trades. */}
+          <ResizablePanel
+            id="trades"
+            panelRef={tradesPanelRef}
+            collapsible
+            collapsedSize="0%"
+            defaultSize="32%"
+            minSize="15%"
+            onResize={(size) => setTradesCollapsed(size.asPercentage < 0.5)}
+          >
+            <WorkspacePanel>
+              <StrategyTester
+                result={loadedResult}
+                startingEquity={loadedRun?.startingEquity ?? 0}
+                markPrice={runLastClose ?? 0}
+                selectedTradeN={focusedTrade?.n ?? null}
+                onSelectTrade={setFocusedTrade}
+              />
+            </WorkspacePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   )

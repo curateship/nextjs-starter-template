@@ -1,11 +1,6 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
-import {
-  ChartCandlestickIcon,
-  ChevronsUpIcon,
-  WorkflowIcon,
-  XIcon,
-} from "lucide-react"
+import { ChartCandlestickIcon, ChevronsUpIcon, XIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -17,7 +12,10 @@ import { AutomationCanvasSettingsDialog } from "@/components/automations/automat
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
-import { AutomationToolbar } from "@/components/automations/automation-toolbar"
+import {
+  AutomationToolbar,
+  type AutomationView,
+} from "@/components/automations/automation-toolbar"
 import {
   AutomationVisualizePanel,
   nodeAfterTuneDrag,
@@ -439,19 +437,21 @@ export function AutomationEditor({
         ? "Save the automation to enable."
         : undefined
 
-  const handleBacktestToggle = () => {
-    if (backtest.open) {
-      backtest.exit()
+  const view: AutomationView = backtest.open ? "backtest" : "canvas"
+  const handleViewChange = (next: AutomationView) => {
+    if (next === "backtest") {
+      if (backtest.open) return
+      setVisualize(false)
+      backtest.enter()
+      if (desktop) {
+        palettePanelRef.current?.expand()
+        inspectorPanelRef.current?.expand()
+      } else {
+        setInspectorOpen(true)
+      }
       return
     }
-    setVisualize(false)
-    backtest.enter()
-    if (desktop) {
-      palettePanelRef.current?.expand()
-      inspectorPanelRef.current?.expand()
-    } else {
-      setInspectorOpen(true)
-    }
+    if (backtest.open) backtest.exit()
   }
 
   const selectedBacktestRun =
@@ -521,18 +521,6 @@ export function AutomationEditor({
         toolbarLeading={
           <span className="text-sm font-bold">{selectedBacktestRun.market}</span>
         }
-        toolbarActions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8"
-            onClick={() => backtest.selectRun(null)}
-          >
-            <WorkflowIcon className="size-3.5" />
-            Canvas
-          </Button>
-        }
         onTuneDrag={handleTuneDrag}
       />
     ) : visualize ? (
@@ -596,7 +584,6 @@ export function AutomationEditor({
       disabledReason={backtestDisabledReason ?? runnableDisabledReason}
       canSaveAndRerun={dirty && compiled.config !== null && !saving}
       onSaveAndRerun={() => void handleSaveAndRerun()}
-      onExit={backtest.exit}
     />
   )
   const paramsPanel = (
@@ -659,7 +646,8 @@ export function AutomationEditor({
         runnable={runnableNow}
         backtestDisabledReason={backtestDisabledReason}
         runnableDisabledReason={runnableDisabledReason}
-        backtestActive={backtest.open}
+        view={view}
+        onViewChange={handleViewChange}
         dirty={dirty}
         saving={saving}
         onNameChange={setName}
@@ -668,7 +656,6 @@ export function AutomationEditor({
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
         onCreateBot={onCreateBot}
-        onBacktest={handleBacktestToggle}
       />
       {saveError ? (
         <div

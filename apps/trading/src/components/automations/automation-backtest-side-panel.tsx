@@ -28,9 +28,13 @@ import type { BacktestGroupRun } from "@/lib/api/backtests"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { MAX_EXTRA_MARKETS, maxWindowDays } from "@/lib/backtest/types"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
-import { cn } from "@/lib/utils"
 
-import { pct, toneClass } from "@/components/backtest/backtest-format"
+import {
+  BacktestMarketsTable,
+  sortMarketRows,
+  useMarketSort,
+  type BacktestMarketRow,
+} from "@/components/backtest/backtest-markets-table"
 import type { AutomationBacktestState } from "./use-automation-backtest"
 
 /**
@@ -46,7 +50,6 @@ export function AutomationBacktestSidePanel({
   disabledReason,
   canSaveAndRerun,
   onSaveAndRerun,
-  onExit,
 }: {
   backtest: AutomationBacktestState
   interval: AutomationInterval
@@ -57,7 +60,6 @@ export function AutomationBacktestSidePanel({
   /** Unsaved tune-drag edits + a clean compile: offer one-click re-run. */
   canSaveAndRerun?: boolean
   onSaveAndRerun?: () => void
-  onExit: () => void
 }) {
   const markets = useBinanceMarketRows()
   const [keepName, setKeepName] = React.useState("")
@@ -80,6 +82,32 @@ export function AutomationBacktestSidePanel({
   const maxDays = maxWindowDays(interval)
   const availableMarkets = markets.filter(
     (row) => !selectedMarkets.includes(row.coin)
+  )
+
+  // Merge each market's group row with its polled stats into the shared
+  // markets-table shape, then sort with the same comparator the /backtest
+  // group dashboard uses.
+  const marketSort = useMarketSort("net")
+  const marketRows = React.useMemo<BacktestMarketRow[]>(
+    () =>
+      sortMarketRows(
+        runs.map((run) => {
+          const stats = runStats.get(run.id)
+          return {
+            id: run.id,
+            market: run.market,
+            status: run.status,
+            netPnl: stats?.netPnl ?? null,
+            netPnlPct: run.netPnlPct ?? stats?.netPnlPct ?? null,
+            maxDrawdownPct: stats?.maxDrawdownPct ?? null,
+            winRate: stats?.winRate ?? null,
+            tradeCount: stats?.tradeCount ?? null,
+          }
+        }),
+        marketSort.sortColumn,
+        marketSort.sortDirection
+      ),
+    [runs, runStats, marketSort.sortColumn, marketSort.sortDirection]
   )
 
   const submit = () => {
@@ -129,20 +157,16 @@ export function AutomationBacktestSidePanel({
               ? "Running"
               : "Results"}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="ml-auto"
-          aria-label="Close backtest mode"
-          onClick={onExit}
-        >
-          <XIcon className="size-4" />
-        </Button>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-3">
+        <div
+          className={
+            phase === "results"
+              ? "flex flex-col gap-4"
+              : "flex flex-col gap-4 p-3"
+          }
+        >
           {phase === "setup" ? (
             <>
               <div className="grid gap-2">
@@ -290,50 +314,14 @@ export function AutomationBacktestSidePanel({
             </>
           ) : (
             <div className="grid gap-1">
-              {runs.map((run) => {
-                const stats = runStats.get(run.id)
-                const done = run.status === "done"
-                return (
-                  <button
-                    key={run.id}
-                    type="button"
-                    disabled={!done}
-                    title={run.status === "error" ? (run.error ?? "") : undefined}
-                    onClick={() => backtest.selectRun(run.id)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
-                      done ? "hover:bg-muted" : "opacity-70",
-                      run.id === selectedRunId && "bg-muted hover:bg-muted"
-                    )}
-                  >
-                    {done ? null : <RunStatusIcon status={run.status} />}
-                    <span className="font-mono text-xs font-medium">
-                      {run.market}
-                    </span>
-                    <span className="ml-auto text-right">
-                      <span
-                        className={cn(
-                          "block font-mono text-[11px]",
-                          done && run.netPnlPct !== null
-                            ? toneClass(run.netPnlPct)
-                            : "text-muted-foreground"
-                        )}
-                      >
-                        {done && run.netPnlPct !== null
-                          ? pct(run.netPnlPct)
-                          : STATUS_LABELS[run.status]}
-                      </span>
-                      {stats?.winRate != null ? (
-                        <span className="block font-mono text-[10px] text-muted-foreground">
-                          {(Number(stats.winRate) * 100).toFixed(0)}% wins
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
-                )
-              })}
+              <BacktestMarketsTable
+                rows={marketRows}
+                state={marketSort}
+                selectedId={selectedRunId}
+                onSelect={(row) => backtest.selectRun(row.id)}
+              />
               {backtest.selectedRunError ? (
-                <p className="px-2 text-[10px] text-destructive">
+                <p className="px-3 text-[10px] text-destructive">
                   Could not load that market's run — click it to retry.
                 </p>
               ) : null}
@@ -343,7 +331,7 @@ export function AutomationBacktestSidePanel({
       </ScrollArea>
 
       {phase === "results" ? (
-        <div className="grid shrink-0 gap-2 border-t p-3">
+        <div className="grid shrink-0 gap-3 border-t p-3">
           {error ? (
             <div
               role="alert"
@@ -352,33 +340,39 @@ export function AutomationBacktestSidePanel({
               {error}
             </div>
           ) : null}
-          {canSaveAndRerun && onSaveAndRerun ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 w-full"
-              disabled={starting}
-              onClick={onSaveAndRerun}
-            >
-              {starting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              Save &amp; re-run
-            </Button>
-          ) : (
-            runButton("Re-run")
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-full"
-            onClick={backtest.newRun}
-          >
-            New run
-          </Button>
+          <div className="flex items-stretch gap-2">
+            <div className="flex-1">
+              {canSaveAndRerun && onSaveAndRerun ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 w-full"
+                  disabled={starting}
+                  onClick={onSaveAndRerun}
+                >
+                  {starting ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
+                  Save &amp; re-run
+                </Button>
+              ) : (
+                runButton("Re-run")
+              )}
+            </div>
+            <div className="flex-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 w-full"
+                onClick={backtest.newRun}
+              >
+                New run
+              </Button>
+            </div>
+          </div>
           {backtest.replaceable ? (
-            <>
+            <div className="grid gap-2 rounded-md border bg-muted/40 p-2.5">
               <div className="flex items-center gap-2">
                 <Input
                   value={keepName}
@@ -405,7 +399,7 @@ export function AutomationBacktestSidePanel({
                 Unnamed runs are replaced by your next backtest. Named runs
                 stay in history forever.
               </p>
-            </>
+            </div>
           ) : (
             <p className="text-[10px] text-muted-foreground">
               Kept as “{backtest.groupName}” — your next backtest won't

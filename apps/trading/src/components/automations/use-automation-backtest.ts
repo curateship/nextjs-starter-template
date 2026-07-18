@@ -82,10 +82,14 @@ export function useAutomationBacktest(automationId: string) {
         const status = summarizeGroupProgress(latest.runs)
         setPhase(status.allTerminal ? "results" : "running")
         if (status.allTerminal) {
-          const ids = latest.runs
-            .filter((run) => run.status === "done")
-            .map((run) => run.id)
+          const done = latest.runs.filter((run) => run.status === "done")
+          const ids = done.map((run) => run.id)
           if (ids.length > 0) {
+            // Land straight on the first market's chart so opening the mode
+            // shows a replay, not an empty market list.
+            setSelectedRunId((current) =>
+              done.some((run) => run.id === current) ? current : done[0].id
+            )
             void pollBacktestProgress(ids)
               .then((items) => {
                 if (cancelled) return
@@ -114,10 +118,14 @@ export function useAutomationBacktest(automationId: string) {
     let cancelled = false
     const finish = (finished: BacktestGroupRun[]) => {
       setPhase("results")
-      const ids = finished
-        .filter((run) => run.status === "done")
-        .map((run) => run.id)
+      const done = finished.filter((run) => run.status === "done")
+      const ids = done.map((run) => run.id)
       if (ids.length > 0) {
+        // A fresh run (or a re-run) lands on its group's first market — the
+        // old selection belongs to the replaced group, so switch off it.
+        setSelectedRunId((current) =>
+          done.some((run) => run.id === current) ? current : done[0].id
+        )
         void pollBacktestProgress(ids)
           .then((items) => {
             if (cancelled) return
@@ -181,9 +189,11 @@ export function useAutomationBacktest(automationId: string) {
   const enter = React.useCallback(() => setOpen(true), [])
   const exit = React.useCallback(() => setOpen(false), [])
 
+  // Selecting a market always lands on its chart — re-clicking the current
+  // market is a no-op, never a toggle back to an empty (canvas) center.
   const selectRun = React.useCallback((runId: string | null) => {
     setFocusedTrade(null)
-    setSelectedRunId((current) => (current === runId ? null : runId))
+    setSelectedRunId((current) => (current === runId ? current : runId))
   }, [])
 
   const start = React.useCallback(
@@ -202,8 +212,9 @@ export function useAutomationBacktest(automationId: string) {
         setGroupName(PREVIOUS_RUN_NAME_PREFIX)
         setRuns([])
         setRunStats(new Map())
-        setSelectedRunId(null)
-        setSelectedRun(null)
+        // Keep the previous run's chart on screen while the new one computes —
+        // clearing the selection here flashed the bare node canvas. The stale
+        // run stays loadable; finish() swaps to the new group's first market.
         setFocusedTrade(null)
         setPhase("running")
       } catch (runError) {

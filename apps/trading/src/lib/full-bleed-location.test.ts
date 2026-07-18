@@ -15,12 +15,15 @@ describe("isFullBleedLocation", () => {
     ).toBe(true)
   })
 
-  it("keeps the outer gutter on backtest lists", () => {
-    expect(
-      isFullBleedLocation({ pathname: "/backtest", search: {} })
-    ).toBe(false)
+  it("removes the outer gutter from a run group workspace", () => {
     expect(
       isFullBleedLocation({ pathname: "/backtest/group-id", search: {} })
+    ).toBe(true)
+  })
+
+  it("keeps the outer gutter on the backtest list", () => {
+    expect(
+      isFullBleedLocation({ pathname: "/backtest", search: {} })
     ).toBe(false)
   })
 })
