@@ -44,46 +44,38 @@ import {
 import { usePomodoro } from "@/hooks/use-pomodoro"
 import { ConfirmDialog, type ConfirmRequest } from "@/components/pomoder/confirm-dialog"
 import { FocusRhythmPresets } from "@/components/pomoder/focus-rhythm-presets"
-import { usePomoderBackground, type PomoderBackground } from "@/components/pomoder/pomoder-background"
+import { usePomoderBackground } from "@/components/pomoder/pomoder-background"
 import { useSoundPlayer } from "@/components/pomoder/sound-player"
 import { TodayTaskList } from "@/components/pomoder/task-plan-list"
 import { ThemeToggle } from "@/components/pomoder/theme-toggle"
+import { curatedBackgrounds, sameBackgroundReference } from "@/lib/background-catalog"
 import { enableCompletionAlerts } from "@/lib/completion-alerts"
 import { curatedSounds, sameSoundReference, type SoundReference } from "@/lib/sound-catalog"
 import { deleteAccount, updateProfile } from "@/lib/api/auth"
-import { createBillingPortal, createCheckout } from "@/lib/api/billing"
+import { createBillingPortal, createCheckout, loadEntitlements } from "@/lib/api/billing"
 import { requestGeneration } from "@/lib/api/generation"
 import { listMedia } from "@/lib/api/pomoder-media"
 import { loadLeaderboard, loadProductivity } from "@/lib/api/productivity"
 import { applyRoomAction, banMember, createRoom, deleteMessage, getCurrentRoom, joinRoom, leaveActiveRoom, listRooms, lookupRoom, removeMember, reportMessage, sendRoomMessage } from "@/lib/api/rooms"
 
-const backgrounds = [
-  ["Lofi girl", "lofi_girl", false],
-  ["Ambient glow", "ambient", false],
-  ["Plain dark", "plain", false],
-  ["Starry night", "stars", false],
-  ["Rainy window", "rain", true],
-  ["Night forest", "forest", true],
-  ["Ocean waves", "ocean", true],
-  ["Fireplace", "fireplace", true],
-] as const
-
 export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
   const { user } = useRouteContext({ from: "__root__" })
   const { background, chooseBackground } = usePomoderBackground()
   const player = useSoundPlayer()
-  const items = kind === "themes" ? backgrounds : curatedSounds.map((sound) => [sound.label, sound.key, sound.locked] as const)
-  const [selected, setSelected] = React.useState("")
+  const items = kind === "themes" ? curatedBackgrounds.map((scene) => [scene.label, scene.thumb, scene.locked] as const) : curatedSounds.map((sound) => [sound.label, sound.key, sound.locked] as const)
   const [media, setMedia] = React.useState<Awaited<ReturnType<typeof listMedia>>>([])
   const [mediaLoaded, setMediaLoaded] = React.useState(false)
+  const [isPro, setIsPro] = React.useState(false)
   const [prompt, setPrompt] = React.useState("")
   const [notice, setNotice] = React.useState("")
   const fileInput = React.useRef<HTMLInputElement>(null)
-  const descriptions = kind === "themes" ? ["video", "animated", "static", "animated", "video", "video", "video", "video"] : curatedSounds.map((sound) => sound.description)
-  const selectedItem = kind === "themes" ? (background === "lofi" ? "lofi_girl" : background) : null
+  const descriptions = kind === "themes" ? curatedBackgrounds.map((scene) => scene.descriptor) : curatedSounds.map((sound) => sound.description)
   const visibleMedia = media.filter((asset) => kind === "themes" ? ["image", "video"].includes(asset.kind) : asset.kind === "audio")
   const reloadMedia = () => { if (user) void listMedia().then((assets) => { setMedia(assets); setMediaLoaded(true) }).catch(() => setNotice("Your media could not be loaded.")) }
   React.useEffect(reloadMedia, [user])
+  // Pro members unlock the premium curated scenes and can upload their own; the
+  // server still enforces this on every action.
+  React.useEffect(() => { if (user) void loadEntitlements().then((entitlements) => setIsPro(entitlements.plan === "pro")).catch(() => setIsPro(false)); else setIsPro(false) }, [user])
 
   const playerSelected = player.state.selected
   const { markMediaUnavailable, resolveMediaLabel } = player
@@ -102,22 +94,24 @@ export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
   return (
     <div className="reference-view catalog-reference-view">
       <div className="catalog-reference-inner">
-        <header className="catalog-reference-heading"><div><h2>{kind === "themes" ? "Backgrounds" : "Sounds"}</h2><p>{kind === "themes" ? "Set the scene for your focus sessions." : "Ambient audio to keep you in the zone."}</p></div><Link to="/pricing"><Sparkles aria-hidden="true" />Unlock all</Link></header>
+        <header className="catalog-reference-heading"><div><h2>{kind === "themes" ? "Backgrounds" : "Sounds"}</h2><p>{kind === "themes" ? "Set the scene for your focus sessions." : "Ambient audio to keep you in the zone."}</p></div>{!isPro ? <Link to="/pricing"><Sparkles aria-hidden="true" />Unlock all</Link> : null}</header>
         <div className="reference-catalog-grid">
-          {items.map(([label, image, locked], index) => {
-            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "curated", key: image }) : { isSelected: selectedItem === image, isPlaying: false, isLoading: false }
+          {items.map(([label, image, premium], index) => {
+            const locked = premium && !isPro
+            const sceneKey = image === "lofi_girl" ? "lofi" : image
+            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "curated", key: image }) : { isSelected: background.type === "scene" && background.key === sceneKey, isPlaying: false, isLoading: false }
             return (
-              <button key={image} className={`reference-catalog-card ${isSelected ? "selected" : ""} ${locked ? "locked" : ""}`} aria-pressed={kind === "sounds" && !locked ? isSelected : undefined} onClick={() => { if (locked) { window.location.assign("/pricing"); return }; if (kind === "themes") chooseBackground((image === "lofi_girl" ? "lofi" : image) as PomoderBackground); else player.selectSound({ type: "curated", key: image }, label) }}>
+              <button key={image} className={`reference-catalog-card ${isSelected ? "selected" : ""} ${locked ? "locked" : ""}`} aria-pressed={!locked ? isSelected : undefined} onClick={() => { if (locked) { window.location.assign("/pricing"); return }; if (kind === "themes") chooseBackground({ type: "scene", key: sceneKey }); else player.selectSound({ type: "curated", key: image }, label) }}>
                 <span className="catalog-thumb"><img src={`/pomoder/${kind === "themes" ? "thumbs" : "sounds"}-${image}.png`} alt="" />{locked ? <><b>PRO</b><i><LockKeyhole aria-hidden="true" /></i></> : kind === "sounds" ? <i>{isLoading ? <Loader2 className="player-spinner" aria-hidden="true" /> : isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</i> : isSelected ? <i><Check aria-hidden="true" /></i> : null}</span>
                 <strong>{label}</strong><small>{isPlaying ? "playing" : descriptions[index]}</small>
               </button>
             )
           })}
           {visibleMedia.map((asset) => {
-            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "media", mediaId: asset.id }) : { isSelected: selected === asset.id, isPlaying: false, isLoading: false }
+            const { isSelected, isPlaying, isLoading } = kind === "sounds" ? soundCardState({ type: "media", mediaId: asset.id }) : { isSelected: sameBackgroundReference(background, { type: "media", mediaId: asset.id }), isPlaying: false, isLoading: false }
             return (
-              <button key={asset.id} className={`reference-catalog-card ${isSelected ? "selected" : ""}`} disabled={asset.status !== "ready"} aria-pressed={kind === "sounds" && asset.status === "ready" ? isSelected : undefined} onClick={() => { if (kind === "themes") setSelected(asset.id); else player.selectSound({ type: "media", mediaId: asset.id }, asset.name) }}>
-                <span className="catalog-thumb"><img src={asset.kind === "image" ? `/api/media/${asset.id}/file` : `/pomoder/${kind === "themes" ? "thumbs-ambient" : "sounds-lofi"}.png`} alt="" />{kind === "sounds" && asset.status === "ready" ? <i>{isLoading ? <Loader2 className="player-spinner" aria-hidden="true" /> : isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</i> : null}</span>
+              <button key={asset.id} className={`reference-catalog-card ${isSelected ? "selected" : ""}`} disabled={asset.status !== "ready"} aria-pressed={asset.status === "ready" ? isSelected : undefined} onClick={() => { if (kind === "themes") chooseBackground({ type: "media", mediaId: asset.id, mediaKind: asset.kind === "video" ? "video" : "image" }); else player.selectSound({ type: "media", mediaId: asset.id }, asset.name) }}>
+                <span className="catalog-thumb"><img src={asset.kind === "image" ? `/api/media/${asset.id}/file` : `/pomoder/${kind === "themes" ? "thumbs-ambient" : "sounds-lofi"}.png`} alt="" />{kind === "sounds" && asset.status === "ready" ? <i>{isLoading ? <Loader2 className="player-spinner" aria-hidden="true" /> : isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</i> : kind === "themes" && isSelected ? <i><Check aria-hidden="true" /></i> : null}</span>
                 <strong>{asset.name}</strong><small>{isPlaying ? "playing" : asset.status}</small>
               </button>
             )

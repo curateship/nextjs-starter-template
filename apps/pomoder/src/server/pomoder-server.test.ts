@@ -38,6 +38,11 @@ import {
 } from "@/server/rooms"
 import { consumeAuthToken } from "@/server/security"
 import {
+  applyBackgroundPreference,
+  loadBackgroundPreference,
+  resolveBackgroundReference,
+} from "@/server/background-preferences"
+import {
   applySoundPreferences,
   defaultSoundPreferences,
   loadSoundPreferences,
@@ -143,6 +148,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0012_light_dark_mode.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0013_working_custom_backgrounds.sql", import.meta.url),
       "utf8"
     )
   )
@@ -733,6 +744,91 @@ describe("sound preferences", () => {
     const names = columns.rows.map((row) => row.column_name)
     expect(names).toContain("selected_sound")
     expect(names).not.toContain("selected_sound_id")
+  })
+})
+
+describe("background preferences", () => {
+  const testDb = () => database as unknown as PomoderDb
+
+  async function createBackgroundUser(email: string) {
+    const [user] = await database
+      .insert(users)
+      .values({ email, name: "Viewer", passwordHash: "hash" })
+      .returning()
+    return user
+  }
+
+  async function createVisualAsset(ownerUserId: string | null, status: string, kind = "image") {
+    const [asset] = await database
+      .insert(mediaAssets)
+      .values({
+        ownerUserId,
+        kind,
+        source: ownerUserId ? "upload" : "curated",
+        status,
+        name: "Scene",
+        storageKey: `test/${crypto.randomUUID()}.bin`,
+        mimeType: kind === "video" ? "video/mp4" : "image/png",
+        fileSize: 1_000,
+      })
+      .returning()
+    return asset
+  }
+
+  it("stores curated scenes and rejects unknown scene keys", async () => {
+    const user = await createBackgroundUser("scene@example.com")
+    expect(await applyBackgroundPreference(user.id, "scene:ocean", testDb())).toEqual({ type: "scene", key: "ocean" })
+    // An unknown scene falls back to the default rather than storing garbage.
+    expect(await applyBackgroundPreference(user.id, "scene:nope", testDb())).toEqual({ type: "scene", key: "lofi" })
+    const [row] = await database.select({ selectedBackground: userPreferences.selectedBackground }).from(userPreferences).where(eq(userPreferences.userId, user.id))
+    expect(row.selectedBackground).toBeNull()
+  })
+
+  it("only lets a user select a ready image or video they can view", async () => {
+    const owner = await createBackgroundUser("owner-bg@example.com")
+    const stranger = await createBackgroundUser("stranger-bg@example.com")
+    const readyImage = await createVisualAsset(owner.id, "ready", "image")
+    const readyVideo = await createVisualAsset(owner.id, "ready", "video")
+    const queuedVideo = await createVisualAsset(owner.id, "queued", "video")
+    const readyAudio = await createVisualAsset(owner.id, "ready", "audio")
+    const sharedImage = await createVisualAsset(null, "ready", "image")
+
+    expect(await resolveBackgroundReference(owner.id, `media:${readyImage.id}`, testDb())).toEqual({ type: "media", mediaId: readyImage.id, mediaKind: "image" })
+    expect(await resolveBackgroundReference(owner.id, `media:${readyVideo.id}`, testDb())).toEqual({ type: "media", mediaId: readyVideo.id, mediaKind: "video" })
+    expect(await resolveBackgroundReference(owner.id, `media:${sharedImage.id}`, testDb())).toEqual({ type: "media", mediaId: sharedImage.id, mediaKind: "image" })
+    expect(await resolveBackgroundReference(owner.id, `media:${queuedVideo.id}`, testDb())).toBeNull()
+    expect(await resolveBackgroundReference(owner.id, `media:${readyAudio.id}`, testDb())).toBeNull()
+    expect(await resolveBackgroundReference(stranger.id, `media:${readyImage.id}`, testDb())).toBeNull()
+    expect(await resolveBackgroundReference(owner.id, `media:${crypto.randomUUID()}`, testDb())).toBeNull()
+  })
+
+  it("loads the default scene for missing rows, unset values, and deleted uploads", async () => {
+    const user = await createBackgroundUser("fresh-bg@example.com")
+    // No preferences row yet.
+    expect(await loadBackgroundPreference(user.id, testDb())).toEqual({ type: "scene", key: "lofi" })
+
+    const image = await createVisualAsset(user.id, "ready", "image")
+    await applyBackgroundPreference(user.id, `media:${image.id}`, testDb())
+    expect(await loadBackgroundPreference(user.id, testDb())).toEqual({ type: "media", mediaId: image.id, mediaKind: "image" })
+
+    // Deleting the active upload cleanly falls back to the default scene.
+    await database.delete(mediaAssets).where(eq(mediaAssets.id, image.id))
+    expect(await loadBackgroundPreference(user.id, testDb())).toEqual({ type: "scene", key: "lofi" })
+  })
+
+  it("enforces the background reference format in the database", async () => {
+    const user = await createBackgroundUser("bg-bounds@example.com")
+    await expect(
+      database.insert(userPreferences).values({ userId: user.id, selectedBackground: "background:oops" })
+    ).rejects.toThrow()
+    await database.insert(userPreferences).values({ userId: user.id, selectedBackground: "scene:plain" })
+
+    const columns = await client.query<{ column_name: string }>(
+      "select column_name from information_schema.columns where table_name = 'user_preferences'"
+    )
+    const names = columns.rows.map((row) => row.column_name)
+    expect(names).toContain("selected_background")
+    expect(names).not.toContain("selected_background_id")
   })
 })
 
