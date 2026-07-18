@@ -464,6 +464,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-ai-generations",
+          label: "AI Generations",
+          href: "/admin/ai-generations",
+          icon: "sparkles",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-export",
           label: "Export",
           href: "/admin/export",
