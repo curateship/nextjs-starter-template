@@ -302,6 +302,14 @@ describe("error scrubbing", () => {
     const scrubbed = scrubErrorMessage(new Error(`leaked key ${bareKey} oops`))
     expect(scrubbed).not.toContain(bareKey)
   })
+
+  it("rewrites the insufficient-margin rejection in plain English", () => {
+    const scrubbed = scrubErrorMessage(
+      new Error("order 0: Insufficient margin to place order. asset=110026")
+    )
+    expect(scrubbed).not.toContain("asset=")
+    expect(scrubbed).toContain("resting open orders")
+  })
 })
 
 describe("bracket order responses", () => {

@@ -4,6 +4,7 @@ import { ExchangeClient } from "@nktkas/hyperliquid"
 import { privateKeyToAccount } from "viem/accounts"
 
 import { db, type CustomShellDb } from "@/server/db"
+import { peekCoinByAssetId } from "@/server/hyperliquid/info"
 import { decryptPrivateKey } from "@/server/hyperliquid/keys"
 import { allocateNonce } from "@/server/hyperliquid/nonce"
 import { createHttpTransport } from "@/server/hyperliquid/transport"
@@ -650,8 +651,28 @@ async function writeAudit(
 export function scrubErrorMessage(error: unknown): string {
   const message =
     error instanceof Error ? error.message : "Exchange request failed"
-  return message
+  return humanizeExchangeError(message)
     .replace(/0x[0-9a-fA-F]{40,}/g, "0x…")
     .replace(/\b[0-9a-fA-F]{64,}\b/g, "…")
     .slice(0, 400)
+}
+
+const INSUFFICIENT_MARGIN_RE =
+  /Insufficient margin to place order\.?(?:\s*asset=(\d+))?/i
+
+/**
+ * Rewrites known Hyperliquid rejections into plain English. The raw
+ * "Insufficient margin ... asset=N" message misleads: margin reserved by
+ * resting open orders counts against the balance, and the asset id is
+ * meaningless to users.
+ */
+function humanizeExchangeError(message: string): string {
+  const match = INSUFFICIENT_MARGIN_RE.exec(message)
+  if (match) {
+    const assetId = match[1] ? Number(match[1]) : null
+    const coin = assetId !== null ? peekCoinByAssetId(assetId) : null
+    const market = coin ? `the ${coin} order` : "this order"
+    return `Not enough free balance for ${market}. Funds reserved by resting open orders count against your balance — cancel open orders you don't need, lower the order size, or deposit more USDC.`
+  }
+  return message
 }

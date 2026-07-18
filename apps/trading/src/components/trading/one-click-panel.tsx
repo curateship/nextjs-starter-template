@@ -97,11 +97,11 @@ function useOneClickOrder({
             ? "Create a template in Settings to use one-click orders."
             : selected.useLimitOrder && !limitPx
               ? "Right-click the chart to choose a limit price."
-            : !(markPx > 0) || !(equity > 0)
-              ? "A current price and positive wallet equity are required."
-              : selected.leverage > (marketRow?.maxLeverage ?? 0)
-                ? `${market} supports up to ${marketRow?.maxLeverage ?? 0}x leverage.`
-                : null
+              : !(markPx > 0) || !(equity > 0)
+                ? "A current price and positive wallet equity are required."
+                : selected.leverage > (marketRow?.maxLeverage ?? 0)
+                  ? `${market} supports up to ${marketRow?.maxLeverage ?? 0}x leverage.`
+                  : null
 
   async function submit(side: "buy" | "sell") {
     if (!walletId || !selected) return
@@ -231,6 +231,11 @@ export function OneClickMenuActions({
     void submit(side).then(onComplete)
   }
 
+  const marginUsd = selected
+    ? oneClickSizing(selected, options.equity).margin
+    : 0
+  const marginLabel = marginUsd > 0 ? ` · ~$${marginUsd.toFixed(2)}` : ""
+
   return (
     <>
       {selected?.useLimitOrder ? (
@@ -246,7 +251,7 @@ export function OneClickMenuActions({
           >
             Buy limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
             {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
-            {selected.takeProfitPct}%
+            {selected.takeProfitPct}%{marginLabel}
           </Button>
           <Button
             type="button"
@@ -259,7 +264,7 @@ export function OneClickMenuActions({
           >
             Sell limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
             {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
-            {selected.takeProfitPct}%
+            {selected.takeProfitPct}%{marginLabel}
           </Button>
         </>
       ) : null}
@@ -312,6 +317,16 @@ export function OneClickMenuActions({
   )
 }
 
+/** Order sizing for a one-click template, all in USDC. */
+function oneClickSizing(template: OrderTemplateItem, equity: number) {
+  const sizingAmount = equity * (template.orderSizePct / 100)
+  const notional =
+    template.sizingMode === "risk"
+      ? sizingAmount / (template.stopLossPct / 100)
+      : sizingAmount * template.leverage
+  return { sizingAmount, notional, margin: notional / template.leverage }
+}
+
 function OneClickConfirmDialog({
   open,
   side,
@@ -339,12 +354,7 @@ function OneClickConfirmDialog({
 }) {
   if (!template || !open) return null
 
-  const sizingAmount = equity * (template.orderSizePct / 100)
-  const notional =
-    template.sizingMode === "risk"
-      ? sizingAmount / (template.stopLossPct / 100)
-      : sizingAmount * template.leverage
-  const margin = notional / template.leverage
+  const { sizingAmount, notional, margin } = oneClickSizing(template, equity)
   const entryPrice = resolveOneClickEntryPrice({
     markPrice: markPx,
     useLimitOrder: template.useLimitOrder,

@@ -63,11 +63,7 @@ export function SettingsPage({
           <span className="text-sm text-muted-foreground">
             Saved automatically
           </span>
-        ) : activeTab === "one-click-order" ? (
-          <span className="text-sm text-muted-foreground">
-            Templates save immediately
-          </span>
-        ) : activeTab === "workers" ? (
+        ) : activeTab === "one-click-order" ? null : activeTab === "workers" ? (
           <span className="text-sm text-muted-foreground">
             Controls save immediately
           </span>

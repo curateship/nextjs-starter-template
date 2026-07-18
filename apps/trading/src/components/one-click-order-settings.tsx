@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
   Loader2Icon,
   PencilIcon,
@@ -116,6 +117,7 @@ export function OneClickOrderSettings() {
     try {
       setTemplates(await deleteOrderTemplate(pendingDelete.id))
       setPendingDelete(null)
+      toast.success("Template deleted")
     } catch (error) {
       setError(getOrderTemplateErrorMessage(error))
     } finally {
@@ -264,6 +266,7 @@ export function OneClickOrderSettings() {
           onSaved={(templates) => {
             setTemplates(templates)
             setError(null)
+            toast.success("Template saved")
           }}
         />
       ) : null}
