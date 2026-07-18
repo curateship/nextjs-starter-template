@@ -1034,12 +1034,32 @@ button.pill-button { background: var(--p-accent); color: var(--p-on-accent); }
 @media (prefers-reduced-motion: reduce) { .player-spinner { animation: none; } }
 .player-notice { position: absolute; top: 48px; right: 0; z-index: 40; width: max-content; max-width: 250px; border: 1px solid rgba(var(--p-fg-rgb),.14); border-radius: 12px; background: rgba(var(--p-popover-rgb),.96); padding: 8px 12px; color: rgba(var(--p-text-rgb),.85); font-size: 12px; line-height: 1.4; box-shadow: 0 18px 44px rgba(var(--p-shadow-rgb),.5); }
 
+/* Sleep timer control lives inside the header player pill. */
+.player-sleep { position: relative; display: flex; flex: 0 0 auto; align-items: center; }
+.player-sleep-toggle { display: inline-flex; height: 30px; align-items: center; gap: 5px; border: 0; border-radius: 999px; background: transparent; padding: 0 9px; color: var(--p-text); }
+.player-sleep-toggle:hover { background: rgba(var(--p-fg-rgb),.14); }
+.player-sleep-toggle svg { width: 15px; height: 15px; stroke-width: 2; }
+.player-sleep-toggle.is-active { background: rgba(255,90,60,.14); color: var(--p-accent-2); }
+.player-sleep-remaining { font: 600 11.5px/1 "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+.sleep-popover { position: absolute; top: 46px; right: 0; z-index: 50; width: 214px; border: 1px solid rgba(var(--p-fg-rgb),.12); border-radius: 16px; background: rgba(var(--p-popover-rgb),.96); padding: 14px 16px; box-shadow: 0 24px 60px rgba(var(--p-shadow-rgb),.55); backdrop-filter: blur(18px); }
+.sleep-popover h2 { margin: 0 0 3px; font-size: 13.5px; }
+.sleep-popover p { margin: 0 0 12px; color: var(--p-text-muted); font-size: 12px; line-height: 1.4; }
+.sleep-presets { display: flex; gap: 8px; }
+.sleep-presets button { flex: 1; height: 34px; border: 1px solid rgba(var(--p-fg-rgb),.16); border-radius: 11px; background: rgba(var(--p-fg-rgb),.05); color: var(--p-text); font-size: 12.5px; font-weight: 600; }
+.sleep-presets button:hover { border-color: rgba(255,90,60,.5); background: rgba(255,90,60,.12); color: var(--p-accent-2); }
+.sleep-active { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.sleep-count { color: var(--p-text); font: 700 26px/1 "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.sleep-active small { color: var(--p-text-subtle); font-size: 11.5px; }
+.sleep-cancel { width: 100%; height: 32px; margin-top: 9px; border: 1px solid rgba(255,90,60,.4); border-radius: 10px; background: rgba(255,90,60,.12); color: var(--p-accent-2); font-size: 12.5px; font-weight: 600; }
+.sleep-cancel:hover { background: rgba(255,90,60,.2); }
+
 @media (max-width: 1050px) {
   .header-sound-player .player-label, .header-sound-player .player-volume { display: none; }
 }
 @media (max-width: 760px) {
   .header-sound-player { height: 38px; gap: 4px; padding: 0 6px; }
   .player-notice { right: -60px; }
+  .player-sleep-remaining { display: none; }
 }
 
 /* Focus room controls: active room panel, host form, invite entry */
