@@ -170,8 +170,8 @@ function TaskEditForm({
         <SelectTrigger size="default" className="text-xs" aria-label={`Priority for ${task.title}`}>
           <SelectValue />
         </SelectTrigger>
-        {/* The content portals to <body>, outside the always-dark shell. */}
-        <SelectContent className="dark">
+        {/* Portaled to <body>; inherits the active theme from <html>. */}
+        <SelectContent>
           {taskPriorities.map((value) => <SelectItem key={value} value={value}>{priorityLabels[value]}</SelectItem>)}
         </SelectContent>
       </Select>

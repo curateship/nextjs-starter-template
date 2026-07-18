@@ -12,8 +12,8 @@ export type ConfirmRequest = { title: string; description: string; confirmLabel:
 export function ConfirmDialog({ confirm, onClose }: { confirm: ConfirmRequest | null; onClose: () => void }) {
   return (
     <Dialog open={Boolean(confirm)} onOpenChange={(next) => { if (!next) onClose() }}>
-      {/* The content portals to <body>, outside the always-dark shell. */}
-      <DialogContent className="host-room-dialog confirm-dialog dark">
+      {/* Portaled to <body>; inherits the active theme from <html>. */}
+      <DialogContent className="host-room-dialog confirm-dialog">
         <DialogTitle className="host-room-dialog-title">{confirm?.title}</DialogTitle>
         <DialogDescription className="host-room-dialog-sub">{confirm?.description}</DialogDescription>
         <div className="confirm-dialog-actions">

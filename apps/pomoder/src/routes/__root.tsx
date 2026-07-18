@@ -4,6 +4,7 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouteContext,
   useRouter,
 } from "@tanstack/react-router"
 
@@ -34,9 +35,10 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
+  const { user } = useRouteContext({ from: "__root__" })
   return (
     <RootDocument>
-      <ThemeProvider>
+      <ThemeProvider authenticated={Boolean(user)}>
         <TooltipProvider>
           <Outlet />
         </TooltipProvider>
@@ -55,7 +57,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}",
+              "try{var t=localStorage.getItem('theme');document.documentElement.classList.add(t==='light'?'light':'dark')}catch(e){document.documentElement.classList.add('dark')}",
           }}
         />
         <HeadContent />
