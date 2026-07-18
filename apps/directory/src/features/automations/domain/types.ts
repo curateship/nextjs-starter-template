@@ -4,7 +4,9 @@ export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'success' | 'partial' | 'failed' | 'noop'
 export type AutomationStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'router' | 'agent' | 'post' | 'listing'
+export type AutomationNodeKind = 'time' | 'scraper' | 'router' | 'agent' | 'image' | 'post' | 'listing'
+
+export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
 
 export type AutomationSchedule =
   | { frequency: 'once'; runAt: string; timezone: string }
@@ -54,6 +56,16 @@ export interface AgentAutomationNode extends AutomationNodeBase {
   }
 }
 
+export interface ImageAutomationNode extends AutomationNodeBase {
+  kind: 'image'
+  config: {
+    provider: AIProvider
+    model: string
+    prompt: string
+    size: AutomationImageSize
+  }
+}
+
 export interface PostAutomationNode extends AutomationNodeBase {
   kind: 'post'
   config: {
@@ -80,6 +92,7 @@ export type AutomationNode =
   | ScraperAutomationNode
   | RouterAutomationNode
   | AgentAutomationNode
+  | ImageAutomationNode
   | PostAutomationNode
   | ListingAutomationNode
 
@@ -174,4 +187,7 @@ export interface StructuredArticle {
   excerpt: string
   metaDescription: string
   html: string
+  // Public URL of a generated featured image, set by an AI Image node when one
+  // sits between the AI Agent and the Post. Undefined when no image was made.
+  featuredImage?: string
 }

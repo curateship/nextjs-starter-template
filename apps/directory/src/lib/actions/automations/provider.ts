@@ -25,6 +25,45 @@ export async function generateAutomationText(input: AutomationTextInput): Promis
   throw new Error('Unsupported AI provider')
 }
 
+export interface AutomationImageInput {
+  provider: AIProvider
+  model: string
+  apiKey: string
+  prompt: string
+  // OpenAI gpt-image-1 pixel sizes for each supported orientation.
+  size: '1024x1024' | '1536x1024' | '1024x1536'
+}
+
+export interface AutomationImageResult {
+  bytes: Buffer
+  mimeType: string
+}
+
+export async function generateAutomationImage(input: AutomationImageInput): Promise<AutomationImageResult> {
+  if (input.provider === 'openai') return generateOpenAIImage(input)
+  throw new Error('Unsupported AI image provider')
+}
+
+async function generateOpenAIImage(input: AutomationImageInput): Promise<AutomationImageResult> {
+  const response = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: input.model,
+      prompt: input.prompt,
+      n: 1,
+      size: input.size,
+    }),
+  })
+  const json = await readProviderJson(response)
+  assertProviderResponse(response, json, 'OpenAI image request failed')
+  const b64 = Array.isArray(json.data) && isRecord(json.data[0]) && typeof json.data[0].b64_json === 'string'
+    ? json.data[0].b64_json
+    : ''
+  if (!b64) throw new Error('OpenAI image response did not contain image data')
+  return { bytes: Buffer.from(b64, 'base64'), mimeType: 'image/png' }
+}
+
 async function generateOpenAIText(input: AutomationTextInput) {
   const response = await fetchWithTimeout('https://api.openai.com/v1/responses', {
     method: 'POST',

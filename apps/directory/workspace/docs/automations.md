@@ -16,12 +16,22 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Allowed paths are:
 
 ```text
-Time -> Scraper -> AI Router -> AI Agent -> Post
-Time -> Scraper -------------> AI Agent -> Post
-Time ------------------------> AI Agent -> Post
+Time -> Scraper -> AI Router -> AI Agent -> [AI Image ->] Post
+Time -> Scraper -------------> AI Agent -> [AI Image ->] Post
+Time ------------------------> AI Agent -> [AI Image ->] Post
 Time -> Scraper -> AI Router ------------> Listing
 Time -> Scraper -------------------------> Listing
 ```
+
+The optional AI Image node sits between the AI Agent and the Post. It generates one
+featured image from the article's title and summary, uploads it to the site's media
+library (a normal `media` row backed by an R2 object), and sets it as the post's
+`featured_image`. Image generation is best-effort: if the image provider has no key
+or the provider call fails, the node records a clear reason on its step, marks that
+step failed, and still passes the article through so the post is created without an
+image (the run is then `partial`). Only OpenAI (`gpt-image-1`) is wired today; the
+node's provider key comes from the same per-site AI integration config as the text
+nodes.
 
 AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
 
@@ -40,7 +50,24 @@ The Listing node reads scraped pages directly (like AI Agent), extracts real bus
 
 ## Adding A Node
 
-Update the domain union, catalog, parser, validator, canvas presentation, inspector, executor dispatch, database node-kind constraint, focused tests, and this document. Keep credentials server-only and summaries free of scraped or generated body content.
+Node kinds are defined by a registry, so a new kind is a few colocated additions
+rather than edits scattered across the codebase:
+
+1. **Type** — add the node interface and the `AutomationNode` union member in
+   `src/features/automations/domain/types.ts`.
+2. **Domain descriptor** — write `domain/nodes/<kind>.ts` (metadata, default config,
+   output ports, config parse + validate, allowed connections, and optional resource
+   checks) and add it to the ordered list in `domain/node-registry.ts`. This one file
+   drives the palette catalog, the parser, the validator, and the connection rules.
+3. **UI** — add an entry to `components/editor/node-ui.tsx` (icon, canvas description,
+   and the inspector config panel).
+4. **Executor** — add an entry to `lib/actions/automations/node-executors.ts` (retry
+   policy + `run`) with its implementation in `lib/actions/automations/nodes/<kind>.ts`.
+
+No database migration is needed for a new node kind — the run-step node-kind check
+constraint was removed; the registry is the source of truth. Add focused tests and
+keep credentials server-only and run summaries free of scraped or generated body
+content.
 
 ## Verification
 
