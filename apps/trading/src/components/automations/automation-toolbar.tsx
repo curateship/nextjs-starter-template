@@ -8,6 +8,7 @@ import {
   PanelLeftIcon,
   PanelRightIcon,
   SettingsIcon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,65 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+
+export type AutomationView = "canvas" | "backtest"
+
+/**
+ * Pill switcher between the node canvas and the backtest chart. The active
+ * segment fills dark; a disabled reason (e.g. order-book strategies with no
+ * historical replay) locks the Backtest segment behind a tooltip.
+ */
+function ViewSwitcher({
+  view,
+  onViewChange,
+  backtestDisabledReason,
+}: {
+  view: AutomationView
+  onViewChange: (view: AutomationView) => void
+  backtestDisabledReason?: string
+}) {
+  const segment = (
+    id: AutomationView,
+    label: string,
+    Icon: typeof WorkflowIcon,
+    disabledReason?: string
+  ) => {
+    const active = view === id
+    const button = (
+      <button
+        type="button"
+        disabled={Boolean(disabledReason)}
+        aria-pressed={active}
+        onClick={() => onViewChange(id)}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+          active
+            ? "bg-foreground text-background shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Icon className="size-3.5" />
+        {label}
+      </button>
+    )
+    if (!disabledReason) return button
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{disabledReason}</TooltipContent>
+      </Tooltip>
+    )
+  }
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5">
+      {segment("canvas", "Canvas", WorkflowIcon)}
+      {segment("backtest", "Backtest", FlaskConicalIcon, backtestDisabledReason)}
+    </div>
+  )
+}
 
 /**
  * Disabled buttons swallow pointer events, so the tooltip trigger wraps them
@@ -54,7 +114,8 @@ export function AutomationToolbar({
   runnable,
   backtestDisabledReason,
   runnableDisabledReason,
-  backtestActive = false,
+  view,
+  onViewChange,
   dirty,
   saving,
   onNameChange,
@@ -63,14 +124,14 @@ export function AutomationToolbar({
   onOpenPalette,
   onOpenInspector,
   onCreateBot,
-  onBacktest,
 }: {
   name: string
   runnable: boolean
   backtestDisabledReason?: string
   runnableDisabledReason?: string
-  /** Backtest mode is on — the button renders pressed and always exits. */
-  backtestActive?: boolean
+  /** Which editor surface is showing — the switcher renders it pressed. */
+  view: AutomationView
+  onViewChange: (view: AutomationView) => void
   dirty: boolean
   saving: boolean
   onNameChange: (name: string) => void
@@ -79,10 +140,9 @@ export function AutomationToolbar({
   onOpenPalette: () => void
   onOpenInspector: () => void
   onCreateBot?: () => void
-  onBacktest?: () => void
 }) {
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
+    <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
       <Button asChild variant="ghost" size="icon-xs">
         <Link to="/automations" aria-label="Back to Automations">
           <ArrowLeftIcon className="size-4" />
@@ -108,28 +168,18 @@ export function AutomationToolbar({
         />
       </div>
       <div className="ml-auto" />
-      {/* Opening the mode never requires a save — the panel's Run button
-          carries the save/compile gating with its reason. */}
-      <DisabledReasonTooltip
-        reason={backtestActive ? undefined : backtestDisabledReason}
-      >
-        <Button
-          type="button"
-          variant={backtestActive ? "secondary" : "outline"}
-          size="sm"
-          className="hidden h-8 xl:inline-flex"
-          aria-pressed={backtestActive}
-          onClick={onBacktest}
-        >
-          <FlaskConicalIcon className="size-3.5" />
-          Backtest
-        </Button>
-      </DisabledReasonTooltip>
-      {backtestDisabledReason ? (
-        <span className="hidden max-w-48 text-[10px] leading-3 text-muted-foreground 2xl:inline">
-          Backtest unavailable: live order-book data has no historical replay.
-        </span>
-      ) : null}
+
+      {/* Centered view switcher: canvas ↔ backtest. Opening a view never
+          requires a save — the backtest panel's Run button carries that
+          gating with its own reason. */}
+      <div className="absolute left-1/2 hidden -translate-x-1/2 xl:block">
+        <ViewSwitcher
+          view={view}
+          onViewChange={onViewChange}
+          backtestDisabledReason={backtestDisabledReason}
+        />
+      </div>
+
       <DisabledReasonTooltip reason={runnableDisabledReason}>
         <Button
           type="button"
@@ -156,9 +206,17 @@ export function AutomationToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onSelect={onBacktest} title={backtestDisabledReason}>
+          <DropdownMenuItem onSelect={() => onViewChange("canvas")}>
+            <WorkflowIcon className="size-4" />
+            Canvas
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={Boolean(backtestDisabledReason)}
+            onSelect={() => onViewChange("backtest")}
+            title={backtestDisabledReason}
+          >
             <FlaskConicalIcon className="size-4" />
-            {backtestActive ? "Close backtest" : "Backtest"}
+            Backtest
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!runnable}
