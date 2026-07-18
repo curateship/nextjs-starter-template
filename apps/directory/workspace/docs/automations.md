@@ -13,15 +13,19 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 
 ## Graph Contract
 
-Every valid graph has exactly one Time node and at least one terminal Post node. Allowed paths are:
+Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Allowed paths are:
 
 ```text
 Time -> Scraper -> AI Router -> AI Agent -> Post
 Time -> Scraper -------------> AI Agent -> Post
 Time ------------------------> AI Agent -> Post
+Time -> Scraper -> AI Router ------------> Listing
+Time -> Scraper -------------------------> Listing
 ```
 
-AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post. Invalid graphs may be saved as drafts, but cannot activate or run.
+AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
+
+The Listing node reads scraped pages directly (like AI Agent), extracts real business/place listings with its own structured AI call, and drafts one directory listing per business onto the chosen directory template. Listings are **always** drafts — the node cannot publish, in any configuration. Each is stamped `sourceType='automation'` plus a stable per-business `sourceId`, so re-runs skip businesses that already exist (matched by that source key or an existing listing title); extracted addresses are geocoded through the normal directory save path. Skipped businesses are recorded in the run step. A configured default category, when set, is applied as the listing's primary category.
 
 ## Execution
 
@@ -31,8 +35,8 @@ AI Router exposes every named route plus Else. Every route must be connected. Gr
 - Content hashes skip unchanged pages and their downstream branches.
 - Scraper and AI network failures receive at most two retries. Validation and malformed output do not retry.
 - Independent branches continue after another branch fails. Mixed post and failure outcomes are `partial`; no changed input is `noop`.
-- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post links. Full scraped text and generated article bodies are not stored in run logs.
-- Post HTML is sanitized before storage and slugs remain unique.
+- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing links plus skipped-listing counts. Full scraped text and generated bodies are not stored in run logs.
+- Post and Listing HTML is sanitized before storage and slugs remain unique. Listing runs that create nothing (all duplicates) are `noop`.
 
 ## Adding A Node
 

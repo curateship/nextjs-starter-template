@@ -5,6 +5,7 @@ import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
+import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 
 import { nodeOutputPorts } from "@/features/automations/domain/catalog";
 import type {
@@ -156,6 +157,7 @@ function NodeIcon({ node }: { node: AutomationNode }) {
   if (node.kind === "scraper") return <Globe2 className="size-4" />;
   if (node.kind === "router") return <GitBranch className="size-4" />;
   if (node.kind === "agent") return <Bot className="size-4" />;
+  if (node.kind === "listing") return <MapPin className="size-4" />;
   return <FileText className="size-4" />;
 }
 
@@ -167,5 +169,6 @@ function nodeDescription(node: AutomationNode) {
   if (node.kind === "router")
     return `${node.config.routes.length} routes · ${node.config.model}`;
   if (node.kind === "agent") return node.config.model;
+  if (node.kind === "listing") return `Draft listings · ${node.config.model}`;
   return node.config.publish ? "Publish post" : "Create draft post";
 }

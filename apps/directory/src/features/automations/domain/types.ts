@@ -4,7 +4,7 @@ export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'success' | 'partial' | 'failed' | 'noop'
 export type AutomationStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'router' | 'agent' | 'post'
+export type AutomationNodeKind = 'time' | 'scraper' | 'router' | 'agent' | 'post' | 'listing'
 
 export type AutomationSchedule =
   | { frequency: 'once'; runAt: string; timezone: string }
@@ -64,12 +64,24 @@ export interface PostAutomationNode extends AutomationNodeBase {
   }
 }
 
+export interface ListingAutomationNode extends AutomationNodeBase {
+  kind: 'listing'
+  config: {
+    provider: AIProvider
+    model: string
+    templateId: string
+    categoryId: string | null
+    instructions: string
+  }
+}
+
 export type AutomationNode =
   | TimeAutomationNode
   | ScraperAutomationNode
   | RouterAutomationNode
   | AgentAutomationNode
   | PostAutomationNode
+  | ListingAutomationNode
 
 export type AutomationSourcePort = 'then' | 'documents' | 'article' | 'else' | `route:${string}`
 
@@ -144,6 +156,7 @@ export interface AutomationEditorData {
   automation: AutomationListItem & { graph: AutomationGraph }
   runs: AutomationRunItem[]
   templates: Array<{ id: string; name: string; isDefault: boolean }>
+  listingTemplates: Array<{ id: string; name: string; isDefault: boolean }>
   categories: Array<{ id: string; title: string }>
   providers: Array<{ provider: AIProvider; label: string; defaultModel: string }>
   validationErrors: AutomationValidationError[]

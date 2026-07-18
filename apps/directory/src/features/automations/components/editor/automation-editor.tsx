@@ -181,6 +181,15 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
             model: provider.defaultModel,
           },
         };
+      if (node.kind === "listing" && provider)
+        node = {
+          ...node,
+          config: {
+            ...node.config,
+            provider: provider.provider,
+            model: provider.defaultModel,
+          },
+        };
       const defaultTemplate =
         data.templates.find((template) => template.isDefault) ??
         data.templates[0];
@@ -188,6 +197,14 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         node = {
           ...node,
           config: { ...node.config, templateId: defaultTemplate.id },
+        };
+      const defaultListingTemplate =
+        data.listingTemplates.find((template) => template.isDefault) ??
+        data.listingTemplates[0];
+      if (node.kind === "listing" && defaultListingTemplate)
+        node = {
+          ...node,
+          config: { ...node.config, templateId: defaultListingTemplate.id },
         };
       return node;
     },
@@ -705,15 +722,38 @@ function clientResourceErrors(
   const errors: AutomationValidationError[] = [];
   const providers = new Set(data.providers.map((item) => item.provider));
   const templates = new Set(data.templates.map((item) => item.id));
+  const listingTemplates = new Set(data.listingTemplates.map((item) => item.id));
   const categories = new Set(data.categories.map((item) => item.id));
   for (const node of graph.nodes) {
     if (
-      (node.kind === "agent" || node.kind === "router") &&
+      (node.kind === "agent" ||
+        node.kind === "router" ||
+        node.kind === "listing") &&
       !providers.has(node.config.provider)
     )
       errors.push({
         code: "provider-missing",
         message: `${node.name} uses an AI provider that is not configured.`,
+        nodeId: node.id,
+      });
+    if (
+      node.kind === "listing" &&
+      node.config.templateId &&
+      !listingTemplates.has(node.config.templateId)
+    )
+      errors.push({
+        code: "listing-template-missing",
+        message: "The selected Listing template is unavailable.",
+        nodeId: node.id,
+      });
+    if (
+      node.kind === "listing" &&
+      node.config.categoryId &&
+      !categories.has(node.config.categoryId)
+    )
+      errors.push({
+        code: "listing-category-missing",
+        message: "The selected Listing category is unavailable.",
         nodeId: node.id,
       });
     if (
@@ -745,7 +785,8 @@ function isNodeKind(value: unknown): value is AutomationNodeKind {
     value === "scraper" ||
     value === "router" ||
     value === "agent" ||
-    value === "post"
+    value === "post" ||
+    value === "listing"
   );
 }
 

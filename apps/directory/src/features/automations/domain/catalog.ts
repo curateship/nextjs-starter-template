@@ -21,6 +21,7 @@ export const AUTOMATION_NODE_CATALOG: Array<{
   { kind: 'router', name: 'AI Router', description: 'Group pages by content type.', group: 'AI' },
   { kind: 'agent', name: 'AI Agent', description: 'Write a structured article.', group: 'AI' },
   { kind: 'post', name: 'Post', description: 'Create a Hub post.', group: 'Actions' },
+  { kind: 'listing', name: 'Listing', description: 'Draft directory listings.', group: 'Actions' },
 ]
 
 export function createInitialAutomationGraph(): AutomationGraph {
@@ -61,6 +62,19 @@ export function createAutomationNode(kind: AutomationNodeKind, x: number, y: num
       },
     }
   }
+  if (kind === 'listing') {
+    return {
+      ...common,
+      kind: 'listing',
+      config: {
+        provider: 'openai',
+        model: AI_PROVIDER_DEFAULT_MODELS.openai,
+        templateId: '',
+        categoryId: null,
+        instructions: '',
+      },
+    }
+  }
   return {
     ...common,
     kind: 'post',
@@ -82,5 +96,6 @@ export function nodeOutputPorts(node: AutomationNode): Array<{ id: AutomationSou
     ]
   }
   if (node.kind === 'agent') return [{ id: 'article', label: 'Article' }]
+  // Post and Listing are terminal actions with no outputs.
   return []
 }
