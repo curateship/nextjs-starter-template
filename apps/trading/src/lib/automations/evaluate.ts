@@ -4,6 +4,8 @@ import type {
   IndicatorPaint,
 } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
+import { ema } from "@/lib/strategies/indicators"
+import { emaLines, indicatorColor } from "@/lib/trading/indicators-config"
 
 import {
   AUTOMATION_INTERVAL_MS,
@@ -105,10 +107,37 @@ export function resampleAutomationCandles(
  */
 function stepLinesOntoBase(
   output: IndicatorOutput,
+  htfCandles: IndicatorCandle[],
+  htfInterval: AutomationInterval,
   htfMs: number,
   baseCandles: IndicatorCandle[]
 ): IndicatorOutput {
-  const lines = output.paint.lines.map((line) => {
+  // Chart-native overlay configs (`indicators`) are computed by the chart at
+  // ITS timeframe — silently wrong values for an HTF node. EMA configs are
+  // converted here into concrete lines computed on the real HTF candles, so
+  // an EMA cross behind a Timeframe gate still paints (labeled with its
+  // clock). Other native paint (oscillators, zones, bar colors) stays
+  // dropped in v1.
+  const sourceLines = [...output.paint.lines]
+  const closes = htfCandles.map((candle) => candle.c)
+  for (const indicator of output.paint.indicators) {
+    if (indicator.type !== "ema") continue
+    const params = indicator.params as Record<string, number>
+    for (const def of emaLines(params)) {
+      const values = ema(closes, params[def.periodKey])
+      sourceLines.push({
+        id: `${indicator.id}:${def.slot}`,
+        label: `EMA ${params[def.periodKey]} · ${htfInterval}`,
+        color: indicatorColor(def.slot, false),
+        points: htfCandles.flatMap((candle, index) =>
+          Number.isFinite(values[index])
+            ? [{ time: candle.t, value: values[index] }]
+            : []
+        ),
+      })
+    }
+  }
+  const lines = sourceLines.map((line) => {
     const sorted = [...line.points].sort((a, b) => a.time - b.time)
     const points: { time: number; value: number }[] = []
     let index = -1
@@ -242,7 +271,15 @@ export function evaluateAutomation(
       const module = INDICATORS[source.indicator.type]
       const params = module.paramsSchema.parse(source.indicator.params)
       const computed = module.compute(htf ? htfSeries : candles, params as never)
-      output = htf ? stepLinesOntoBase(computed, htfMs, candles) : computed
+      output = htf
+        ? stepLinesOntoBase(
+            computed,
+            htfSeries,
+            sourceInterval as AutomationInterval,
+            htfMs,
+            candles
+          )
+        : computed
       outputBySelection.set(key, output)
       // Both roles of one node may paint; the clock in the prefix keeps
       // their chart series ids distinct.

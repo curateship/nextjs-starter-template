@@ -1,9 +1,11 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   ArrowLeftIcon,
   ChevronDownIcon,
   PanelLeftIcon,
   PanelRightIcon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import type {
@@ -11,7 +13,6 @@ import type {
   BacktestListItem,
 } from "@/lib/api/backtests"
 import { IconButton } from "@/components/icon-button"
-import { MarkPriceInline } from "@/components/kpi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,8 +42,7 @@ export function BacktestHeader({
   marketReadOnly,
   groupRuns,
   currentRunId,
-  markPrice,
-  dayChangePct,
+  automationId,
   runName,
   strategyLabel,
   dateRangeText,
@@ -63,8 +63,8 @@ export function BacktestHeader({
   /** Sibling runs (one per market) of the loaded run's group. */
   groupRuns: BacktestGroupRun[]
   currentRunId: string | null
-  markPrice: number
-  dayChangePct: number | null
+  /** Source automation of the loaded run — shows the "Open automation" link. */
+  automationId: string | null
   /** Loaded run or draft name, null when browsing without either. */
   runName: string | null
   strategyLabel: string | null
@@ -207,8 +207,6 @@ export function BacktestHeader({
         </DropdownMenu>
       ) : null}
 
-      <MarkPriceInline markPrice={markPrice} dayChangePct={dayChangePct} />
-
       <div className="h-6 w-px bg-border" />
 
       {runName ? (
@@ -231,6 +229,15 @@ export function BacktestHeader({
       <span className="font-mono text-[11px] text-muted-foreground">
         {dateRangeText}
       </span>
+
+      {automationId ? (
+        <Button asChild variant="outline" size="sm" className="h-8 gap-1 text-xs">
+          <Link to="/automations/$automationId" params={{ automationId }}>
+            <WorkflowIcon className="size-3.5" />
+            Open automation
+          </Link>
+        </Button>
+      ) : null}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

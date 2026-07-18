@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 
-import { BacktestAutomationDialog } from "@/components/automations/backtest-automation-dialog"
 import { AutomationEditor } from "@/components/automations/automation-editor"
 import { NewBotDialog } from "@/components/bots/new-bot-dialog"
 import { Button } from "@/components/ui/button"
@@ -13,7 +12,6 @@ export function AutomationRouteContent() {
   const { automation, favoriteNodeKeys } = routeApi.useLoaderData()
   const router = useRouter()
   const [botOpen, setBotOpen] = React.useState(false)
-  const [backtestOpen, setBacktestOpen] = React.useState(false)
 
   return (
     <>
@@ -22,7 +20,6 @@ export function AutomationRouteContent() {
         initial={automation}
         initialFavoriteNodeKeys={favoriteNodeKeys}
         onCreateBot={() => setBotOpen(true)}
-        onBacktest={() => setBacktestOpen(true)}
       />
 
       <NewBotDialog
@@ -33,17 +30,6 @@ export function AutomationRouteContent() {
           void router.navigate({ to: "/bots/$botId", params: { botId } })
         }
       />
-
-      {backtestOpen ? (
-        <BacktestAutomationDialog
-          open
-          onOpenChange={setBacktestOpen}
-          automationId={automation.id}
-          automationName={automation.name}
-          interval={automation.interval}
-          isQfl={Boolean(automation.compiledConfig?.qfl)}
-        />
-      ) : null}
     </>
   )
 }

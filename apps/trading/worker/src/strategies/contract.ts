@@ -97,6 +97,19 @@ export type WarmupSpec = {
 }
 
 /**
+ * Strategy-owned state exposed to the backtest replay recorder — details the
+ * runner can't see generically (the QFL ladder lives inside opaque strategy
+ * state). Shapes here are what the replay chart draws.
+ */
+export type StrategySnapshot = {
+  qfl?: {
+    base: number
+    stopPx: number | null
+    rungs: { i: number; px: number; filled: number; target: number }[]
+  }
+}
+
+/**
  * Shared desiredOrders for signal strategies that enter and exit with IOC
  * market orders: consumes state.exitRequested / state.pendingEntry, closes an
  * opposite position before flipping, and sizes entries from equity
@@ -223,6 +236,11 @@ export interface Strategy<P, S> {
    * ignores it (real ticks are continuous).
    */
   exitTriggers?: (ctx: StrategyCtx<S>, params: P) => number[]
+  /**
+   * Pure snapshot of strategy-owned replay state (e.g. the QFL ladder). Only
+   * the backtest recorder reads it, once per bar — must not call setState.
+   */
+  snapshot?: (ctx: StrategyCtx<S>, params: P) => StrategySnapshot | null
   /** Pure derivation of the orders the bot wants resting right now. */
   desiredOrders: (ctx: StrategyCtx<S>, params: P) => DesiredOrder[]
 }

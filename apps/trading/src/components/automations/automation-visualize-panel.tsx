@@ -11,6 +11,7 @@ import {
   CHART_DOWN_COLOR,
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
+import type { BacktestTuneDrag } from "@/components/backtest/backtest-run-chart"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -93,6 +94,45 @@ export function nodeAfterLineDrag(
     }
   }
   return null
+}
+
+/**
+ * The node update a dropped backtest tune-line maps to (dragging the recorded
+ * Stop/TP/first-ladder line on the replay chart), or null when it changes
+ * nothing. Same clamps and rounding as visualize drags; side-aware, since the
+ * anchor is the replayed position's real entry.
+ */
+export function nodeAfterTuneDrag(
+  nodes: AutomationNode[],
+  change: BacktestTuneDrag
+): AutomationNode | null {
+  if (!(change.price > 0)) return null
+  if (change.kind === "qflCrack") {
+    const node = nodes.find((candidate) => candidate.kind === "qfl")
+    if (!node || !(change.base > 0)) return null
+    return {
+      ...node,
+      crackPct: roundPct(((change.base - change.price) / change.base) * 100, 0.1, 50),
+    }
+  }
+  if (!(change.anchor > 0)) return null
+  const long = change.side === "long"
+  if (change.kind === "tp") {
+    const node = nodes.find((candidate) => candidate.kind === "takeProfit")
+    if (!node) return null
+    const raw =
+      ((long ? change.price - change.anchor : change.anchor - change.price) /
+        change.anchor) *
+      100
+    return { ...node, pct: roundPct(raw, 0.1, 1000) }
+  }
+  const node = nodes.find((candidate) => candidate.kind === "stopLoss")
+  if (!node) return null
+  const raw =
+    ((long ? change.anchor - change.price : change.price - change.anchor) /
+      change.anchor) *
+    100
+  return { ...node, pct: roundPct(raw, 0.1, 95) }
 }
 
 /**

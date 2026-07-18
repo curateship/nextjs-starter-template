@@ -789,6 +789,8 @@ export const tradingBacktests = pgTable(
     result: jsonb("result"),
     /** result.stats + first/last trade times — small; list pages read ONLY this. */
     resultStats: jsonb("result_stats"),
+    /** BacktestTimeline replay tape — loaded lazily by the replay chart only. */
+    timeline: jsonb("timeline"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),

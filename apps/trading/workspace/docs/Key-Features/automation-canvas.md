@@ -149,19 +149,59 @@ canvas files.
 ## Backtesting (the only way to run one)
 
 - The **Backtest** button in the editor toolbar is the single backtest entry
-  point for the whole app (Quick Test and the old New Run dialog were
-  removed). It opens a minimal modal: pick one-to-many markets and how many
-  days, press Test.
+  point for the whole app — and it is a **mode of the editor**, not a modal
+  (the launch dialog was removed; Quick Test and the old New Run dialog
+  before it). Pressing it swaps the editor's panels in place; pressing it
+  again (or the X) restores them. Backtest mode and Visualize are mutually
+  exclusive — entering one exits the other.
+- Panel roles while the mode is on: the **right panel** is the setup form
+  (markets + days back), then live per-market progress, then the market list
+  of results (net %, win rate; failed rows flagged with the reason). The
+  **left panel** shows the run's parameters plus the selected market's
+  headline numbers (`automation-backtest-side-panel.tsx`,
+  `automation-backtest-params-panel.tsx`, state in
+  `use-automation-backtest.ts`).
+- Clicking a market swaps the **center** to that market's results chart
+  (shared `backtest-run-chart.tsx` — the same component the `/backtest?run=`
+  page uses) and fills the **bottom panel** (the activity log's slot) with
+  its trades; clicking a trade focuses the chart on it. A "Canvas" button in
+  the chart toolbar returns to the nodes without leaving the mode.
+- The run chart can **replay** the run: the engine records a per-bar tape
+  (pending limit orders like the QFL ladder, stop/TP levels, strategy
+  events — `timeline` column, loaded lazily), and the transport bar plays it
+  back with play/pause, step, speed, and a scrubber. While replaying, candles
+  and marks past the playhead are hidden.
+- The run chart's **Indicators menu is fixed to the canvas**: it lists
+  exactly what the automation's own nodes draw, with the run's saved
+  settings — show/hide only, nothing can be added or edited there (that's
+  what the canvas is for). One row per node, plus synthetic rows for candle
+  coloring and the trailing-stop path. Hidden picks persist per browser,
+  keyed by node id. The recorded order/stop lines from the tape always stay.
+- **Tune by dragging**: the recorded Stop/TP lines (and QFL's first ladder
+  line) are draggable on the replay chart. A drop rewrites the matching
+  node's setting — the rule, never that one order — marks the graph dirty,
+  and the results panel offers one-click **Save & re-run**.
+- **Run lifecycle (DB-backed)**: an unnamed run is auto-named
+  `Previous run · <automation> · <markets> · <window>` and is *replaceable* —
+  the automation's next backtest deletes it server-side
+  (`deleteReplaceableAutomationRuns`; named or pinned groups are never
+  touched). The results panel has a "Name this run to keep it" field
+  (`renameBacktestGroup`) that promotes it to a permanent keeper. Opening
+  backtest mode rehydrates the automation's latest group from the DB
+  (`loadLatestAutomationBacktest`), so results survive leaving the editor or
+  the browser.
 - Everything else — timeframe, compiled strategy, **fees, slippage, and
   starting capital** — comes from the Automation itself. Fees + capital are
   per-Automation settings ("Backtest defaults"), set in the create dialog and
   both settings dialogs, stored in the draft JSONB next to `protection`. The
   server reads them from the saved row; the client cannot override them, so
   every run of an Automation is cost-comparable.
-- The modal shows per-market progress and can be closed — runs continue in
-  the server queue. When every market finishes it opens the result page
-  (`/backtest?run=<group>`). Re-running = pressing Backtest again (each run
-  is a fresh immutable group).
+- Exiting the mode (or closing the tab) never stops runs — the server queue
+  keeps draining, and every run still lands in the backtest history pages
+  (`/backtest`), which remain the permanent record. There is no
+  auto-navigation on completion; results appear in the editor. The standalone
+  `/backtest?run=` page stays for opening historical runs and now links back
+  via "Open automation" in its header.
 - Bots are created from Automations only (the template source was removed).
 - Whale Wall automations cannot use historical Backtest because candles do not
   contain past order books. The editor explains this beside the disabled

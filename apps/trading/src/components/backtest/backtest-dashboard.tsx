@@ -4,8 +4,6 @@ import { useRouter } from "@tanstack/react-router"
 import {
   PriceChartView,
   type ChartCandle,
-  type ChartFocusPoint,
-  type ChartFocusResult,
 } from "@/components/chart/price-chart"
 import {
   ResizableHandle,
@@ -15,15 +13,12 @@ import {
 } from "@/components/ui/resizable"
 import {
   loadBacktest,
-  loadBacktestCandles,
   loadChartCandles,
   type BacktestDetail,
   type BacktestGroupRun,
   type BacktestListItem,
 } from "@/lib/api/backtests"
 import {
-  DEFAULT_BACKTEST_COSTS,
-  INTERVAL_MS,
   MAX_BACKTEST_BARS,
   maxWindowDays,
   type BacktestResult,
@@ -32,7 +27,6 @@ import {
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
-import { configOverlays } from "@/components/chart/indicator-overlays"
 import {
   automationInputRows,
   automationTypeLabel,
@@ -40,69 +34,16 @@ import {
 } from "@/lib/strategies/strategy-config"
 import type { HistoryCandle } from "@/server/backtest/history"
 
-import {
-  formatFocusDays,
-  pct,
-  signedUsd,
-  windowDaysOf,
-} from "./backtest-format"
+import { windowDaysOf } from "./backtest-format"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { BacktestHeader } from "./backtest-header"
-import {
-  buildRunMarkers,
-  buildTrailingStopOverlays,
-  type StrategyChartOverlays,
-} from "./backtest-overlays"
+import { BacktestRunChart } from "./backtest-run-chart"
 import { BacktestSummary } from "./backtest-summary"
 import { StrategyInputs } from "./strategy-inputs"
 import { StrategyTester } from "./strategy-tester"
 
 const EMPTY_CANDLES: HistoryCandle[] = []
-const EMPTY_OVERLAYS: StrategyChartOverlays = {
-  indicators: [],
-  overlayLines: [],
-  priceLines: [],
-  zones: [],
-  barColors: [],
-}
 const WINDOW_DEBOUNCE_MS = 500
-
-// Progressive candle loading for a loaded run: open on a small recent window,
-// extend to a month in the background, then back-fill older history on demand.
-const DAY_MS = 86_400_000
-const INITIAL_DAYS = 10
-const BACKGROUND_DAYS = 30
-const CHUNK_DAYS = 30
-/** Start loading older history when the view's left edge is within this of the loaded floor. */
-const EDGE_BUFFER_MS = 2 * DAY_MS
-
-/** Merge two candle sets, de-duped by open time and sorted ascending. */
-function mergeCandles(
-  a: HistoryCandle[],
-  b: HistoryCandle[]
-): HistoryCandle[] {
-  const byTime = new Map<number, HistoryCandle>()
-  for (const candle of a) byTime.set(candle.t, candle)
-  for (const candle of b) byTime.set(candle.t, candle)
-  return [...byTime.values()].sort((x, y) => x.t - y.t)
-}
-
-type ChartRequest =
-  | {
-      kind: "run"
-      id: string
-      interval: CandleInterval
-      key: string
-      runStartMs: number
-      runEndMs: number
-    }
-  | {
-      kind: "cfg"
-      market: string
-      interval: CandleInterval
-      windowDays: number
-      key: string
-    }
 
 export function BacktestDashboard({
   initialRuns,
@@ -118,27 +59,19 @@ export function BacktestDashboard({
   const markets = useBinanceMarketRows()
   const router = useRouter()
 
-  // Chart config — the source of truth for what the chart shows. The route
+  // Chart config — the source of truth for config-browse mode. The route
   // keys this component by run, so mount-time seeding is enough.
   const [market, setMarket] = React.useState("BTC")
   const [interval, setTimeframe] = React.useState<CandleInterval>("15m")
   const [windowDays, setWindowDays] = React.useState("30")
   const [equity, setEquity] = React.useState("10000")
-  const [taker, setTaker] = React.useState(
-    String(DEFAULT_BACKTEST_COSTS.takerFeeBps)
-  )
-  const [maker, setMaker] = React.useState(
-    String(DEFAULT_BACKTEST_COSTS.makerFeeBps)
-  )
-  const [slippage, setSlippage] = React.useState(
-    String(DEFAULT_BACKTEST_COSTS.slippageBps)
-  )
   const [runState, setRunState] = React.useState<{
     id: string
     detail: BacktestDetail | null
     groupRuns: BacktestGroupRun[]
   }>({ id: "", detail: null, groupRuns: [] })
-  const [chartState, setChartState] = React.useState<{
+  /** Config-browse candles (no finished run loaded). */
+  const [cfgChart, setCfgChart] = React.useState<{
     key: string
     candles: HistoryCandle[]
     simStartMs: number
@@ -148,6 +81,8 @@ export function BacktestDashboard({
   const [focusedTrade, setFocusedTrade] = React.useState<BacktestTrade | null>(
     null
   )
+  /** Last close the run chart shows — mark price for open-position rows. */
+  const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [inputsOpen, setInputsOpen] = React.useState(true)
   const [summaryOpen, setSummaryOpen] = React.useState(true)
@@ -156,114 +91,36 @@ export function BacktestDashboard({
   const groupRuns = runId && runState.id === runId ? runState.groupRuns : []
   const result: BacktestResult | null =
     run?.status === "done" ? (run.result ?? null) : null
-  // A loaded run is immutable — its config rail is read-only. Editing only
-  // happens in draft mode, before the first (and only) execution.
+  // A loaded run is immutable — its config rail is read-only.
   const readOnly = Boolean(run)
+  const runMode = Boolean(run && run.status === "done" && result)
 
   // A different result invalidates the selection (trade numbers restart at 1).
   React.useEffect(() => setFocusedTrade(null), [result])
 
-  // Pulsing rings on the focused trade's entry and exit arrows, so it stands
-  // out from all the other fill arrows on the chart. Sides match the arrows:
-  // a long enters with a buy and exits with a sell (shorts are reversed).
-  const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
-    if (!focusedTrade) return []
-    const long = focusedTrade.side === "long"
-    return [
-      {
-        time: focusedTrade.entryTime,
-        side: long ? "buy" : "sell",
-        label: "Entry",
-        price: focusedTrade.entryPx,
-      },
-      {
-        time: focusedTrade.exitTime,
-        side: long ? "sell" : "buy",
-        label: "Exit",
-        price: focusedTrade.exitPx,
-      },
-    ]
-  }, [focusedTrade])
-
-  // Result box spanning the focused trade's entry → exit: return %, net P&L,
-  // and how long the trip lasted. Bars are counted at the run's own timeframe.
-  const focusResult = React.useMemo<ChartFocusResult | null>(() => {
-    if (!focusedTrade) return null
-    const spanMs = focusedTrade.exitTime - focusedTrade.entryTime
-    const barMs = INTERVAL_MS[(run?.interval as CandleInterval) ?? interval]
-    const days = spanMs / 86_400_000
-    return {
-      up: focusedTrade.pnl >= 0,
-      pctText: pct(focusedTrade.returnPct),
-      pnlText: signedUsd(focusedTrade.pnl),
-      bars: Math.max(1, Math.round(spanMs / barMs)),
-      daysText: formatFocusDays(days),
-    }
-  }, [focusedTrade, run, interval])
-
   const windowNum = clampWindow(windowDays, interval, MAX_BACKTEST_BARS)
   const debouncedWindow = useDebouncedValue(windowNum, WINDOW_DEBOUNCE_MS)
 
-  // Run mode only while the loaded run still matches the chart config. The
-  // window compares undebounced so hydration lands directly in run mode.
-  const runMatchesConfig = Boolean(
-    run &&
-      run.status === "done" &&
-      run.market === market &&
-      run.interval === interval &&
-      windowDaysOf(run) === windowNum
-  )
-
-  // null while the ?run= row is still loading — fetching config-mode candles
-  // for the pre-hydration defaults would hit the wrong market entirely.
-  const chartReq = React.useMemo<ChartRequest | null>(() => {
-    if (runId && !run) return null
-    // A loaded run always shows its own window — even at a finer display
-    // timeframe — so every trade sits over real candles instead of running off
-    // the edge of a now-anchored, bar-capped browse window.
-    if (run && run.status === "done") {
-      return {
-        kind: "run",
-        id: run.id,
-        interval,
-        key: `run:${run.id}:${interval}`,
-        runStartMs: Date.parse(run.startTime),
-        runEndMs: Date.parse(run.endTime),
-      }
-    }
-    return {
-      kind: "cfg",
-      market,
-      interval,
-      windowDays: debouncedWindow,
-      key: `cfg:${market}:${interval}:${debouncedWindow}`,
-    }
-  }, [runId, run, market, interval, debouncedWindow])
-
-  // Initial load: a config-browse window in one shot, or a loaded run's recent
-  // slice (the rest streams in via the background + on-demand effects below).
+  // Config-browse candles: only when no finished run is loaded (the run chart
+  // loads its own), and not while the ?run= row itself is still loading —
+  // fetching for the pre-hydration defaults would hit the wrong market.
+  const cfgKey =
+    runMode || (runId && !run)
+      ? null
+      : `cfg:${market}:${interval}:${debouncedWindow}`
   React.useEffect(() => {
-    if (!chartReq) return
+    if (!cfgKey) return
     let cancelled = false
     void (async () => {
       try {
-        const data =
-          chartReq.kind === "run"
-            ? await loadBacktestCandles(chartReq.id, chartReq.interval, {
-                fromMs: Math.max(
-                  chartReq.runStartMs,
-                  chartReq.runEndMs - INITIAL_DAYS * DAY_MS
-                ),
-                toMs: chartReq.runEndMs,
-              })
-            : await loadChartCandles({
-                market: chartReq.market,
-                interval: chartReq.interval,
-                windowDays: chartReq.windowDays,
-              })
+        const data = await loadChartCandles({
+          market,
+          interval,
+          windowDays: debouncedWindow,
+        })
         if (!cancelled) {
-          setChartState({
-            key: chartReq.key,
+          setCfgChart({
+            key: cfgKey,
             candles: data.candles,
             simStartMs: data.simStartMs,
           })
@@ -275,118 +132,17 @@ export function BacktestDashboard({
     return () => {
       cancelled = true
     }
-  }, [chartReq])
+  }, [cfgKey, market, interval, debouncedWindow])
 
-  // Background: once the initial slice is in, extend a loaded run back to a
-  // month of history so a little scrolling needs no fetch. Runs once per run.
-  React.useEffect(() => {
-    if (!chartReq || chartReq.kind !== "run") return
-    if (chartState.key !== chartReq.key) return
-    const floor = chartState.candles[0]?.t
-    if (floor === undefined) return
-    const target = Math.max(
-      chartReq.runStartMs,
-      chartReq.runEndMs - BACKGROUND_DAYS * DAY_MS
-    )
-    if (target >= floor) return // already covered (e.g. by the warmup runway)
-    let cancelled = false
-    void (async () => {
-      try {
-        const data = await loadBacktestCandles(chartReq.id, chartReq.interval, {
-          fromMs: target,
-          toMs: floor,
-        })
-        if (!cancelled) {
-          setChartState((s) =>
-            s.key === chartReq.key
-              ? { ...s, candles: mergeCandles(data.candles, s.candles) }
-              : s
-          )
-        }
-      } catch {
-        // ignore — on-demand loading still covers older history
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [chartReq, chartState.key])
-
-  // Load older history back to `targetFromMs` (the server adds warmup behind it)
-  // and merge it in. Shared by scroll-back loading and far-back trade focus.
-  const loadOlderTo = React.useCallback(
-    async (targetFromMs: number): Promise<void> => {
-      if (!chartReq || chartReq.kind !== "run") return
-      const floor = chartState.candles[0]?.t
-      if (floor === undefined || targetFromMs >= floor) return
-      try {
-        const data = await loadBacktestCandles(chartReq.id, chartReq.interval, {
-          fromMs: targetFromMs,
-          toMs: floor,
-        })
-        setChartState((s) =>
-          s.key === chartReq.key
-            ? { ...s, candles: mergeCandles(data.candles, s.candles) }
-            : s
-        )
-      } catch {
-        // ignore — a later scroll or click retries
-      }
-    },
-    [chartReq, chartState.candles]
-  )
-
-  // On-demand: load an older chunk when the user scrolls near the loaded floor.
-  const loadingOlderRef = React.useRef(false)
-  const handleVisibleRange = React.useCallback(
-    (fromSec: number) => {
-      if (!chartReq || chartReq.kind !== "run") return
-      const floor = chartState.candles[0]?.t
-      if (floor === undefined || floor <= chartReq.runStartMs) return
-      if (fromSec * 1000 > floor + EDGE_BUFFER_MS) return
-      if (loadingOlderRef.current) return
-      loadingOlderRef.current = true
-      const target = Math.max(chartReq.runStartMs, floor - CHUNK_DAYS * DAY_MS)
-      void loadOlderTo(target).finally(() => {
-        loadingOlderRef.current = false
-      })
-    },
-    [chartReq, chartState.candles, loadOlderTo]
-  )
-
-  // Clicking a trade from the list: if it's older than what's loaded, pull its
-  // history in first, then focus — otherwise the chart jumps to a time with only
-  // a couple of stray candles loaded.
-  const handleSelectTrade = React.useCallback(
-    (trade: BacktestTrade | null) => {
-      if (trade && chartReq?.kind === "run") {
-        const floor = chartState.candles[0]?.t
-        if (floor !== undefined && trade.entryTime < floor) {
-          void loadOlderTo(
-            Math.max(chartReq.runStartMs, trade.entryTime)
-          ).finally(() => setFocusedTrade(trade))
-          return
-        }
-      }
-      setFocusedTrade(trade)
-    },
-    [chartReq, chartState.candles, loadOlderTo]
-  )
-
-  const candles =
-    chartReq && chartState.key === chartReq.key
-      ? chartState.candles
-      : EMPTY_CANDLES
-  const chartLoading = !chartReq || chartState.key !== chartReq.key
+  const cfgCandles =
+    cfgKey && cfgChart.key === cfgKey ? cfgChart.candles : EMPTY_CANDLES
+  const cfgLoading = Boolean(cfgKey) && cfgChart.key !== cfgKey
 
   const hydrate = React.useCallback((detail: BacktestDetail) => {
     setMarket(detail.market)
     setTimeframe(detail.interval as CandleInterval)
     setWindowDays(String(windowDaysOf(detail)))
     setEquity(String(detail.startingEquity))
-    setTaker(String(detail.costs.takerFeeBps))
-    setMaker(String(detail.costs.makerFeeBps))
-    setSlippage(String(detail.costs.slippageBps))
   }, [])
 
   // Load the run behind ?run= (it may still be queued/running in the
@@ -456,41 +212,8 @@ export function BacktestDashboard({
 
   const runConfig = run?.params ?? null
 
-  // Paint through the strategy-kind config so signal and Automation charts
-  // use the exact same indicator computation as their engines.
-  const overlays = React.useMemo(() => {
-    if (candles.length === 0 || !runConfig) {
-      return EMPTY_OVERLAYS
-    }
-    return configOverlays(runConfig, candles)
-  }, [runConfig, candles])
-
-  // A trailing-stop run paints its per-trade stop path (dashed red) so the
-  // ratchet is visible. Only meaningful on the run's own candles.
-  const trailingStopLines = React.useMemo(
-    () =>
-      result && runConfig && runMatchesConfig && candles.length
-        ? buildTrailingStopOverlays(runConfig.protection, result, candles)
-        : [],
-    [result, runConfig, runMatchesConfig, candles]
-  )
-  const chartOverlayLines = React.useMemo(
-    () => [...overlays.overlayLines, ...trailingStopLines],
-    [overlays.overlayLines, trailingStopLines]
-  )
-
-  // Legend chips only for named lines (channels, bands). Unlabeled marks like
-  // the 100s of swing pivots would otherwise flood the toolbar with dashes.
-  const labeledOverlayLines = chartOverlayLines.filter((line) => line.label)
-
-  // Open/close chips for the run's real fills. They need only fill times and
-  // prices, so they stay correct at any display timeframe.
-  const markers = React.useMemo(
-    () => (result ? buildRunMarkers(result) : []),
-    [result]
-  )
-
-  // Read-only rows for the Inputs rail: what the run executed with.
+  // Read-only rows for the Inputs rail: what the run executed with. The one
+  // home for the run's config — the summary rail shows results only.
   const inputRows = React.useMemo(() => {
     if (!run) return []
     const rows: { label: string; value: string }[] = [
@@ -500,24 +223,25 @@ export function BacktestDashboard({
       { label: "Taker fee", value: `${run.costs.takerFeeBps} bps` },
       { label: "Maker fee", value: `${run.costs.makerFeeBps} bps` },
       { label: "Slippage", value: `${run.costs.slippageBps} bps` },
+      { label: "Network", value: run.network },
     ]
+    if (run.completedAt) {
+      rows.push({
+        label: "Ran at",
+        value: new Date(run.completedAt).toLocaleString("en-US", {
+          hour12: false,
+        }),
+      })
+    }
     if (runConfig) rows.push(...automationInputRows(runConfig))
     return rows
   }, [run, runConfig])
 
-  const mid = Number(markets.find((row) => row.coin === market)?.markPx ?? 0)
-  const selectedRow = markets.find((row) => row.coin === market)
-  const dayChangePct =
-    selectedRow && Number(selectedRow.prevDayPx) > 0
-      ? (Number(selectedRow.markPx) / Number(selectedRow.prevDayPx) - 1) * 100
-      : null
+  // Mark price for open-position P&L: the run chart's last visible close.
+  const markPrice = runMode ? (runLastClose ?? 0) : 0
 
-  // Mark price for open-position P&L: only meaningful on the run's own data.
-  const markPrice =
-    runMatchesConfig && candles.length ? candles[candles.length - 1].c : 0
-
-  const lastCandle = candles.length ? candles[candles.length - 1] : null
-  const readout = ohlc ?? lastCandle
+  const cfgLast = cfgCandles.length ? cfgCandles[cfgCandles.length - 1] : null
+  const cfgReadout = ohlc ?? cfgLast
 
   const outerLayout = usePersistedLayout("backtest-layout-vertical")
   const innerLayout = usePersistedLayout("backtest-layout-horizontal")
@@ -531,8 +255,7 @@ export function BacktestDashboard({
         marketReadOnly={readOnly}
         groupRuns={groupRuns}
         currentRunId={run?.id ?? null}
-        markPrice={mid}
-        dayChangePct={dayChangePct}
+        automationId={run?.automationId ?? null}
         runName={run?.name ?? null}
         strategyLabel={
           runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
@@ -595,60 +318,38 @@ export function BacktestDashboard({
             {inputsOpen ? <ResizableHandle gap /> : null}
             <ResizablePanel id="chart" defaultSize="60%" minSize="30%">
               <WorkspacePanel className="flex flex-col">
-                <ChartToolbar
-                  // A loaded run locks to its own timeframe: the indicator
-                  // lines are recomputed from the displayed candles, so any
-                  // other timeframe would draw lines the engine never saw.
-                  intervals={
-                    run ? [run.interval as CandleInterval] : CANDLE_INTERVALS
-                  }
-                  interval={interval}
-                  onIntervalChange={setTimeframe}
-                  legend={{ chips: Boolean(result) }}
-                  legendLines={labeledOverlayLines}
-                  ohlc={readout}
-                />
-                <div className="relative min-h-0 flex-1">
-                  <PriceChartView
-                    candles={candles}
-                    loading={chartLoading}
-                    dataKey={chartReq?.key ?? "pending"}
-                    indicators={overlays.indicators}
-                    overlayLines={chartOverlayLines}
-                    priceLines={overlays.priceLines}
-                    zones={overlays.zones}
-                    barColors={overlays.barColors}
-                    markers={markers}
-                    visibleStartMs={chartState.simStartMs || undefined}
-                    focusPoints={focusPoints}
-                    focusResult={focusResult}
-                    onCrosshairOhlc={setOhlc}
-                    onVisibleRangeChange={handleVisibleRange}
+                {runMode && run ? (
+                  <BacktestRunChart
+                    run={run}
+                    focusedTrade={focusedTrade}
+                    onLastCloseChange={setRunLastClose}
                   />
-                </div>
+                ) : (
+                  <>
+                    <ChartToolbar
+                      intervals={CANDLE_INTERVALS}
+                      interval={interval}
+                      onIntervalChange={setTimeframe}
+                      ohlc={cfgReadout}
+                    />
+                    <div className="relative min-h-0 flex-1">
+                      <PriceChartView
+                        candles={cfgCandles}
+                        loading={cfgLoading}
+                        dataKey={cfgKey ?? "pending"}
+                        visibleStartMs={cfgChart.simStartMs || undefined}
+                        onCrosshairOhlc={setOhlc}
+                      />
+                    </div>
+                  </>
+                )}
               </WorkspacePanel>
             </ResizablePanel>
             {summaryOpen ? <ResizableHandle gap /> : null}
             {summaryOpen ? (
             <ResizablePanel id="summary" defaultSize="20%" minSize="13%">
               <WorkspacePanel>
-                <BacktestSummary
-                  result={result}
-                  markPrice={markPrice}
-                  config={{
-                    market,
-                    interval,
-                    windowDays: windowNum,
-                    startingEquity: Number(equity) || 0,
-                    costsText: `taker ${taker}bp · maker ${maker}bp · slip ${slippage}bp`,
-                    network: "mainnet",
-                    ranAt: run?.completedAt
-                      ? new Date(run.completedAt).toLocaleString("en-US", {
-                          hour12: false,
-                        })
-                      : null,
-                  }}
-                />
+                <BacktestSummary result={result} />
               </WorkspacePanel>
             </ResizablePanel>
             ) : null}
@@ -662,7 +363,7 @@ export function BacktestDashboard({
               startingEquity={Number(equity) || 0}
               markPrice={markPrice}
               selectedTradeN={focusedTrade?.n ?? null}
-              onSelectTrade={handleSelectTrade}
+              onSelectTrade={setFocusedTrade}
             />
           </WorkspacePanel>
         </ResizablePanel>

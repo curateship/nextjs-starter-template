@@ -54,6 +54,7 @@ export function AutomationToolbar({
   runnable,
   backtestDisabledReason,
   runnableDisabledReason,
+  backtestActive = false,
   dirty,
   saving,
   onNameChange,
@@ -68,6 +69,8 @@ export function AutomationToolbar({
   runnable: boolean
   backtestDisabledReason?: string
   runnableDisabledReason?: string
+  /** Backtest mode is on — the button renders pressed and always exits. */
+  backtestActive?: boolean
   dirty: boolean
   saving: boolean
   onNameChange: (name: string) => void
@@ -105,20 +108,17 @@ export function AutomationToolbar({
         />
       </div>
       <div className="ml-auto" />
+      {/* Opening the mode never requires a save — the panel's Run button
+          carries the save/compile gating with its reason. */}
       <DisabledReasonTooltip
-        reason={backtestDisabledReason ?? runnableDisabledReason}
+        reason={backtestActive ? undefined : backtestDisabledReason}
       >
         <Button
           type="button"
-          variant="outline"
+          variant={backtestActive ? "secondary" : "outline"}
           size="sm"
           className="hidden h-8 xl:inline-flex"
-          disabled={!runnable || Boolean(backtestDisabledReason)}
-          aria-label={
-            backtestDisabledReason
-              ? `Backtest unavailable: ${backtestDisabledReason}`
-              : "Backtest"
-          }
+          aria-pressed={backtestActive}
           onClick={onBacktest}
         >
           <FlaskConicalIcon className="size-3.5" />
@@ -156,13 +156,9 @@ export function AutomationToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem
-            disabled={!runnable || Boolean(backtestDisabledReason)}
-            onSelect={onBacktest}
-            title={backtestDisabledReason ?? runnableDisabledReason}
-          >
+          <DropdownMenuItem onSelect={onBacktest} title={backtestDisabledReason}>
             <FlaskConicalIcon className="size-4" />
-            {backtestDisabledReason ? "Backtest unavailable" : "Backtest"}
+            {backtestActive ? "Close backtest" : "Backtest"}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!runnable}

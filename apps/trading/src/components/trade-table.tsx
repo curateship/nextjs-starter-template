@@ -40,6 +40,8 @@ export type TradeTableRow = {
   returnPct: number | null
   /** null renders as "—". */
   cumPnl: number | null
+  /** Render faded — e.g. replay rows the playhead hasn't reached yet. */
+  dimmed?: boolean
 }
 
 type TradeSortKey =
@@ -133,7 +135,8 @@ export function TradeTable({
     onClick: () => onSelect?.(row.id === selectedId ? null : row.id),
     className: cn(
       "cursor-pointer font-mono text-[11px]",
-      row.id === selectedId && "bg-muted/60 hover:bg-muted/60"
+      row.id === selectedId && "bg-muted/60 hover:bg-muted/60",
+      row.dimmed && "opacity-40"
     ),
   })
 
