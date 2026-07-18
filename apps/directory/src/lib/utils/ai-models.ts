@@ -17,3 +17,15 @@ export const AI_PROVIDER_DEFAULT_MODELS: Record<AIProvider, string> = {
 export function isAIProvider(provider: unknown): provider is AIProvider {
   return provider === 'openai' || provider === 'anthropic' || provider === 'google_ai'
 }
+
+// Providers that can generate images. Anthropic has no image model, so it is
+// excluded here even though it is a valid text provider.
+export const AI_IMAGE_PROVIDERS: AIProvider[] = ['openai']
+
+export const AI_IMAGE_PROVIDER_DEFAULT_MODELS: Record<'openai', string> = {
+  openai: 'gpt-image-1',
+}
+
+export function isAIImageProvider(provider: unknown): provider is 'openai' {
+  return AI_IMAGE_PROVIDERS.includes(provider as AIProvider)
+}

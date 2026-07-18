@@ -68,7 +68,9 @@ export const siteAutomationRunSteps = pgTable('site_automation_run_steps', {
 }, (table) => [
   uniqueIndex('idx_site_automation_run_steps_node_unique').on(table.runId, table.nodeId),
   index('idx_site_automation_run_steps_run_status').on(table.runId, table.status),
-  check('site_automation_run_steps_kind_check', sql`${table.nodeKind} in ('time', 'scraper', 'router', 'agent', 'post', 'listing')`),
+  // Node kinds are defined and validated by the app's node registry, not the
+  // database, so new node kinds never need a migration. Run-step status stays
+  // constrained here because it is a fixed lifecycle owned by the executor.
   check('site_automation_run_steps_status_check', sql`${table.status} in ('pending', 'running', 'success', 'failed', 'skipped')`),
 ])
 

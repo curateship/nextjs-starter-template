@@ -107,4 +107,47 @@ describe('automation graph validation', () => {
     assert.ok(codes.includes('agent-model'))
     assert.ok(codes.includes('agent-prompt'))
   })
+
+  it('accepts an AI Image node between the AI Agent and the Post', () => {
+    const graph = imageGraph('A clean editorial header image.', 'gpt-image-1')
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('requires an AI Image model and prompt', () => {
+    const graph = imageGraph('', '')
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('image-model'))
+    assert.ok(codes.includes('image-prompt'))
+  })
+
+  it('rejects an AI Image node connected to a Listing', () => {
+    const graph = imageGraph('Header image.', 'gpt-image-1')
+    const post = graph.nodes.find((node) => node.id === ids.newsPost)
+    if (!post) assert.fail('Missing post fixture')
+    post.kind = 'listing'
+    ;(post as { config: unknown }).config = { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('invalid-connection'))
+  })
 })
+
+const imageId = '99999999-9999-4999-8999-999999999999'
+
+function imageGraph(prompt: string, model: string): AutomationGraph {
+  return {
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '09:00', timezone: 'UTC' } } },
+      { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/news'] } },
+      { id: ids.newsAgent, kind: 'agent', name: 'Writer', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write an article.' } },
+      { id: imageId, kind: 'image', name: 'AI Image', x: 900, y: 0, config: { provider: 'openai', model, prompt, size: 'landscape' } },
+      { id: ids.newsPost, kind: 'post', name: 'Post', x: 1200, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+    ],
+    edges: [
+      { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+      { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsAgent },
+      { id: 'e3', from: ids.newsAgent, sourcePort: 'article', to: imageId },
+      { id: 'e4', from: imageId, sourcePort: 'article', to: ids.newsPost },
+    ],
+  }
+}

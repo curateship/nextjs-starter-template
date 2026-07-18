@@ -1,23 +1,13 @@
-import { isAIProvider } from '@/lib/utils/ai-models'
-import { nodeOutputPorts } from './catalog'
-import { parseAutomationSchedule, validateAutomationSchedule } from './schedule'
+import { boundedString, finiteNumber, isRecord, requiredString } from './parse-utils'
+import { getNodeDescriptor, isAutomationNodeKind, nodeOutputPorts } from './node-registry'
 import type {
-  AgentAutomationNode,
   AutomationEdge,
   AutomationGraph,
   AutomationNode,
-  AutomationNodeKind,
-  AutomationRouterRoute,
   AutomationSourcePort,
   AutomationValidationError,
-  ListingAutomationNode,
-  PostAutomationNode,
-  RouterAutomationNode,
-  ScraperAutomationNode,
-  TimeAutomationNode,
 } from './types'
 
-const NODE_KINDS = new Set<AutomationNodeKind>(['time', 'scraper', 'router', 'agent', 'post', 'listing'])
 const MAX_NODES = 100
 const MAX_EDGES = 200
 
@@ -76,25 +66,16 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
   }
 
   for (const node of graph.nodes) {
+    const descriptor = getNodeDescriptor(node.kind)
     const nodeIncoming = incoming.get(node.id) ?? []
     const nodeOutgoing = outgoing.get(node.id) ?? []
-    if (node.kind !== 'time' && nodeIncoming.length === 0) errors.push(error('missing-input', `${node.name} needs an input.`, node.id))
-    if (node.kind === 'post' && nodeIncoming.length !== 1) errors.push(error('post-input', 'A Post node needs exactly one AI Agent input.', node.id))
-    if (isTerminalActionNode(node) && nodeOutgoing.length > 0) errors.push(error('post-terminal', `A ${node.kind === 'post' ? 'Post' : 'Listing'} node must be the final action.`, node.id))
-    if (!isTerminalActionNode(node) && node.kind !== 'router' && nodeOutgoing.length === 0) {
-      errors.push(error('missing-output', `${node.name} needs an output.`, node.id))
+    if (descriptor.inputs !== 'none' && nodeIncoming.length === 0) errors.push(error('missing-input', `${node.name} needs an input.`, node.id))
+    if (descriptor.inputs === 'single' && nodeIncoming.length !== 1) {
+      errors.push(error(`${node.kind}-input`, `${descriptor.meta.name} needs exactly one input.`, node.id))
     }
-    if (node.kind === 'router') {
-      for (const route of node.config.routes) {
-        if (!nodeOutgoing.some((edge) => edge.sourcePort === `route:${route.id}`)) {
-          errors.push(error('route-output', `Connect the ${route.name} route.`, node.id))
-        }
-      }
-      if (!nodeOutgoing.some((edge) => edge.sourcePort === 'else')) {
-        errors.push(error('route-output', 'Connect the Else route.', node.id))
-      }
-      if (nodeOutgoing.length === 0) errors.push(error('missing-output', `${node.name} needs an output.`, node.id))
-    }
+    if (descriptor.terminal && nodeOutgoing.length > 0) errors.push(error('post-terminal', `A ${descriptor.meta.name} node must be the final action.`, node.id))
+    if (!descriptor.terminal && nodeOutgoing.length === 0) errors.push(error('missing-output', `${node.name} needs an output.`, node.id))
+    descriptor.validateConnections?.(node, { incoming: nodeIncoming, outgoing: nodeOutgoing }, (code, message) => errors.push(error(code, message, node.id)))
   }
 
   const duplicateConnections = new Set<string>()
@@ -148,62 +129,16 @@ export function topologicalAutomationNodes(graph: AutomationGraph): AutomationNo
 }
 
 function isTerminalActionNode(node: AutomationNode) {
-  return node.kind === 'post' || node.kind === 'listing'
+  return getNodeDescriptor(node.kind).terminal === true
 }
 
 function validateNode(node: AutomationNode, errors: AutomationValidationError[]) {
   if (!node.name.trim()) errors.push(error('node-name', 'Give this node a name.', node.id))
-  if (node.kind === 'time') {
-    const scheduleError = validateAutomationSchedule(node.config.schedule)
-    if (scheduleError) errors.push(error('schedule', scheduleError, node.id))
-  }
-  if (node.kind === 'scraper') {
-    const urls = node.config.urls.map((url) => url.trim()).filter(Boolean)
-    if (urls.length === 0) errors.push(error('scraper-url', 'Add at least one website URL.', node.id))
-    if (new Set(urls).size !== urls.length) errors.push(error('scraper-duplicate-url', 'Remove duplicate website URLs.', node.id))
-    for (const url of urls) {
-      try {
-        const parsed = new URL(url)
-        if (parsed.protocol !== 'https:' || parsed.username || parsed.password || !parsed.hostname) throw new Error()
-      } catch {
-        errors.push(error('scraper-url', 'Scraper URLs must be public HTTPS addresses.', node.id))
-        break
-      }
-    }
-  }
-  if (node.kind === 'router') {
-    if (!node.config.model.trim()) errors.push(error('router-model', 'Choose an AI Router model.', node.id))
-    if (node.config.routes.length === 0) errors.push(error('router-routes', 'Add at least one AI Router route.', node.id))
-    const names = node.config.routes.map((route) => route.name.trim().toLowerCase())
-    const ids = node.config.routes.map((route) => route.id)
-    if (new Set(ids).size !== ids.length) errors.push(error('router-routes', 'AI Router route IDs must be unique.', node.id))
-    if (new Set(names).size !== names.length) errors.push(error('router-routes', 'AI Router route names must be unique.', node.id))
-    for (const route of node.config.routes) {
-      if (!route.name.trim() || !route.description.trim()) errors.push(error('router-route', 'Each AI Router route needs a name and description.', node.id))
-    }
-  }
-  if (node.kind === 'agent') {
-    if (!node.config.model.trim()) errors.push(error('agent-model', 'Choose an AI Agent model.', node.id))
-    if (!node.config.instructions.trim()) errors.push(error('agent-prompt', 'Add instructions for this AI Agent.', node.id))
-  }
-  if (node.kind === 'post') {
-    if (!node.config.templateId) errors.push(error('post-template', 'Choose a Post template.', node.id))
-    if (node.config.primaryCategoryId && !node.config.categoryIds.includes(node.config.primaryCategoryId)) {
-      errors.push(error('post-category', 'The primary category must be selected.', node.id))
-    }
-  }
-  if (node.kind === 'listing') {
-    if (!node.config.model.trim()) errors.push(error('listing-model', 'Choose a Listing AI model.', node.id))
-    if (!node.config.templateId) errors.push(error('listing-template', 'Choose a Listing template.', node.id))
-  }
+  getNodeDescriptor(node.kind).validate(node, (code, message) => errors.push(error(code, message, node.id)))
 }
 
 export function isAutomationConnectionAllowed(source: AutomationNode, port: AutomationSourcePort, target: AutomationNode) {
-  if (source.kind === 'time') return port === 'then' && (target.kind === 'scraper' || target.kind === 'agent')
-  if (source.kind === 'scraper') return port === 'documents' && (target.kind === 'router' || target.kind === 'agent' || target.kind === 'listing')
-  if (source.kind === 'router') return (port === 'else' || port.startsWith('route:')) && (target.kind === 'agent' || target.kind === 'listing')
-  if (source.kind === 'agent') return port === 'article' && target.kind === 'post'
-  return false
+  return getNodeDescriptor(source.kind).allowedTargets(port).includes(target.kind)
 }
 
 function hasCycle(graph: AutomationGraph) {
@@ -231,7 +166,7 @@ function walkGraph(
 }
 
 function parseNode(value: unknown): AutomationNode {
-  if (!isRecord(value) || !NODE_KINDS.has(value.kind as AutomationNodeKind) || !isRecord(value.config)) {
+  if (!isRecord(value) || !isAutomationNodeKind(value.kind) || !isRecord(value.config)) {
     throw new Error('Automation node is invalid')
   }
   const common = {
@@ -240,81 +175,8 @@ function parseNode(value: unknown): AutomationNode {
     x: finiteNumber(value.x, 'Node position'),
     y: finiteNumber(value.y, 'Node position'),
   }
-  if (value.kind === 'time') {
-    return { ...common, kind: 'time', config: { schedule: parseAutomationSchedule(value.config.schedule) } } satisfies TimeAutomationNode
-  }
-  if (value.kind === 'scraper') {
-    if (!Array.isArray(value.config.urls) || value.config.urls.length > 20) throw new Error('Scraper URLs are invalid')
-    return {
-      ...common,
-      kind: 'scraper',
-      config: { urls: value.config.urls.map((url) => boundedString(url, 'Scraper URL', 2048)) },
-    } satisfies ScraperAutomationNode
-  }
-  if (value.kind === 'router') {
-    if (!isAIProvider(value.config.provider) || !Array.isArray(value.config.routes) || value.config.routes.length > 8) {
-      throw new Error('AI Router configuration is invalid')
-    }
-    return {
-      ...common,
-      kind: 'router',
-      config: {
-        provider: value.config.provider,
-        model: boundedString(value.config.model, 'AI Router model', 120),
-        routes: value.config.routes.map(parseRoute),
-      },
-    } satisfies RouterAutomationNode
-  }
-  if (value.kind === 'agent') {
-    if (!isAIProvider(value.config.provider)) throw new Error('AI Agent provider is invalid')
-    return {
-      ...common,
-      kind: 'agent',
-      config: {
-        provider: value.config.provider,
-        model: boundedString(value.config.model, 'AI Agent model', 120),
-        instructions: boundedString(value.config.instructions, 'AI Agent instructions', 12_000),
-      },
-    } satisfies AgentAutomationNode
-  }
-  if (value.kind === 'listing') {
-    if (!isAIProvider(value.config.provider)) throw new Error('Listing provider is invalid')
-    return {
-      ...common,
-      kind: 'listing',
-      config: {
-        provider: value.config.provider,
-        model: boundedString(value.config.model, 'Listing model', 120),
-        templateId: boundedString(value.config.templateId, 'Listing template', 64),
-        categoryId: value.config.categoryId === null || value.config.categoryId === undefined
-          ? null
-          : requiredString(value.config.categoryId, 'Listing category', 64),
-        instructions: boundedString(value.config.instructions ?? '', 'Listing instructions', 4000),
-      },
-    } satisfies ListingAutomationNode
-  }
-  if (!Array.isArray(value.config.categoryIds) || value.config.categoryIds.length > 50) throw new Error('Post categories are invalid')
-  return {
-    ...common,
-    kind: 'post',
-    config: {
-      templateId: boundedString(value.config.templateId, 'Post template', 64),
-      publish: value.config.publish === true,
-      categoryIds: value.config.categoryIds.map((id) => requiredString(id, 'Post category', 64)),
-      primaryCategoryId: value.config.primaryCategoryId === null || value.config.primaryCategoryId === undefined
-        ? null
-        : requiredString(value.config.primaryCategoryId, 'Post primary category', 64),
-    },
-  } satisfies PostAutomationNode
-}
-
-function parseRoute(value: unknown): AutomationRouterRoute {
-  if (!isRecord(value)) throw new Error('AI Router route is invalid')
-  return {
-    id: requiredString(value.id, 'AI Router route ID', 64),
-    name: boundedString(value.name, 'AI Router route name', 80),
-    description: boundedString(value.description, 'AI Router route description', 500),
-  }
+  const config = getNodeDescriptor(value.kind).parseConfig(value.config, common)
+  return { ...common, kind: value.kind, config } as AutomationNode
 }
 
 function parseEdge(value: unknown): AutomationEdge {
@@ -343,24 +205,4 @@ function dedupeErrors(errors: AutomationValidationError[]) {
     seen.add(key)
     return true
   })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function requiredString(value: unknown, label: string, max: number) {
-  const result = boundedString(value, label, max).trim()
-  if (!result) throw new Error(`${label} is required`)
-  return result
-}
-
-function boundedString(value: unknown, label: string, max: number) {
-  if (typeof value !== 'string' || value.length > max) throw new Error(`${label} is invalid`)
-  return value
-}
-
-function finiteNumber(value: unknown, label: string) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1_000_000) throw new Error(`${label} is invalid`)
-  return value
 }

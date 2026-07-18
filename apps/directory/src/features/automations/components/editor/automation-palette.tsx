@@ -1,12 +1,6 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
-import Bot from "lucide-react/dist/esm/icons/bot.js"
-import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
-import FileText from "lucide-react/dist/esm/icons/file-text.js"
-import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
-import Globe2 from "lucide-react/dist/esm/icons/earth.js"
-import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
+import { useState } from "react";
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 
@@ -16,20 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AUTOMATION_NODE_CATALOG } from "@/features/automations/domain/catalog";
 import type { AutomationNodeKind } from "@/features/automations/domain/types";
 import { cn } from "@/lib/utils/tailwind";
+import { getNodeUI } from "./node-ui";
 
 const GROUPS = ["Triggers", "Sources", "AI", "Actions"] as const;
-
-const ICONS: Record<
-  AutomationNodeKind,
-  ComponentType<{ className?: string }>
-> = {
-  time: Clock3,
-  scraper: Globe2,
-  router: GitBranch,
-  agent: Bot,
-  post: FileText,
-  listing: MapPin,
-};
 
 type PaletteItem = (typeof AUTOMATION_NODE_CATALOG)[number];
 
@@ -219,7 +202,7 @@ function PaletteNodeCard({
   onDragStart: (kind: AutomationNodeKind) => void;
   onDragEnd: () => void;
 }) {
-  const Icon = ICONS[item.kind];
+  const Icon = getNodeUI(item.kind).icon;
   return (
     <div className="group relative">
       <button

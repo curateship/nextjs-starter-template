@@ -46,6 +46,50 @@ async function validateSiteScope(userId: string, siteId?: string | null) {
   return { siteId: site.id, error: null }
 }
 
+/**
+ * Persist already-generated image bytes to R2 and the media library. Used by
+ * server-side pipelines (such as automation runs) that have no authenticated
+ * user context but have already established site ownership. Auth-facing uploads
+ * must go through {@link uploadMediaAction}, which validates the current user.
+ */
+export async function storeAutomationImageMedia(input: {
+  userId: string
+  siteId: string
+  buffer: Buffer
+  mimeType: string
+  originalName: string
+  altText?: string | null
+}): Promise<MediaData> {
+  const fileBuffer = prepareMediaBuffer(input.mimeType, input.buffer)
+  const timestamp = Date.now()
+  const fileExtension = defaultExtensionForMimeType(input.mimeType)
+  const cleanName = input.originalName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9.-]/g, '-') || 'image'
+  const r2FileName = `${input.userId}/${timestamp}_${cleanName}.${fileExtension}`
+  const publicUrl = await uploadToR2(r2FileName, fileBuffer, input.mimeType)
+
+  const [mediaData] = await db
+    .insert(media)
+    .values({
+      userId: input.userId,
+      siteId: input.siteId,
+      filename: `${timestamp}_${cleanName}.${fileExtension}`,
+      originalName: input.originalName,
+      altText: input.altText || null,
+      fileSize: fileBuffer.length,
+      mimeType: input.mimeType,
+      fileType: 'image',
+      storagePath: r2FileName,
+      publicUrl,
+    })
+    .returning()
+
+  if (!mediaData) {
+    try { await deleteFromR2(r2FileName) } catch { /* Best-effort cleanup. */ }
+    throw new Error('Failed to save the generated image to the media library')
+  }
+  return toMediaData(mediaData)
+}
+
 export async function uploadMediaAction(
   file: File,
   alt_text?: string,

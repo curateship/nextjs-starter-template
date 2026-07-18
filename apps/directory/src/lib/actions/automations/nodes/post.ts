@@ -59,6 +59,7 @@ export async function runPostNode(
             slug,
             metaDescription: article.metaDescription,
             excerpt: article.excerpt,
+            featuredImage: article.featuredImage ?? null,
             contentBlocks,
             isPublished: node.config.publish,
             displayOrder,

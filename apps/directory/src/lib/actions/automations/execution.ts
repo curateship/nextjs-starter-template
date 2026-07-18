@@ -14,8 +14,6 @@ import type {
   AutomationRunStatus,
   AutomationSourcePort,
   AutomationTriggerType,
-  ScrapedDocument,
-  StructuredArticle,
 } from '@/features/automations/domain/types'
 import { db } from '@/lib/db'
 import {
@@ -27,11 +25,8 @@ import {
   deriveAutomationRunStatus,
   shouldRetryAutomationNode,
 } from './execution-policy'
-import { runAgentNode } from './nodes/agent'
-import { runListingNode, type ListingNodeResult } from './nodes/listing'
-import { runPostNode, type PostNodeResult } from './nodes/post'
-import { runRouterNode } from './nodes/router'
-import { runScraperNode } from './nodes/scraper'
+import { getNodeExecutor } from './node-executors'
+import { documentsFrom, type RuntimeOutput } from './runtime'
 
 const AUTOMATION_LOCK_TIMEOUT_MS = 30 * 60 * 1000
 class NodeExecutionError extends Error {
@@ -47,14 +42,6 @@ class ScheduledAutomationNotRunnableError extends Error {
     this.name = 'ScheduledAutomationNotRunnableError'
   }
 }
-
-type RuntimeOutput =
-  | { type: 'signal' }
-  | { type: 'documents'; documents: ScrapedDocument[]; fetchedCount?: number; unchangedCount?: number }
-  | { type: 'routes'; groups: Record<string, ScrapedDocument[]> }
-  | { type: 'article'; article: StructuredArticle }
-  | { type: 'post'; post: PostNodeResult }
-  | { type: 'listing'; listing: ListingNodeResult }
 
 type StepResult = {
   status: 'success' | 'failed' | 'skipped'
@@ -178,7 +165,12 @@ async function executeGraph(input: {
   for (const node of topologicalAutomationNodes(input.graph)) {
     await refreshAutomationLock(input.automationId, input.lockToken)
     const incoming = incomingByNode.get(node.id) ?? []
-    const failedParent = incoming.find((edge) => results.get(edge.from)?.status === 'failed')
+    // A soft failure (a failed step that still produced output, such as an AI
+    // Image node that skipped its image) does not block downstream nodes.
+    const failedParent = incoming.find((edge) => {
+      const parent = results.get(edge.from)
+      return parent?.status === 'failed' && !parent.output
+    })
     if (failedParent) {
       const result: StepResult = { status: 'skipped', error: 'A required earlier node failed.' }
       results.set(node.id, result)
@@ -201,7 +193,10 @@ async function executeGraph(input: {
     await startStep(input.runId, node, inputSummary)
     try {
       const { output, attempts } = await executeNodeWithRetries(input, node, payloads)
-      const result: StepResult = { status: 'success', output }
+      const imageError = output.type === 'article' ? output.imageError : undefined
+      const result: StepResult = imageError
+        ? { status: 'failed', output, error: `${node.name}: ${imageError}` }
+        : { status: 'success', output }
       results.set(node.id, result)
       await finishStep(input.runId, node, result, attempts)
     } catch (error) {
@@ -219,41 +214,15 @@ async function executeNodeWithRetries(
   node: AutomationNode,
   payloads: RuntimeOutput[]
 ) {
+  const executor = getNodeExecutor(node.kind)
   let attempts = 0
   while (true) {
     attempts++
     try {
-      if (node.kind === 'time') return { output: { type: 'signal' } as RuntimeOutput, attempts }
-      if (node.kind === 'scraper') {
-        const result = await runScraperNode(context.automationId, node)
-        return {
-          output: {
-            type: 'documents',
-            documents: result.documents,
-            fetchedCount: result.fetchedCount,
-            unchangedCount: result.unchangedCount,
-          } as RuntimeOutput,
-          attempts,
-        }
-      }
-      if (node.kind === 'router') {
-        const result = await runRouterNode(context.siteId, node, documentsFrom(payloads))
-        return { output: { type: 'routes', groups: result.groups } as RuntimeOutput, attempts }
-      }
-      if (node.kind === 'agent') {
-        const result = await runAgentNode(context.siteId, node, documentsFrom(payloads))
-        return { output: { type: 'article', article: result.article } as RuntimeOutput, attempts }
-      }
-      if (node.kind === 'listing') {
-        const listing = await runListingNode(context.siteId, node, documentsFrom(payloads), { automationId: context.automationId })
-        return { output: { type: 'listing', listing } as RuntimeOutput, attempts }
-      }
-      const article = payloads.find((payload): payload is Extract<RuntimeOutput, { type: 'article' }> => payload.type === 'article')?.article
-      if (!article) throw new Error('Post did not receive an article')
-      const post = await runPostNode(context.siteId, node, article)
-      return { output: { type: 'post', post } as RuntimeOutput, attempts }
+      const output = await executor.run(context, payloads, node)
+      return { output, attempts }
     } catch (error) {
-      if (!shouldRetryAutomationNode(node.kind, error, attempts)) {
+      if (!shouldRetryAutomationNode(executor.retry, error, attempts)) {
         throw new NodeExecutionError(error instanceof Error ? error.message : 'Node failed', attempts, { cause: error })
       }
       await new Promise((resolve) => setTimeout(resolve, attempts * 250))
@@ -268,15 +237,6 @@ function outputForPort(output: RuntimeOutput, sourcePort: AutomationSourcePort):
   }
   if (output.type === 'documents' && output.documents.length === 0) return null
   return output
-}
-
-function documentsFrom(payloads: RuntimeOutput[]) {
-  const byUrl = new Map<string, ScrapedDocument>()
-  for (const payload of payloads) {
-    if (payload.type !== 'documents') continue
-    for (const document of payload.documents) byUrl.set(document.url, document)
-  }
-  return [...byUrl.values()]
 }
 
 function summarizeInputs(payloads: RuntimeOutput[]) {
@@ -301,7 +261,18 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
   if (output.type === 'routes') {
     return { routeCounts: Object.fromEntries(Object.entries(output.groups).map(([port, documents]) => [port, documents.length])) }
   }
-  if (output.type === 'article') return { title: output.article.title }
+  if (output.type === 'article') {
+    // Only annotate the image outcome when this step actually attempted one, so
+    // the AI Agent's own step summary stays a plain title.
+    if (output.imageError !== undefined || output.article.featuredImage !== undefined) {
+      return {
+        title: output.article.title,
+        imageAttached: Boolean(output.article.featuredImage),
+        ...(output.imageError ? { imageError: output.imageError } : {}),
+      }
+    }
+    return { title: output.article.title }
+  }
   if (output.type === 'listing') return {
     createdCount: output.listing.createdCount,
     skippedCount: output.listing.skippedCount,

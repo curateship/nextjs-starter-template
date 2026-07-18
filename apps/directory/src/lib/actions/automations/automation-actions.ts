@@ -7,6 +7,8 @@ import {
   validateAutomationGraph,
 } from '@/features/automations/domain/graph'
 import { createInitialAutomationGraph } from '@/features/automations/domain/catalog'
+import { getNodeDescriptor } from '@/features/automations/domain/node-registry'
+import type { ResolvedResources, ResourceRefs } from '@/features/automations/domain/node-descriptor'
 import { getNextAutomationRunAt } from '@/features/automations/domain/schedule'
 import type {
   AutomationEditorData,
@@ -490,12 +492,10 @@ async function validateAutomationResources(
   configuredProviders: AIProvider[]
 ) {
   const errors: AutomationValidationError[] = []
-  const templateIds = [...new Set(graph.nodes.filter((node) => node.kind === 'post').map((node) => node.config.templateId).filter(Boolean))]
-  const listingTemplateIds = [...new Set(graph.nodes.filter((node) => node.kind === 'listing').map((node) => node.config.templateId).filter(Boolean))]
-  const categoryIds = [...new Set([
-    ...graph.nodes.filter((node) => node.kind === 'post').flatMap((node) => node.config.categoryIds),
-    ...graph.nodes.flatMap((node) => (node.kind === 'listing' && node.config.categoryId ? [node.config.categoryId] : [])),
-  ])]
+  const refs: ResourceRefs[] = graph.nodes.map((node) => getNodeDescriptor(node.kind).resourceRefs?.(node) ?? {})
+  const templateIds = [...new Set(refs.flatMap((ref) => ref.postTemplateIds ?? []))]
+  const listingTemplateIds = [...new Set(refs.flatMap((ref) => ref.listingTemplateIds ?? []))]
+  const categoryIds = [...new Set(refs.flatMap((ref) => ref.categoryIds ?? []))]
   const [templateRows, listingTemplateRows, categoryRows] = await Promise.all([
     templateIds.length
       ? db.select({ id: postTemplates.id }).from(postTemplates).where(and(eq(postTemplates.siteId, siteId), inArray(postTemplates.id, templateIds)))
@@ -507,23 +507,15 @@ async function validateAutomationResources(
       ? db.select({ id: categories.id }).from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true), inArray(categories.id, categoryIds)))
       : [],
   ])
-  const validTemplates = new Set(templateRows.map((row) => row.id))
-  const validListingTemplates = new Set(listingTemplateRows.map((row) => row.id))
-  const validCategories = new Set(categoryRows.map((row) => row.id))
+  const resolved: ResolvedResources = {
+    postTemplates: new Set(templateRows.map((row) => row.id)),
+    listingTemplates: new Set(listingTemplateRows.map((row) => row.id)),
+    categories: new Set(categoryRows.map((row) => row.id)),
+  }
   for (const node of graph.nodes) {
-    if (node.kind === 'post' && node.config.templateId && !validTemplates.has(node.config.templateId)) {
-      errors.push({ code: 'post-template-missing', message: 'The selected Post template is unavailable.', nodeId: node.id })
-    }
-    if (node.kind === 'listing' && node.config.templateId && !validListingTemplates.has(node.config.templateId)) {
-      errors.push({ code: 'listing-template-missing', message: 'The selected Listing template is unavailable.', nodeId: node.id })
-    }
-    if (node.kind === 'listing' && node.config.categoryId && !validCategories.has(node.config.categoryId)) {
-      errors.push({ code: 'listing-category-missing', message: 'The selected Listing category is unavailable.', nodeId: node.id })
-    }
-    if (node.kind === 'post' && node.config.categoryIds.some((id) => !validCategories.has(id))) {
-      errors.push({ code: 'post-category-missing', message: 'One or more selected Post categories are unavailable.', nodeId: node.id })
-    }
-    if ((node.kind === 'agent' || node.kind === 'router' || node.kind === 'listing') && !configuredProviders.includes(node.config.provider)) {
+    const descriptor = getNodeDescriptor(node.kind)
+    descriptor.validateResources?.(node, resolved, (code, message) => errors.push({ code, message, nodeId: node.id }))
+    if (descriptor.providerRequirement === 'required' && 'provider' in node.config && !configuredProviders.includes(node.config.provider)) {
       errors.push({
         code: 'provider-missing',
         message: `${AI_PROVIDER_LABELS[node.config.provider]} is not configured for this site.`,

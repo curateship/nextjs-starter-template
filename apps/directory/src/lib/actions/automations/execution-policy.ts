@@ -1,4 +1,4 @@
-import type { AutomationNodeKind, AutomationRunStatus } from '@/features/automations/domain/types'
+import type { AutomationRunStatus } from '@/features/automations/domain/types'
 import { isRetryableAutomationError } from './errors'
 
 export const MAX_AUTOMATION_NODE_ATTEMPTS = 3
@@ -10,8 +10,10 @@ export function deriveAutomationRunStatus(outcomes: Array<{ failed: boolean; cre
   return createdContent ? 'success' : 'noop'
 }
 
-export function shouldRetryAutomationNode(kind: AutomationNodeKind, error: unknown, attempts: number) {
-  return (kind === 'scraper' || kind === 'router' || kind === 'agent' || kind === 'listing')
-    && isRetryableAutomationError(error)
-    && attempts < MAX_AUTOMATION_NODE_ATTEMPTS
+/**
+ * Retry a node only when it opts into retries (see the node executor registry),
+ * the error is a temporary provider/network failure, and we are under the cap.
+ */
+export function shouldRetryAutomationNode(retryable: boolean, error: unknown, attempts: number) {
+  return retryable && isRetryableAutomationError(error) && attempts < MAX_AUTOMATION_NODE_ATTEMPTS
 }

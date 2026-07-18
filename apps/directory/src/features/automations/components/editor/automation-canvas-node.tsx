@@ -1,11 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
-import Bot from "lucide-react/dist/esm/icons/bot.js"
-import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
-import FileText from "lucide-react/dist/esm/icons/file-text.js"
-import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
-import Globe2 from "lucide-react/dist/esm/icons/earth.js"
-import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 
 import { nodeOutputPorts } from "@/features/automations/domain/catalog";
 import type {
@@ -15,6 +9,7 @@ import type {
 import { cn } from "@/lib/utils/tailwind";
 import { AUTOMATION_NODE_WIDTH } from "@/features/automations/domain/catalog";
 import { automationNodeHeight, nodeOutputPoint } from "./canvas-model";
+import { getNodeUI } from "./node-ui";
 
 export function AutomationCanvasNode({
   node,
@@ -37,7 +32,9 @@ export function AutomationCanvasNode({
 }) {
   const ports = nodeOutputPorts(node);
   const height = automationNodeHeight(node);
-  const description = nodeDescription(node);
+  const ui = getNodeUI(node.kind);
+  const Icon = ui.icon;
+  const description = ui.describe(node);
 
   return (
     <div
@@ -77,7 +74,7 @@ export function AutomationCanvasNode({
         )}
       >
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <NodeIcon node={node} />
+          <Icon className="size-4" />
         </span>
         <span className="min-w-0 flex-1 overflow-hidden">
           <span className="flex items-center gap-1.5 text-xs font-semibold">
@@ -150,25 +147,4 @@ export function AutomationCanvasNode({
       })}
     </div>
   );
-}
-
-function NodeIcon({ node }: { node: AutomationNode }) {
-  if (node.kind === "time") return <Clock3 className="size-4" />;
-  if (node.kind === "scraper") return <Globe2 className="size-4" />;
-  if (node.kind === "router") return <GitBranch className="size-4" />;
-  if (node.kind === "agent") return <Bot className="size-4" />;
-  if (node.kind === "listing") return <MapPin className="size-4" />;
-  return <FileText className="size-4" />;
-}
-
-function nodeDescription(node: AutomationNode) {
-  if (node.kind === "time")
-    return `${node.config.schedule.frequency} · ${node.config.schedule.timezone}`;
-  if (node.kind === "scraper")
-    return `${node.config.urls.filter(Boolean).length} website${node.config.urls.filter(Boolean).length === 1 ? "" : "s"}`;
-  if (node.kind === "router")
-    return `${node.config.routes.length} routes · ${node.config.model}`;
-  if (node.kind === "agent") return node.config.model;
-  if (node.kind === "listing") return `Draft listings · ${node.config.model}`;
-  return node.config.publish ? "Publish post" : "Create draft post";
 }
