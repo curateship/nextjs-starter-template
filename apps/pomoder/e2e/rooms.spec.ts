@@ -100,6 +100,25 @@ test("host runs a full room session while a member follows along live", async ({
   await memberPanel.getByRole("button", { name: "Send message" }).click()
   await expect(hostPanel).toContainText("Let's go!")
 
+  // Reactions: the host reacts from the palette; the member sees the count live.
+  const hostMessage = hostPanel.locator(".chat-message", { hasText: "Let's go!" })
+  const memberMessage = memberPanel.locator(".chat-message", { hasText: "Let's go!" })
+  await hostMessage.hover()
+  await hostMessage.getByRole("button", { name: "Add reaction" }).click()
+  await hostPage.getByRole("button", { name: "React with fire" }).click()
+  await expect(hostMessage.locator(".chat-reaction")).toContainText("1")
+  await expect(memberMessage.locator(".chat-reaction")).toContainText("1")
+
+  // The member taps the same chip to add their own reaction; both counts rise.
+  await memberMessage.locator(".chat-reaction").click()
+  await expect(memberMessage.locator(".chat-reaction")).toContainText("2")
+  await expect(hostMessage.locator(".chat-reaction")).toContainText("2")
+
+  // Tapping again toggles the member's reaction off; the host's still remains.
+  await memberMessage.locator(".chat-reaction").click()
+  await expect(memberMessage.locator(".chat-reaction")).toContainText("1")
+  await expect(hostMessage.locator(".chat-reaction")).toContainText("1")
+
   // Host starts focus; both sides see the phase and a server-derived countdown.
   await hostPanel.getByRole("button", { name: "Start focus" }).click()
   await expect(hostPanel).toContainText("Session 1 of 4")

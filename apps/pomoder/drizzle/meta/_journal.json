@@ -99,6 +99,13 @@
       "when": 1784678400000,
       "tag": "0013_working_custom_backgrounds",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784764800000,
+      "tag": "0014_room_chat_reactions",
+      "breakpoints": true
     }
   ]
 }

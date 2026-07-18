@@ -398,6 +398,32 @@ export const roomMessages = pgTable(
   ]
 )
 
+export const roomMessageReactions = pgTable(
+  "room_message_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => roomMessages.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: varchar("emoji", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // One reaction per person per emoji per message; toggling flips this row.
+    uniqueIndex("room_message_reactions_message_user_emoji_unique").on(
+      table.messageId,
+      table.userId,
+      table.emoji
+    ),
+    index("room_message_reactions_message_idx").on(table.messageId),
+  ]
+)
+
 export const roomBans = pgTable(
   "room_bans",
   {
