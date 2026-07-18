@@ -1,6 +1,6 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlockClient"
-import { auth } from "@/lib/actions/auth/server"
+import { auth, isGoogleAuthEnabled } from "@/lib/actions/auth/server"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { isHubPlatformHost } from "@/lib/utils/platform-host"
 import { getSessionCookie } from "better-auth/cookies"
@@ -28,6 +28,7 @@ function PlatformLogin() {
         <AuthBlock
           defaultTab="login"
           visibility={{ showLoginTab: true, showRegisterTab: false }}
+          googleEnabled={isGoogleAuthEnabled()}
           loginRedirectPath="/admin"
           registerRedirectPath="/admin"
           loginTitle="Hub sign in"
@@ -57,7 +58,7 @@ async function TenantLoginPage() {
     notFound()
   }
 
-  return <BlockRenderer site={pageResult.site} />
+  return <BlockRenderer site={pageResult.site} googleEnabled={isGoogleAuthEnabled()} />
 }
 
 export default async function LoginPage() {
