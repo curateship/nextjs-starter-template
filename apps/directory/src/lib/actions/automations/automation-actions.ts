@@ -22,6 +22,7 @@ import { getConfiguredAIProviders } from '@/lib/actions/integrations/config-help
 import { db } from '@/lib/db'
 import {
   categories,
+  directoryTemplates,
   postTemplates,
   siteAutomations,
   siteAutomationRuns,
@@ -264,7 +265,7 @@ export async function getAutomationEditorData(automationId: string): Promise<{
     const automation = await requireOwnedAutomation(automationId)
     if (!automation) return { data: null, error: 'Automation not found' }
     const graph = parseAutomationGraph(automation.graph)
-    const [runRows, templates, categoryRows, configuredProviders] = await Promise.all([
+    const [runRows, templates, listingTemplates, categoryRows, configuredProviders] = await Promise.all([
       db.select().from(siteAutomationRuns)
         .where(eq(siteAutomationRuns.automationId, automation.id))
         .orderBy(desc(siteAutomationRuns.startedAt))
@@ -273,6 +274,10 @@ export async function getAutomationEditorData(automationId: string): Promise<{
         .from(postTemplates)
         .where(eq(postTemplates.siteId, automation.siteId))
         .orderBy(desc(postTemplates.isDefault), asc(postTemplates.name)),
+      db.select({ id: directoryTemplates.id, name: directoryTemplates.name, isDefault: directoryTemplates.isDefault })
+        .from(directoryTemplates)
+        .where(eq(directoryTemplates.siteId, automation.siteId))
+        .orderBy(desc(directoryTemplates.isDefault), asc(directoryTemplates.name)),
       db.select({ id: categories.id, title: categories.title })
         .from(categories)
         .where(and(eq(categories.siteId, automation.siteId), eq(categories.isPublished, true)))
@@ -297,6 +302,7 @@ export async function getAutomationEditorData(automationId: string): Promise<{
         automation: { ...automationRowToListItem(automation, graph), graph },
         runs: runRows.map((run) => automationRunRowToItem(run, stepsByRun.get(run.id) ?? [])),
         templates,
+        listingTemplates,
         categories: categoryRows,
         providers,
         validationErrors,
@@ -485,25 +491,39 @@ async function validateAutomationResources(
 ) {
   const errors: AutomationValidationError[] = []
   const templateIds = [...new Set(graph.nodes.filter((node) => node.kind === 'post').map((node) => node.config.templateId).filter(Boolean))]
-  const categoryIds = [...new Set(graph.nodes.filter((node) => node.kind === 'post').flatMap((node) => node.config.categoryIds))]
-  const [templateRows, categoryRows] = await Promise.all([
+  const listingTemplateIds = [...new Set(graph.nodes.filter((node) => node.kind === 'listing').map((node) => node.config.templateId).filter(Boolean))]
+  const categoryIds = [...new Set([
+    ...graph.nodes.filter((node) => node.kind === 'post').flatMap((node) => node.config.categoryIds),
+    ...graph.nodes.flatMap((node) => (node.kind === 'listing' && node.config.categoryId ? [node.config.categoryId] : [])),
+  ])]
+  const [templateRows, listingTemplateRows, categoryRows] = await Promise.all([
     templateIds.length
       ? db.select({ id: postTemplates.id }).from(postTemplates).where(and(eq(postTemplates.siteId, siteId), inArray(postTemplates.id, templateIds)))
+      : [],
+    listingTemplateIds.length
+      ? db.select({ id: directoryTemplates.id }).from(directoryTemplates).where(and(eq(directoryTemplates.siteId, siteId), inArray(directoryTemplates.id, listingTemplateIds)))
       : [],
     categoryIds.length
       ? db.select({ id: categories.id }).from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true), inArray(categories.id, categoryIds)))
       : [],
   ])
   const validTemplates = new Set(templateRows.map((row) => row.id))
+  const validListingTemplates = new Set(listingTemplateRows.map((row) => row.id))
   const validCategories = new Set(categoryRows.map((row) => row.id))
   for (const node of graph.nodes) {
     if (node.kind === 'post' && node.config.templateId && !validTemplates.has(node.config.templateId)) {
       errors.push({ code: 'post-template-missing', message: 'The selected Post template is unavailable.', nodeId: node.id })
     }
+    if (node.kind === 'listing' && node.config.templateId && !validListingTemplates.has(node.config.templateId)) {
+      errors.push({ code: 'listing-template-missing', message: 'The selected Listing template is unavailable.', nodeId: node.id })
+    }
+    if (node.kind === 'listing' && node.config.categoryId && !validCategories.has(node.config.categoryId)) {
+      errors.push({ code: 'listing-category-missing', message: 'The selected Listing category is unavailable.', nodeId: node.id })
+    }
     if (node.kind === 'post' && node.config.categoryIds.some((id) => !validCategories.has(id))) {
       errors.push({ code: 'post-category-missing', message: 'One or more selected Post categories are unavailable.', nodeId: node.id })
     }
-    if ((node.kind === 'agent' || node.kind === 'router') && !configuredProviders.includes(node.config.provider)) {
+    if ((node.kind === 'agent' || node.kind === 'router' || node.kind === 'listing') && !configuredProviders.includes(node.config.provider)) {
       errors.push({
         code: 'provider-missing',
         message: `${AI_PROVIDER_LABELS[node.config.provider]} is not configured for this site.`,

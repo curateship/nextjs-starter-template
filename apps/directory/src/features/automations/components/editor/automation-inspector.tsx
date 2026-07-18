@@ -6,6 +6,7 @@ import CornerDownLeft from "lucide-react/dist/esm/icons/corner-down-left.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
+import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
@@ -64,7 +65,10 @@ export function AutomationInspector({
 }: {
   node: AutomationNode | null;
   edge: AutomationEdge | null;
-  data: Pick<AutomationEditorData, "templates" | "categories" | "providers">;
+  data: Pick<
+    AutomationEditorData,
+    "templates" | "listingTemplates" | "categories" | "providers"
+  >;
   errors: AutomationValidationError[];
   favorite?: boolean;
   onToggleFavorite?: () => void;
@@ -165,6 +169,15 @@ export function AutomationInspector({
               onChange={onNodeChange}
             />
           ) : null}
+          {node.kind === "listing" ? (
+            <ListingFields
+              node={node}
+              templates={data.listingTemplates}
+              categories={data.categories}
+              providers={data.providers}
+              onChange={onNodeChange}
+            />
+          ) : null}
           {onAddNode ? (
             <Button size="sm" className="w-full rounded-xl" onClick={onAddNode}>
               <Plus />
@@ -244,6 +257,7 @@ function InspectorNodeIcon({ node }: { node: AutomationNode }) {
   if (node.kind === "scraper") return <Globe2 className="size-4" />;
   if (node.kind === "router") return <GitBranch className="size-4" />;
   if (node.kind === "agent") return <Bot className="size-4" />;
+  if (node.kind === "listing") return <MapPin className="size-4" />;
   return <FileText className="size-4" />;
 }
 
@@ -617,7 +631,7 @@ function AiProviderFields({
   providers,
   onChange,
 }: {
-  node: Extract<AutomationNode, { kind: "agent" | "router" }>;
+  node: Extract<AutomationNode, { kind: "agent" | "router" | "listing" }>;
   providers: AutomationEditorData["providers"];
   onChange: (node: AutomationNode) => void;
 }) {
@@ -633,6 +647,15 @@ function AiProviderFields({
             const provider = providers.find((item) => item.provider === value);
             if (!provider) return;
             if (node.kind === "agent")
+              onChange({
+                ...node,
+                config: {
+                  ...node.config,
+                  provider: provider.provider,
+                  model: provider.defaultModel,
+                },
+              });
+            else if (node.kind === "router")
               onChange({
                 ...node,
                 config: {
@@ -692,6 +715,11 @@ function AiProviderFields({
           maxLength={120}
           onChange={(event) => {
             if (node.kind === "agent")
+              onChange({
+                ...node,
+                config: { ...node.config, model: event.target.value },
+              });
+            else if (node.kind === "router")
               onChange({
                 ...node,
                 config: { ...node.config, model: event.target.value },
@@ -829,6 +857,94 @@ function PostFields({
           </Select>
         </Field>
       ) : null}
+    </>
+  );
+}
+
+function ListingFields({
+  node,
+  templates,
+  categories,
+  providers,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "listing" }>;
+  templates: AutomationEditorData["listingTemplates"];
+  categories: AutomationEditorData["categories"];
+  providers: AutomationEditorData["providers"];
+  onChange: (node: AutomationNode) => void;
+}) {
+  const setConfig = (config: typeof node.config) =>
+    onChange({ ...node, config });
+  return (
+    <>
+      <AiProviderFields node={node} providers={providers} onChange={onChange} />
+      <Field
+        label="Listing template"
+        htmlFor="listing-template"
+        description="New listings are drafted with this template's blocks. Listings are never auto-published."
+      >
+        <Select
+          value={node.config.templateId || undefined}
+          onValueChange={(templateId) =>
+            setConfig({ ...node.config, templateId })
+          }
+        >
+          <SelectTrigger id="listing-template" className="w-full">
+            <SelectValue placeholder="Choose a template" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Default category"
+        htmlFor="listing-category"
+        description="Optional category applied to every drafted listing."
+      >
+        <Select
+          value={node.config.categoryId || "none"}
+          onValueChange={(value) =>
+            setConfig({
+              ...node.config,
+              categoryId: value === "none" ? null : value,
+            })
+          }
+        >
+          <SelectTrigger id="listing-category" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No category</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Instructions"
+        htmlFor="listing-instructions"
+        description="Optional hints for what to extract, such as which businesses count or how to fill the description."
+      >
+        <Textarea
+          id="listing-instructions"
+          rows={6}
+          maxLength={4000}
+          value={node.config.instructions}
+          onChange={(event) =>
+            setConfig({ ...node.config, instructions: event.target.value })
+          }
+        />
+      </Field>
     </>
   );
 }

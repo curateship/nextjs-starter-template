@@ -6,6 +6,7 @@ import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
+import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 
@@ -27,6 +28,7 @@ const ICONS: Record<
   router: GitBranch,
   agent: Bot,
   post: FileText,
+  listing: MapPin,
 };
 
 type PaletteItem = (typeof AUTOMATION_NODE_CATALOG)[number];

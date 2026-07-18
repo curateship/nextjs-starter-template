@@ -10,13 +10,14 @@ import type {
   AutomationRouterRoute,
   AutomationSourcePort,
   AutomationValidationError,
+  ListingAutomationNode,
   PostAutomationNode,
   RouterAutomationNode,
   ScraperAutomationNode,
   TimeAutomationNode,
 } from './types'
 
-const NODE_KINDS = new Set<AutomationNodeKind>(['time', 'scraper', 'router', 'agent', 'post'])
+const NODE_KINDS = new Set<AutomationNodeKind>(['time', 'scraper', 'router', 'agent', 'post', 'listing'])
 const MAX_NODES = 100
 const MAX_EDGES = 200
 
@@ -50,7 +51,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
 
   const timeNodes = graph.nodes.filter((node) => node.kind === 'time')
   if (timeNodes.length !== 1) errors.push(error('time-count', 'Add exactly one Time node.'))
-  if (!graph.nodes.some((node) => node.kind === 'post')) errors.push(error('post-required', 'Add at least one Post node.'))
+  if (!graph.nodes.some(isTerminalActionNode)) errors.push(error('post-required', 'Add at least one Post or Listing node.'))
 
   const incoming = new Map<string, AutomationEdge[]>()
   const outgoing = new Map<string, AutomationEdge[]>()
@@ -79,8 +80,8 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
     const nodeOutgoing = outgoing.get(node.id) ?? []
     if (node.kind !== 'time' && nodeIncoming.length === 0) errors.push(error('missing-input', `${node.name} needs an input.`, node.id))
     if (node.kind === 'post' && nodeIncoming.length !== 1) errors.push(error('post-input', 'A Post node needs exactly one AI Agent input.', node.id))
-    if (node.kind === 'post' && nodeOutgoing.length > 0) errors.push(error('post-terminal', 'A Post node must be the final action.', node.id))
-    if (node.kind !== 'post' && node.kind !== 'router' && nodeOutgoing.length === 0) {
+    if (isTerminalActionNode(node) && nodeOutgoing.length > 0) errors.push(error('post-terminal', `A ${node.kind === 'post' ? 'Post' : 'Listing'} node must be the final action.`, node.id))
+    if (!isTerminalActionNode(node) && node.kind !== 'router' && nodeOutgoing.length === 0) {
       errors.push(error('missing-output', `${node.name} needs an output.`, node.id))
     }
     if (node.kind === 'router') {
@@ -114,12 +115,12 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
 
   const reverse = new Map<string, AutomationEdge[]>()
   for (const edge of graph.edges) reverse.set(edge.to, [...(reverse.get(edge.to) ?? []), edge])
-  const reachesPost = new Set<string>()
-  for (const post of graph.nodes.filter((node) => node.kind === 'post')) {
-    for (const id of walkGraph(post.id, reverse, (edge) => edge.from)) reachesPost.add(id)
+  const reachesAction = new Set<string>()
+  for (const action of graph.nodes.filter(isTerminalActionNode)) {
+    for (const id of walkGraph(action.id, reverse, (edge) => edge.from)) reachesAction.add(id)
   }
   for (const node of graph.nodes) {
-    if (!reachesPost.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a Post node.`, node.id))
+    if (!reachesAction.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a Post or Listing node.`, node.id))
   }
 
   return dedupeErrors(errors)
@@ -144,6 +145,10 @@ export function topologicalAutomationNodes(graph: AutomationGraph): AutomationNo
     }
   }
   return result
+}
+
+function isTerminalActionNode(node: AutomationNode) {
+  return node.kind === 'post' || node.kind === 'listing'
 }
 
 function validateNode(node: AutomationNode, errors: AutomationValidationError[]) {
@@ -187,12 +192,16 @@ function validateNode(node: AutomationNode, errors: AutomationValidationError[])
       errors.push(error('post-category', 'The primary category must be selected.', node.id))
     }
   }
+  if (node.kind === 'listing') {
+    if (!node.config.model.trim()) errors.push(error('listing-model', 'Choose a Listing AI model.', node.id))
+    if (!node.config.templateId) errors.push(error('listing-template', 'Choose a Listing template.', node.id))
+  }
 }
 
 export function isAutomationConnectionAllowed(source: AutomationNode, port: AutomationSourcePort, target: AutomationNode) {
   if (source.kind === 'time') return port === 'then' && (target.kind === 'scraper' || target.kind === 'agent')
-  if (source.kind === 'scraper') return port === 'documents' && (target.kind === 'router' || target.kind === 'agent')
-  if (source.kind === 'router') return (port === 'else' || port.startsWith('route:')) && target.kind === 'agent'
+  if (source.kind === 'scraper') return port === 'documents' && (target.kind === 'router' || target.kind === 'agent' || target.kind === 'listing')
+  if (source.kind === 'router') return (port === 'else' || port.startsWith('route:')) && (target.kind === 'agent' || target.kind === 'listing')
   if (source.kind === 'agent') return port === 'article' && target.kind === 'post'
   return false
 }
@@ -267,6 +276,22 @@ function parseNode(value: unknown): AutomationNode {
         instructions: boundedString(value.config.instructions, 'AI Agent instructions', 12_000),
       },
     } satisfies AgentAutomationNode
+  }
+  if (value.kind === 'listing') {
+    if (!isAIProvider(value.config.provider)) throw new Error('Listing provider is invalid')
+    return {
+      ...common,
+      kind: 'listing',
+      config: {
+        provider: value.config.provider,
+        model: boundedString(value.config.model, 'Listing model', 120),
+        templateId: boundedString(value.config.templateId, 'Listing template', 64),
+        categoryId: value.config.categoryId === null || value.config.categoryId === undefined
+          ? null
+          : requiredString(value.config.categoryId, 'Listing category', 64),
+        instructions: boundedString(value.config.instructions ?? '', 'Listing instructions', 4000),
+      },
+    } satisfies ListingAutomationNode
   }
   if (!Array.isArray(value.config.categoryIds) || value.config.categoryIds.length > 50) throw new Error('Post categories are invalid')
   return {

@@ -58,6 +58,42 @@ describe('automation graph validation', () => {
     assert.ok(codes.includes('cycle'))
   })
 
+  it('accepts a scraper feeding a terminal Listing node', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'weekly', time: '09:00', timezone: 'UTC', dayOfWeek: 1 } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/members'] } },
+        { id: ids.newsPost, kind: 'listing', name: 'Listing', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsPost },
+      ],
+    }
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects a Listing node with outgoing connections and requires its template', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '09:00', timezone: 'UTC' } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/members'] } },
+        { id: ids.newsPost, kind: 'listing', name: 'Listing', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: '', categoryId: null, instructions: '' } },
+        { id: ids.elsePost, kind: 'post', name: 'Post', x: 900, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsPost },
+        { id: 'e3', from: ids.newsPost, sourcePort: 'article', to: ids.elsePost },
+      ],
+    }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('post-terminal'))
+    assert.ok(codes.includes('listing-template'))
+  })
+
   it('parses structurally valid incomplete drafts so they can be saved', () => {
     const graph = validGraph()
     const agent = graph.nodes.find((node) => node.id === ids.newsAgent)

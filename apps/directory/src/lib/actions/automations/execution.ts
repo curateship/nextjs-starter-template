@@ -28,6 +28,7 @@ import {
   shouldRetryAutomationNode,
 } from './execution-policy'
 import { runAgentNode } from './nodes/agent'
+import { runListingNode, type ListingNodeResult } from './nodes/listing'
 import { runPostNode, type PostNodeResult } from './nodes/post'
 import { runRouterNode } from './nodes/router'
 import { runScraperNode } from './nodes/scraper'
@@ -53,6 +54,7 @@ type RuntimeOutput =
   | { type: 'routes'; groups: Record<string, ScrapedDocument[]> }
   | { type: 'article'; article: StructuredArticle }
   | { type: 'post'; post: PostNodeResult }
+  | { type: 'listing'; listing: ListingNodeResult }
 
 type StepResult = {
   status: 'success' | 'failed' | 'skipped'
@@ -120,7 +122,8 @@ export async function executeAutomation(
     const failed = [...results.values()].filter((result) => result.status === 'failed')
     const status: AutomationRunStatus = deriveAutomationRunStatus([...results.values()].map((result) => ({
       failed: result.status === 'failed',
-      createdPost: result.output?.type === 'post',
+      createdContent: result.output?.type === 'post'
+        || (result.output?.type === 'listing' && result.output.listing.createdCount > 0),
     })))
     const completedAt = new Date()
     const error = failed.length
@@ -241,6 +244,10 @@ async function executeNodeWithRetries(
         const result = await runAgentNode(context.siteId, node, documentsFrom(payloads))
         return { output: { type: 'article', article: result.article } as RuntimeOutput, attempts }
       }
+      if (node.kind === 'listing') {
+        const listing = await runListingNode(context.siteId, node, documentsFrom(payloads), { automationId: context.automationId })
+        return { output: { type: 'listing', listing } as RuntimeOutput, attempts }
+      }
       const article = payloads.find((payload): payload is Extract<RuntimeOutput, { type: 'article' }> => payload.type === 'article')?.article
       if (!article) throw new Error('Post did not receive an article')
       const post = await runPostNode(context.siteId, node, article)
@@ -295,6 +302,12 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
     return { routeCounts: Object.fromEntries(Object.entries(output.groups).map(([port, documents]) => [port, documents.length])) }
   }
   if (output.type === 'article') return { title: output.article.title }
+  if (output.type === 'listing') return {
+    createdCount: output.listing.createdCount,
+    skippedCount: output.listing.skippedCount,
+    listings: output.listing.listings.map((listing) => ({ title: listing.title, slug: listing.slug, url: listing.url })),
+    skipped: output.listing.skipped,
+  }
   return output.post
 }
 
