@@ -22,6 +22,7 @@ import { Route as AuthenticatedAdminFirstFrameRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminExportRouteImport } from './routes/_authenticated/admin/export'
 import { Route as AuthenticatedAdminApiUsageRouteImport } from './routes/_authenticated/admin/api-usage'
+import { Route as AuthenticatedAdminAiGenerationsRouteImport } from './routes/_authenticated/admin/ai-generations'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
 import { Route as AuthenticatedAdminViralArchiveIndexRouteImport } from './routes/_authenticated/admin/viral-archive/index'
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
@@ -115,6 +116,12 @@ const AuthenticatedAdminApiUsageRoute =
   AuthenticatedAdminApiUsageRouteImport.update({
     id: '/admin/api-usage',
     path: '/admin/api-usage',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminAiGenerationsRoute =
+  AuthenticatedAdminAiGenerationsRouteImport.update({
+    id: '/admin/ai-generations',
+    path: '/admin/ai-generations',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
@@ -263,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/admin/ai-generations': typeof AuthenticatedAdminAiGenerationsRoute
   '/admin/api-usage': typeof AuthenticatedAdminApiUsageRoute
   '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -301,6 +309,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/admin/ai-generations': typeof AuthenticatedAdminAiGenerationsRoute
   '/admin/api-usage': typeof AuthenticatedAdminApiUsageRoute
   '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -341,6 +350,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/_authenticated/admin/ai-generations': typeof AuthenticatedAdminAiGenerationsRoute
   '/_authenticated/admin/api-usage': typeof AuthenticatedAdminApiUsageRoute
   '/_authenticated/admin/export': typeof AuthenticatedAdminExportRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/workspaces'
     | '/admin/actor'
+    | '/admin/ai-generations'
     | '/admin/api-usage'
     | '/admin/export'
     | '/admin/feedback'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/'
     | '/admin/actor'
+    | '/admin/ai-generations'
     | '/admin/api-usage'
     | '/admin/export'
     | '/admin/feedback'
@@ -458,6 +470,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/actor'
+    | '/_authenticated/admin/ai-generations'
     | '/_authenticated/admin/api-usage'
     | '/_authenticated/admin/export'
     | '/_authenticated/admin/feedback'
@@ -598,6 +611,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/api-usage'
       fullPath: '/admin/api-usage'
       preLoaderRoute: typeof AuthenticatedAdminApiUsageRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/ai-generations': {
+      id: '/_authenticated/admin/ai-generations'
+      path: '/admin/ai-generations'
+      fullPath: '/admin/ai-generations'
+      preLoaderRoute: typeof AuthenticatedAdminAiGenerationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/actor': {
@@ -804,6 +824,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminActorRoute: typeof AuthenticatedAdminActorRoute
+  AuthenticatedAdminAiGenerationsRoute: typeof AuthenticatedAdminAiGenerationsRoute
   AuthenticatedAdminApiUsageRoute: typeof AuthenticatedAdminApiUsageRoute
   AuthenticatedAdminExportRoute: typeof AuthenticatedAdminExportRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
@@ -830,6 +851,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminActorRoute: AuthenticatedAdminActorRoute,
+  AuthenticatedAdminAiGenerationsRoute: AuthenticatedAdminAiGenerationsRoute,
   AuthenticatedAdminApiUsageRoute: AuthenticatedAdminApiUsageRoute,
   AuthenticatedAdminExportRoute: AuthenticatedAdminExportRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
