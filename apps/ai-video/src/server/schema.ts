@@ -20,6 +20,9 @@ export const aiVideoUsers = pgTable("users", {
   name: varchar("name", { length: 255 }).notNull(),
   role: varchar("role", { length: 50 }).notNull(),
   passwordHash: text("password_hash").notNull(),
+  // Per-type bell notification toggles as { [notificationType]: boolean }.
+  // Null / missing key = the default (on); see @/server/notification-preferences.
+  notificationPreferences: jsonb("notification_preferences"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })

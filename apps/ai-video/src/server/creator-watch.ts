@@ -8,6 +8,8 @@ import {
   aiVideoViralVideos,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
+import { shouldDeliverNotification } from "@/server/notification-preferences"
+import { publishNotificationCreated } from "@/server/notification-events"
 import { applyCreatorProfileMetrics } from "@/server/creators"
 import {
   listRecentUploads,
@@ -166,10 +168,15 @@ export async function syncWatchedCreators(
           )
       }
 
-      if (addedForCreator > 0) {
-        await db
-          .insert(aiVideoNotifications)
-          .values({
+      if (
+        addedForCreator > 0 &&
+        (await shouldDeliverNotification({
+          recipientUserId: creator.userId,
+          type: "creator_watch",
+        }))
+      ) {
+        try {
+          await db.insert(aiVideoNotifications).values({
             id: uuid(),
             recipientUserId: creator.userId,
             actorUserId: creator.userId,
@@ -179,13 +186,15 @@ export async function syncWatchedCreators(
             creatorNewVideoCount: addedForCreator,
             createdAt: now(),
           })
-          .catch((error) =>
-            console.error(
-              "Creator watch notification failed",
-              creator.username,
-              error
-            )
+          await publishNotificationCreated(creator.userId)
+        } catch (error) {
+          // Non-fatal: the sync itself already succeeded.
+          console.error(
+            "Creator watch notification failed",
+            creator.username,
+            error
           )
+        }
       }
     } catch (error) {
       // Non-fatal: log and move on to the next creator.
