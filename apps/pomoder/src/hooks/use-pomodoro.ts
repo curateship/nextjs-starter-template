@@ -173,6 +173,12 @@ export function usePomodoro(authenticated = false) {
     return () => window.removeEventListener("pomoder:timer-state-request", respond)
   }, [timerIdle, state.durations, state.autoStart])
 
+  // Announce whether the timer is running so the ambient sound player can stay
+  // in sync: starting the timer starts the sound, pausing it pauses the sound.
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent("pomoder:timer-running", { detail: { running: state.timer.running } }))
+  }, [state.timer.running])
+
   React.useEffect(() => {
     if (!state.timer.running) {
       const timeout = window.setTimeout(() => setRemainingSeconds(state.timer.remainingSeconds), 0)

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
+import { Loader2, Moon, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
 
 import { loadUserSoundPreferences, saveUserSoundPreferences } from "@/lib/api/productivity"
 import { setCompletionAlertsEnabled } from "@/lib/completion-alerts"
@@ -12,6 +12,8 @@ import {
   clampSoundVolume,
   type SoundReference,
 } from "@/lib/sound-catalog"
+import { DEFAULT_FADE_MS, SoundFader } from "@/lib/sound-fade"
+import { formatSleepRemaining, SLEEP_TIMER_PRESETS } from "@/lib/sleep-timer"
 import {
   initialSoundPlayerState,
   soundPlayerReducer,
@@ -19,6 +21,8 @@ import {
 } from "@/lib/sound-player"
 
 const GUEST_SOUND_KEY = "pomoder:sound:v1"
+
+type SleepTimerState = { minutes: number; remainingMs: number }
 
 type SoundPlayerContextValue = {
   state: SoundPlayerState
@@ -30,6 +34,9 @@ type SoundPlayerContextValue = {
   setCompletionAlerts: (enabled: boolean) => void
   markMediaUnavailable: (mediaId: string) => void
   resolveMediaLabel: (mediaId: string, label: string) => void
+  sleepTimer: SleepTimerState | null
+  startSleepTimer: (minutes: number) => void
+  cancelSleepTimer: () => void
 }
 
 const SoundPlayerContext = React.createContext<SoundPlayerContextValue | null>(null)
@@ -53,9 +60,40 @@ function preferenceSnapshot(selected: SoundReference | null, volume: number, mut
 export function SoundPlayerProvider({ authenticated, children }: { authenticated: boolean; children: React.ReactNode }) {
   const [state, dispatch] = React.useReducer(soundPlayerReducer, initialSoundPlayerState)
   const [hydrated, setHydrated] = React.useState(false)
-  const audioRef = React.useRef<HTMLAudioElement>(null)
-  const loadedSourceRef = React.useRef<string | null>(null)
+  const [sleepDeadline, setSleepDeadline] = React.useState<{ deadline: number; minutes: number } | null>(null)
+  const [sleepRemainingMs, setSleepRemainingMs] = React.useState(0)
+  const deckARef = React.useRef<HTMLAudioElement>(null)
+  const deckBRef = React.useRef<HTMLAudioElement>(null)
+  const faderRef = React.useRef<SoundFader | null>(null)
   const lastSavedRef = React.useRef("")
+
+  // The two decks let starting, stopping, and switching sounds glide. Building
+  // the fader here keeps all playback status flowing through the reducer.
+  React.useEffect(() => {
+    const a = deckARef.current
+    const b = deckBRef.current
+    if (!a || !b) return
+    const fader = new SoundFader(a, b, {
+      onPlaying: () => dispatch({ type: "media-playing" }),
+      onPause: () => dispatch({ type: "media-paused" }),
+      onWaiting: () => dispatch({ type: "media-waiting" }),
+      onBlocked: () => dispatch({ type: "media-blocked" }),
+      onError: () => dispatch({ type: "media-error" }),
+    })
+    faderRef.current = fader
+    return () => {
+      fader.dispose()
+      faderRef.current = null
+    }
+  }, [])
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const apply = () => faderRef.current?.setFadeMs(media.matches ? 0 : DEFAULT_FADE_MS)
+    apply()
+    media.addEventListener("change", apply)
+    return () => media.removeEventListener("change", apply)
+  }, [])
 
   React.useEffect(() => {
     let cancelled = false
@@ -101,77 +139,100 @@ export function SoundPlayerProvider({ authenticated, children }: { authenticated
   }, [authenticated, hydrated, state.completionAlerts, state.muted, state.selected, state.volume])
 
   React.useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-    audio.volume = state.volume / 100
-    audio.muted = state.muted
+    faderRef.current?.setUserGain(state.volume / 100)
+    faderRef.current?.setMuted(state.muted)
   }, [state.muted, state.volume])
 
   React.useEffect(() => {
     setCompletionAlertsEnabled(state.completionAlerts)
   }, [state.completionAlerts])
 
-  const startPlayback = (reference: SoundReference) => {
-    const audio = audioRef.current
-    if (!audio) return
-    const serialized = serializeSoundReference(reference)
-    if (loadedSourceRef.current !== serialized) {
-      loadedSourceRef.current = serialized
-      audio.src = soundSourceUrl(reference)
-    }
-    audio.loop = true
-    audio.play().catch((cause) => {
-      if (cause instanceof DOMException && cause.name === "AbortError") return
-      if (cause instanceof DOMException && cause.name === "NotAllowedError") dispatch({ type: "media-blocked" })
-      else if (loadedSourceRef.current === serialized) {
-        loadedSourceRef.current = null
-        dispatch({ type: "media-error" })
-      }
-    })
-  }
+  // Keep the latest player state readable from the timer-sync listener below
+  // without resubscribing on every change.
+  const stateRef = React.useRef(state)
+  React.useEffect(() => { stateRef.current = state })
 
-  const stopAudioElement = () => {
-    const audio = audioRef.current
-    loadedSourceRef.current = null
-    if (!audio) return
-    audio.pause()
-    audio.removeAttribute("src")
-    audio.load()
-  }
+  // Sync the ambient sound to the focus timer. When the timer starts, the
+  // selected sound fades in; when it pauses or stops, the sound fades out. Only
+  // real running transitions act, so navigating pages or manually pausing the
+  // sound never fights the user.
+  React.useEffect(() => {
+    let previousRunning: boolean | null = null
+    const onRunning = (event: Event) => {
+      const running = (event as CustomEvent<{ running: boolean }>).detail.running
+      const wasRunning = previousRunning
+      previousRunning = running
+      const current = stateRef.current
+      if (running && wasRunning !== true) {
+        if (current.selected && current.status !== "playing") {
+          dispatch({ type: "select", reference: current.selected, label: current.label ?? labelForReference(current.selected) ?? "" })
+          faderRef.current?.playSource(soundSourceUrl(current.selected))
+        }
+      } else if (!running && wasRunning === true) {
+        if (current.status === "playing" || current.status === "loading") {
+          faderRef.current?.fadeOutPause()
+        }
+      }
+    }
+    window.addEventListener("pomoder:timer-running", onRunning)
+    return () => window.removeEventListener("pomoder:timer-running", onRunning)
+  }, [])
+
+  // The sleep timer only fades the audio out; it never touches the focus timer.
+  React.useEffect(() => {
+    if (!sleepDeadline) {
+      setSleepRemainingMs(0)
+      return
+    }
+    const tick = () => {
+      const remaining = sleepDeadline.deadline - Date.now()
+      if (remaining <= 0) {
+        setSleepDeadline(null)
+        setSleepRemainingMs(0)
+        faderRef.current?.fadeOutPause()
+      } else {
+        setSleepRemainingMs(remaining)
+      }
+    }
+    tick()
+    const id = window.setInterval(tick, 500)
+    return () => window.clearInterval(id)
+  }, [sleepDeadline])
 
   const selectSound = (reference: SoundReference, label: string) => {
     if (sameSoundReference(state.selected, reference) && state.status === "playing") {
-      audioRef.current?.pause()
+      faderRef.current?.fadeOutPause()
       return
     }
-    if (state.status === "error") audioRef.current?.load()
     dispatch({ type: "select", reference, label })
-    startPlayback(reference)
+    faderRef.current?.playSource(soundSourceUrl(reference))
   }
 
   const togglePlayback = () => {
     if (!state.selected) return
     if (state.status === "playing") {
-      audioRef.current?.pause()
+      faderRef.current?.fadeOutPause()
       return
     }
-    if (state.status === "error") audioRef.current?.load()
     dispatch({ type: "select", reference: state.selected, label: state.label ?? labelForReference(state.selected) ?? "" })
-    startPlayback(state.selected)
+    faderRef.current?.playSource(soundSourceUrl(state.selected))
   }
 
   const clearSound = () => {
-    stopAudioElement()
+    faderRef.current?.fadeOutStop()
+    setSleepDeadline(null)
     dispatch({ type: "clear" })
   }
 
   const setVolume = (volume: number) => dispatch({ type: "set-volume", volume })
   const toggleMuted = () => dispatch({ type: "set-muted", muted: !state.muted })
   const setCompletionAlerts = (enabled: boolean) => dispatch({ type: "set-completion-alerts", enabled })
+  const startSleepTimer = (minutes: number) => setSleepDeadline({ deadline: Date.now() + minutes * 60_000, minutes })
+  const cancelSleepTimer = () => setSleepDeadline(null)
 
   const markMediaUnavailable = (mediaId: string) => {
     if (state.selected?.type !== "media" || state.selected.mediaId !== mediaId) return
-    stopAudioElement()
+    faderRef.current?.hardStop()
     dispatch({ type: "media-unavailable" })
   }
 
@@ -189,25 +250,18 @@ export function SoundPlayerProvider({ authenticated, children }: { authenticated
     setCompletionAlerts,
     markMediaUnavailable,
     resolveMediaLabel,
+    sleepTimer: sleepDeadline ? { minutes: sleepDeadline.minutes, remainingMs: sleepRemainingMs } : null,
+    startSleepTimer,
+    cancelSleepTimer,
   }
 
   return (
     <SoundPlayerContext.Provider value={value}>
-      {/* The element lives at the shell level so playback survives route changes. */}
-      <audio
-        ref={audioRef}
-        hidden
-        preload="none"
-        onPlaying={() => dispatch({ type: "media-playing" })}
-        onPause={() => dispatch({ type: "media-paused" })}
-        onWaiting={() => dispatch({ type: "media-waiting" })}
-        onStalled={() => dispatch({ type: "media-waiting" })}
-        onError={() => {
-          if (!loadedSourceRef.current) return
-          loadedSourceRef.current = null
-          dispatch({ type: "media-error" })
-        }}
-      />
+      {/* Two decks live at the shell level so playback survives route changes
+          and one sound can crossfade into the next. The SoundFader wires their
+          media events; they carry no React handlers of their own. */}
+      <audio ref={deckARef} hidden preload="none" />
+      <audio ref={deckBRef} hidden preload="none" />
       {children}
     </SoundPlayerContext.Provider>
   )
@@ -215,7 +269,7 @@ export function SoundPlayerProvider({ authenticated, children }: { authenticated
 
 export function HeaderSoundPlayer() {
   const player = useSoundPlayer()
-  const { state } = player
+  const { state, sleepTimer } = player
   if (!state.selected && !state.notice) return null
   const playing = state.status === "playing"
   const loading = state.status === "loading"
@@ -241,12 +295,65 @@ export function HeaderSoundPlayer() {
             onChange={(event) => player.setVolume(event.target.valueAsNumber)}
             aria-label="Sound volume"
           />
+          <SleepTimerControl sleepTimer={sleepTimer} onStart={player.startSleepTimer} onCancel={player.cancelSleepTimer} />
         </>
       ) : null}
       <button onClick={player.clearSound} aria-label="Stop sound">
         <X aria-hidden="true" />
       </button>
       {state.notice ? <small className="player-notice" role="status">{state.notice}</small> : null}
+    </div>
+  )
+}
+
+function SleepTimerControl({
+  sleepTimer,
+  onStart,
+  onCancel,
+}: {
+  sleepTimer: SleepTimerState | null
+  onStart: (minutes: number) => void
+  onCancel: () => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    window.addEventListener("pointerdown", close)
+    return () => window.removeEventListener("pointerdown", close)
+  }, [open])
+  const remaining = sleepTimer ? formatSleepRemaining(sleepTimer.remainingMs) : null
+  return (
+    <div className="player-sleep" ref={rootRef}>
+      <button
+        className={`player-sleep-toggle ${sleepTimer ? "is-active" : ""}`}
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label={remaining ? `Sleep timer, ${remaining} remaining` : "Set a sleep timer"}
+      >
+        <Moon aria-hidden="true" />
+        {remaining ? <span className="player-sleep-remaining">{remaining}</span> : null}
+      </button>
+      {open ? (
+        <div className="sleep-popover" role="dialog" aria-label="Sleep timer">
+          <h2>Sleep timer</h2>
+          <p>Let the sound fade out on its own.</p>
+          {sleepTimer ? (
+            <div className="sleep-active">
+              <span className="sleep-count">{remaining}</span>
+              <small>until the sound fades out</small>
+              <button className="sleep-cancel" onClick={() => { onCancel(); setOpen(false) }}>Cancel timer</button>
+            </div>
+          ) : (
+            <div className="sleep-presets">
+              {SLEEP_TIMER_PRESETS.map((minutes) => (
+                <button key={minutes} onClick={() => onStart(minutes)}>{minutes} min</button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
