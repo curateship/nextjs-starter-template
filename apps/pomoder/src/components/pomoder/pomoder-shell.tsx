@@ -21,12 +21,17 @@ import {
   X,
 } from "lucide-react"
 
+import { loadBackgroundPreferenceValue, saveBackgroundPreferenceValue } from "@/lib/api/background"
 import { logout } from "@/lib/api/auth"
 import { loadTimerPresets } from "@/lib/api/timer-presets"
 import {
-  PomoderBackgroundContext,
-  type PomoderBackground,
-} from "@/components/pomoder/pomoder-background"
+  curatedBackgrounds,
+  DEFAULT_BACKGROUND,
+  parseBackgroundReference,
+  serializeBackgroundReference,
+  type BackgroundReference,
+} from "@/lib/background-catalog"
+import { PomoderBackgroundContext } from "@/components/pomoder/pomoder-background"
 import {
   HeaderSoundPlayer,
   SoundPlayerProvider,
@@ -64,6 +69,81 @@ const links = [
   { page: "tasks", label: "Tasks", to: "/tasks", icon: CheckSquare2 },
 ] as const
 
+const GUEST_BACKGROUND_KEY = "pomoder:background:v1"
+
+// The active background follows the same rules as the ambient sound: signed-in
+// users sync it through user_preferences so it applies on any device, while
+// guests keep their choice in localStorage. A saved upload that has since been
+// deleted or failed resolves to the default scene on load, and the hero falls
+// back to the default at runtime if the media ever fails to play.
+function useBackgroundSelection(authenticated: boolean) {
+  const [background, setBackground] = React.useState<BackgroundReference>(DEFAULT_BACKGROUND)
+  const [hydrated, setHydrated] = React.useState(false)
+  const lastSavedRef = React.useRef("")
+
+  React.useEffect(() => {
+    let cancelled = false
+    if (authenticated) {
+      void loadBackgroundPreferenceValue()
+        .then((reference) => {
+          if (cancelled) return
+          const resolved = reference ?? DEFAULT_BACKGROUND
+          lastSavedRef.current = serializeBackgroundReference(resolved) ?? ""
+          setBackground(resolved)
+          setHydrated(true)
+        })
+        .catch(() => {
+          if (cancelled) return
+          // A failed load must not let the default auto-save over a stored
+          // choice; only a real user change may write after this.
+          lastSavedRef.current = serializeBackgroundReference(DEFAULT_BACKGROUND) ?? ""
+          setHydrated(true)
+        })
+      return () => { cancelled = true }
+    }
+    const timer = window.setTimeout(() => {
+      const stored = parseBackgroundReference(window.localStorage.getItem(GUEST_BACKGROUND_KEY))
+      // Guests never own uploads, so only a curated scene is honored locally.
+      const resolved = stored?.type === "scene" ? stored : DEFAULT_BACKGROUND
+      lastSavedRef.current = serializeBackgroundReference(resolved) ?? ""
+      setBackground(resolved)
+      setHydrated(true)
+    }, 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [authenticated])
+
+  React.useEffect(() => {
+    if (!hydrated) return
+    const snapshot = serializeBackgroundReference(background) ?? ""
+    if (snapshot === lastSavedRef.current) return
+    if (!authenticated) {
+      lastSavedRef.current = snapshot
+      window.localStorage.setItem(GUEST_BACKGROUND_KEY, snapshot)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      lastSavedRef.current = snapshot
+      void saveBackgroundPreferenceValue(snapshot || null)
+        .then((reference) => {
+          // Reconcile if the server rejected a background that vanished between
+          // selecting and saving (e.g. the upload was deleted).
+          if (!reference) return
+          const resolved = serializeBackgroundReference(reference) ?? ""
+          if (resolved !== lastSavedRef.current) {
+            lastSavedRef.current = resolved
+            setBackground(reference)
+          }
+        })
+        .catch(() => undefined)
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [authenticated, hydrated, background])
+
+  const chooseBackground = React.useCallback((reference: BackgroundReference) => setBackground(reference), [])
+  const fallBackToDefault = React.useCallback(() => setBackground(DEFAULT_BACKGROUND), [])
+  return { background, chooseBackground, fallBackToDefault }
+}
+
 export function PomoderShell({
   page,
   title,
@@ -77,12 +157,9 @@ export function PomoderShell({
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
   const [quickMenu, setQuickMenu] = React.useState<"timer" | "leaderboard" | "theme" | null>(null)
-  const [background, setBackground] =
-    React.useState<PomoderBackground>("lofi")
   const { user } = useRouteContext({ from: "__root__" })
   const navigate = useNavigate()
-
-  const chooseBackground = (id: PomoderBackground) => setBackground(id)
+  const { background, chooseBackground, fallBackToDefault } = useBackgroundSelection(Boolean(user))
 
   const authActions = user ? (
     <>
@@ -138,7 +215,7 @@ export function PomoderShell({
         </header>
         <main className="pomoder-content dashboard-content">
           <h1 className="visually-hidden">{title}</h1>
-          <SharedHero background={background} />
+          <SharedHero background={background} onMediaError={fallBackToDefault} />
           <PomoderBackgroundContext.Provider value={{ background, chooseBackground }}>
             {children}
           </PomoderBackgroundContext.Provider>
@@ -156,8 +233,8 @@ function QuickControls({
   setOpen,
   authenticated,
 }: {
-  background: PomoderBackground
-  chooseBackground: (id: PomoderBackground) => void
+  background: BackgroundReference
+  chooseBackground: (reference: BackgroundReference) => void
   open: "timer" | "leaderboard" | "theme" | null
   setOpen: React.Dispatch<React.SetStateAction<"timer" | "leaderboard" | "theme" | null>>
   authenticated: boolean
@@ -258,7 +335,7 @@ function QuickControls({
           <QuickSoundList />
           <QuickActions to="/sounds" />
           <h3 className="background-heading">Background</h3>
-          <div className="quick-backgrounds">{([["lofi", "Lofi girl", "lofi_girl"], ["ambient", "Ambient glow", "ambient"], ["plain", "Plain dark", "plain"]] as const).map(([id, label, image]) => <button className={background === id ? "selected" : ""} key={id} onClick={() => chooseBackground(id)}><span><img src={`/pomoder/thumbs-${image}.png`} alt="" />{background === id ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{label}</strong></button>)}</div>
+          <div className="quick-backgrounds">{curatedBackgrounds.slice(0, 3).map((scene) => { const selected = background.type === "scene" && background.key === scene.key; return <button className={selected ? "selected" : ""} key={scene.key} onClick={() => chooseBackground({ type: "scene", key: scene.key })}><span><img src={`/pomoder/thumbs-${scene.thumb}.png`} alt="" />{selected ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{scene.label}</strong></button> })}</div>
           <QuickActions to="/themes" />
         </div> : null}
       </div>
@@ -295,12 +372,23 @@ function QuickActions({ to }: { to: "/sounds" | "/themes" }) {
   return <div className="quick-actions"><Link to={to}><Upload aria-hidden="true" />Upload</Link><Link to={to}><Sparkles aria-hidden="true" />AI Generate</Link></div>
 }
 
-function SharedHero({ background }: { background: PomoderBackground }) {
+function SharedHero({ background, onMediaError }: { background: BackgroundReference; onMediaError: () => void }) {
+  // The ambient backdrop always renders behind, so it shows as a graceful
+  // placeholder while a video or uploaded image is still loading.
   return (
-    <section className="dashboard-hero" aria-label="Lofi focus scene">
+    <section className="dashboard-hero" aria-label="Focus background">
       <div className="ambient-backdrop" aria-hidden="true"><i /><i /><i /></div>
-      {background === "lofi" ? <video src="/pomoder/uploads-265816_small.mp4" poster="/pomoder/thumbs-lofi_girl.png" autoPlay muted loop playsInline /> : null}
-      {background !== "lofi" ? <img className="selected-hero-background" src={`/pomoder/thumbs-${background}.png`} alt="" /> : null}
+      {background.type === "scene" ? (
+        background.key === "lofi" ? (
+          <video src="/pomoder/uploads-265816_small.mp4" poster="/pomoder/thumbs-lofi_girl.png" autoPlay muted loop playsInline />
+        ) : (
+          <img className="selected-hero-background" src={`/pomoder/thumbs-${background.key}.png`} alt="" />
+        )
+      ) : background.mediaKind === "video" ? (
+        <video key={background.mediaId} src={`/api/media/${background.mediaId}/file`} autoPlay muted loop playsInline onError={onMediaError} />
+      ) : (
+        <img key={background.mediaId} className="selected-hero-background" src={`/api/media/${background.mediaId}/file`} alt="" onError={onMediaError} />
+      )}
       <div className="hero-shade" />
     </section>
   )

@@ -713,7 +713,9 @@ button.pill-button { background: var(--p-accent); color: var(--p-on-accent); }
 .generator-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .generator-suggestions > span { color: var(--p-text-subtle); font: 400 10px "JetBrains Mono",monospace; letter-spacing: .16em; }
 .generator-suggestions button { border: 1px solid rgba(var(--p-fg-rgb),.12); border-radius: 999px; background: transparent; padding: 7px 13px; color: var(--p-text-muted); font-size: 11.5px; font-weight: 600; }
-.upload-own { position: absolute; top: 22px; right: 78px; display: none; }
+.upload-own { display: inline-flex; align-self: flex-start; align-items: center; gap: 8px; border: 1px solid rgba(var(--p-fg-rgb),.14); border-radius: 999px; background: var(--p-surface); padding: 9px 16px; color: var(--p-text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.upload-own svg { width: 15px; height: 15px; }
+.upload-own:hover { border-color: var(--p-accent); color: var(--p-accent-2); }
 
 .tasks-reference-inner, .leaderboard-reference-inner { display: flex; max-width: 960px; margin: -120px auto 0; flex-direction: column; gap: 32px; }
 .reference-page-heading h2 { margin: 0; font-size: 34px; letter-spacing: -.02em; }

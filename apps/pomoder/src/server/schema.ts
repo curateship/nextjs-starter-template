@@ -120,7 +120,7 @@ export const userPreferences = pgTable(
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
     autoStart: boolean("auto_start").notNull().default(false),
-    selectedBackgroundId: uuid("selected_background_id"),
+    selectedBackground: varchar("selected_background", { length: 60 }),
     selectedSound: varchar("selected_sound", { length: 60 }),
     soundVolume: integer("sound_volume").notNull().default(70),
     soundMuted: boolean("sound_muted").notNull().default(false),
@@ -155,6 +155,10 @@ export const userPreferences = pgTable(
     check(
       "preferences_selected_sound_check",
       sql`${table.selectedSound} is null or ${table.selectedSound} ~ '^(curated:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
+    ),
+    check(
+      "preferences_selected_background_check",
+      sql`${table.selectedBackground} is null or ${table.selectedBackground} ~ '^(scene:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
     ),
   ]
 )
