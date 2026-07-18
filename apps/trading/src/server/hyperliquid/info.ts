@@ -69,6 +69,21 @@ export async function getAssetInfo(
   return asset
 }
 
+/**
+ * Best-effort sync lookup of a market name by exchange asset id from the warm
+ * meta caches. Returns null when no cache holds the asset (e.g. cold start).
+ */
+export function peekCoinByAssetId(assetId: number): string | null {
+  for (const cache of [metaCache, readOnlyMetaCache]) {
+    for (const entry of cache.values()) {
+      for (const asset of entry.assets.values()) {
+        if (asset.assetId === assetId) return asset.coin
+      }
+    }
+  }
+  return null
+}
+
 /** All active perpetual markets across the default and HIP-3 exchanges. */
 export async function getActivePerpMarkets(
   network: TradingNetwork
