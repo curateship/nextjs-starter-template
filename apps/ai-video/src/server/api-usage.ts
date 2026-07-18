@@ -22,6 +22,8 @@ import {
   type AiVideoUser,
 } from "@/server/schema"
 import { now, requireAdminUser, requireUser, uuid } from "@/server/security"
+import { filterNotificationRecipients } from "@/server/notification-preferences"
+import { publishNotificationCreated } from "@/server/notification-events"
 import {
   apiUsagePeriodStart,
   apiUsageStatus,
@@ -651,9 +653,13 @@ async function createApiUsageAlert({
     .select({ id: aiVideoUsers.id })
     .from(aiVideoUsers)
     .where(eq(aiVideoUsers.role, "admin"))
-  const recipientIds = Array.from(
-    new Set([userId, ...admins.map((admin) => admin.id)])
+  const recipientIds = await filterNotificationRecipients(
+    Array.from(new Set([userId, ...admins.map((admin) => admin.id)])),
+    "api_usage_alert",
+    { apiUsageLevel: level },
+    database
   )
+  if (recipientIds.length === 0) return
 
   await database.insert(aiVideoNotifications).values(
     recipientIds.map((recipientUserId) => ({
@@ -674,6 +680,10 @@ async function createApiUsageAlert({
       createdAt,
     }))
   )
+
+  for (const recipientUserId of recipientIds) {
+    await publishNotificationCreated(recipientUserId, database)
+  }
 }
 
 async function upsertApiUsageLimit(

@@ -29,6 +29,7 @@ import { Route as AuthenticatedAdminTemplatesIndexRouteImport } from './routes/_
 import { Route as AuthenticatedAdminCreatorsIndexRouteImport } from './routes/_authenticated/admin/creators/index'
 import { Route as AuthenticatedAdminCarouselsIndexRouteImport } from './routes/_authenticated/admin/carousels/index'
 import { Route as AuthenticatedAdminAutomationsIndexRouteImport } from './routes/_authenticated/admin/automations/index'
+import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
@@ -157,6 +158,12 @@ const AuthenticatedAdminAutomationsIndexRoute =
     path: '/admin/automations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiV1NotificationsStreamRoute =
+  ApiV1NotificationsStreamRouteImport.update({
+    id: '/api/v1/notifications/stream',
+    path: '/api/v1/notifications/stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminVideoEditorProjectIdRoute =
   AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
     id: '/admin/video-editor/$projectId',
@@ -271,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/admin/automations/': typeof AuthenticatedAdminAutomationsIndexRoute
   '/admin/carousels/': typeof AuthenticatedAdminCarouselsIndexRoute
   '/admin/creators/': typeof AuthenticatedAdminCreatorsIndexRoute
@@ -308,6 +316,7 @@ export interface FileRoutesByTo {
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsIndexRoute
   '/admin/carousels': typeof AuthenticatedAdminCarouselsIndexRoute
   '/admin/creators': typeof AuthenticatedAdminCreatorsIndexRoute
@@ -347,6 +356,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/_authenticated/admin/automations/': typeof AuthenticatedAdminAutomationsIndexRoute
   '/_authenticated/admin/carousels/': typeof AuthenticatedAdminCarouselsIndexRoute
   '/_authenticated/admin/creators/': typeof AuthenticatedAdminCreatorsIndexRoute
@@ -386,6 +396,7 @@ export interface FileRouteTypes {
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/api/v1/notifications/stream'
     | '/admin/automations/'
     | '/admin/carousels/'
     | '/admin/creators/'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/api/v1/notifications/stream'
     | '/admin/automations'
     | '/admin/carousels'
     | '/admin/creators'
@@ -461,6 +473,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/video-editor/$projectId'
+    | '/api/v1/notifications/stream'
     | '/_authenticated/admin/automations/'
     | '/_authenticated/admin/carousels/'
     | '/_authenticated/admin/creators/'
@@ -482,6 +495,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1ActorsActorIdImageRoute: typeof ApiV1ActorsActorIdImageRoute
   ApiV1CreatorsCreatorIdAvatarRoute: typeof ApiV1CreatorsCreatorIdAvatarRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
@@ -634,6 +648,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/v1/notifications/stream': {
+      id: '/api/v1/notifications/stream'
+      path: '/api/v1/notifications/stream'
+      fullPath: '/api/v1/notifications/stream'
+      preLoaderRoute: typeof ApiV1NotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/video-editor/$projectId': {
       id: '/_authenticated/admin/video-editor/$projectId'
@@ -846,6 +867,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1ActorsActorIdImageRoute: ApiV1ActorsActorIdImageRoute,
   ApiV1CreatorsCreatorIdAvatarRoute: ApiV1CreatorsCreatorIdAvatarRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,

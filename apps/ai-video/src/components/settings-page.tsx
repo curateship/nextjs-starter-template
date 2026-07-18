@@ -4,6 +4,7 @@ import { BrandKitSettings } from "@/components/brand-kit-settings"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { LlmProviderSettings } from "@/components/llm-provider-settings"
+import { NotificationSettings } from "@/components/notification-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/ai-video"
@@ -12,6 +13,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "notifications", label: "Notifications" },
   { id: "ai-providers", label: "AI Providers" },
   { id: "brand-kit", label: "Brand Kit" },
 ] as const
@@ -41,19 +43,28 @@ export function SettingsPage({
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }) {
-  // The AI Providers tab stores keys through its own server fns, so it
-  // publishes a save function here and the top Save button calls it.
+  // The AI Providers and Notifications tabs persist through their own per-user
+  // server fns, so each publishes a save function here and the top Save button
+  // calls it instead of the shell-config save flow.
   const aiSaveRef = React.useRef<(() => Promise<void>) | null>(null)
-  const [aiSaving, setAiSaving] = React.useState(false)
-  const isSaving = saveStatus === "saving" || aiSaving
+  const notificationsSaveRef = React.useRef<(() => Promise<void>) | null>(null)
+  const [customSaving, setCustomSaving] = React.useState(false)
+  const isSaving = saveStatus === "saving" || customSaving
+
+  const customSaveRef =
+    activeTab === "ai-providers"
+      ? aiSaveRef
+      : activeTab === "notifications"
+        ? notificationsSaveRef
+        : null
 
   async function handleSave() {
-    if (activeTab === "ai-providers") {
-      setAiSaving(true)
+    if (customSaveRef) {
+      setCustomSaving(true)
       try {
-        await aiSaveRef.current?.()
+        await customSaveRef.current?.()
       } finally {
-        setAiSaving(false)
+        setCustomSaving(false)
       }
       return
     }
@@ -128,6 +139,11 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
             />
+          ) : null}
+          {/* Per-user bell preferences — saved through their own server fn,
+              independent of the shell config save flow. */}
+          {activeTab === "notifications" ? (
+            <NotificationSettings saveRef={notificationsSaveRef} />
           ) : null}
           {/* Manages its own server-side key storage — independent of the
               shell config save flow. */}
