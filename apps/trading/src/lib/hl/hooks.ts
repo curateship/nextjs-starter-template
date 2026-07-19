@@ -240,6 +240,10 @@ export function useAccountSnapshot(
   const key = `${network}:${address ?? ""}:${market?.dex ?? ""}`
   const dexKey = JSON.stringify(dexes)
   const [state, setState] = React.useState<Keyed<AccountSnapshot> | null>(null)
+  // Bumping this re-runs the subscription effect, which re-pulls a fresh
+  // snapshot — the same recovery a page refresh gives after placing an order.
+  const [refreshNonce, setRefreshNonce] = React.useState(0)
+  const refresh = React.useCallback(() => setRefreshNonce((n) => n + 1), [])
 
   React.useEffect(() => {
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
@@ -309,9 +313,12 @@ export function useAccountSnapshot(
       cancelled = true
       for (const unsubscribe of unsubscribers) unsubscribe()
     }
-  }, [network, address, market?.dex, market?.collateralToken, dexKey, key])
+  }, [network, address, market?.dex, market?.collateralToken, dexKey, key, refreshNonce])
 
-  return state?.key === key ? state.data : null
+  return {
+    data: state?.key === key ? state.data : null,
+    refresh,
+  }
 }
 
 export type MarketRow = PerpMarketDefinition & {

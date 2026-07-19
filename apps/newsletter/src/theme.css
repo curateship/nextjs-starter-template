@@ -166,11 +166,15 @@
 
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   box-shadow: none;
+  /* WorkspacePanel draws a real border (not the ring box-shadow), so drop it too. */
+  border-width: 0;
 }
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-radius: 0;
 }

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card } from "@/components/ui/card"
+import { Card, CardGroup } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
@@ -73,14 +73,14 @@ export default function EmailHealthPage() {
           />
 
           {loading ? (
-            <div>
+            <CardGroup className="grid">
               {[1, 2, 3, 4].map((i) => (
                 <Card key={i}>
                   <div className="h-6 bg-muted rounded animate-pulse w-40 mb-4" />
                   <div className="h-20 bg-muted/60 rounded animate-pulse" />
                 </Card>
               ))}
-            </div>
+            </CardGroup>
           ) : error ? (
             <div className="p-8 text-center">
               <p className="text-red-600 mb-4">{error}</p>
@@ -89,7 +89,7 @@ export default function EmailHealthPage() {
               </Button>
             </div>
           ) : report ? (
-            <div className="pb-8">
+            <CardGroup className="grid pb-8">
               {selectedSender && (
                 <Card>
                   <h3 className="font-semibold mb-2">Sender</h3>
@@ -208,7 +208,7 @@ export default function EmailHealthPage() {
                   </div>
                 </div>
               </Card>
-            </div>
+            </CardGroup>
           ) : null}
         </div>
       </AdminLayout>

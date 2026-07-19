@@ -460,7 +460,7 @@ function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
   const money = (value: number | null | undefined) =>
     typeof value === "number" ? `$${value.toFixed(2)}` : "—"
   return (
-    <Card className="mb-2 md:mb-3">
+    <Card className="mb-[var(--shell-gutter,0.75rem)]">
       <CardHeader>
         <CardTitle>Margin health</CardTitle>
         <CardDescription>

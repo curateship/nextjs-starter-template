@@ -55,7 +55,7 @@ export function SiteSetup({ detail }: { detail: SiteDetailResponse }) {
   }
 
   return (
-    <div className="w-full space-y-2 md:space-y-3">
+    <div className="w-full space-y-[var(--shell-gutter,0.75rem)]">
       <div>
         <Button variant="ghost" size="sm" asChild>
           <Link to="/sites">

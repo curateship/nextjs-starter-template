@@ -6,8 +6,18 @@ import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
 export function DashboardContent({
   className,
   styling,
+  fullBleed,
   ...props
-}: React.ComponentProps<"main"> & { styling?: ShellStyling }) {
+}: React.ComponentProps<"main"> & {
+  styling?: ShellStyling
+  /**
+   * Full-screen workspaces manage their own inner padding, so we skip the outer
+   * gutter padding/gap here — but still emit the styling contract (--shell-gutter,
+   * data-flat, card border vars, background) so those screens track the setting
+   * and go flat at 0, exactly like the padded card pages.
+   */
+  fullBleed?: boolean
+}) {
   // No styling (e.g. rendered outside the shell) → keep the original defaults.
   if (!styling) {
     return (
@@ -32,7 +42,8 @@ export function DashboardContent({
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
       className={cn(
-        "flex min-w-0 w-full flex-1 flex-col overflow-auto",
+        "flex min-w-0 w-full flex-1 flex-col",
+        fullBleed ? "overflow-hidden" : "overflow-auto",
         // Only fall back to the muted canvas when no explicit color is resolved.
         background ? undefined : "bg-muted/60",
         className
@@ -42,8 +53,9 @@ export function DashboardContent({
         // (CardGroup, DashboardRow, settings page) so the gap *between* cards
         // tracks the gutter too — not just the outer padding.
         "--shell-gutter": `${styling.gutter}px`,
-        padding: "var(--shell-gutter)",
-        gap: "var(--shell-gutter)",
+        // Full-bleed workspaces pad themselves from --shell-gutter internally.
+        padding: fullBleed ? 0 : "var(--shell-gutter)",
+        gap: fullBleed ? 0 : "var(--shell-gutter)",
         backgroundColor: background,
         // Consumed by the scoped card rules in theme.css.
         "--shell-card-border-width": String(styling.cardBorderWidth),

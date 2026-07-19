@@ -31,7 +31,9 @@ export function AdminLayout({
   const stylingContext = useAdminStyling()
   const styling = stylingContext?.styling
 
-  if (!styling || noPadding) {
+  // No styling context (rendered outside the AdminStylingProvider) → keep the
+  // original static look.
+  if (!styling) {
     return (
       <div
         className={cn(
@@ -52,21 +54,26 @@ export function AdminLayout({
   })
   const isFlat = styling.gutter === 0
 
+  // Full-bleed workspaces (noPadding) manage their own inner padding and surface,
+  // so we skip the outer gutter padding/canvas tint here — but still emit the
+  // styling contract (--shell-gutter, data-flat, card border vars) so those
+  // screens track the setting and go flat at 0, exactly like the padded pages.
   return (
     <div
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
       className={cn(
-        "min-w-0 max-w-full flex-1",
+        noPadding ? "min-w-0 max-w-full" : "min-w-0 max-w-full flex-1",
         // Only keep the default canvas tint when no explicit color is resolved.
-        background ? undefined : "bg-foreground/8 dark:bg-background",
+        noPadding || background ? undefined : "bg-foreground/8 dark:bg-background",
         className
       )}
       style={
         {
           "--shell-gutter": `${styling.gutter}px`,
-          padding: "var(--shell-gutter)",
-          backgroundColor: background,
+          // Full-bleed workspaces pad themselves from --shell-gutter internally.
+          padding: noPadding ? 0 : "var(--shell-gutter)",
+          backgroundColor: noPadding ? undefined : background,
           "--shell-card-border-width": String(styling.cardBorderWidth),
           ...(borderColor ? { "--shell-card-border-color": borderColor } : {}),
         } as React.CSSProperties

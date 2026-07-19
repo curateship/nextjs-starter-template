@@ -646,7 +646,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 p-2 md:p-3">
+          <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
             <ResizablePanelGroup orientation="vertical" className="min-h-0">
               <ResizablePanel id="workspace" defaultSize="75%" minSize="45%">
                 <div className="flex h-full min-h-0">{workspace}</div>

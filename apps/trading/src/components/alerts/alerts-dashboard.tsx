@@ -135,7 +135,7 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
   }
 
   return (
-    <div className="grid w-full gap-2 md:gap-3">
+    <div className="grid w-full gap-[var(--shell-gutter,0.75rem)]">
       {error ? (
         <div
           role="alert"

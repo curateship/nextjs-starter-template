@@ -451,13 +451,19 @@ button:not(:disabled),
     );
 }
 
-/* gutter = 0 → flat mode: no card chrome. */
+/* gutter = 0 → flat mode: no card chrome. Covers full-screen workspace panels
+ * (automation editor) too — WorkspacePanel draws a real border, so zero its
+ * width as well as its radius so it sits flush at 0 spacing. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   box-shadow: none;
 }
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
+  border-width: 0;
+}
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-radius: 0;
 }

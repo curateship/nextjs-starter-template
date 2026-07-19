@@ -446,7 +446,7 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
         onOpenInspector={() => setInspectorOpen(true)}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-[var(--shell-gutter,0.75rem)] p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           key={`${runsOpen ? "runs-open" : "runs-closed"}-${verticalLayout.layoutKey}`}
           orientation="vertical"

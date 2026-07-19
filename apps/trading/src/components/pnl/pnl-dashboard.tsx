@@ -208,7 +208,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
 
   if (wallets.length === 0) {
     return (
-      <div className="flex w-full flex-col gap-2 md:gap-3">
+      <div className="flex w-full flex-col gap-[var(--shell-gutter,0.75rem)]">
         <PageHeader />
         <Card className="items-center justify-center py-16 text-sm text-muted-foreground">
           No trading wallets yet. Add a wallet to see your performance here.
@@ -218,7 +218,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 md:gap-3">
+    <div className="flex w-full flex-col gap-[var(--shell-gutter,0.75rem)]">
       {/* Top card: heading, filters, and headline stats all on one surface */}
       <Card className="gap-0 p-4 sm:p-[18px]">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -294,7 +294,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
       </Card>
 
       {/* Charts */}
-      <div className="grid gap-2 md:gap-3 lg:grid-cols-[1fr_384px]">
+      <div className="grid gap-[var(--shell-gutter,0.75rem)] lg:grid-cols-[1fr_384px]">
         <Card className="gap-0 p-4 sm:p-[18px]">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -318,7 +318,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
           <EquityChart eq={eq} hover={hoverEq} setHover={setHoverEq} />
         </Card>
 
-        <div className="flex flex-col gap-2 md:gap-3">
+        <div className="flex flex-col gap-[var(--shell-gutter,0.75rem)]">
           <Card className="gap-0 p-4 sm:p-[18px]">
             <div className="text-[13px] font-semibold">Daily net P&L</div>
             <DailyBars bars={bars} hover={hoverBar} setHover={setHoverBar} />
@@ -423,7 +423,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
       </Card>
 
       {/* Calendar */}
-      <div className="grid gap-2 md:gap-3 lg:grid-cols-[1fr_296px]">
+      <div className="grid gap-[var(--shell-gutter,0.75rem)] lg:grid-cols-[1fr_296px]">
         <Card className="gap-0 p-4 sm:p-[18px]">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
@@ -471,7 +471,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
           {calView === "year" && <CalYear year={year} onPick={pickMonth} />}
         </Card>
 
-        <div className="flex flex-col gap-2 md:gap-3">
+        <div className="flex flex-col gap-[var(--shell-gutter,0.75rem)]">
           <StatTile
             label="Best day"
             value={metrics.best.t ? money(metrics.best.pnl) : "—"}

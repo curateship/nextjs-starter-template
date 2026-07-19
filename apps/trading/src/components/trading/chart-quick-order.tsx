@@ -75,6 +75,7 @@ export function ChartQuickOrder({
   disabledReason,
   confirmationEnabled,
   onNotify,
+  onOrderPlaced,
   onClose,
 }: {
   quick: QuickOrderState
@@ -88,6 +89,8 @@ export function ChartQuickOrder({
   disabledReason: string | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  /** Fired after an order is accepted so the parent can pull fresh state. */
+  onOrderPlaced?: () => void
   onClose: () => void
 }) {
   const isPaper = Boolean(paperWalletId)
@@ -259,6 +262,7 @@ export function ChartQuickOrder({
         )
       }
       setConfirming(false)
+      onOrderPlaced?.()
       onClose()
     } catch (error) {
       setConfirming(false)

@@ -108,6 +108,7 @@ import {
 import {
   useMarketRows,
   useAccountSnapshot,
+  type AccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
 import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
@@ -236,7 +237,7 @@ export function TradingWorkspace({
       )
     onMarketChange(fallback.coin)
   }, [market, marketRow, marketRows, onMarketChange])
-  const account = useAccountSnapshot(
+  const { data: account, refresh: refreshAccount } = useAccountSnapshot(
     tradingNetwork,
     isPaper ? null : accountAddress,
     marketRow?.liveData ? marketRow : null,
@@ -431,6 +432,12 @@ export function TradingWorkspace({
     },
     [paperWalletId, refreshPaper]
   )
+  // Pull fresh positions/orders right after placing an order so the new order
+  // shows without waiting on a WebSocket push (or a manual page refresh).
+  const refreshAfterOrder = React.useCallback(() => {
+    if (paperWalletId) setTimeout(() => void refreshPaper(), 800)
+    else setTimeout(refreshAccount, 800)
+  }, [paperWalletId, refreshPaper, refreshAccount])
   const handleTrendlinePersistenceError = React.useCallback(
     (action: "load" | "save") =>
       notify(
@@ -672,7 +679,7 @@ export function TradingWorkspace({
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
 
-      <div className="min-h-0 flex-1 p-2 md:p-3">
+      <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           orientation="vertical"
           defaultLayout={outerLayout.defaultLayout}
@@ -845,6 +852,7 @@ export function TradingWorkspace({
                       disabledReason={ticketDisabledReason}
                       confirmationEnabled={orderConfirmation}
                       onNotify={notify}
+                      onOrderPlaced={refreshAfterOrder}
                     />
                   </ScrollArea>
                   <AccountSummaryPanel
@@ -904,6 +912,7 @@ export function TradingWorkspace({
             confirmationEnabled={orderConfirmation}
             limitPx={chartMenu?.px}
             onNotify={notify}
+            onOrderPlaced={refreshAfterOrder}
             onQuickOrder={(side, px) => {
               if (chartMenu) setQuickOrder({ side, px, x: chartMenu.x, y: chartMenu.y })
               setChartMenu(null)
@@ -930,6 +939,7 @@ export function TradingWorkspace({
           disabledReason={ticketDisabledReason}
           confirmationEnabled={orderConfirmation}
           onNotify={notify}
+          onOrderPlaced={refreshAfterOrder}
           onClose={() => setQuickOrder(null)}
         />
       ) : null}
@@ -1015,7 +1025,7 @@ function SandboxBottomTabs({
   onEditOrderHandled,
 }: {
   network: TradingNetwork
-  account: ReturnType<typeof useAccountSnapshot>
+  account: AccountSnapshot | null
   walletId: string | null
   accountAddress: string | null
   mids: Record<string, string>

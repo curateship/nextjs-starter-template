@@ -171,7 +171,7 @@ export function BroadcastsPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="w-full space-y-2 pb-8 md:space-y-3">
+    <div className="w-full space-y-[var(--shell-gutter,0.75rem)] pb-8">
       <BroadcastsTabs active="broadcasts" />
 
       {error ? (

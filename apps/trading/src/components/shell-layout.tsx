@@ -263,16 +263,10 @@ function ShellPageContent({
   styling: ShellStyling
 }) {
   return (
-    <DashboardContent
-      // Full-bleed pages manage their own padding, so they opt out of the
-      // styling-driven gutter/background (its inline padding would override p-0).
-      styling={fullBleed ? undefined : styling}
-      className={
-        fullBleed
-          ? "overflow-hidden p-0 space-y-0 sm:p-0 sm:space-y-0 md:p-0"
-          : undefined
-      }
-    >
+    // Full-bleed workspaces still receive the styling contract so they track the
+    // content-spacing setting and go flat at 0; DashboardContent just skips the
+    // outer gutter padding/gap for them (they pad themselves from --shell-gutter).
+    <DashboardContent styling={styling} fullBleed={fullBleed}>
       {children}
     </DashboardContent>
   )

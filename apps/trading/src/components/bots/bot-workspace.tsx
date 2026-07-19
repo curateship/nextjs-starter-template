@@ -178,7 +178,7 @@ export function BotWorkspace({
       ) : null}
 
       <ClientOnly fallback={null}>
-        <div className="min-h-0 flex-1 p-2 md:p-3">
+        <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
           <ResizablePanelGroup
             key={verticalLayout.layoutKey}
             orientation="vertical"

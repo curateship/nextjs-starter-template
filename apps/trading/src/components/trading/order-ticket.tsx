@@ -66,6 +66,7 @@ export function OrderTicket({
   disabledReason,
   confirmationEnabled,
   onNotify,
+  onOrderPlaced,
 }: {
   walletId: string | null
   /** When set, orders route to the in-house paper engine instead. */
@@ -79,6 +80,8 @@ export function OrderTicket({
   disabledReason: string | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  /** Fired after an order is accepted so the parent can pull fresh state. */
+  onOrderPlaced?: () => void
 }) {
   const isPaper = Boolean(paperWalletId)
   const maxLeverage = marketRow?.maxLeverage ?? 1
@@ -206,6 +209,7 @@ export function OrderTicket({
           text: "Paper order submitted — fills simulate from live market data.",
         })
         setState((current) => ({ ...current, szInput: "" }))
+        onOrderPlaced?.()
         return
       }
 
@@ -229,6 +233,7 @@ export function OrderTicket({
             : `Resting order #${result.oid} @ ${result.px}`,
       })
       setState((current) => ({ ...current, szInput: "" }))
+      onOrderPlaced?.()
     } catch (error) {
       setConfirming(false)
       setStatus({ tone: "error", text: getOrderErrorMessage(error) })
@@ -478,6 +483,7 @@ export function OrderTicket({
           disabledReason={disabledReason}
           confirmationEnabled={confirmationEnabled}
           onNotify={onNotify}
+          onOrderPlaced={onOrderPlaced}
         />
 
         <Button

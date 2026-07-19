@@ -89,7 +89,7 @@ export function WorkersSettings({
   ] as const
 
   return (
-    <div className="space-y-2 md:space-y-3">
+    <div className="space-y-[var(--shell-gutter,0.75rem)]">
       {error ? (
         <div
           role="alert"

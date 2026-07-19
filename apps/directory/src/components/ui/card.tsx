@@ -25,8 +25,15 @@ Card.displayName = "Card"
 
 // CardGroup — wraps a grid or flex of Card elements and applies consistent responsive gap between them
 const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-group" className={cn("gap-3", className)} {...props} />
+  ({ className, style, ...props }, ref) => (
+    <div
+      ref={ref}
+      data-slot="card-group"
+      className={cn(className)}
+      // Gap between cards tracks the content-spacing setting via --shell-gutter.
+      style={{ gap: "var(--shell-gutter, 0.75rem)", ...style }}
+      {...props}
+    />
   )
 )
 CardGroup.displayName = "CardGroup"

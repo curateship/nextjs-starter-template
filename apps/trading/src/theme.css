@@ -176,13 +176,16 @@
   );
 }
 
-/* gutter = 0 → flat mode: no card chrome. */
+/* gutter = 0 → flat mode: no card chrome. Covers full-screen workspace panels
+ * (trade terminal, automation editor) too, so they sit flush at 0 spacing. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-width: 0;
 }
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-radius: 0;
 }

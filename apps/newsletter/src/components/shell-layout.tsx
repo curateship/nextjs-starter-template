@@ -20,6 +20,7 @@ import {
   type ShellItem,
   type ShellModalStyling,
 } from "@/lib/custom-shell"
+import { isFullBleedLocation } from "@/lib/full-bleed-location"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
 import {
@@ -63,6 +64,9 @@ export function ShellLayout({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  // Full-bleed workspaces (the automation editor) manage their own height and
+  // padding, so they drop the padded DashboardContent wrapper.
+  const fullBleed = isFullBleedLocation({ pathname: currentPath })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
@@ -184,7 +188,7 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent styling={config.styling}>
+            <DashboardContent styling={config.styling} fullBleed={fullBleed}>
               <Outlet />
             </DashboardContent>
           </SidebarInset>

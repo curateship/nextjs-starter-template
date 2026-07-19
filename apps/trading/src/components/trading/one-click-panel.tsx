@@ -43,6 +43,8 @@ type OneClickOrderOptions = {
   confirmationEnabled: boolean
   limitPx?: string
   onNotify: (message: string, tone: "ok" | "error") => void
+  /** Fired after an order is accepted so the parent can pull fresh state. */
+  onOrderPlaced?: () => void
 }
 
 function useOneClickOrder({
@@ -55,6 +57,7 @@ function useOneClickOrder({
   disabledReason,
   limitPx,
   onNotify,
+  onOrderPlaced,
 }: OneClickOrderOptions) {
   const [templates, setTemplates] = React.useState<OrderTemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -120,6 +123,7 @@ function useOneClickOrder({
           : `${result.entryOrderType === "limit" ? "Limit" : "One-click"} order #${result.oid} submitted with stop and take-profit.`,
         "ok"
       )
+      onOrderPlaced?.()
     } catch (error) {
       onNotify(getOrderErrorMessage(error), "error")
     } finally {

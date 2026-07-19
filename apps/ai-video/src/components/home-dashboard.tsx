@@ -98,7 +98,7 @@ export function HomeDashboard() {
   const loading = !data && !error
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-[var(--shell-gutter,0.75rem)]">
       {/* Title row */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -126,7 +126,7 @@ export function HomeDashboard() {
       ) : null}
 
       {/* Hero — resume cards. Full-width responsive grid, capped small. */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] gap-4 sm:gap-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] gap-[var(--shell-gutter,0.75rem)]">
         {loading
           ? null
           : heroItems.map((item) => (
@@ -160,7 +160,7 @@ export function HomeDashboard() {
       </div>
 
       {/* Body — activity timeline + trending archive */}
-      <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-[var(--shell-gutter,0.75rem)] lg:grid-cols-2">
         <ActivityCard loading={loading} sections={activitySections} />
         <TrendingCard
           loading={loading}

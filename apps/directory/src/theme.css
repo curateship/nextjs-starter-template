@@ -163,11 +163,13 @@
 
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-width: 0;
 }
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   border-radius: 0;
 }

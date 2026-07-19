@@ -301,7 +301,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
   }
 
   return (
-    <CardGroup className="grid w-full min-w-0 gap-3">
+    <CardGroup className="grid w-full min-w-0">
       <MultiSiteChartCard
         metrics={metrics}
         subject={scope.kind === "site" ? scope.siteName : undefined}
@@ -317,7 +317,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
         }
       />
 
-      <CardGroup className="grid gap-3 lg:grid-cols-2">
+      <CardGroup className="grid lg:grid-cols-2">
         <Card className="flex min-w-0 flex-col rounded-xl">
           <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
             <CardTitle>Automations</CardTitle>

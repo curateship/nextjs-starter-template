@@ -291,7 +291,7 @@ export function BacktestDashboard({
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 p-2 md:p-3">
+      <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           orientation="vertical"
           defaultLayout={outerLayout.defaultLayout}

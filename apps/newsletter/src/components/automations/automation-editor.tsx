@@ -445,7 +445,7 @@ export function AutomationEditor({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-[var(--shell-gutter,0.75rem)] p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           key={`${logOpen ? "log-open" : "log-closed"}-${verticalLayout.layoutKey}`}
           orientation="vertical"
@@ -479,7 +479,10 @@ export function AutomationEditor({
           ) : null}
         </ResizablePanelGroup>
         {!logOpen ? (
-          <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
+          <div
+            data-slot="workspace-panel"
+            className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2"
+          >
             <span className="text-xs font-semibold tracking-wide uppercase">
               Activity log
             </span>

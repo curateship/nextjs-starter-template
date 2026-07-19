@@ -886,7 +886,7 @@ export function AutomationEditor({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-[var(--shell-gutter,0.75rem)] p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           key={`${logOpen ? "log-open" : "log-closed"}-${verticalLayout.layoutKey}`}
           orientation="vertical"

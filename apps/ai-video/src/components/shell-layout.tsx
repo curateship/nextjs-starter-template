@@ -224,16 +224,13 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
+            {/* Full-bleed workspaces still receive the styling contract so they
+                track the content-spacing setting and go flat at 0; DashboardContent
+                just skips the outer gutter padding/gap for them (they pad
+                themselves from --shell-gutter). */}
             <DashboardContent
-              className={
-                isVideoEditorPath
-                  ? "space-y-0 overflow-hidden p-0 sm:space-y-0 sm:p-0 md:p-0"
-                  : undefined
-              }
-              // The editor manages its own full-viewport layout, so leave its
-              // padding/overflow to the className above (styling would set inline
-              // padding that the p-0 class can't override).
-              styling={isVideoEditorPath ? undefined : config.styling}
+              styling={config.styling}
+              fullBleed={isVideoEditorPath}
             >
               <Outlet />
             </DashboardContent>

@@ -187,7 +187,7 @@ export function ApiUsageDashboard() {
   }
 
   return (
-    <div className="w-full space-y-6 pb-8">
+    <div className="w-full space-y-[var(--shell-gutter,0.75rem)] pb-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">API Usage</h1>
