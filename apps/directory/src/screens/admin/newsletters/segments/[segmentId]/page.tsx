@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, type FormEvent } from "react"
-import { useParams, useRouter } from "@/lib/navigation-client"
+import { use, useState, useEffect, useCallback, type FormEvent } from "react"
+import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -47,10 +47,9 @@ import {
   type DynamicConditionForm
 } from "@/components/admin/newsletter-builder/segments/SegmentDynamicConditionEditor"
 
-export default function SegmentDashboardPage() {
-  const params = useParams()
+export default function SegmentDashboardPage({ params }: { params: Promise<{ segmentId: string }> }) {
   const router = useRouter()
-  const segmentId = params.segmentId as string
+  const { segmentId } = use(params)
 
   // Segment data
   const [segment, setSegment] = useState<Segment | null>(null)

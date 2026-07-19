@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "@/lib/navigation-client"
+import { use, useState, useEffect, useCallback } from "react"
+import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -30,10 +30,9 @@ import {
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 
-export default function ContactDashboardPage() {
-  const params = useParams()
+export default function ContactDashboardPage({ params }: { params: Promise<{ contactId: string }> }) {
   const router = useRouter()
-  const contactId = params.contactId as string
+  const { contactId } = use(params)
 
   // Contact data
   const [contact, setContact] = useState<CrmContact | null>(null)

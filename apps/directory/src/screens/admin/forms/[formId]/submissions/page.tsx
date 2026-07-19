@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { use, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
-import { useParams } from "@/lib/navigation-client"
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list.js"
@@ -59,9 +58,8 @@ function getAnswerRows(form: GuidedForm | null, submission: GuidedFormSubmission
   }))
 }
 
-export default function GuidedFormSubmissionsPage() {
-  const params = useParams()
-  const formId = params.formId as string
+export default function GuidedFormSubmissionsPage({ params }: { params: Promise<{ formId: string }> }) {
+  const { formId } = use(params)
   const [form, setForm] = useState<GuidedForm | null>(null)
   const [submissions, setSubmissions] = useState<GuidedFormSubmission[]>([])
   const [loading, setLoading] = useState(true)
