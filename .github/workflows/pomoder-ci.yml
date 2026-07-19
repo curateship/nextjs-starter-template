@@ -2,10 +2,10 @@ name: Pomoder CI
 
 on:
   pull_request:
-    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "package-lock.json", ".github/workflows/pomoder-ci.yml"]
+    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".github/workflows/pomoder-ci.yml"]
   push:
     branches: [main]
-    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "package-lock.json", ".github/workflows/pomoder-ci.yml"]
+    paths: ["apps/pomoder/**", "local-apps.json", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".github/workflows/pomoder-ci.yml"]
 
 concurrency:
   group: pomoder-${{ github.ref }}
@@ -32,27 +32,33 @@ jobs:
       NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
+      # Must precede setup-node so that cache: pnpm can find the store.
+      # Version comes from the packageManager field in package.json.
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Migrate test database
-        run: npm run db:migrate --workspace=pomoder
+        run: pnpm --filter pomoder db:migrate
       - name: Lint
-        run: npm run lint --workspace=pomoder
+        run: pnpm --filter pomoder lint
       - name: Typecheck
-        run: npm run typecheck --workspace=pomoder
+        run: pnpm --filter pomoder typecheck
       - name: Unit and integration tests
-        run: npm test --workspace=pomoder
+        run: pnpm --filter pomoder test
       - name: Production build
-        run: npm run build --workspace=pomoder
+        run: pnpm --filter pomoder build
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        run: pnpm audit --audit-level=high
+      # playwright is pomoder's devDependency, not the root's. npx found it via
+      # npm's hoisting; pnpm needs the filter to resolve the binary.
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: pnpm --filter pomoder exec playwright install --with-deps chromium
+      # No `--` before --project: npm strips it, pnpm forwards it literally.
       - name: Browser tests
-        run: npm run test:e2e --workspace=pomoder -- --project=desktop
+        run: pnpm --filter pomoder test:e2e --project=desktop
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

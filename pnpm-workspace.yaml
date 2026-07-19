@@ -1,6 +1,4 @@
-# Mirrors the "workspaces" field in package.json.
-# That field is still read by `npm ci` in the root Dockerfile (directory app);
-# keep the two lists in sync until the Dockerfile moves to pnpm.
+# The single source of truth for workspace membership and install settings.
 packages:
   - "apps/*"
   - "packages/*"
@@ -17,8 +15,6 @@ allowBuilds:
   sharp: true              # native image-processing addon
   unrs-resolver: true      # native resolver used by eslint import plugin
 
-# pnpm 11 reads settings here, not from a "pnpm" key in package.json.
-# Mirrors the "overrides" block in package.json, which npm ci still uses.
 overrides:
   esbuild: "^0.28.1"
   tsx: "^4.22.4"

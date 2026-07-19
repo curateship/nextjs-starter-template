@@ -1,7 +1,6 @@
 {
   "name": "system-everything",
   "private": true,
-  "workspaces": ["apps/*", "packages/*", "services/*"],
   "scripts": {
     "dev": "turbo dev",
     "dev:custom-shell": "pnpm run dev:custom-shell-ui",
@@ -26,12 +25,6 @@
     "lint": "turbo lint"
   },
   "packageManager": "pnpm@11.15.0",
-  "overrides": {
-    "esbuild": "^0.28.1",
-    "tsx": "^4.22.4",
-    "vite": "^8.0.16",
-    "postcss": "8.5.12"
-  },
   "devDependencies": {
     "turbo": "^2",
     "vite": "^8.0.16"

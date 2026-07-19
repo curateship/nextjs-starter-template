@@ -1,12 +1,24 @@
 FROM node:24-alpine AS base
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable pnpm
+
+# The image holds exactly one project, so pnpm's shared store and symlinked
+# layout buy nothing here — that win is for the many local worktrees. Hoisted
+# gives the flat node_modules the runner stage below copies wholesale, and
+# keeps runtime resolution identical to the previous npm build.
+#
+# This must be passed as --config.node-linker on each install: pnpm 11 moved
+# settings into pnpm-workspace.yaml and ignores NPM_CONFIG_NODE_LINKER, which
+# fails silently by producing a symlinked tree with no top-level tslib.
 
 # --- Dependencies ---
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/directory/package.json ./apps/directory/
-RUN npm ci --workspace=directory
+RUN pnpm install --frozen-lockfile --config.node-linker=hoisted --filter directory...
 
 # --- Production dependencies ---
 # The Nitro server bundle still imports pg and isomorphic-dompurify at runtime,
@@ -14,15 +26,15 @@ RUN npm ci --workspace=directory
 FROM base AS prod-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/directory/package.json ./apps/directory/
-RUN npm ci --omit=dev --workspace=directory
+RUN pnpm install --frozen-lockfile --prod --config.node-linker=hoisted --filter directory...
 
 # --- Build ---
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json local-apps.json ./
+COPY package.json pnpm-workspace.yaml local-apps.json ./
 COPY apps/directory/ ./apps/directory/
 
 # VITE_* values are frozen into the bundle at build time, so they must be build
@@ -36,7 +48,7 @@ ENV VITE_APP_DOMAIN=$VITE_APP_DOMAIN
 RUN test -n "$VITE_APP_URL" || (echo "VITE_APP_URL build arg is required (public app origin, e.g. https://hub.example.com)" && exit 1)
 RUN test -n "$VITE_APP_DOMAIN" || (echo "VITE_APP_DOMAIN build arg is required (base domain tenant subdomains hang off, e.g. example.com)" && exit 1)
 
-RUN npm run build --workspace=directory
+RUN pnpm --filter directory build
 
 # --- Runner ---
 FROM base AS runner
