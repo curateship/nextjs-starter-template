@@ -31,7 +31,9 @@ import {
   getOrderErrorMessage,
   modifyOrder,
   placeOrder,
+  setPositionTpsl,
 } from "@/lib/api/orders"
+import { resolveTakeProfitPrice } from "@/lib/one-click-order"
 import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
 import {
@@ -49,25 +51,122 @@ type PositionAction = {
   szi: number
 }
 
+/** Resolved trigger price for a typed percent, so the number is never a guess. */
+function PricePreview({
+  label,
+  price,
+}: {
+  label: string
+  price: number | null
+}) {
+  if (price === null) return null
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      {label}{" "}
+      <span className="font-mono">{formatPriceDisplay(String(price))}</span>
+    </p>
+  )
+}
+
 export function PositionsTable({
   account,
   walletId,
   mids,
   confirmationEnabled,
   onDone,
+  onSelectMarket,
 }: {
   account: AccountSnapshot | null
   walletId: string | null
   mids: Record<string, string>
   confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
+  /** Clicking a position row switches the workspace to that market. */
+  onSelectMarket?: (coin: string) => void
 }) {
   const [pending, setPending] = React.useState<PositionAction | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Stop-loss / take-profit editor for an already-open position.
+  const [protecting, setProtecting] = React.useState<{
+    coin: string
+    szi: number
+    entryPx: number
+  } | null>(null)
+  const [protectForm, setProtectForm] = React.useState({ sl: "", tp: "" })
+  const [protectBusy, setProtectBusy] = React.useState(false)
+  const [protectError, setProtectError] = React.useState<string | null>(null)
 
   const positions = (account?.clearinghouseState?.assetPositions ?? []).filter(
     ({ position }) => Number(position.szi) !== 0
   )
+
+  // Show where each percent actually lands, using the same math the server
+  // applies, so the price is never a surprise.
+  const protectPreview = React.useMemo(() => {
+    if (!protecting || !(protecting.entryPx > 0)) return { sl: null, tp: null }
+    const isLong = protecting.szi > 0
+    const markRaw = Number(mids[protecting.coin] ?? 0)
+    const mark = markRaw > 0 ? markRaw : protecting.entryPx
+    const slPct = Number(protectForm.sl)
+    const tpPct = Number(protectForm.tp)
+    return {
+      sl:
+        protectForm.sl.trim() !== "" && slPct > 0
+          ? protecting.entryPx *
+            (isLong ? 1 - slPct / 100 : 1 + slPct / 100)
+          : null,
+      tp:
+        protectForm.tp.trim() !== "" && tpPct > 0
+          ? resolveTakeProfitPrice({
+              entryPrice: protecting.entryPx,
+              currentPrice: mark,
+              side: isLong ? "buy" : "sell",
+              takeProfitPct: tpPct,
+            })
+          : null,
+    }
+  }, [protecting, protectForm, mids])
+
+  function openProtect(coin: string, szi: number, entryPx: number) {
+    setProtectForm({ sl: "", tp: "" })
+    setProtectError(null)
+    setProtecting({ coin, szi, entryPx })
+  }
+
+  async function submitProtect() {
+    if (!walletId || !protecting) return
+    const sl = Number(protectForm.sl.trim())
+    const tp = Number(protectForm.tp.trim())
+    const hasSl = protectForm.sl.trim() !== "" && sl > 0
+    const hasTp = protectForm.tp.trim() !== "" && tp > 0
+    if (!hasSl && !hasTp) {
+      setProtectError("Enter a stop-loss or take-profit percent.")
+      return
+    }
+    setProtectBusy(true)
+    setProtectError(null)
+    try {
+      const result = await setPositionTpsl({
+        walletId,
+        market: protecting.coin,
+        ...(hasSl ? { stopLossPct: sl } : {}),
+        ...(hasTp ? { takeProfitPct: tp } : {}),
+      })
+      const parts = [
+        result.stopLossPx ? `stop ${result.stopLossPx}` : null,
+        result.takeProfitPx ? `take-profit ${result.takeProfitPx}` : null,
+      ].filter(Boolean)
+      onDone(
+        `Protecting ${result.sz} ${protecting.coin} — ${parts.join(", ")}.`,
+        "ok"
+      )
+      setProtecting(null)
+    } catch (error) {
+      setProtectError(getOrderErrorMessage(error))
+    } finally {
+      setProtectBusy(false)
+    }
+  }
 
   async function submitAction(action: PositionAction) {
     if (!walletId) return
@@ -143,7 +242,14 @@ export function PositionsTable({
               : null,
           })
           return (
-            <TableRow key={position.coin}>
+            <TableRow
+              key={position.coin}
+              onClick={
+                onSelectMarket
+                  ? () => onSelectMarket(position.coin)
+                  : undefined
+              }
+            >
               <TableCell className="font-medium">
                 {position.coin}
                 <span className="ml-1 text-[10px] text-muted-foreground">
@@ -169,7 +275,11 @@ export function PositionsTable({
               </MonoCell>
               <MonoCell>${Number(position.marginUsed).toFixed(2)}</MonoCell>
               <TableCell>
-                <div className="flex gap-1">
+                {/* Row actions must not also trigger the row's market switch. */}
+                <div
+                  className="flex gap-1"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <RowActionButton
                     disabled={!walletId || busy}
                     onClick={() =>
@@ -185,6 +295,18 @@ export function PositionsTable({
                     }
                   >
                     Reverse
+                  </RowActionButton>
+                  <RowActionButton
+                    disabled={!walletId || busy}
+                    onClick={() =>
+                      openProtect(
+                        position.coin,
+                        szi,
+                        Number(position.entryPx ?? 0)
+                      )
+                    }
+                  >
+                    TP/SL
                   </RowActionButton>
                 </div>
               </TableCell>
@@ -235,6 +357,95 @@ export function PositionsTable({
               >
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
                 Confirm
+              </Button>
+            </>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(protecting)}
+        onOpenChange={(open) => {
+          if (!open && !protectBusy) setProtecting(null)
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>
+              Stop-loss / take-profit for {protecting?.coin}
+            </DialogTitle>
+            <DialogDescription>
+              Percent from your entry price ({
+                protecting ? formatPriceDisplay(String(protecting.entryPx)) : "—"
+              }). Protects your whole {protecting?.coin} position and keeps
+              covering it if you add to it later. Fill in one or both.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardContent>
+                <div className="grid gap-4">
+                  <div className="grid gap-1">
+                    <Label htmlFor="position-tp">Take-profit %</Label>
+                    <Input
+                      id="position-tp"
+                      inputMode="decimal"
+                      placeholder="Enter % for TP"
+                      value={protectForm.tp}
+                      onChange={(event) =>
+                        setProtectForm((current) => ({
+                          ...current,
+                          tp: event.target.value,
+                        }))
+                      }
+                    />
+                    <PricePreview
+                      label="Takes profit at"
+                      price={protectPreview.tp}
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="position-sl">Stop-loss %</Label>
+                    <Input
+                      id="position-sl"
+                      inputMode="decimal"
+                      placeholder="Enter % for SL"
+                      value={protectForm.sl}
+                      onChange={(event) =>
+                        setProtectForm((current) => ({
+                          ...current,
+                          sl: event.target.value,
+                        }))
+                      }
+                    />
+                    <PricePreview label="Stops out at" price={protectPreview.sl} />
+                  </div>
+                  {protectError ? (
+                    <p className="text-xs text-destructive">{protectError}</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={protectBusy}
+                onClick={() => setProtecting(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={protectBusy}
+                onClick={() => void submitProtect()}
+              >
+                {protectBusy ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
+                Set protection
               </Button>
             </>
           </DialogFooter>

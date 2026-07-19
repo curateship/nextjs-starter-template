@@ -226,8 +226,7 @@ export function BacktestRunChart({
   const [chartState, setChartState] = React.useState<{
     key: string
     candles: HistoryCandle[]
-    simStartMs: number
-  }>({ key: "", candles: EMPTY_CANDLES, simStartMs: 0 })
+  }>({ key: "", candles: EMPTY_CANDLES })
   const chartStateRef = React.useRef(chartState)
   React.useEffect(() => {
     chartStateRef.current = chartState
@@ -274,11 +273,7 @@ export function BacktestRunChart({
           toMs: runEndMs,
         })
         if (!cancelled) {
-          setChartState({
-            key: reqKey,
-            candles: data.candles,
-            simStartMs: data.simStartMs,
-          })
+          setChartState({ key: reqKey, candles: data.candles })
         }
       } catch {
         // Transient fetch failure — keep the previous chart.
@@ -763,7 +758,9 @@ export function BacktestRunChart({
           zones={chartZones}
           barColors={barColors}
           markers={markers}
-          visibleStartMs={chartState.simStartMs || undefined}
+          // Deliberately no visibleStartMs: framing to the whole simulated
+          // window loads the chart zoomed in. Load at the same default view
+          // Reset View gives instead.
           focusPoints={focusPoints}
           focusResult={focusResult}
           onCrosshairOhlc={setOhlc}

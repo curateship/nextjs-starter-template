@@ -21,6 +21,7 @@ import {
   modifyOrders,
   placeBracketOrder,
   placeOrder,
+  placePositionTpsl,
   RISK_SIZING_CLOID_PURPOSE,
   updateLeverage,
   writeRiskRejection,
@@ -674,6 +675,134 @@ export async function cancelManualOrder(
     { assetId: asset.assetId, coin: input.market, oid: input.oid },
     database
   )
+}
+
+/**
+ * Attaches a stop-loss and/or take-profit to an already-open position.
+ *
+ * Sized to the whole position and sent as position-level triggers, so the
+ * protection covers everything you hold in that market — and keeps covering it
+ * if you add to the position later.
+ */
+export async function setPositionTpsl(
+  userId: string,
+  input: {
+    walletId: string
+    market: string
+    /** Percent away from the position's entry price. */
+    stopLossPct?: number
+    takeProfitPct?: number
+  },
+  database: CustomShellDb = db
+): Promise<{ sz: string; stopLossPx: string | null; takeProfitPx: string | null }> {
+  const wallet = await requireActiveWallet(userId, input.walletId, database)
+  const network = wallet.network as TradingNetwork
+  assertNetworkEnabled(network)
+  const asset = await getAssetInfo(network, input.market)
+  const info = getInfoClient(network)
+  const accountAddress = (wallet.vaultAddress ??
+    wallet.accountAddress) as `0x${string}`
+
+  const [assetData, accountState] = await Promise.all([
+    info.metaAndAssetCtxs({ dex: asset.dex }),
+    loadTradingAccountState(info, accountAddress, asset),
+  ])
+  const ctx = assetData[1][asset.assetIndex]
+  if (!ctx) {
+    throw new Error(`No market data for ${input.market}`)
+  }
+
+  const position = accountState.clearinghouseState.assetPositions.find(
+    ({ position }) => position.coin === input.market
+  )?.position
+  const szi = Number(position?.szi ?? 0)
+  if (!position || szi === 0) {
+    throw new Error(`No open ${input.market} position to protect.`)
+  }
+
+  if (!input.stopLossPct && !input.takeProfitPct) {
+    throw new Error("Set a stop-loss or take-profit percent.")
+  }
+
+  const markPx = Number(ctx.markPx)
+  const isLong = szi > 0
+  // Percentages are measured from the position's entry price, so "2%" means
+  // 2% of what you paid — the same convention order templates use.
+  const entryPx = Number(position.entryPx ?? markPx)
+  if (!(entryPx > 0)) {
+    throw new Error(`No entry price available for ${input.market}.`)
+  }
+
+  const stopLossPx = input.stopLossPct
+    ? roundPrice(
+        entryPx *
+          (isLong ? 1 - input.stopLossPct / 100 : 1 + input.stopLossPct / 100),
+        asset.szDecimals
+      )
+    : null
+  const takeProfitPx = input.takeProfitPct
+    ? roundPrice(
+        resolveTakeProfitPrice({
+          entryPrice: entryPx,
+          currentPrice: markPx,
+          side: isLong ? "buy" : "sell",
+          takeProfitPct: input.takeProfitPct,
+        }),
+        asset.szDecimals
+      )
+    : null
+
+  // A trigger on the wrong side of the market fires the moment it is placed,
+  // which would close the position instantly instead of protecting it.
+  if (stopLossPx) {
+    const sl = Number(stopLossPx)
+    if ((isLong && sl >= markPx) || (!isLong && sl <= markPx)) {
+      throw new Error(
+        `A ${input.stopLossPct}% stop sits at ${stopLossPx}, which the price has already passed (now ${ctx.markPx}). Use a wider percent.`
+      )
+    }
+  }
+  if (takeProfitPx) {
+    const tp = Number(takeProfitPx)
+    if ((isLong && tp <= markPx) || (!isLong && tp >= markPx)) {
+      throw new Error(
+        `A ${input.takeProfitPct}% take-profit sits at ${takeProfitPx}, which the price has already passed (now ${ctx.markPx}). Use a wider percent.`
+      )
+    }
+  }
+
+  const sz = roundSize(String(Math.abs(szi)), asset.szDecimals)
+
+  await placePositionTpsl(
+    wallet,
+    { actor: "user", userId },
+    {
+      assetId: asset.assetId,
+      coin: input.market,
+      // Closing side is the opposite of the position's direction.
+      isBuy: !isLong,
+      sz,
+      ...(takeProfitPx
+        ? {
+            takeProfit: {
+              triggerPx: takeProfitPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+      ...(stopLossPx
+        ? {
+            stopLoss: {
+              triggerPx: stopLossPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+    },
+    database
+  )
+
+  return { sz, stopLossPx, takeProfitPx }
 }
 
 export async function updateManualLeverage(

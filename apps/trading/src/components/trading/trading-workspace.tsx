@@ -872,6 +872,7 @@ export function TradingWorkspace({
                   account={paperAccount}
                   confirmationEnabled={orderConfirmation}
                   onNotify={notify}
+                  onSelectMarket={onMarketChange}
                 />
               ) : (
                 <SandboxBottomTabs
@@ -886,6 +887,7 @@ export function TradingWorkspace({
                   mids={mids}
                   confirmationEnabled={orderConfirmation}
                   onNotify={notify}
+                  onSelectMarket={onMarketChange}
                   editOrder={editOrder}
                   onEditOrderHandled={() => setEditOrder(null)}
                 />
@@ -972,10 +974,12 @@ function PaperBottomTabs({
   account,
   confirmationEnabled,
   onNotify,
+  onSelectMarket,
 }: {
   account: PaperAccountResponse | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  onSelectMarket: (coin: string) => void
 }) {
   const positionCount = account?.positions.length ?? 0
   const orderCount = account?.openOrders.length ?? 0
@@ -1001,6 +1005,7 @@ function PaperBottomTabs({
           account={account}
           confirmationEnabled={confirmationEnabled}
           onDone={onNotify}
+          onSelectMarket={onSelectMarket}
         />
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">
@@ -1021,6 +1026,7 @@ function SandboxBottomTabs({
   mids,
   confirmationEnabled,
   onNotify,
+  onSelectMarket,
   editOrder,
   onEditOrderHandled,
 }: {
@@ -1031,6 +1037,7 @@ function SandboxBottomTabs({
   mids: Record<string, string>
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  onSelectMarket: (coin: string) => void
   editOrder: FrontendOpenOrder | null
   onEditOrderHandled: () => void
 }) {
@@ -1109,6 +1116,7 @@ function SandboxBottomTabs({
           mids={mids}
           confirmationEnabled={confirmationEnabled}
           onDone={onNotify}
+          onSelectMarket={onSelectMarket}
         />
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">

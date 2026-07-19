@@ -66,6 +66,17 @@ export type BracketOrderParams = {
   stopLoss?: { triggerPx: string; cloid?: `0x${string}` }
 }
 
+export type PositionTpslParams = {
+  assetId: number
+  coin: string
+  /** The side that CLOSES the position (opposite the position's direction). */
+  isBuy: boolean
+  /** Absolute current position size; the exchange scales it with the position. */
+  sz: string
+  takeProfit?: { triggerPx: string; cloid?: `0x${string}` }
+  stopLoss?: { triggerPx: string; cloid?: `0x${string}` }
+}
+
 type ClientEntry = {
   client: ExchangeClient
   nonceRef: { last: number | null }
@@ -281,6 +292,112 @@ export async function placeBracketOrder(
   )
 
   return parseBracketOrderStatuses(statuses, requests.length)
+}
+
+/**
+ * Attaches a stop-loss and/or take-profit to an EXISTING position.
+ *
+ * Unlike `placeBracketOrder` (entry + children, `normalTpsl`, fixed size), this
+ * sends only reduce-only trigger orders under `positionTpsl`, which Hyperliquid
+ * scales with the position — so adding to the position grows the protection
+ * instead of leaving part of it uncovered. The entry order must NOT be included
+ * here: mixing one in makes the exchange reject the group as an unexpected
+ * trigger type.
+ */
+export async function placePositionTpsl(
+  wallet: TradingWallet,
+  actor: ExchangeActor,
+  params: PositionTpslParams,
+  database: CustomShellDb = db
+): Promise<void> {
+  const entry = getClientEntry(wallet)
+  const children = [
+    ...(params.takeProfit
+      ? [{ ...params.takeProfit, tpsl: "tp" as const }]
+      : []),
+    ...(params.stopLoss ? [{ ...params.stopLoss, tpsl: "sl" as const }] : []),
+  ]
+  if (children.length === 0) {
+    throw new Error("Set a stop-loss or take-profit price.")
+  }
+
+  const requests = children.map((child) => ({
+    coin: params.coin,
+    isBuy: params.isBuy,
+    px: child.triggerPx,
+    sz: params.sz,
+    reduceOnly: true,
+    triggerPx: child.triggerPx,
+    tpsl: child.tpsl,
+  }))
+  const cloids = children.map((child) => child.cloid)
+
+  let statuses: unknown[]
+  try {
+    const response = await entry.client.order({
+      orders: children.map((child) => ({
+        a: params.assetId,
+        b: params.isBuy,
+        p: child.triggerPx,
+        s: params.sz,
+        r: true,
+        t: {
+          trigger: {
+            isMarket: true,
+            triggerPx: child.triggerPx,
+            tpsl: child.tpsl,
+          },
+        },
+        ...(child.cloid ? { c: child.cloid } : {}),
+      })),
+      grouping: "positionTpsl",
+    })
+    statuses = response.response.data.statuses
+  } catch (error) {
+    const errorMessage = scrubErrorMessage(error)
+    await Promise.all(
+      requests.map((request, index) =>
+        writeAudit(database, wallet, actor, {
+          actionType: "order.place",
+          market: params.coin,
+          nonce: entry.nonceRef.last,
+          cloid: cloids[index] ?? null,
+          request,
+          status: "error",
+          errorMessage,
+        })
+      )
+    )
+    throw new Error(errorMessage)
+  }
+
+  await Promise.all(
+    requests.map((request, index) => {
+      const legStatus = statuses[index]
+      const succeeded = isOrderStatusSuccess(legStatus)
+      return writeAudit(database, wallet, actor, {
+        actionType: "order.place",
+        market: params.coin,
+        nonce: entry.nonceRef.last,
+        cloid: cloids[index] ?? null,
+        request,
+        response: { status: legStatus ?? null },
+        status: succeeded ? "ok" : "error",
+        errorMessage: succeeded ? null : "Exchange rejected this protection leg",
+      })
+    })
+  )
+
+  // Every leg must be confirmed accepted. A rejected leg — or a short status
+  // list — would otherwise report success while the position sits unprotected.
+  const accepted = statuses
+    .slice(0, requests.length)
+    .filter((status) => isOrderStatusSuccess(status))
+  if (accepted.length !== requests.length) {
+    throw new Error(
+      "The exchange did not accept every stop-loss / take-profit leg. Check open orders before retrying."
+    )
+  }
 }
 
 export async function cancelOrder(
