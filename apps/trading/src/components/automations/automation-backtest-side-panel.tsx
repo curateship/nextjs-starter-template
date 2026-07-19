@@ -1,24 +1,19 @@
 import * as React from "react"
 import {
   CheckCircle2Icon,
+  ChevronDownIcon,
   CircleDashedIcon,
   Loader2Icon,
   XCircleIcon,
   XIcon,
 } from "lucide-react"
-
+import { MarketPicker } from "@/components/trading/market-watchlist"
+import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Tooltip,
   TooltipContent,
@@ -36,6 +31,9 @@ import {
   type BacktestMarketRow,
 } from "@/components/backtest/backtest-markets-table"
 import type { AutomationBacktestState } from "./use-automation-backtest"
+
+/** Nothing is pinned in the add-market picker; the list is already filtered. */
+const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 
 /**
  * The editor's right panel while backtest mode is on: setup form → per-market
@@ -62,6 +60,7 @@ export function AutomationBacktestSidePanel({
   onSaveAndRerun?: () => void
 }) {
   const markets = useBinanceMarketRows()
+  const { favorites, toggleFavorite } = useMarketFavorites()
   const [keepName, setKeepName] = React.useState("")
   const {
     phase,
@@ -80,8 +79,16 @@ export function AutomationBacktestSidePanel({
   } = backtest
 
   const maxDays = maxWindowDays(interval)
-  const availableMarkets = markets.filter(
-    (row) => !selectedMarkets.includes(row.coin)
+  // Set lookup, not `includes`: with hundreds of markets selected, filtering an
+  // array inside an array walk is quadratic and re-runs on every price tick,
+  // which locks up the panel.
+  const selectedSet = React.useMemo(
+    () => new Set(selectedMarkets),
+    [selectedMarkets]
+  )
+  const availableMarkets = React.useMemo(
+    () => markets.filter((row) => !selectedSet.has(row.coin)),
+    [markets, selectedSet]
   )
 
   // Merge each market's group row with its polled stats into the shared
@@ -170,14 +177,29 @@ export function AutomationBacktestSidePanel({
           {phase === "setup" ? (
             <>
               <div className="grid gap-2">
-                <Label>
-                  Markets{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (
-                    {isQfl ? "one shared QFL portfolio" : "one run per market"} ·
-                    max {MAX_EXTRA_MARKETS + 1})
-                  </span>
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>
+                    Markets{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (
+                      {isQfl
+                        ? "one shared QFL portfolio"
+                        : "one run per market"}{" "}
+                      · max {MAX_EXTRA_MARKETS + 1})
+                    </span>
+                  </Label>
+                  {selectedMarkets.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => setSelectedMarkets([])}
+                    >
+                      Clear all
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedMarkets.map((coin) => (
                     <Badge
@@ -202,27 +224,38 @@ export function AutomationBacktestSidePanel({
                 </div>
                 {availableMarkets.length > 0 &&
                 selectedMarkets.length < MAX_EXTRA_MARKETS + 1 ? (
-                  <Select
-                    value=""
-                    onValueChange={(coin) =>
+                  <MarketPicker
+                    rows={availableMarkets}
+                    selected=""
+                    protectedMarkets={EMPTY_MARKETS}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    // Backtest rows come from Binance: price and 24h change
+                    // only, so the funding/volume/open-interest columns are off.
+                    metrics={false}
+                    multiple
+                    maxSelectable={
+                      MAX_EXTRA_MARKETS + 1 - selectedMarkets.length
+                    }
+                    onSelectMany={(coins) =>
                       setSelectedMarkets(
-                        selectedMarkets.includes(coin)
-                          ? selectedMarkets
-                          : [...selectedMarkets, coin]
+                        [...new Set([...selectedMarkets, ...coins])].slice(
+                          0,
+                          MAX_EXTRA_MARKETS + 1
+                        )
                       )
                     }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Add market" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {availableMarkets.slice(0, 100).map((row) => (
-                        <SelectItem key={row.coin} value={row.coin}>
-                          {row.coin}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal text-muted-foreground"
+                      >
+                        Add market
+                        <ChevronDownIcon className="size-4" />
+                      </Button>
+                    }
+                  />
                 ) : null}
               </div>
 

@@ -1,6 +1,8 @@
 import * as React from "react"
-import { Loader2Icon, XIcon } from "lucide-react"
+import { ChevronDownIcon, Loader2Icon, XIcon } from "lucide-react"
 
+import { MarketPicker } from "@/components/trading/market-watchlist"
+import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import {
   BacktestMarketsTable,
   sortMarketRows,
@@ -42,6 +44,9 @@ import type { AutomationBotState } from "./use-automation-bot"
 // calculation can handle; every other strategy runs one independent runner
 // per market and isn't capped.
 const MAX_QFL_MARKETS = 200
+
+/** Nothing is pinned in the add-market picker; the list is already filtered. */
+const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 
 /**
  * The editor's right panel while Bot mode is on: market selector + Deploy for
@@ -87,8 +92,17 @@ export function AutomationBotSidePanel({
     selectedWallet?.network === "mainnet" ? "mainnet" : "testnet"
   ) as TradingNetwork
   const marketRows = useMarketRows(network)
-  const availableMarkets = marketRows.filter(
-    (row) => !selectedMarkets.includes(row.coin)
+  const { favorites, toggleFavorite } = useMarketFavorites()
+  // Set lookup, not `includes`: with hundreds of markets selected, filtering an
+  // array inside an array walk is quadratic and re-runs on every price tick,
+  // which locks up the panel.
+  const selectedSet = React.useMemo(
+    () => new Set(selectedMarkets),
+    [selectedMarkets]
+  )
+  const availableMarkets = React.useMemo(
+    () => marketRows.filter((row) => !selectedSet.has(row.coin)),
+    [marketRows, selectedSet]
   )
   const maxMarkets = isQfl ? MAX_QFL_MARKETS : Infinity
 
@@ -160,16 +174,29 @@ export function AutomationBotSidePanel({
           ) : phase === "setup" ? (
             <>
               <div className="grid gap-2">
-                <Label>
-                  Markets{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (
-                    {isQfl
-                      ? `one shared QFL portfolio · max ${MAX_QFL_MARKETS}`
-                      : "one runner per market"}
-                    )
-                  </span>
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>
+                    Markets{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (
+                      {isQfl
+                        ? `one shared QFL portfolio · max ${MAX_QFL_MARKETS}`
+                        : "one runner per market"}
+                      )
+                    </span>
+                  </Label>
+                  {selectedMarkets.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => setSelectedMarkets([])}
+                    >
+                      Clear all
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedMarkets.map((coin) => (
                     <Badge
@@ -194,27 +221,33 @@ export function AutomationBotSidePanel({
                 </div>
                 {availableMarkets.length > 0 &&
                 selectedMarkets.length < maxMarkets ? (
-                  <Select
-                    value=""
-                    onValueChange={(coin) =>
+                  <MarketPicker
+                    rows={availableMarkets}
+                    selected=""
+                    protectedMarkets={EMPTY_MARKETS}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    multiple
+                    maxSelectable={maxMarkets - selectedMarkets.length}
+                    onSelectMany={(coins) =>
                       setSelectedMarkets(
-                        selectedMarkets.includes(coin)
-                          ? selectedMarkets
-                          : [...selectedMarkets, coin].slice(0, maxMarkets)
+                        [...new Set([...selectedMarkets, ...coins])].slice(
+                          0,
+                          maxMarkets
+                        )
                       )
                     }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Add market" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {availableMarkets.slice(0, 100).map((row) => (
-                        <SelectItem key={row.coin} value={row.coin}>
-                          {row.coin}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal text-muted-foreground"
+                      >
+                        Add market
+                        <ChevronDownIcon className="size-4" />
+                      </Button>
+                    }
+                  />
                 ) : null}
               </div>
 

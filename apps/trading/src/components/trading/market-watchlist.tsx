@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronsUpDownIcon,
   SearchIcon,
@@ -28,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import {
   STICKY_SCROLL_OVERRIDES,
   STICKY_TABLE_HEADER,
@@ -79,6 +81,54 @@ const CATEGORIES: Array<{ value: CategoryFilter; label: string }> = [
   { value: "forex", label: "Forex" },
   { value: "other", label: "Other" },
 ]
+
+/**
+ * Minimum a row needs to appear in the picker. Live Hyperliquid `MarketRow`s
+ * satisfy all of it; Binance backtest rows only carry the required fields.
+ */
+export type MarketPickerRow = {
+  coin: string
+  markPx: string
+  prevDayPx: string
+  collateralSymbol?: string
+  funding?: string
+  openInterest?: string
+  dayNtlVlm?: string
+  maxLeverage?: number
+  category?: string
+  dex?: string
+  liveData?: boolean
+}
+
+/**
+ * Selection box for the picker. Shared by the header and the rows so both read
+ * the same — a Checkbox component in the header rendered a check on a white
+ * background when partially selected, which looked broken.
+ */
+function PickMark({
+  state,
+  dimmed,
+}: {
+  state: "checked" | "indeterminate" | "unchecked"
+  dimmed?: boolean
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-4 items-center justify-center rounded-[4px] border border-input",
+        state !== "unchecked" &&
+          "border-primary bg-primary text-primary-foreground",
+        dimmed && "opacity-50"
+      )}
+    >
+      {state === "checked" ? <CheckIcon className="size-3.5" /> : null}
+      {state === "indeterminate" ? (
+        <span className="h-0.5 w-2 rounded-full bg-current" />
+      ) : null}
+    </span>
+  )
+}
 
 const PICKER_VIEWS: Array<{ value: PickerView; label: string }> = [
   { value: "favorites", label: "Favorites" },
@@ -340,15 +390,43 @@ export function MarketPicker({
   favorites,
   onToggleFavorite,
   onSelect,
+  trigger,
+  metrics = true,
+  multiple = false,
+  onSelectMany,
+  maxSelectable,
 }: {
-  rows: MarketRow[]
+  rows: MarketPickerRow[]
   selected: string
   protectedMarkets: ReadonlySet<string>
   favorites: ReadonlySet<string>
   onToggleFavorite: (coin: string) => void
-  onSelect: (coin: string) => void
+  /** Single-select only; multi-select reports through `onSelectMany`. */
+  onSelect?: (coin: string) => void
+  /**
+   * Replaces the default market-symbol button — lets the same picker act as an
+   * "Add market" control in the backtest and bot panels.
+   */
+  trigger?: React.ReactNode
+  /**
+   * Funding, volume, open interest and the category tabs come from live
+   * Hyperliquid data. Backtest markets are Binance rows that only carry price
+   * and 24h change, so they turn this off rather than show empty columns.
+   */
+  metrics?: boolean
+  /**
+   * Check off several markets and add them in one go, instead of reopening the
+   * picker per market. `onSelectMany` receives everything ticked.
+   */
+  multiple?: boolean
+  onSelectMany?: (coins: string[]) => void
+  /** Caps how many can be ticked at once (remaining slots in the parent list). */
+  maxSelectable?: number
 }) {
   const [open, setOpen] = React.useState(false)
+  const [picked, setPicked] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const [query, setQuery] = React.useState("")
   const [view, setView] = React.useState<PickerView>("all")
   const [category, setCategory] = React.useState<CategoryFilter>("all")
@@ -374,7 +452,9 @@ export function MarketPicker({
       list = list.filter((row) => row.category === "crypto")
     } else if (view === "tradfi") {
       list = list.filter((row) =>
-        ["stocks", "indices", "commodities", "forex"].includes(row.category)
+        ["stocks", "indices", "commodities", "forex"].includes(
+          row.category ?? ""
+        )
       )
       if (category !== "all") {
         list = list.filter((row) => row.category === category)
@@ -408,23 +488,94 @@ export function MarketPicker({
         : { key, dir: key === "market" ? "asc" : "desc" }
     )
 
+  // An unlimited parent list passes Infinity; treat that as "no cap" so the
+  // footer doesn't advertise a nonsense maximum.
+  const cap =
+    maxSelectable !== undefined && Number.isFinite(maxSelectable)
+      ? maxSelectable
+      : undefined
+  const roomLeft = (set: ReadonlySet<string>) =>
+    cap === undefined || set.size < cap
+  const addWithinLimit = (set: Set<string>, coins: string[]) => {
+    for (const coin of coins) {
+      if (!roomLeft(set)) break
+      set.add(coin)
+    }
+    return set
+  }
+  const togglePick = (coin: string) =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (next.has(coin)) next.delete(coin)
+      else addWithinLimit(next, [coin])
+      return next
+    })
+  const visibleCoins = visible.map((row) => row.coin)
+  const allVisiblePicked =
+    visibleCoins.length > 0 && visibleCoins.every((coin) => picked.has(coin))
+  const someVisiblePicked =
+    !allVisiblePicked && visibleCoins.some((coin) => picked.has(coin))
+  // Clear whenever anything listed is ticked — not only when *all* of it is.
+  // With a cap (50) and a long list (~600), "all ticked" is unreachable, which
+  // left this button stuck on "select" with no way back.
+  const toggleVisible = () =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (allVisiblePicked || someVisiblePicked) {
+        visibleCoins.forEach((coin) => next.delete(coin))
+        return next
+      }
+      return addWithinLimit(next, visibleCoins)
+    })
+  const favoriteCoins = rows
+    .map((row) => row.coin)
+    .filter((coin) => favorites.has(coin))
+  const pickFavorites = () =>
+    setPicked((current) => addWithinLimit(new Set(current), favoriteCoins))
+  const commitPicked = () => {
+    if (picked.size === 0) return
+    onSelectMany?.([...picked])
+    setPicked(new Set())
+    setOpen(false)
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) {
+          setPicked(new Set())
+          setQuery("")
+        }
+      }}
+    >
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="Choose market"
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[15px] font-bold transition-colors hover:bg-muted"
-        >
-          <MarketIcon key={selected} coin={selected} />
-          <span>{selected}-PERP</span>
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-        </button>
+        {trigger ?? (
+          <button
+            type="button"
+            aria-label="Choose market"
+            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[15px] font-bold transition-colors hover:bg-muted"
+          >
+            <MarketIcon key={selected} coin={selected} />
+            <span>{selected}-PERP</span>
+            <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none gap-0 overflow-hidden rounded-xl p-0"
+        className={cn(
+          "flex flex-col gap-0 overflow-hidden rounded-xl p-0",
+          // Without the metric columns there are only three columns to show, so
+          // the wide fixed-height sheet would be mostly empty space.
+          // The scroll area needs a definite height to scroll — a max-height
+          // silently clips the list instead (no scrollbar, no wheel).
+          metrics
+            ? "h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none"
+            : "h-[min(60vh,440px)] w-[min(94vw,520px)] max-w-none"
+        )}
       >
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="relative">
@@ -438,7 +589,12 @@ export function MarketPicker({
             />
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1" role="tablist">
-            {PICKER_VIEWS.map((item) => (
+            {(metrics
+              ? PICKER_VIEWS
+              : PICKER_VIEWS.filter(
+                  (item) => item.value === "favorites" || item.value === "all"
+                )
+            ).map((item) => (
               <button
                 key={item.value}
                 type="button"
@@ -486,9 +642,35 @@ export function MarketPicker({
           </div>
         ) : null}
         <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
-          <Table className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3">
+          <Table
+            className={cn(
+              "text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3",
+              metrics ? "min-w-[760px]" : "min-w-0"
+            )}
+          >
             <TableHeader className={STICKY_TABLE_HEADER}>
               <TableRow>
+                {multiple ? (
+                  <TableHead column="select">
+                    <button
+                      type="button"
+                      onClick={toggleVisible}
+                      aria-label="Select all listed markets"
+                      aria-pressed={allVisiblePicked}
+                      className="flex items-center"
+                    >
+                      <PickMark
+                        state={
+                          allVisiblePicked
+                            ? "checked"
+                            : someVisiblePicked
+                              ? "indeterminate"
+                              : "unchecked"
+                        }
+                      />
+                    </button>
+                  </TableHead>
+                ) : null}
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
@@ -507,24 +689,28 @@ export function MarketPicker({
                   sort={sort}
                   onSort={toggleSort}
                 />
-                <PickerTableHead
-                  label="Funding"
-                  sortKey="funding"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
-                <PickerTableHead
-                  label="Volume"
-                  sortKey="volume"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
-                <PickerTableHead
-                  label="Open interest"
-                  sortKey="openInterest"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
+                {metrics ? (
+                  <>
+                    <PickerTableHead
+                      label="Funding"
+                      sortKey="funding"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <PickerTableHead
+                      label="Volume"
+                      sortKey="volume"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <PickerTableHead
+                      label="Open interest"
+                      sortKey="openInterest"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                  </>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -534,16 +720,40 @@ export function MarketPicker({
                 const openInterest =
                   Number(row.openInterest) * Number(row.markPx)
                 const favorite = favorites.has(row.coin)
-                const liveData = row.liveData
+                // Binance backtest rows carry no liveData flag; their price is
+                // always real, so only an explicit false means "no data".
+                const liveData = row.liveData !== false
                 return (
                   <TableRow
                     key={row.coin}
-                    data-state={selected === row.coin ? "selected" : undefined}
+                    aria-selected={multiple ? picked.has(row.coin) : undefined}
+                    data-state={
+                      (multiple ? picked.has(row.coin) : selected === row.coin)
+                        ? "selected"
+                        : undefined
+                    }
                     onClick={() => {
-                      onSelect(row.coin)
+                      if (multiple) {
+                        togglePick(row.coin)
+                        return
+                      }
+                      onSelect?.(row.coin)
                       setOpen(false)
                     }}
                   >
+                    {multiple ? (
+                      <TableCell column="select">
+                        {/* The row owns the click, so this is only the mark. */}
+                        <PickMark
+                          state={
+                            picked.has(row.coin) ? "checked" : "unchecked"
+                          }
+                          dimmed={
+                            !picked.has(row.coin) && !roomLeft(picked)
+                          }
+                        />
+                      </TableCell>
+                    ) : null}
                     <TableCell className="py-2 pl-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -567,11 +777,14 @@ export function MarketPicker({
                           />
                         </button>
                         <span className="font-semibold">
-                          {displaySymbol(row.coin)}-{row.collateralSymbol}
+                          {displaySymbol(row.coin)}
+                          {row.collateralSymbol ? `-${row.collateralSymbol}` : ""}
                         </span>
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-                          {row.maxLeverage}x
-                        </span>
+                        {row.maxLeverage ? (
+                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                            {row.maxLeverage}x
+                          </span>
+                        ) : null}
                         {row.dex ? (
                           <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
                             {row.dex}
@@ -601,15 +814,21 @@ export function MarketPicker({
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? `${funding.toFixed(4)}%` : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatCompactUsd(openInterest) : "—"}
-                    </TableCell>
+                    {metrics ? (
+                      <>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData ? `${funding.toFixed(4)}%` : "—"}
+                        </TableCell>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData
+                            ? formatCompactUsd(Number(row.dayNtlVlm))
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData ? formatCompactUsd(openInterest) : "—"}
+                        </TableCell>
+                      </>
+                    ) : null}
                   </TableRow>
                 )
               })}
@@ -623,9 +842,49 @@ export function MarketPicker({
             </div>
           ) : null}
         </ScrollArea>
-        <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
-          {visible.length} market{visible.length === 1 ? "" : "s"}
-        </div>
+        {multiple ? (
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={favoriteCoins.length === 0}
+                onClick={pickFavorites}
+              >
+                <StarIcon className="size-3.5" />
+                All favorites
+              </Button>
+              {picked.size > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPicked(new Set())}
+                >
+                  Clear
+                </Button>
+              ) : null}
+              <span className="text-[11px] text-muted-foreground">
+                {picked.size} selected
+                {cap !== undefined ? ` · ${cap} max` : ""}
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={picked.size === 0}
+              onClick={commitPicked}
+            >
+              Add {picked.size > 0 ? picked.size : ""}
+              {picked.size === 1 ? " market" : " markets"}
+            </Button>
+          </div>
+        ) : (
+          <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+            {visible.length} market{visible.length === 1 ? "" : "s"}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )
@@ -683,7 +942,7 @@ function displaySymbol(coin: string) {
 }
 
 function pickerSortValue(
-  row: MarketRow,
+  row: MarketPickerRow,
   key: Exclude<PickerSortKey, "market">
 ) {
   switch (key) {
