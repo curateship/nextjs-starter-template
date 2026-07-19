@@ -23,7 +23,6 @@ import { Slider } from "@/components/ui/slider"
 import {
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
-  MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
   resolveBackground,
   type AdminBackground,
@@ -53,6 +52,8 @@ export function AdminStylingSettings({
     update({ chrome: { ...styling.chrome, ...patch } })
   const updateBorderColor = (patch: Partial<AdminBackground>) =>
     update({ cardBorderColor: { ...styling.cardBorderColor, ...patch } })
+  const updateDividerColor = (patch: Partial<AdminBackground>) =>
+    update({ dividerColor: { ...styling.dividerColor, ...patch } })
 
   const modal = styling.modal
   const updateModal = (patch: Partial<AdminModalStyling>) =>
@@ -90,7 +91,7 @@ export function AdminStylingSettings({
             valueLabel={`${styling.gutter}px`}
             disabled={isSaving}
             onChange={(gutter) => update({ gutter })}
-            help="The outer padding of the page canvas. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
+            help="One spacing value for the whole admin area: the outer padding of the page canvas, the gaps between cards, and the padding and section gaps inside modals. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
           />
 
           <SliderRow
@@ -167,6 +168,40 @@ export function AdminStylingSettings({
 
       <Card>
         <CardHeader>
+          <CardTitle>Divider lines</CardTitle>
+          <CardDescription>
+            The thin lines inside cards and tables, the sidebar edge, and chart
+            gridlines. The whole admin area recolors live as you adjust this.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <BackgroundField
+            idPrefix="divider-color"
+            value={styling.dividerColor}
+            isSaving={isSaving}
+            defaultHint="Uses the theme's own divider color (adapts to light and dark)."
+            onChange={updateDividerColor}
+          />
+
+          <div className="grid gap-2">
+            <Label>Preview</Label>
+            <div className="max-w-lg overflow-hidden rounded-lg border">
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
+                Section header
+              </div>
+              <div className="border-b px-4 py-2 text-sm text-muted-foreground">
+                A row, separated by a divider.
+              </div>
+              <div className="px-4 py-2 text-sm text-muted-foreground">
+                The last row has no divider under it.
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Main content area</CardTitle>
           <CardDescription>The background behind your pages and cards.</CardDescription>
         </CardHeader>
@@ -204,6 +239,8 @@ export function AdminStylingSettings({
           <CardTitle>Modal</CardTitle>
           <CardDescription>
             Dialogs across the admin area. Changes apply to any open modal live.
+            Modal padding and the gaps between its sections follow the Content
+            spacing setting above.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -216,17 +253,6 @@ export function AdminStylingSettings({
             disabled={isSaving}
             onChange={(overlayOpacity) => updateModal({ overlayOpacity })}
             help="How dark the area outside the modal gets."
-          />
-
-          <SliderRow
-            label="Inner spacing"
-            value={modal.padding}
-            min={0}
-            max={MAX_MODAL_PADDING}
-            valueLabel={`${modal.padding}px`}
-            disabled={isSaving}
-            onChange={(padding) => updateModal({ padding })}
-            help="Padding between the modal edge and its content."
           />
 
           <div className="grid gap-3">

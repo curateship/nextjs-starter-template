@@ -765,22 +765,26 @@ export default function SiteEditPage() {
             </div>
           )}
 
-          <div className="flex items-start gap-6">
+          <CardGroup className="flex items-start">
             {/* Vertical tab list */}
-            <nav className="ml-2 flex w-48 shrink-0 flex-col">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "text-left px-4 py-2.5 text-sm font-medium rounded-md transition-colors",
-                    activeTab === tab.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+            <Card className="w-48 shrink-0">
+              <CardContent className="grid gap-0.5 p-2">
+                <nav className="grid gap-0.5">
+                  {TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        "text-left px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                        activeTab === tab.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </nav>
+              </CardContent>
+            </Card>
 
             {/* Tab content */}
             <div className="flex-1 min-w-0">
@@ -924,7 +928,7 @@ export default function SiteEditPage() {
                 <AdminStylingSettingsTab onStatusChange={setAdminSettingsStatus} />
               )}
             </div>
-          </div>
+          </CardGroup>
         </div>
       </AdminLayout>
     </>

@@ -44,7 +44,11 @@ function DashboardModalContent({
     <DialogContent
       showCloseButton={false}
       size="admin"
-      className={cn("flex h-dvh max-h-dvh flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100vh-4rem)]", className)}
+      // The scroll layout pads its own header/body/footer (so the scroll area can
+      // run edge to edge) — styles.css keys off this to move the content gutter
+      // from the dialog onto those three slots instead of applying it twice.
+      data-modal-layout="scroll"
+      className={cn("flex h-dvh max-h-dvh flex-col overflow-hidden sm:h-auto sm:max-h-[calc(100vh-4rem)]", className)}
       {...props}
     >
       <DashboardModalHeader>
@@ -65,8 +69,9 @@ function DashboardModalContent({
   )
 }
 
+// Padding comes from --shell-gutter via styles.css, not from utilities here.
 function DashboardModalHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn("relative px-4 pt-4 pb-0 text-left sm:px-6 sm:pt-6", className)} {...props} />
+  return <DialogHeader className={cn("relative text-left", className)} {...props} />
 }
 
 function DashboardModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {
@@ -91,7 +96,13 @@ function DashboardModalCloseButton() {
         type="button"
         variant="ghost"
         size="icon-sm"
-        className="absolute top-3 right-3 sm:top-5 sm:right-5"
+        className="absolute"
+        // Sits in the header's gutter, nudged up so the 32px button centres on
+        // the title's 18px cap height. Clamped so it stays inside at gutter 0.
+        style={{
+          top: "max(0px, calc(var(--shell-gutter, 1rem) - 7px))",
+          right: "var(--shell-gutter, 1rem)",
+        }}
       >
         <XIcon className="h-4 w-4" />
         <span className="sr-only">Close</span>
@@ -112,8 +123,12 @@ function DashboardModalScrollBody({
   return (
     <ScrollArea className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)} {...props}>
       <div
+        data-slot="dialog-body"
         className={cn(
-          "grid gap-6 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 max-sm:[&_.grid-cols-2]:grid-cols-1 max-sm:[&_.grid-cols-3]:grid-cols-1 max-sm:[&_.grid-cols-4]:grid-cols-1 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0 sm:**:data-[slot=card]:shadow-none",
+          // The phone flatten of card chrome (border, background, radius, shadow)
+          // lives in styles.css next to the modal card rules it has to beat; only
+          // the padding collapse is left here.
+          "grid max-sm:[&_.grid-cols-2]:grid-cols-1 max-sm:[&_.grid-cols-3]:grid-cols-1 max-sm:[&_.grid-cols-4]:grid-cols-1 max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0 sm:**:data-[slot=card]:shadow-none",
           viewportClassName
         )}
       >
@@ -124,7 +139,7 @@ function DashboardModalScrollBody({
 }
 
 function DashboardModalFooter({ className, ...props }: React.ComponentProps<typeof DialogFooter>) {
-  return <DialogFooter className={cn("px-4 pb-4 sm:px-6 sm:pb-6", className)} {...props} />
+  return <DialogFooter className={className} {...props} />
 }
 
 function DashboardModalFooterActions({ className, ...props }: React.ComponentProps<typeof DialogFooterActions>) {

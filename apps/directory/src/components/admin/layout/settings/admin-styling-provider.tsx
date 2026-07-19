@@ -4,10 +4,9 @@ import * as React from "react"
 
 import {
   createDefaultStyling,
-  getModalStyleVars,
-  MODAL_STYLE_VAR_NAMES,
+  getRootStyleVars,
   normalizeStyling,
-  type AdminModalStyling,
+  ROOT_STYLE_VAR_NAMES,
   type AdminStyling,
 } from "@/lib/utils/admin-styling"
 
@@ -26,13 +25,15 @@ export function useAdminStyling(): AdminStylingContextValue | null {
 
 /**
  * The dialog portals to document.body, outside the shell subtree, so modal
- * styling is applied as CSS variables on the document root where it can reach.
+ * styling — including the shared content gutter it uses for spacing — is applied
+ * as CSS variables on the document root where it can reach. `data-shell-flat`
+ * mirrors AdminLayout's flat mode so modals drop their chrome at gutter 0 too.
  */
-function useModalStyleVars(modal: AdminModalStyling) {
+function useRootStyleVars(styling: AdminStyling) {
   React.useEffect(() => {
     const root = document.documentElement
-    const vars = getModalStyleVars(modal)
-    for (const name of MODAL_STYLE_VAR_NAMES) {
+    const vars = getRootStyleVars(styling)
+    for (const name of ROOT_STYLE_VAR_NAMES) {
       const value = vars[name]
       if (value === undefined) {
         root.style.removeProperty(name)
@@ -40,12 +41,18 @@ function useModalStyleVars(modal: AdminModalStyling) {
         root.style.setProperty(name, value)
       }
     }
+    if (styling.gutter === 0) {
+      root.dataset.shellFlat = "true"
+    } else {
+      delete root.dataset.shellFlat
+    }
     return () => {
-      for (const name of MODAL_STYLE_VAR_NAMES) {
+      for (const name of ROOT_STYLE_VAR_NAMES) {
         root.style.removeProperty(name)
       }
+      delete root.dataset.shellFlat
     }
-  }, [modal])
+  }, [styling])
 }
 
 export function AdminStylingProvider({
@@ -59,7 +66,7 @@ export function AdminStylingProvider({
     initialStyling ? normalizeStyling(initialStyling) : createDefaultStyling()
   )
 
-  useModalStyleVars(styling.modal)
+  useRootStyleVars(styling)
 
   const value = React.useMemo<AdminStylingContextValue>(
     () => ({ styling, setStyling }),
