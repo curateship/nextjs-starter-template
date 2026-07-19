@@ -19,6 +19,12 @@ import {
   DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
   MAX_LIQUIDATION_ALERT_THRESHOLD_PCT,
 } from "@/lib/trading/liquidation-risk"
+import {
+  DEFAULT_ORDER_DEFAULTS,
+  MAX_DEFAULT_LEVERAGE,
+  MIN_DEFAULT_LEVERAGE,
+  normalizeOrderDefaults,
+} from "@/lib/trading/order-defaults"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
@@ -106,6 +112,19 @@ const shellConfigSchema = z.object({
     .min(0)
     .max(MAX_LIQUIDATION_ALERT_THRESHOLD_PCT)
     .catch(DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT),
+  // Lenient for the same reason: rows saved before this card existed.
+  orderDefaults: z
+    .object({
+      leverage: z
+        .number()
+        .int()
+        .min(MIN_DEFAULT_LEVERAGE)
+        .max(MAX_DEFAULT_LEVERAGE),
+      marginMode: z.enum(["cross", "isolated"]),
+      orderType: z.enum(["market", "limit"]),
+      sizeUnit: z.enum(["usd", "coin", "pct"]),
+    })
+    .catch(() => ({ ...DEFAULT_ORDER_DEFAULTS })),
   favicon: z.string(),
   topRightNavigation: z.array(
     z.object({
@@ -316,6 +335,7 @@ export function parseShellGlobals(value: unknown) {
     liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
       settings.liquidationAlertThresholdPct
     ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
   }
 }
 
@@ -338,5 +358,6 @@ function pickShellGlobals(settings: ShellConfig) {
     liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
       settings.liquidationAlertThresholdPct
     ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
   }
 }

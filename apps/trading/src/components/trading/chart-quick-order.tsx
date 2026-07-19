@@ -9,6 +9,8 @@ import {
   type SizeUnit,
   type TicketState,
 } from "@/components/trading/order-ticket"
+import { isMarketableLimit } from "@/lib/trading/marketable-limit"
+import type { OrderDefaults } from "@/lib/trading/order-defaults"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -74,6 +76,7 @@ export function ChartQuickOrder({
   paperWalletId,
   disabledReason,
   confirmationEnabled,
+  orderDefaults,
   onNotify,
   onOrderPlaced,
   onClose,
@@ -88,6 +91,8 @@ export function ChartQuickOrder({
   paperWalletId?: string | null
   disabledReason: string | null
   confirmationEnabled: boolean
+  /** Starting values from Trading settings. */
+  orderDefaults: OrderDefaults
   onNotify: (message: string, tone: "ok" | "error") => void
   /** Fired after an order is accepted so the parent can pull fresh state. */
   onOrderPlaced?: () => void
@@ -97,10 +102,14 @@ export function ChartQuickOrder({
   const maxLeverage = marketRow?.maxLeverage ?? 1
 
   const [szInput, setSzInput] = React.useState("")
-  const [szUnit, setSzUnit] = React.useState<SizeUnit>("usd")
+  const [szUnit, setSzUnit] = React.useState<SizeUnit>(orderDefaults.sizeUnit)
   const [reduceOnly, setReduceOnly] = React.useState(false)
-  const [leverage, setLeverage] = React.useState(Math.min(5, maxLeverage))
-  const [isCross, setIsCross] = React.useState(!marketRow?.onlyIsolated)
+  const [leverage, setLeverage] = React.useState(
+    Math.min(orderDefaults.leverage, maxLeverage)
+  )
+  const [isCross, setIsCross] = React.useState(
+    marketRow?.onlyIsolated ? false : orderDefaults.marginMode === "cross"
+  )
   const [bracketOn, setBracketOn] = React.useState(false)
   const [slPct, setSlPct] = React.useState("")
   const [tpPct, setTpPct] = React.useState("")
@@ -531,6 +540,7 @@ export function ChartQuickOrder({
         positionSzi={positionSzi}
         stopLossPx={stopLossPx}
         takeProfitPx={takeProfitPx}
+        marketableLimit={isMarketableLimit(ticketState, markPx)}
         onOpenChange={setConfirming}
         onConfirm={() => void submit()}
       />

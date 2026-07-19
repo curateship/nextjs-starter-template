@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import { isMarketableLimit } from "@/lib/trading/marketable-limit"
 import {
   describeOpenOrder,
   type FrontendOpenOrder,
@@ -131,8 +132,14 @@ export async function submitManualOrder(
   }
 
   const markPx = ctx.markPx
+  // A limit priced through the market (buy above / sell below the mark) can
+  // only ever fill instantly, so send it as a market order instead of resting
+  // it or letting a post-only flag bounce it.
+  const orderType = isMarketableLimit(input, markPx)
+    ? "market"
+    : input.orderType
   const executionPxRaw =
-    input.orderType === "limit" && input.px
+    orderType === "limit" && input.px
       ? input.px
       : applySlippage(markPx, input.side)
   const px = roundPrice(executionPxRaw, asset.szDecimals)
@@ -148,8 +155,8 @@ export async function submitManualOrder(
   const intent = {
     market: input.market,
     side: input.side,
-    orderType: input.orderType,
-    px: input.orderType === "limit" ? px : null,
+    orderType,
+    px: orderType === "limit" ? px : null,
     sz,
     reduceOnly: input.reduceOnly,
     leverage: effectiveLeverage,
@@ -189,10 +196,7 @@ export async function submitManualOrder(
     px,
     sz,
     reduceOnly: input.reduceOnly,
-    tif:
-      input.orderType === "market"
-        ? ("FrontendMarket" as const)
-        : input.tif,
+    tif: orderType === "market" ? ("FrontendMarket" as const) : input.tif,
     cloid: buildCloid(MANUAL_CLOID_PREFIX),
   }
 
