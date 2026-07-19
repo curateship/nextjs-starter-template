@@ -1,13 +1,12 @@
 import {
-  cloneElement,
   createElement,
-  isValidElement,
   type ComponentType,
   type ReactNode,
 } from "react"
 import { notFound } from "@tanstack/react-router"
 import { createServerFn } from "@tanstack/react-start"
 import { renderServerComponent } from "@tanstack/react-start/rsc"
+import { AdminRouteOutlet } from "@/components/admin/layout/admin-route-outlet"
 import type { Metadata } from "@/lib/metadata"
 import { metadataToHead } from "@/lib/metadata-head"
 
@@ -33,8 +32,13 @@ type PageRoute = {
 
 const pageModules = import.meta.glob<PageModule>("../screens/**/page.tsx")
 const adminLayout = () => import("@/screens/admin/layout")
+const adminGuard = () => import("@/screens/admin/require-admin")
 const marketplaceLayout = () => import("@/screens/themes/marketplace/layout")
 const appLayout = () => import("@/screens/layout")
+
+function isAdminPath(pathname: string) {
+  return pathname === "/admin" || pathname.startsWith("/admin/")
+}
 
 function escapePattern(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -124,27 +128,32 @@ async function renderComponent<Props extends object>(
   return await (Component as (props: Props) => ReactNode | Promise<ReactNode>)(props)
 }
 
+function pageProps(params: Record<string, string | string[]>, search: string): PageProps {
+  return {
+    params: Promise.resolve(params),
+    searchParams: Promise.resolve(parseSearch(search)),
+  }
+}
+
+async function pageMetadataOf(pageModule: PageModule, props: PageProps) {
+  return (await pageModule.generateMetadata?.(props)) || pageModule.metadata || {}
+}
+
 const renderPage = createServerFn({ method: "GET" })
   .inputValidator((input: { pathname: string; search: string }) => input)
   .handler(async ({ data }) => {
+    // Admin renders through renderAdminShell/renderAdminPage, which enforce
+    // access. Refuse admin paths here so this function cannot be used to render
+    // an admin screen without that check.
+    if (isAdminPath(data.pathname)) throw notFound()
+
     const { route, params } = resolvePage(data.pathname)
     const pageModule = await route.load()
-    const props: PageProps = {
-      params: Promise.resolve(params),
-      searchParams: Promise.resolve(parseSearch(data.search)),
-    }
-    let adminShell: ReactNode = null
-    const isAdminRoute = data.pathname === "/admin" || data.pathname.startsWith("/admin/")
-    if (isAdminRoute) {
-      const { default: AdminLayout } = await adminLayout()
-      adminShell = await renderComponent(AdminLayout, { children: null })
-    }
+    const props = pageProps(params, data.search)
 
     let content = await renderComponent(pageModule.default, props)
 
-    if (adminShell && isValidElement(adminShell)) {
-      content = cloneElement(adminShell, undefined, content)
-    } else if (
+    if (
       data.pathname === "/themes/marketplace" ||
       data.pathname.startsWith("/themes/marketplace/")
     ) {
@@ -157,7 +166,7 @@ const renderPage = createServerFn({ method: "GET" })
 
     const [layoutMetadata, pageMetadata] = await Promise.all([
       appLayoutModule.generateMetadata?.() || {},
-      pageModule.generateMetadata?.(props) || pageModule.metadata || {},
+      pageMetadataOf(pageModule, props),
     ])
     const head = metadataToHead({ ...layoutMetadata, ...pageMetadata })
 
@@ -166,4 +175,51 @@ const renderPage = createServerFn({ method: "GET" })
 
 export async function loadRenderedPage(pathname: string, search: string) {
   return renderPage({ data: { pathname, search } })
+}
+
+// Admin is split across two routes so the shell survives navigation. The parent
+// route renders everything around the page — app layout, session check, sidebar —
+// and leaves an <Outlet /> where the page goes; the child route renders only the
+// page. Clicking a sidebar item therefore re-runs renderAdminPage alone, instead
+// of rebuilding the session lookup and site list on every click.
+const renderAdminShell = createServerFn({ method: "GET" }).handler(async () => {
+  const { default: AdminLayout } = await adminLayout()
+  const shell = await renderComponent(AdminLayout, {
+    children: createElement(AdminRouteOutlet),
+  })
+
+  const appLayoutModule = await appLayout()
+  const content = await renderComponent(appLayoutModule.default, { children: shell })
+  const layoutMetadata = (await appLayoutModule.generateMetadata?.()) || {}
+
+  return {
+    Renderable: await renderServerComponent(content),
+    head: metadataToHead(layoutMetadata),
+  }
+})
+
+const renderAdminPage = createServerFn({ method: "GET" })
+  .inputValidator((input: { pathname: string; search: string }) => input)
+  .handler(async ({ data }) => {
+    if (!isAdminPath(data.pathname)) throw notFound()
+    const { requireAdminAccess } = await adminGuard()
+    await requireAdminAccess()
+
+    const { route, params } = resolvePage(data.pathname)
+    const pageModule = await route.load()
+    const props = pageProps(params, data.search)
+    const content = await renderComponent(pageModule.default, props)
+
+    return {
+      Renderable: await renderServerComponent(content),
+      head: metadataToHead(await pageMetadataOf(pageModule, props)),
+    }
+  })
+
+export async function loadAdminShell() {
+  return renderAdminShell()
+}
+
+export async function loadRenderedAdminPage(pathname: string, search: string) {
+  return renderAdminPage({ data: { pathname, search } })
 }
