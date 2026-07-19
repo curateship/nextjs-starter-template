@@ -6,7 +6,6 @@ import type { GuardianStatus } from "@/lib/api/guardian"
 import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
 import {
   normalizeAutomationConfig,
-  automationConfigSchema,
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
 
@@ -102,24 +101,6 @@ export type BotDetailResponse = {
   workerOnline: boolean
 }
 
-const createBotSchema = z.object({
-  name: z.string().min(1).max(255),
-  walletId: z.string().min(1),
-  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
-  exchange: z.string().min(1).max(20).default("hyperliquid"),
-  mode: z.enum(["paper", "live"]),
-  /** The bot's config is the Automation's server-compiled snapshot. */
-  automationId: z.string().uuid(),
-  paperStartingEquity: z.number().positive().max(100_000_000).optional(),
-})
-
-const updateBotSchema = z.object({
-  botId: z.string().min(1),
-  name: z.string().min(1).max(255),
-  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
-  params: automationConfigSchema,
-})
-
 const botCommandSchema = z.object({
   botId: z.string().min(1),
   command: z.enum([
@@ -148,6 +129,14 @@ const loadBotsFn = createServerFn({ method: "GET" }).handler(
     return botListForUser(user.id)
   }
 )
+
+const loadAutomationBotFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ automationId: z.string().uuid() }))
+  .handler(async ({ data }): Promise<{ botId: string | null }> => {
+    const user = await requireUser()
+    const { getAutomationBotId } = await import("@/server/bots")
+    return { botId: await getAutomationBotId(user.id, data.automationId) }
+  })
 
 const loadBotDetailFn = createServerFn({ method: "POST" })
   .inputValidator(botIdSchema)
@@ -233,29 +222,39 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
     }
   })
 
-const createBotFn = createServerFn({ method: "POST" })
-  .inputValidator(createBotSchema)
+const deployBotSchema = z.object({
+  automationId: z.string().uuid(),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+  walletId: z.string().min(1),
+  mode: z.enum(["paper", "live"]),
+  paperStartingEquity: z.number().positive().max(100_000_000).optional(),
+})
+
+/** Deploys the automation as its live run (the editor's Bot mode). */
+const deployBotFn = createServerFn({ method: "POST" })
+  .inputValidator(deployBotSchema)
   .handler(async ({ data }): Promise<{ botId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserBot } = await import("@/server/bots")
+    const { deployAutomationBot } = await import("@/server/bots")
     requireAppOrigin()
     const user = await requireUser()
-    const bot = await createUserBot(user.id, data)
-    return { botId: bot.id }
+    return deployAutomationBot(user.id, data)
   })
 
-const updateBotFn = createServerFn({ method: "POST" })
-  .inputValidator(updateBotSchema)
+const renameBotSchema = z.object({
+  botId: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
+})
+
+/** Names a bot run — a named run is kept; the next deploy won't replace it. */
+const renameBotFn = createServerFn({ method: "POST" })
+  .inputValidator(renameBotSchema)
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { updateUserBot } = await import("@/server/bots")
+    const { renameUserBot } = await import("@/server/bots")
     requireAppOrigin()
     const user = await requireUser()
-    await updateUserBot(user.id, data.botId, {
-      name: data.name,
-      markets: data.markets,
-      params: data.params,
-    })
+    await renameUserBot(user.id, data.botId, data.name)
     return { ok: true }
   })
 
@@ -296,16 +295,21 @@ export function loadBots() {
   return loadBotsFn()
 }
 
+/** The bot deployed from an automation (latest), for the editor's Bot tab. */
+export function loadAutomationBot(automationId: string) {
+  return loadAutomationBotFn({ data: { automationId } })
+}
+
 export function loadBotDetail(botId: string) {
   return loadBotDetailFn({ data: { botId } })
 }
 
-export function createBot(input: z.infer<typeof createBotSchema>) {
-  return createBotFn({ data: input })
+export function deployBot(input: z.infer<typeof deployBotSchema>) {
+  return deployBotFn({ data: input })
 }
 
-export function updateBot(input: z.infer<typeof updateBotSchema>) {
-  return updateBotFn({ data: input })
+export function renameBot(botId: string, name: string) {
+  return renameBotFn({ data: { botId, name } })
 }
 
 export function sendCommand(

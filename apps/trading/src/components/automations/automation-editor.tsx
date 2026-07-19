@@ -1,13 +1,14 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
 import { ChartCandlestickIcon, ChevronsUpIcon, XIcon } from "lucide-react"
-import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
 import { AutomationBacktestParamsPanel } from "@/components/automations/automation-backtest-params-panel"
 import { AutomationBacktestSidePanel } from "@/components/automations/automation-backtest-side-panel"
 import { AutomationBacktestTradesPanel } from "@/components/automations/automation-backtest-trades-panel"
+import { AutomationBotSidePanel } from "@/components/automations/automation-bot-side-panel"
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
@@ -24,7 +25,19 @@ import {
   BacktestRunChart,
   type BacktestTuneDrag,
 } from "@/components/backtest/backtest-run-chart"
+import { StrategyTester } from "@/components/backtest/strategy-tester"
+import { BotLifecycleControls } from "@/components/bots/bot-lifecycle-controls"
+import { BotLiveChartPanel } from "@/components/bots/bot-live-chart-panel"
+import { buildBotResult } from "@/components/bots/bot-result"
+import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
+import { useBotLive } from "@/components/bots/use-bot-live"
+import type { BotCommand } from "@/components/bots/bot-lifecycle-controls"
+import { CHART_DOWN_COLOR, CHART_UP_COLOR } from "@/components/chart/chart-markers"
+import type { ChartPriceLine } from "@/components/chart/price-chart"
+import { getBotErrorMessage, sendCommand } from "@/lib/api/bots"
 import { maxWindowDays } from "@/lib/backtest/types"
+import type { TradingNetwork } from "@/lib/hl/network"
+import type { CandleInterval } from "@/lib/hl/ws"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -69,20 +82,23 @@ import {
   createAutomationNode,
 } from "@/lib/automations/node-registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import { usePanelLayout } from "@/lib/use-panel-layout"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
 import { useAutomationBacktest } from "./use-automation-backtest"
+import { useAutomationBot } from "./use-automation-bot"
 
 export function AutomationEditor({
   initial,
   initialFavoriteNodeKeys,
-  onCreateBot,
+  initialView,
 }: {
   initial: AutomationDetail
   initialFavoriteNodeKeys: AutomationPaletteKey[]
-  onCreateBot?: () => void
+  /** Opens the editor straight in a mode (deep links from run dashboards). */
+  initialView?: "backtest" | "bot"
 }) {
   const [name, setName] = React.useState(initial.name)
   const [type, setType] = React.useState(initial.type)
@@ -124,14 +140,31 @@ export function AutomationEditor({
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
   const backtest = useAutomationBacktest(initial.id)
+  const bot = useAutomationBot(initial.id)
+  // Land straight in a mode when a run dashboard deep-links here.
+  const enteredInitialView = React.useRef(false)
+  React.useEffect(() => {
+    if (enteredInitialView.current) return
+    enteredInitialView.current = true
+    if (initialView === "backtest") {
+      setVisualize(false)
+      backtest.enter()
+    } else if (initialView === "bot") {
+      setVisualize(false)
+      bot.enter()
+    }
+  }, [initialView, backtest, bot])
   const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
+  /** Trade selected in the bot bottom panel — pulses rings on the live chart. */
+  const [botFocusedTradeN, setBotFocusedTradeN] = React.useState<number | null>(
+    null
+  )
+  const [botCommandBusy, setBotCommandBusy] = React.useState(false)
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useAutomationLayout(
-    "automation-editor-horizontal-v2"
-  )
-  const verticalLayout = useAutomationLayout("automation-editor-vertical")
+  const horizontalLayout = usePanelLayout("automation-editor-horizontal-v2")
+  const verticalLayout = usePanelLayout("automation-editor-vertical")
 
   const togglePalette = React.useCallback(() => {
     const panel = palettePanelRef.current
@@ -437,21 +470,37 @@ export function AutomationEditor({
         ? "Save the automation to enable."
         : undefined
 
-  const view: AutomationView = backtest.open ? "backtest" : "canvas"
+  const view: AutomationView = bot.open
+    ? "bot"
+    : backtest.open
+      ? "backtest"
+      : "canvas"
   const handleViewChange = (next: AutomationView) => {
-    if (next === "backtest") {
-      if (backtest.open) return
-      setVisualize(false)
-      backtest.enter()
+    if (next === view) return
+    const openSidePanels = () => {
       if (desktop) {
         palettePanelRef.current?.expand()
         inspectorPanelRef.current?.expand()
       } else {
         setInspectorOpen(true)
       }
+    }
+    if (next === "backtest") {
+      if (bot.open) bot.exit()
+      setVisualize(false)
+      backtest.enter()
+      openSidePanels()
+      return
+    }
+    if (next === "bot") {
+      if (backtest.open) backtest.exit()
+      setVisualize(false)
+      bot.enter()
+      openSidePanels()
       return
     }
     if (backtest.open) backtest.exit()
+    if (bot.open) bot.exit()
   }
 
   const selectedBacktestRun =
@@ -490,6 +539,128 @@ export function AutomationEditor({
     if (selectedBacktestRunId) setLogOpen(true)
   }, [selectedBacktestRunId])
 
+  // ── Bot mode: the automation running live ───────────────────────────────
+  // Bot mode's center is ALWAYS a live chart, never the node canvas: the
+  // current run's market when one is loaded, else the market picked in the
+  // setup form (a preview of what's about to be deployed).
+  const botChartMarket = bot.detail
+    ? bot.selectedMarket
+    : (bot.selectedMarkets[0] ?? "BTC")
+  const botSetupNetwork: TradingNetwork =
+    bot.wallets.find((wallet) => wallet.id === bot.walletId)?.network ===
+    "mainnet"
+      ? "mainnet"
+      : "testnet"
+  const botLive = useBotLive(bot.detail, botChartMarket, botSetupNetwork)
+  const botShowsDashboard = bot.open && bot.detail !== null
+  React.useEffect(() => {
+    if (botShowsDashboard) setLogOpen(true)
+  }, [botShowsDashboard])
+
+  // Per-market equity base: cash minus what this market realized, falling
+  // back to the bot's paper stake, then the paper default.
+  const botClosedPnl = botLive.trips
+    .filter((trip) => !trip.open)
+    .reduce((sum, trip) => sum + trip.pnl, 0)
+  const botStartingEquity =
+    botLive.state?.paper_cash != null && botLive.state.paper_cash - botClosedPnl > 0
+      ? botLive.state.paper_cash - botClosedPnl
+      : (bot.detail?.bot.paper_starting_equity ?? 10_000)
+  const botResult = React.useMemo(
+    () =>
+      botShowsDashboard
+        ? buildBotResult(
+            botLive.trips,
+            botLive.marketTrades,
+            botLive.state,
+            botStartingEquity
+          )
+        : null,
+    [botShowsDashboard, botLive.trips, botLive.marketTrades, botLive.state, botStartingEquity]
+  )
+
+  // Live TP/SL lines come from the CANVAS nodes (the bot's config is the
+  // canvas): anchored at the open position's entry, else the mark price.
+  // Dragging rewrites the node — dirty — and Save pushes it to the bot.
+  const botPosition = botLive.state?.paper_position ?? null
+  const botPositionSzi = botPosition ? Number(botPosition.szi) : 0
+  const botTuneSide: "long" | "short" = botPositionSzi < 0 ? "short" : "long"
+  const botTuneAnchor =
+    botPositionSzi !== 0 && Number(botPosition?.entryPx) > 0
+      ? Number(botPosition?.entryPx)
+      : botLive.markPrice
+  const botPriceLines = React.useMemo<ChartPriceLine[]>(() => {
+    if (!bot.open || !(botTuneAnchor > 0)) return []
+    const long = botTuneSide === "long"
+    const lines: ChartPriceLine[] = []
+    const protective = graph.nodes.filter(
+      (node) => node.kind === "takeProfit" || node.kind === "stopLoss"
+    )
+    if (protective.length > 0) {
+      lines.push({
+        id: "bot:entry",
+        price: botTuneAnchor,
+        color: "#64748b",
+        title: botPositionSzi !== 0 ? "Entry" : "Entry (now)",
+        lineStyle: "dashed",
+        lineWidth: 1,
+      })
+    }
+    for (const node of protective) {
+      if (node.kind === "takeProfit") {
+        lines.push({
+          id: "bot:tp",
+          price: botTuneAnchor * (1 + (long ? 1 : -1) * (node.pct / 100)),
+          color: CHART_UP_COLOR,
+          title: `TP +${node.pct}%`,
+          lineStyle: "dashed",
+          draggable: true,
+        })
+      } else {
+        lines.push({
+          id: "bot:sl",
+          price: botTuneAnchor * (1 - (long ? 1 : -1) * (node.pct / 100)),
+          color: CHART_DOWN_COLOR,
+          title: `${node.mode === "trailing" ? "Trail SL" : "SL"} -${node.pct}%`,
+          lineStyle: "dashed",
+          draggable: true,
+        })
+      }
+    }
+    return lines
+  }, [bot.open, botTuneAnchor, botTuneSide, botPositionSzi, graph.nodes])
+
+  const handleBotLineDrag = React.useCallback(
+    (id: string, price: number) => {
+      const kind = id === "bot:tp" ? "tp" : id === "bot:sl" ? "sl" : null
+      if (!kind || !(botTuneAnchor > 0)) return
+      const next = nodeAfterTuneDrag(graphRef.current.nodes, {
+        kind,
+        price,
+        anchor: botTuneAnchor,
+        side: botTuneSide,
+      })
+      if (!next) return
+      updateNode(next)
+      record("Adjusted a setting by dragging on the live chart — Save applies it to the bot.")
+    },
+    [botTuneAnchor, botTuneSide, record, updateNode]
+  )
+
+  async function runBotCommand(command: BotCommand) {
+    const currentBotId = bot.botId
+    if (!currentBotId || botCommandBusy) return
+    setBotCommandBusy(true)
+    try {
+      await sendCommand(currentBotId, command)
+      bot.refresh()
+    } catch (commandError) {
+      toast.error(getBotErrorMessage(commandError))
+    } finally {
+      setBotCommandBusy(false)
+    }
+  }
+
   const inspector = (
     <AutomationInspector
       selectedNode={selectedNode}
@@ -512,7 +683,29 @@ export function AutomationEditor({
     />
   )
   const centerPanel =
-    selectedBacktestRun && selectedBacktestResult ? (
+    bot.open && botChartMarket ? (
+      <BotLiveChartPanel
+        key={`${bot.botId ?? "setup"}-${botChartMarket}`}
+        network={botLive.network}
+        market={botChartMarket}
+        defaultInterval={(compiled.config?.interval ?? "15m") as CandleInterval}
+        automationConfig={compiled.config}
+        fills={botLive.marketTrades}
+        trips={botLive.trips}
+        focusedTradeN={botFocusedTradeN}
+        priceLines={botPriceLines}
+        onLineDragEnd={handleBotLineDrag}
+        toolbarActions={
+          bot.detail ? (
+            <BotLifecycleControls
+              bot={bot.detail.bot}
+              busy={botCommandBusy}
+              onCommand={(command) => void runBotCommand(command)}
+            />
+          ) : null
+        }
+      />
+    ) : selectedBacktestRun && selectedBacktestResult ? (
       <BacktestRunChart
         key={selectedBacktestRun.id}
         run={selectedBacktestRun}
@@ -551,7 +744,7 @@ export function AutomationEditor({
             : undefined
         }
       />
-      {backtest.open ? null : (
+      {backtest.open || bot.open ? null : (
         <Button
           type="button"
           variant="outline"
@@ -595,8 +788,38 @@ export function AutomationEditor({
       config={compiled.config}
     />
   )
-  const leftPanel = backtest.open ? paramsPanel : palette
-  const rightPanel = backtest.open ? sidePanel : inspector
+  const botSidePanel = (
+    <AutomationBotSidePanel
+      bot={bot}
+      isQfl={Boolean(compiled.config?.qfl)}
+      runnable={runnableNow}
+      disabledReason={runnableDisabledReason}
+    />
+  )
+  const botSummaryPanel =
+    botShowsDashboard && bot.detail ? (
+      <BotSummaryPanel
+        bot={bot.detail.bot}
+        state={botLive.state}
+        stats={bot.detail.stats}
+        openOrders={botLive.openOrders}
+        selectedMarket={bot.selectedMarket}
+        markPrice={botLive.markPrice}
+        dayChangePct={botLive.dayChangePct}
+      />
+    ) : (
+      palette
+    )
+  const leftPanel = bot.open
+    ? botSummaryPanel
+    : backtest.open
+      ? paramsPanel
+      : palette
+  const rightPanel = bot.open
+    ? botSidePanel
+    : backtest.open
+      ? sidePanel
+      : inspector
   const workspace = desktop ? (
     <ResizablePanelGroup
       key={horizontalLayout.layoutKey}
@@ -643,9 +866,7 @@ export function AutomationEditor({
     <div className="flex h-full min-h-0 flex-col bg-muted/60 dark:bg-background">
       <AutomationToolbar
         name={name}
-        runnable={runnableNow}
         backtestDisabledReason={backtestDisabledReason}
-        runnableDisabledReason={runnableDisabledReason}
         view={view}
         onViewChange={handleViewChange}
         dirty={dirty}
@@ -655,7 +876,6 @@ export function AutomationEditor({
         onSave={() => void handleSave()}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
-        onCreateBot={onCreateBot}
       />
       {saveError ? (
         <div
@@ -686,7 +906,17 @@ export function AutomationEditor({
               maxSize="45%"
             >
               <WorkspacePanel>
-                {selectedBacktestRun && selectedBacktestResult ? (
+                {botShowsDashboard && botResult ? (
+                  <StrategyTester
+                    result={botResult}
+                    startingEquity={botStartingEquity}
+                    markPrice={botLive.markPrice}
+                    selectedTradeN={botFocusedTradeN}
+                    onSelectTrade={(trade) =>
+                      setBotFocusedTradeN(trade?.n ?? null)
+                    }
+                  />
+                ) : selectedBacktestRun && selectedBacktestResult ? (
                   <AutomationBacktestTradesPanel
                     market={selectedBacktestRun.market}
                     result={selectedBacktestResult}
@@ -718,14 +948,18 @@ export function AutomationEditor({
         {!logOpen ? (
           <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
             <span className="text-xs font-semibold tracking-wide uppercase">
-              {selectedBacktestRun
-                ? `Trades — ${selectedBacktestRun.market}`
-                : "Activity log"}
+              {botShowsDashboard
+                ? `Trades — ${bot.selectedMarket}`
+                : selectedBacktestRun
+                  ? `Trades — ${selectedBacktestRun.market}`
+                  : "Activity log"}
             </span>
             <span className="ml-2 text-xs text-muted-foreground">
-              {selectedBacktestRun && selectedBacktestResult
-                ? `${selectedBacktestResult.trades.length} closed`
-                : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
+              {botShowsDashboard && botResult
+                ? `${botResult.trades.length} closed`
+                : selectedBacktestRun && selectedBacktestResult
+                  ? `${selectedBacktestResult.trades.length} closed`
+                  : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {desktop ? (
@@ -826,40 +1060,6 @@ export function AutomationEditor({
       </Dialog>
     </div>
   )
-}
-
-function useAutomationLayout(key: string) {
-  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
-  const [loaded, setLoaded] = React.useState(false)
-
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem(key)
-      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
-    } catch {
-      setDefaultLayout(undefined)
-    } finally {
-      setLoaded(true)
-    }
-  }, [key])
-
-  const onLayoutChanged = React.useCallback(
-    (layout: Layout) => {
-      if (!loaded) return
-      try {
-        localStorage.setItem(key, JSON.stringify(layout))
-      } catch {
-        // Storage may be blocked; resizing still works for this session.
-      }
-    },
-    [key, loaded]
-  )
-
-  return {
-    defaultLayout,
-    onLayoutChanged,
-    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
-  }
 }
 
 function SheetPanelHeader({ title }: { title: string }) {

@@ -146,14 +146,24 @@ canvas files.
 - No cycles; every node must reach an action or QFL. A Market Scanner must
   reach QFL.
 
+## The three editor modes: Canvas · Backtest · Bot
+
+The toolbar's centered pill switches the whole editor between three views of
+the same automation: **Canvas** (edit the nodes), **Backtest** (run it on
+history), and **Bot** (run it live). Backtest and Bot are the same
+setup→run→results flow — one historical, one live — and both use the same
+"Previous run"/name-to-keep save-override lifecycle. Bot mode's market
+selector, live dashboard, canvas-linked config, and run history are described
+in `bots.md` ("The run model"). Deep links: `?view=backtest` / `?view=bot`.
+
 ## Backtesting (the only way to run one)
 
-- The **Backtest** button in the editor toolbar is the single backtest entry
+- The **Backtest** tab in the editor toolbar is the single backtest entry
   point for the whole app — and it is a **mode of the editor**, not a modal
   (the launch dialog was removed; Quick Test and the old New Run dialog
-  before it). Pressing it swaps the editor's panels in place; pressing it
-  again (or the X) restores them. Backtest mode and Visualize are mutually
-  exclusive — entering one exits the other.
+  before it). Selecting it swaps the editor's panels in place; the Canvas tab
+  restores them. Backtest mode, Bot mode, and Visualize are mutually
+  exclusive — entering one exits the others.
 - Panel roles while the mode is on: the **right panel** is the setup form
   (markets + days back), then live per-market progress, then the market list
   of results (net %, win rate; failed rows flagged with the reason). The
@@ -164,8 +174,8 @@ canvas files.
 - Clicking a market swaps the **center** to that market's results chart
   (shared `backtest-run-chart.tsx` — the same component the `/backtest?run=`
   page uses) and fills the **bottom panel** (the activity log's slot) with
-  its trades; clicking a trade focuses the chart on it. A "Canvas" button in
-  the chart toolbar returns to the nodes without leaving the mode.
+  its trades; clicking a trade focuses the chart on it. The Canvas tab
+  returns to the nodes without losing the run.
 - The run chart can **replay** the run: the engine records a per-bar tape
   (pending limit orders like the QFL ladder, stop/TP levels, strategy
   events — `timeline` column, loaded lazily), and the transport bar plays it

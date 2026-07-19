@@ -172,6 +172,12 @@ export async function saveUserAutomation(
         )
       )
       .returning()
+    if (row && compiledConfig) {
+      // The canvas IS the bot's config — a saved change propagates to this
+      // automation's live bot(s) immediately (no-op when nothing changed).
+      const { syncAutomationBots } = await import("@/server/bots")
+      await syncAutomationBots(userId, automationId, compiledConfig, database)
+    }
     return row ?? null
   } catch (error) {
     throwFriendlyUniqueNameError(error)
