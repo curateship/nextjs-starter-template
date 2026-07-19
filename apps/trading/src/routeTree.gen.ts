@@ -9,50 +9,50 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedAlertLogRouteImport } from './routes/_authenticated/alert-log'
-import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
-import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
-import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
-import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
-import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
-import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
-import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
-import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
-import { Route as AuthenticatedBacktestGroupIdRouteImport } from './routes/_authenticated/backtest/$groupId'
-import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
-import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
+import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
+import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
+import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
+import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
+import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedAlertLogRouteImport } from './routes/_authenticated/alert-log'
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
-import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
-import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
-import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_authenticated/scanner/leaderboard'
-import { Route as AuthenticatedScannerMarketRouteImport } from './routes/_authenticated/scanner/market'
-import { Route as AuthenticatedScannerMarketAlertsRouteImport } from './routes/_authenticated/scanner/market-alerts'
-import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_authenticated/scanner/positions'
+import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
+import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
+import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedScannerWhaleTradesRouteImport } from './routes/_authenticated/scanner/whale-trades'
+import { Route as AuthenticatedScannerPositionsRouteImport } from './routes/_authenticated/scanner/positions'
+import { Route as AuthenticatedScannerMarketAlertsRouteImport } from './routes/_authenticated/scanner/market-alerts'
+import { Route as AuthenticatedScannerMarketRouteImport } from './routes/_authenticated/scanner/market'
+import { Route as AuthenticatedScannerLeaderboardRouteImport } from './routes/_authenticated/scanner/leaderboard'
+import { Route as AuthenticatedScannerCrowdedRouteImport } from './routes/_authenticated/scanner/crowded'
+import { Route as AuthenticatedScannerBookRouteImport } from './routes/_authenticated/scanner/book'
+import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
+import { Route as AuthenticatedBacktestGroupIdRouteImport } from './routes/_authenticated/backtest/$groupId'
+import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedScannerWhalesRouteRouteImport } from './routes/_authenticated/scanner/whales/route'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedScannerWhalesIndexRouteImport } from './routes/_authenticated/scanner/whales/index'
 import { Route as AuthenticatedScannerWhalesAddressRouteImport } from './routes/_authenticated/scanner/whales/$address'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -60,34 +60,9 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAlertLogRoute = AuthenticatedAlertLogRouteImport.update({
-  id: '/alert-log',
-  path: '/alert-log',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedIndicatorsRoute = AuthenticatedIndicatorsRouteImport.update({
-  id: '/indicators',
-  path: '/indicators',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
-  id: '/pnl',
-  path: '/pnl',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
-  id: '/trade',
-  path: '/trade',
+const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedWalletsRoute = AuthenticatedWalletsRouteImport.update({
@@ -95,71 +70,34 @@ const AuthenticatedWalletsRoute = AuthenticatedWalletsRouteImport.update({
   path: '/wallets',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
-  id: '/workspaces',
-  path: '/workspaces',
+const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
+  id: '/trade',
+  path: '/trade',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
+const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
+  id: '/pnl',
+  path: '/pnl',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminFeedbackRoute =
-  AuthenticatedAdminFeedbackRouteImport.update({
-    id: '/admin/feedback',
-    path: '/admin/feedback',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
+const AuthenticatedIndicatorsRoute = AuthenticatedIndicatorsRouteImport.update({
+  id: '/indicators',
+  path: '/indicators',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAutomationsIndexRoute =
-  AuthenticatedAutomationsIndexRouteImport.update({
-    id: '/automations/',
-    path: '/automations/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAutomationsAutomationIdRoute =
-  AuthenticatedAutomationsAutomationIdRouteImport.update({
-    id: '/automations/$automationId',
-    path: '/automations/$automationId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedBacktestIndexRoute =
-  AuthenticatedBacktestIndexRouteImport.update({
-    id: '/backtest/',
-    path: '/backtest/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedBacktestGroupIdRoute =
-  AuthenticatedBacktestGroupIdRouteImport.update({
-    id: '/backtest/$groupId',
-    path: '/backtest/$groupId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedBotsIndexRoute = AuthenticatedBotsIndexRouteImport.update({
-  id: '/bots/',
-  path: '/bots/',
+const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
-  id: '/bots/$botId',
-  path: '/bots/$botId',
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAlertLogRoute = AuthenticatedAlertLogRouteImport.update({
+  id: '/alert-log',
+  path: '/alert-log',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedScannerIndexRoute =
@@ -168,34 +106,32 @@ const AuthenticatedScannerIndexRoute =
     path: '/scanner/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedScannerBookRoute =
-  AuthenticatedScannerBookRouteImport.update({
-    id: '/scanner/book',
-    path: '/scanner/book',
+const AuthenticatedBotsIndexRoute = AuthenticatedBotsIndexRouteImport.update({
+  id: '/bots/',
+  path: '/bots/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBacktestIndexRoute =
+  AuthenticatedBacktestIndexRouteImport.update({
+    id: '/backtest/',
+    path: '/backtest/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedScannerCrowdedRoute =
-  AuthenticatedScannerCrowdedRouteImport.update({
-    id: '/scanner/crowded',
-    path: '/scanner/crowded',
+const AuthenticatedAutomationsIndexRoute =
+  AuthenticatedAutomationsIndexRouteImport.update({
+    id: '/automations/',
+    path: '/automations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedScannerLeaderboardRoute =
-  AuthenticatedScannerLeaderboardRouteImport.update({
-    id: '/scanner/leaderboard',
-    path: '/scanner/leaderboard',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedScannerMarketRoute =
-  AuthenticatedScannerMarketRouteImport.update({
-    id: '/scanner/market',
-    path: '/scanner/market',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedScannerMarketAlertsRoute =
-  AuthenticatedScannerMarketAlertsRouteImport.update({
-    id: '/scanner/market-alerts',
-    path: '/scanner/market-alerts',
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedScannerWhaleTradesRoute =
+  AuthenticatedScannerWhaleTradesRouteImport.update({
+    id: '/scanner/whale-trades',
+    path: '/scanner/whale-trades',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedScannerPositionsRoute =
@@ -204,10 +140,74 @@ const AuthenticatedScannerPositionsRoute =
     path: '/scanner/positions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedScannerWhaleTradesRoute =
-  AuthenticatedScannerWhaleTradesRouteImport.update({
-    id: '/scanner/whale-trades',
-    path: '/scanner/whale-trades',
+const AuthenticatedScannerMarketAlertsRoute =
+  AuthenticatedScannerMarketAlertsRouteImport.update({
+    id: '/scanner/market-alerts',
+    path: '/scanner/market-alerts',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerMarketRoute =
+  AuthenticatedScannerMarketRouteImport.update({
+    id: '/scanner/market',
+    path: '/scanner/market',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerLeaderboardRoute =
+  AuthenticatedScannerLeaderboardRouteImport.update({
+    id: '/scanner/leaderboard',
+    path: '/scanner/leaderboard',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerCrowdedRoute =
+  AuthenticatedScannerCrowdedRouteImport.update({
+    id: '/scanner/crowded',
+    path: '/scanner/crowded',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannerBookRoute =
+  AuthenticatedScannerBookRouteImport.update({
+    id: '/scanner/book',
+    path: '/scanner/book',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedBotsBotIdRoute = AuthenticatedBotsBotIdRouteImport.update({
+  id: '/bots/$botId',
+  path: '/bots/$botId',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBacktestGroupIdRoute =
+  AuthenticatedBacktestGroupIdRouteImport.update({
+    id: '/backtest/$groupId',
+    path: '/backtest/$groupId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAutomationsAutomationIdRoute =
+  AuthenticatedAutomationsAutomationIdRouteImport.update({
+    id: '/automations/$automationId',
+    path: '/automations/$automationId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/admin/media',
+  path: '/admin/media',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/admin/feedback',
+    path: '/admin/feedback',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedScannerWhalesRouteRoute =
@@ -215,18 +215,6 @@ const AuthenticatedScannerWhalesRouteRoute =
     id: '/scanner/whales',
     path: '/scanner/whales',
     getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
-  } as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
 const AuthenticatedScannerWhalesIndexRoute =
   AuthenticatedScannerWhalesIndexRouteImport.update({
@@ -239,6 +227,18 @@ const AuthenticatedScannerWhalesAddressRoute =
     id: '/$address',
     path: '/$address',
     getParentRoute: () => AuthenticatedScannerWhalesRouteRoute,
+  } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+  } as any)
+const AuthenticatedAdminFeedbackCommentsRoute =
+  AuthenticatedAdminFeedbackCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
+    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
@@ -480,18 +480,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -501,46 +501,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/alert-log': {
-      id: '/_authenticated/alert-log'
-      path: '/alert-log'
-      fullPath: '/alert-log'
-      preLoaderRoute: typeof AuthenticatedAlertLogRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/alerts': {
-      id: '/_authenticated/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/audit': {
-      id: '/_authenticated/audit'
-      path: '/audit'
-      fullPath: '/audit'
-      preLoaderRoute: typeof AuthenticatedAuditRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/indicators': {
-      id: '/_authenticated/indicators'
-      path: '/indicators'
-      fullPath: '/indicators'
-      preLoaderRoute: typeof AuthenticatedIndicatorsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/pnl': {
-      id: '/_authenticated/pnl'
-      path: '/pnl'
-      fullPath: '/pnl'
-      preLoaderRoute: typeof AuthenticatedPnlRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/trade': {
-      id: '/_authenticated/trade'
-      path: '/trade'
-      fullPath: '/trade'
-      preLoaderRoute: typeof AuthenticatedTradeRouteImport
+    '/_authenticated/workspaces': {
+      id: '/_authenticated/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/wallets': {
@@ -550,88 +515,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/workspaces': {
-      id: '/_authenticated/workspaces'
-      path: '/workspaces'
-      fullPath: '/workspaces'
-      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+    '/_authenticated/trade': {
+      id: '/_authenticated/trade'
+      path: '/trade'
+      fullPath: '/trade'
+      preLoaderRoute: typeof AuthenticatedTradeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/': {
-      id: '/_authenticated/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+    '/_authenticated/pnl': {
+      id: '/_authenticated/pnl'
+      path: '/pnl'
+      fullPath: '/pnl'
+      preLoaderRoute: typeof AuthenticatedPnlRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/feedback': {
-      id: '/_authenticated/admin/feedback'
-      path: '/admin/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+    '/_authenticated/indicators': {
+      id: '/_authenticated/indicators'
+      path: '/indicators'
+      fullPath: '/indicators'
+      preLoaderRoute: typeof AuthenticatedIndicatorsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/media': {
-      id: '/_authenticated/admin/media'
-      path: '/admin/media'
-      fullPath: '/admin/media'
-      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+    '/_authenticated/audit': {
+      id: '/_authenticated/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuthenticatedAuditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/automations/': {
-      id: '/_authenticated/automations/'
-      path: '/automations'
-      fullPath: '/automations/'
-      preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/automations/$automationId': {
-      id: '/_authenticated/automations/$automationId'
-      path: '/automations/$automationId'
-      fullPath: '/automations/$automationId'
-      preLoaderRoute: typeof AuthenticatedAutomationsAutomationIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/backtest/': {
-      id: '/_authenticated/backtest/'
-      path: '/backtest'
-      fullPath: '/backtest/'
-      preLoaderRoute: typeof AuthenticatedBacktestIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/backtest/$groupId': {
-      id: '/_authenticated/backtest/$groupId'
-      path: '/backtest/$groupId'
-      fullPath: '/backtest/$groupId'
-      preLoaderRoute: typeof AuthenticatedBacktestGroupIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/bots/': {
-      id: '/_authenticated/bots/'
-      path: '/bots'
-      fullPath: '/bots/'
-      preLoaderRoute: typeof AuthenticatedBotsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/bots/$botId': {
-      id: '/_authenticated/bots/$botId'
-      path: '/bots/$botId'
-      fullPath: '/bots/$botId'
-      preLoaderRoute: typeof AuthenticatedBotsBotIdRouteImport
+    '/_authenticated/alert-log': {
+      id: '/_authenticated/alert-log'
+      path: '/alert-log'
+      fullPath: '/alert-log'
+      preLoaderRoute: typeof AuthenticatedAlertLogRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scanner/': {
@@ -641,46 +564,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScannerIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/scanner/book': {
-      id: '/_authenticated/scanner/book'
-      path: '/scanner/book'
-      fullPath: '/scanner/book'
-      preLoaderRoute: typeof AuthenticatedScannerBookRouteImport
+    '/_authenticated/bots/': {
+      id: '/_authenticated/bots/'
+      path: '/bots'
+      fullPath: '/bots/'
+      preLoaderRoute: typeof AuthenticatedBotsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/scanner/crowded': {
-      id: '/_authenticated/scanner/crowded'
-      path: '/scanner/crowded'
-      fullPath: '/scanner/crowded'
-      preLoaderRoute: typeof AuthenticatedScannerCrowdedRouteImport
+    '/_authenticated/backtest/': {
+      id: '/_authenticated/backtest/'
+      path: '/backtest'
+      fullPath: '/backtest/'
+      preLoaderRoute: typeof AuthenticatedBacktestIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/scanner/leaderboard': {
-      id: '/_authenticated/scanner/leaderboard'
-      path: '/scanner/leaderboard'
-      fullPath: '/scanner/leaderboard'
-      preLoaderRoute: typeof AuthenticatedScannerLeaderboardRouteImport
+    '/_authenticated/automations/': {
+      id: '/_authenticated/automations/'
+      path: '/automations'
+      fullPath: '/automations/'
+      preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/scanner/market': {
-      id: '/_authenticated/scanner/market'
-      path: '/scanner/market'
-      fullPath: '/scanner/market'
-      preLoaderRoute: typeof AuthenticatedScannerMarketRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/scanner/market-alerts': {
-      id: '/_authenticated/scanner/market-alerts'
-      path: '/scanner/market-alerts'
-      fullPath: '/scanner/market-alerts'
-      preLoaderRoute: typeof AuthenticatedScannerMarketAlertsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/scanner/positions': {
-      id: '/_authenticated/scanner/positions'
-      path: '/scanner/positions'
-      fullPath: '/scanner/positions'
-      preLoaderRoute: typeof AuthenticatedScannerPositionsRouteImport
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scanner/whale-trades': {
@@ -690,26 +599,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScannerWhaleTradesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/scanner/positions': {
+      id: '/_authenticated/scanner/positions'
+      path: '/scanner/positions'
+      fullPath: '/scanner/positions'
+      preLoaderRoute: typeof AuthenticatedScannerPositionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/market-alerts': {
+      id: '/_authenticated/scanner/market-alerts'
+      path: '/scanner/market-alerts'
+      fullPath: '/scanner/market-alerts'
+      preLoaderRoute: typeof AuthenticatedScannerMarketAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/market': {
+      id: '/_authenticated/scanner/market'
+      path: '/scanner/market'
+      fullPath: '/scanner/market'
+      preLoaderRoute: typeof AuthenticatedScannerMarketRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/leaderboard': {
+      id: '/_authenticated/scanner/leaderboard'
+      path: '/scanner/leaderboard'
+      fullPath: '/scanner/leaderboard'
+      preLoaderRoute: typeof AuthenticatedScannerLeaderboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/crowded': {
+      id: '/_authenticated/scanner/crowded'
+      path: '/scanner/crowded'
+      fullPath: '/scanner/crowded'
+      preLoaderRoute: typeof AuthenticatedScannerCrowdedRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanner/book': {
+      id: '/_authenticated/scanner/book'
+      path: '/scanner/book'
+      fullPath: '/scanner/book'
+      preLoaderRoute: typeof AuthenticatedScannerBookRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/bots/$botId': {
+      id: '/_authenticated/bots/$botId'
+      path: '/bots/$botId'
+      fullPath: '/bots/$botId'
+      preLoaderRoute: typeof AuthenticatedBotsBotIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/backtest/$groupId': {
+      id: '/_authenticated/backtest/$groupId'
+      path: '/backtest/$groupId'
+      fullPath: '/backtest/$groupId'
+      preLoaderRoute: typeof AuthenticatedBacktestGroupIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/automations/$automationId': {
+      id: '/_authenticated/automations/$automationId'
+      path: '/automations/$automationId'
+      fullPath: '/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAutomationsAutomationIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/media': {
+      id: '/_authenticated/admin/media'
+      path: '/admin/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/admin/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/scanner/whales': {
       id: '/_authenticated/scanner/whales'
       path: '/scanner/whales'
       fullPath: '/scanner/whales'
       preLoaderRoute: typeof AuthenticatedScannerWhalesRouteRouteImport
       parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
-    }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
     '/_authenticated/scanner/whales/': {
       id: '/_authenticated/scanner/whales/'
@@ -724,6 +710,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/scanner/whales/$address'
       preLoaderRoute: typeof AuthenticatedScannerWhalesAddressRouteImport
       parentRoute: typeof AuthenticatedScannerWhalesRouteRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/_authenticated/admin/feedback/comments': {
+      id: '/_authenticated/admin/feedback/comments'
+      path: '/comments'
+      fullPath: '/admin/feedback/comments'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
+      parentRoute: typeof AuthenticatedAdminFeedbackRoute
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
