@@ -18,6 +18,13 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Derive page spacing from the currently mounted route so navigation and content change together. Do not use a destination or delayed resolved URL that can carry the previous page's spacing into the next page.
 - Design narrow and desktop layouts together. Avoid arbitrary widths, radii, shadows, gradients, pills, or badges.
 
+## Charts
+
+- Every chart keeps one flat bar above it (`ChartToolbar`) for timeframes, the indicator menu, the legend, and page actions. Drawing tools do not go there.
+- Drawing tools live in the floating toolbar that sits on top of the chart itself (`src/components/chart/chart-draw-toolbar.tsx`): a `bg-card rounded-lg ring-1 ring-foreground/10` bar with a grip on the left and 28px icon buttons. It is rendered once inside `PriceChartView`, so every chart that can save what you draw gets the same tools; do not add a second copy per page.
+- The bar can be dragged anywhere inside the chart by its grip (arrow keys nudge it 8px), is clamped to stay inside the chart on resize, and remembers its spot in this browser under `trading:chart-draw-toolbar`. It starts top-right, inset by the chart's measured price-axis width so it never covers the price labels (they get wider on bigger prices).
+- New drawing tools are added as buttons inside that one toolbar, and only appear on charts that can persist their result.
+
 ## Sidebar
 
 - A resizable desktop sidebar must support both click-to-collapse and drag-to-resize. Keep its expanded width between 144px and 420px, save it in the current workspace's database settings, and let a focused resize edge move in 8px steps with the arrow keys.

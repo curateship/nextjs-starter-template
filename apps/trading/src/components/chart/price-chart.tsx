@@ -15,6 +15,7 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts"
 
+import { ChartDrawToolbar } from "@/components/chart/chart-draw-toolbar"
 import {
   configOverlays,
   EMPTY_STRATEGY_OVERLAYS,
@@ -252,8 +253,6 @@ export function PriceChartView({
   onChartContextMenu,
   onVisibleRangeChange,
   registerApi,
-  trendlineDrawing = false,
-  onTrendlineDrawingChange,
   trendlines = EMPTY_TRENDLINES,
   onTrendlinesChange,
   onTrendlinesCommit,
@@ -300,10 +299,6 @@ export function PriceChartView({
    * null on unmount — lets a parent wire "Reset View" into its own menu.
    */
   registerApi?: (api: PriceChartHandle | null) => void
-  /** When active, two chart clicks create one trendline. */
-  trendlineDrawing?: boolean
-  /** Turns the one-shot drawing tool off after completion or cancellation. */
-  onTrendlineDrawingChange?: (active: boolean) => void
   /** Saved trendlines for this chart. */
   trendlines?: Trendline[]
   /** Updates the in-memory line set while drawing or dragging. */
@@ -389,6 +384,9 @@ export function PriceChartView({
   // the price axis), so chips don't float off their candles.
   const [overlayRevision, setOverlayRevision] = React.useState(0)
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
+  // The one-shot trendline tool, driven by the floating drawing toolbar below.
+  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
+  const [priceAxisWidth, setPriceAxisWidth] = React.useState(0)
   const [trendlineDraft, setTrendlineDraft] = React.useState<Trendline | null>(
     null
   )
@@ -433,7 +431,6 @@ export function PriceChartView({
   const lineClickRef = React.useRef(onLineClick)
   const contextMenuRef = React.useRef(onChartContextMenu)
   const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
-  const trendlineDrawingChangeRef = React.useRef(onTrendlineDrawingChange)
   const trendlinesChangeRef = React.useRef(onTrendlinesChange)
   const trendlinesCommitRef = React.useRef(onTrendlinesCommit)
   const visibleRangeRef = React.useRef(onVisibleRangeChange)
@@ -442,7 +439,6 @@ export function PriceChartView({
     lineClickRef.current = onLineClick
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
-    trendlineDrawingChangeRef.current = onTrendlineDrawingChange
     trendlinesChangeRef.current = onTrendlinesChange
     trendlinesCommitRef.current = onTrendlinesCommit
     visibleRangeRef.current = onVisibleRangeChange
@@ -451,7 +447,6 @@ export function PriceChartView({
     onLineClick,
     onChartContextMenu,
     onCrosshairOhlc,
-    onTrendlineDrawingChange,
     onTrendlinesChange,
     onTrendlinesCommit,
     onVisibleRangeChange,
@@ -506,6 +501,25 @@ export function PriceChartView({
       return () => cancelAnimationFrame(frame)
     }
   }, [ready, trendlineDrawing])
+
+  // Width of the right price axis, so the floating drawing toolbar can rest
+  // beside the price labels instead of on top of them. It grows and shrinks
+  // with the price magnitude (3800.00 vs 66400.00), not just on resize.
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const container = containerRef.current
+    if (!ready || !chart || !container) return
+    const sync = () => setPriceAxisWidth(chart.priceScale("right").width())
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(container)
+    const timeScale = chart.timeScale()
+    timeScale.subscribeVisibleTimeRangeChange(sync)
+    return () => {
+      observer.disconnect()
+      timeScale.unsubscribeVisibleTimeRangeChange(sync)
+    }
+  }, [ready])
 
   // Close the built-in menu on Escape (outside clicks are caught by its overlay).
   React.useEffect(() => {
@@ -740,7 +754,7 @@ export function PriceChartView({
               trendlineDrawingRef.current = false
               chart.applyOptions({ handleScroll: true, handleScale: true })
               container.style.cursor = ""
-              trendlineDrawingChangeRef.current?.(false)
+              setTrendlineDrawing(false)
             }
             event.preventDefault()
             event.stopPropagation()
@@ -928,7 +942,7 @@ export function PriceChartView({
               setTrendlineDraft(null)
               chart.applyOptions({ handleScroll: true, handleScale: true })
               container.style.cursor = ""
-              trendlineDrawingChangeRef.current?.(false)
+              setTrendlineDrawing(false)
             } else {
               selectedTrendlineRef.current = null
               setSelectedTrendline(null)
@@ -966,7 +980,7 @@ export function PriceChartView({
             setTrendlineDraft(null)
             chart.applyOptions({ handleScroll: true, handleScale: true })
             container.style.cursor = ""
-            trendlineDrawingChangeRef.current?.(false)
+            setTrendlineDrawing(false)
             event.stopPropagation()
             return
           }
@@ -1957,6 +1971,15 @@ export function PriceChartView({
           })}
         </svg>
       ) : null}
+      {/* Only charts that can store what you draw get the tools, and only once
+          the price axis has been measured so the bar doesn't jump into place. */}
+      {ready && onTrendlinesCommit ? (
+        <ChartDrawToolbar
+          priceAxisWidth={priceAxisWidth}
+          trendlineActive={trendlineDrawing}
+          onTrendlineToggle={() => setTrendlineDrawing((active) => !active)}
+        />
+      ) : null}
       <Popover
         open={Boolean(trendlineSettings && settingsTrendline)}
         onOpenChange={(open) => {
@@ -2243,8 +2266,6 @@ export function PriceChart({
   onChartContextMenu,
   onCandlesChange,
   registerApi,
-  trendlineDrawing,
-  onTrendlineDrawingChange,
   onTrendlinePersistenceError,
 }: {
   network: TradingNetwork
@@ -2278,9 +2299,6 @@ export function PriceChart({
   onCandlesChange?: (candles: ChartCandle[]) => void
   /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
   registerApi?: (api: PriceChartHandle | null) => void
-  /** Activates the chart's one-shot trendline drawing tool. */
-  trendlineDrawing?: boolean
-  onTrendlineDrawingChange?: (active: boolean) => void
   onTrendlinePersistenceError?: (action: "load" | "save") => void
 }) {
   const maxCandles = useShellRuntime().config.maxCandles
@@ -2699,8 +2717,6 @@ export function PriceChart({
       onLineCancel={onLineCancel}
       onChartContextMenu={onChartContextMenu}
       registerApi={registerApi}
-      trendlineDrawing={trendlineDrawing}
-      onTrendlineDrawingChange={onTrendlineDrawingChange}
       trendlines={visibleTrendlines}
       onTrendlinesChange={handleTrendlinesChange}
       onTrendlinesCommit={handleTrendlinesCommit}

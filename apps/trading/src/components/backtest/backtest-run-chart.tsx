@@ -9,7 +9,6 @@ import {
 } from "@/components/chart/price-chart"
 import { CHART_DOWN_COLOR, CHART_UP_COLOR } from "@/components/chart/chart-markers"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
-import { TrendlineToolButton } from "@/components/chart/trendline-tool-button"
 import { useChartTrendlines } from "@/components/chart/use-chart-trendlines"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { configOverlays } from "@/components/chart/indicator-overlays"
@@ -233,7 +232,6 @@ export function BacktestRunChart({
   React.useEffect(() => {
     chartStateRef.current = chartState
   })
-  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Drawings are saved per market, so a line drawn here is the same line the
   // live chart shows for this market.
   const {
@@ -748,17 +746,11 @@ export function BacktestRunChart({
         legendLines={labeledOverlayLines}
         leading={toolbarLeading}
         afterIntervals={
-          <>
-            <RunPaintMenu
-              groups={paintGroups}
-              hidden={hiddenSet}
-              onToggle={togglePaintGroup}
-            />
-            <TrendlineToolButton
-              active={trendlineDrawing}
-              onToggle={() => setTrendlineDrawing((active) => !active)}
-            />
-          </>
+          <RunPaintMenu
+            groups={paintGroups}
+            hidden={hiddenSet}
+            onToggle={togglePaintGroup}
+          />
         }
       >
         {toolbarActions}
@@ -779,8 +771,6 @@ export function BacktestRunChart({
           // Reset View gives instead.
           focusPoints={focusPoints}
           focusResult={focusResult}
-          trendlineDrawing={trendlineDrawing}
-          onTrendlineDrawingChange={setTrendlineDrawing}
           trendlines={trendlines}
           onTrendlinesChange={onTrendlinesChange}
           onTrendlinesCommit={onTrendlinesCommit}
