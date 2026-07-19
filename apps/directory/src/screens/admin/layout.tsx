@@ -6,6 +6,7 @@ import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-setti
 import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
 import { getCurrentUserSiteId, getDefaultAccountPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 import { DEFAULT_ADMIN_SIDEBAR_WIDTH } from "@/lib/utils/admin-sidebar-width"
+import { normalizeStyling } from "@/lib/utils/admin-styling"
 
 export default async function AdminLayout({
   children,
@@ -39,6 +40,7 @@ export default async function AdminLayout({
   const settings = adminSettings?.settings ?? {}
   const pageSize = settings.dashboard_page_size || 50
   const sidebarWidth = settings.sidebar_width || DEFAULT_ADMIN_SIDEBAR_WIDTH
+  const styling = normalizeStyling(settings.styling)
   const sites = sitesResult.data ?? []
 
   const userName = (session.user as any).displayName || session.user.name || session.user.email?.split('@')[0] || 'User'
@@ -50,6 +52,7 @@ export default async function AdminLayout({
       initialSites={sites}
       pageSize={pageSize}
       initialSidebarWidth={sidebarWidth}
+      initialStyling={styling}
       user={{ name: userName, email: userEmail, avatar: userAvatar }}
     >
       {children}

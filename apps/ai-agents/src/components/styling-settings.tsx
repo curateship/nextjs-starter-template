@@ -135,7 +135,7 @@ export function StylingSettings({
               data-content-styling=""
               data-flat={isFlat ? "true" : undefined}
               className={cn(
-                "flex flex-col overflow-hidden rounded-lg border border-border",
+                "flex max-w-lg flex-col overflow-hidden rounded-lg border border-border",
                 contentBackground ? undefined : "bg-muted/60"
               )}
               style={
@@ -319,6 +319,8 @@ export function StylingSettings({
               onChange={updateModalCardBorderColor}
             />
           </div>
+
+          <ModalPreview modal={modal} />
         </CardContent>
       </Card>
     </CardGroup>

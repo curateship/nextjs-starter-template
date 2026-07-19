@@ -5,6 +5,7 @@ import { AdminClientShell } from "./admin-client-shell"
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
 import { getCurrentUserSiteId, getDefaultAccountPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
+import { normalizeStyling } from "@/lib/admin-styling"
 
 export default async function AdminLayout({
   children,
@@ -39,6 +40,7 @@ export default async function AdminLayout({
   const fontFamily = settings.font_family || "urbanist"
   const secondaryFontFamily = settings.secondary_font_family || "urbanist"
   const pageSize = settings.dashboard_page_size || 50
+  const styling = normalizeStyling(settings.styling)
   const sites = sitesResult.data ?? []
 
   const userName = (session.user as any).displayName || session.user.name || session.user.email?.split('@')[0] || 'User'
@@ -51,6 +53,7 @@ export default async function AdminLayout({
       secondaryFontFamily={secondaryFontFamily}
       initialSites={sites}
       pageSize={pageSize}
+      styling={styling}
       user={{ name: userName, email: userEmail, avatar: userAvatar }}
     >
       {children}

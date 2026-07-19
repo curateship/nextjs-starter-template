@@ -27,6 +27,7 @@ import { AlertTriangle, CheckCircle, Copy, Eye, EyeOff, RefreshCw, Shield, XCirc
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
+import { AdminStylingTab } from "@/components/admin/layout/settings/AdminStylingTab"
 import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
 import { normalizeContactColdEmailThreshold } from "@/lib/actions/newsletters/contact-filters"
 import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
@@ -470,7 +471,8 @@ const TABS = [
   { id: "cron-jobs", label: "Cron Jobs" },
   { id: "ai", label: "AI Providers" },
   { id: "sidebar", label: "Sidebar" },
-  { id: "dashboard-quick-links", label: "Dashboard Quick Links" }
+  { id: "dashboard-quick-links", label: "Dashboard Quick Links" },
+  { id: "appearance", label: "Appearance" }
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -529,7 +531,8 @@ export default function SiteEditPage() {
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
-  const isAdminSettingsTab = activeTab === "sidebar" || activeTab === "dashboard-quick-links"
+  const isAdminSettingsTab =
+    activeTab === "sidebar" || activeTab === "dashboard-quick-links" || activeTab === "appearance"
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveStatus = isAdminSettingsTab ? adminSettingsStatus.saveStatus : saveStatus
@@ -905,6 +908,10 @@ export default function SiteEditPage() {
                   mode="dashboard-quick-links"
                   onStatusChange={setAdminSettingsStatus}
                 />
+              )}
+
+              {activeTab === "appearance" && (
+                <AdminStylingTab onStatusChange={setAdminSettingsStatus} />
               )}
             </div>
           </div>

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { adminSettings } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { MAX_ADMIN_SIDEBAR_WIDTH, MIN_ADMIN_SIDEBAR_WIDTH } from '@/lib/utils/admin-sidebar-width'
+import { normalizeStyling, type AdminStyling } from '@/lib/utils/admin-styling'
 
 export interface AdminSettings {
   id: string
@@ -14,6 +15,8 @@ export interface AdminSettings {
     dashboard_page_size?: number
     sidebar_width?: number
     home_route?: string
+    /** Runtime admin appearance controls (Settings → Styling). */
+    styling?: AdminStyling
   }
   created_at: string
   updated_at: string
@@ -24,6 +27,7 @@ export interface UpdateAdminSettingsData {
   dashboard_page_size?: number
   sidebar_width?: number
   home_route?: string
+  styling?: AdminStyling
 }
 
 const DEFAULT_ADMIN_SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
@@ -111,6 +115,10 @@ export async function updateAdminSettingsAction(
 
     if (typeof settingsData.home_route === 'string') {
       settingsData = { ...settingsData, home_route: settingsData.home_route.trim() }
+    }
+
+    if (settingsData.styling !== undefined) {
+      settingsData = { ...settingsData, styling: normalizeStyling(settingsData.styling) }
     }
 
     const currentSettings = await getOrCreateAdminSettings()

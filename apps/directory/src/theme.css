@@ -145,3 +145,62 @@
     @apply font-sans;
     }
 }
+
+/*
+ * Runtime admin styling driven by the Settings → Styling tab. See
+ * src/lib/utils/admin-styling.ts and admin-styling-provider.tsx. Card/table
+ * rules are scoped to the content canvas ([data-content-styling], set on
+ * AdminLayout) so cards inside portaled modals keep their own look. Modal rules
+ * read --shell-modal-* set on the document root. Fallbacks reproduce directory's
+ * current look, so nothing changes until an admin adjusts a control.
+ */
+[data-content-styling] [data-slot="card"],
+[data-content-styling] [data-slot="table-surface"] {
+  border-width: calc(var(--shell-card-border-width, 0) * 1px);
+  border-style: solid;
+  border-color: var(--shell-card-border-color, var(--border));
+}
+
+/* gutter = 0 → flat mode: no card chrome. */
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-radius: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"] img {
+  border-radius: 0;
+}
+
+/*
+ * Modal styling. Applied via --shell-modal-* on the document root (the dialog
+ * portals to <body>, outside the shell subtree). Declared after the content
+ * rules so the settings-page modal preview (nested inside the content area)
+ * still picks up these rules.
+ */
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(
+    in oklab,
+    black var(--shell-modal-overlay-opacity, 50%),
+    transparent
+  );
+}
+
+[data-slot="dialog-content"] {
+  background-color: var(--shell-modal-bg, var(--background));
+  border-width: calc(var(--shell-modal-border-width, 1) * 1px);
+  border-style: solid;
+  border-color: var(--shell-modal-border-color, var(--border));
+  padding: var(--shell-modal-padding, 1.5rem);
+}
+
+/* Cards inside the modal. */
+[data-slot="dialog-content"] [data-slot="card"] {
+  background-color: var(--shell-modal-card-bg, var(--card));
+  border-width: calc(var(--shell-modal-card-border-width, 0) * 1px);
+  border-style: solid;
+  border-color: var(--shell-modal-card-border-color, var(--border));
+}
