@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { adminSettings } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import type { ShellStyling } from '@/lib/admin-styling'
 
 export interface AdminSettings {
   id: string
@@ -15,6 +16,8 @@ export interface AdminSettings {
     secondary_font_weights?: string[]
     default_theme?: 'system' | 'light' | 'dark'
     dashboard_page_size?: number
+    /** Runtime admin appearance styling (Settings → Appearance). */
+    styling?: ShellStyling
   }
   created_at: string
   updated_at: string
@@ -27,6 +30,7 @@ export interface UpdateAdminSettingsData {
   secondary_font_weights?: string[]
   default_theme?: 'system' | 'light' | 'dark'
   dashboard_page_size?: number
+  styling?: ShellStyling
 }
 
 export const getCachedAdminSettings = unstable_cache(

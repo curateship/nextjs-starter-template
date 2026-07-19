@@ -16,7 +16,16 @@ export function AdminLayout({
   children,
   noPadding = false,
 }: AdminLayoutProps) {
-  return <div className={noPadding ? "min-w-0 max-w-full" : "min-w-0 max-w-full p-3.5 lg:px-6 lg:py-6"}>{children}</div>
+  // Outer padding follows the runtime "Content spacing" (gutter) setting when
+  // present (Admin → Settings → Appearance), falling back to the default gutter.
+  return (
+    <div
+      className="min-w-0 max-w-full"
+      style={noPadding ? undefined : { padding: "var(--shell-gutter, 1.5rem)" }}
+    >
+      {children}
+    </div>
+  )
 }
 
 // Re-export admin components

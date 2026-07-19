@@ -8,6 +8,8 @@ import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar
 import { ThemeProvider } from "next-themes"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
+import { AdminStylingProvider, useAdminStyling } from "@/components/admin/layout/settings/admin-styling-provider"
+import { resolveBackground, type AdminStyling } from "@/lib/utils/admin-styling"
 import { clampAdminSidebarWidth } from "@/lib/utils/admin-sidebar-width"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { usePathname } from "@/lib/navigation-client"
@@ -18,6 +20,7 @@ interface AdminClientShellProps {
   initialSites: SiteWithTheme[]
   pageSize: number
   initialSidebarWidth: number
+  initialStyling?: AdminStyling | null
   user: { name: string; email: string; avatar?: string }
 }
 
@@ -88,11 +91,49 @@ function AdminDocumentMeta() {
   return null
 }
 
+// Recolors the sidebar rail and the sticky header (both use bg-sidebar) from the
+// live Styling → chrome control. Rendered inside AdminStylingProvider so it reads
+// the same live state the settings preview writes. Opaque so both render the same
+// color regardless of what sits behind them.
+function AdminShellChrome({
+  children,
+  sidebarWidth,
+  onSidebarWidthCommit,
+  user,
+}: {
+  children: React.ReactNode
+  sidebarWidth: number
+  onSidebarWidthCommit: (width: number) => void
+  user: { name: string; email: string; avatar?: string }
+}) {
+  const styling = useAdminStyling()?.styling
+  const chromeBackground = styling
+    ? resolveBackground(styling.chrome, { opaque: true })
+    : undefined
+
+  return (
+    <div
+      className="admin-layout min-h-screen bg-background"
+      style={chromeBackground ? ({ "--sidebar": chromeBackground } as React.CSSProperties) : undefined}
+    >
+      <SidebarProvider
+        className="h-screen"
+        sidebarWidth={sidebarWidth}
+        onSidebarWidthCommit={onSidebarWidthCommit}
+      >
+        <AppSidebar user={user} />
+        <SidebarInset>{children}</SidebarInset>
+      </SidebarProvider>
+    </div>
+  )
+}
+
 export function AdminClientShell({
   children,
   initialSites,
   pageSize,
   initialSidebarWidth,
+  initialStyling,
   user,
 }: AdminClientShellProps) {
   const [sidebarWidth, setSidebarWidth] = useState(() => clampAdminSidebarWidth(initialSidebarWidth))
@@ -134,18 +175,15 @@ export function AdminClientShell({
       <SiteSwitcherProvider initialSites={initialSites} pageSize={pageSize}>
         <AdminDocumentMeta />
         <DashboardHeaderActionsSlotProvider>
-          <div className="admin-layout min-h-screen bg-background">
-            <SidebarProvider
-              className="h-screen"
+          <AdminStylingProvider initialStyling={initialStyling}>
+            <AdminShellChrome
               sidebarWidth={sidebarWidth}
               onSidebarWidthCommit={handleSidebarWidthCommit}
+              user={user}
             >
-              <AppSidebar user={user} />
-              <SidebarInset>
-                {children}
-              </SidebarInset>
-            </SidebarProvider>
-          </div>
+              {children}
+            </AdminShellChrome>
+          </AdminStylingProvider>
         </DashboardHeaderActionsSlotProvider>
       </SiteSwitcherProvider>
     </ThemeProvider>

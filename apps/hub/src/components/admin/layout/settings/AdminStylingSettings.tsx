@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 
 import {
@@ -26,28 +28,26 @@ import {
   resolveBackground,
   type ShellBackground,
   type ShellBackgroundMode,
-  type ShellConfig,
   type ShellModalStyling,
   type ShellStyling,
-} from "@/lib/custom-shell"
+} from "@/lib/admin-styling"
 import { cn } from "@/lib/utils"
 
-type StylingSettingsProps = {
-  config: ShellConfig
+type AdminStylingSettingsProps = {
+  styling: ShellStyling
   isSaving: boolean
-  onConfigChange: (config: ShellConfig) => void
+  onStylingChange: (styling: ShellStyling) => void
 }
 
-export function StylingSettings({
-  config,
+export function AdminStylingSettings({
+  styling,
   isSaving,
-  onConfigChange,
-}: StylingSettingsProps) {
-  const styling = config.styling
+  onStylingChange,
+}: AdminStylingSettingsProps) {
   const isFlat = styling.gutter === 0
 
   const update = (patch: Partial<ShellStyling>) =>
-    onConfigChange({ ...config, styling: { ...styling, ...patch } })
+    onStylingChange({ ...styling, ...patch })
   const updateContent = (patch: Partial<ShellBackground>) =>
     update({ content: { ...styling.content, ...patch } })
   const updateChrome = (patch: Partial<ShellBackground>) =>
@@ -73,13 +73,13 @@ export function StylingSettings({
   })
 
   return (
-    <CardGroup>
+    <CardGroup className="grid">
       <Card>
         <CardHeader>
           <CardTitle>Spacing & borders</CardTitle>
           <CardDescription>
-            Adjust the content gutter and card borders for this workspace.
-            Changes preview live and apply after you save.
+            Adjust the content gutter and card borders across the admin
+            dashboard. Changes preview live below and apply after you save.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -150,7 +150,7 @@ export function StylingSettings({
                 } as React.CSSProperties
               }
             >
-              <Card size="sm">
+              <Card>
                 <CardHeader>
                   <CardTitle>Card title</CardTitle>
                   <CardDescription>Sample content card</CardDescription>
@@ -160,7 +160,7 @@ export function StylingSettings({
                   settings above.
                 </CardContent>
               </Card>
-              <Card size="sm">
+              <Card>
                 <CardContent className="text-sm text-muted-foreground">
                   A second card shows the gap between cards.
                 </CardContent>
@@ -182,7 +182,7 @@ export function StylingSettings({
             idPrefix="content-bg"
             value={styling.content}
             isSaving={isSaving}
-            defaultHint="Uses the standard muted canvas (adapts to light and dark)."
+            defaultHint="Uses the standard canvas (adapts to light and dark)."
             onChange={updateContent}
           />
         </CardContent>
@@ -210,7 +210,7 @@ export function StylingSettings({
         <CardHeader>
           <CardTitle>Modal</CardTitle>
           <CardDescription>
-            Dialogs like Send Feedback. Changes apply to any open modal live.
+            Dialogs across the admin. Changes apply to any open modal live.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -279,7 +279,7 @@ export function StylingSettings({
         <CardHeader>
           <CardTitle>Cards inside modals</CardTitle>
           <CardDescription>
-            The bordered sections within a modal (like the feedback list).
+            The bordered sections within a modal.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -341,24 +341,23 @@ function ModalPreview({ modal }: { modal: ShellModalStyling }) {
         {/* Mimics the real dialog structure so the modal CSS variables preview here. */}
         <div
           data-slot="dialog-content"
-          data-variant="admin"
-          className="relative mx-auto flex max-w-sm flex-col overflow-hidden rounded-xl"
+          className="relative mx-auto flex max-w-sm flex-col overflow-hidden rounded-lg"
         >
           <div data-slot="dialog-header" className="flex flex-col gap-1 text-left">
-            <div className="text-base leading-none font-medium">Send Feedback</div>
+            <div className="text-base leading-none font-medium">Example modal</div>
             <div className="text-sm text-muted-foreground">
-              Share a request, report, question, or win.
+              A preview of the modal styling.
             </div>
           </div>
-          <div data-slot="dialog-body" className="grid gap-4">
-            <Card size="sm">
+          <div className="grid gap-4">
+            <Card>
               <CardContent className="text-sm text-muted-foreground">
-                What&apos;s on your mind?
+                A card inside the modal.
               </CardContent>
             </Card>
-            <Card size="sm">
+            <Card>
               <CardContent className="text-sm text-muted-foreground">
-                Feedback
+                A second card inside the modal.
               </CardContent>
             </Card>
           </div>

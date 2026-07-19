@@ -34,6 +34,7 @@ import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
+import { AdminStylingSettingsTab } from "@/components/admin/layout/settings/AdminStylingSettingsTab"
 import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
 import { normalizeContactColdEmailThreshold } from "@/lib/actions/newsletters/contact-filters"
 import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
@@ -476,7 +477,8 @@ const TABS = [
   { id: "integrations", label: "Integrations" },
   { id: "cron-jobs", label: "Cron Jobs" },
   { id: "ai", label: "AI Providers" },
-  { id: "sidebar", label: "Sidebar" }
+  { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" }
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -538,9 +540,13 @@ export default function SiteEditPage() {
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
   const isAdminSettingsTab = activeTab === "sidebar"
+  const isStylingTab = activeTab === "styling"
+  // Both the Sidebar and Styling tabs persist through their own form + admin
+  // settings status (shared state — only one tab is mounted at a time).
+  const usesAdminSettingsStatus = isAdminSettingsTab || isStylingTab
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
-  const headerSaveStatus = isAdminSettingsTab ? adminSettingsStatus.saveStatus : saveStatus
+  const headerSaveStatus = usesAdminSettingsStatus ? adminSettingsStatus.saveStatus : saveStatus
   const isCustomDomainVerificationError =
     activeTab === "general" && /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
@@ -691,8 +697,9 @@ export default function SiteEditPage() {
   }
 
   const handleHeaderSave = () => {
-    if (isAdminSettingsTab) {
-      const form = document.getElementById("site-admin-settings-form") as HTMLFormElement | null
+    if (isAdminSettingsTab || isStylingTab) {
+      const formId = isStylingTab ? "admin-styling-settings-form" : "site-admin-settings-form"
+      const form = document.getElementById(formId) as HTMLFormElement | null
       form?.requestSubmit()
       return
     }
@@ -731,9 +738,9 @@ export default function SiteEditPage() {
               { label: activeTabConfig.label }
             ]}
             saveStatus={!isCronJobsTab ? headerSaveStatus : null}
-            isSaving={isAdminSettingsTab ? adminSettingsStatus.saving : isSubmitting}
+            isSaving={usesAdminSettingsStatus ? adminSettingsStatus.saving : isSubmitting}
             onSave={!isCronJobsTab ? handleHeaderSave : undefined}
-            saveDisabled={isAdminSettingsTab ? adminSettingsStatus.loading : false}
+            saveDisabled={usesAdminSettingsStatus ? adminSettingsStatus.loading : false}
             saveLabel="Save"
             savingLabel="Saving..."
             saveVariant="default"
@@ -911,6 +918,10 @@ export default function SiteEditPage() {
 
               {activeTab === "sidebar" && (
                 <SiteAdminSettingsTab siteId={siteId} onStatusChange={setAdminSettingsStatus} />
+              )}
+
+              {activeTab === "styling" && (
+                <AdminStylingSettingsTab onStatusChange={setAdminSettingsStatus} />
               )}
             </div>
           </div>

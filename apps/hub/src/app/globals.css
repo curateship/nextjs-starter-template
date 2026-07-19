@@ -426,3 +426,79 @@ button:not(:disabled),
 .newsletter-email-rich-text .ProseMirror img.ProseMirror-selectednode {
   outline-offset: 0;
 }
+
+/*
+ * ---------------------------------------------------------------------------
+ * Runtime admin appearance styling (Admin → Settings → Appearance).
+ * Values are set as CSS variables on the shell (see admin-client-shell.tsx):
+ * content card/table borders + gutter on the SidebarInset [data-content-styling]
+ * subtree, and modal styling on the document root (dialogs portal to <body>).
+ * Fallbacks reproduce hub's current look when a value is left in "default" mode.
+ * Declared after the Tailwind layers so these rules win over utility classes.
+ * ---------------------------------------------------------------------------
+ */
+
+/* Content cards + table surfaces: replace the ring border with a width- and
+ * color-adjustable box-shadow border. Covers both the shared Card and the
+ * table surface, which both draw a ring-1 ring-foreground/N border. */
+[data-content-styling] [data-slot="card"],
+[data-content-styling] [data-slot="table-surface"] {
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-card-border-width, 1) * 1px)
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 8%, transparent)
+    );
+}
+
+/* gutter = 0 → flat mode: no card chrome. */
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  box-shadow: none;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-radius: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"] img {
+  border-radius: 0;
+}
+
+/* Modal styling. Applied via --shell-modal-* on the document root so it reaches
+ * the dialog, which portals to <body> outside the shell subtree. Declared after
+ * the content rules so the settings-tab modal preview (a mock nested inside the
+ * content area) still gets these modal rules. */
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(
+    in oklab,
+    black var(--shell-modal-overlay-opacity, 50%),
+    transparent
+  );
+}
+
+[data-slot="dialog-content"] {
+  background-color: var(--shell-modal-bg, var(--background));
+  --tw-ring-shadow: 0 0 #0000;
+  border-width: calc(var(--shell-modal-border-width, 1) * 1px);
+  border-style: solid;
+  border-color: var(--shell-modal-border-color, var(--border));
+  padding: var(--shell-modal-padding, 1.5rem);
+  gap: var(--shell-modal-padding, 1.5rem);
+}
+
+/* Cards inside the modal. */
+[data-slot="dialog-content"] [data-slot="card"] {
+  background-color: var(--shell-modal-card-bg, var(--card));
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-modal-card-border-width, 1) * 1px)
+    var(
+      --shell-modal-card-border-color,
+      color-mix(in oklab, var(--foreground) 8%, transparent)
+    );
+}
+
+/* Gutter drives the gap between stacked cards within the admin content area. */
+[data-content-styling] [data-slot="card-group"] {
+  gap: var(--shell-gutter, 1.5rem);
+}
