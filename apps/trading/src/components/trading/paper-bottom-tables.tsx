@@ -32,10 +32,13 @@ export function PaperPositionsTable({
   account,
   confirmationEnabled,
   onDone,
+  onSelectMarket,
 }: {
   account: PaperAccountResponse | null
   confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
+  /** Clicking a position row switches the workspace to that market. */
+  onSelectMarket?: (coin: string) => void
 }) {
   const [closing, setClosing] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState<{
@@ -86,7 +89,14 @@ export function PaperPositionsTable({
         {positions.map((position) => {
           const szi = Number(position.szi)
           return (
-            <TableRow key={position.coin}>
+            <TableRow
+              key={position.coin}
+              onClick={
+                onSelectMarket
+                  ? () => onSelectMarket(position.coin)
+                  : undefined
+              }
+            >
               <TableCell className="font-medium">{position.coin}</TableCell>
               <MonoCell
                 className={szi > 0 ? "text-emerald-600" : "text-red-500"}
@@ -105,7 +115,8 @@ export function PaperPositionsTable({
                 {position.unrealized_pnl >= 0 ? "+" : ""}
                 {position.unrealized_pnl.toFixed(2)}
               </MonoCell>
-              <TableCell>
+              {/* Row actions must not also trigger the row's market switch. */}
+              <TableCell onClick={(event) => event.stopPropagation()}>
                 <RowActionButton
                   busy={closing === position.coin}
                   disabled={closing !== null}
