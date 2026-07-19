@@ -13,13 +13,17 @@ import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
+  getModalStyleVars,
   isShellItem,
+  MODAL_STYLE_VAR_NAMES,
   renderShellIcon,
+  resolveBackground,
   type ShellConfig,
   type ShellItem,
+  type ShellModalStyling,
 } from "@/lib/ai-video"
 import type { AuthUser } from "@/lib/api/auth"
-import { loadCurrentUser, logout } from "@/lib/api/auth"
+import { logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -64,6 +68,7 @@ export function ShellLayout({
   const lastSettingsRef = React.useRef(settings)
 
   useShellFavicon(config.favicon)
+  useModalStyleVars(config.styling.modal)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -78,31 +83,12 @@ export function ShellLayout({
     setSaveStatus("idle")
   }, [initialSettingsError, settings])
 
-  React.useEffect(() => {
-    let active = true
-
-    const redirectIfSignedOut = async () => {
-      const currentUser = await loadCurrentUser().catch(() => null)
-      if (active && !currentUser) {
-        window.location.href = "/login"
-      }
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void redirectIfSignedOut()
-      }
-    }
-
-    window.addEventListener("focus", redirectIfSignedOut)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      active = false
-      window.removeEventListener("focus", redirectIfSignedOut)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [])
+  // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
+  // signed in?" check on every tab focus was bouncing the user to /login
+  // whenever the client-side loadCurrentUser call didn't see the session cookie
+  // (which happens intermittently in the IDE's embedded preview). Route auth is
+  // guarded server-side by the _authenticated loader on navigation, which reads
+  // the cookie from the request directly — that's the reliable gate.
 
   const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
     setConfig(nextConfig)
@@ -204,9 +190,22 @@ export function ShellLayout({
     ]
   )
 
+  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
+  // Opaque so the two render the same color regardless of what sits behind them.
+  const chromeBackground = resolveBackground(config.styling.chrome, {
+    opaque: true,
+  })
+
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/60">
+      <div
+        className="min-h-screen bg-muted/60"
+        style={
+          chromeBackground
+            ? ({ "--sidebar": chromeBackground } as React.CSSProperties)
+            : undefined
+        }
+      >
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
@@ -231,6 +230,10 @@ export function ShellLayout({
                   ? "space-y-0 overflow-hidden p-0 sm:space-y-0 sm:p-0 md:p-0"
                   : undefined
               }
+              // The editor manages its own full-viewport layout, so leave its
+              // padding/overflow to the className above (styling would set inline
+              // padding that the p-0 class can't override).
+              styling={isVideoEditorPath ? undefined : config.styling}
             >
               <Outlet />
             </DashboardContent>
@@ -253,6 +256,28 @@ function resolveConfig(settings: ShellConfig | null) {
   }
 
   return requireCanonicalShellConfig(settings)
+}
+
+// The dialog portals to document.body, outside the shell subtree, so modal
+// styling is applied as CSS variables on the document root where it can reach.
+function useModalStyleVars(modal: ShellModalStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getModalStyleVars(modal)
+    for (const name of MODAL_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of MODAL_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [modal])
 }
 
 function useShellFavicon(favicon: string) {

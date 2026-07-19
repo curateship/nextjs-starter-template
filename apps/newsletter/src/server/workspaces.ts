@@ -7,8 +7,10 @@ import {
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -27,6 +29,8 @@ export type WorkspaceSettings = {
   automationFavoriteNodeKeys: AutomationPaletteKey[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function saveWorkspaceAutomationFavorites(
@@ -352,6 +356,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -377,6 +382,7 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -387,6 +393,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     automationFavoriteNodeKeys: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

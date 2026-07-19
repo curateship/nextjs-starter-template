@@ -3,11 +3,13 @@ import { z } from "zod"
 
 import {
   createDefaultBrandKitConfig,
+  createDefaultStyling,
   createDefaultTopRightNavigation,
   iconMeta,
   type BrandKitConfig,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-video"
 import {
@@ -18,6 +20,7 @@ import {
 import {
   brandKitConfigSchema,
   shellSectionSchema,
+  shellStylingSchema,
   shellTopRightNavigationItemSchema,
 } from "@/lib/shell-config-schema"
 import {
@@ -41,6 +44,8 @@ export type WorkspaceSettings = {
   brandKit: BrandKitConfig
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   // How far a ducked ("music") track drops under voice on export, in dB
@@ -59,6 +64,8 @@ const workspaceSettingsSchema = z
     brandKit: brandKitConfigSchema,
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
+    // Default fills rows saved before the styling tab existed.
+    styling: shellStylingSchema.default(() => createDefaultStyling()),
     // Default fills rows saved before this field existed.
     sidebarWidth: z
       .number()
@@ -437,6 +444,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     brandKit: createDefaultBrandKitConfig(),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: createDefaultStyling(),
   })
 }
 

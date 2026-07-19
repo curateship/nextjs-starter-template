@@ -159,3 +159,101 @@
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.7); opacity: 0.7; }
 }
+
+/*
+ * Runtime card styling driven by the Settings → Styling tab. Scoped to the
+ * DashboardContent subtree ([data-content-styling]) so cards inside portaled
+ * modals keep their standard look. --shell-card-border-width (px, 0 = off) is
+ * set inline on the content <main>. Covers both the shared Card and the table
+ * surface, since both draw the same `border border-foreground/5` border.
+ */
+[data-content-styling] [data-slot="card"],
+[data-content-styling] [data-slot="table-surface"] {
+  border-width: calc(var(--shell-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+}
+
+/* gutter = 0 → flat mode: no card chrome. */
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-radius: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"] img {
+  border-radius: 0;
+}
+
+/*
+ * Modal styling driven by Settings → Styling → Modal. Applied via --shell-modal-*
+ * on the document root (see useModalStyleVars) so it reaches the dialog, which
+ * portals to <body> outside the shell subtree. Declared AFTER the content rules
+ * so that in the settings modal preview (a mock nested inside the content area)
+ * these modal rules win for the preview card. Fallbacks reproduce the current
+ * dialog look when a value is left in "default" mode.
+ */
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(
+    in oklab,
+    black var(--shell-modal-overlay-opacity, 10%),
+    transparent
+  );
+}
+
+[data-slot="dialog-content"] {
+  /* Replace the ring-1 border with a width- and color-adjustable box-shadow border. */
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-modal-border-width, 1) * 1px)
+    var(
+      --shell-modal-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/* Per-variant surface color: the default fallback preserves each variant's own
+ * background (admin uses a muted/popover mix) until the user overrides it. */
+[data-slot="dialog-content"][data-variant="default"] {
+  background-color: var(--shell-modal-bg, var(--popover));
+  padding: var(--shell-modal-padding, 1rem);
+  gap: var(--shell-modal-padding, 1rem);
+}
+[data-slot="dialog-content"][data-variant="admin"] {
+  background-color: var(
+    --shell-modal-bg,
+    color-mix(in oklab, var(--muted) 50%, var(--popover))
+  );
+}
+
+[data-slot="dialog-header"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-top: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-body"] {
+  padding: var(--shell-modal-padding, 1.5rem);
+  /* Inner spacing also drives the gap between the modal's stacked cards. */
+  gap: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-footer"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
+/* Cards inside the modal. */
+[data-slot="dialog-content"] [data-slot="card"] {
+  background-color: var(--shell-modal-card-bg, var(--card));
+  border-width: calc(var(--shell-modal-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-modal-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+}

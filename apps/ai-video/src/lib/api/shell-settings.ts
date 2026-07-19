@@ -67,6 +67,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         brandKit: workspaceSettings.brandKit,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
+        styling: workspaceSettings.styling,
       },
     }
   }
@@ -106,6 +107,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             brandKit,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
+            styling: data.styling,
           },
           updatedAt,
         })

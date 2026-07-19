@@ -5,8 +5,10 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   iconMeta,
   isSidebarWidth,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import {
@@ -30,6 +32,8 @@ export type WorkspaceSettings = {
   automationFavoriteNodeKeys: AutomationPaletteKey[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function saveWorkspaceAutomationFavorites(
@@ -370,6 +374,7 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -381,6 +386,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     automationFavoriteNodeKeys: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

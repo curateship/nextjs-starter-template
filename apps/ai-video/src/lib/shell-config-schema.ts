@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import {
   BRAND_KIT_WATERMARK_POSITIONS,
+  createDefaultStyling,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
@@ -109,6 +110,32 @@ export const shellTopRightNavigationItemSchema = z
   })
   .strict()
 
+export const shellBackgroundSchema = z.object({
+  mode: z.enum(["default", "muted", "custom"]),
+  strength: z.number().int().min(0).max(100),
+  color: z.string(),
+})
+
+export const shellModalStylingSchema = z.object({
+  background: shellBackgroundSchema,
+  borderWidth: z.number().int().min(0).max(3),
+  borderColor: shellBackgroundSchema,
+  padding: z.number().int().min(0).max(48),
+  overlayOpacity: z.number().int().min(0).max(100),
+  cardBackground: shellBackgroundSchema,
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+})
+
+export const shellStylingSchema = z.object({
+  gutter: z.number().int().min(0).max(48),
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+  content: shellBackgroundSchema,
+  chrome: shellBackgroundSchema,
+  modal: shellModalStylingSchema,
+})
+
 export const shellSectionSchema = z
   .object({
     id: z.string().min(1),
@@ -161,6 +188,8 @@ export const shellConfigSchema = shellGlobalsSchema
     brandKit: brandKitConfigSchema,
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
+    // Default fills configs saved before the styling tab existed.
+    styling: shellStylingSchema.default(() => createDefaultStyling()),
   })
   .strict()
 

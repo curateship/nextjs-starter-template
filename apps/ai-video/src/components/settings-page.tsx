@@ -6,6 +6,7 @@ import { GeneralSettings } from "@/components/general-settings"
 import { LlmProviderSettings } from "@/components/llm-provider-settings"
 import { NotificationSettings } from "@/components/notification-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/ai-video"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -13,6 +14,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" },
   { id: "notifications", label: "Notifications" },
   { id: "ai-providers", label: "AI Providers" },
   { id: "brand-kit", label: "Brand Kit" },
@@ -149,6 +151,13 @@ export function SettingsPage({
               shell config save flow. */}
           {activeTab === "ai-providers" ? (
             <LlmProviderSettings saveRef={aiSaveRef} />
+          ) : null}
+          {activeTab === "styling" ? (
+            <StylingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
+            />
           ) : null}
           {activeTab === "brand-kit" ? (
             <BrandKitSettings
