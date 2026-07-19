@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { cacheChartDrawings } from "@/lib/trading/chart-drawings"
 import {
-  cacheTrendlines,
   distanceToSegment,
   moveTrendlinePoint,
   nearestCandleTime,
@@ -39,7 +39,7 @@ describe("trendline model", () => {
     expect(nearestCandleTime([0, 86_400, 172_800], 10_000)).toBe(0)
   })
 
-  it("keeps each market's trendlines cached while switching markets", () => {
+  it("keeps each market's drawings cached while switching markets", () => {
     const line: Trendline = {
       id: "line-1",
       start: { time: 100, price: 10 },
@@ -47,10 +47,16 @@ describe("trendline model", () => {
       color: "#2962ff",
     }
 
-    const suiCached = cacheTrendlines(new Map(), "testnet:SUI", [line])
-    const bothCached = cacheTrendlines(suiCached, "testnet:ETH", [])
+    const suiCached = cacheChartDrawings(new Map(), "testnet:SUI", {
+      trendlines: [line],
+      positions: [],
+    })
+    const bothCached = cacheChartDrawings(suiCached, "testnet:ETH", {
+      trendlines: [],
+      positions: [],
+    })
 
-    expect(bothCached.get("testnet:SUI")).toEqual([line])
-    expect(bothCached.get("testnet:ETH")).toEqual([])
+    expect(bothCached.get("testnet:SUI")?.trendlines).toEqual([line])
+    expect(bothCached.get("testnet:ETH")?.trendlines).toEqual([])
   })
 })

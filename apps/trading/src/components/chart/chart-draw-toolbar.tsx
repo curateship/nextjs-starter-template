@@ -1,6 +1,10 @@
 import { GripVerticalIcon } from "lucide-react"
 import * as React from "react"
 
+import {
+  CHART_DOWN_COLOR,
+  CHART_UP_COLOR,
+} from "@/components/chart/chart-markers"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -76,6 +80,9 @@ function ToolButton({
   )
 }
 
+/** The drawing tool waiting for its next click; null when none is armed. */
+export type ChartDrawTool = "trendline" | "long" | "short"
+
 /**
  * The floating drawing toolbar that sits on top of every chart that can be
  * drawn on (live, backtest, bot). It starts top-right, clear of the price axis;
@@ -84,15 +91,18 @@ function ToolButton({
  */
 export function ChartDrawToolbar({
   priceAxisWidth,
-  trendlineActive,
-  onTrendlineToggle,
+  activeTool,
+  onSelectTool,
 }: {
   /** Width of the chart's right price axis, so the default spot clears it. */
   priceAxisWidth: number
-  trendlineActive: boolean
-  onTrendlineToggle: () => void
+  activeTool: ChartDrawTool | null
+  /** Arms a tool, or disarms it when the active one is clicked again. */
+  onSelectTool: (tool: ChartDrawTool | null) => void
 }) {
   const barRef = React.useRef<HTMLDivElement | null>(null)
+  const toggle = (tool: ChartDrawTool) =>
+    onSelectTool(activeTool === tool ? null : tool)
   const [pos, setPos] = usePersistedState<ToolbarPos | null>(
     STORAGE_KEY,
     null,
@@ -194,8 +204,8 @@ export function ChartDrawToolbar({
       </Tooltip>
       <ToolButton
         label="Trendline"
-        active={trendlineActive}
-        onClick={onTrendlineToggle}
+        active={activeTool === "trendline"}
+        onClick={() => toggle("trendline")}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <line
@@ -211,6 +221,56 @@ export function ChartDrawToolbar({
           <circle cx="19" cy="6" r="1.75" fill="currentColor" />
         </svg>
       </ToolButton>
+      <ToolButton
+        label="Long position"
+        active={activeTool === "long"}
+        onClick={() => toggle("long")}
+      >
+        <PositionIcon side="long" />
+      </ToolButton>
+      <ToolButton
+        label="Short position"
+        active={activeTool === "short"}
+        onClick={() => toggle("short")}
+      >
+        <PositionIcon side="short" />
+      </ToolButton>
     </div>
+  )
+}
+
+/**
+ * A profit zone stacked on a loss zone, in the same green/red the drawing uses
+ * on the chart: green on top for a long, green underneath for a short.
+ */
+function PositionIcon({ side }: { side: "long" | "short" }) {
+  const profitOnTop = side === "long"
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect
+        x="4"
+        y="5"
+        width="16"
+        height="7"
+        fill={profitOnTop ? CHART_UP_COLOR : CHART_DOWN_COLOR}
+        fillOpacity="0.35"
+      />
+      <rect
+        x="4"
+        y="12"
+        width="16"
+        height="7"
+        fill={profitOnTop ? CHART_DOWN_COLOR : CHART_UP_COLOR}
+        fillOpacity="0.35"
+      />
+      <line
+        x1="4"
+        y1="12"
+        x2="20"
+        y2="12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
   )
 }
