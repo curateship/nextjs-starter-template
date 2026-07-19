@@ -5,7 +5,8 @@ import { unstable_cache } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
-import { DIRECTORY_MAP_LISTING_LIMIT } from '@/lib/actions/directories/directory-map-core'
+import { DIRECTORY_MAP_LISTING_LIMIT, isDirectoryMapBlock } from '@/lib/actions/directories/directory-map-core'
+import { getDirectoryMapConfigAction } from '@/lib/actions/directories/directory-map-actions'
 import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
 import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
@@ -185,6 +186,12 @@ export interface SiteWithBlocks {
     display_order: number
   }>
   listingData?: Record<string, any>
+  /**
+   * Maps key for listing-views blocks in map mode. Resolved here so the block
+   * renders its final shape server-side; `undefined` when the page has no map
+   * block, `null` when the site has no key configured.
+   */
+  mapApiKey?: string | null
   categoryListingData?: Record<string, CategoriesListingData>
   memberDirectoryData?: Record<string, MemberDirectoryData>
 }
@@ -289,7 +296,7 @@ async function prefetchListingData(
         } = block.content
 
         // Map mode plots the whole (capped) result set instead of a page of cards.
-        const isMapMode = displayMode === 'map' && contentType === 'directory'
+        const isMapMode = isDirectoryMapBlock({ displayMode, contentType })
         const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
         const offset = isMapMode || !isPaginated ? 0 : (listingPage - 1) * itemsPerPage
 
@@ -314,6 +321,24 @@ async function prefetchListingData(
   }
 
   return listingData
+}
+
+/**
+ * Resolve the Maps key once per page when any listing-views block runs in map
+ * mode. Without this the block can't know whether to draw a map until a client
+ * round trip lands, so it renders an empty shell and then swaps — a visible
+ * double load. Returns undefined when the page has no map block.
+ */
+async function prefetchMapApiKey(
+  blocks: Array<{ type: string; content: Record<string, any> }>,
+  siteId: string
+): Promise<string | null | undefined> {
+  const hasMapBlock = blocks.some(
+    (block) => block.type === 'listing-views' && isDirectoryMapBlock(block.content)
+  )
+  if (!hasMapBlock) return undefined
+
+  return (await getDirectoryMapConfigAction(siteId)).apiKey
 }
 
 async function prefetchCategoryListingData(
@@ -398,8 +423,9 @@ async function buildSiteWithBlocksResult(
   }
 
   const blocks = buildPublicPageBlocks(page)
-  const [listingData, categoryListingData, memberDirectoryData] = await Promise.all([
+  const [listingData, mapApiKey, categoryListingData, memberDirectoryData] = await Promise.all([
     prefetchListingData(blocks, site.id, options),
+    prefetchMapApiKey(blocks, site.id),
     prefetchCategoryListingData(blocks, site.id),
     prefetchMemberDirectoryData(blocks, site.id),
   ])
@@ -425,6 +451,7 @@ async function buildSiteWithBlocksResult(
       } : null,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
+      mapApiKey,
       categoryListingData: Object.keys(categoryListingData).length > 0 ? categoryListingData : undefined,
       memberDirectoryData: Object.keys(memberDirectoryData).length > 0 ? memberDirectoryData : undefined,
     },

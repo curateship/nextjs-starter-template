@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -142,20 +142,19 @@ export function BlockRenderer({
         if (block.type === 'listing-views') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <Suspense>
-                <ListingViewsBlock
-                  content={blockContent}
-                  siteId={site.id}
-                  urlPrefixes={{
-                    products: 'products',
-                    posts: 'posts',
-                    directory: 'directory'
-                  }}
-                  preloadedData={site.listingData?.[block.id]}
-                  siteWidth={siteWidth}
-                  customWidth={customWidth}
-                />
-              </Suspense>
+              <ListingViewsBlock
+                content={blockContent}
+                siteId={site.id}
+                urlPrefixes={{
+                  products: 'products',
+                  posts: 'posts',
+                  directory: 'directory'
+                }}
+                preloadedData={site.listingData?.[block.id]}
+                preloadedMapApiKey={site.mapApiKey}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
             </div>
           )
         }
@@ -177,14 +176,12 @@ export function BlockRenderer({
         if (block.type === 'site-search') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <Suspense>
-                <PageSiteSearchBlock
-                  content={blockContent}
-                  siteId={site.id}
-                  siteWidth={siteWidth}
-                  customWidth={customWidth}
-                />
-              </Suspense>
+              <PageSiteSearchBlock
+                content={blockContent}
+                siteId={site.id}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
             </div>
           )
         }
@@ -216,13 +213,11 @@ export function BlockRenderer({
         if (block.type === 'auth') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <Suspense>
-                <AuthBlock
-                  {...blockContent}
-                  siteId={site.id}
-                  googleEnabled={googleEnabled}
-                />
-              </Suspense>
+              <AuthBlock
+                {...blockContent}
+                siteId={site.id}
+                googleEnabled={googleEnabled}
+              />
             </div>
           )
         }

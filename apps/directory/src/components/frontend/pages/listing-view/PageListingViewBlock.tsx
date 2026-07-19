@@ -11,7 +11,10 @@ import {
   type ListingViewsData,
   type ListingViewsItem
 } from "@/lib/actions/pages/page-listing-views-actions"
-import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/actions/directories/directory-map-core"
+import {
+  DIRECTORY_MAP_LISTING_LIMIT,
+  isDirectoryMapBlock
+} from "@/lib/actions/directories/directory-map-core"
 import { getDirectoryMapConfigAction } from "@/lib/actions/directories/directory-map-actions"
 import { ListingMapView, getMappableListings } from "./ListingMapView"
 import { Button } from "@/components/ui/button"
@@ -75,6 +78,11 @@ interface ListingViewsBlockProps {
     directory?: string
   }
   preloadedData?: any
+  /**
+   * Map key resolved on the server. `undefined` means "not preloaded" and falls
+   * back to a client fetch; `null` means "resolved, this site has no key".
+   */
+  preloadedMapApiKey?: string | null
   siteWidth?: "full" | "custom"
   customWidth?: number
 }
@@ -84,6 +92,7 @@ export function ListingViewsBlock({
   siteId,
   urlPrefixes,
   preloadedData,
+  preloadedMapApiKey,
   siteWidth = "custom",
   customWidth
 }: ListingViewsBlockProps) {
@@ -120,14 +129,19 @@ export function ListingViewsBlock({
     visibility
   } = content
   // Map mode plots the whole (capped) filtered result set; pagination is ignored.
-  const isMapMode = displayMode === "map" && contentType === "directory"
+  const isMapMode = isDirectoryMapBlock({ displayMode, contentType })
   const preloadedListingData = preloadedData as ListingViewsData | null | undefined
   const preloadedMatchesPage = Boolean(
     preloadedListingData && (isMapMode || !isPaginated || preloadedListingData.currentPage === currentPage)
   )
   const [data, setData] = useState<ListingViewsData | null>(() => preloadedMatchesPage ? preloadedListingData! : null)
   const [loading, setLoading] = useState(!preloadedMatchesPage)
-  const [mapConfig, setMapConfig] = useState<{ apiKey: string | null } | null>(null)
+  // Seeded from the server so a map block renders its final shape in the initial
+  // HTML. Left null only when the key was not preloaded, which is the one case
+  // that still needs the client fetch below.
+  const [mapConfig, setMapConfig] = useState<{ apiKey: string | null } | null>(
+    preloadedMapApiKey === undefined ? null : { apiKey: preloadedMapApiKey }
+  )
   const categoryIds = Array.isArray(rawCategoryIds) ? rawCategoryIds : []
   const categoryIdsKey = categoryIds.join("|")
   const categoryChipParentIds = Array.isArray(rawCategoryChipParentIds) ? rawCategoryChipParentIds : []
@@ -250,7 +264,7 @@ export function ListingViewsBlock({
   ])
 
   useEffect(() => {
-    if (!isMapMode) return
+    if (!isMapMode || preloadedMapApiKey !== undefined) return
     let active = true
     getDirectoryMapConfigAction(siteId)
       .then((config) => {
@@ -262,7 +276,7 @@ export function ListingViewsBlock({
     return () => {
       active = false
     }
-  }, [isMapMode, siteId])
+  }, [isMapMode, preloadedMapApiKey, siteId])
 
   const mobileGridColumns = Number(mobileColumns) === 2 ? "grid-cols-2" : "grid-cols-1"
   const desktopGridColumns = Number(columns) === 2 ? "lg:grid-cols-2" : Number(columns) === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"

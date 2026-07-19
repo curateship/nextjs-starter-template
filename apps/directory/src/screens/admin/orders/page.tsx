@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "@/lib/navigation-client"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
@@ -68,14 +68,6 @@ const emailStatusStyles = {
 type OrderSortColumn = "created_at" | "customer_email" | "product" | "amount"
 
 export default function OrdersPage() {
-  return (
-    <Suspense>
-      <OrdersContent />
-    </Suspense>
-  )
-}
-
-function OrdersContent() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const searchParams = useSearchParams()
 

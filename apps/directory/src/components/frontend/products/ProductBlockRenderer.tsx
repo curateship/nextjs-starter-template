@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/features/ProductFeaturesBlock"
 import { Product3StepsFeatureBlock } from "@/components/frontend/products/3-steps-feature/Product3StepsFeatureBlock"
@@ -234,7 +234,6 @@ export function ProductBlockRenderer({
         if (block.type === 'listing-views') {
           return (
             <div key={`listing-views-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-            <Suspense>
               <ProductListingViewBlock
                 content={blockContent as any}
                 siteId={site.id}
@@ -246,7 +245,6 @@ export function ProductBlockRenderer({
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
-            </Suspense>
             </div>
           )
         }

@@ -79,6 +79,7 @@ type SortableSectionProps = {
   section: AdminSidebarSection
   isDraggingItem: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
+  onSectionDelete: (sectionId: string) => void
   onReset: () => void
   onItemAdd: (sectionId: string) => void
   onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
@@ -363,6 +364,7 @@ function SortableSectionCard({
   section,
   isDraggingItem,
   onSectionTitleChange,
+  onSectionDelete,
   onReset,
   onItemAdd,
   onItemChange,
@@ -415,6 +417,16 @@ function SortableSectionCard({
             <Button type="button" variant="outline" size="sm" onClick={() => onItemAdd(section.id)}>
               <PlusIcon className="h-4 w-4" />
               Add Link
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hover:bg-transparent"
+              onClick={() => onSectionDelete(section.id)}
+              aria-label={`Delete ${section.title || "sidebar section"} section`}
+            >
+              <Trash2Icon className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -536,6 +548,16 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
           entries: []
         }
       ]
+    })
+  }
+
+  // Drops the section and every link inside it. Nothing persists until Save, and
+  // Reset restores the defaults, so this matches the link delete beside it and
+  // does not ask for confirmation.
+  const handleSectionDelete = (sectionId: string) => {
+    onConfigChange({
+      ...config,
+      sections: config.sections.filter((section) => section.id !== sectionId)
     })
   }
 
@@ -799,6 +821,7 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
                 section={section}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
+                onSectionDelete={handleSectionDelete}
                 onReset={() => onConfigChange(createDefaultAdminSidebarSettings(siteId))}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}

@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { ListingViewsBlock } from "@/components/frontend/pages/listing-view/PageListingViewBlock"
@@ -70,9 +69,12 @@ interface CategoryBlockRendererProps {
   listingData?: Record<string, any>
   // Server-prefetched child categories keyed by block id
   childrenData?: Record<string, CategoryChildItem[]>
+  // Maps key resolved server-side so a map-mode Listings block renders its final
+  // shape in the initial HTML instead of an empty shell that fills in later
+  mapApiKey?: string | null
 }
 
-export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false, listingData, childrenData }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false, listingData, childrenData, mapApiKey }: CategoryBlockRendererProps) {
   const siteChrome = resolveSiteChrome(site.settings)
 
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
@@ -108,21 +110,20 @@ export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPrev
           if (block.type === CATEGORY_LISTINGS_BLOCK_TYPE) {
             return (
               <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-                <Suspense>
-                  <ListingViewsBlock
-                    // The rendered category is the implicit filter for this block
-                    content={{ ...blockContent, categoryIds: isTemplatePreview ? [] : [category.id] }}
-                    preloadedData={isTemplatePreview ? getTemplatePreviewListingData(blockContent.itemsToShow) : listingData?.[block.id]}
-                    siteId={site.id}
-                    urlPrefixes={{
-                      products: 'products',
-                      posts: 'posts',
-                      directory: 'directory'
-                    }}
-                    siteWidth={siteWidth}
-                    customWidth={customWidth}
-                  />
-                </Suspense>
+                <ListingViewsBlock
+                  // The rendered category is the implicit filter for this block
+                  content={{ ...blockContent, categoryIds: isTemplatePreview ? [] : [category.id] }}
+                  preloadedData={isTemplatePreview ? getTemplatePreviewListingData(blockContent.itemsToShow) : listingData?.[block.id]}
+                  preloadedMapApiKey={mapApiKey}
+                  siteId={site.id}
+                  urlPrefixes={{
+                    products: 'products',
+                    posts: 'posts',
+                    directory: 'directory'
+                  }}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                />
               </div>
             )
           }
