@@ -18,6 +18,7 @@ import { now, requireUser, uuid } from "@/server/security"
 import {
   createEmptyTimeline,
   parseTimelineForReset,
+  PROJECT_CONFLICT_MESSAGE,
   requireCanonicalTimeline,
   type ProjectTimeline,
 } from "@/lib/timeline-schema"
@@ -31,6 +32,8 @@ export type ProjectItem = {
   clip_count: number
   duration_ms: number
   timeline_error: string | null
+  // Optimistic-concurrency token; send it back with the next timeline save.
+  version: number
   // Latest-render mirror (render-queue.ts) for the dashboard status badge.
   render_status: "idle" | "queued" | "rendering" | "ready" | "error"
   thumbnail_url: string | null
@@ -102,6 +105,7 @@ function serializeProjectFromTimeline(
     clip_count: stats.clipCount,
     duration_ms: stats.durationMs,
     timeline_error: timelineError,
+    version: row.version,
     render_status:
       (row.renderStatus as ProjectItem["render_status"]) ?? "idle",
     thumbnail_url:
@@ -260,31 +264,68 @@ export async function renameProjectForCurrentUser(
   return serializeProject(row)
 }
 
-export async function saveProjectTimelineForCurrentUser(
+// The one timeline write path. Compare-and-swap: the update only lands while
+// the project is still at `expectedVersion`, so a save built on a stale copy
+// (a second tab, or a server-side writer that read earlier) is rejected
+// instead of overwriting newer work. Every writer must go through this.
+// Ownership is enforced here via `userId`; callers own requireAppOrigin and
+// requireUser, as with the other helpers in this module.
+export async function writeProjectTimeline(
+  userId: string,
   projectId: string,
-  timeline: ProjectTimeline
-): Promise<ProjectItem> {
-  requireAppOrigin()
-  const user = await requireUser()
+  timeline: ProjectTimeline,
+  expectedVersion: number
+): Promise<AiVideoProject> {
   const normalizedTimeline = secureTimelineMediaUrls(
     requireCanonicalTimeline(timeline)
   )
 
   const [row] = await db
     .update(aiVideoProjects)
-    .set({ timeline: normalizedTimeline, updatedAt: now() })
+    .set({
+      timeline: normalizedTimeline,
+      version: expectedVersion + 1,
+      updatedAt: now(),
+    })
     .where(
       and(
         eq(aiVideoProjects.id, projectId),
-        eq(aiVideoProjects.userId, user.id)
+        eq(aiVideoProjects.userId, userId),
+        eq(aiVideoProjects.version, expectedVersion)
       )
     )
     .returning()
 
-  if (!row) {
-    throw new Error("Project not found")
+  if (row) {
+    return row
   }
 
+  // Nothing updated — either the project is gone (or not ours), or it moved
+  // past the version this write was based on. Only the second is a conflict.
+  const [existing] = await db
+    .select({ id: aiVideoProjects.id })
+    .from(aiVideoProjects)
+    .where(
+      and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, userId))
+    )
+    .limit(1)
+
+  throw new Error(existing ? PROJECT_CONFLICT_MESSAGE : "Project not found")
+}
+
+export async function saveProjectTimelineForCurrentUser(
+  projectId: string,
+  timeline: ProjectTimeline,
+  expectedVersion: number
+): Promise<ProjectItem> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const row = await writeProjectTimeline(
+    user.id,
+    projectId,
+    timeline,
+    expectedVersion
+  )
   return serializeProject(row)
 }
 
