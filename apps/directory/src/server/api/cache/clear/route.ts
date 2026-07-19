@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     }
 
     revalidateTag('all')
-    await purgeProxyCache()
-    return NextResponse.json({ success: true, cleared: ['all'] })
+    const proxyPurged = await purgeProxyCache()
+
+    return NextResponse.json({ success: true, cleared: ['all'], proxyPurged })
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 })
   }
