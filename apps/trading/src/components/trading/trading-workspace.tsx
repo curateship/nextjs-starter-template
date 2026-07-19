@@ -107,7 +107,6 @@ import {
   type MarketRow,
 } from "@/lib/hl/hooks"
 import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
-import { TrendlineToolButton } from "@/components/chart/trendline-tool-button"
 import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
@@ -184,7 +183,6 @@ export function TradingWorkspace({
   const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(
     null
   )
-  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Imperative chart handle so the right-click menu can offer Reset View,
   // matching the bot and backtest charts.
   const chartApiRef = React.useRef<PriceChartHandle | null>(null)
@@ -715,14 +713,7 @@ export function TradingWorkspace({
                         onUpdate={updateIndicator}
                       />
                     }
-                  >
-                    <TrendlineToolButton
-                      active={trendlineDrawing}
-                      onToggle={() =>
-                        setTrendlineDrawing((active) => !active)
-                      }
-                    />
-                  </ChartToolbar>
+                  />
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={tradingNetwork}
@@ -735,8 +726,6 @@ export function TradingWorkspace({
                       onLineCancel={handleLineCancel}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
-                      trendlineDrawing={trendlineDrawing}
-                      onTrendlineDrawingChange={setTrendlineDrawing}
                       onTrendlinePersistenceError={
                         handleTrendlinePersistenceError
                       }

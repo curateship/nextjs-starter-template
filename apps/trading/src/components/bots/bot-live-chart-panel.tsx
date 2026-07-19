@@ -9,7 +9,6 @@ import { buildBotFillMarkers } from "@/components/bots/bot-chart-overlays"
 import type { BotRoundTrip } from "@/components/bots/bot-round-trips"
 import type { BotDetailResponse } from "@/lib/api/bots"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
-import { TrendlineToolButton } from "@/components/chart/trendline-tool-button"
 import {
   PriceChart,
   type ChartFocusPoint,
@@ -58,7 +57,6 @@ export function BotLiveChartPanel({
   toolbarActions?: React.ReactNode
 }) {
   const intervalMs = candleIntervalMs(interval)
-  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
 
   // Price-pinned O/C chips for recent fills, snapped to candle buckets.
   const markers = React.useMemo<ChartMarker[]>(
@@ -114,12 +112,6 @@ export function BotLiveChartPanel({
         onIntervalChange={() => {}}
         legend={{ chips: markers.length > 0 }}
         leading={<span className="text-sm font-bold">{market}</span>}
-        afterIntervals={
-          <TrendlineToolButton
-            active={trendlineDrawing}
-            onToggle={() => setTrendlineDrawing((active) => !active)}
-          />
-        }
       >
         {toolbarActions}
       </ChartToolbar>
@@ -134,8 +126,6 @@ export function BotLiveChartPanel({
           focusPoints={focusPoints}
           focusResult={focusResult}
           onLineDragEnd={onLineDragEnd}
-          trendlineDrawing={trendlineDrawing}
-          onTrendlineDrawingChange={setTrendlineDrawing}
         />
       </div>
     </div>

@@ -136,15 +136,13 @@ export function SidebarCollapsible({
           }
 
           const hasChildren = Boolean(entry.children?.length)
-          const hasActiveChild = Boolean(
-            entry.children?.some((child) => child.active)
-          )
 
           return (
+            // Sub-links always start collapsed — being on the page (or on one of
+            // its children) no longer unfolds them for you.
             <Collapsible
               key={entry.id}
               asChild
-              defaultOpen={entry.active || hasActiveChild}
               className="group/collapsible"
             >
               <SidebarMenuItem>
