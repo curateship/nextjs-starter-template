@@ -688,7 +688,7 @@ export function AutomationEditor({
         key={`${bot.botId ?? "setup"}-${botChartMarket}`}
         network={botLive.network}
         market={botChartMarket}
-        defaultInterval={(compiled.config?.interval ?? "15m") as CandleInterval}
+        interval={(compiled.config?.interval ?? "15m") as CandleInterval}
         automationConfig={compiled.config}
         fills={botLive.marketTrades}
         trips={botLive.trips}

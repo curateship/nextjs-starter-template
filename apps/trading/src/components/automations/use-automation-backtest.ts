@@ -62,6 +62,16 @@ export function useAutomationBacktest(automationId: string) {
   React.useEffect(() => {
     groupIdRef.current = groupId
   })
+  // Tracks real mount state so the terminal stats fetch can write its result
+  // without being cancelled by the poll effect tearing itself down when the
+  // run finishes (that teardown is expected — the component is still mounted).
+  const mountedRef = React.useRef(true)
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const progress: BacktestGroupProgress = summarizeGroupProgress(runs)
   const replaceable =
@@ -128,7 +138,7 @@ export function useAutomationBacktest(automationId: string) {
         )
         void pollBacktestProgress(ids)
           .then((items) => {
-            if (cancelled) return
+            if (!mountedRef.current) return
             setRunStats(new Map(items.map((item) => [item.id, item])))
           })
           .catch(() => {})
