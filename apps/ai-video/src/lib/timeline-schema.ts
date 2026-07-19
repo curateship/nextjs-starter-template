@@ -78,6 +78,12 @@ export type ProjectTimeline = z.infer<typeof timelineSchema>
 export const SAVED_TIMELINE_INVALID_MESSAGE =
   "Saved timeline is invalid. Recreate it with the current editor."
 
+// Thrown when a timeline write is based on a version the project has since
+// moved past (another tab, or a server-side writer). Shared so the client can
+// recognize the rejection and show the conflict banner.
+export const PROJECT_CONFLICT_MESSAGE =
+  "This project changed elsewhere — reload to continue"
+
 export function createEmptyTimeline(): ProjectTimeline {
   return { tracks: [], aspect: "9:16" }
 }

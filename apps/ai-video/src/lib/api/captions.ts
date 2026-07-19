@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { PROJECT_CONFLICT_MESSAGE } from "@/lib/timeline-schema"
 import type {
   CaptionLine,
   CaptionProvider,
@@ -19,6 +20,8 @@ const captionSafeErrorMessages = new Set([
   "Caption generation returned no result",
   "Caption generation returned invalid JSON",
   "Caption generation returned an unexpected shape",
+  // These flows flush the timeline first, so they surface a save conflict.
+  PROJECT_CONFLICT_MESSAGE,
 ])
 
 export function getCaptionErrorMessage(error: unknown) {

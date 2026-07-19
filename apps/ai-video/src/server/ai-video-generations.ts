@@ -24,6 +24,7 @@ import {
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import { GEMINI_BASE_URL, safeBody } from "@/server/video-analysis"
+import { writeProjectTimeline } from "@/server/video-projects"
 
 // Two joins onto the media table in one query (the generated clip and the
 // generation's first-frame image) need distinct aliases.
@@ -421,15 +422,10 @@ export async function insertAiVideoGenerationIntoProjectForCurrentUser(
     ],
   })
 
-  await db
-    .update(aiVideoProjects)
-    .set({ timeline: nextTimeline, updatedAt: now() })
-    .where(
-      and(
-        eq(aiVideoProjects.id, project.id),
-        eq(aiVideoProjects.userId, user.id)
-      )
-    )
+  // Same compare-and-swap save path the editor uses: the append is based on
+  // the timeline read above, so it must not land if the project moved on.
+  // Bumping the version also makes an editor open on this project notice.
+  await writeProjectTimeline(user.id, project.id, nextTimeline, project.version)
 
   return { project_id: project.id, project_name: project.name }
 }

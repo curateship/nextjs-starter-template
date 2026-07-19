@@ -585,6 +585,10 @@ export const aiVideoProjects = pgTable(
     ),
     // Serialized editor timeline: { tracks: EditorTrack[], aspect: AspectRatio }
     timeline: jsonb("timeline").notNull(),
+    // Bumped by every timeline write. Savers send the version they loaded and
+    // the write only lands if it still matches, so a second tab or a
+    // server-side writer can't silently overwrite newer work.
+    version: integer("version").notNull().default(1),
     // Latest export: rendering → ready/error; the MP4 lives at renderStoragePath.
     renderStatus: varchar("render_status", { length: 20 }),
     renderError: text("render_error"),

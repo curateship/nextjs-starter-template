@@ -8,6 +8,7 @@ import {
 import type { MusicTrackId } from "../../lib/music-library.ts"
 import type { SoundEffectId } from "../../lib/sound-effects.ts"
 import type { TextFontId } from "../../lib/text-fonts.ts"
+import type { ProjectTimeline } from "../../lib/timeline-schema.ts"
 import { PlaybackClock } from "./playback-clock.ts"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -781,6 +782,9 @@ type EditorStoreSnapshot = {
   state: EditorState
   durationMs: number
   saveStatus: SaveStatus
+  // Set once a save is rejected because the project changed elsewhere. Edits
+  // stay in memory but autosave stops until the user reloads.
+  hasConflict: boolean
   documentName: string
   documentThumbnailUrl: string | null
 }
@@ -790,6 +794,7 @@ export type EditorStore = {
   subscribe: (listener: () => void) => () => void
   dispatch: React.Dispatch<EditorAction>
   setSaveStatus: (status: SaveStatus) => void
+  setHasConflict: () => void
   setDocumentName: (name: string) => void
   setDocumentThumbnailUrl: (url: string | null) => void
 }
@@ -803,6 +808,7 @@ export function createEditorStore(
     state,
     durationMs: timelineDurationMs(state.tracks),
     saveStatus: "saved",
+    hasConflict: false,
     documentName,
     documentThumbnailUrl,
   }
@@ -831,6 +837,10 @@ export function createEditorStore(
       })
     },
     setSaveStatus: (saveStatus) => update({ ...snapshot, saveStatus }),
+    setHasConflict: () => {
+      if (snapshot.hasConflict) return
+      update({ ...snapshot, hasConflict: true, saveStatus: "error" })
+    },
     setDocumentName: (documentName) => update({ ...snapshot, documentName }),
     setDocumentThumbnailUrl: (documentThumbnailUrl) =>
       update({ ...snapshot, documentThumbnailUrl }),
@@ -847,6 +857,9 @@ type EditorContextValue = {
   setDocumentName: (name: string) => void
   setDocumentThumbnailUrl: (url: string | null) => void
   flushSave: () => Promise<void>
+  // Persist an explicit snapshot straight away through the same versioned
+  // save path autosave uses (the corrupt-timeline reset).
+  saveSnapshot: (snapshot: ProjectTimeline) => Promise<void>
 }
 
 // The provider component lives in editor-provider.tsx (files exporting
@@ -887,6 +900,11 @@ export function useEditorDurationMs() {
 export function useEditorSaveStatus() {
   const { store } = useEditorRuntime()
   return useEditorStoreSelector(store, (snapshot) => snapshot.saveStatus)
+}
+
+export function useEditorHasConflict() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => snapshot.hasConflict)
 }
 
 export function useEditorDocumentName() {

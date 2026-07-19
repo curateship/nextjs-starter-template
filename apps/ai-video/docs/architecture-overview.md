@@ -61,6 +61,11 @@ module, and `lib/api` wrapper.
    plus its aspect ratio. The editor is the dnd-kit timeline + a 1080p
    design-space preview. Built-in sound effects are audio clips backed by
    generated WAVs in `public/sound-effects`. Timeline edits autosave on a debounce.
+   Every timeline write goes through `writeProjectTimeline`, a compare-and-swap
+   on the `video_projects.version` column: savers send the version they loaded
+   and a stale write is rejected instead of overwriting. The editor turns that
+   rejection into a conflict banner, stops autosaving, and keeps the unsaved
+   edits on screen until the user reloads.
 8. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { PROJECT_CONFLICT_MESSAGE } from "@/lib/timeline-schema"
 import type {
   JumpCutAnalysisResult,
   JumpCutMode,
@@ -33,6 +34,8 @@ const safeErrorMessages = new Set([
   "Unsupported media type",
   "Another jump-cut analysis is already in progress.",
   "Jump-cut analysis failed",
+  // These flows flush the timeline first, so they surface a save conflict.
+  PROJECT_CONFLICT_MESSAGE,
 ])
 
 export function getJumpCutErrorMessage(error: unknown) {

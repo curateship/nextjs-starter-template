@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
   timelineSchema,
   type ProjectTimeline,
@@ -55,6 +56,7 @@ const projectSafeErrorMessages = new Set([
   "No queued export to cancel",
   "Too many exports queued",
   SAVED_TIMELINE_INVALID_MESSAGE,
+  PROJECT_CONFLICT_MESSAGE,
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -95,11 +97,22 @@ const renameProjectFn = createServerFn({ method: "POST" })
   })
 
 const saveProjectTimelineFn = createServerFn({ method: "POST" })
-  .inputValidator(projectIdSchema.extend({ timeline: timelineSchema }))
+  .inputValidator(
+    projectIdSchema.extend({
+      timeline: timelineSchema,
+      // The version the editor loaded; the save is rejected if it's stale.
+      // Bounded to the column's integer range so `version + 1` stays valid.
+      expectedVersion: z.number().int().min(1).max(2_147_483_646),
+    })
+  )
   .handler(async ({ data }): Promise<ProjectItem> => {
     const { saveProjectTimelineForCurrentUser } =
       await import("@/server/video-projects")
-    return saveProjectTimelineForCurrentUser(data.projectId, data.timeline)
+    return saveProjectTimelineForCurrentUser(
+      data.projectId,
+      data.timeline,
+      data.expectedVersion
+    )
   })
 
 const deleteProjectFn = createServerFn({ method: "POST" })
@@ -128,9 +141,12 @@ export function renameProject(projectId: string, name: string) {
 
 export function saveProjectTimeline(
   projectId: string,
-  timeline: ProjectTimeline
+  timeline: ProjectTimeline,
+  expectedVersion: number
 ) {
-  return saveProjectTimelineFn({ data: { projectId, timeline } })
+  return saveProjectTimelineFn({
+    data: { projectId, timeline, expectedVersion },
+  })
 }
 
 export function deleteProject(projectId: string) {

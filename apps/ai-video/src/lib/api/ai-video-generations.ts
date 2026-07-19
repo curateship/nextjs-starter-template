@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { PROJECT_CONFLICT_MESSAGE } from "@/lib/timeline-schema"
 import type {
   AiVideoDurationSeconds,
   AiVideoGenerationItem,
@@ -54,6 +55,7 @@ const safeErrorMessages = new Set([
   "Only ready generations can be inserted",
   "Project not found",
   "Project timeline is full",
+  PROJECT_CONFLICT_MESSAGE,
 ])
 
 export function getAiVideoGenerationErrorMessage(error: unknown) {
