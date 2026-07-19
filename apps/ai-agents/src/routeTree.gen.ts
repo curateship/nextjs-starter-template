@@ -9,35 +9,35 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminContactsIndexRouteImport } from './routes/_authenticated/admin/contacts/index'
-import { Route as AuthenticatedAdminCampaignsIndexRouteImport } from './routes/_authenticated/admin/campaigns/index'
-import { Route as AuthenticatedAdminCallsIndexRouteImport } from './routes/_authenticated/admin/calls/index'
-import { Route as AuthenticatedAdminAutomationIndexRouteImport } from './routes/_authenticated/admin/automation/index'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminAgentsIndexRouteImport } from './routes/_authenticated/admin/agents/index'
-import { Route as ApiV1VapiWebhookRouteImport } from './routes/api/v1/vapi/webhook'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
-import { Route as AuthenticatedAdminCampaignsCampaignIdRouteImport } from './routes/_authenticated/admin/campaigns/$campaignId'
-import { Route as AuthenticatedAdminAutomationWorkflowIdRouteImport } from './routes/_authenticated/admin/automation/$workflowId'
 import { Route as AuthenticatedAdminAgentsAgentIdRouteImport } from './routes/_authenticated/admin/agents/$agentId'
+import { Route as AuthenticatedAdminAutomationIndexRouteImport } from './routes/_authenticated/admin/automation/index'
+import { Route as AuthenticatedAdminAutomationWorkflowIdRouteImport } from './routes/_authenticated/admin/automation/$workflowId'
+import { Route as AuthenticatedAdminCallsIndexRouteImport } from './routes/_authenticated/admin/calls/index'
+import { Route as AuthenticatedAdminCampaignsIndexRouteImport } from './routes/_authenticated/admin/campaigns/index'
+import { Route as AuthenticatedAdminCampaignsCampaignIdRouteImport } from './routes/_authenticated/admin/campaigns/$campaignId'
+import { Route as AuthenticatedAdminContactsIndexRouteImport } from './routes/_authenticated/admin/contacts/index'
+import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as ApiV1VapiWebhookRouteImport } from './routes/api/v1/vapi/webhook'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -55,16 +55,10 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/admin/feedback',
+    path: '/admin/feedback',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
@@ -72,34 +66,16 @@ const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   path: '/admin/media',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminFeedbackRoute =
-  AuthenticatedAdminFeedbackRouteImport.update({
-    id: '/admin/feedback',
-    path: '/admin/feedback',
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminContactsIndexRoute =
-  AuthenticatedAdminContactsIndexRouteImport.update({
-    id: '/admin/contacts/',
-    path: '/admin/contacts/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminCampaignsIndexRoute =
-  AuthenticatedAdminCampaignsIndexRouteImport.update({
-    id: '/admin/campaigns/',
-    path: '/admin/campaigns/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminCallsIndexRoute =
-  AuthenticatedAdminCallsIndexRouteImport.update({
-    id: '/admin/calls/',
-    path: '/admin/calls/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminAutomationIndexRoute =
-  AuthenticatedAdminAutomationIndexRouteImport.update({
-    id: '/admin/automation/',
-    path: '/admin/automation/',
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminAgentsIndexRoute =
@@ -108,27 +84,16 @@ const AuthenticatedAdminAgentsIndexRoute =
     path: '/admin/agents/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const ApiV1VapiWebhookRoute = ApiV1VapiWebhookRouteImport.update({
-  id: '/api/v1/vapi/webhook',
-  path: '/api/v1/vapi/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+const AuthenticatedAdminAgentsAgentIdRoute =
+  AuthenticatedAdminAgentsAgentIdRouteImport.update({
+    id: '/admin/agents/$agentId',
+    path: '/admin/agents/$agentId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
-  } as any)
-const AuthenticatedAdminCampaignsCampaignIdRoute =
-  AuthenticatedAdminCampaignsCampaignIdRouteImport.update({
-    id: '/admin/campaigns/$campaignId',
-    path: '/admin/campaigns/$campaignId',
+const AuthenticatedAdminAutomationIndexRoute =
+  AuthenticatedAdminAutomationIndexRouteImport.update({
+    id: '/admin/automation/',
+    path: '/admin/automation/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminAutomationWorkflowIdRoute =
@@ -137,12 +102,47 @@ const AuthenticatedAdminAutomationWorkflowIdRoute =
     path: '/admin/automation/$workflowId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminAgentsAgentIdRoute =
-  AuthenticatedAdminAgentsAgentIdRouteImport.update({
-    id: '/admin/agents/$agentId',
-    path: '/admin/agents/$agentId',
+const AuthenticatedAdminCallsIndexRoute =
+  AuthenticatedAdminCallsIndexRouteImport.update({
+    id: '/admin/calls/',
+    path: '/admin/calls/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminCampaignsIndexRoute =
+  AuthenticatedAdminCampaignsIndexRouteImport.update({
+    id: '/admin/campaigns/',
+    path: '/admin/campaigns/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminCampaignsCampaignIdRoute =
+  AuthenticatedAdminCampaignsCampaignIdRouteImport.update({
+    id: '/admin/campaigns/$campaignId',
+    path: '/admin/campaigns/$campaignId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminContactsIndexRoute =
+  AuthenticatedAdminContactsIndexRouteImport.update({
+    id: '/admin/contacts/',
+    path: '/admin/contacts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminFeedbackCommentsRoute =
+  AuthenticatedAdminFeedbackCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
+    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+  } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+  } as any)
+const ApiV1VapiWebhookRoute = ApiV1VapiWebhookRouteImport.update({
+  id: '/api/v1/vapi/webhook',
+  path: '/api/v1/vapi/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -296,18 +296,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -331,18 +331,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/admin/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/media': {
@@ -352,39 +345,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/feedback': {
-      id: '/_authenticated/admin/feedback'
-      path: '/admin/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/contacts/': {
-      id: '/_authenticated/admin/contacts/'
-      path: '/admin/contacts'
-      fullPath: '/admin/contacts/'
-      preLoaderRoute: typeof AuthenticatedAdminContactsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/campaigns/': {
-      id: '/_authenticated/admin/campaigns/'
-      path: '/admin/campaigns'
-      fullPath: '/admin/campaigns/'
-      preLoaderRoute: typeof AuthenticatedAdminCampaignsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/calls/': {
-      id: '/_authenticated/admin/calls/'
-      path: '/admin/calls'
-      fullPath: '/admin/calls/'
-      preLoaderRoute: typeof AuthenticatedAdminCallsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/automation/': {
-      id: '/_authenticated/admin/automation/'
-      path: '/admin/automation'
-      fullPath: '/admin/automation/'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationIndexRouteImport
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/agents/': {
@@ -394,32 +366,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAgentsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/v1/vapi/webhook': {
-      id: '/api/v1/vapi/webhook'
-      path: '/api/v1/vapi/webhook'
-      fullPath: '/api/v1/vapi/webhook'
-      preLoaderRoute: typeof ApiV1VapiWebhookRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/admin/agents/$agentId': {
+      id: '/_authenticated/admin/agents/$agentId'
+      path: '/admin/agents/$agentId'
+      fullPath: '/admin/agents/$agentId'
+      preLoaderRoute: typeof AuthenticatedAdminAgentsAgentIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
-    }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
-    }
-    '/_authenticated/admin/campaigns/$campaignId': {
-      id: '/_authenticated/admin/campaigns/$campaignId'
-      path: '/admin/campaigns/$campaignId'
-      fullPath: '/admin/campaigns/$campaignId'
-      preLoaderRoute: typeof AuthenticatedAdminCampaignsCampaignIdRouteImport
+    '/_authenticated/admin/automation/': {
+      id: '/_authenticated/admin/automation/'
+      path: '/admin/automation'
+      fullPath: '/admin/automation/'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/automation/$workflowId': {
@@ -429,12 +387,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationWorkflowIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/agents/$agentId': {
-      id: '/_authenticated/admin/agents/$agentId'
-      path: '/admin/agents/$agentId'
-      fullPath: '/admin/agents/$agentId'
-      preLoaderRoute: typeof AuthenticatedAdminAgentsAgentIdRouteImport
+    '/_authenticated/admin/calls/': {
+      id: '/_authenticated/admin/calls/'
+      path: '/admin/calls'
+      fullPath: '/admin/calls/'
+      preLoaderRoute: typeof AuthenticatedAdminCallsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/campaigns/': {
+      id: '/_authenticated/admin/campaigns/'
+      path: '/admin/campaigns'
+      fullPath: '/admin/campaigns/'
+      preLoaderRoute: typeof AuthenticatedAdminCampaignsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/campaigns/$campaignId': {
+      id: '/_authenticated/admin/campaigns/$campaignId'
+      path: '/admin/campaigns/$campaignId'
+      fullPath: '/admin/campaigns/$campaignId'
+      preLoaderRoute: typeof AuthenticatedAdminCampaignsCampaignIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/contacts/': {
+      id: '/_authenticated/admin/contacts/'
+      path: '/admin/contacts'
+      fullPath: '/admin/contacts/'
+      preLoaderRoute: typeof AuthenticatedAdminContactsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/feedback/comments': {
+      id: '/_authenticated/admin/feedback/comments'
+      path: '/comments'
+      fullPath: '/admin/feedback/comments'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
+      parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/api/v1/vapi/webhook': {
+      id: '/api/v1/vapi/webhook'
+      path: '/api/v1/vapi/webhook'
+      fullPath: '/api/v1/vapi/webhook'
+      preLoaderRoute: typeof ApiV1VapiWebhookRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'

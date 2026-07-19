@@ -1,0 +1,26 @@
+# Mirrors the "workspaces" field in package.json.
+# That field is still read by `npm ci` in the root Dockerfile (directory app);
+# keep the two lists in sync until the Dockerfile moves to pnpm.
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/*"
+
+# pnpm blocks dependency install scripts by default. These five need theirs to
+# produce a working install (native builds / platform binary downloads), and all
+# of them already ran under npm, so this preserves existing behaviour rather
+# than granting anything new.
+allowBuilds:
+  '@sentry/cli': true      # downloads the sentry-cli binary
+  argon2: true             # native password hashing addon
+  esbuild: true            # downloads the platform esbuild binary
+  sharp: true              # native image-processing addon
+  unrs-resolver: true      # native resolver used by eslint import plugin
+
+# pnpm 11 reads settings here, not from a "pnpm" key in package.json.
+# Mirrors the "overrides" block in package.json, which npm ci still uses.
+overrides:
+  esbuild: "^0.28.1"
+  tsx: "^4.22.4"
+  vite: "^8.0.16"
+  postcss: "8.5.12"

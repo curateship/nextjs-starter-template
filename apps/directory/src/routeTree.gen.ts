@@ -9,36 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as RscActionRouteImport } from './routes/rsc-action'
-import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
-import { Route as ContentSitemapRouteImport } from './routes/content-sitemap'
-import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
-import { Route as CdnSplatRouteImport } from './routes/cdn/$'
+import { Route as SplatRouteImport } from './routes/$'
+import { Route as ContentSitemapRouteImport } from './routes/content-sitemap'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as RscActionRouteImport } from './routes/rsc-action'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
-import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
+import { Route as CdnSplatRouteImport } from './routes/cdn/$'
+import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
 import { Route as EmbedListingDirectoryIdRouteImport } from './routes/embed/listing/$directoryId'
+import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
 
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RscActionRoute = RscActionRouteImport.update({
-  id: '/rsc-action',
-  path: '/rsc-action',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
-  id: '/robots.txt',
-  path: '/robots.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContentSitemapRoute = ContentSitemapRouteImport.update({
-  id: '/content-sitemap',
-  path: '/content-sitemap',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SplatRoute = SplatRouteImport.update({
@@ -46,14 +31,29 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ContentSitemapRoute = ContentSitemapRouteImport.update({
+  id: '/content-sitemap',
+  path: '/content-sitemap',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
-  id: '/directory-sitemaps/$chunk',
-  path: '/directory-sitemaps/$chunk',
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RscActionRoute = RscActionRouteImport.update({
+  id: '/rsc-action',
+  path: '/rsc-action',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CdnSplatRoute = CdnSplatRouteImport.update({
@@ -61,9 +61,14 @@ const CdnSplatRoute = CdnSplatRouteImport.update({
   path: '/cdn/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSplatRoute = ApiSplatRouteImport.update({
-  id: '/api/$',
-  path: '/api/$',
+const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
+  id: '/directory-sitemaps/$chunk',
+  path: '/directory-sitemaps/$chunk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedListingDirectoryIdRoute = EmbedListingDirectoryIdRouteImport.update({
+  id: '/embed/listing/$directoryId',
+  path: '/embed/listing/$directoryId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SponsorReportsTokenExportRoute =
@@ -72,11 +77,6 @@ const SponsorReportsTokenExportRoute =
     path: '/sponsor-reports/$token/export',
     getParentRoute: () => rootRouteImport,
   } as any)
-const EmbedListingDirectoryIdRoute = EmbedListingDirectoryIdRouteImport.update({
-  id: '/embed/listing/$directoryId',
-  path: '/embed/listing/$directoryId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -176,32 +176,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rsc-action': {
-      id: '/rsc-action'
-      path: '/rsc-action'
-      fullPath: '/rsc-action'
-      preLoaderRoute: typeof RscActionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/robots.txt': {
-      id: '/robots.txt'
-      path: '/robots.txt'
-      fullPath: '/robots.txt'
-      preLoaderRoute: typeof RobotsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/content-sitemap': {
-      id: '/content-sitemap'
-      path: '/content-sitemap'
-      fullPath: '/content-sitemap'
-      preLoaderRoute: typeof ContentSitemapRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$': {
@@ -211,25 +190,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/content-sitemap': {
+      id: '/content-sitemap'
+      path: '/content-sitemap'
+      fullPath: '/content-sitemap'
+      preLoaderRoute: typeof ContentSitemapRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/directory-sitemaps/$chunk': {
-      id: '/directory-sitemaps/$chunk'
-      path: '/directory-sitemaps/$chunk'
-      fullPath: '/directory-sitemaps/$chunk'
-      preLoaderRoute: typeof DirectorySitemapsChunkRouteImport
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cdn/$': {
-      id: '/cdn/$'
-      path: '/cdn/$'
-      fullPath: '/cdn/$'
-      preLoaderRoute: typeof CdnSplatRouteImport
+    '/rsc-action': {
+      id: '/rsc-action'
+      path: '/rsc-action'
+      fullPath: '/rsc-action'
+      preLoaderRoute: typeof RscActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/$': {
@@ -239,11 +225,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sponsor-reports/$token/export': {
-      id: '/sponsor-reports/$token/export'
-      path: '/sponsor-reports/$token/export'
-      fullPath: '/sponsor-reports/$token/export'
-      preLoaderRoute: typeof SponsorReportsTokenExportRouteImport
+    '/cdn/$': {
+      id: '/cdn/$'
+      path: '/cdn/$'
+      fullPath: '/cdn/$'
+      preLoaderRoute: typeof CdnSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory-sitemaps/$chunk': {
+      id: '/directory-sitemaps/$chunk'
+      path: '/directory-sitemaps/$chunk'
+      fullPath: '/directory-sitemaps/$chunk'
+      preLoaderRoute: typeof DirectorySitemapsChunkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/listing/$directoryId': {
@@ -251,6 +244,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/listing/$directoryId'
       fullPath: '/embed/listing/$directoryId'
       preLoaderRoute: typeof EmbedListingDirectoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sponsor-reports/$token/export': {
+      id: '/sponsor-reports/$token/export'
+      path: '/sponsor-reports/$token/export'
+      fullPath: '/sponsor-reports/$token/export'
+      preLoaderRoute: typeof SponsorReportsTokenExportRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

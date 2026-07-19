@@ -13,10 +13,10 @@ services/       — Python/other services (future)
 ## Development
 
 ```bash
-npm install     # Install all workspace dependencies
-npm run dev     # Start hub dev server (localhost:3000)
-npm run build   # Production build
-npm run lint    # Lint all apps
+pnpm install     # Install all workspace dependencies
+pnpm run dev     # Start hub dev server (localhost:3000)
+pnpm run build   # Production build
+pnpm run lint    # Lint all apps
 ```
 
 ## Deployment

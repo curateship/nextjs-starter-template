@@ -20,7 +20,7 @@ App-level `AGENTS.md` files override this file when they are more specific.
 
 ## Monorepo Overview
 
-This repo is an npm workspace monorepo managed by Turbo.
+This repo is a pnpm workspace monorepo managed by Turbo.
 
 ```text
 apps/          App workspaces
@@ -56,22 +56,22 @@ Current apps:
 Common root commands:
 
 ```bash
-npm run dev
-npm run build
-npm run lint
+pnpm run dev
+pnpm run build
+pnpm run lint
 ```
 
 App shortcuts:
 
 ```bash
-npm run dev:hub
-npm run dev:custom-shell
-npm run dev:core
-npm run dev:ai-video
-npm run dev:anti-detect
-npm run dev:ai-agents
-npm run dev:personal-ide
-npm run dev:directory
+pnpm run dev:hub
+pnpm run dev:custom-shell
+pnpm run dev:core
+pnpm run dev:ai-video
+pnpm run dev:anti-detect
+pnpm run dev:ai-agents
+pnpm run dev:personal-ide
+pnpm run dev:directory
 ```
 
 Only fix build, lint, or type errors caused by your change unless the user asks for broader cleanup.

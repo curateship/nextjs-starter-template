@@ -1,6 +1,6 @@
 # Monorepo Setup
 
-This repo is an npm workspace monorepo managed by Turbo. The root owns shared commands, workspace discovery, local port config, and deployment entrypoints. Each app owns its own framework setup, scripts, and runtime code.
+This repo is a pnpm workspace monorepo managed by Turbo. The root owns shared commands, workspace discovery, local port config, and deployment entrypoints. Each app owns its own framework setup, scripts, and runtime code.
 
 ## Root Layout
 
@@ -45,22 +45,22 @@ The current apps are:
 Common commands run through the root:
 
 ```bash
-npm run dev
-npm run build
-npm run lint
+pnpm run dev
+pnpm run build
+pnpm run lint
 ```
 
 App-specific root shortcuts are also defined, such as:
 
 ```bash
-npm run dev:hub
-npm run dev:custom-shell
-npm run dev:core
-npm run dev:ai-video
-npm run dev:anti-detect
-npm run dev:ai-agents
-npm run dev:personal-ide
-npm run dev:directory
+pnpm run dev:hub
+pnpm run dev:custom-shell
+pnpm run dev:core
+pnpm run dev:ai-video
+pnpm run dev:anti-detect
+pnpm run dev:ai-agents
+pnpm run dev:personal-ide
+pnpm run dev:directory
 ```
 
 Turbo handles `dev`, `build`, and `lint` orchestration. `dev` is persistent and uncached. `build` depends on upstream builds and stores app build outputs.
