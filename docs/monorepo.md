@@ -111,9 +111,11 @@ Every app carries the same `workspace/docs/ui-rules.md` and routes UI work to it
 
 ## Deployment
 
-The root `Dockerfile` builds the Hub app for production using Next standalone output. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+The root `Dockerfile` builds the Directory app for production using its Nitro server output. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
 
-Hub is currently the production Docker target. Other apps can be built through their workspace scripts, but they are not the root Dockerfile target.
+Directory is the production Docker target. Hub is still in the repo and still owns the SQL migration history, but it is no longer deployed. Other apps can be built through their workspace scripts, but they are not the root Dockerfile target.
+
+Directory's `VITE_APP_URL` and `VITE_APP_DOMAIN` are build arguments rather than runtime variables, because Vite freezes them into the bundle. The image build fails when they are missing. The container port stays 3000, unchanged from the Hub image, so the proxy and custom-domain routing keep working across the cutover.
 
 ## Documentation
 

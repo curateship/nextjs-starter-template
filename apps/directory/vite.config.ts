@@ -12,13 +12,27 @@ const require = createRequire(import.meta.url)
 const localApps = require("../../local-apps.json") as Record<string, number>
 const localOrigin = `http://localhost:${localApps.directory}`
 const appDirectory = path.dirname(fileURLToPath(import.meta.url))
+
+// VITE_DIRECTORY_ORIGIN is the last-resort origin behind VITE_APP_URL and
+// VITE_APP_DOMAIN, and it is frozen into the bundle at build time. A production
+// image built without VITE_APP_URL would send auth emails, checkout returns and
+// tenant site links to localhost, so warn loudly when that is about to happen.
+// NODE_ENV is not set yet while Vite loads this file, so key the warning off the
+// invoked command instead.
+const configuredOrigin = process.env.VITE_APP_URL?.trim().replace(/\/+$/, "")
+if (!configuredOrigin && process.argv.includes("build")) {
+  console.warn(
+    `[directory] VITE_APP_URL is not set — generated links will fall back to ${localOrigin}. Do not deploy this build.`,
+  )
+}
+const directoryOrigin = configuredOrigin || localOrigin
 // Avoid Nitro rebundling tslib's Node entry through a broken CJS default wrapper.
 const tslibEsm = require.resolve("tslib/tslib.es6.mjs")
 
 // https://vite.dev/config/
 export default defineConfig({
   define: {
-    "import.meta.env.VITE_DIRECTORY_ORIGIN": JSON.stringify(localOrigin),
+    "import.meta.env.VITE_DIRECTORY_ORIGIN": JSON.stringify(directoryOrigin),
   },
   plugins: [
     tanstackStart({ rsc: { enabled: true } }),

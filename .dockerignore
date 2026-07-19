@@ -1,5 +1,14 @@
+# Docker matches these patterns from the context root and does not recurse
+# implicitly, so every pattern needs the **/ prefix to also apply inside apps/.
 .git
-.next
-.turbo
-.env*
-node_modules
+**/.next
+**/.turbo
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/.output
+**/.tanstack
+**/.local-storage
+**/.playwright-cli
+**/public/local-media

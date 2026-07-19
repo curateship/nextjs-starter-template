@@ -59,7 +59,7 @@ interface PaymentElementWrapperProps {
 function getReturnUrl(path: string, checkoutOrigin?: string) {
   if (/^https?:\/\//i.test(path)) return path
 
-  const appDomain = checkoutOrigin || process.env.NEXT_PUBLIC_APP_DOMAIN || window.location.origin
+  const appDomain = checkoutOrigin || window.location.origin
   const base = /^https?:\/\//i.test(appDomain)
     ? appDomain
     : appDomain.startsWith('localhost') || appDomain.startsWith('127.')

@@ -78,8 +78,7 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
       : ""
 
   useEffect(() => {
-    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
-    setWebhookBaseUrl(configuredUrl || window.location.origin)
+    setWebhookBaseUrl(window.location.origin)
   }, [])
 
   const toggleReveal = (key: string) => {
