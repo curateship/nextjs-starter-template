@@ -412,3 +412,129 @@ button:not(:disabled):not([data-sidebar="rail"]),
 .newsletter-email-rich-text .ProseMirror img.ProseMirror-selectednode {
   outline-offset: 0;
 }
+
+
+/*
+ * Runtime admin styling driven by the Settings → Styling tab. See
+ * src/lib/utils/admin-styling.ts and admin-styling-provider.tsx. Card/table
+ * rules are scoped to the content canvas ([data-content-styling], set on
+ * AdminLayout) so cards inside portaled modals keep their own look. Modal rules
+ * read --shell-modal-* set on the document root. Fallbacks reproduce directory's
+ * current look, so nothing changes until an admin adjusts a control.
+ */
+[data-content-styling] [data-slot="card"],
+[data-content-styling] [data-slot="table-surface"] {
+  border-width: calc(var(--shell-card-border-width, 0) * 1px);
+  border-style: solid;
+  border-color: var(--shell-card-border-color, var(--border));
+}
+
+/* gutter = 0 → flat mode: no card chrome. */
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+  border-radius: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"] img {
+  border-radius: 0;
+}
+
+/*
+ * Modal styling. Applied via --shell-modal-* on the document root (the dialog
+ * portals to <body>, outside the shell subtree). Declared after the content
+ * rules so the settings-page modal preview (nested inside the content area)
+ * still picks up these rules.
+ */
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(
+    in oklab,
+    black var(--shell-modal-overlay-opacity, 50%),
+    transparent
+  );
+}
+
+/*
+ * A modal is the page canvas in miniature: its outer padding and the gaps
+ * between its sections both come from --shell-gutter (Settings → Styling →
+ * Content spacing), the same value AdminLayout pads the canvas with. Outside the
+ * admin shell --shell-gutter is unset, so the fallbacks reproduce the dialog's
+ * own `p-6` / `gap-4`.
+ */
+[data-slot="dialog-content"] {
+  background-color: var(--shell-modal-bg, var(--background));
+  border-width: calc(var(--shell-modal-border-width, 1) * 1px);
+  border-style: solid;
+  border-color: var(--shell-modal-border-color, var(--border));
+  padding: var(--shell-gutter, 1.5rem);
+  gap: var(--shell-gutter, 1rem);
+}
+
+/* The close button hugs the modal's own padding instead of a fixed inset. */
+[data-slot="dialog-content"] > [data-slot="dialog-close"] {
+  top: var(--shell-gutter, 1rem);
+  right: var(--shell-gutter, 1rem);
+}
+
+/*
+ * Scroll-layout modals (DashboardModalContent) keep the dialog itself flush so
+ * the scroll area runs edge to edge, and spend the gutter on their header, body,
+ * and footer instead. Same total inset as a plain modal — never both.
+ */
+[data-slot="dialog-content"][data-modal-layout="scroll"] {
+  padding: 0;
+  gap: 0;
+}
+[data-modal-layout="scroll"] [data-slot="dialog-header"] {
+  padding: var(--shell-gutter, 1.5rem) var(--shell-gutter, 1.5rem) 0;
+}
+[data-modal-layout="scroll"] [data-slot="dialog-body"] {
+  padding: var(--shell-gutter, 1.5rem);
+  gap: var(--shell-gutter, 1.5rem);
+}
+[data-modal-layout="scroll"] [data-slot="dialog-footer"] {
+  padding: 0 var(--shell-gutter, 1.5rem) var(--shell-gutter, 1.5rem);
+}
+
+/*
+ * On phones a scroll-layout modal goes full-screen, so its cards flatten into
+ * plain sections and the body's gutter becomes the only inset. The card chrome
+ * has to be undone here rather than with utilities in modals.tsx: the modal card
+ * rules above are unlayered and outrank Tailwind utilities, so a utility-only
+ * flatten left cards with their border and background but no padding, jamming
+ * the content against the card edge. modals.tsx still owns the padding collapse.
+ */
+@media (max-width: 39.999rem) {
+  [data-modal-layout="scroll"] [data-slot="dialog-body"] [data-slot="card"] {
+    background-color: transparent;
+    border-width: 0;
+    border-radius: 0;
+    /* Also clears any ring — Tailwind renders rings as box-shadow. */
+    box-shadow: none;
+  }
+}
+
+/* Cards inside the modal. */
+[data-slot="dialog-content"] [data-slot="card"] {
+  background-color: var(--shell-modal-card-bg, var(--card));
+  border-width: calc(var(--shell-modal-card-border-width, 0) * 1px);
+  border-style: solid;
+  border-color: var(--shell-modal-card-border-color, var(--border));
+}
+
+/* gutter = 0 → flat mode: modals lose their chrome, like cards on the canvas. */
+:root[data-shell-flat="true"] [data-slot="dialog-content"],
+:root[data-shell-flat="true"] [data-slot="dialog-content"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="dialog-content"],
+[data-content-styling][data-flat="true"] [data-slot="dialog-content"] [data-slot="card"] {
+  border-radius: 0;
+}
+:root[data-shell-flat="true"] [data-slot="dialog-content"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="dialog-content"] [data-slot="card"] {
+  border-width: 0;
+}

@@ -21,7 +21,7 @@ interface AdminLayoutProps {
  *
  * When the AdminStylingProvider is present, the canvas gutter, background, and
  * card borders are driven at runtime by the Settings → Styling controls via CSS
- * variables (see theme.css). Falls back to the original static look otherwise.
+ * variables (see styles.css). Falls back to the original static look otherwise.
  */
 export function AdminLayout({
   children,

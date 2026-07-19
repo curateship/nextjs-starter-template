@@ -28,8 +28,6 @@ export type AdminModalStyling = {
   borderWidth: number
   /** Modal border color. */
   borderColor: AdminBackground
-  /** Inner padding in px. */
-  padding: number
   /** Backdrop dimming behind the modal, 0–100. */
   overlayOpacity: number
   /** Background of cards inside the modal. */
@@ -47,6 +45,8 @@ export type AdminStyling = {
   cardBorderWidth: number
   /** Card + table border color. */
   cardBorderColor: AdminBackground
+  /** Divider lines: the rules inside cards, the sidebar edge, chart gridlines. */
+  dividerColor: AdminBackground
   /** Main content area background. */
   content: AdminBackground
   /** Sidebar + sticky header background. */
@@ -62,9 +62,6 @@ export const DEFAULT_CONTENT_GUTTER = 12
 export const MAX_CARD_BORDER_WIDTH = 3
 // Directory admin cards are borderless by default.
 export const DEFAULT_CARD_BORDER_WIDTH = 0
-export const MAX_MODAL_PADDING = 48
-// Reproduces the dialog's current `p-6` (24px) inner padding.
-export const DEFAULT_MODAL_PADDING = 24
 // Reproduces the overlay's current `bg-black/50`.
 export const DEFAULT_MODAL_OVERLAY_OPACITY = 50
 export const DEFAULT_STRENGTH = 60
@@ -92,10 +89,6 @@ export function clampStrength(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_STRENGTH)
 }
 
-export function clampModalPadding(value: unknown): number {
-  return clampInt(value, 0, MAX_MODAL_PADDING, DEFAULT_MODAL_PADDING)
-}
-
 export function clampOverlayOpacity(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_MODAL_OVERLAY_OPACITY)
 }
@@ -105,7 +98,6 @@ export function createDefaultModalStyling(): AdminModalStyling {
     background: { mode: "default", strength: 100, color: "#ffffff" },
     borderWidth: 1,
     borderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
-    padding: DEFAULT_MODAL_PADDING,
     overlayOpacity: DEFAULT_MODAL_OVERLAY_OPACITY,
     cardBackground: { mode: "default", strength: 100, color: "#ffffff" },
     cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
@@ -118,6 +110,7 @@ export function createDefaultStyling(): AdminStyling {
     gutter: DEFAULT_CONTENT_GUTTER,
     cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
     cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    dividerColor: { mode: "default", strength: 25, color: "#e4e4e7" },
     content: { mode: "default", strength: DEFAULT_STRENGTH, color: "#f4f4f5" },
     chrome: { mode: "default", strength: 100, color: "#ffffff" },
     modal: createDefaultModalStyling(),
@@ -151,7 +144,6 @@ export function normalizeModalStyling(value: unknown): AdminModalStyling {
     background: normalizeBackground(modal.background, fallback.background),
     borderWidth: clampCardBorderWidth(modal.borderWidth ?? fallback.borderWidth),
     borderColor: normalizeBackground(modal.borderColor, fallback.borderColor),
-    padding: clampModalPadding(modal.padding ?? fallback.padding),
     overlayOpacity: clampOverlayOpacity(modal.overlayOpacity ?? fallback.overlayOpacity),
     cardBackground: normalizeBackground(modal.cardBackground, fallback.cardBackground),
     cardBorderWidth: clampCardBorderWidth(modal.cardBorderWidth ?? fallback.cardBorderWidth),
@@ -169,6 +161,7 @@ export function normalizeStyling(value: unknown): AdminStyling {
     gutter: clampGutter(styling.gutter ?? fallback.gutter),
     cardBorderWidth: clampCardBorderWidth(styling.cardBorderWidth ?? fallback.cardBorderWidth),
     cardBorderColor: normalizeBackground(styling.cardBorderColor, fallback.cardBorderColor),
+    dividerColor: normalizeBackground(styling.dividerColor, fallback.dividerColor),
     content: normalizeBackground(styling.content, fallback.content),
     chrome: normalizeBackground(styling.chrome, fallback.chrome),
     modal: normalizeModalStyling(styling.modal),
@@ -200,17 +193,33 @@ export function resolveBackground(
 }
 
 /**
- * CSS custom properties for modal styling. Applied to the document root so they
- * reach the dialog, which portals to <body> outside the shell subtree. Consumed
- * by the modal rules in theme.css. Values in "default" mode are omitted so the
- * theme's own tokens (via the CSS fallbacks) show through.
+ * CSS custom properties applied to the document root, so they reach the dialog,
+ * which portals to <body> outside the shell subtree. Consumed by the modal rules
+ * in styles.css. Values in "default" mode are omitted so the theme's own tokens
+ * (via the CSS fallbacks) show through.
+ *
+ * `--shell-gutter` is emitted here as well as on the content canvas: modals use
+ * the same content-spacing setting for their outer padding and the gaps between
+ * their sections, so a modal reads as the page canvas in miniature.
  */
-export function getModalStyleVars(modal: AdminModalStyling): Record<string, string> {
+export function getRootStyleVars(styling: AdminStyling): Record<string, string> {
+  const modal = styling.modal
   const vars: Record<string, string> = {
+    "--shell-gutter": `${clampGutter(styling.gutter)}px`,
     "--shell-modal-overlay-opacity": `${clampOverlayOpacity(modal.overlayOpacity)}%`,
-    "--shell-modal-padding": `${clampModalPadding(modal.padding)}px`,
     "--shell-modal-border-width": String(clampCardBorderWidth(modal.borderWidth)),
     "--shell-modal-card-border-width": String(clampCardBorderWidth(modal.cardBorderWidth)),
+  }
+  // Divider lines are everywhere and they all resolve to the theme's --border
+  // token: the rules inside cards, the sidebar edge, table row separators, and
+  // recharts gridlines (which chart.tsx maps onto stroke-border). Overriding the
+  // token itself recolors the lot without touching a single component.
+  const dividerColor = resolveBackground(styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  if (dividerColor) {
+    vars["--border"] = dividerColor
+    vars["--sidebar-border"] = dividerColor
   }
   const background = resolveBackground(modal.background, { base: "--muted", opaque: true })
   if (background) vars["--shell-modal-bg"] = background
@@ -223,10 +232,12 @@ export function getModalStyleVars(modal: AdminModalStyling): Record<string, stri
   return vars
 }
 
-/** The full set of modal CSS variable names, used to clear stale values. */
-export const MODAL_STYLE_VAR_NAMES = [
+/** The full set of root CSS variable names, used to clear stale values. */
+export const ROOT_STYLE_VAR_NAMES = [
+  "--shell-gutter",
+  "--border",
+  "--sidebar-border",
   "--shell-modal-overlay-opacity",
-  "--shell-modal-padding",
   "--shell-modal-border-width",
   "--shell-modal-border-color",
   "--shell-modal-bg",
