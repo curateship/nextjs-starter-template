@@ -7,7 +7,13 @@ edition = "2021"
 
 [lib]
 name = "personal_ide_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop-only: the binary links the rlib. Restore ["staticlib", "cdylib", "rlib"]
+# if this app ever targets iOS/Android — staticlib alone emits ~6k stray .o files.
+crate-type = ["lib"]
+
+[profile.dev]
+# Keep backtraces and line numbers, drop full variable-inspection symbols.
+debug = "line-tables-only"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
