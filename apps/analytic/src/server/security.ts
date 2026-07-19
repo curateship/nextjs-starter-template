@@ -11,7 +11,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 
-export const SESSION_COOKIE_NAME = "custom_shell_session"
+export const SESSION_COOKIE_NAME = "analytic_session"
 const TEN_YEARS_IN_HOURS = 24 * 365 * 10
 const SESSION_TTL_HOURS = Number.parseInt(
   process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),

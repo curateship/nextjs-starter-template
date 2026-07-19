@@ -46,6 +46,11 @@ export async function verifyPassword(passwordHash: string, password: string) {
   }
 }
 
+// Session cookie: SameSite=Lax, and only Secure over real HTTPS. The IDE's
+// embedded preview is not a secure context, so a Secure cookie would be rejected
+// and sign-in would silently fail — keep it non-Secure in http dev. Route auth
+// is guarded by the _authenticated loader (reads the cookie from the request),
+// and CSRF by requireAppOrigin() on every mutation.
 export function setSessionCookie(token: string) {
   setCookie(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
