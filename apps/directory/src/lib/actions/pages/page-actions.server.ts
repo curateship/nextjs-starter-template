@@ -108,6 +108,10 @@ export async function deletePageActionImpl(pageId: string): Promise<{ success: b
     await db.delete(pages).where(eq(pages.id, pageId))
     await safeDeleteSiteSearchDocument(page.siteId, 'page', pageId)
 
+    // Without this the cached host+slug lookup keeps serving the deleted page.
+    revalidateTag('page-lookup')
+    purgeProxyCache()
+
     return { success: true, error: null }
   } catch (error) {
     console.error('Exception in deletePageAction:', error)
@@ -164,6 +168,10 @@ export async function deletePagesActionImpl(pageIds: string[]): Promise<{ succes
 
     await db.delete(pages).where(inArray(pages.id, pageIds))
     await Promise.all(foundPages.map((page) => safeDeleteSiteSearchDocument(page.siteId, 'page', page.id)))
+
+    // Without this the cached host+slug lookups keep serving the deleted pages.
+    revalidateTag('page-lookup')
+    purgeProxyCache()
 
     return { success: true, error: null }
   } catch (error) {
