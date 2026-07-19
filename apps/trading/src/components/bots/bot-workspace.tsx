@@ -223,7 +223,7 @@ export function BotWorkspace({
                       key={selectedMarket}
                       network={live.network}
                       market={selectedMarket}
-                      defaultInterval={
+                      interval={
                         (automationConfig?.interval ?? "15m") as CandleInterval
                       }
                       automationConfig={automationConfig}

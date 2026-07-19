@@ -18,19 +18,21 @@ import {
 } from "@/components/chart/price-chart"
 import { candleIntervalMs } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
-import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
+import type { CandleInterval } from "@/lib/hl/ws"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 
 /**
  * The live chart of one bot market: real candles, fill chips, trade focus,
- * and any caller-supplied price lines (draggable TP/SL). The chart interval
- * is panel-local; lifecycle controls arrive via `toolbarActions` and sit
- * where the OHLC readout would.
+ * and any caller-supplied price lines (draggable TP/SL). The interval is
+ * dictated by the automation's setting and locked here — the toolbar shows it
+ * but cannot change it — so the chart always tracks the saved timeframe.
+ * Lifecycle controls arrive via `toolbarActions` and sit where the OHLC
+ * readout would.
  */
 export function BotLiveChartPanel({
   network,
   market,
-  defaultInterval,
+  interval,
   automationConfig,
   fills,
   trips,
@@ -41,7 +43,8 @@ export function BotLiveChartPanel({
 }: {
   network: TradingNetwork
   market: string
-  defaultInterval: CandleInterval
+  /** The automation's saved candle interval; the chart is locked to it. */
+  interval: CandleInterval
   /** Compiled config for the indicator paint (same as the canvas). */
   automationConfig: AutomationConfig | null
   /** Raw fills of this market (chart chips). */
@@ -53,7 +56,6 @@ export function BotLiveChartPanel({
   onLineDragEnd?: (id: string, price: number) => void
   toolbarActions?: React.ReactNode
 }) {
-  const [interval, setInterval] = React.useState<CandleInterval>(defaultInterval)
   const intervalMs = candleIntervalMs(interval)
 
   // Price-pinned O/C chips for recent fills, snapped to candle buckets.
@@ -105,9 +107,9 @@ export function BotLiveChartPanel({
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
       <ChartToolbar
-        intervals={CANDLE_INTERVALS}
+        intervals={[interval]}
         interval={interval}
-        onIntervalChange={setInterval}
+        onIntervalChange={() => {}}
         legend={{ chips: markers.length > 0 }}
         leading={<span className="text-sm font-bold">{market}</span>}
       >
