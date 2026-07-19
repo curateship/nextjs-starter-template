@@ -3,6 +3,7 @@ import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { ProviderSettings } from "@/components/provider-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/ai-agents"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -10,6 +11,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" },
   { id: "voice-provider", label: "Voice Provider" },
 ] as const
 
@@ -107,6 +109,13 @@ export function SettingsPage({
               isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
+            />
+          ) : null}
+          {activeTab === "styling" ? (
+            <StylingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
             />
           ) : null}
           {activeTab === "voice-provider" ? <ProviderSettings /> : null}

@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { ProviderSettings } from "@/providers/google-maps/settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/core"
@@ -12,6 +13,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" },
   { id: "providers", label: "Provider Settings" },
 ] as const
 
@@ -116,6 +118,13 @@ export function SettingsPage({
               isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
+            />
+          ) : null}
+          {activeTab === "styling" ? (
+            <StylingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
             />
           ) : null}
           {activeTab === "providers" ? (

@@ -3,8 +3,10 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -22,6 +24,8 @@ export type WorkspaceSettings = {
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -315,6 +319,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -337,6 +342,7 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -346,6 +352,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

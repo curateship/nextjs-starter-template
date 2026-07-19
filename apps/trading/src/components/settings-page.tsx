@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
-import { AppearanceSettings } from "@/components/appearance-settings"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { TradingSettings } from "@/components/trading-settings"
 import { OneClickOrderSettings } from "@/components/one-click-order-settings"
 import { WorkersSettings } from "@/components/workers-settings"
@@ -15,8 +15,8 @@ const settingsTabs = [
   { id: "trading", label: "Trading" },
   { id: "one-click-order", label: "One Click Order" },
   { id: "workers", label: "Workers" },
-  { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -55,11 +55,7 @@ export function SettingsPage({
             Configure the shell defaults for this workspace.
           </p>
         </div>
-        {activeTab === "appearance" ? (
-          <span className="text-sm text-muted-foreground">
-            Saved automatically in this browser
-          </span>
-        ) : activeTab === "trading" ? (
+        {activeTab === "trading" ? (
           <span className="text-sm text-muted-foreground">
             Saved automatically
           </span>
@@ -131,13 +127,19 @@ export function SettingsPage({
           ) : null}
           {activeTab === "one-click-order" ? <OneClickOrderSettings /> : null}
           {activeTab === "workers" ? <WorkersSettings /> : null}
-          {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}
               isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
+            />
+          ) : null}
+          {activeTab === "styling" ? (
+            <StylingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
             />
           ) : null}
         </div>

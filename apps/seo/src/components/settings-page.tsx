@@ -3,6 +3,7 @@ import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { ProjectSettings } from "@/components/project-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -11,6 +12,7 @@ const settingsTabs = [
   { id: "project", label: "Project" },
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "styling", label: "Styling" },
 ] as const
 
 // Tabs that manage SEO project data and save themselves (not the shell config).
@@ -114,6 +116,13 @@ export function SettingsPage({
               isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
+            />
+          ) : null}
+          {activeTab === "styling" ? (
+            <StylingSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
             />
           ) : null}
         </div>

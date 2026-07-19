@@ -69,6 +69,7 @@ const loadAuthenticatedShellFn = createServerFn({ method: "GET" }).handler(
         favicon: workspaceSettings.favicon,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
+        styling: workspaceSettings.styling,
       },
       workspaces: createWorkspaceListResponse(
         workspaceList.workspaces.map((workspace) =>

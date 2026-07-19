@@ -79,11 +79,14 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardGroup({ className, ...props }: React.ComponentProps<"div">) {
+function CardGroup({ className, style, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-group"
-      className={cn("flex flex-col gap-2 md:gap-3", className)}
+      className={cn("flex flex-col", className)}
+      // Gap between stacked cards tracks the content gutter; falls back to 1rem
+      // outside a styled content area (e.g. modals).
+      style={{ gap: "var(--shell-gutter, 1rem)", ...style }}
       {...props}
     />
   )

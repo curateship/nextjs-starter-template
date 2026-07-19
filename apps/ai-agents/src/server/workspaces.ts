@@ -3,8 +3,10 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-agents"
 import {
@@ -28,6 +30,8 @@ export type WorkspaceSettings = {
   sections: ShellSection[]
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -326,6 +330,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.sidebarWidth === "number"
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -352,6 +357,7 @@ function cleanWorkspaceSettings(
       typeof settings.sidebarWidth === "number"
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -362,6 +368,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    styling: normalizeStyling(undefined),
   }
 }
 

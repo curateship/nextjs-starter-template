@@ -13,9 +13,11 @@ import {
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellChildItem,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/core"
 
@@ -34,6 +36,8 @@ export type WorkspaceSettings = {
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -304,6 +308,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
           ? settings.sections
           : fallback.sections
       ),
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -329,6 +334,7 @@ function cleanWorkspaceSettings(
     sections: normalizeWorkspaceSections(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
     ),
+    styling: normalizeStyling(settings.styling),
   }
 
   return cleaned
@@ -341,6 +347,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

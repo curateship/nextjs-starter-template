@@ -44,6 +44,32 @@ const shellEntrySchema = z.discriminatedUnion("type", [
   }),
 ])
 
+const shellBackgroundSchema = z.object({
+  mode: z.enum(["default", "muted", "custom"]),
+  strength: z.number().int().min(0).max(100),
+  color: z.string(),
+})
+
+const shellModalStylingSchema = z.object({
+  background: shellBackgroundSchema,
+  borderWidth: z.number().int().min(0).max(3),
+  borderColor: shellBackgroundSchema,
+  padding: z.number().int().min(0).max(48),
+  overlayOpacity: z.number().int().min(0).max(100),
+  cardBackground: shellBackgroundSchema,
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+})
+
+const shellStylingSchema = z.object({
+  gutter: z.number().int().min(0).max(48),
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+  content: shellBackgroundSchema,
+  chrome: shellBackgroundSchema,
+  modal: shellModalStylingSchema,
+})
+
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -71,6 +97,7 @@ const shellConfigSchema = z.object({
       entries: z.array(shellEntrySchema),
     })
   ),
+  styling: shellStylingSchema,
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
@@ -101,6 +128,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         favicon: workspaceSettings.favicon,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
+        styling: workspaceSettings.styling,
       },
     }
   }
@@ -134,6 +162,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             favicon: data.favicon,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
+            styling: data.styling,
           },
           updatedAt,
         })
