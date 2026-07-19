@@ -2101,6 +2101,7 @@ fn rewrite_scaffold_metadata(
     write_generated_env(app_root, app_name, app_port, database_port)?;
     rewrite_root_title(app_root, app_name)?;
     rewrite_login_branding(app_root, app_name)?;
+    rewrite_session_cookie(app_root, app_name)?;
     Ok(())
 }
 
@@ -2316,6 +2317,38 @@ fn rewrite_login_branding(app_root: &Path, app_name: &str) -> Result<(), String>
             &format!("Use your {title} account."),
         );
     fs::write(path, contents).map_err(|error| error.to_string())
+}
+
+// Give each scaffolded app its own session cookie name so it does not share a
+// login with other apps on localhost (cookies are scoped by host, not port).
+// The scaffold is copied from Custom Shell, whose cookie is "custom_shell_session".
+fn rewrite_session_cookie(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let path = app_root.join("src/server/security.ts");
+    if !path.is_file() {
+        return Ok(());
+    }
+
+    let cookie = session_cookie_name(app_name);
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let contents = contents.replace(
+        "SESSION_COOKIE_NAME = \"custom_shell_session\"",
+        &format!("SESSION_COOKIE_NAME = \"{cookie}\""),
+    );
+    fs::write(path, contents).map_err(|error| error.to_string())
+}
+
+// Derive the cookie name from the app name (e.g. `my-app` -> `my_app_session`),
+// matching the per-app naming convention already used by other apps.
+fn session_cookie_name(app_name: &str) -> String {
+    let mut slug = String::new();
+    for character in app_name.chars() {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character.to_ascii_lowercase());
+        } else if !slug.ends_with('_') {
+            slug.push('_');
+        }
+    }
+    format!("{}_session", slug.trim_matches('_'))
 }
 
 fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), String> {
@@ -2970,6 +3003,7 @@ mod tests {
             .as_nanos();
         let root = std::env::temp_dir().join(format!("personal-ide-db-scaffold-test-{unique}"));
         fs::create_dir_all(root.join("src/routes")).expect("create app routes");
+        fs::create_dir_all(root.join("src/server")).expect("create app server");
         fs::write(
             root.join("package.json"),
             r#"{"name":"custom-shell","scripts":{"dev":"vite dev"}}"#,
@@ -2985,6 +3019,11 @@ mod tests {
             r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
         )
         .expect("write login route");
+        fs::write(
+            root.join("src/server/security.ts"),
+            "export const SESSION_COOKIE_NAME = \"custom_shell_session\"\n",
+        )
+        .expect("write security module");
         rewrite_scaffold_metadata(&root, "app-name", 3_012, 54_123)
             .expect("rewrite scaffold metadata");
 
@@ -3016,6 +3055,11 @@ mod tests {
         assert!(login.contains("Sign in to App Name"));
         assert!(login.contains("Use your App Name account."));
         assert!(!login.contains("Custom Shell account"));
+
+        let security =
+            fs::read_to_string(root.join("src/server/security.ts")).expect("read security");
+        assert!(security.contains("SESSION_COOKIE_NAME = \"app_name_session\""));
+        assert!(!security.contains("custom_shell_session"));
 
         fs::remove_dir_all(root).expect("remove temp scaffold metadata test");
     }
