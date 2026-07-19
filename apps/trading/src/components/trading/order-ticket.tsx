@@ -33,6 +33,8 @@ import {
 import { placePaperOrder } from "@/lib/api/paper"
 import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
 import type { MarketRow } from "@/lib/hl/hooks"
+import { isMarketableLimit } from "@/lib/trading/marketable-limit"
+import type { OrderDefaults } from "@/lib/trading/order-defaults"
 import { cn } from "@/lib/utils"
 
 export type SizeUnit = "usd" | "coin" | "pct"
@@ -65,6 +67,7 @@ export function OrderTicket({
   prefill,
   disabledReason,
   confirmationEnabled,
+  orderDefaults,
   onNotify,
   onOrderPlaced,
 }: {
@@ -79,6 +82,8 @@ export function OrderTicket({
   prefill: TicketPrefill | null
   disabledReason: string | null
   confirmationEnabled: boolean
+  /** Starting values from Trading settings. */
+  orderDefaults: OrderDefaults
   onNotify: (message: string, tone: "ok" | "error") => void
   /** Fired after an order is accepted so the parent can pull fresh state. */
   onOrderPlaced?: () => void
@@ -87,14 +92,14 @@ export function OrderTicket({
   const maxLeverage = marketRow?.maxLeverage ?? 1
   const [state, setState] = React.useState<TicketState>({
     side: "buy",
-    orderType: "limit",
+    orderType: orderDefaults.orderType,
     px: "",
     szInput: "",
-    szUnit: "usd",
+    szUnit: orderDefaults.sizeUnit,
     tif: "Gtc",
     reduceOnly: false,
-    leverage: Math.min(5, maxLeverage),
-    isCross: true,
+    leverage: Math.min(orderDefaults.leverage, maxLeverage),
+    isCross: orderDefaults.marginMode === "cross",
   })
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -114,7 +119,9 @@ export function OrderTicket({
       px: "",
       szInput: "",
       leverage: Math.min(current.leverage, maxLeverage),
-      isCross: !marketRow?.onlyIsolated,
+      isCross: marketRow?.onlyIsolated
+        ? false
+        : orderDefaults.marginMode === "cross",
     }))
     setStatus(null)
   }
@@ -143,6 +150,7 @@ export function OrderTicket({
 
   const executionPx =
     state.orderType === "limit" && state.px ? Number(state.px) : markPx
+  const marketableLimit = isMarketableLimit(state, markPx)
   const effectiveLeverage = isPaper ? 1 : state.leverage
   const szCoin = resolveSizeCoin(
     { ...state, leverage: effectiveLeverage },
@@ -155,7 +163,8 @@ export function OrderTicket({
     sz: szCoin,
     leverage: effectiveLeverage,
     maxLeverage,
-    isTaker: state.orderType === "market" || state.tif === "Ioc",
+    isTaker:
+      state.orderType === "market" || state.tif === "Ioc" || marketableLimit,
   })
 
   const submitDisabled =
@@ -331,6 +340,13 @@ export function OrderTicket({
               />
               <span className="text-[11px] text-muted-foreground">USD</span>
             </div>
+            {marketableLimit ? (
+              <p className="text-[11px] text-muted-foreground">
+                {state.side === "buy" ? "Above" : "Below"} the current price —
+                this fills straight away as a market{" "}
+                {state.side === "buy" ? "long" : "short"}.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -528,6 +544,7 @@ export function OrderTicket({
         notionalUsd={preview.notionalUsd}
         estLiquidationPx={preview.estLiquidationPx}
         positionSzi={positionSzi}
+        marketableLimit={marketableLimit}
         onOpenChange={setConfirming}
         onConfirm={() => void submit()}
       />
@@ -584,6 +601,7 @@ export function ConfirmOrderDialog({
   positionSzi,
   stopLossPx,
   takeProfitPx,
+  marketableLimit = false,
   onOpenChange,
   onConfirm,
 }: {
@@ -596,6 +614,7 @@ export function ConfirmOrderDialog({
   notionalUsd: number
   estLiquidationPx: number | null
   positionSzi: number
+  marketableLimit?: boolean
   stopLossPx?: string | null
   takeProfitPx?: string | null
   onOpenChange: (open: boolean) => void
@@ -623,7 +642,9 @@ export function ConfirmOrderDialog({
             value={
               state.orderType === "market"
                 ? "Market"
-                : `Limit @ ${state.px} (${state.tif})`
+                : marketableLimit
+                  ? `Market (limit ${state.px} is through the price)`
+                  : `Limit @ ${state.px} (${state.tif})`
             }
           />
           <SummaryRow

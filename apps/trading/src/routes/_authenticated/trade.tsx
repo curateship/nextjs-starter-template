@@ -71,6 +71,7 @@ function TradeRoute() {
         workerOnline={workerOnline}
         initialIndicators={indicators}
         orderConfirmation={runtime.config.orderConfirmation}
+        orderDefaults={runtime.config.orderDefaults}
         onMarketChange={(coin) =>
           void navigate({
             search: (current) => ({ ...current, market: coin }),

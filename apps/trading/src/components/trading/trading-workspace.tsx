@@ -110,6 +110,7 @@ import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
 import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
+import type { OrderDefaults } from "@/lib/trading/order-defaults"
 import { saveIndicator } from "@/lib/api/indicators"
 import { IndicatorsMenu } from "@/components/chart/indicators-menu"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
@@ -146,6 +147,7 @@ export function TradingWorkspace({
   workerOnline,
   initialIndicators,
   orderConfirmation,
+  orderDefaults,
   onMarketChange,
   onWalletChange,
 }: {
@@ -159,6 +161,8 @@ export function TradingWorkspace({
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
   orderConfirmation: boolean
+  /** Starting order-ticket values from Trading settings. */
+  orderDefaults: OrderDefaults
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -801,6 +805,7 @@ export function TradingWorkspace({
                       prefill={prefill}
                       disabledReason={ticketDisabledReason}
                       confirmationEnabled={orderConfirmation}
+                      orderDefaults={orderDefaults}
                       onNotify={notify}
                       onOrderPlaced={refreshAfterOrder}
                     />
@@ -890,6 +895,7 @@ export function TradingWorkspace({
           paperWalletId={paperWalletId}
           disabledReason={ticketDisabledReason}
           confirmationEnabled={orderConfirmation}
+          orderDefaults={orderDefaults}
           onNotify={notify}
           onOrderPlaced={refreshAfterOrder}
           onClose={() => setQuickOrder(null)}

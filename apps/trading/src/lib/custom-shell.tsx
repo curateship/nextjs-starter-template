@@ -7,6 +7,10 @@ import {
 import { DEFAULT_MAX_CANDLES } from "@/lib/backtest/types"
 import { DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT } from "@/lib/trading/liquidation-risk"
 import {
+  DEFAULT_ORDER_DEFAULTS,
+  type OrderDefaults,
+} from "@/lib/trading/order-defaults"
+import {
   AppWindowIcon,
   BarChart3Icon,
   BellIcon,
@@ -258,6 +262,8 @@ export type ShellConfig = {
    * snapshot poller once a minute.
    */
   liquidationAlertThresholdPct: number
+  /** Starting leverage, margin mode, order type and size unit for new tickets. */
+  orderDefaults: OrderDefaults
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -567,6 +573,7 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     orderConfirmation: true,
     liquidationAlertThresholdPct: DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
+    orderDefaults: { ...DEFAULT_ORDER_DEFAULTS },
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],

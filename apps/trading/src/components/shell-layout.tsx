@@ -24,6 +24,7 @@ import {
 } from "@/lib/custom-shell"
 import { clampMaxCandles } from "@/lib/backtest/types"
 import { clampLiquidationAlertThreshold } from "@/lib/trading/liquidation-risk"
+import { normalizeOrderDefaults } from "@/lib/trading/order-defaults"
 import {
   getMountedLocation,
   isFullBleedLocation,
@@ -294,6 +295,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
       settings.liquidationAlertThresholdPct
     ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
     favicon: settings.favicon ?? fallback.favicon,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
