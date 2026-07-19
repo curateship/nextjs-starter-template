@@ -51,6 +51,13 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/apps/directory/package.json ./apps/directory/package.json
 COPY --from=builder --chown=nodeapp:nodejs /app/apps/directory/.output ./apps/directory/.output
 
+# Nitro traces tslib into .output/server/node_modules but ships only tslib.es6.mjs,
+# while keeping the full manifest — whose Node import condition points at
+# ./modules/index.js. That truncated copy shadows the complete one in
+# /app/node_modules, so any bare `tslib` import throws ERR_MODULE_NOT_FOUND at
+# runtime. Overwrite it with the real package.
+COPY --from=prod-deps --chown=nodeapp:nodejs /app/node_modules/tslib/ ./apps/directory/.output/server/node_modules/tslib/
+
 USER nodeapp
 
 EXPOSE 3000
