@@ -65,10 +65,7 @@ export function ApplyThemeDialog({
       setApplying(true)
       setError(null)
 
-      const { success, error: applyError } = await applyThemeToSiteAction(
-        selectedSiteId,
-        templateId
-      )
+      const { success, error: applyError } = await applyThemeToSiteAction({ data: { siteId: selectedSiteId, templateId: templateId } })
 
       if (applyError) {
         setError(applyError)

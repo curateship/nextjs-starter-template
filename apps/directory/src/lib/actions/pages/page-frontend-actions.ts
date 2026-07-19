@@ -352,9 +352,11 @@ async function prefetchCategoryListingData(
       try {
         const { parentCategoryId, chipsToShow = 20 } = block.content
         const result = await getCategoriesListingData({
-          siteId,
-          parentCategoryId: typeof parentCategoryId === 'string' ? parentCategoryId : '',
-          limit: Number(chipsToShow) || 20,
+          data: {
+            siteId,
+            parentCategoryId: typeof parentCategoryId === 'string' ? parentCategoryId : '',
+            limit: Number(chipsToShow) || 20,
+          },
         })
 
         if (result.success && result.data) {
@@ -379,13 +381,13 @@ async function prefetchMemberDirectoryData(
     if (block.type === 'member-directory') {
       try {
         const { includedRoles, itemsPerPage, sortBy, sortOrder } = block.content
-        const result = await getMemberDirectoryData({
+        const result = await getMemberDirectoryData({ data: { params: {
           siteId,
           includedRoles: Array.isArray(includedRoles) ? includedRoles : undefined,
           itemsPerPage: Number(itemsPerPage) || undefined,
           sortBy,
           sortOrder,
-        })
+        } } })
 
         if (result.success && result.data) {
           memberDirectoryData[block.id] = result.data

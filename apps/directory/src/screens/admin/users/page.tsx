@@ -115,7 +115,7 @@ export default function UsersPage() {
 
   async function loadUsers() {
     setLoading(true)
-    const result = await listUsers(1, 50)
+    const result = await listUsers({ data: { page: 1, pageSize: 50 } })
 
     if (result.error) {
       setError(result.error)
@@ -210,7 +210,7 @@ export default function UsersPage() {
     }
 
     setDeletingUserId(pendingDeleteUser.id)
-    const result = await deleteUser(pendingDeleteUser.id)
+    const result = await deleteUser({ data: { userId: pendingDeleteUser.id } })
 
     if (!result.success) {
       setError(result.error || "Failed to delete user")
@@ -229,7 +229,7 @@ export default function UsersPage() {
     }
 
     setMassDeleting(true)
-    const result = await deleteUsers(Array.from(userSelection.selectedIds))
+    const result = await deleteUsers({ data: { userIds: Array.from(userSelection.selectedIds) } })
 
     if (!result.success) {
       setError(result.error || "Failed to delete users")

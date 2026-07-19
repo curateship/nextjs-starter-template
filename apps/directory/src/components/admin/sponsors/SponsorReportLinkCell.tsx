@@ -53,7 +53,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
 
   const handleCreate = async () => {
     setPending(true)
-    const result = await createSponsorReportLinkAction(sponsorId)
+    const result = await createSponsorReportLinkAction({ data: { sponsorId: sponsorId } })
     setPending(false)
 
     if (result.error || !result.data) {
@@ -69,7 +69,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
 
   const handleRevoke = async () => {
     setPending(true)
-    const result = await revokeSponsorReportLinkAction(sponsorId)
+    const result = await revokeSponsorReportLinkAction({ data: { sponsorId: sponsorId } })
     setPending(false)
 
     if (result.error || !result.data) {

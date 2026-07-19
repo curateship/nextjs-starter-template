@@ -78,9 +78,9 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
             className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
             onClick={async () => {
               if (newsletter.status === "sending") {
-                await pauseNewsletter(newsletter.id)
+                await pauseNewsletter({ data: { newsletterId: newsletter.id } })
               } else {
-                await resumeNewsletter(newsletter.id)
+                await resumeNewsletter({ data: { newsletterId: newsletter.id } })
               }
               await builder.reloadNewsletter()
             }}

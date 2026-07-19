@@ -100,7 +100,7 @@ export function ProductPreview({
       return
     }
 
-    getContentBreadcrumbPreviewAction(product.id, 'product').then(({ data }) => {
+    getContentBreadcrumbPreviewAction({ data: { contentId: product.id, contentType: 'product' } }).then(({ data }) => {
       if (!cancelled) setBreadcrumbs(data || [])
     })
 

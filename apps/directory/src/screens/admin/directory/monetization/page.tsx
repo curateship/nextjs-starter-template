@@ -137,7 +137,7 @@ export default function DirectoryMonetizationPage() {
     setError(null)
 
     if (activeView === "plans") {
-      const result = await getDirectoryFeaturedPlansAction(currentSite.id)
+      const result = await getDirectoryFeaturedPlansAction({ data: { siteId: currentSite.id } })
       setLoading(false)
       if (result.error) {
         setError(result.error)
@@ -148,7 +148,7 @@ export default function DirectoryMonetizationPage() {
       return
     }
 
-    const result = await getDirectoryFeaturedEntitlementsAction(currentSite.id, entitlementStatus)
+    const result = await getDirectoryFeaturedEntitlementsAction({ data: { siteId: currentSite.id, status: entitlementStatus } })
     setLoading(false)
     if (result.error) {
       setError(result.error)
@@ -209,7 +209,7 @@ export default function DirectoryMonetizationPage() {
 
     setSavingPlan(true)
     setPlanError(null)
-    const result = await saveDirectoryFeaturedPlanAction({
+    const result = await saveDirectoryFeaturedPlanAction({ data: { input: {
       siteId: currentSite.id,
       planId: planDraft.planId,
       name: planDraft.name,
@@ -218,7 +218,7 @@ export default function DirectoryMonetizationPage() {
       durationDays: planDraft.durationDays,
       priority: planDraft.priority,
       displayOrder: planDraft.displayOrder,
-    })
+    } } })
     setSavingPlan(false)
 
     if (result.error) {
@@ -234,11 +234,11 @@ export default function DirectoryMonetizationPage() {
     if (!currentSite?.id) return
 
     setArchivingPlanId(plan.id)
-    const result = await setDirectoryFeaturedPlanArchivedAction({
+    const result = await setDirectoryFeaturedPlanArchivedAction({ data: { input: {
       siteId: currentSite.id,
       planId: plan.id,
       archived: plan.is_active,
-    })
+    } } })
     setArchivingPlanId(null)
 
     if (result.error) {
@@ -252,11 +252,11 @@ export default function DirectoryMonetizationPage() {
     if (!currentSite?.id || !selectedEntitlement) return
 
     setRevoking(true)
-    const result = await revokeDirectoryFeaturedEntitlementAction({
+    const result = await revokeDirectoryFeaturedEntitlementAction({ data: { input: {
       siteId: currentSite.id,
       entitlementId: selectedEntitlement.id,
       note: revokeNote,
-    })
+    } } })
     setRevoking(false)
 
     if (result.error) {

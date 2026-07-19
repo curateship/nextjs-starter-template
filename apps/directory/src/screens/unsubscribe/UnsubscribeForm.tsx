@@ -23,7 +23,7 @@ export function UnsubscribeForm({
     if (!initialEmail || !token) return
 
     setStatus("loading")
-    const { success, error } = await unsubscribeContact(siteId, initialEmail, token, newsletterId)
+    const { success, error } = await unsubscribeContact({ data: { siteId: siteId, email: initialEmail, token: token, newsletterId: newsletterId } })
 
     if (success) {
       setStatus("success")

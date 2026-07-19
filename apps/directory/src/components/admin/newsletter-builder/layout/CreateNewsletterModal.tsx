@@ -65,8 +65,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     if (!currentSite?.id) return
 
     setTemplatesLoading(true)
-    getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
-    getTemplatesBySite(currentSite.id)
+    getSegmentsBySite({ data: { siteId: currentSite.id } }).then(({ data }) => setSegments(data || []))
+    getTemplatesBySite({ data: { siteId: currentSite.id } })
       .then(({ data }) => {
         const loaded = data || []
         setTemplates(loaded)
@@ -89,12 +89,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     if (audienceMode === 'custom') {
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       const filter = tags.length ? { tags } : {}
-      getAudienceCount(currentSite.id, filter).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: currentSite.id, audienceFilter: filter } }).then(({ count }) => setAudienceCount(count))
     } else if (audienceMode === 'all') {
-      getAudienceCount(currentSite.id, {}).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: currentSite.id, audienceFilter: {} } }).then(({ count }) => setAudienceCount(count))
     } else {
       // It's a segment ID — count via join table
-      getAudienceCount(currentSite.id, { segment_id: audienceMode }).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: currentSite.id, audienceFilter: { segment_id: audienceMode } } }).then(({ count }) => setAudienceCount(count))
     }
   }, [audienceMode, filterTags, currentSite?.id, segments])
 
@@ -141,14 +141,14 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       : null
     const metadata = drip.enabled ? { drip_config: drip.buildConfig() } : undefined
 
-    const { data, error: createError } = await createNewsletter({
+    const { data, error: createError } = await createNewsletter({ data: { input: {
       siteId: currentSite.id,
       subject: subject.trim(),
       audience_filter: buildAudienceFilter(),
       content_blocks: selectedTemplate?.content_blocks,
       metadata,
       status,
-    })
+    } } })
 
     if (createError) {
       setError(createError)

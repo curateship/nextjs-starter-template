@@ -165,7 +165,7 @@ export function ContactImportModal({
 
       for (let index = 0; index < contacts.length; index += chunkSize) {
         const chunk = contacts.slice(index, index + chunkSize)
-        const result = await bulkImportContacts({ siteId, contacts: chunk })
+        const result = await bulkImportContacts({ data: { input: { siteId, contacts: chunk } } })
 
         if (result.error) {
           onError(result.error)

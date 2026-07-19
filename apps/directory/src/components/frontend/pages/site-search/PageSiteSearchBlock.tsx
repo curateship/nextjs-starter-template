@@ -95,14 +95,14 @@ export function PageSiteSearchBlock({
 
     setLoading(true)
     setError(null)
-    searchSiteAction({
+    searchSiteAction({ data: { input: {
       siteId,
       query: trimmedQuery,
       type,
       page,
       pageSize,
       enabledTypes,
-    }).then((result) => {
+    } } }).then((result) => {
       if (cancelled) return
       if (result.success && result.data) {
         setData(result.data)

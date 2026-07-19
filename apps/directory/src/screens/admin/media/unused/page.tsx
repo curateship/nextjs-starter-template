@@ -71,7 +71,7 @@ export default function UnusedMediaPage() {
     setIsScanning(true)
     clearMediaSelection()
     try {
-      const { data, error } = await scanUnusedMediaAction(currentSiteId)
+      const { data, error } = await scanUnusedMediaAction({ data: { site_id: currentSiteId } })
       if (error) {
         showActionError(`Scan failed: ${error}`)
         return
@@ -92,7 +92,7 @@ export default function UnusedMediaPage() {
 
     setIsDeleting(true)
     try {
-      const { success, deletedCount, error } = await deleteMediaItemsAction(ids, currentSiteId)
+      const { success, deletedCount, error } = await deleteMediaItemsAction({ data: { mediaIds: ids, site_id: currentSiteId } })
       if (!success || error) {
         const message = `Delete failed: ${error ?? "Unknown error"}`
         setDeleteError(message)

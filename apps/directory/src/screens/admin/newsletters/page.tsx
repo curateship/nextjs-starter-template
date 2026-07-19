@@ -194,10 +194,10 @@ export default function NewslettersPage() {
           data,
           total: t,
           error
-        } = await getNewslettersBySite(currentSite.id, {
+        } = await getNewslettersBySite({ data: { siteId: currentSite.id, options: {
           page: currentPage,
           pageSize
-        })
+        } } })
         if (error) {
           setErrorMessage(error)
           setErrorDialogOpen(true)
@@ -237,7 +237,7 @@ export default function NewslettersPage() {
     if (!pendingDeleteId) return
     const newsletterId = pendingDeleteId
 
-    const { success, error } = await deleteNewsletters([newsletterId])
+    const { success, error } = await deleteNewsletters({ data: { ids: [newsletterId] } })
     if (error) {
       setErrorMessage(error)
     }
@@ -255,7 +255,7 @@ export default function NewslettersPage() {
   const confirmMassDelete = async () => {
     setMassDeleting(true)
     try {
-      const { success, error } = await deleteNewsletters(Array.from(newsletterSelection.selectedIds))
+      const { success, error } = await deleteNewsletters({ data: { ids: Array.from(newsletterSelection.selectedIds) } })
       if (error) {
         setErrorMessage(error)
         return
@@ -516,9 +516,9 @@ export default function NewslettersPage() {
                                         onClick={async (e) => {
                                           e.stopPropagation()
                                           if (newsletter.status === "sending") {
-                                            await pauseNewsletter(newsletter.id)
+                                            await pauseNewsletter({ data: { newsletterId: newsletter.id } })
                                           } else {
-                                            await resumeNewsletter(newsletter.id)
+                                            await resumeNewsletter({ data: { newsletterId: newsletter.id } })
                                           }
                                           await loadNewsletters(false)
                                         }}

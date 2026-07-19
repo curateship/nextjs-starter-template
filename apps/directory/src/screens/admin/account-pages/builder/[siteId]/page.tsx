@@ -56,7 +56,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     async function loadPages() {
       try {
         setPagesLoading(true)
-        const { data, error } = await getAccountPagesAction(siteId, { selectedSlug: pageFromUrl })
+        const { data, error } = await getAccountPagesAction({ data: { siteId: siteId, options: { selectedSlug: pageFromUrl } } })
         if (error) {
           showActionError(error)
           return

@@ -88,7 +88,7 @@ export function NewsletterSettingsModal({
   // Load segments when modal opens
   useEffect(() => {
     if (!open || !siteId) return
-    getSegmentsBySite(siteId).then(({ data }) => setSegments(data || []))
+    getSegmentsBySite({ data: { siteId: siteId } }).then(({ data }) => setSegments(data || []))
   }, [open, siteId])
 
   // Update audience count based on mode
@@ -103,12 +103,12 @@ export function NewsletterSettingsModal({
     if (audienceMode === 'custom') {
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       const filter = tags.length ? { tags } : {}
-      getAudienceCount(siteId, filter).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: siteId, audienceFilter: filter } }).then(({ count }) => setAudienceCount(count))
     } else if (audienceMode === 'all') {
-      getAudienceCount(siteId, {}).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: siteId, audienceFilter: {} } }).then(({ count }) => setAudienceCount(count))
     } else {
       // It's a segment ID — count via join table
-      getAudienceCount(siteId, { segment_id: audienceMode }).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: siteId, audienceFilter: { segment_id: audienceMode } } }).then(({ count }) => setAudienceCount(count))
     }
   }, [audienceMode, filterTags, siteId, open, segments])
 
@@ -153,12 +153,12 @@ export function NewsletterSettingsModal({
       metadata.drip_config = { ...(newsletter.metadata?.drip_config || {}), enabled: false }
     }
 
-    const { data, error: updateError } = await updateNewsletter(newsletter.id, {
+    const { data, error: updateError } = await updateNewsletter({ data: { newsletterId: newsletter.id, updates: {
       subject: subject.trim(),
       status: 'draft',
       audience_filter: buildAudienceFilter(),
       metadata,
-    })
+    } } })
     setSaving(false)
     if (updateError) {
       setError(updateError)
@@ -176,7 +176,7 @@ export function NewsletterSettingsModal({
     setError(null)
     setSuccessMsg(null)
 
-    const { success, error: sendError } = await sendTestNewsletter(newsletter.id, testEmail)
+    const { success, error: sendError } = await sendTestNewsletter({ data: { newsletterId: newsletter.id, testEmail: testEmail } })
     if (sendError) {
       setError(sendError)
     } else if (success) {

@@ -124,7 +124,7 @@ export default function SegmentDashboardPage() {
       return
     }
 
-    Promise.all([getAvailableSegmentTags(segment.site_id), getSegmentsBySite(segment.site_id, { pageSize: 100 })]).then(
+    Promise.all([getAvailableSegmentTags({ data: { siteId: segment.site_id } }), getSegmentsBySite({ data: { siteId: segment.site_id, options: { pageSize: 100 } } })]).then(
       ([tagsRes, segmentsRes]) => {
         setAvailableTags(tagsRes.data || [])
         setSegmentOptions(segmentsRes.data || [])
@@ -141,7 +141,7 @@ export default function SegmentDashboardPage() {
 
     const timeout = setTimeout(async () => {
       setSearching(true)
-      const res = await searchContactsForSegment(segmentId, searchQuery)
+      const res = await searchContactsForSegment({ data: { segmentId: segmentId, query: searchQuery } })
       if (res.data) setSearchResults(res.data)
       setSearching(false)
     }, 300)
@@ -156,11 +156,11 @@ export default function SegmentDashboardPage() {
 
     try {
       const [segmentRes, statsRes, contactsRes, newslettersRes, engagementRes] = await Promise.all([
-        getSegmentById(segmentId),
-        getSegmentStats(segmentId),
-        getSegmentContacts(segmentId, 1, 20),
-        getSegmentNewsletters(segmentId),
-        getSegmentEngagementOverTime(segmentId)
+        getSegmentById({ data: { segmentId: segmentId } }),
+        getSegmentStats({ data: { segmentId: segmentId } }),
+        getSegmentContacts({ data: { segmentId: segmentId, page: 1, pageSize: 20 } }),
+        getSegmentNewsletters({ data: { segmentId: segmentId } }),
+        getSegmentEngagementOverTime({ data: { segmentId: segmentId } })
       ])
 
       if (segmentRes.error || !segmentRes.data) {
@@ -198,7 +198,7 @@ export default function SegmentDashboardPage() {
   async function loadMoreContacts() {
     setLoadingMore(true)
     const nextPage = contactsPage + 1
-    const res = await getSegmentContacts(segmentId, nextPage, 20)
+    const res = await getSegmentContacts({ data: { segmentId: segmentId, page: nextPage, pageSize: 20 } })
     if (res.data) {
       setContacts((prev) => [...prev, ...res.data!])
       setContactsPage(nextPage)
@@ -209,8 +209,8 @@ export default function SegmentDashboardPage() {
   /** Refresh contacts list and stats after add/remove */
   async function refreshContactsAndStats() {
     const [statsRes, contactsRes] = await Promise.all([
-      getSegmentStats(segmentId),
-      getSegmentContacts(segmentId, 1, 20)
+      getSegmentStats({ data: { segmentId: segmentId } }),
+      getSegmentContacts({ data: { segmentId: segmentId, page: 1, pageSize: 20 } })
     ])
     setStats(statsRes.data)
     setContacts(contactsRes.data || [])
@@ -229,12 +229,12 @@ export default function SegmentDashboardPage() {
     }
     setSaving(true)
 
-    const { data, error } = await updateSegment(segment.id, {
+    const { data, error } = await updateSegment({ data: { segmentId: segment.id, updates: {
       name: editForm.name,
       description: editForm.description,
       segmentType: editForm.segmentType,
       dynamicRule: editForm.segmentType === "dynamic" ? dynamicRule : null
-    })
+    } } })
 
     if (data) {
       setSegment(data)
@@ -254,7 +254,7 @@ export default function SegmentDashboardPage() {
   async function handleDelete() {
     if (!segment || deleting) return
     setDeleting(true)
-    const { success, error } = await deleteSegments([segment.id])
+    const { success, error } = await deleteSegments({ data: { ids: [segment.id] } })
     if (success) {
       router.push("/admin/newsletters/segments")
     } else {
@@ -265,7 +265,7 @@ export default function SegmentDashboardPage() {
 
   /** Remove a contact from the segment */
   async function handleRemoveContact(contactId: string) {
-    const { error } = await removeContactsFromSegment([contactId], segmentId)
+    const { error } = await removeContactsFromSegment({ data: { contactIds: [contactId], segmentId: segmentId } })
     if (error) {
       setRemoveContactError(error)
       return
@@ -277,7 +277,7 @@ export default function SegmentDashboardPage() {
   /** Add a contact to the segment from search results */
   async function handleAddContact(contactId: string) {
     setAddingContact(contactId)
-    const { error } = await addContactsToSegment([contactId], segmentId)
+    const { error } = await addContactsToSegment({ data: { contactIds: [contactId], segmentId: segmentId } })
     if (error) {
       setError(error)
       setAddingContact(null)

@@ -97,7 +97,7 @@ export default function ContactsPage() {
 
   useEffect(() => {
     if (currentSite?.id) {
-      getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
+      getSegmentsBySite({ data: { siteId: currentSite.id } }).then(({ data }) => setSegments(data || []))
     }
   }, [currentSite?.id])
 
@@ -120,12 +120,12 @@ export default function ContactsPage() {
       setLoading(true)
       setError(null)
 
-      const result = await getContactsWithStats(currentSite.id, {
+      const result = await getContactsWithStats({ data: { siteId: currentSite.id, options: {
         filterGroup: filters.rules.length ? filters : undefined,
         searchQuery: deferredSearchQuery,
         page: currentPage,
         pageSize
-      })
+      } } })
 
       if (requestId !== contactLoadRequestIdRef.current) {
         return
@@ -189,7 +189,7 @@ export default function ContactsPage() {
     if (!pendingDeleteId) return
     const contactId = pendingDeleteId
     try {
-      const { success, error } = await deleteContacts([contactId])
+      const { success, error } = await deleteContacts({ data: { contactIds: [contactId] } })
       if (error) {
         setErrorMessage(error)
         return
@@ -207,7 +207,7 @@ export default function ContactsPage() {
     setMassDeleting(true)
     try {
       const ids = Array.from(contactSelection.selectedIds)
-      const { success, error } = await deleteContacts(ids)
+      const { success, error } = await deleteContacts({ data: { contactIds: ids } })
       if (error) {
         setErrorMessage(error)
         return
@@ -229,7 +229,7 @@ export default function ContactsPage() {
     setAddingToSegment(true)
     try {
       const segName = segments.find((s) => s.id === selectedSegmentId)?.name || "segment"
-      const { added, error } = await addContactsToSegment(Array.from(contactSelection.selectedIds), selectedSegmentId)
+      const { added, error } = await addContactsToSegment({ data: { contactIds: Array.from(contactSelection.selectedIds), segmentId: selectedSegmentId } })
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)

@@ -63,7 +63,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   useEffect(() => {
     async function loadProducts() {
       try {
-        const { data, error } = await getSiteProductsAction(siteId, { selectedSlug: productFromUrl })
+        const { data, error } = await getSiteProductsAction({ data: { siteId: siteId, options: { selectedSlug: productFromUrl } } })
         if (error) {
           return
         }
@@ -142,7 +142,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     if (!currentProductData?.id) return false
 
     try {
-      const { data, error } = await updateProductAction(currentProductData.id, updates)
+      const { data, error } = await updateProductAction({ data: { productId: currentProductData.id, updates: updates } })
       if (error) {
         console.error('Failed to update product:', error)
         return false

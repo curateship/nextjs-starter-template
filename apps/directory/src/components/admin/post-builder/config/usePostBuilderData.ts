@@ -35,7 +35,7 @@ export function usePostBuilderData(
   const [loading, setLoading] = useState(true)
 
   const loadPosts = useCallback(async (selectedSlug = selectedPost) => {
-    const postsResult = await getSitePostsWithMergedBlocksAction(siteId, { selectedSlug })
+    const postsResult = await getSitePostsWithMergedBlocksAction({ data: { siteId: siteId, options: { selectedSlug } } })
     if (postsResult.data) setPosts(postsResult.data)
   }, [selectedPost, siteId])
 

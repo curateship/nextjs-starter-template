@@ -29,7 +29,7 @@ function loadDirectoryBuilderData(
     }
   }
 
-  const promise = getDirectoryBuilderDataAction(siteId, selectedDirectory)
+  const promise = getDirectoryBuilderDataAction({ data: { siteId: siteId, selectedDirectory: selectedDirectory } })
   directoryBuilderRequestCache.set(requestKey, {
     expiresAt: Date.now() + DIRECTORY_BUILDER_DATA_CACHE_TTL_MS,
     promise,

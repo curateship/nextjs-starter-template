@@ -50,13 +50,13 @@ export function PublishNewsletterModal({
   // Load segments
   useEffect(() => {
     if (!open || !siteId) return
-    getSegmentsBySite(siteId).then(({ data }) => setSegments(data || []))
+    getSegmentsBySite({ data: { siteId: siteId } }).then(({ data }) => setSegments(data || []))
   }, [open, siteId])
 
   useEffect(() => {
     if (!open || !siteId) return
     setCronStatusLoaded(false)
-    getCronStatus(siteId).then(({ data }) => {
+    getCronStatus({ data: { siteId: siteId } }).then(({ data }) => {
       setCronStatus(data)
       setCronStatusLoaded(true)
     })
@@ -73,11 +73,11 @@ export function PublishNewsletterModal({
     }
 
     if (filter.segment_id) {
-      getAudienceCount(siteId, { segment_id: filter.segment_id }).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: siteId, audienceFilter: { segment_id: filter.segment_id } } }).then(({ count }) => setAudienceCount(count))
     } else {
       const tags = filter.tags || []
       const countFilter = tags.length ? { tags } : {}
-      getAudienceCount(siteId, countFilter).then(({ count }) => setAudienceCount(count))
+      getAudienceCount({ data: { siteId: siteId, audienceFilter: countFilter } }).then(({ count }) => setAudienceCount(count))
     }
   }, [open, siteId, newsletter])
 
@@ -97,7 +97,7 @@ export function PublishNewsletterModal({
     setError(null)
     setSuccessMsg(null)
 
-    const { success, error: sendError } = await sendTestNewsletter(newsletter.id, testEmail)
+    const { success, error: sendError } = await sendTestNewsletter({ data: { newsletterId: newsletter.id, testEmail: testEmail } })
     if (sendError) {
       setError(sendError)
     } else if (success) {
@@ -111,7 +111,7 @@ export function PublishNewsletterModal({
     setSending(true)
     setError(null)
 
-    const { success, error: sendError } = await sendNewsletter(newsletter.id)
+    const { success, error: sendError } = await sendNewsletter({ data: { newsletterId: newsletter.id } })
     setSending(false)
     if (sendError) {
       setError(sendError)
@@ -119,7 +119,7 @@ export function PublishNewsletterModal({
     }
     if (success) {
       const { getNewsletterById } = await import("@/lib/actions/newsletters/newsletter-actions")
-      const { data } = await getNewsletterById(newsletter.id)
+      const { data } = await getNewsletterById({ data: { newsletterId: newsletter.id } })
       if (data) onSuccess(data)
       onOpenChange(false)
     }

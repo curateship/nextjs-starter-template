@@ -20,14 +20,14 @@ export default function ProductTemplatesPage() {
     <TemplateListPage
       breadcrumbParent={{ label: "Products", href: "/admin/products" }}
       createPlaceholder="e.g. Sales Page Layout"
-      createTemplate={createProductTemplate}
-      deleteTemplates={deleteProductTemplates}
+      createTemplate={((a0) => createProductTemplate({ data: { input: a0 } }))}
+      deleteTemplates={((a0) => deleteProductTemplates({ data: { ids: a0 } }))}
       emptyText="No templates yet. Create one to save reusable product layouts."
       getBlockCount={getProductBlockCount}
-      getTemplateIds={getProductTemplateIdsAction}
-      getTemplatesBySite={getProductTemplatesBySite}
+      getTemplateIds={((a0) => getProductTemplateIdsAction({ data: { siteId: a0 } }))}
+      getTemplatesBySite={((a0, a1) => getProductTemplatesBySite({ data: { siteId: a0, options: a1 } }))}
       routeBase="/admin/products/templates"
-      setDefaultTemplate={setDefaultProductTemplate}
+      setDefaultTemplate={((a0) => setDefaultProductTemplate({ data: { templateId: a0 } }))}
     />
   )
 }

@@ -176,9 +176,7 @@ export default function ThemesPage() {
   const handleDeleteConfirm = async () => {
     try {
       setDeleting(deleteDialog.templateId);
-      const { success, error: deleteError } = await deleteTemplateAction(
-        deleteDialog.templateId,
-      );
+      const { success, error: deleteError } = await deleteTemplateAction({ data: { templateId: deleteDialog.templateId } });
       if (deleteError) {
         setError(`Failed to delete theme: ${deleteError}`);
         return;

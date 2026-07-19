@@ -79,13 +79,13 @@ export default function DirectorySavedFolderPage({
     }
 
     setLoading(true)
-    const result = await getDirectorySaveFolderItemsDashboardAction({
+    const result = await getDirectorySaveFolderItemsDashboardAction({ data: { input: {
       siteId: currentSite.id,
       collectionId,
       page: currentPage,
       pageSize,
       query
-    })
+    } } })
     setLoading(false)
 
     if (result.error) {
@@ -112,11 +112,11 @@ export default function DirectorySavedFolderPage({
     if (!currentSite?.id || !collection) return
 
     setSavingRename(true)
-    const result = await renameDirectorySaveCollectionDashboardAction({
+    const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
       collectionId: collection.id,
       name: renameValue
-    })
+    } } })
     setSavingRename(false)
 
     if (result.error) {
@@ -132,10 +132,10 @@ export default function DirectorySavedFolderPage({
     if (!currentSite?.id || removeIds.length === 0) return
 
     setRemoving(true)
-    const result = await removeDirectorySaveItemsDashboardAction({
+    const result = await removeDirectorySaveItemsDashboardAction({ data: { input: {
       siteId: currentSite.id,
       itemIds: removeIds
-    })
+    } } })
     setRemoving(false)
 
     if (result.error) {

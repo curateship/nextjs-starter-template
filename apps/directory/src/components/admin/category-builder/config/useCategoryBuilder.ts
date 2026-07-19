@@ -48,7 +48,7 @@ export function useCategoryBuilder({
     setSaveStatus("saving")
 
     try {
-      const result = await updateCategoryBlockValuesAction(categoryId, contentBlocks)
+      const result = await updateCategoryBlockValuesAction({ data: { categoryId: categoryId, contentBlocks: contentBlocks } })
 
       if (result.success) {
         setSaveStatus("saved")

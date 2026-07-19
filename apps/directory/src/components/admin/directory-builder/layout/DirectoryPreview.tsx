@@ -110,7 +110,7 @@ export function DirectoryPreview({
 
     const breadcrumbPromise = site?.settings?.breadcrumbs?.directories === false
       ? Promise.resolve({ data: [] as FrontendBreadcrumbItem[], error: null })
-      : getContentBreadcrumbPreviewAction(directory.id, 'directory')
+      : getContentBreadcrumbPreviewAction({ data: { contentId: directory.id, contentType: 'directory' } })
 
     breadcrumbPromise.then((breadcrumbResult) => {
       if (cancelled) return

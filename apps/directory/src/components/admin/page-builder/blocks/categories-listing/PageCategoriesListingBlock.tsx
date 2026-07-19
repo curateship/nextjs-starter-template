@@ -24,7 +24,7 @@ async function getAllCategoriesForSite(siteId: string) {
   const allCategories: Category[] = []
 
   do {
-    const { data, total: categoryTotal } = await getCategoriesForSiteAction(siteId, { page, pageSize })
+    const { data, total: categoryTotal } = await getCategoriesForSiteAction({ data: { siteId: siteId, options: { page, pageSize } } })
     if (!data || data.length === 0) break
 
     allCategories.push(...data)

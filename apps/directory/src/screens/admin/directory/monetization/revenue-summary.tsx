@@ -149,7 +149,7 @@ export function MonetizationRevenueSummary({ siteId, siteLoading }: {
 
     setLoading(true)
     setError(null)
-    const result = await getDirectoryFeaturedRevenueSummaryAction(siteId)
+    const result = await getDirectoryFeaturedRevenueSummaryAction({ data: { siteId: siteId } })
     setLoading(false)
     if (result.error) {
       setError(result.error)

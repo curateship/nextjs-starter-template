@@ -59,7 +59,7 @@ export function CreateCategoryModal({
 
     async function loadTemplates() {
       setTemplatesLoading(true)
-      const { data } = await getCategoryTemplatesBySite(siteId)
+      const { data } = await getCategoryTemplatesBySite({ data: { siteId: siteId } })
 
       if (!cancelled) {
         const loaded = data || []
@@ -82,7 +82,7 @@ export function CreateCategoryModal({
     title,
     titleRequiredMessage: "Category title is required",
     // Categories create through a server action rather than an API route
-    create: (publish) => createCategoryAction(siteId, {
+    create: (publish) => createCategoryAction({ data: { siteId: siteId, data: {
       title,
       slug,
       // Server falls back to the site default template when unset
@@ -95,7 +95,7 @@ export function CreateCategoryModal({
         show_featured_image: true
       },
       is_published: publish,
-    }),
+    } } }),
   })
 
   // Build the nested parent options with ancestor paths for the combobox

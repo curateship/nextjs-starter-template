@@ -163,7 +163,7 @@ export function AccountCoreBlock({
     let cancelled = false
 
     // Profile + saved folders are independent per-user fetches — run in parallel
-    Promise.all([getMyProfile(), getMySavedCollectionsAction(siteId)])
+    Promise.all([getMyProfile(), getMySavedCollectionsAction({ data: { siteId: siteId } })])
       .then(([currentUser, savedResult]) => {
         if (cancelled) return
 

@@ -53,7 +53,7 @@ export default function PlatformEmailsPage() {
     setLoading(true);
     setMessage(null);
 
-    const dashboardResult = await getSystemEmailDashboardAction(currentSite.id);
+    const dashboardResult = await getSystemEmailDashboardAction({ data: { siteId: currentSite.id } });
 
     if (!dashboardResult.success || !dashboardResult.data) {
       setMessage({

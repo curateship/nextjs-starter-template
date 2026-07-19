@@ -73,7 +73,7 @@ export function CategorySettingsModal({
           }
         }
       }
-      return updateCategoryAction(category!.id, payload)
+      return updateCategoryAction({ data: { categoryId: category!.id, data: payload } })
     },
     failureMessage: (_, publish) => publish ? 'Failed to publish category' : 'Failed to save category as draft',
   })
@@ -130,7 +130,7 @@ export function CategorySettingsModal({
 
       // Load the site's templates for the switcher
       setTemplatesLoading(true)
-      getCategoryTemplatesBySite(category.site_id).then(({ data }) => {
+      getCategoryTemplatesBySite({ data: { siteId: category.site_id } }).then(({ data }) => {
         const loadedTemplates = data || []
         setTemplates(loadedTemplates)
         setSelectedTemplateId(category.template_id || loadedTemplates.find((template) => template.is_default)?.id || loadedTemplates[0]?.id || '')

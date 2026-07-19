@@ -61,7 +61,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       }
 
       setTemplatesLoading(true)
-      const { data } = await getPostTemplatesBySite(currentSite.id)
+      const { data } = await getPostTemplatesBySite({ data: { siteId: currentSite.id } })
 
       if (!cancelled) {
         const loaded = data || []
@@ -97,7 +97,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     // Assign selected categories after the post row exists
     afterCreate: async (created) => {
       if (selectedCategoryIds.length === 0) return null
-      const categoryResult = await bulkAssignCategoriesToContentAction(created.id, "post", selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: created.id, contentType: "post", categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || "Failed to save categories")
     },
   })

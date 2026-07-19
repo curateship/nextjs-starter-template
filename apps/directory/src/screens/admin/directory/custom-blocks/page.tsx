@@ -55,7 +55,7 @@ export default function DirectoryCustomBlocksPage() {
 
     async function loadTemplates() {
       setLoading(true)
-      const { data, error: loadError } = await getDirectoryCustomBlocksBySite(activeSiteId)
+      const { data, error: loadError } = await getDirectoryCustomBlocksBySite({ data: { siteId: activeSiteId } })
 
       if (cancelled) return
 
@@ -79,7 +79,7 @@ export default function DirectoryCustomBlocksPage() {
 
   const handleDelete = async (template: DirectoryCustomBlockTemplate) => {
     setDeletingId(template.id)
-    const { success, error: deleteError } = await deleteDirectoryCustomBlock(template.id)
+    const { success, error: deleteError } = await deleteDirectoryCustomBlock({ data: { templateId: template.id } })
 
     if (!success) {
       setDeleteError(deleteError || "Failed to delete custom block")

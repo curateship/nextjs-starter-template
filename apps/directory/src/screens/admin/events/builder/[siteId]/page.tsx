@@ -41,7 +41,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   useEffect(() => {
     async function loadEvents() {
       try {
-        const { data, error } = await getSiteEventsAction(siteId, { selectedSlug: eventFromUrl })
+        const { data, error } = await getSiteEventsAction({ data: { siteId: siteId, options: { selectedSlug: eventFromUrl } } })
         if (error) {
           return
         }
@@ -131,7 +131,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     if (!currentEventData?.id) return
 
     try {
-      const { data, error } = await updateEventAction(currentEventData.id, updates)
+      const { data, error } = await updateEventAction({ data: { eventId: currentEventData.id, data: updates } })
       if (error) {
         console.error('Failed to update event:', error)
         return
@@ -187,7 +187,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       if (selectedBlock.type === EVENT_CONTENT_BLOCK_TYPE) {
         const nextTitle = draftEventTitle.trim() || currentEventData.title
         if (nextTitle !== currentEventData.title) {
-          const { data, error } = await updateEventAction(currentEventData.id, { title: nextTitle })
+          const { data, error } = await updateEventAction({ data: { eventId: currentEventData.id, data: { title: nextTitle } } })
           if (error || !data) {
             setBlockSaveError(error || "Failed to save event details")
             return
@@ -197,7 +197,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       }
 
       const contentBlocks = eventBlocksToValueJson(nextBlocks)
-      const result = await updateEventBlocksAction(currentEventData.id, contentBlocks)
+      const result = await updateEventBlocksAction({ data: { eventId: currentEventData.id, contentBlocks: contentBlocks } })
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return

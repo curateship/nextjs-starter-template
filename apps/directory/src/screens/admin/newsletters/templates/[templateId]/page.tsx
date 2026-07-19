@@ -37,7 +37,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
-    const { data, error: fetchError } = await getTemplateById(templateId)
+    const { data, error: fetchError } = await getTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -64,9 +64,9 @@ export default function TemplateEditorPage({ params }: PageProps) {
     setSaveStatus("saving")
 
     try {
-      const { data, error: saveError } = await updateTemplate(template.id, {
+      const { data, error: saveError } = await updateTemplate({ data: { templateId: template.id, updates: {
         content_blocks: blocksToJson(nextBlocks),
-      })
+      } } })
       if (saveError) {
         setSaveStatus("error", saveError)
         return false
@@ -88,7 +88,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
-    const { data, error: saveError } = await updateTemplate(template.id, { name: nameInput.trim() })
+    const { data, error: saveError } = await updateTemplate({ data: { templateId: template.id, updates: { name: nameInput.trim() } } })
     if (!saveError && data) {
       setTemplate(data)
     }

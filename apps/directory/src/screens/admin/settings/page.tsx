@@ -259,7 +259,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
   const loadIntegrations = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await getSiteIntegrations(siteId)
+      const data = await getSiteIntegrations({ data: { siteId: siteId } })
       setIntegrations(data)
       // Initialize form values from loaded integrations
       const values: Record<string, Record<string, string>> = {}
@@ -308,7 +308,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
           }
         }
         if (hasValues) {
-          await createOrUpdateIntegration(siteId, entry.type, config)
+          await createOrUpdateIntegration({ data: { siteId: siteId, integrationType: entry.type, config: config } })
           saved++
         }
       }
@@ -407,7 +407,7 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
 
   const loadDomainHealth = useCallback(async () => {
     setLoading(true)
-    const { data } = await checkDomainHealth(siteId)
+    const { data } = await checkDomainHealth({ data: { siteId: siteId } })
     setDomainHealth(data)
     setLoading(false)
   }, [siteId])

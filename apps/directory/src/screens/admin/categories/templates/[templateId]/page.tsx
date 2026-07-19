@@ -60,7 +60,7 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
   const loadTemplate = useCallback(async () => {
     setLoading(true)
 
-    const { data, error: fetchError } = await getCategoryTemplateById(templateId)
+    const { data, error: fetchError } = await getCategoryTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -141,9 +141,9 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
           : block
       )
       const contentBlocks = categoryBlocksToJson(nextBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateCategoryTemplate(template.id, {
+      const { data, error: saveError } = await updateCategoryTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError || !data) {
         setBlockSaveError(saveError || "Failed to save block")
@@ -192,9 +192,9 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
 
     try {
       const contentBlocks = categoryBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateCategoryTemplate(template.id, {
+      const { data, error: saveError } = await updateCategoryTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError) {
         setSaveStatus("error", saveError)
@@ -275,7 +275,7 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
                 onSaved={handleSettingsSaved}
                 open={show}
                 template={template}
-                updateTemplate={updateCategoryTemplate}
+                updateTemplate={((a0, a1) => updateCategoryTemplate({ data: { templateId: a0, updates: a1 } }))}
               />
             )}
           />

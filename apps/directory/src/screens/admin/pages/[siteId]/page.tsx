@@ -67,7 +67,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     async function loadPages() {
       try {
         setPagesLoading(true)
-        const { data, error } = await getSitePagesAction(siteId, { selectedSlug: pageFromUrl })
+        const { data, error } = await getSitePagesAction({ data: { siteId: siteId, options: { selectedSlug: pageFromUrl } } })
         if (error) {
           showActionError(error)
           return

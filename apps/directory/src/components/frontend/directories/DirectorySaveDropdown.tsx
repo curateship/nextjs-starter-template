@@ -59,7 +59,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
   const loadState = async () => {
     setLoading(true)
     setError(null)
-    const result = await getDirectorySaveStateAction({ siteId, directoryId })
+    const result = await getDirectorySaveStateAction({ data: { input: { siteId, directoryId } } })
     setLoading(false)
     setLoaded(true)
 
@@ -92,13 +92,13 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
     setError(null)
 
     startTransition(async () => {
-      const result = await toggleDirectorySaveCollectionAction({
+      const result = await toggleDirectorySaveCollectionAction({ data: { input: {
         siteId,
         directoryId,
         collectionId: collection.id,
         defaultKey: collection.default_key,
         saved
-      })
+      } } })
 
       setPendingKey(null)
 
@@ -124,7 +124,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
     setError(null)
 
     startTransition(async () => {
-      const result = await createDirectorySaveCollectionAction({ siteId, directoryId, name })
+      const result = await createDirectorySaveCollectionAction({ data: { input: { siteId, directoryId, name } } })
 
       setPendingKey(null)
 

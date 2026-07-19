@@ -60,7 +60,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       }
 
       setTemplatesLoading(true)
-      const { data } = await getEventTemplatesBySite(currentSite.id)
+      const { data } = await getEventTemplatesBySite({ data: { siteId: currentSite.id } })
 
       if (!cancelled) {
         const loaded = data || []
@@ -98,7 +98,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     // Assign selected categories after the event row exists
     afterCreate: async (created) => {
       if (selectedCategoryIds.length === 0) return null
-      const categoryResult = await bulkAssignCategoriesToContentAction(created.id, 'event', selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: created.id, contentType: 'event', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
     },
   })

@@ -285,7 +285,7 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
   const handleSave = async () => {
     setSaving(true)
     const outcome = await runAction(
-      () => saveMxrouteIntegrationAction({ siteId, server, username, apiKey, webmailUrl }),
+      () => saveMxrouteIntegrationAction({ data: { input: { siteId, server, username, apiKey, webmailUrl } } }),
       { successMessage: "MXroute settings saved" },
     )
     setSaving(false)
@@ -348,7 +348,7 @@ function CreateMailboxForm({
   const handleCreate = async () => {
     setSaving(true)
     const outcome = await runAction(
-      () => createMailboxAction({ siteId, localPart, password, quotaMb }),
+      () => createMailboxAction({ data: { input: { siteId, localPart, password, quotaMb } } }),
       { successMessage: "Mailbox created" },
     )
     setSaving(false)
@@ -405,7 +405,7 @@ function SettingsModal({
   const setupDomain = async () => {
     setSettingUpDomain(true)
     const outcome = await runAction(
-      () => setupMailDomainAction(siteId),
+      () => setupMailDomainAction({ data: { siteId: siteId } }),
       { successMessage: "Mail domain sent to MXroute" },
     )
     setSettingUpDomain(false)
@@ -415,7 +415,7 @@ function SettingsModal({
   const disableMailbox = async (mailbox: MailboxListItem) => {
     setDisablingId(mailbox.id)
     const outcome = await runAction(
-      () => disableMailboxAction(siteId, mailbox.id),
+      () => disableMailboxAction({ data: { siteId: siteId, mailboxId: mailbox.id } }),
       { successMessage: "Mailbox disabled in Hub" },
     )
     setDisablingId(null)
@@ -628,7 +628,7 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const loadData = useCallback(async () => {
-    const result = await getMailDashboardAction(siteId)
+    const result = await getMailDashboardAction({ data: { siteId: siteId } })
     if (result.error) showActionError(result.error)
     setData(result.data)
   }, [siteId])

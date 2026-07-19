@@ -66,8 +66,8 @@ export function SegmentFormModal({
       return
     }
 
-    getAvailableSegmentTags(siteId).then(({ data }) => setAvailableTags(data || []))
-    getSegmentsBySite(siteId, { pageSize: 100 }).then(({ data }) => setSegmentOptions(data || []))
+    getAvailableSegmentTags({ data: { siteId: siteId } }).then(({ data }) => setAvailableTags(data || []))
+    getSegmentsBySite({ data: { siteId: siteId, options: { pageSize: 100 } } }).then(({ data }) => setSegmentOptions(data || []))
   }, [open, siteId])
 
   const invalidDynamicConditions = formSegmentType === "dynamic" && !buildDynamicRuleFromForm(formDynamicConditions)
@@ -86,24 +86,24 @@ export function SegmentFormModal({
 
     try {
       if (segment) {
-        const { error } = await updateSegment(segment.id, {
+        const { error } = await updateSegment({ data: { segmentId: segment.id, updates: {
           name: formName.trim(),
           description: formDescription,
           segmentType: formSegmentType,
           dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
-        })
+        } } })
         if (error) {
           onError(error)
           return
         }
       } else {
-        const { error } = await createSegment({
+        const { error } = await createSegment({ data: { input: {
           siteId,
           name: formName.trim(),
           description: formDescription,
           segmentType: formSegmentType,
           dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
-        })
+        } } })
         if (error) {
           onError(error)
           return

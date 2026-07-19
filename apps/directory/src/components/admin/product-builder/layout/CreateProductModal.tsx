@@ -118,7 +118,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       }
 
       setTemplatesLoading(true)
-      const { data } = await getProductTemplatesBySite(currentSite.id)
+      const { data } = await getProductTemplatesBySite({ data: { siteId: currentSite.id } })
 
       if (!cancelled) {
         const loaded = data || []
@@ -205,7 +205,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
 
       if (result.data) {
         if (selectedCategoryIds.length > 0) {
-          const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'product', selectedCategoryIds, primaryCategoryId)
+          const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: result.data.id, contentType: 'product', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
           if (!categoryResult.success) {
             setError(categoryResult.error || 'Failed to save categories')
             return

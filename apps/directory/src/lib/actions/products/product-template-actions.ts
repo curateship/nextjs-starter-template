@@ -1,101 +1,38 @@
-'use server'
+import { createServerFn } from "@tanstack/react-start"
+import { getProductTemplatesBySiteImpl, getProductTemplateIdsActionImpl, getProductTemplateByIdImpl, createProductTemplateImpl, updateProductTemplateImpl, setDefaultProductTemplateImpl, deleteProductTemplatesImpl } from "./product-template-actions.server"
 
-import { productTemplates } from '@/lib/db/schema'
-import {
-  createTemplate,
-  deleteTemplates,
-  getTemplateById,
-  getTemplateIds,
-  getTemplatesBySite,
-  setDefaultTemplate,
-  updateTemplate,
-  type TemplateRecord,
-} from '@/lib/actions/templates/template-action-helpers'
+// Types stay importable from this path. `export type` is erased at runtime,
+// so no server code reaches the client through it.
+export type * from "./product-template-actions.server"
 
-export type ProductTemplate = TemplateRecord
+export const getProductTemplatesBySite = createServerFn({ method: "POST" })
+  .inputValidator((data: { siteId: string; options?: { page?: number; pageSize?: number } }) => data)
+  .handler(async ({ data }) => getProductTemplatesBySiteImpl(data.siteId, data.options))
 
-const MAX_CONTENT_BLOCKS_SIZE = 50000
-const ALLOWED_PRODUCT_BLOCK_TYPES = [
-  'product-hero',
-  'product-details',
-  'product-gallery',
-  'product-features',
-  'product-3-steps-feature',
-  'product-hotspot',
-  'product-checkout',
-  'product-lead-magnet',
-  'product-email-modal',
-  'product-just-bought',
-  'product-faq',
-  'product-testimonials',
-  'listing-views',
-]
+export const getProductTemplateIdsAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { siteId: string }) => data)
+  .handler(async ({ data }) => getProductTemplateIdsActionImpl(data.siteId))
 
-function validateProductContentBlocks(contentBlocks: Record<string, any>) {
-  if (typeof contentBlocks !== 'object' || contentBlocks === null || Array.isArray(contentBlocks)) {
-    return 'Invalid content blocks format'
-  }
+export const getProductTemplateById = createServerFn({ method: "POST" })
+  .inputValidator((data: { templateId: string }) => data)
+  .handler(async ({ data }) => getProductTemplateByIdImpl(data.templateId))
 
-  if (JSON.stringify(contentBlocks).length > MAX_CONTENT_BLOCKS_SIZE) {
-    return 'Content blocks too large'
-  }
-
-  for (const [blockKey, blockData] of Object.entries(contentBlocks)) {
-    if (typeof blockData !== 'object' || blockData === null || Array.isArray(blockData)) {
-      return `Invalid data for block type: ${blockKey}`
-    }
-
-    if (blockKey.startsWith('_')) continue
-
-    const blockType = typeof blockData.type === 'string' ? blockData.type : blockKey
-    if (!ALLOWED_PRODUCT_BLOCK_TYPES.includes(blockType)) {
-      return `Invalid block type: ${blockType}`
-    }
-  }
-
-  return null
-}
-
-export async function getProductTemplatesBySite(
-  siteId: string,
-  options?: { page?: number; pageSize?: number }
-): Promise<{ data: ProductTemplate[] | null; total: number; error: string | null }> {
-  return getTemplatesBySite(productTemplates, 'getProductTemplatesBySite', siteId, options)
-}
-
-export async function getProductTemplateIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
-  return getTemplateIds(productTemplates, 'getProductTemplateIdsAction', siteId)
-}
-
-export async function getProductTemplateById(
-  templateId: string
-): Promise<{ data: ProductTemplate | null; error: string | null }> {
-  return getTemplateById(productTemplates, 'getProductTemplateById', templateId)
-}
-
-export async function createProductTemplate(input: {
+export const createProductTemplate = createServerFn({ method: "POST" })
+  .inputValidator((data: { input: {
   siteId: string
   name: string
   contentBlocks?: Record<string, any>
-}): Promise<{ data: ProductTemplate | null; error: string | null }> {
-  return createTemplate(productTemplates, 'createProductTemplate', input, {
-    validateContentBlocks: validateProductContentBlocks,
-  })
-}
+} }) => data)
+  .handler(async ({ data }) => createProductTemplateImpl(data.input))
 
-export async function updateProductTemplate(
-  templateId: string,
-  updates: { name?: string; content_blocks?: Record<string, any> }
-): Promise<{ data: ProductTemplate | null; error: string | null }> {
-  return updateTemplate(productTemplates, 'updateProductTemplate', templateId, updates, {
-    validateContentBlocks: validateProductContentBlocks,
-  })
-}
+export const updateProductTemplate = createServerFn({ method: "POST" })
+  .inputValidator((data: { templateId: string; updates: { name?: string; content_blocks?: Record<string, any> } }) => data)
+  .handler(async ({ data }) => updateProductTemplateImpl(data.templateId, data.updates))
 
-export async function setDefaultProductTemplate(templateId: string): Promise<{ success: boolean; error: string | null }> {
-  return setDefaultTemplate(productTemplates, 'setDefaultProductTemplate', templateId)
-}
+export const setDefaultProductTemplate = createServerFn({ method: "POST" })
+  .inputValidator((data: { templateId: string }) => data)
+  .handler(async ({ data }) => setDefaultProductTemplateImpl(data.templateId))
 
-export async function deleteProductTemplates(ids: string[]): Promise<{ success: boolean; error: string | null }> {
-  return deleteTemplates(productTemplates, 'deleteProductTemplates', ids)
-}
+export const deleteProductTemplates = createServerFn({ method: "POST" })
+  .inputValidator((data: { ids: string[] }) => data)
+  .handler(async ({ data }) => deleteProductTemplatesImpl(data.ids))

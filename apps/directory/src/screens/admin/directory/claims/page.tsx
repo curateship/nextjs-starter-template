@@ -144,8 +144,8 @@ export default function DirectoryClaimsPage() {
     setLoading(true)
     setError(null)
     const result = activeView === "claims"
-      ? await getDirectoryClaimListAction(currentSite.id, activeStatus)
-      : await getDirectoryOwnerEditRequestListAction(currentSite.id, ownerEditStatus)
+      ? await getDirectoryClaimListAction({ data: { siteId: currentSite.id, status: activeStatus } })
+      : await getDirectoryOwnerEditRequestListAction({ data: { siteId: currentSite.id, status: ownerEditStatus } })
     setLoading(false)
 
     if (result.error) {
@@ -195,11 +195,11 @@ export default function DirectoryClaimsPage() {
     if (!selectedClaim) return
 
     setSavingStatus(status)
-    const result = await reviewDirectoryClaimAction({
+    const result = await reviewDirectoryClaimAction({ data: { input: {
       claimId: selectedClaim.id,
       status,
       note: reviewNote
-    })
+    } } })
     setSavingStatus(null)
 
     if (result.error) {
@@ -215,11 +215,11 @@ export default function DirectoryClaimsPage() {
     if (!selectedOwnerEdit) return
 
     setSavingOwnerEditStatus(status)
-    const result = await reviewDirectoryOwnerEditRequestAction({
+    const result = await reviewDirectoryOwnerEditRequestAction({ data: { input: {
       requestId: selectedOwnerEdit.id,
       status,
       note: ownerEditReviewNote
-    })
+    } } })
     setSavingOwnerEditStatus(null)
 
     if (result.error) {

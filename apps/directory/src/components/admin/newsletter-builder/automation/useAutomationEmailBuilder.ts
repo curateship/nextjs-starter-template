@@ -24,8 +24,8 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
   const loadStep = useCallback(async () => {
     setLoading(true)
     const [stepResult, automationResult] = await Promise.all([
-      getStepById(stepId),
-      getAutomationById(automationId),
+      getStepById({ data: { stepId: stepId } }),
+      getAutomationById({ data: { automationId: automationId } }),
     ])
 
     if (stepResult.error || !stepResult.data) {
@@ -58,10 +58,10 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     const contentBlocks = blocksToJson(blockEditor.blocks)
 
     try {
-      const { data, error: saveError } = await updateStep(step.id, {
+      const { data, error: saveError } = await updateStep({ data: { stepId: step.id, updates: {
         subject,
         content_blocks: contentBlocks,
-      })
+      } } })
       if (saveError) {
         setSaveStatus("error", saveError)
       } else if (data) {
@@ -109,10 +109,10 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
       setSaveStatus("saving")
 
       try {
-        const { data, error: saveError } = await updateStep(step.id, {
+        const { data, error: saveError } = await updateStep({ data: { stepId: step.id, updates: {
           subject: nextSubject,
           content_blocks: blocksToJson(updatedBlocks),
-        })
+        } } })
         if (saveError) {
           setSaveStatus("error", saveError)
           return false

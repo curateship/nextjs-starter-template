@@ -116,7 +116,7 @@ export function PostPreview({
       return
     }
 
-    getContentBreadcrumbPreviewAction(post.id, 'post').then(({ data }) => {
+    getContentBreadcrumbPreviewAction({ data: { contentId: post.id, contentType: 'post' } }).then(({ data }) => {
       if (!cancelled) setBreadcrumbs(data || [])
     })
 

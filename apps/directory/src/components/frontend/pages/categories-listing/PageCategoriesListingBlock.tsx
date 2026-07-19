@@ -57,7 +57,7 @@ export function PageCategoriesListingBlock({
     let cancelled = false
     setData(null)
     setLoading(true)
-    getCategoriesListingData({ siteId, parentCategoryId, limit })
+    getCategoriesListingData({ data: { siteId, parentCategoryId, limit } })
       .then((result) => {
         if (!cancelled) setData(result.success && result.data ? result.data : { categories: [] })
       })

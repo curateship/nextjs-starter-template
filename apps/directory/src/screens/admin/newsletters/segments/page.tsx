@@ -82,10 +82,10 @@ export default function SegmentsPage() {
         total: totalCount,
         counts,
         error: loadError
-      } = await getSegmentsWithCounts(currentSite.id, {
+      } = await getSegmentsWithCounts({ data: { siteId: currentSite.id, options: {
         page: currentPage,
         pageSize
-      })
+      } } })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -117,7 +117,7 @@ export default function SegmentsPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
-    const { error: deleteError } = await deleteSegments(Array.from(segmentSelection.selectedIds))
+    const { error: deleteError } = await deleteSegments({ data: { ids: Array.from(segmentSelection.selectedIds) } })
     if (deleteError) {
       setError(deleteError)
     } else {
@@ -133,7 +133,7 @@ export default function SegmentsPage() {
 
     setRefreshing(true)
     setError(null)
-    const { error: refreshError } = await refreshDynamicSegmentsForSite(currentSite.id)
+    const { error: refreshError } = await refreshDynamicSegmentsForSite({ data: { siteId: currentSite.id } })
     if (refreshError) {
       setError(refreshError)
     } else {

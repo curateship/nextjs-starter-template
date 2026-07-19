@@ -31,7 +31,7 @@ function getCategoryBlocksBySlug(categories: Category[]) {
 // Stable reference for the generic hook's fetchItems dependency.
 // Merged blocks (template structure + category values) — builder preview only.
 function fetchCategories(siteId: string, options: { selectedSlug?: string }) {
-  return getCategoriesWithMergedBlocksAction(siteId, options)
+  return getCategoriesWithMergedBlocksAction({ data: { siteId: siteId, options: options } })
 }
 
 interface UseCategoryDataReturn {

@@ -32,9 +32,9 @@ export default function EventsPage() {
       builderPath="/admin/events/builder"
       createButtonLabel="Create Event Item"
       destructiveAction="delete-event"
-      deleteItem={deleteEventAction}
-      deleteItems={deleteEventsAction}
-      duplicateItem={duplicateEventAction}
+      deleteItem={((a0) => deleteEventAction({ data: { eventId: a0 } }))}
+      deleteItems={((a0) => deleteEventsAction({ data: { eventIds: a0 } }))}
+      duplicateItem={((a0, a1) => duplicateEventAction({ data: { eventId: a0, newTitle: a1 } }))}
       duplicateTitle={(event) => `${event.title} (Copy)`}
       emptyButtonLabel="Create Event Item"
       emptyDescription={(events) =>
@@ -42,7 +42,7 @@ export default function EventsPage() {
       }
       emptyTitle={(events) => (events.length === 0 ? "No events yet" : "No events match your filters")}
       formatModified={(event) => new Date(event.updated_at).toLocaleDateString()}
-      getItems={getSiteEventsWithCategoriesAction}
+      getItems={((a0, a1) => getSiteEventsWithCategoriesAction({ data: { siteId: a0, options: a1 } }))}
       icon={Calendar}
       itemLabel="Event"
       itemLabelPlural="Events"

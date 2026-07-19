@@ -44,7 +44,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   useEffect(() => {
     async function loadCategories() {
       try {
-        const { data, error } = await getCategoriesForSiteAction(siteId, { selectedSlug: urlCategory })
+        const { data, error } = await getCategoriesForSiteAction({ data: { siteId: siteId, options: { selectedSlug: urlCategory } } })
         if (error) {
           console.error('Failed to load categories:', error)
           return
@@ -119,7 +119,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     if (!currentCategoryData?.id) return
 
     try {
-      const { data, error } = await updateCategoryAction(currentCategoryData.id, updates)
+      const { data, error } = await updateCategoryAction({ data: { categoryId: currentCategoryData.id, data: updates } })
       if (error) {
         console.error('Failed to update category:', error)
         return
@@ -187,7 +187,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         }
 
         if (Object.keys(categoryUpdates).length > 0) {
-          const { data, error } = await updateCategoryAction(currentCategoryData.id, categoryUpdates)
+          const { data, error } = await updateCategoryAction({ data: { categoryId: currentCategoryData.id, data: categoryUpdates } })
           if (error || !data) {
             setBlockSaveError(error || "Failed to save category details")
             return
@@ -197,7 +197,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       }
 
       const contentBlocks = categoryBlocksToValueJson(nextBlocks)
-      const result = await updateCategoryBlockValuesAction(currentCategoryData.id, contentBlocks)
+      const result = await updateCategoryBlockValuesAction({ data: { categoryId: currentCategoryData.id, contentBlocks: contentBlocks } })
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return

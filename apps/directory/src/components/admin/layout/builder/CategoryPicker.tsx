@@ -87,7 +87,7 @@ async function getAllCategoriesForSite(siteId: string) {
   const allCategories: Category[] = []
 
   do {
-    const { data, total: categoryTotal } = await getCategoriesForSiteAction(siteId, { page, pageSize })
+    const { data, total: categoryTotal } = await getCategoriesForSiteAction({ data: { siteId: siteId, options: { page, pageSize } } })
     if (!data || data.length === 0) break
 
     allCategories.push(...data)
@@ -444,11 +444,11 @@ export function CategoryPicker({
   const handleCreateChildCategory = async (parent: Category, title: string) => {
     if (!siteId) return false
 
-    const { data } = await createCategoryAction(siteId, {
+    const { data } = await createCategoryAction({ data: { siteId: siteId, data: {
       title,
       parent_id: parent.id,
       is_published: true,
-    })
+    } } })
 
     if (!data) return false
 

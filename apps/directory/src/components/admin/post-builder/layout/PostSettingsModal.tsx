@@ -74,7 +74,7 @@ export function PostSettingsModal({
     // Persist category selection after the post row is updated
     afterCreate: async () => {
       if (!post) return null
-      const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: post.id, contentType: 'post', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
     },
     failureMessage: (_, publish) => publish ? 'Failed to publish post' : 'Failed to save post as draft',
@@ -95,7 +95,7 @@ export function PostSettingsModal({
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
       setLoadingCategories(true)
-      getContentCategoriesAction(post.id, 'post').then(({ data }) => {
+      getContentCategoriesAction({ data: { contentId: post.id, contentType: 'post' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
@@ -124,7 +124,7 @@ export function PostSettingsModal({
       }
 
       setTemplatesLoading(true)
-      const { data } = await getPostTemplatesBySite(post.site_id)
+      const { data } = await getPostTemplatesBySite({ data: { siteId: post.site_id } })
 
       if (!cancelled) {
         const loaded = data || []

@@ -130,7 +130,7 @@ function DirectoryRelatedListingTemplateSettings({
 
     let cancelled = false
     setLoading(true)
-    getCategoriesWithCountsAction(siteId, { pageSize: 100 })
+    getCategoriesWithCountsAction({ data: { siteId: siteId, options: { pageSize: 100 } } })
       .then(({ data }) => {
         if (cancelled) return
         setParents((data || []).filter(isPublishedParentCategory))

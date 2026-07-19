@@ -59,7 +59,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       }
 
       setTemplatesLoading(true)
-      const { data } = await getDirectoryTemplatesBySite(currentSite.id)
+      const { data } = await getDirectoryTemplatesBySite({ data: { siteId: currentSite.id } })
 
       if (!cancelled) {
         const loaded = data || []
@@ -94,7 +94,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     // Assign selected categories after the listing row exists
     afterCreate: async (created) => {
       if (selectedCategoryIds.length === 0) return null
-      const categoryResult = await bulkAssignCategoriesToContentAction(created.id, 'directory', selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: created.id, contentType: 'directory', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
     },
   })

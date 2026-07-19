@@ -198,12 +198,12 @@ export default function SiteUsersPage() {
       setLoading(true)
       setError(null)
 
-      const result = await getSiteUsers(currentSite.id, {
+      const result = await getSiteUsers({ data: { siteId: currentSite.id, options: {
         filterGroup: filters.rules.length ? filters : undefined,
         searchQuery: deferredSearchQuery,
         page: currentPage,
         pageSize
-      })
+      } } })
 
       if (requestId !== requestIdRef.current) return
 
@@ -241,12 +241,12 @@ export default function SiteUsersPage() {
 
     let cancelled = false
     const timeoutId = window.setTimeout(async () => {
-      const result = await getSiteUsers(currentSite.id, {
+      const result = await getSiteUsers({ data: { siteId: currentSite.id, options: {
         filterGroup: previewFilters,
         searchQuery: deferredSearchQuery,
         page: 1,
         pageSize
-      })
+      } } })
 
       if (cancelled) return
       setPendingFilteredTotal(result.error ? 0 : result.total)
@@ -396,10 +396,10 @@ export default function SiteUsersPage() {
     setErrorMessage(null)
 
     try {
-      const result = await deleteSiteUsers({
+      const result = await deleteSiteUsers({ data: { input: {
         siteId: currentSite.id,
         membershipIds: [pendingDeleteId]
-      })
+      } } })
 
       if (result.error) {
         setErrorMessage(result.error)
@@ -422,10 +422,10 @@ export default function SiteUsersPage() {
     setErrorMessage(null)
 
     try {
-      const result = await deleteSiteUsers({
+      const result = await deleteSiteUsers({ data: { input: {
         siteId: currentSite.id,
         membershipIds: Array.from(userSelection.selectedIds)
-      })
+      } } })
 
       if (result.error) {
         setErrorMessage(result.error)
@@ -456,14 +456,14 @@ export default function SiteUsersPage() {
 
     setCreating(true)
     setErrorMessage(null)
-    const result = await createSiteUser({
+    const result = await createSiteUser({ data: { input: {
       siteId: currentSite.id,
       email: createForm.email,
       displayName: createForm.displayName,
       password: createForm.password,
       role: createForm.role,
       status: createForm.status
-    })
+    } } })
 
     if (result.error) {
       setErrorMessage(result.error)
@@ -489,13 +489,13 @@ export default function SiteUsersPage() {
 
     setSaving(true)
     setErrorMessage(null)
-    const result = await updateSiteUser({
+    const result = await updateSiteUser({ data: { input: {
       membershipId: editUser.id,
       siteId: currentSite.id,
       displayName: editForm.displayName,
       role: editForm.role,
       status: editForm.status
-    })
+    } } })
 
     if (result.error) {
       setErrorMessage(result.error)

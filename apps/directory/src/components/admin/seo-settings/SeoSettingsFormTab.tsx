@@ -183,7 +183,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const siteData = await getSiteForAudit(siteId)
+      const siteData = await getSiteForAudit({ data: { siteId: siteId } })
       if (siteData) {
         setSite(siteData)
         const settings = siteData.settings || {}
@@ -250,9 +250,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
     setError(null)
     setSaveStatus("saving")
 
-    const result = await saveSiteAuditSettings(
-      siteId,
-      mode === "metadata"
+    const result = await saveSiteAuditSettings({ data: { siteId: siteId, seoSettings: mode === "metadata"
         ? {
             seo_home_title: homeTitle.trim() || undefined,
             seo_home_description: homeDescription.trim() || undefined,
@@ -272,8 +270,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
                   .map((link) => link.trim())
                   .filter(Boolean)
               : undefined
-          }
-    )
+          } } })
 
     setSaving(false)
     if (result.success) {

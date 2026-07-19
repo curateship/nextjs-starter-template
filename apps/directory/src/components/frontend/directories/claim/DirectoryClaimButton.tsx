@@ -83,7 +83,7 @@ export function DirectoryClaimButton({
     setNotice(null)
     setCheckingState(true)
 
-    const result = await getDirectoryClaimStateAction(directoryId)
+    const result = await getDirectoryClaimStateAction({ data: { directoryId: directoryId } })
     setCheckingState(false)
 
     if (result.error) {
@@ -123,7 +123,7 @@ export function DirectoryClaimButton({
     setNotice(null)
 
     startTransition(async () => {
-      const result = await submitDirectoryClaimAction({
+      const result = await submitDirectoryClaimAction({ data: { input: {
         directoryId,
         businessEmail,
         claimantName,
@@ -131,7 +131,7 @@ export function DirectoryClaimButton({
         phone,
         message,
         proofUrl,
-      })
+      } } })
 
       if (!result.success) {
         setError(result.error || "Failed to submit claim")

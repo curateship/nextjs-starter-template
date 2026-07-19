@@ -107,10 +107,10 @@ export default function OrdersPage() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const result = await getOrdersWithProducts(currentSite.id, {
+        const result = await getOrdersWithProducts({ data: { siteId: currentSite.id, options: {
           page: currentPage,
           pageSize
-        })
+        } } })
 
         setOrders(result.data)
         setTotal(result.total)
@@ -134,7 +134,7 @@ export default function OrdersPage() {
   const confirmDelete = useCallback(async () => {
     setDeleting(true)
     try {
-      await deleteOrders(deleteIds)
+      await deleteOrders({ data: { orderIds: deleteIds } })
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
       clearOrderSelection()
       setShowDeleteDialog(false)
@@ -206,7 +206,7 @@ export default function OrdersPage() {
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
     if (!currentSite?.id || total === 0) return
-    const { ids } = await getOrderIdsAction(currentSite.id)
+    const { ids } = await getOrderIdsAction({ data: { siteId: currentSite.id } })
     if (ids) {
       orderSelection.selectAll(ids)
     }

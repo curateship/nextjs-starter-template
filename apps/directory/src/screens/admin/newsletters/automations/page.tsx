@@ -95,10 +95,10 @@ export default function EmailAutomationsPage() {
       data,
       total: t,
       error
-    } = await getAutomationsBySite(currentSite.id, {
+    } = await getAutomationsBySite({ data: { siteId: currentSite.id, options: {
       page: currentPage,
       pageSize
-    })
+    } } })
     if (error) {
       setErrorMessage(error)
       setErrorDialogOpen(true)
@@ -119,7 +119,7 @@ export default function EmailAutomationsPage() {
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
     const automationId = pendingDeleteId
-    const { success, error } = await deleteAutomations([automationId])
+    const { success, error } = await deleteAutomations({ data: { ids: [automationId] } })
     if (error) {
       setErrorMessage(error)
       return
@@ -132,7 +132,7 @@ export default function EmailAutomationsPage() {
 
   const confirmMassDelete = async () => {
     setMassDeleting(true)
-    const { success, error } = await deleteAutomations(Array.from(automationSelection.selectedIds))
+    const { success, error } = await deleteAutomations({ data: { ids: Array.from(automationSelection.selectedIds) } })
     if (error) {
       setErrorMessage(error)
     }
@@ -148,11 +148,11 @@ export default function EmailAutomationsPage() {
     e.preventDefault()
     if (!currentSite?.id || !createName.trim()) return
     setCreating(true)
-    const { data, error } = await createAutomation({
+    const { data, error } = await createAutomation({ data: { input: {
       siteId: currentSite.id,
       name: createName.trim(),
       triggerType: "none"
-    })
+    } } })
     if (error) {
       setErrorMessage(error)
       setErrorDialogOpen(true)
@@ -175,9 +175,9 @@ export default function EmailAutomationsPage() {
     if (!settingsAutomation || !settingsName.trim()) return
 
     setSavingSettings(true)
-    const { data, error } = await updateAutomation(settingsAutomation.id, {
+    const { data, error } = await updateAutomation({ data: { automationId: settingsAutomation.id, updates: {
       name: settingsName.trim()
-    })
+    } } })
     if (error) {
       setErrorMessage(error)
       setErrorDialogOpen(true)

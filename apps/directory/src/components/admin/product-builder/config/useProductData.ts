@@ -24,7 +24,7 @@ function getProductBlocksBySlug(products: ProductRow[]) {
 
 // Stable reference for the generic hook's fetchItems dependency
 function fetchProducts(siteId: string, options: { selectedSlug?: string }) {
-  return getSiteProductsAction(siteId, options)
+  return getSiteProductsAction({ data: { siteId: siteId, options: options } })
 }
 
 interface UseProductDataReturn {

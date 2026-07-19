@@ -65,7 +65,7 @@ export function EventSettingsModal({
     }),
     // Persist category selection after the event row is updated
     afterCreate: async (updated) => {
-      const categoryResult = await bulkAssignCategoriesToContentAction(updated.id, 'event', selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: updated.id, contentType: 'event', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
     },
     failureMessage: (_, publish) => publish ? 'Failed to publish event' : 'Failed to save event',
@@ -83,7 +83,7 @@ export function EventSettingsModal({
 
       setSelectedTemplateId(event.template_id || '')
       setTemplatesLoading(true)
-      getEventTemplatesBySite(event.site_id).then(({ data }) => {
+      getEventTemplatesBySite({ data: { siteId: event.site_id } }).then(({ data }) => {
         if (cancelled) return
         const loadedTemplates = data || []
         setTemplates(loadedTemplates)
@@ -96,7 +96,7 @@ export function EventSettingsModal({
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
       setLoadingCategories(true)
-      getContentCategoriesAction(event.id, 'event').then(({ data }) => {
+      getContentCategoriesAction({ data: { contentId: event.id, contentType: 'event' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))

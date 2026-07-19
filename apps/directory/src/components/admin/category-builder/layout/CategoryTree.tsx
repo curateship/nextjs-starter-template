@@ -61,7 +61,7 @@ export function CategoryTree({
     if (!categoryToDelete) return
 
     setIsDeleting(true)
-    const { success, error } = await deleteCategoryAction(categoryToDelete.id)
+    const { success, error } = await deleteCategoryAction({ data: { categoryId: categoryToDelete.id } })
 
     if (success) {
       onCategoryDeleted(categoryToDelete.id)

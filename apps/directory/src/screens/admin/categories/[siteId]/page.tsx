@@ -122,11 +122,11 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           parentPath: categoryParentPath,
           allCategories: categoryContext,
           error: categoriesError
-        } = await getCategoriesWithCountsAction(siteId, {
+        } = await getCategoriesWithCountsAction({ data: { siteId: siteId, options: {
           page: currentPage,
           pageSize,
           parentSlug: parentSlug || null
-        })
+        } } })
 
         if (categoriesError) {
           setCategories([])
@@ -192,7 +192,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     setMassDeleting(true)
     try {
       const ids = Array.from(categorySelection.selectedIds)
-      const { success, error: deleteError } = await deleteCategoriesAction(ids)
+      const { success, error: deleteError } = await deleteCategoriesAction({ data: { categoryIds: ids } })
       if (deleteError) {
         setErrorMessage(deleteError)
         setErrorDialogOpen(true)

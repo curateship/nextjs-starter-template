@@ -35,7 +35,7 @@ const AccountPageSettingsModal = dynamic(
 )
 
 async function getPages(siteId: string, options?: { page?: number; pageSize?: number }) {
-  const { data, total, error } = await getAccountPagesAction(siteId, options)
+  const { data, total, error } = await getAccountPagesAction({ data: { siteId: siteId, options: options } })
   return { data, categories: {}, total, error }
 }
 
@@ -53,9 +53,9 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       columnCount={5}
       createButtonLabel="Create Account Page"
       destructiveAction="delete-account-page"
-      deleteItem={deleteAccountPageAction}
-      deleteItems={deleteAccountPagesAction}
-      duplicateItem={duplicateAccountPageAction}
+      deleteItem={((a0) => deleteAccountPageAction({ data: { pageId: a0 } }))}
+      deleteItems={((a0) => deleteAccountPagesAction({ data: { pageIds: a0 } }))}
+      duplicateItem={((a0, a1) => duplicateAccountPageAction({ data: { pageId: a0, newTitle: a1 } }))}
       duplicateTitle={(page) => `${page.title || "Page"} Copy`}
       emptyButtonLabel="Create Your First Page"
       emptyTitle={(pages, filterStatus) =>

@@ -63,7 +63,7 @@ export function usePageBuilder({
 
       const normalizedPageBlocks = pageBlocks.map(normalizePageBlock)
       const jsonBlocks = convertBlocksToJson(normalizedPageBlocks)
-      const { error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      const { error } = await updatePageBlocksAction({ data: { pageId: currentPage.id, contentBlocks: jsonBlocks } })
 
       if (error) {
         setSaveStatus("error", error)

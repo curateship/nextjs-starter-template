@@ -64,7 +64,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
   async function handleToggle(jobId: string, enabled: boolean) {
     setTogglingJobId(jobId)
     setJobs((prev) => prev.map((job) => job.id === jobId ? { ...job, enabled } : job))
-    const { success } = await toggleCronJob(jobId, enabled)
+    const { success } = await toggleCronJob({ data: { jobId: jobId, enabled: enabled } })
     if (!success) {
       setJobs((prev) => prev.map((job) => job.id === jobId ? { ...job, enabled: !enabled } : job))
     }

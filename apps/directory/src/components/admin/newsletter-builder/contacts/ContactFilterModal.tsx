@@ -145,12 +145,12 @@ export function ContactFilterModal({
 
     let cancelled = false
     const timeoutId = window.setTimeout(async () => {
-      const result = await getContactsWithStats(siteId, {
+      const result = await getContactsWithStats({ data: { siteId: siteId, options: {
         filterGroup: previewFilters,
         searchQuery,
         page: 1,
         pageSize,
-      })
+      } } })
 
       if (cancelled) return
       setPendingFilteredTotal(result.error ? 0 : result.total)

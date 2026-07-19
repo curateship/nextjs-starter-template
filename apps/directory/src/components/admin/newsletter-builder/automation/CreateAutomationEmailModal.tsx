@@ -85,7 +85,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
 
     let cancelled = false
     setTemplatesLoading(true)
-    getTemplatesBySite(siteId)
+    getTemplatesBySite({ data: { siteId: siteId } })
       .then(({ data }) => {
         if (cancelled) return
         const loaded = data || []

@@ -130,7 +130,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     if (!currentPostId) return
     try {
       setIsPublishing(true)
-      const { data: updatedPost, error } = await updatePostAction(currentPostId, { is_published: true })
+      const { data: updatedPost, error } = await updatePostAction({ data: { postId: currentPostId, updates: { is_published: true } } })
       if (error || !updatedPost) return
       setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
     } finally {
@@ -174,7 +174,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         draftPostTitle.trim() &&
         draftPostTitle.trim() !== (currentPostData?.title || "")
       ) {
-        const { data, error } = await updatePostAction(currentPostId, { title: draftPostTitle.trim() })
+        const { data, error } = await updatePostAction({ data: { postId: currentPostId, updates: { title: draftPostTitle.trim() } } })
         if (error || !data) {
           setBlockSaveError(error || "Failed to save post title")
           return
@@ -182,7 +182,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         handlePostUpdated(data)
       }
 
-      const { success, error } = await updatePostBlocksAction(currentPostId, postBlocksToValueJson(Object.values(nextBlocks)))
+      const { success, error } = await updatePostBlocksAction({ data: { postId: currentPostId, blocks: postBlocksToValueJson(Object.values(nextBlocks)) } })
       if (!success) {
         setBlockSaveError(error || "Failed to save block")
         return

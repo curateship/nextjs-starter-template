@@ -16,7 +16,7 @@ function getBlocksBySlug(pages: Page[]) {
 
 // Stable reference for the generic hook's fetchItems dependency
 function fetchPages(siteId: string, options: { selectedSlug?: string }) {
-  return getSitePagesAction(siteId, options)
+  return getSitePagesAction({ data: { siteId: siteId, options: options } })
 }
 
 interface UsePageDataReturn {

@@ -151,16 +151,16 @@ export function NewsletterStatusEventsModal({
 
     const request =
       automationId && stepOrder
-        ? getAutomationStepStatusEvents(automationId, stepOrder, {
+        ? getAutomationStepStatusEvents({ data: { automationId: automationId, stepOrder: stepOrder, options: {
             page,
             pageSize: STATUS_EVENTS_PAGE_SIZE,
             eventFilter
-          })
-        : getNewsletterStatusEvents(newsletterId!, {
+          } } })
+        : getNewsletterStatusEvents({ data: { newsletterId: newsletterId!, options: {
             page,
             pageSize: STATUS_EVENTS_PAGE_SIZE,
             eventFilter
-          })
+          } } })
 
     request.then((result) => {
       if (cancelled) return

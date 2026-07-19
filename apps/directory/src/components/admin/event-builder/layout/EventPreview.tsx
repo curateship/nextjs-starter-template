@@ -71,7 +71,7 @@ export function EventPreview({
       return
     }
 
-    getContentBreadcrumbPreviewAction(event.id, 'event').then(({ data }) => {
+    getContentBreadcrumbPreviewAction({ data: { contentId: event.id, contentType: 'event' } }).then(({ data }) => {
       if (!cancelled) setBreadcrumbs(data || [])
     })
 

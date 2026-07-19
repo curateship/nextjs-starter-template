@@ -68,7 +68,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   const loadTemplate = useCallback(async () => {
     setLoading(true)
 
-    const { data, error: fetchError } = await getPostTemplateById(templateId)
+    const { data, error: fetchError } = await getPostTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -156,9 +156,9 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
       )
       const orderedBlocks = orderPostBuilderBlocks(nextBlocks)
       const contentBlocks = postBlocksToJson(orderedBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updatePostTemplate(template.id, {
+      const { data, error: saveError } = await updatePostTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError || !data) {
         setBlockSaveError(saveError || "Failed to save block")
@@ -221,9 +221,9 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
 
     try {
       const contentBlocks = postBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updatePostTemplate(template.id, {
+      const { data, error: saveError } = await updatePostTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError) {
         setSaveStatus("error", saveError)
@@ -242,7 +242,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
 
-    const { data, error: saveError } = await updatePostTemplate(template.id, { name: nameInput.trim() })
+    const { data, error: saveError } = await updatePostTemplate({ data: { templateId: template.id, updates: { name: nameInput.trim() } } })
     if (!saveError && data) {
       setTemplate(data)
     }

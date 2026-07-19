@@ -85,7 +85,7 @@ export function useAccountPageBuilder({
       }
 
       const jsonBlocks = convertBlocksToJson(pageBlocks)
-      const { error } = await updateAccountPageBlocksAction(currentPage.id, jsonBlocks)
+      const { error } = await updateAccountPageBlocksAction({ data: { pageId: currentPage.id, contentBlocks: jsonBlocks } })
 
       if (error) {
         setSaveStatus("error", error)

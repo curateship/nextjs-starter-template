@@ -70,7 +70,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
       setLoading(true)
       setError(null)
 
-      const result = await getSystemEmailEditorAction(templateKey, currentSite?.id)
+      const result = await getSystemEmailEditorAction({ data: { templateKeyInput: templateKey, siteId: currentSite?.id } })
       if (cancelled) return
 
       if (!result.success || !result.data) {
@@ -110,14 +110,14 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     setIsSaving(true)
     setSaveStatus('saving')
 
-    const result = await saveSystemEmailTemplateAction({
+    const result = await saveSystemEmailTemplateAction({ data: { input: {
       templateKey: template.template_key,
       siteId: template.site_id,
       subject: nextSubject,
       contentBlocks: blocksToJson(nextBlocks),
       fromName: template.from_name,
       replyTo: template.reply_to,
-    })
+    } } })
 
     if (!result.success) {
       setSaveStatus('error', result.error || 'Failed to save')
@@ -125,7 +125,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
       return false
     }
 
-    const refreshed = await getSystemEmailEditorAction(template.template_key, template.site_id)
+    const refreshed = await getSystemEmailEditorAction({ data: { templateKeyInput: template.template_key, siteId: template.site_id } })
     if (refreshed.success && refreshed.data) {
       setTemplate(refreshed.data.template)
       blockEditor.setBlocks(parseBlocksFromJson(refreshed.data.template.content_blocks || {}))

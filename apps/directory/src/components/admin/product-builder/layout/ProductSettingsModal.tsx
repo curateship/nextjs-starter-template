@@ -161,7 +161,7 @@ export function ProductSettingsModal({
       setSelectedCategoryDetails([])
       setPrimaryCategoryId(null)
       setLoadingCategories(true)
-      getContentCategoriesAction(product.id, 'product').then(({ data }) => {
+      getContentCategoriesAction({ data: { contentId: product.id, contentType: 'product' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
@@ -228,7 +228,7 @@ export function ProductSettingsModal({
       }
 
       if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'product', selectedCategoryIds, primaryCategoryId)
+        const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: result.data.id, contentType: 'product', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           return
@@ -289,7 +289,7 @@ export function ProductSettingsModal({
       }
 
       if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'product', selectedCategoryIds, primaryCategoryId)
+        const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: result.data.id, contentType: 'product', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           return

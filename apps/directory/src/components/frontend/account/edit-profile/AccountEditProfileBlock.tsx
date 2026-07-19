@@ -157,7 +157,7 @@ export function AccountEditProfileBlock({
       // Drop incomplete rows (no URL) before saving
       formData.set("social_links", JSON.stringify(socialLinks.filter((link) => link.url.trim())))
 
-      const result = await updateProfile(formData)
+      const result = await updateProfile({ data: formData })
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {
@@ -221,7 +221,7 @@ export function AccountEditProfileBlock({
       formData.set("email", user?.email || "")
       formData.set("image", "")
 
-      const result = await updateProfile(formData)
+      const result = await updateProfile({ data: formData })
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {
@@ -247,7 +247,7 @@ export function AccountEditProfileBlock({
       formData.set("new_email", newEmail)
       formData.set("callback_url", pathname || "/account")
 
-      const result = await requestEmailChange(formData)
+      const result = await requestEmailChange({ data: formData })
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {
@@ -282,7 +282,7 @@ export function AccountEditProfileBlock({
     formData.set("confirm_password", confirmPassword)
 
     try {
-      const result = await updatePassword(formData)
+      const result = await updatePassword({ data: formData })
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {

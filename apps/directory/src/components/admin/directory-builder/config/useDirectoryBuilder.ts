@@ -83,7 +83,7 @@ export function useDirectoryBuilder({
     setSaveStatus("saving")
 
     try {
-      const result = await updateDirectoryBlockValuesAction(directoryId, contentBlocks)
+      const result = await updateDirectoryBlockValuesAction({ data: { directoryId: directoryId, contentBlocks: contentBlocks } })
 
       if (result.success) {
         setSaveStatus("saved")

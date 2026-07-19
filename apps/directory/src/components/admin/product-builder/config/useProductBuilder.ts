@@ -63,7 +63,7 @@ export function useProductBuilder({
     setSaveStatus("saving")
 
     try {
-      const result = await updateProductBlocksAction(productId, buildContentBlocksPayload(currentBlocks))
+      const result = await updateProductBlocksAction({ data: { productId: productId, contentBlocks: buildContentBlocksPayload(currentBlocks) } })
 
       if (result.success) {
         setSaveStatus("saved")

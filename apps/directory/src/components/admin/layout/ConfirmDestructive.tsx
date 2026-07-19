@@ -94,7 +94,7 @@ export function ConfirmDestructive({
     const request: DeletionImpactRequest = impactTarget === "user"
       ? { ids, target: "user" }
       : { ids, siteId: impactSiteId, target: impactTarget }
-    void getDeletionImpactAction(request).then((result: DestructiveImpactResult) => {
+    void getDeletionImpactAction({ data: { input: request } }).then((result: DestructiveImpactResult) => {
       if (cancelled) return
       if (result.error || !result.data) setImpactError(result.error || "Unable to load deletion impact")
       else setLoadedImpact(result.data)

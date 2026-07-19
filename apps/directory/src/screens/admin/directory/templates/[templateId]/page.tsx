@@ -69,14 +69,14 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const loadTemplate = useCallback(async () => {
     setLoading(true)
 
-    const { data, error: fetchError } = await getDirectoryTemplateById(templateId)
+    const { data, error: fetchError } = await getDirectoryTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
       return
     }
 
-    const { data: customBlocksData } = await getDirectoryCustomBlocksBySite(data.site_id)
+    const { data: customBlocksData } = await getDirectoryCustomBlocksBySite({ data: { siteId: data.site_id } })
     const loadedCustomBlocks = customBlocksData || []
 
     setTemplate(data)
@@ -152,9 +152,9 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
           : block
       )
       const contentBlocks = directoryBlocksToJson(nextBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateDirectoryTemplate(template.id, {
+      const { data, error: saveError } = await updateDirectoryTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError || !data) {
         setBlockSaveError(saveError || "Failed to save block")
@@ -224,9 +224,9 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
 
     try {
       const contentBlocks = directoryBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateDirectoryTemplate(template.id, {
+      const { data, error: saveError } = await updateDirectoryTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError) {
         setSaveStatus("error", saveError)
@@ -318,7 +318,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
                 onSaved={handleSettingsSaved}
                 open={show}
                 template={template}
-                updateTemplate={updateDirectoryTemplate}
+                updateTemplate={((a0, a1) => updateDirectoryTemplate({ data: { templateId: a0, updates: a1 } }))}
               />
             )}
           />

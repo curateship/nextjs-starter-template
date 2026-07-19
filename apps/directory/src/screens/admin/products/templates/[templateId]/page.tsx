@@ -77,7 +77,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   const loadTemplate = useCallback(async () => {
     setLoading(true)
 
-    const { data, error: fetchError } = await getProductTemplateById(templateId)
+    const { data, error: fetchError } = await getProductTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -183,9 +183,9 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
       )
       setBlocks(nextBlocks)
       const contentBlocks = productBlocksToJson(nextBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateProductTemplate(template.id, {
+      const { data, error: saveError } = await updateProductTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError || !data) {
         setBlocks(previousBlocks)
@@ -234,9 +234,9 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
 
     try {
       const contentBlocks = productBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateProductTemplate(template.id, {
+      const { data, error: saveError } = await updateProductTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError) {
         setSaveStatus("error", saveError)
@@ -255,7 +255,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
 
-    const { data, error: saveError } = await updateProductTemplate(template.id, { name: nameInput.trim() })
+    const { data, error: saveError } = await updateProductTemplate({ data: { templateId: template.id, updates: { name: nameInput.trim() } } })
     if (!saveError && data) {
       setTemplate(data)
     }

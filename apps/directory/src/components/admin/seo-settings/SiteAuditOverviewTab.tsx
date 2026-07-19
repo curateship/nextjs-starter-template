@@ -49,7 +49,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [siteData, contentData] = await Promise.all([getSiteForAudit(siteId), getSiteAuditData(siteId)])
+      const [siteData, contentData] = await Promise.all([getSiteForAudit({ data: { siteId: siteId } }), getSiteAuditData({ data: { siteId: siteId } })])
 
       if (siteData) {
         setScore(calculateAuditScore(siteData, contentData))

@@ -72,7 +72,7 @@ export function CategoryPreview({
       return
     }
 
-    getCategoryBreadcrumbPreviewAction(category.id).then(({ data }) => {
+    getCategoryBreadcrumbPreviewAction({ data: { categoryId: category.id } }).then(({ data }) => {
       if (!cancelled) setBreadcrumbs(data || [])
     })
 

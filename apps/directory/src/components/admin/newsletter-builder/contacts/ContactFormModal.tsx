@@ -64,14 +64,14 @@ export function ContactFormModal({
 
     try {
       const tags = addForm.tags ? addForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : []
-      const { data, error } = await createOrUpsertContact({
+      const { data, error } = await createOrUpsertContact({ data: { input: {
         siteId,
         email: addForm.email,
         firstName: addForm.first_name || undefined,
         lastName: addForm.last_name || undefined,
         source: "manual",
         tags,
-      })
+      } } })
 
       if (error) {
         onError(error)
@@ -97,14 +97,14 @@ export function ContactFormModal({
 
     try {
       const tags = editForm.tags ? editForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : []
-      const { data, error } = await updateContact(editContact.id, {
+      const { data, error } = await updateContact({ data: { contactId: editContact.id, updates: {
         metadata: {
           first_name: editForm.first_name || undefined,
           last_name: editForm.last_name || undefined,
           tags,
         },
         status: editForm.status as CrmContact["status"],
-      })
+      } } })
 
       if (error) {
         onError(error)

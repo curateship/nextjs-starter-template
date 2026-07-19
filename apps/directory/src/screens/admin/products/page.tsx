@@ -38,16 +38,16 @@ export default function ProductsPage() {
       builderPath="/admin/products/builder"
       createButtonLabel="Create Product"
       deletionImpactTarget="product"
-      deleteItem={deleteProductAction}
-      deleteItems={deleteProductsAction}
+      deleteItem={((a0) => deleteProductAction({ data: { productId: a0 } }))}
+      deleteItems={((a0) => deleteProductsAction({ data: { productIds: a0 } }))}
       destructiveAction="delete-product"
-      duplicateItem={duplicateProductAction}
+      duplicateItem={((a0, a1) => duplicateProductAction({ data: { productId: a0, newTitle: a1 } }))}
       duplicateTitle={(product) => `${product.title || "Product"} Copy`}
       emptyButtonLabel="Create Your First Product"
       emptyTitle={(products, filterStatus) =>
         products.length === 0 || filterStatus === "all" ? "No products found" : `No ${filterStatus} products found`
       }
-      getItems={getSiteProductsWithCategoriesAction}
+      getItems={((a0, a1) => getSiteProductsWithCategoriesAction({ data: { siteId: a0, options: a1 } }))}
       icon={Package}
       itemLabel="Product"
       itemLabelPlural="Products"

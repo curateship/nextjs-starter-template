@@ -46,7 +46,7 @@ export function useEventBuilder({
     setSaveStatus("saving")
 
     try {
-      const result = await updateEventBlocksAction(eventId, contentBlocks)
+      const result = await updateEventBlocksAction({ data: { eventId: eventId, contentBlocks: contentBlocks } })
 
       if (result.success) {
         setSaveStatus("saved")

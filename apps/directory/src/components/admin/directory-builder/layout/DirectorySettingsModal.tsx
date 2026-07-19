@@ -58,17 +58,17 @@ export function DirectorySettingsModal({
     title,
     titleRequiredMessage: "Listing title is required",
     // Directories update through a server action with a status field rather than is_published
-    create: (publish) => updateDirectoryAction(directory!.id, {
+    create: (publish) => updateDirectoryAction({ data: { directoryId: directory!.id, data: {
       title,
       slug,
       meta_description: metaDescription,
       template_id: selectedTemplateId,
       status: publish ? 'published' : 'draft',
       featured_image: featuredImage || null,
-    }),
+    } } }),
     // Persist category selection after the listing row is updated
     afterCreate: async (updated) => {
-      const categoryResult = await bulkAssignCategoriesToContentAction(updated.id, 'directory', selectedCategoryIds, primaryCategoryId)
+      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: updated.id, contentType: 'directory', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
       return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
     },
     failureMessage: (_, publish) => publish ? 'Failed to publish directory' : 'Failed to save directory',
@@ -94,7 +94,7 @@ export function DirectorySettingsModal({
     setLoadingCategories(true)
     setTemplatesLoading(true)
 
-    getDirectoryTemplatesBySite(directory.site_id).then(({ data }) => {
+    getDirectoryTemplatesBySite({ data: { siteId: directory.site_id } }).then(({ data }) => {
       if (!cancelled) {
         const loadedTemplates = data || []
         setTemplates(loadedTemplates)
@@ -106,7 +106,7 @@ export function DirectorySettingsModal({
       }
     })
 
-    getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
+    getContentCategoriesAction({ data: { contentId: directory.id, contentType: 'directory' } }).then(({ data }) => {
       if (!cancelled) {
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
         setPrimaryCategoryId(data?.find((c) => c.is_primary)?.id || data?.[0]?.id || null)

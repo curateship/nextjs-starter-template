@@ -31,15 +31,15 @@ export default function PostsPage() {
       builderPath="/admin/posts/builder"
       createButtonLabel="Create Post"
       destructiveAction="delete-post"
-      deleteItem={deletePostAction}
-      deleteItems={deletePostsAction}
-      duplicateItem={duplicatePostAction}
+      deleteItem={((a0) => deletePostAction({ data: { postId: a0 } }))}
+      deleteItems={((a0) => deletePostsAction({ data: { postIds: a0 } }))}
+      duplicateItem={((a0, a1) => duplicatePostAction({ data: { postId: a0, newTitle: a1 } }))}
       duplicateTitle={(post) => `${post.title || "Post"} Copy`}
       emptyButtonLabel="Create Your First Post"
       emptyTitle={(posts, filterStatus) =>
         posts.length === 0 || filterStatus === "all" ? "No posts found" : `No ${filterStatus} posts found`
       }
-      getItems={getSitePostsWithCategoriesAction}
+      getItems={((a0, a1) => getSitePostsWithCategoriesAction({ data: { siteId: a0, options: a1 } }))}
       getSearchText={(post, categories) =>
         `${post.title} ${post.slug} ${post.excerpt ?? ""} ${post.meta_description ?? ""} ${categories
           .map((category) => category.title)

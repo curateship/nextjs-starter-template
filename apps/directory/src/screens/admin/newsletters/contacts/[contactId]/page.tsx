@@ -91,12 +91,12 @@ export default function ContactDashboardPage() {
     try {
       // Fetch all data in parallel
       const [contactRes, statsRes, eventsRes, segmentsRes, linksRes, engagementRes] = await Promise.all([
-        getContactById(contactId),
-        getContactStats(contactId),
-        getContactEvents(contactId, 1, 20),
-        getContactSegments(contactId),
-        getContactClickedLinks(contactId),
-        getContactEngagementOverTime(contactId)
+        getContactById({ data: { contactId: contactId } }),
+        getContactStats({ data: { contactId: contactId } }),
+        getContactEvents({ data: { contactId: contactId, page: 1, pageSize: 20 } }),
+        getContactSegments({ data: { contactId: contactId } }),
+        getContactClickedLinks({ data: { contactId: contactId } }),
+        getContactEngagementOverTime({ data: { contactId: contactId } })
       ])
 
       if (contactRes.error || !contactRes.data) {
@@ -135,7 +135,7 @@ export default function ContactDashboardPage() {
   async function loadMoreEvents() {
     setLoadingMore(true)
     const nextPage = eventsPage + 1
-    const res = await getContactEvents(contactId, nextPage, 20)
+    const res = await getContactEvents({ data: { contactId: contactId, page: nextPage, pageSize: 20 } })
     if (res.data) {
       setEvents((prev) => [...prev, ...res.data!])
       setEventsPage(nextPage)
@@ -156,14 +156,14 @@ export default function ContactDashboardPage() {
           .map((t) => t.trim())
           .filter(Boolean)
       : []
-    const { data, error } = await updateContact(contact.id, {
+    const { data, error } = await updateContact({ data: { contactId: contact.id, updates: {
       metadata: {
         first_name: editForm.first_name || undefined,
         last_name: editForm.last_name || undefined,
         tags
       },
       status: editForm.status as CrmContact["status"]
-    })
+    } } })
 
     if (data) {
       setContact(data)
@@ -178,7 +178,7 @@ export default function ContactDashboardPage() {
   async function handleDelete() {
     if (!contact || deleting) return
     setDeleting(true)
-    const { success, error } = await deleteContacts([contact.id])
+    const { success, error } = await deleteContacts({ data: { contactIds: [contact.id] } })
     if (success) {
       router.push("/admin/newsletters/contacts")
     } else {

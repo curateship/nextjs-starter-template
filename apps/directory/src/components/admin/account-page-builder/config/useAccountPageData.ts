@@ -22,7 +22,7 @@ function getBlocksBySlug(pages: AccountPage[]) {
 
 // Stable reference for the generic hook's fetchItems dependency
 function fetchAccountPages(siteId: string, options: { selectedSlug?: string }) {
-  return getAccountPagesAction(siteId, options)
+  return getAccountPagesAction({ data: { siteId: siteId, options: options } })
 }
 
 interface UseAccountPagesDataReturn {

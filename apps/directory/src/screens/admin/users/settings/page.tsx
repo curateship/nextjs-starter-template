@@ -57,7 +57,7 @@ export default function SettingsPage() {
         formData.set('image', avatarUrl)
       }
 
-      const result = await updateProfile(formData)
+      const result = await updateProfile({ data: formData })
       if (result.error) {
         setMessage({ type: 'error', text: result.error })
       } else {
@@ -67,7 +67,7 @@ export default function SettingsPage() {
           emailFormData.set('new_email', email)
           emailFormData.set('callback_url', '/admin/users/settings')
 
-          const emailResult = await requestEmailChange(emailFormData)
+          const emailResult = await requestEmailChange({ data: emailFormData })
           if (emailResult.error) {
             setMessage({ type: 'error', text: emailResult.error })
             return
@@ -128,7 +128,7 @@ export default function SettingsPage() {
       formData.set('new_password', newPassword)
       formData.set('confirm_password', confirmPassword)
 
-      const result = await updatePassword(formData)
+      const result = await updatePassword({ data: formData })
       if (result.error) {
         setMessage({ type: 'error', text: result.error })
       } else {

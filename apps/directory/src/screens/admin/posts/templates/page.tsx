@@ -20,14 +20,14 @@ export default function PostTemplatesPage() {
     <TemplateListPage
       breadcrumbParent={{ label: "Posts", href: "/admin/posts" }}
       createPlaceholder="e.g. Article Layout"
-      createTemplate={createPostTemplate}
-      deleteTemplates={deletePostTemplates}
+      createTemplate={((a0) => createPostTemplate({ data: { input: a0 } }))}
+      deleteTemplates={((a0) => deletePostTemplates({ data: { ids: a0 } }))}
       emptyText="No templates yet. Create one to save reusable post layouts."
       getBlockCount={getPostBlockCount}
-      getTemplateIds={getPostTemplateIdsAction}
-      getTemplatesBySite={getPostTemplatesBySite}
+      getTemplateIds={((a0) => getPostTemplateIdsAction({ data: { siteId: a0 } }))}
+      getTemplatesBySite={((a0, a1) => getPostTemplatesBySite({ data: { siteId: a0, options: a1 } }))}
       routeBase="/admin/posts/templates"
-      setDefaultTemplate={setDefaultPostTemplate}
+      setDefaultTemplate={((a0) => setDefaultPostTemplate({ data: { templateId: a0 } }))}
     />
   )
 }

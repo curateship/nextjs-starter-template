@@ -44,7 +44,7 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
 
   const loadNewsletter = useCallback(async () => {
     setLoading(true)
-    const { data, error: fetchError } = await getNewsletterById(newsletterId)
+    const { data, error: fetchError } = await getNewsletterById({ data: { newsletterId: newsletterId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -69,10 +69,10 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     const contentBlocks = blocksToJson(nextBlocks)
 
     try {
-      const { data, error: saveError } = await updateNewsletter(newsletter.id, {
+      const { data, error: saveError } = await updateNewsletter({ data: { newsletterId: newsletter.id, updates: {
         subject: nextSubject,
         content_blocks: contentBlocks
-      })
+      } } })
       if (saveError) {
         setSaveStatus("error", saveError)
         return false

@@ -25,15 +25,15 @@ export default function CategoryTemplatesPage() {
       // Categories list route is site-scoped, unlike directory's static parent
       breadcrumbParent={{ label: "Categories", href: currentSite ? `/admin/categories/${currentSite.id}` : "/admin/sites" }}
       createPlaceholder="e.g. Standard Category Layout"
-      createTemplate={createCategoryTemplate}
-      deleteTemplates={deleteCategoryTemplates}
+      createTemplate={((a0) => createCategoryTemplate({ data: { input: a0 } }))}
+      deleteTemplates={((a0) => deleteCategoryTemplates({ data: { ids: a0 } }))}
       emptyText="No templates yet. Create one to save reusable block layouts."
       getBlockCount={getCategoryBlockCount}
-      getTemplateIds={getCategoryTemplateIdsAction}
-      getTemplatesBySite={getCategoryTemplatesBySite}
+      getTemplateIds={((a0) => getCategoryTemplateIdsAction({ data: { siteId: a0 } }))}
+      getTemplatesBySite={((a0, a1) => getCategoryTemplatesBySite({ data: { siteId: a0, options: a1 } }))}
       routeBase="/admin/categories/templates"
-      setDefaultTemplate={setDefaultCategoryTemplate}
-      updateTemplate={updateCategoryTemplate}
+      setDefaultTemplate={((a0) => setDefaultCategoryTemplate({ data: { templateId: a0 } }))}
+      updateTemplate={((a0, a1) => updateCategoryTemplate({ data: { templateId: a0, updates: a1 } }))}
     />
   )
 }

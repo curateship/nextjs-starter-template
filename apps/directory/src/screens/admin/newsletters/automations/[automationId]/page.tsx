@@ -143,13 +143,13 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const segmentTriggerAnchor = useComboboxAnchor()
 
   const loadJourneyIndicators = useCallback(async () => {
-    const { data } = await getAutomationJourneyIndicators(automationId)
+    const { data } = await getAutomationJourneyIndicators({ data: { automationId: automationId } })
     if (!data) return
     setJourneyIndicators(data)
   }, [automationId])
 
   const loadEmailStepStats = useCallback(async () => {
-    const { data } = await getAutomationReport(automationId)
+    const { data } = await getAutomationReport({ data: { automationId: automationId } })
     if (!data) {
       setEmailStepStatsLoaded(true)
       return
@@ -178,7 +178,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       setEmailStepStatsLoaded(false)
       setEmailStepStats({})
       setJourneyIndicators({})
-      const { data, steps, error } = await getAutomationById(automationId)
+      const { data, steps, error } = await getAutomationById({ data: { automationId: automationId } })
 
       if (cancelled) return
 
@@ -225,10 +225,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadSegments() {
       setLoadingSegments(true)
-      const { data, counts } = await getSegmentsWithCounts(currentSiteId, {
+      const { data, counts } = await getSegmentsWithCounts({ data: { siteId: currentSiteId, options: {
         page: 1,
         pageSize: 100
-      })
+      } } })
       if (cancelled) return
       setSegments(data || [])
       setSegmentCounts(counts || {})
@@ -254,10 +254,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadProducts() {
       setLoadingProducts(true)
-      const { data } = await getSiteProductsAction(currentSiteId, {
+      const { data } = await getSiteProductsAction({ data: { siteId: currentSiteId, options: {
         page: 1,
         pageSize: 100
-      })
+      } } })
       if (cancelled) return
       setProducts(data || [])
       setLoadingProducts(false)
@@ -291,9 +291,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     setSaving(true)
     const newStatus = automation.status === "active" ? "paused" : "active"
-    const { data, error } = await updateAutomation(automation.id, {
+    const { data, error } = await updateAutomation({ data: { automationId: automation.id, updates: {
       status: newStatus
-    })
+    } } })
 
     if (error) setError(error)
     if (data) setAutomation(data)
@@ -330,7 +330,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (!automation) return null
 
     const tempOrder = 99999 + Math.floor(Math.random() * 1000)
-    const { data, error: createError } = await createStep({
+    const { data, error: createError } = await createStep({ data: { input: {
       automationId: automation.id,
       stepOrder: tempOrder,
       nodeType,
@@ -339,7 +339,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       nodeConfig: nodeData.node_config || {},
       delayMinutes: nodeData.delay_minutes || 0,
       contentBlocks: nodeData.content_blocks || {}
-    })
+    } } })
 
     if (createError || !data) {
       setError(createError || "Failed to create node")
@@ -353,10 +353,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       step_order: index + 1
     }))
     setNodes(nextNodes)
-    await reorderSteps(
-      automation.id,
-      nextNodes.map((node) => node.id)
-    )
+    await reorderSteps({ data: { automationId: automation.id, stepIds: nextNodes.map((node) => node.id) } })
     void loadJourneyIndicators()
 
     return nextNodes[pendingInsertIndex] || data
@@ -418,10 +415,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       })
       if (data) flash("Added")
     } else {
-      const { data, error } = await updateStep(editingDelay.id, {
+      const { data, error } = await updateStep({ data: { stepId: editingDelay.id, updates: {
         node_config: config,
         delay_minutes: minutes
-      })
+      } } })
 
       if (error) setError(error)
       if (data) {
@@ -452,9 +449,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       const data = await createAndInsertNode("end_rules", { node_config })
       if (data) flash("Added")
     } else {
-      const { data, error } = await updateStep(editingEndRules.id, {
+      const { data, error } = await updateStep({ data: { stepId: editingEndRules.id, updates: {
         node_config
-      })
+      } } })
       if (error) setError(error)
       if (data) {
         setNodes((prev) => prev.map((node) => (node.id === data.id ? data : node)))
@@ -467,7 +464,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const handleDeleteNode = async (nodeId: string) => {
-    const { success, error: deleteError } = await deleteStep(nodeId)
+    const { success, error: deleteError } = await deleteStep({ data: { stepId: nodeId } })
     if (!success) {
       setDeleteNodeError(deleteError || "Failed to delete node")
       return false
@@ -512,11 +509,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (!automation) return null
 
     const serializedTriggers = serializeAutomationTriggerNodes(nextTriggerNodes)
-    const { data, error } = await updateAutomation(automation.id, {
+    const { data, error } = await updateAutomation({ data: { automationId: automation.id, updates: {
       ...(serializedTriggers.triggerType === "none" && automation.status === "active" ? { status: "draft" } : {}),
       trigger_type: serializedTriggers.triggerType,
       trigger_config: serializedTriggers.triggerConfig
-    })
+    } } })
 
     if (error) {
       setError(error)

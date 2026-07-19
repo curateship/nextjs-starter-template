@@ -89,7 +89,7 @@ export default function SponsorsPage() {
       setError(null)
       const [{ data, error: loadError }, linksResult] = await Promise.all([
         getSiteSponsorsAction(currentSite.id),
-        getSponsorReportLinksAction(currentSite.id)
+        getSponsorReportLinksAction({ data: { siteId: currentSite.id } })
       ])
 
       if (cancelled) return

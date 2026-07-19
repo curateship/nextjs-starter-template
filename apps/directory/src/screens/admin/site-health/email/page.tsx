@@ -33,7 +33,7 @@ export default function EmailHealthPage() {
 
     setLoading(true)
     setError(null)
-    const { data, error } = await getDeliverabilityReport(currentSite.id)
+    const { data, error } = await getDeliverabilityReport({ data: { siteId: currentSite.id } })
     if (error) setError(error)
     if (data) setReport(data)
     setLoading(false)

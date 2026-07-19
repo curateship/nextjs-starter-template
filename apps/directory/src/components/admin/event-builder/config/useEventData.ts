@@ -47,7 +47,7 @@ function getEventBlocksBySlug(events: EventRow[]) {
 // Stable reference for the generic hook's fetchItems dependency.
 // Merged blocks (template structure + event values) — builder preview only.
 function fetchEvents(siteId: string, options: { selectedSlug?: string }) {
-  return getSiteEventsWithMergedBlocksAction(siteId, options)
+  return getSiteEventsWithMergedBlocksAction({ data: { siteId: siteId, options: options } })
 }
 
 export function useEventData(siteId: string, selectedEvent = ""): UseEventDataReturn {

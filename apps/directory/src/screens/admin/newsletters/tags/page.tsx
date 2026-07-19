@@ -94,12 +94,12 @@ export default function NewsletterContactTagsPage() {
     try {
       setLoading(true)
       setError(null)
-      const result = await getNewsletterContactTags(currentSite.id, {
+      const result = await getNewsletterContactTags({ data: { siteId: currentSite.id, options: {
         filter: tagFilter,
         searchQuery: deferredSearchQuery,
         page: currentPage,
         pageSize
-      })
+      } } })
 
       if (result.error) {
         setError(result.error)
@@ -146,7 +146,7 @@ export default function NewsletterContactTagsPage() {
     setRenaming(true)
 
     try {
-      const { error: renameError } = await renameNewsletterContactTag(currentSite.id, renamingTag.id, renameValue)
+      const { error: renameError } = await renameNewsletterContactTag({ data: { siteId: currentSite.id, fromTag: renamingTag.id, toTag: renameValue } })
       if (renameError) {
         showError(renameError)
         return
@@ -166,10 +166,7 @@ export default function NewsletterContactTagsPage() {
     setDeleting(true)
 
     try {
-      const { error: deleteError } = await deleteNewsletterContactTags(
-        currentSite.id,
-        Array.from(tagSelection.selectedIds)
-      )
+      const { error: deleteError } = await deleteNewsletterContactTags({ data: { siteId: currentSite.id, tags: Array.from(tagSelection.selectedIds) } })
       if (deleteError) {
         setErrorMessage(deleteError)
         return

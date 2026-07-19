@@ -60,7 +60,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
   const loadTemplate = useCallback(async () => {
     setLoading(true)
 
-    const { data, error: fetchError } = await getEventTemplateById(templateId)
+    const { data, error: fetchError } = await getEventTemplateById({ data: { templateId: templateId } })
     if (fetchError || !data) {
       setError(fetchError || "Not found")
       setLoading(false)
@@ -141,9 +141,9 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
           : block
       )
       const contentBlocks = eventBlocksToJson(nextBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateEventTemplate(template.id, {
+      const { data, error: saveError } = await updateEventTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError || !data) {
         setBlockSaveError(saveError || "Failed to save block")
@@ -192,9 +192,9 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
 
     try {
       const contentBlocks = eventBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateEventTemplate(template.id, {
+      const { data, error: saveError } = await updateEventTemplate({ data: { templateId: template.id, updates: {
         content_blocks: contentBlocks,
-      })
+      } } })
 
       if (saveError) {
         setSaveStatus("error", saveError)
@@ -275,7 +275,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
                 onSaved={handleSettingsSaved}
                 open={show}
                 template={template}
-                updateTemplate={updateEventTemplate}
+                updateTemplate={((a0, a1) => updateEventTemplate({ data: { templateId: a0, updates: a1 } }))}
               />
             )}
           />

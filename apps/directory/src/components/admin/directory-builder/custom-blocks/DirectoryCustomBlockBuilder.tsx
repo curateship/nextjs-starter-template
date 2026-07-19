@@ -48,7 +48,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
 
     async function loadTemplate() {
       setLoading(true)
-      const { data, error: fetchError } = await getDirectoryCustomBlockById(blockId)
+      const { data, error: fetchError } = await getDirectoryCustomBlockById({ data: { templateId: blockId } })
 
       if (cancelled) return
 
@@ -123,8 +123,8 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     setSaveStatus('saving')
 
     const result = templateId
-      ? await updateDirectoryCustomBlock(templateId, { name: name.trim(), layout, fields })
-      : await createDirectoryCustomBlock({ siteId: currentSiteId, name: name.trim(), layout, fields })
+      ? await updateDirectoryCustomBlock({ data: { templateId: templateId, updates: { name: name.trim(), layout, fields } } })
+      : await createDirectoryCustomBlock({ data: { input: { siteId: currentSiteId, name: name.trim(), layout, fields } } })
 
     if (result.error || !result.data) {
       setSaveStatus('error', result.error || 'Failed to save')

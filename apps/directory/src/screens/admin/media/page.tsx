@@ -90,7 +90,7 @@ export default function ImagesPage() {
 
       const fileType = filterType === "all" || filterType === "svg" ? undefined : (filterType as "image" | "video")
       const mimeType = filterType === "svg" ? "image/svg+xml" : undefined
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSiteId, mimeType)
+      const { data, error } = await getPaginatedMediaAction({ data: { page: currentPage, pageSize: pageSize, fileType: fileType, site_id: currentSiteId, mimeType: mimeType } })
       if (error) {
         showActionError(`Failed to load images: ${error}`)
       } else {
@@ -135,7 +135,7 @@ export default function ImagesPage() {
 
     setIsDeleting(true)
     try {
-      const { error } = await deleteMediaAction(image.id, currentSiteId)
+      const { error } = await deleteMediaAction({ data: { mediaId: image.id, site_id: currentSiteId } })
       if (error) {
         showActionError(`Failed to delete image: ${error}`)
         return false
@@ -161,13 +161,9 @@ export default function ImagesPage() {
     if (!editingImage || !currentSiteId) return
 
     try {
-      const { data, error } = await updateMediaAction(
-        editingImage.id,
-        {
+      const { data, error } = await updateMediaAction({ data: { mediaId: editingImage.id, updates: {
           alt_text: editAltText.trim() || undefined
-        },
-        currentSiteId
-      )
+        }, site_id: currentSiteId } })
 
       if (error) {
         showActionError(`Failed to update image: ${error}`)
@@ -259,7 +255,7 @@ export default function ImagesPage() {
     try {
       for (const id of idsToDelete) {
         try {
-          const { success } = await deleteMediaAction(id, currentSiteId)
+          const { success } = await deleteMediaAction({ data: { mediaId: id, site_id: currentSiteId } })
           if (success) {
             successCount++
           } else {

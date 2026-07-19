@@ -186,7 +186,7 @@ export function AccountClaimedListingsBlock({
     }
 
     setLoading(true)
-    const result = await getMyClaimedDirectoriesAction(siteId)
+    const result = await getMyClaimedDirectoriesAction({ data: { siteId: siteId } })
     setLoading(false)
 
     if (result.error) {
@@ -227,7 +227,7 @@ export function AccountClaimedListingsBlock({
 
     let cancelled = false
     setFeaturedState(null)
-    getMyDirectoryFeaturedUpgradeStateAction(siteId, selectedItem.id)
+    getMyDirectoryFeaturedUpgradeStateAction({ data: { siteId: siteId, directoryId: selectedItem.id } })
       .then((result) => {
         if (cancelled) return
         setFeaturedState(result)
@@ -267,7 +267,7 @@ export function AccountClaimedListingsBlock({
     }
 
     setUpgradePending(true)
-    confirmDirectoryFeaturedCheckoutAction({ siteId, sessionId: sessionId! })
+    confirmDirectoryFeaturedCheckoutAction({ data: { input: { siteId, sessionId: sessionId! } } })
       .then((result) => {
         if (result.success) {
           setUpgradeMessage("Payment received — your listing is now featured.")
@@ -316,12 +316,12 @@ export function AccountClaimedListingsBlock({
     setUpgradeError(null)
     setUpgradeMessage(null)
     setUpgradePending(true)
-    const result = await createDirectoryFeaturedCheckoutAction({
+    const result = await createDirectoryFeaturedCheckoutAction({ data: { input: {
       siteId,
       directoryId: selectedItem.id,
       planId: selectedPlanId,
       returnPath: window.location.pathname,
-    })
+    } } })
 
     if (!result.success || !result.url) {
       setUpgradePending(false)
@@ -406,7 +406,7 @@ export function AccountClaimedListingsBlock({
     setError(null)
 
     startTransition(async () => {
-      const result = await submitMyClaimedDirectoryEditRequestAction({
+      const result = await submitMyClaimedDirectoryEditRequestAction({ data: { input: {
         siteId,
         directoryId: selectedItem.id,
         title: draft.title,
@@ -416,7 +416,7 @@ export function AccountClaimedListingsBlock({
         contentBlocks: draft.contentBlocks,
         categoryIds: draft.categoryIds,
         primaryCategoryId: draft.primaryCategoryId,
-      })
+      } } })
 
       if (result.error) {
         setError(result.error)

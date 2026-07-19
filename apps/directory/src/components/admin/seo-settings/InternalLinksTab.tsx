@@ -24,7 +24,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [siteData, linkData] = await Promise.all([getSiteForAudit(siteId), getInternalLinkAnalysis(siteId)])
+      const [siteData, linkData] = await Promise.all([getSiteForAudit({ data: { siteId: siteId } }), getInternalLinkAnalysis({ data: { siteId: siteId } })])
       if (siteData) setLinkAnalysis(linkData)
     } catch (err) {
       console.error("Error loading link data:", err)

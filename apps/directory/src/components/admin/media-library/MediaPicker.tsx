@@ -92,7 +92,7 @@ export function MediaPicker({
 
       const fileType = filterType === 'all' || filterType === 'svg' ? undefined : filterType as 'image' | 'video'
       const mimeType = filterType === 'svg' ? 'image/svg+xml' : undefined
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, scopedSiteId, mimeType)
+      const { data, error } = await getPaginatedMediaAction({ data: { page: currentPage, pageSize: pageSize, fileType: fileType, site_id: scopedSiteId, mimeType: mimeType } })
 
       if (error) {
         showActionError(`Failed to load media: ${error}`)

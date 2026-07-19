@@ -665,7 +665,7 @@ function CreateSiteModal({
       }
 
       if (hasTemplate) {
-        const { error: themeError } = await applyThemeToSiteAction(data.id, selectedTemplateId)
+        const { error: themeError } = await applyThemeToSiteAction({ data: { siteId: data.id, templateId: selectedTemplateId } })
         if (themeError) {
           reportError(`Site created but failed to apply template: ${themeError}`)
           return

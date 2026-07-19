@@ -1,5 +1,4 @@
-"use server"
-
+import { createServerFn } from "@tanstack/react-start"
 import { and, asc, desc, eq, inArray } from "drizzle-orm"
 import { unstable_cache } from "@/lib/cache"
 import { db } from "@/lib/db"
@@ -49,15 +48,19 @@ const getCachedCategoriesListingData = unstable_cache(
   }
 )
 
-export async function getCategoriesListingData(params: {
+type CategoriesListingParams = {
   siteId: string
   parentCategoryId?: string
   limit?: number
-}): Promise<{
-  success: boolean
-  data?: CategoriesListingData
-  error?: string
-}> {
+}
+
+export const getCategoriesListingData = createServerFn({ method: "POST" })
+  .inputValidator((params: CategoriesListingParams) => params)
+  .handler(async ({ data: params }): Promise<{
+    success: boolean
+    data?: CategoriesListingData
+    error?: string
+  }> => {
   try {
     const { siteId, parentCategoryId } = params
 
@@ -76,4 +79,4 @@ export async function getCategoriesListingData(params: {
     console.error("Error loading categories listing data:", error)
     return { success: false, error: "Failed to load categories" }
   }
-}
+})

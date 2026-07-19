@@ -123,7 +123,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     if (!currentDirectoryRecord?.id) return
 
     try {
-      const { data, error } = await updateDirectoryAction(currentDirectoryRecord.id, updates)
+      const { data, error } = await updateDirectoryAction({ data: { directoryId: currentDirectoryRecord.id, data: updates } })
       if (error) {
         console.error('Failed to update directory:', error)
         return
@@ -194,7 +194,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         }
 
         if (Object.keys(directoryUpdates).length > 0) {
-          const { data, error } = await updateDirectoryAction(currentDirectoryRecord.id, directoryUpdates)
+          const { data, error } = await updateDirectoryAction({ data: { directoryId: currentDirectoryRecord.id, data: directoryUpdates } })
           if (error || !data) {
             setBlockSaveError(error || "Failed to save directory details")
             return
@@ -204,7 +204,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       }
 
       const contentBlocks = directoryBlocksToValueJson(nextBlocks)
-      const result = await updateDirectoryBlockValuesAction(currentDirectoryRecord.id, contentBlocks)
+      const result = await updateDirectoryBlockValuesAction({ data: { directoryId: currentDirectoryRecord.id, contentBlocks: contentBlocks } })
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return

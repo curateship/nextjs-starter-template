@@ -87,10 +87,10 @@ export default function TemplatesPage() {
         data,
         total: totalCount,
         error: loadError
-      } = await getTemplatesBySite(currentSite.id, {
+      } = await getTemplatesBySite({ data: { siteId: currentSite.id, options: {
         page: currentPage,
         pageSize
-      })
+      } } })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -113,10 +113,10 @@ export default function TemplatesPage() {
     if (!currentSite?.id || !formName.trim()) return
     setCreating(true)
 
-    const { data, error: createError } = await createTemplate({
+    const { data, error: createError } = await createTemplate({ data: { input: {
       siteId: currentSite.id,
       name: formName.trim()
-    })
+    } } })
 
     if (createError) {
       setError(createError)
@@ -134,7 +134,7 @@ export default function TemplatesPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
-    const { error: deleteError } = await deleteTemplates(Array.from(templateSelection.selectedIds))
+    const { error: deleteError } = await deleteTemplates({ data: { ids: Array.from(templateSelection.selectedIds) } })
     if (deleteError) {
       setError(deleteError)
     } else {
@@ -172,7 +172,7 @@ export default function TemplatesPage() {
   })
 
   async function handleSetDefault(templateId: string) {
-    const { error: defaultError } = await setDefaultTemplate(templateId)
+    const { error: defaultError } = await setDefaultTemplate({ data: { templateId: templateId } })
     if (defaultError) {
       setError(defaultError)
     }

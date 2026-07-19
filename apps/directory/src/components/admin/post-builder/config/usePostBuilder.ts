@@ -194,7 +194,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     try {
       const normalizedBlocks = postBuilderBlocksToRecord(Object.values(blocks))
       const valueBlocks = postBlocksToValueJson(parsePostBlocksFromJson(normalizedBlocks))
-      const { success, error } = await updatePostBlocksAction(postId, valueBlocks)
+      const { success, error } = await updatePostBlocksAction({ data: { postId: postId, blocks: valueBlocks } })
 
       if (!success || error) {
         console.error('Error saving blocks:', error)

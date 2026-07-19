@@ -72,10 +72,7 @@ export default function PlatformSenderEmailsPage() {
     setLoading(true);
     setMessage(null);
 
-    const resendIntegration = await getSiteIntegration(
-      currentSite.id,
-      "resend",
-    );
+    const resendIntegration = await getSiteIntegration({ data: { siteId: currentSite.id, integrationType: "resend" } });
     const rows = buildSenderRows(resendIntegration);
 
     setSenders(rows);

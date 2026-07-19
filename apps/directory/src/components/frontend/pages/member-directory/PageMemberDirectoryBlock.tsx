@@ -92,13 +92,13 @@ export function PageMemberDirectoryBlock({
 
     let cancelled = false
     setLoading(true)
-    getMemberDirectoryData({
+    getMemberDirectoryData({ data: { params: {
       siteId,
       includedRoles: JSON.parse(rolesKey),
       itemsPerPage,
       sortBy,
       sortOrder,
-    })
+    } } })
       .then((result) => {
         if (!cancelled) setData(result.success && result.data ? result.data : null)
       })

@@ -29,7 +29,7 @@ const PageSettingsModal = dynamic(
 )
 
 async function getPages(siteId: string, options?: { page?: number; pageSize?: number }) {
-  const { data, total, error } = await getSitePagesAction(siteId, options)
+  const { data, total, error } = await getSitePagesAction({ data: { siteId: siteId, options: options } })
   return { data, categories: {}, total, error }
 }
 
@@ -46,9 +46,9 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
       columnCount={5}
       createButtonLabel="Create Page"
       destructiveAction="delete-page"
-      deleteItem={deletePageAction}
-      deleteItems={deletePagesAction}
-      duplicateItem={duplicatePageAction}
+      deleteItem={((a0) => deletePageAction({ data: { pageId: a0 } }))}
+      deleteItems={((a0) => deletePagesAction({ data: { pageIds: a0 } }))}
+      duplicateItem={((a0, a1) => duplicatePageAction({ data: { pageId: a0, newTitle: a1 } }))}
       duplicateTitle={(page) => `${page.title || "Page"} Copy`}
       emptyButtonLabel="Create Your First Page"
       emptyTitle={(pages, filterStatus) =>

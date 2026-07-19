@@ -89,13 +89,13 @@ export default function DirectorySavedPage() {
     }
 
     setLoading(true)
-    const result = await getDirectorySaveFoldersDashboardAction({
+    const result = await getDirectorySaveFoldersDashboardAction({ data: { input: {
       siteId: currentSite.id,
       page: currentPage,
       pageSize,
       query,
       type: typeFilter
-    })
+    } } })
     setLoading(false)
 
     if (result.error) {
@@ -143,11 +143,11 @@ export default function DirectorySavedPage() {
     if (!currentSite?.id || !folderToRename) return
 
     setSavingRename(true)
-    const result = await renameDirectorySaveCollectionDashboardAction({
+    const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
       collectionId: folderToRename.id,
       name: renameValue
-    })
+    } } })
     setSavingRename(false)
 
     if (result.error) {
@@ -163,11 +163,11 @@ export default function DirectorySavedPage() {
     if (!currentSite?.id) return
 
     setSavingDefaults(true)
-    const result = await updateDirectorySaveDefaultCollectionsAction({
+    const result = await updateDirectorySaveDefaultCollectionsAction({ data: { input: {
       siteId: currentSite.id,
       savedLabel,
       wantToGoLabel
-    })
+    } } })
     setSavingDefaults(false)
 
     if (result.error) {
@@ -190,10 +190,10 @@ export default function DirectorySavedPage() {
     if (!currentSite?.id || removeIds.length === 0) return
 
     setRemoving(true)
-    const result = await removeDirectorySaveCollectionsDashboardAction({
+    const result = await removeDirectorySaveCollectionsDashboardAction({ data: { input: {
       siteId: currentSite.id,
       collectionIds: removeIds
-    })
+    } } })
     setRemoving(false)
 
     if (result.error) {

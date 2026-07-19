@@ -47,7 +47,7 @@ function toDirectorySummary(directory: Directory): DirectorySummary {
 }
 
 async function duplicateDirectorySummaryAction(directoryId: string, title: string) {
-  const { data, error } = await duplicateDirectoryAction(directoryId, title)
+  const { data, error } = await duplicateDirectoryAction({ data: { directoryId: directoryId, newTitle: title } })
   return { data: data ? toDirectorySummary(data) : null, error }
 }
 
@@ -74,7 +74,7 @@ function DirectorySettingsBridge({
         return
       }
 
-      const { data, error: loadError } = await getDirectoryByIdAction(item.id)
+      const { data, error: loadError } = await getDirectoryByIdAction({ data: { directoryId: item.id } })
       if (cancelled) return
 
       if (loadError || !data) {
@@ -123,14 +123,14 @@ export default function DirectoriesPage() {
       builderQueryParam="directory"
       createButtonLabel="Add Listing"
       deletionImpactTarget="listing"
-      deleteItem={deleteDirectoryAction}
-      deleteItems={deleteDirectoriesAction}
+      deleteItem={((a0) => deleteDirectoryAction({ data: { directoryId: a0 } }))}
+      deleteItems={((a0) => deleteDirectoriesAction({ data: { directoryIds: a0 } }))}
       destructiveAction="delete-listing"
       duplicateItem={duplicateDirectorySummaryAction}
       duplicateTitle={(directory) => `${directory.title || "Listing"} Copy`}
       emptyButtonLabel="Add Your First Listing"
       emptyTitle={() => "No listings found for the current filters."}
-      getCursorItems={getDirectoryCursorListAction}
+      getCursorItems={((a0) => getDirectoryCursorListAction({ data: { params: a0 } }))}
       getIsPublished={(directory) => directory.status === "published"}
       icon={FolderOpen}
       itemLabel="Listing"

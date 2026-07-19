@@ -71,7 +71,7 @@ export function AutomationEmailSettingsModal({
     const bodyBlockKey = bodyBlockEntry?.[0] || `automation-body-${step.id}`
     const bodyBlock = (bodyBlockEntry?.[1] || {}) as any
 
-    const { data, error: updateError } = await updateStep(step.id, {
+    const { data, error: updateError } = await updateStep({ data: { stepId: step.id, updates: {
       subject: subject.trim(),
       content_blocks: {
         ...contentBlocks,
@@ -90,7 +90,7 @@ export function AutomationEmailSettingsModal({
         ...(step.node_config || {}),
         drip_config: drip.buildConfig(),
       },
-    })
+    } } })
 
     setSaving(false)
 
