@@ -5,6 +5,16 @@
 // so map mode fetches up to this many listings and surfaces a note when more exist.
 export const DIRECTORY_MAP_LISTING_LIMIT = 100
 
+/**
+ * A listing-views block renders a map only for directory content in map mode.
+ * Shared so the block, the page prefetch, and the map-key prefetch agree.
+ */
+export function isDirectoryMapBlock(content: unknown): boolean {
+  if (!content || typeof content !== 'object') return false
+  const { displayMode, contentType } = content as Record<string, unknown>
+  return displayMode === 'map' && contentType === 'directory'
+}
+
 const CORE_BLOCK_TYPE = 'directory-core'
 const GOOGLE_MAP_BLOCK_TYPE = 'directory-google-map'
 

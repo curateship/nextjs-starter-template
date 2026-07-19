@@ -1,17 +1,8 @@
 'use client'
 
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import dynamic from '@/lib/dynamic'
-
-const DefaultTestimonialRenderer = dynamic(
-  () => import('./DefaultTestimonialRenderer').then(m => m.DefaultTestimonialRenderer),
-  { ssr: false }
-)
-
-const VerticalScrollTestimonialRenderer = dynamic(
-  () => import('./VerticalScrollTestimonialRenderer').then(m => m.VerticalScrollTestimonialRenderer),
-  { ssr: false }
-)
+import { DefaultTestimonialRenderer } from './DefaultTestimonialRenderer'
+import { VerticalScrollTestimonialRenderer } from './VerticalScrollTestimonialRenderer'
 
 interface TestimonialItem {
   id: string

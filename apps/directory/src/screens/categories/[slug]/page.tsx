@@ -7,6 +7,8 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE, mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
 import { getCategoryChildrenAction, type CategoryChildItem } from "@/lib/actions/categories/category-children-actions"
 import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
+import { getDirectoryMapConfigAction } from "@/lib/actions/directories/directory-map-actions"
+import { isDirectoryMapBlock } from "@/lib/actions/directories/directory-map-core"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "@/lib/navigation-server"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -72,6 +74,23 @@ async function prefetchCategoryListingData(
   }
 
   return listingData
+}
+
+/**
+ * Same reason as the pages renderer: without the key up front a map-mode
+ * Listings block renders an empty shell and swaps in its content after a client
+ * round trip. Undefined when this category page has no map block.
+ */
+async function prefetchCategoryMapApiKey(
+  blocks: Array<{ type: string; content: Record<string, any> }>,
+  siteId: string
+): Promise<string | null | undefined> {
+  const hasMapBlock = blocks.some(
+    (block) => block.type === CATEGORY_LISTINGS_BLOCK_TYPE && isDirectoryMapBlock(block.content)
+  )
+  if (!hasMapBlock) return undefined
+
+  return (await getDirectoryMapConfigAction(siteId)).apiKey
 }
 
 async function prefetchCategoryChildrenData(
@@ -202,8 +221,9 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     blocks
   } as any
   // Listing data, child category data, and breadcrumbs are independent — fetch in parallel
-  const [listingData, childrenData, breadcrumbs] = await Promise.all([
+  const [listingData, mapApiKey, childrenData, breadcrumbs] = await Promise.all([
     prefetchCategoryListingData(blocks, site.id, category.id, listingPage),
+    prefetchCategoryMapApiKey(blocks, site.id),
     prefetchCategoryChildrenData(blocks, site.id, category.id),
     shouldShowFrontendBreadcrumbs(site.settings, 'categories')
       ? getCategoryBreadcrumbItems({
@@ -221,6 +241,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         category={categoryWithBlocks}
         breadcrumbs={breadcrumbs}
         listingData={listingData}
+        mapApiKey={mapApiKey}
         childrenData={childrenData}
       />
     </>
