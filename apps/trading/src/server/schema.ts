@@ -24,6 +24,7 @@ import type {
 } from "@/lib/automations/automation"
 import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import type { ChartPosition } from "@/lib/trading/chart-positions"
 import type { Trendline } from "@/lib/trading/trendlines"
 
 export const customShellUsers = pgTable("users", {
@@ -470,8 +471,12 @@ export const tradingIndicatorSettings = pgTable(
   ]
 )
 
-/** One saved trendline set per user/chart combination. */
-export const tradingChartTrendlines = pgTable(
+/**
+ * Everything a user has drawn on one market's chart — trendlines and
+ * long/short position drawings — in a single row. The table keeps its original
+ * name from when trendlines were the only drawing.
+ */
+export const tradingChartDrawings = pgTable(
   "chart_trendlines",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
@@ -483,6 +488,10 @@ export const tradingChartTrendlines = pgTable(
       length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
     }).notNull(),
     trendlines: jsonb("trendlines").$type<Trendline[]>().notNull(),
+    positions: jsonb("positions")
+      .$type<ChartPosition[]>()
+      .notNull()
+      .default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

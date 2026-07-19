@@ -15,16 +15,6 @@ export type PixelPoint = { x: number; y: number }
 
 export const DEFAULT_TRENDLINE_COLOR = "#2962ff"
 
-export function cacheTrendlines(
-  current: ReadonlyMap<string, Trendline[]>,
-  key: string,
-  trendlines: Trendline[]
-): Map<string, Trendline[]> {
-  const next = new Map(current)
-  next.set(key, trendlines)
-  return next
-}
-
 export function distanceToSegment(
   point: PixelPoint,
   start: PixelPoint,

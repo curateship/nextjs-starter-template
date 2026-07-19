@@ -431,10 +431,10 @@ export function TradingWorkspace({
     if (paperWalletId) setTimeout(() => void refreshPaper(), 800)
     else setTimeout(refreshAccount, 800)
   }, [paperWalletId, refreshPaper, refreshAccount])
-  const handleTrendlinePersistenceError = React.useCallback(
+  const handleDrawingPersistenceError = React.useCallback(
     (action: "load" | "save") =>
       notify(
-        `${action === "load" ? "Loading" : "Saving"} chart trendlines failed.`,
+        `${action === "load" ? "Loading" : "Saving"} chart drawings failed.`,
         "error"
       ),
     [notify]
@@ -726,8 +726,8 @@ export function TradingWorkspace({
                       onLineCancel={handleLineCancel}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
-                      onTrendlinePersistenceError={
-                        handleTrendlinePersistenceError
+                      onDrawingPersistenceError={
+                        handleDrawingPersistenceError
                       }
                     />
                   </div>

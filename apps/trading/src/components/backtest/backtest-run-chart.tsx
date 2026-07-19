@@ -9,7 +9,7 @@ import {
 } from "@/components/chart/price-chart"
 import { CHART_DOWN_COLOR, CHART_UP_COLOR } from "@/components/chart/chart-markers"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
-import { useChartTrendlines } from "@/components/chart/use-chart-trendlines"
+import { useChartDrawings } from "@/components/chart/use-chart-drawings"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { configOverlays } from "@/components/chart/indicator-overlays"
 import { Button } from "@/components/ui/button"
@@ -234,11 +234,7 @@ export function BacktestRunChart({
   })
   // Drawings are saved per market, so a line drawn here is the same line the
   // live chart shows for this market.
-  const {
-    trendlines,
-    onTrendlinesChange,
-    onTrendlinesCommit,
-  } = useChartTrendlines({
+  const { drawings, onDrawingsChange, onDrawingsCommit } = useChartDrawings({
     network: run.network as TradingNetwork,
     market: run.market,
   })
@@ -771,9 +767,9 @@ export function BacktestRunChart({
           // Reset View gives instead.
           focusPoints={focusPoints}
           focusResult={focusResult}
-          trendlines={trendlines}
-          onTrendlinesChange={onTrendlinesChange}
-          onTrendlinesCommit={onTrendlinesCommit}
+          drawings={drawings}
+          onDrawingsChange={onDrawingsChange}
+          onDrawingsCommit={onDrawingsCommit}
           onVisibleRangeChange={handleVisibleRange}
           onLineDragEnd={handleLineDragEnd}
         />
