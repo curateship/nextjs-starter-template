@@ -1,4 +1,3 @@
-"use server"
 
 import { eq, and, asc, sql, or } from 'drizzle-orm'
 import { unstable_cache } from '@/lib/cache'

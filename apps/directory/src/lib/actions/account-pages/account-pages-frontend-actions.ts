@@ -1,4 +1,3 @@
-'use server'
 
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
