@@ -27,7 +27,6 @@ import {
   type ChartMarker,
 } from "@/components/chart/chart-markers"
 import {
-  cacheTrendlines,
   DEFAULT_TRENDLINE_COLOR,
   distanceToSegment,
   moveTrendlinePoint,
@@ -44,10 +43,7 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover"
 import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
-import {
-  loadChartTrendlines,
-  saveChartTrendlines,
-} from "@/lib/api/chart-trendlines"
+import { useChartTrendlines } from "@/components/chart/use-chart-trendlines"
 import { INDICATORS } from "@/lib/indicators/registry"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
@@ -2302,55 +2298,15 @@ export function PriceChart({
   const HISTORY_CHUNK = 800
   const HISTORY_CAP = 6_000
   const dataKey = `${network}:${coin}:${interval}`
-  const trendlineKey = `${network}:${coin}`
-  const [savedTrendlinesByChart, setSavedTrendlinesByChart] = React.useState(
-    () => new Map<string, Trendline[]>()
-  )
-  const dirtyTrendlineKeysRef = React.useRef(new Set<string>())
-  const trendlineSaveQueueRef = React.useRef<Promise<void>>(Promise.resolve())
-  React.useEffect(() => {
-    let cancelled = false
-    void loadChartTrendlines({ network, market: coin })
-      .then((trendlines) => {
-        if (!cancelled && !dirtyTrendlineKeysRef.current.has(trendlineKey)) {
-          setSavedTrendlinesByChart((current) =>
-            cacheTrendlines(current, trendlineKey, trendlines)
-          )
-        }
-      })
-      .catch(() => {
-        if (!cancelled) onTrendlinePersistenceError?.("load")
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [trendlineKey, network, coin, onTrendlinePersistenceError])
-  const visibleTrendlines =
-    savedTrendlinesByChart.get(trendlineKey) ?? EMPTY_TRENDLINES
-  const handleTrendlinesChange = React.useCallback(
-    (trendlines: Trendline[]) => {
-      dirtyTrendlineKeysRef.current.add(trendlineKey)
-      setSavedTrendlinesByChart((current) =>
-        cacheTrendlines(current, trendlineKey, trendlines)
-      )
-    },
-    [trendlineKey]
-  )
-  const handleTrendlinesCommit = React.useCallback(
-    (trendlines: Trendline[]) => {
-      const input = { network, market: coin, trendlines }
-      trendlineSaveQueueRef.current = trendlineSaveQueueRef.current.then(
-        async () => {
-          try {
-            await saveChartTrendlines(input)
-          } catch {
-            onTrendlinePersistenceError?.("save")
-          }
-        }
-      )
-    },
-    [network, coin, onTrendlinePersistenceError]
-  )
+  const {
+    trendlines: visibleTrendlines,
+    onTrendlinesChange: handleTrendlinesChange,
+    onTrendlinesCommit: handleTrendlinesCommit,
+  } = useChartTrendlines({
+    network,
+    market: coin,
+    onPersistenceError: onTrendlinePersistenceError,
+  })
   const [history, setHistory] = React.useState<{
     key: string
     candles: ChartCandle[]

@@ -2,7 +2,6 @@ import * as React from "react"
 
 import {
   PriceChartView,
-  type ChartCandle,
   type ChartFocusPoint,
   type ChartFocusResult,
   type ChartOverlayLine,
@@ -10,6 +9,9 @@ import {
 } from "@/components/chart/price-chart"
 import { CHART_DOWN_COLOR, CHART_UP_COLOR } from "@/components/chart/chart-markers"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
+import { TrendlineToolButton } from "@/components/chart/trendline-tool-button"
+import { useChartTrendlines } from "@/components/chart/use-chart-trendlines"
+import type { TradingNetwork } from "@/lib/hl/network"
 import { configOverlays } from "@/components/chart/indicator-overlays"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -231,7 +233,17 @@ export function BacktestRunChart({
   React.useEffect(() => {
     chartStateRef.current = chartState
   })
-  const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
+  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
+  // Drawings are saved per market, so a line drawn here is the same line the
+  // live chart shows for this market.
+  const {
+    trendlines,
+    onTrendlinesChange,
+    onTrendlinesCommit,
+  } = useChartTrendlines({
+    network: run.network as TradingNetwork,
+    market: run.market,
+  })
 
   // Replay: null = live end (no clipping). Scrubbing backwards forces a chart
   // data reset (the series only grows gracefully), tracked by a nonce.
@@ -707,7 +719,6 @@ export function BacktestRunChart({
     onLastCloseChange?.(lastClose)
   }, [lastClose, onLastCloseChange])
 
-  const readout = ohlc ?? lastVisible
 
   const playheadLabel =
     cutoff === null
@@ -735,14 +746,19 @@ export function BacktestRunChart({
         onIntervalChange={() => {}}
         legend={{ chips: true }}
         legendLines={labeledOverlayLines}
-        ohlc={readout}
         leading={toolbarLeading}
         afterIntervals={
-          <RunPaintMenu
-            groups={paintGroups}
-            hidden={hiddenSet}
-            onToggle={togglePaintGroup}
-          />
+          <>
+            <RunPaintMenu
+              groups={paintGroups}
+              hidden={hiddenSet}
+              onToggle={togglePaintGroup}
+            />
+            <TrendlineToolButton
+              active={trendlineDrawing}
+              onToggle={() => setTrendlineDrawing((active) => !active)}
+            />
+          </>
         }
       >
         {toolbarActions}
@@ -763,7 +779,11 @@ export function BacktestRunChart({
           // Reset View gives instead.
           focusPoints={focusPoints}
           focusResult={focusResult}
-          onCrosshairOhlc={setOhlc}
+          trendlineDrawing={trendlineDrawing}
+          onTrendlineDrawingChange={setTrendlineDrawing}
+          trendlines={trendlines}
+          onTrendlinesChange={onTrendlinesChange}
+          onTrendlinesCommit={onTrendlinesCommit}
           onVisibleRangeChange={handleVisibleRange}
           onLineDragEnd={handleLineDragEnd}
         />

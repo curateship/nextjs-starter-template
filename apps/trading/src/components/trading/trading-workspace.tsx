@@ -72,11 +72,6 @@ import {
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   cancelOrder,
   getOrderErrorMessage,
   modifyOrder,
@@ -112,6 +107,8 @@ import {
   type MarketRow,
 } from "@/lib/hl/hooks"
 import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
+import { TrendlineToolButton } from "@/components/chart/trendline-tool-button"
+import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import { saveIndicator } from "@/lib/api/indicators"
@@ -134,8 +131,6 @@ const BOTTOM_TABS_LIST =
   "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
 const BOTTOM_TAB_TRIGGER =
   "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
-const MARKET_FAVORITES_KEY = "trading-favorite-markets"
-const EMPTY_MARKET_FAVORITES: string[] = []
 const ALERT_POLL_MS = 10_000
 
 type AlertEditorState = {
@@ -721,46 +716,12 @@ export function TradingWorkspace({
                       />
                     }
                   >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant={trendlineDrawing ? "secondary" : "ghost"}
-                          size="icon-sm"
-                          className="text-muted-foreground aria-pressed:text-foreground"
-                          aria-label="Trendline"
-                          aria-pressed={trendlineDrawing}
-                          onClick={() =>
-                            setTrendlineDrawing((active) => !active)
-                          }
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <line
-                              x1="5"
-                              y1="18"
-                              x2="19"
-                              y2="6"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.75"
-                            />
-                            <circle
-                              cx="5"
-                              cy="18"
-                              r="1.75"
-                              fill="currentColor"
-                            />
-                            <circle
-                              cx="19"
-                              cy="6"
-                              r="1.75"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Trendline</TooltipContent>
-                    </Tooltip>
+                    <TrendlineToolButton
+                      active={trendlineDrawing}
+                      onToggle={() =>
+                        setTrendlineDrawing((active) => !active)
+                      }
+                    />
                   </ChartToolbar>
                   <div className="min-h-0 flex-1">
                     <PriceChart
@@ -1234,25 +1195,6 @@ function usePersistedPanels() {
       ...(JSON.parse(raw) as Partial<PanelVisibility>),
     })
   )
-}
-
-function useMarketFavorites() {
-  const [list, setList] = usePersistedState<string[]>(
-    MARKET_FAVORITES_KEY,
-    EMPTY_MARKET_FAVORITES
-  )
-  const favorites = React.useMemo(() => new Set(list), [list])
-  const toggleFavorite = React.useCallback(
-    (coin: string) => {
-      setList((current) =>
-        current.includes(coin)
-          ? current.filter((item) => item !== coin)
-          : [...current, coin]
-      )
-    },
-    [setList]
-  )
-  return { favorites, toggleFavorite }
 }
 
 /** Selected-market summary shown on the left of the account bar. */
