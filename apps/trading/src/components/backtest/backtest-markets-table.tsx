@@ -26,6 +26,8 @@ export type BacktestMarketRow = {
   maxDrawdownPct: number | null
   winRate: number | null
   tradeCount: number | null
+  /** Live-bot tables flag markets currently holding a position with a dot. */
+  activePosition?: boolean
 }
 
 export type MarketSort = "market" | "net" | "dd" | "win" | "trades"
@@ -232,7 +234,15 @@ export function BacktestMarketsTable({
                   </TableCell>
                 ) : null}
                 <TableCell column="meta" className="w-full">
-                  <span className="font-medium">{row.market}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    {row.market}
+                    {row.activePosition ? (
+                      <span
+                        className="size-1.5 rounded-full bg-emerald-500"
+                        title="Open position"
+                      />
+                    ) : null}
+                  </span>
                 </TableCell>
                 <TableCell
                   column="meta"

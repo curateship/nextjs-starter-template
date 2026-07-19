@@ -6,12 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
 import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
-import {
-  createUserBot,
-  getBotDetail,
-  sendBotCommand,
-  updateUserBot,
-} from "@/server/bots"
+import { createUserBot, getBotDetail, sendBotCommand } from "@/server/bots"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   customShellUsers,
@@ -282,17 +277,18 @@ describe("Automation bot creation", () => {
     ).rejects.toThrow("Automation is incomplete")
   })
 
-  it("requires an Automation and limits bots to one market", async () => {
+  it("requires a saved Automation and runs one runner per market", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
 
-    await expect(
-      createUserBot(userId, {
-        ...botInput(walletId, automationId),
-        markets: ["BTC", "ETH"],
-      })
-    ).rejects.toThrow("one market")
+    // A non-QFL Automation runs one independent runner per market — many
+    // markets are allowed, not capped to one.
+    const bot = await createUserBot(userId, {
+      ...botInput(walletId, automationId),
+      markets: ["BTC", "ETH"],
+    })
+    expect(bot.markets).toEqual(["BTC", "ETH"])
 
     await expect(
       createUserBot(userId, {
@@ -303,30 +299,7 @@ describe("Automation bot creation", () => {
   })
 })
 
-describe("Automation bot updates and commands", () => {
-  it("updates protection without accepting replacement rules", async () => {
-    const userId = await createUser()
-    const walletId = await createWallet(userId)
-    const automationId = await createAutomation(userId)
-    const bot = await createUserBot(userId, botInput(walletId, automationId))
-    const untrusted: AutomationConfig = {
-      ...AUTOMATION_CONFIG,
-      protection: { long: { takeProfitPct: 3 } },
-      rules: [{ ...AUTOMATION_CONFIG.rules[0], targetEquityPct: 90 }],
-    }
-
-    const updated = await updateUserBot(userId, bot.id, {
-      name: bot.name,
-      markets: ["BTC"],
-      params: untrusted,
-    })
-
-    expect(updated.params).toEqual({
-      ...AUTOMATION_CONFIG,
-      protection: { long: { takeProfitPct: 3 } },
-    })
-  })
-
+describe("Automation bot commands", () => {
   it("allows an Automation bot to start", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)

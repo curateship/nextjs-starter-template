@@ -1,5 +1,49 @@
 # Bots
 
+## The run model — a bot is the automation running live
+
+A bot is not a separate thing with its own settings. It is a **live run of an
+automation**: the only choices it owns are the markets it runs on, the wallet,
+and paper/live mode. Its strategy config is the automation's server-compiled
+canvas, and it stays linked — saving the canvas pushes the fresh compiled
+config to the automation's non-stopped bots and enqueues `update_params`
+(`syncAutomationBots` in `src/server/bots.ts`, called from
+`saveUserAutomation`; a save that doesn't change the compiled config is a
+no-op). Stopped runs keep their snapshot — they are history.
+
+**Where you run it:** the automation editor's third tab. The Canvas ·
+Backtest · **Bot** switcher swaps the editor in place; Bot mode shows a
+market selector (markets + wallet + mode + paper equity) for a new run, then
+the live dashboard: summary rail (left), live chart (center, lifecycle
+Pause/Resume/Flatten controls in the chart toolbar), per-market results table
+(right), and the StrategyTester trades panel (bottom). State machine:
+`src/components/automations/use-automation-bot.ts`; setup/results panel:
+`automation-bot-side-panel.tsx`. Deploying is gated by the editor's save
+gate, exactly like running a backtest.
+
+**Run lifecycle (same save-override as backtests):** a deploy auto-names the
+run `Previous run · {automation} · {markets}` and the **next deploy replaces
+it** — the prior unnamed run is flattened, stopped, and deleted
+(`deployAutomationBot` → `retireReplaceableAutomationBots`; a still-winding-
+down run is deleted by a later deploy, never out from under its runners).
+Typing a name into "Name this run to keep it" (`renameUserBot`) makes it a
+keeper; keepers are never auto-replaced, and "Deploy a new run" then starts
+the next one alongside.
+
+**SL/TP editing:** dragging the TP/SL lines on the live chart rewrites the
+matching canvas node (same math as backtest tune-drags), marks the graph
+dirty, and Save pushes it to the bot. There is no bot settings dialog and no
+separate order form — the canvas is the config.
+
+**Standalone surfaces:** `/bots` is the run history (one row per run, like
+`/backtest`); clicking a run opens `/bots/$botId`, the same four-panel
+dashboard as a pure history-record viewer (`bot-workspace.tsx`) — the same
+header anatomy as `/backtest/$groupId` (back · breadcrumbs · markets badge ·
+panel toggles), with lifecycle Pause/Flatten in the chart toolbar since a
+kept run still trades. It carries **no** Canvas/Backtest/Bot switcher —
+strategy editing happens only on the automation's canvas. There is no fleet
+page, create-bot dialog, or edit-bot sheet anymore.
+
 ## Command feedback (honest buttons)
 
 Bot commands are queued for the worker, and the UI never pretends they
@@ -13,22 +57,10 @@ already happened:
   seconds falls back to the real status (the command likely failed or the
   worker is off). The server only pre-writes `starting` for start/resume;
   pause/flatten/stop leave `status` alone until the worker really did it.
-- **One toast per command.** When the poll shows the status actually
-  converged, a single success toast fires ("Bot paused."); if the bot lands
-  in `error`/`killed` or nothing happens for 30 seconds, an error toast
-  fires instead. Tracking lives in
-  `src/components/bots/use-bot-command-toasts.ts` — a settled command is
-  removed immediately, so repeated polls can never re-toast. Global
-  Pause all / Flatten all watch every bot that was running when sent and
-  toast once when all of them left `running`. Flatten confirms the send
-  instead (its position-close isn't visible in the status when the bot is
-  already paused).
 - **Readable failures.** On `error`/`killed`, the `status_reason` shows as
-  plain text next to the badge (fleet rows and the bot header), not just in
-  a hover tooltip.
-- **Worker offline.** The fleet page and the bot detail page share the same
-  offline banner (`worker-offline-banner.tsx`); commands sent while it's
-  offline toast "Worker offline — … queued" and skip convergence tracking.
+  plain text next to the badge; command errors toast directly.
+- **Worker offline.** The run dashboard shows the shared offline banner
+  (`worker-offline-banner.tsx`) while the bot worker's heartbeat is stale.
 
 ## Bot guardian (automatic kill switch)
 
@@ -57,14 +89,11 @@ and can never double-fire (the latch is an atomic `tripped_at is null`
 update).
 
 **After a trip.** Bots stay paused until resumed by hand, and the guardian
-stays off until re-armed from the bots-page banner (or the settings card).
-Re-arming resets the baselines to the next reading, so a loss that already
-happened cannot instantly re-trip it. Saving new limits also restarts the
-watch; it never clears a trip.
+stays off until re-armed (the settings card). Re-arming resets the baselines
+to the next reading, so a loss that already happened cannot instantly
+re-trip it. Saving new limits also restarts the watch; it never clears a
+trip.
 
-While watching, a quiet "Guardian armed" status chip sits in the Bots
-table's toolbar next to the title; after a trip the page shows a red banner
-with the trip reason and a "Re-arm guardian" button.
 Pure evaluation logic lives in `src/lib/trading/guardian.ts` (unit-tested);
 persistence in `src/server/guardian.ts`; the worker loop in
 `worker/src/guardian-monitor.ts`.
@@ -74,22 +103,15 @@ with it — that gap is covered by the worker-down watchdog (see
 `workers.md`), which alerts urgently when the Bot Worker dies with live
 positions open.
 
-## Fleet overview strip
+## Known limits
 
-The bots page (`/bots`) shows a summary strip above the table — one card per mode (live first, then paper; the two are never blended into one number):
-
-- **Bots** — running / paused / total counts. "Starting" counts as running.
-- **P&L today** — realized profit for the current UTC day, summed from each bot's per-market `bot_state.daily_realized_pnl` where `daily_pnl_date` is today (the worker keys that date to UTC).
-- **P&L total** — the same all-time realized P&L shown on each row, summed.
-- **Open positions** — count of open per-market positions.
-- **Exposure (at entry)** — per-coin chips netting long vs short notional. Valued at **entry price** (size × entry), not live marks — the fleet page deliberately loads no market feed. The chip tooltip breaks down long/short and names the bots.
-- **Pile-up warnings** — an amber chip appears when two or more bots in the same mode hold the same coin in the same direction. Clicking it filters the table to those bots; clicking again (or the clear chip) restores the full list.
-
-### Data flow
-
-`listUserBotStates` (`src/server/bots.ts`) returns every `bot_state` row for the user's bots; `botListForUser` (`src/lib/api/bots.ts`) folds them into each `BotListItem` as `positions[]` + `daily_realized_pnl`. The pure aggregation lives in `src/components/bots/fleet-overview.ts` (unit-tested in `fleet-overview.test.ts`); the UI is `fleet-overview-strip.tsx`.
-
-### Known limits
-
-- **Live bots show no exposure.** Only the paper broker persists positions to `bot_state.paper_position`; the live broker reads its position from the exchange and stores null. The live card says so explicitly. If live-position persistence is ever added, the strip picks it up with no changes.
-- Exposure ignores mark-price moves by design (entry valuation). Treat it as "where capital is committed", not current market value.
+- **Live bots show no exposure.** Only the paper broker persists positions to
+  `bot_state.paper_position`; the live broker reads its position from the
+  exchange and stores null. If live-position persistence is ever added, the
+  dashboards pick it up with no changes.
+- The run dashboard's equity curve and per-market drawdown derive from
+  realized round-trip P&L (the bot stores no equity history), so intratrip
+  drawdown is invisible.
+- Replacing an unnamed run flattens its position via the worker's normal
+  command path — with the worker offline, the retire commands queue like any
+  other command.

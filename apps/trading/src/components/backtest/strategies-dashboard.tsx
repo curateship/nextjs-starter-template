@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
   Area,
   AreaChart,
@@ -89,6 +89,7 @@ import type {
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { usePanelLayout } from "@/lib/use-panel-layout"
 import { cn } from "@/lib/utils"
 
 import {
@@ -125,40 +126,6 @@ const BACKTEST_PROGRESS_BATCH_SIZE = 100
  * layout loads so it applies cleanly, and the `loaded` guard avoids saving the
  * pre-load default over it.
  */
-function usePanelLayout(key: string) {
-  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
-  const [loaded, setLoaded] = React.useState(false)
-
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem(key)
-      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
-    } catch {
-      setDefaultLayout(undefined)
-    } finally {
-      setLoaded(true)
-    }
-  }, [key])
-
-  const onLayoutChanged = React.useCallback(
-    (layout: Layout) => {
-      if (!loaded) return
-      try {
-        localStorage.setItem(key, JSON.stringify(layout))
-      } catch {
-        // Storage blocked — resizing still works for this session.
-      }
-    },
-    [key, loaded]
-  )
-
-  return {
-    defaultLayout,
-    onLayoutChanged,
-    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
-  }
-}
-
 /** Keeps only changing run fields live; the full route refreshes once at completion. */
 function useLiveBacktestRuns(
   initial: BacktestListItem[],
