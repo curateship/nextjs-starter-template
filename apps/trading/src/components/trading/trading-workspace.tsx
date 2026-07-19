@@ -22,6 +22,10 @@ import {
   type ChartMenuState,
 } from "@/components/trading/chart-order-menu"
 import {
+  ChartQuickOrder,
+  type QuickOrderState,
+} from "@/components/trading/chart-quick-order"
+import {
   MarketPicker,
   MarketWatchlist,
 } from "@/components/trading/market-watchlist"
@@ -174,6 +178,9 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  const [quickOrder, setQuickOrder] = React.useState<QuickOrderState | null>(
+    null
+  )
   const [alertEditor, setAlertEditor] = React.useState<AlertEditorState | null>(
     null
   )
@@ -897,12 +904,9 @@ export function TradingWorkspace({
             confirmationEnabled={orderConfirmation}
             limitPx={chartMenu?.px}
             onNotify={notify}
-            onLimitPrefill={(side, px) => {
-              setPrefill({ px, side })
+            onQuickOrder={(side, px) => {
+              if (chartMenu) setQuickOrder({ side, px, x: chartMenu.x, y: chartMenu.y })
               setChartMenu(null)
-              toast.success(
-                `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`
-              )
             }}
             onComplete={() => setChartMenu(null)}
           />
@@ -911,6 +915,24 @@ export function TradingWorkspace({
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
+      {quickOrder ? (
+        <ChartQuickOrder
+          quick={quickOrder}
+          market={market}
+          marketRow={marketRow}
+          markPx={markPx}
+          equity={equity}
+          positionSzi={positionSzi}
+          walletId={
+            selectedWallet?.is_active ? (selectedWallet?.id ?? null) : null
+          }
+          paperWalletId={paperWalletId}
+          disabledReason={ticketDisabledReason}
+          confirmationEnabled={orderConfirmation}
+          onNotify={notify}
+          onClose={() => setQuickOrder(null)}
+        />
+      ) : null}
       {alertEditor ? (
         <AlertDialog
           key={

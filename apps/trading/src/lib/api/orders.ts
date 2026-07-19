@@ -17,6 +17,8 @@ const placeOrderSchema = z.object({
   reduceOnly: z.boolean(),
   tif: z.enum(["Gtc", "Ioc", "Alo"]),
   leverage: z.number().min(1).max(100),
+  stopLossPx: decimalString.optional(),
+  takeProfitPx: decimalString.optional(),
 })
 
 const cancelOrderSchema = z.object({

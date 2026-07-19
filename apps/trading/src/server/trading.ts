@@ -59,6 +59,10 @@ export type ManualOrderInput = {
   tif: "Gtc" | "Ioc" | "Alo"
   /** Leverage currently applied for this market (for risk checks). */
   leverage: number
+  /** Optional protective stop-loss trigger price. */
+  stopLossPx?: string
+  /** Optional protective take-profit trigger price. */
+  takeProfitPx?: string
 }
 
 export type ManualOrderResult = {
@@ -177,21 +181,76 @@ export async function submitManualOrder(
     throw new Error(reason)
   }
 
-  const status = await placeOrder(
+  const entry = {
+    assetId: asset.assetId,
+    coin: input.market,
+    isBuy: input.side === "buy",
+    px,
+    sz,
+    reduceOnly: input.reduceOnly,
+    tif:
+      input.orderType === "market"
+        ? ("FrontendMarket" as const)
+        : input.tif,
+    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+  }
+
+  const stopLossPx = input.stopLossPx
+    ? roundPrice(input.stopLossPx, asset.szDecimals)
+    : null
+  const takeProfitPx = input.takeProfitPx
+    ? roundPrice(input.takeProfitPx, asset.szDecimals)
+    : null
+
+  if (!stopLossPx && !takeProfitPx) {
+    const status = await placeOrder(
+      wallet,
+      { actor: "user", userId },
+      entry,
+      database
+    )
+    return { status, px, sz }
+  }
+
+  const status = await placeBracketOrder(
     wallet,
     { actor: "user", userId },
     {
-      assetId: asset.assetId,
-      coin: input.market,
-      isBuy: input.side === "buy",
-      px,
-      sz,
-      reduceOnly: input.reduceOnly,
-      tif: input.orderType === "market" ? "FrontendMarket" : input.tif,
-      cloid: buildCloid(MANUAL_CLOID_PREFIX),
+      entry,
+      ...(takeProfitPx
+        ? {
+            takeProfit: {
+              triggerPx: takeProfitPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+      ...(stopLossPx
+        ? {
+            stopLoss: {
+              triggerPx: stopLossPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
     },
     database
-  )
+  ).catch((error: unknown) => {
+    if (!(error instanceof BracketOrderError)) {
+      throw error
+    }
+    if (error.entryStatus === "accepted") {
+      throw new Error(
+        "Entry order was accepted, but its stop-loss or take-profit was rejected. Check positions and open orders before retrying."
+      )
+    }
+    if (error.entryStatus === "rejected") {
+      throw new Error("Entry order was rejected. No position was opened.")
+    }
+    throw new Error(
+      "Order status could not be confirmed. Check positions and open orders before retrying."
+    )
+  })
 
   return { status, px, sz }
 }

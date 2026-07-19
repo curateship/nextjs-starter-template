@@ -207,12 +207,12 @@ export function OneClickPanel({
 
 export function OneClickMenuActions({
   limitPx,
-  onLimitPrefill,
+  onQuickOrder,
   onComplete,
   ...options
 }: OneClickOrderOptions & {
   limitPx?: string
-  onLimitPrefill: (side: "buy" | "sell", px: string) => void
+  onQuickOrder: (side: "buy" | "sell", px: string) => void
   onComplete: () => void
 }) {
   const { selected, reason, busy, submit } = useOneClickOrder({
@@ -277,7 +277,7 @@ export function OneClickMenuActions({
             variant="ghost"
             size="sm"
             className="justify-start text-emerald-600 hover:text-emerald-700"
-            onClick={() => onLimitPrefill("buy", limitPx)}
+            onClick={() => onQuickOrder("buy", limitPx)}
           >
             Buy limit
           </Button>
@@ -286,7 +286,7 @@ export function OneClickMenuActions({
             variant="ghost"
             size="sm"
             className="justify-start text-red-500 hover:text-red-600"
-            onClick={() => onLimitPrefill("sell", limitPx)}
+            onClick={() => onQuickOrder("sell", limitPx)}
           >
             Sell limit
           </Button>

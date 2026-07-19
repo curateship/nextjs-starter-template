@@ -35,9 +35,9 @@ import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
 import type { MarketRow } from "@/lib/hl/hooks"
 import { cn } from "@/lib/utils"
 
-type SizeUnit = "usd" | "coin" | "pct"
+export type SizeUnit = "usd" | "coin" | "pct"
 
-type TicketState = {
+export type TicketState = {
   side: "buy" | "sell"
   orderType: "market" | "limit"
   px: string
@@ -558,7 +558,7 @@ function SegmentButton({
   )
 }
 
-function formatUsd(value: number): string {
+export function formatUsd(value: number): string {
   return value.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
@@ -566,7 +566,7 @@ function formatUsd(value: number): string {
   })
 }
 
-function ConfirmOrderDialog({
+export function ConfirmOrderDialog({
   open,
   busy,
   market,
@@ -576,6 +576,8 @@ function ConfirmOrderDialog({
   notionalUsd,
   estLiquidationPx,
   positionSzi,
+  stopLossPx,
+  takeProfitPx,
   onOpenChange,
   onConfirm,
 }: {
@@ -588,6 +590,8 @@ function ConfirmOrderDialog({
   notionalUsd: number
   estLiquidationPx: number | null
   positionSzi: number
+  stopLossPx?: string | null
+  takeProfitPx?: string | null
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }) {
@@ -632,6 +636,12 @@ function ConfirmOrderDialog({
             label="Leverage"
             value={`${state.leverage}x ${state.isCross ? "cross" : "isolated"}`}
           />
+          {stopLossPx ? (
+            <SummaryRow label="Stop loss" value={stopLossPx} />
+          ) : null}
+          {takeProfitPx ? (
+            <SummaryRow label="Take profit" value={takeProfitPx} />
+          ) : null}
           <SummaryRow
             label="Est. liq. price"
             value={estLiquidationPx ? estLiquidationPx.toFixed(2) : "—"}
@@ -698,7 +708,7 @@ function SummaryRow({
   )
 }
 
-function resolveSizeCoin(
+export function resolveSizeCoin(
   state: TicketState,
   executionPx: number,
   equity: number
