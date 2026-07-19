@@ -46,11 +46,23 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // jsdom (via isomorphic-dompurify) loads data files such as
+  // browser/default-stylesheet.css relative to its own __dirname. Bundling it
+  // rewrites that path and the read fails at build time under pnpm's layout.
+  // Keeping it external makes it a plain runtime require from node_modules.
+  serverExternalPackages: ['isomorphic-dompurify', 'jsdom'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
   outputFileTracingIncludes: {
+    // @napi-rs/canvas is a native transitive dependency of pdf-parse. Next's
+    // tracer misses the .node binary, so it is included explicitly.
+    // A glob that matches nothing is NOT an error, so both layouts are listed:
+    // the flat pair is npm's hoisted layout (still used by the root Dockerfile),
+    // the .pnpm pair is pnpm's. Drop the flat pair once Docker moves to pnpm.
     '/*': [
       '../../node_modules/@napi-rs/canvas/**/*',
       '../../node_modules/@napi-rs/canvas-*/**/*',
+      '../../node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs/canvas/**/*',
+      '../../node_modules/.pnpm/@napi-rs+canvas-*/node_modules/@napi-rs/canvas-*/**/*',
     ],
   },
   experimental: {

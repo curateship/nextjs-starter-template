@@ -9,32 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
-import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminDatasourceRouteImport } from './routes/_authenticated/admin/datasource'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminMediaUnusedRouteImport } from './routes/_authenticated/admin/media/unused'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
-import { Route as AuthenticatedAdminDatasourceSettingsRouteImport } from './routes/_authenticated/admin/datasource/settings'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminDatasourceGoogleMapsRouteImport } from './routes/_authenticated/admin/datasource/google-maps'
+import { Route as AuthenticatedAdminDatasourceSettingsRouteImport } from './routes/_authenticated/admin/datasource/settings'
+import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminMediaUnusedRouteImport } from './routes/_authenticated/admin/media/unused'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport } from './routes/_authenticated/admin/datasource/google-maps/runs/$runId'
 
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -52,10 +52,27 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
+const AuthenticatedAdminDatasourceRoute =
+  AuthenticatedAdminDatasourceRouteImport.update({
+    id: '/admin/datasource',
+    path: '/admin/datasource',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/admin/feedback',
+    path: '/admin/feedback',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/admin/media',
+  path: '/admin/media',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminProxiesRoute =
@@ -64,46 +81,17 @@ const AuthenticatedAdminProxiesRoute =
     path: '/admin/proxies',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAdminFeedbackRoute =
-  AuthenticatedAdminFeedbackRouteImport.update({
-    id: '/admin/feedback',
-    path: '/admin/feedback',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminDatasourceRoute =
-  AuthenticatedAdminDatasourceRouteImport.update({
-    id: '/admin/datasource',
-    path: '/admin/datasource',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
-  } as any)
-const AuthenticatedAdminMediaUnusedRoute =
-  AuthenticatedAdminMediaUnusedRouteImport.update({
-    id: '/unused',
-    path: '/unused',
-    getParentRoute: () => AuthenticatedAdminMediaRoute,
-  } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+const AuthenticatedAdminDatasourceGoogleMapsRoute =
+  AuthenticatedAdminDatasourceGoogleMapsRouteImport.update({
+    id: '/google-maps',
+    path: '/google-maps',
+    getParentRoute: () => AuthenticatedAdminDatasourceRoute,
   } as any)
 const AuthenticatedAdminDatasourceSettingsRoute =
   AuthenticatedAdminDatasourceSettingsRouteImport.update({
@@ -111,11 +99,23 @@ const AuthenticatedAdminDatasourceSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminDatasourceRoute,
   } as any)
-const AuthenticatedAdminDatasourceGoogleMapsRoute =
-  AuthenticatedAdminDatasourceGoogleMapsRouteImport.update({
-    id: '/google-maps',
-    path: '/google-maps',
-    getParentRoute: () => AuthenticatedAdminDatasourceRoute,
+const AuthenticatedAdminFeedbackCommentsRoute =
+  AuthenticatedAdminFeedbackCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
+    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+  } as any)
+const AuthenticatedAdminMediaUnusedRoute =
+  AuthenticatedAdminMediaUnusedRouteImport.update({
+    id: '/unused',
+    path: '/unused',
+    getParentRoute: () => AuthenticatedAdminMediaRoute,
+  } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
@@ -257,18 +257,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -292,32 +292,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/proxies': {
-      id: '/_authenticated/admin/proxies'
-      path: '/admin/proxies'
-      fullPath: '/admin/proxies'
-      preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/media': {
-      id: '/_authenticated/admin/media'
-      path: '/admin/media'
-      fullPath: '/admin/media'
-      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+    '/_authenticated/admin/datasource': {
+      id: '/_authenticated/admin/datasource'
+      path: '/admin/datasource'
+      fullPath: '/admin/datasource'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/feedback': {
@@ -327,33 +306,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/datasource': {
-      id: '/_authenticated/admin/datasource'
-      path: '/admin/datasource'
-      fullPath: '/admin/datasource'
-      preLoaderRoute: typeof AuthenticatedAdminDatasourceRouteImport
+    '/_authenticated/admin/media': {
+      id: '/_authenticated/admin/media'
+      path: '/admin/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/media/unused': {
-      id: '/_authenticated/admin/media/unused'
-      path: '/unused'
-      fullPath: '/admin/media/unused'
-      preLoaderRoute: typeof AuthenticatedAdminMediaUnusedRouteImport
-      parentRoute: typeof AuthenticatedAdminMediaRoute
+    '/_authenticated/admin/proxies': {
+      id: '/_authenticated/admin/proxies'
+      path: '/admin/proxies'
+      fullPath: '/admin/proxies'
+      preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/datasource/google-maps': {
+      id: '/_authenticated/admin/datasource/google-maps'
+      path: '/google-maps'
+      fullPath: '/admin/datasource/google-maps'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRouteImport
+      parentRoute: typeof AuthenticatedAdminDatasourceRoute
     }
     '/_authenticated/admin/datasource/settings': {
       id: '/_authenticated/admin/datasource/settings'
@@ -362,12 +348,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminDatasourceSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminDatasourceRoute
     }
-    '/_authenticated/admin/datasource/google-maps': {
-      id: '/_authenticated/admin/datasource/google-maps'
-      path: '/google-maps'
-      fullPath: '/admin/datasource/google-maps'
-      preLoaderRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRouteImport
-      parentRoute: typeof AuthenticatedAdminDatasourceRoute
+    '/_authenticated/admin/feedback/comments': {
+      id: '/_authenticated/admin/feedback/comments'
+      path: '/comments'
+      fullPath: '/admin/feedback/comments'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
+      parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    }
+    '/_authenticated/admin/media/unused': {
+      id: '/_authenticated/admin/media/unused'
+      path: '/unused'
+      fullPath: '/admin/media/unused'
+      preLoaderRoute: typeof AuthenticatedAdminMediaUnusedRouteImport
+      parentRoute: typeof AuthenticatedAdminMediaRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'

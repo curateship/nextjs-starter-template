@@ -1,0 +1,22 @@
+# The single source of truth for workspace membership and install settings.
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/*"
+
+# pnpm blocks dependency install scripts by default. These five need theirs to
+# produce a working install (native builds / platform binary downloads), and all
+# of them already ran under npm, so this preserves existing behaviour rather
+# than granting anything new.
+allowBuilds:
+  '@sentry/cli': true      # downloads the sentry-cli binary
+  argon2: true             # native password hashing addon
+  esbuild: true            # downloads the platform esbuild binary
+  sharp: true              # native image-processing addon
+  unrs-resolver: true      # native resolver used by eslint import plugin
+
+overrides:
+  esbuild: "^0.28.1"
+  tsx: "^4.22.4"
+  vite: "^8.0.16"
+  postcss: "8.5.12"

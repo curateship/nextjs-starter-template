@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
-  DashboardToolbarButton,
+  DashboardSelectedActionButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
@@ -243,7 +243,7 @@ export function NotificationsPage({
         controls={
           <>
             {selectedIds.size ? (
-              <DashboardToolbarButton
+              <DashboardSelectedActionButton
                 type="button"
                 variant="destructive"
                 disabled={deleting || loadingMore}
@@ -255,9 +255,9 @@ export function NotificationsPage({
                   <Trash2Icon className="size-4" />
                 )}
                 Delete ({selectedIds.size})
-              </DashboardToolbarButton>
+              </DashboardSelectedActionButton>
             ) : null}
-            <DashboardToolbarButton
+            <DashboardSelectedActionButton
               type="button"
               variant="destructive"
               disabled={
@@ -267,7 +267,7 @@ export function NotificationsPage({
             >
               <Trash2Icon className="size-4" />
               Clear all
-            </DashboardToolbarButton>
+            </DashboardSelectedActionButton>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}

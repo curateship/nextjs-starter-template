@@ -52,12 +52,15 @@ export function serverStartCommand(workspace: WorkspaceInfo, port: number) {
   const origins = `http://127.0.0.1:${port},http://localhost:${port}`
   const originEnv = `CORE_APP_ORIGINS="${origins}" CUSTOM_SHELL_APP_ORIGINS="${origins}"`
 
+  // No `--` before the script args: npm strips it, pnpm forwards it literally,
+  // so `pnpm run dev -- --port N` reaches Vite as ["--", "--port", "N"] and the
+  // port is silently ignored.
   if (workspace.isStandalone) {
-    return `test -d node_modules || npm install\n${originEnv} npm run dev -- --port ${port}\n`
+    return `test -d node_modules || pnpm install\n${originEnv} pnpm run dev --port ${port}\n`
   }
 
   const workspaceName =
     workspacePackageNames[workspace.appName as keyof typeof workspacePackageNames] ??
     workspace.appName
-  return `test -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && ${originEnv} npm run dev --workspace="${workspaceName}" -- --port ${port}\n`
+  return `test -d ../../node_modules || (cd ../.. && pnpm install)\ncd ../.. && ${originEnv} pnpm --filter "${workspaceName}" dev --port ${port}\n`
 }
