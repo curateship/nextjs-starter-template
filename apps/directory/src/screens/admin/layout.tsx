@@ -1,10 +1,7 @@
-import { redirect } from "@/lib/navigation-server"
-import { auth } from "@/lib/actions/auth/server"
-import { headers } from "@/lib/request-headers"
 import { AdminClientShell } from "./admin-client-shell"
+import { requireAdminAccess } from "./require-admin"
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
-import { getCurrentUserSiteId, getDefaultAccountPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 import { DEFAULT_ADMIN_SIDEBAR_WIDTH } from "@/lib/utils/admin-sidebar-width"
 import { normalizeStyling } from "@/lib/utils/admin-styling"
 
@@ -13,23 +10,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
-
-  if (!session?.user) {
-    redirect('/login?redirect=/admin')
-  }
-
-  const role = (session.user as any).role || 'end_user'
-  if (role !== 'super_admin') {
-    const { siteId } = await getCurrentUserSiteId()
-    if (siteId) {
-      const { path } = await getDefaultAccountPagePath(siteId)
-      if (path) {
-        redirect(path)
-      }
-    }
-    redirect('/')
-  }
+  const session = await requireAdminAccess()
 
   // Parallel fetch: admin settings + sites
   const [adminSettings, sitesResult] = await Promise.all([
