@@ -1,6 +1,7 @@
 {
   "name": "system-everything",
   "private": true,
+  "workspaces": ["apps/*", "packages/*", "services/*"],
   "scripts": {
     "dev": "turbo dev",
     "dev:custom-shell": "pnpm run dev:custom-shell-ui",
