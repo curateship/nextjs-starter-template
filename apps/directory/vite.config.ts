@@ -31,6 +31,32 @@ const tslibEsm = require.resolve("tslib/tslib.es6.mjs")
 
 // https://vite.dev/config/
 export default defineConfig({
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          output: {
+            advancedChunks: {
+              groups: [
+                // Icons are imported one file per icon across ~770 call sites,
+                // so without this each one becomes its own preloaded request —
+                // hundreds of bytes of SVG path per round trip. Safe to group
+                // only because the public bundle no longer references lucide's
+                // whole-library dynamic map; when it did, this swept in ~1,500
+                // unused icons. React itself is deliberately left ungrouped:
+                // chunking it broke module init order and crashed every page.
+                {
+                  name: "icons",
+                  test: /node_modules\/lucide-react\//,
+                  priority: 50,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   define: {
     "import.meta.env.VITE_DIRECTORY_ORIGIN": JSON.stringify(directoryOrigin),
   },

@@ -1,7 +1,3 @@
-import { lazy, Suspense } from "react"
-import {
-  dynamicIconImports,
-} from "lucide-react/dynamic"
 import type { LucideIcon } from "lucide-react"
 import ArrowRight from "lucide-react/dist/esm/icons/arrow-right.js"
 import ArrowUpRight from "lucide-react/dist/esm/icons/arrow-up-right.js"
@@ -65,6 +61,7 @@ import Wallet from "lucide-react/dist/esm/icons/wallet.js"
 import WandSparkles from "lucide-react/dist/esm/icons/wand-sparkles.js"
 import Workflow from "lucide-react/dist/esm/icons/workflow.js"
 import Wrench from "lucide-react/dist/esm/icons/wrench.js"
+import Ellipsis from "lucide-react/dist/esm/icons/ellipsis.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
 
 const QUICK_LINK_ICONS = {
@@ -132,6 +129,7 @@ const QUICK_LINK_ICONS = {
   phone: Phone,
   link: Link2,
   wrench: Wrench,
+  dots: Ellipsis,
 } as const
 
 export type QuickLinkIconName = keyof typeof QUICK_LINK_ICONS
@@ -208,16 +206,10 @@ export const QUICK_LINK_ICON_OPTIONS: QuickLinkIconOption[] = [
   { value: "phone", label: "Phone", keywords: ["call", "contact"] },
   { value: "link", label: "Link" },
   { value: "wrench", label: "Tools", keywords: ["settings", "repair"] },
+  { value: "dots", label: "More", keywords: ["ellipsis", "menu", "dots"] },
 ]
 
 const DEFAULT_ICON: QuickLinkIconName = "imagePlus"
-const dynamicLucideIconNames = new Set<string>(Object.keys(dynamicIconImports))
-type DynamicLucideIconName = keyof typeof dynamicIconImports
-const dynamicLucideIconComponentCache = new Map<
-  DynamicLucideIconName,
-  ReturnType<typeof lazy<LucideIcon>>
->()
-
 export function getQuickLinkIcon(icon?: string): LucideIcon {
   if (typeof icon === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, icon)) {
     return QUICK_LINK_ICONS[icon as QuickLinkIconName]
@@ -235,10 +227,7 @@ function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
 }
 
 export function getQuickLinkIconLabel(icon?: string): string {
-  const staticLabel = QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label
-  if (staticLabel) return staticLabel
-  const dynamicIconName = getDynamicLucideIconName(icon)
-  return dynamicIconName ? getDynamicLucideIconLabel(dynamicIconName) : "No icon"
+  return QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label ?? "No icon"
 }
 
 function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
@@ -246,67 +235,30 @@ function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
 }
 
 export function isQuickLinkIconValue(value: unknown): value is QuickLinkIconValue {
-  return (
-    isQuickLinkIconName(value) ||
-    isDynamicLucideIconName(value)
-  )
+  return isQuickLinkIconName(value)
 }
 
-export function normalizeDynamicLucideIconName(
-  value: string
-): DynamicLucideIconName | undefined {
+/**
+ * Accepts a hand-typed icon name and returns the curated name it matches, or
+ * undefined. Normalisation mirrors what lucide does with its own names, so
+ * "ArrowRight", "arrow_right" and "arrow-right" all land on the same entry.
+ */
+export function normalizeQuickLinkIconName(value: string): QuickLinkIconName | undefined {
   const cleaned = value
     .trim()
     .replace(/^https?:\/\/lucide\.dev\/icons\//i, "")
     .replace(/[?#].*$/, "")
     .replace(/Icon$/, "")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
+    .replace(/[\s_-]+/g, "")
     .toLowerCase()
 
-  return dynamicLucideIconNames.has(cleaned)
-    ? (cleaned as DynamicLucideIconName)
-    : undefined
-}
-
-function isDynamicLucideIconName(value: unknown): value is DynamicLucideIconName {
-  return typeof value === "string" && dynamicLucideIconNames.has(value)
-}
-
-function getDynamicLucideIconName(value?: string) {
-  if (!value) return undefined
-  return normalizeDynamicLucideIconName(value)
-}
-
-function getDynamicLucideIconLabel(value: string) {
-  return value
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-}
-
-function getDynamicLucideIconComponent(name: DynamicLucideIconName) {
-  const cached = dynamicLucideIconComponentCache.get(name)
-  if (cached) return cached
-
-  const Icon = lazy(dynamicIconImports[name])
-  dynamicLucideIconComponentCache.set(name, Icon)
-  return Icon
+  return (Object.keys(QUICK_LINK_ICONS) as QuickLinkIconName[]).find(
+    name => name.toLowerCase() === cleaned
+  )
 }
 
 export function renderQuickLinkIcon(icon: QuickLinkIconValue | undefined, className = "h-4 w-4") {
   const Icon = getQuickLinkIconOrNull(icon)
   if (Icon) return <Icon className={className} />
-  const dynamicIconName = getDynamicLucideIconName(icon)
-  if (dynamicIconName) {
-    const LucideIconComponent = getDynamicLucideIconComponent(dynamicIconName)
-    return (
-      <Suspense fallback={<ImagePlus className={className} />}>
-        <LucideIconComponent className={className} />
-      </Suspense>
-    )
-  }
   return null
 }

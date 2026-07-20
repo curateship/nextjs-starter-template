@@ -17,7 +17,7 @@ import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
   getQuickLinkIconLabel,
-  normalizeDynamicLucideIconName,
+  normalizeQuickLinkIconName,
   renderQuickLinkIcon,
   type QuickLinkIconValue
 } from "@/lib/utils/site-quick-links"
@@ -54,10 +54,10 @@ export function ShellIconPickerField({
   const normalizedQuery = query.trim().toLowerCase()
   const showDefaultOption = allowEmpty && (!normalizedQuery || "default icon".includes(normalizedQuery))
   const currentLabel = value ? getQuickLinkIconLabel(value) : "No icon"
-  const customLucideIcon = normalizeDynamicLucideIconName(customIconName)
+  const customLucideIcon = normalizeQuickLinkIconName(customIconName)
   const customIconError =
     customIconName.trim() && !customLucideIcon
-      ? "No Lucide icon found with that name."
+      ? "No icon found with that name."
       : null
 
   const filteredOptions = useMemo(() => {
