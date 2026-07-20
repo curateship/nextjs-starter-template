@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "@/lib/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Copy from "lucide-react/dist/esm/icons/copy.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
@@ -31,11 +32,22 @@ import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/direc
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
-import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
-import { DirectoryGoogleMapBlock } from "@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock"
-import { DirectoryOpeningHoursBlock } from "@/components/admin/directory-builder/blocks/opening-hours/DirectoryOpeningHoursBlock"
-import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
+// The listing editor blocks are only rendered once an owner opens their listing
+// for editing, but importing them statically put the whole directory-builder —
+// TipTap, the media picker, the icon picker, roughly 400 KB — into the chunk
+// graph of every public page. Loading them on demand is safe here because this
+// file is already a client component; doing the same from a server component
+// breaks the RSC client boundary.
+const DirectoryCoreBlock = dynamic(() =>
+  import("@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock").then(m => m.DirectoryCoreBlock))
+const DirectoryCustomBlock = dynamic(() =>
+  import("@/components/admin/directory-builder/blocks/DirectoryCustomBlock").then(m => m.DirectoryCustomBlock))
+const DirectoryGoogleMapBlock = dynamic(() =>
+  import("@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock").then(m => m.DirectoryGoogleMapBlock))
+const DirectoryOpeningHoursBlock = dynamic(() =>
+  import("@/components/admin/directory-builder/blocks/opening-hours/DirectoryOpeningHoursBlock").then(m => m.DirectoryOpeningHoursBlock))
+const DirectoryRichTextEditorBlock = dynamic(() =>
+  import("@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock").then(m => m.DirectoryRichTextEditorBlock))
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

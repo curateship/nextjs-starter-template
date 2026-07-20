@@ -1,5 +1,4 @@
 import { type ReactNode } from "react"
-import dynamic from "@/lib/dynamic"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -9,15 +8,13 @@ import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlo
 import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlockClient"
 import { AccountCoreBlock } from "@/components/frontend/account/core/AccountCoreBlock"
 import { AccountEditProfileBlock } from "@/components/frontend/account/edit-profile/AccountEditProfileBlock"
-// Loaded on demand, not up front. This block lets an owner edit their listing
-// inline, so it pulls in the TipTap editor and the directory-builder blocks —
-// roughly 400 KB that every public page was downloading even though the block
-// only renders for a signed-in owner on an account page.
-const AccountClaimedListingsBlock = dynamic(() =>
-  import("@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock").then(
-    m => m.AccountClaimedListingsBlock
-  )
-)
+// Imported statically on purpose. This is a server component, so a "use client"
+// module must be referenced directly for the RSC build to create a client
+// boundary for it. Wrapping it in dynamic() (a client-only helper) resolves it
+// in the server environment instead, where React has no forwardRef, and every
+// Radix component inside it throws. The editor weight is split out inside the
+// block itself, which is already a client component.
+import { AccountClaimedListingsBlock } from "@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock"
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"
