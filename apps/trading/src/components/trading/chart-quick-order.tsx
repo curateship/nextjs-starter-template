@@ -448,11 +448,6 @@ export function ChartQuickOrder({
                     />
                     <span className="text-[11px] text-muted-foreground">%</span>
                   </div>
-                  {stopLossPx ? (
-                    <span className="text-[10px] text-muted-foreground">
-                      ≈ {formatPriceDisplay(stopLossPx)}
-                    </span>
-                  ) : null}
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-[11px] text-muted-foreground">
@@ -469,11 +464,6 @@ export function ChartQuickOrder({
                     />
                     <span className="text-[11px] text-muted-foreground">%</span>
                   </div>
-                  {takeProfitPx ? (
-                    <span className="text-[10px] text-muted-foreground">
-                      ≈ {formatPriceDisplay(takeProfitPx)}
-                    </span>
-                  ) : null}
                 </div>
               </div>
               {!slValid || !tpValid ? (
