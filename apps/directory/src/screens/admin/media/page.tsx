@@ -37,6 +37,7 @@ import {
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "@/components/app-image"
 import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
+import { resizeImageForUpload } from "@/lib/utils/image-resize"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -214,7 +215,9 @@ export default function ImagesPage() {
 
     try {
       const formData = new FormData()
-      formData.append("file", file)
+      // Shrunk before upload so visitors are not served the original camera- or
+      // export-sized file. Falls back to the original if it cannot be resized.
+      formData.append("file", await resizeImageForUpload(file))
       formData.append("siteId", currentSite.id)
 
       const response = await fetch("/api/media/upload", {

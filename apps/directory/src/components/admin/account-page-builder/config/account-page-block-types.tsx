@@ -16,7 +16,6 @@ export const ACCOUNT_PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       savedTitle: 'Saved Listings',
       emptyText: 'No saved listings yet.',
       imageFit: 'crop',
-      imageQuality: 25,
       saveIconOpacity: 70,
       displayMode: 'grid',
       mobileColumns: 1,

@@ -40,7 +40,6 @@ export function AccountCoreBlock({
   // Defaults mirror the frontend AccountCoreBlock destructure defaults
   const imageFit = (content.imageFit ?? 'crop') as ImageFit
   const imageHeight = content.imageHeight as number | undefined
-  const imageQuality = content.imageQuality ?? 25
   const saveIconOpacity = content.saveIconOpacity ?? 70
   const displayMode = (content.displayMode ?? 'grid') as 'grid' | 'list'
   const columns = content.columns ?? 3
@@ -133,21 +132,6 @@ export function AccountCoreBlock({
                             onContentChange('imageHeight', value > 0 ? value : undefined)
                           }}
                           placeholder="Default"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="imageQuality">Image Quality</Label>
-                        <Input
-                          id="imageQuality"
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={imageQuality ?? ''}
-                          onChange={(event) => {
-                            const value = Number(event.target.value)
-                            onContentChange('imageQuality', value > 0 ? Math.min(100, value) : undefined)
-                          }}
-                          placeholder="25"
                         />
                       </div>
                     </div>

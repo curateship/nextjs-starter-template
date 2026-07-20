@@ -38,7 +38,6 @@ const CATEGORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
     'mobileColumns',
     'imageFit',
     'imageHeight',
-    'imageQuality',
     'visibility',
   ],
   [CATEGORY_LISTINGS_BLOCK_TYPE]: [
@@ -50,7 +49,6 @@ const CATEGORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
     'listingStyle',
     'imageFit',
     'imageHeight',
-    'imageQuality',
     'saveIconOpacity',
     'categoryChipParentIds',
     'displayMode',

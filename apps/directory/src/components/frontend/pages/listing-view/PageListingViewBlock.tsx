@@ -55,7 +55,6 @@ interface ListingViewsBlockProps {
     listingStyle?: ListingStyle
     imageFit?: ImageFit
     imageHeight?: number
-    imageQuality?: number
     saveIconOpacity?: number
     categoryChipParentIds?: string[]
     displayMode?: "grid" | "list" | "map"
@@ -113,7 +112,6 @@ export function ListingViewsBlock({
     listingStyle = "default",
     imageFit = "crop",
     imageHeight,
-    imageQuality = 25,
     saveIconOpacity = 70,
     categoryChipParentIds: rawCategoryChipParentIds = [],
     displayMode = "grid",
@@ -286,7 +284,6 @@ export function ListingViewsBlock({
   const desktopImageSize = Number(columns) === 2 ? "50vw" : Number(columns) === 4 ? "25vw" : "33vw"
   const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
-  const resolvedImageQuality = Math.min(100, Math.max(1, Number(imageQuality) || 25))
   const saveIconOpacityNumber = Number(saveIconOpacity)
   const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 70))
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
@@ -377,7 +374,6 @@ export function ListingViewsBlock({
                     fill
                     className={`${imageFitClassName} object-center transition-opacity duration-200 group-hover/card:opacity-75`}
                     sizes={blogImageSizes}
-                    quality={resolvedImageQuality}
                     priority={isLCP}
                   />
                 ) : (
@@ -471,10 +467,12 @@ export function ListingViewsBlock({
                     fill
                     className={imageFitClassName}
                     sizes={displayMode === "list" ? "192px" : gridImageSizes}
-                    quality={resolvedImageQuality}
                     priority={isLCP}
                     loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
-                    fetchPriority={isLCP ? "high" : index < columns ? "high" : "auto"}
+                    // Only the LCP image is high priority. Marking the whole
+                    // first row "high" makes them compete with each other and
+                    // with CSS/JS, which is the opposite of prioritising.
+                    fetchPriority={isLCP ? "high" : "auto"}
                     onError={(e) => {
                       // Hide broken image via opacity (avoids forced reflow from style.display)
                       ;(e.target as HTMLElement).style.opacity = "0"

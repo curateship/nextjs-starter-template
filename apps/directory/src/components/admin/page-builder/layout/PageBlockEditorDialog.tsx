@@ -102,7 +102,6 @@ export function PageBlockEditorDialog({
                     onListingStyleChange={(value) => onContentChange("listingStyle", value)}
                     onImageFitChange={(value) => onContentChange("imageFit", value)}
                     onImageHeightChange={(value) => onContentChange("imageHeight", value)}
-                    onImageQualityChange={(value) => onContentChange("imageQuality", value)}
                     onSaveIconOpacityChange={(value) => onContentChange("saveIconOpacity", value)}
                     onCategoryChipParentIdsChange={(value) => onContentChange("categoryChipParentIds", value)}
                     onDisplayModeChange={(value) => onContentChange("displayMode", value)}

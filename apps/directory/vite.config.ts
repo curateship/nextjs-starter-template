@@ -34,6 +34,56 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_DIRECTORY_ORIGIN": JSON.stringify(directoryOrigin),
   },
+  environments: {
+    // Client only. Server bundles are read off local disk, so splitting them
+    // costs nothing there — this is purely about what the browser downloads.
+    client: {
+      build: {
+        rollupOptions: {
+          output: {
+            // Rolldown's default splitting emitted 220 preloaded chunks for one
+            // public page, 186 of them under 2 KB (median 302 bytes). Each is a
+            // separate request the browser opens before the page settles, which
+            // is the bulk of our Lighthouse Total Blocking Time. Merge the
+            // slivers and keep genuinely shared vendor code in stable groups so
+            // it stays cacheable across deploys.
+            advancedChunks: {
+              minSize: 30_000,
+              // Deliberately NOT minShareCount: 2 — that only groups modules
+              // imported from two or more places, which left every
+              // single-use lucide icon as its own sub-1 KB chunk.
+              groups: [
+                {
+                  name: "react",
+                  test: /node_modules\/(react|react-dom|scheduler)\//,
+                  priority: 100,
+                },
+                {
+                  name: "tanstack",
+                  test: /node_modules\/@tanstack\//,
+                  priority: 90,
+                },
+                {
+                  name: "editor",
+                  test: /node_modules\/(@tiptap|prosemirror-)/,
+                  priority: 80,
+                },
+                // Everything else from node_modules, but size-capped so it
+                // splits into several medium chunks instead of one monolith a
+                // public page would have to download in full.
+                {
+                  name: "vendor",
+                  test: /node_modules\//,
+                  priority: 10,
+                  maxSize: 160_000,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   plugins: [
     tanstackStart({ rsc: { enabled: true } }),
     rsc(),
