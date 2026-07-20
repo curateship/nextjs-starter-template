@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
+import Link from "@/components/app-link"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -250,7 +251,7 @@ export function GuidedFormBlock({ siteId, content = {}, preloadedForm = null, co
             {outcome.description ? <p className="mt-2 text-muted-foreground">{outcome.description}</p> : null}
             {outcome.ctaLabel && outcome.ctaUrl ? (
               <Button asChild className="mt-6">
-                <a href={outcome.ctaUrl}>{outcome.ctaLabel}</a>
+                <Link href={outcome.ctaUrl}>{outcome.ctaLabel}</Link>
               </Button>
             ) : null}
           </div>

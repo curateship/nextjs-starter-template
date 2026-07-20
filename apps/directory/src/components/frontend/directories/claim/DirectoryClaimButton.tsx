@@ -11,6 +11,7 @@ import {
   submitDirectoryClaimAction,
   type DirectoryClaimStatus,
 } from "@/lib/actions/directories/directory-claim-actions"
+import Link from "@/components/app-link"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -146,25 +147,25 @@ export function DirectoryClaimButton({
 
   if (!user) {
     return (
-      <a
+      <Link
         href={authHref}
         className={rowClassName}
       >
         <Building2 className="h-5 w-5 shrink-0" />
         <span className="min-w-0 wrap-break-word text-base leading-snug">{buttonText}</span>
-      </a>
+      </Link>
     )
   }
 
   if (state?.canEdit) {
     return (
-      <a
+      <Link
         href={OWNER_EDIT_PATH}
         className={rowClassName}
       >
         <CheckCircle2 className="h-5 w-5 shrink-0" />
         <span className="min-w-0 wrap-break-word text-base leading-snug">{approvedText}</span>
-      </a>
+      </Link>
     )
   }
 

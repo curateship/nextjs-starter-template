@@ -1,3 +1,4 @@
+import Link from "@/components/app-link"
 import { cn } from "@/lib/utils/tailwind"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
@@ -108,9 +109,9 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
     return (
       <div className="space-y-1.5">
         {field.label && <FieldLabel label={field.label} />}
-        <a href={safeHref} className="text-base font-medium text-primary underline underline-offset-4">
+        <Link href={safeHref} className="text-base font-medium text-primary underline underline-offset-4">
           {safeHref}
-        </a>
+        </Link>
       </div>
     )
   }
@@ -196,9 +197,9 @@ function RepeaterFieldRenderer({ field, value }: { field: DirectoryCustomBlockRe
     return (
       <div className="space-y-1">
         {field.label && <FieldLabel label={field.label} small />}
-        <a href={safeHref} className="text-sm font-medium text-primary underline underline-offset-4">
+        <Link href={safeHref} className="text-sm font-medium text-primary underline underline-offset-4">
           {safeHref}
-        </a>
+        </Link>
       </div>
     )
   }

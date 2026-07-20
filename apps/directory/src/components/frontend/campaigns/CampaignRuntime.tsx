@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react"
 import X from "lucide-react/dist/esm/icons/x.js"
 
+import Link from "@/components/app-link"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -85,7 +86,7 @@ function AnnouncementBars({ campaigns, path }: { campaigns: PublicCampaign[]; pa
         return (
           <div key={campaign.id} className="relative flex min-h-10 items-center justify-center gap-3 bg-foreground px-10 py-2 text-center text-sm text-background">
             <span>{content.text}</span>
-            {content.ctaLabel && content.ctaUrl && <a href={sanitizeUrl(content.ctaUrl, "#")} className="font-semibold underline underline-offset-4">{content.ctaLabel}</a>}
+            {content.ctaLabel && content.ctaUrl && <Link href={sanitizeUrl(content.ctaUrl, "#")} className="font-semibold underline underline-offset-4">{content.ctaLabel}</Link>}
             <button
               type="button"
               className="absolute right-2 inline-flex size-8 items-center justify-center rounded-md hover:bg-background/15 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -195,10 +196,10 @@ function CampaignPopup({ campaign, path }: { campaign: PublicCampaign; path: str
               {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             </form>
           ) : (
-            <Button asChild><a href={sanitizeUrl(content.ctaUrl, "#")} onClick={() => {
+            <Button asChild><Link href={sanitizeUrl(content.ctaUrl, "#")} onClick={() => {
               setCap(campaign, "submitted")
               queueCampaignEvent("campaign_submit", campaign.id, path)
-            }}>{content.ctaLabel}</a></Button>
+            }}>{content.ctaLabel}</Link></Button>
           )}
         </div>
       </DialogContent>
