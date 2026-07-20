@@ -92,6 +92,8 @@ Repo-local agent skills live in `.agents/skills/`.
 
 Use `.agents/` for agent workflows and instructions. Do not put app runtime code there.
 
+**After any browser-facing change, run `.agents/skills/validate-app` before reporting the work as done.** Load the page in a real browser and check the console, not just the HTTP status. A build that succeeds, a passing type check and a `curl` returning 200 all say nothing about whether the page crashes once its JavaScript runs — a server-rendered page can return 200 while hydration throws. Use the browser controller or `playwright` (already installed at the repo root). This does not require starting anything: point it at the server already running on the app's port, or at the deployed URL.
+
 App-specific docs live in each app's `workspace/docs/` folder.
 
 App-specific tasks live in each app's `workspace/tasks/` folder.
