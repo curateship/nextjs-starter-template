@@ -21,6 +21,7 @@ import {
   subscribeL2Book,
   subscribeOpenOrders,
   subscribeTrades,
+  subscribeUserFills,
   type CandleInterval,
 } from "@/lib/hl/ws"
 
@@ -29,6 +30,7 @@ const TAPE_LENGTH = 60
 const EMPTY_CANDLES: CandleWsEvent[] = []
 const EMPTY_TRADES: TapeTrade[] = []
 const EMPTY_MARKET_ROWS: MarketRow[] = []
+const EMPTY_USER_FILLS: UserFill[] = []
 
 export type Candle = CandleWsEvent
 export type TapeTrade = TradesWsEvent[number]
@@ -215,6 +217,61 @@ export function useTrades(network: TradingNetwork, coin: string) {
   )
 
   return state?.key === key ? state.data : EMPTY_TRADES
+}
+
+/** One of the wallet's own executions. */
+export type UserFill = {
+  tid: number
+  coin: string
+  side: "B" | "A"
+  px: string
+  sz: string
+  fee: string
+  closedPnl: string
+  dir: string
+  time: number
+}
+
+/** Most recent executions kept in memory; older ones scroll out of the feed. */
+const USER_FILLS_LENGTH = 100
+
+/**
+ * The wallet's own executions, newest first.
+ *
+ * The websocket subscription is shared by key, so the fills table and the
+ * chart's trade arrows read one stream rather than opening two.
+ */
+export function useUserFills(
+  network: TradingNetwork,
+  address: string | null | undefined
+): UserFill[] {
+  const key = `${network}:${address ?? ""}`
+  const [state, setState] = React.useState<Keyed<UserFill[]> | null>(null)
+
+  React.useEffect(() => {
+    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
+    return subscribeUserFills(network, address as `0x${string}`, (event) => {
+      setState((prev) => {
+        // A snapshot replaces the feed; an incremental update prepends to it.
+        const current =
+          prev?.key === key && !event.isSnapshot ? prev.data : EMPTY_USER_FILLS
+        const seen = new Set<number>()
+        return {
+          key,
+          data: [...event.fills, ...current]
+            .filter((fill) => {
+              if (seen.has(fill.tid)) return false
+              seen.add(fill.tid)
+              return true
+            })
+            .sort((a, b) => b.time - a.time)
+            .slice(0, USER_FILLS_LENGTH),
+        }
+      })
+    })
+  }, [network, address, key])
+
+  return state?.key === key ? state.data : EMPTY_USER_FILLS
 }
 
 /** Account balances + open orders, in the shape the old webData2 feed used. */

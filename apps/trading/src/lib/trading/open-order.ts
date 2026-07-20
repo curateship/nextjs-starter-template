@@ -62,6 +62,46 @@ export function describeOpenOrder(
   }
 }
 
+/**
+ * What a resting stop / target is worth in dollars if it fills.
+ *
+ * The chart label used to show the order's size in coins, which does not
+ * answer the only question that matters when a stop is dragged: how much is
+ * lost if it hits. A closing sell realizes the move up from the entry; a
+ * closing buy (covering a short) realizes the move down.
+ *
+ * Returns null when the entry price is unknown — with no entry there is no
+ * profit or loss to state, and a guess would be worse than saying nothing.
+ */
+export function triggerPnlUsd({
+  triggerPx,
+  entryPx,
+  sz,
+  side,
+}: {
+  triggerPx: number
+  /** Average entry price of the position being closed. */
+  entryPx: number | null
+  /** Order size, in coins. */
+  sz: number
+  /** "B" = buy (covers a short), "A" = sell (closes a long). */
+  side: "B" | "A"
+}): number | null {
+  if (entryPx === null) return null
+  if (
+    !Number.isFinite(triggerPx) ||
+    !Number.isFinite(entryPx) ||
+    !Number.isFinite(sz) ||
+    entryPx <= 0 ||
+    triggerPx <= 0 ||
+    sz <= 0
+  ) {
+    return null
+  }
+  const move = side === "A" ? triggerPx - entryPx : entryPx - triggerPx
+  return move * sz
+}
+
 function describeTriggerType(orderType: FrontendOpenOrder["orderType"]): {
   isMarket: boolean
   tpsl: "sl" | "tp"

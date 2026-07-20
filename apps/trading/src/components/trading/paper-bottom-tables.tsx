@@ -83,9 +83,7 @@ export function PaperPositionsTable({
 
   return (
     <>
-      <StickyTable
-        headers={["Market", "Size", "Entry", "Mark", "uPnL", "Actions"]}
-      >
+      <StickyTable headers={["Market", "Size", "uPnL", "Actions"]}>
         {positions.map((position) => {
           const szi = Number(position.szi)
           return (
@@ -98,13 +96,13 @@ export function PaperPositionsTable({
               }
             >
               <TableCell className="font-medium">{position.coin}</TableCell>
+              {/* Dollars, matching the live positions table. */}
               <MonoCell
                 className={szi > 0 ? "text-emerald-600" : "text-red-500"}
               >
-                {position.szi}
+                {szi < 0 ? "-" : ""}$
+                {Math.abs(szi * Number(position.mark_px)).toFixed(2)}
               </MonoCell>
-              <MonoCell>{formatPriceDisplay(position.entry_px)}</MonoCell>
-              <MonoCell>{formatPriceDisplay(position.mark_px)}</MonoCell>
               <MonoCell
                 className={
                   position.unrealized_pnl >= 0

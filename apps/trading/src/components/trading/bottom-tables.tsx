@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { AccountSnapshot } from "@/lib/hl/hooks"
+import { useUserFills, type AccountSnapshot } from "@/lib/hl/hooks"
 import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
@@ -34,7 +34,6 @@ import {
   setPositionTpsl,
 } from "@/lib/api/orders"
 import { resolveTakeProfitPrice } from "@/lib/one-click-order"
-import { subscribeUserFills } from "@/lib/hl/ws"
 import type { TradingNetwork } from "@/lib/hl/network"
 import {
   liquidationDistanceClass,
@@ -220,9 +219,6 @@ export function PositionsTable({
         headers={[
           "Market",
           "Size",
-          "Entry",
-          "Mark",
-          "Liq. price",
           "Liq. distance",
           "uPnL (ROE)",
           "Margin",
@@ -256,15 +252,11 @@ export function PositionsTable({
                   {position.leverage.value}x {position.leverage.type}
                 </span>
               </TableCell>
+              {/* Dollars, not coins: the exchange's own notional, signed so a
+                  short still reads as negative alongside the color. */}
               <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
-                {position.szi}
-              </MonoCell>
-              <MonoCell>{formatPriceDisplay(position.entryPx ?? "0")}</MonoCell>
-              <MonoCell>{formatPriceDisplay(mids[position.coin] ?? "0")}</MonoCell>
-              <MonoCell>
-                {position.liquidationPx
-                  ? formatPriceDisplay(position.liquidationPx)
-                  : "—"}
+                {szi < 0 ? "-" : ""}$
+                {Math.abs(Number(position.positionValue)).toFixed(2)}
               </MonoCell>
               <MonoCell className={liquidationDistanceClass(liqDistance)}>
                 {liqDistance === null ? "—" : `${liqDistance.toFixed(1)}%`}
@@ -642,18 +634,6 @@ export function OpenOrdersTable({
   )
 }
 
-type FillRow = {
-  tid: number
-  coin: string
-  side: "B" | "A"
-  px: string
-  sz: string
-  fee: string
-  closedPnl: string
-  dir: string
-  time: number
-}
-
 export function FillsTable({
   network,
   address,
@@ -661,36 +641,7 @@ export function FillsTable({
   network: TradingNetwork
   address: string | null
 }) {
-  const key = `${network}:${address ?? ""}`
-  const [state, setState] = React.useState<{
-    key: string
-    fills: FillRow[]
-  } | null>(null)
-
-  React.useEffect(() => {
-    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
-    return subscribeUserFills(network, address as `0x${string}`, (event) => {
-      setState((prev) => {
-        const current =
-          prev?.key === key && !event.isSnapshot ? prev.fills : []
-        const merged = [...event.fills, ...current]
-        const seen = new Set<number>()
-        return {
-          key,
-          fills: merged
-            .filter((fill) => {
-              if (seen.has(fill.tid)) return false
-              seen.add(fill.tid)
-              return true
-            })
-            .sort((a, b) => b.time - a.time)
-            .slice(0, 100),
-        }
-      })
-    })
-  }, [network, address, key])
-
-  const fills = state?.key === key ? state.fills : []
+  const fills = useUserFills(network, address)
 
   if (!address) {
     return <EmptyState text="Select a wallet to see fills." />

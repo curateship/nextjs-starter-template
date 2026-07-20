@@ -42,6 +42,7 @@ import {
 } from "@/components/trading/paper-bottom-tables"
 import {
   PriceChart,
+  type ChartMarker,
   type ChartPriceLine,
   type PriceChartHandle,
 } from "@/components/chart/price-chart"
@@ -103,6 +104,7 @@ import {
 import {
   useMarketRows,
   useAccountSnapshot,
+  useUserFills,
   type AccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
@@ -120,6 +122,7 @@ import { cn } from "@/lib/utils"
 import {
   cancelOpenOrders,
   describeOpenOrder,
+  triggerPnlUsd,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
 
@@ -338,6 +341,39 @@ export function TradingWorkspace({
     ? Number(paperPosition?.szi ?? 0)
     : Number(sandboxPosition?.szi ?? 0)
 
+  // Executions on this market, drawn on the chart as arrows: green pointing up
+  // where you bought (long), red pointing down where you sold (short).
+  const liveFills = useUserFills(tradingNetwork, isPaper ? null : accountAddress)
+  const chartMarkers = React.useMemo<ChartMarker[]>(() => {
+    const raw: ChartMarker[] = isPaper
+      ? (paperAccount?.fills ?? [])
+          .filter((fill) => fill.coin === market)
+          .map((fill) => ({
+            time: Date.parse(fill.fill_time),
+            side: fill.side === "buy" ? ("buy" as const) : ("sell" as const),
+            price: Number(fill.px),
+          }))
+      : liveFills
+          .filter((fill) => fill.coin === market)
+          .map((fill) => ({
+            time: fill.time,
+            side: fill.side === "B" ? ("buy" as const) : ("sell" as const),
+            price: Number(fill.px),
+          }))
+
+    // One order can fill in several pieces at the same instant. The chart keys
+    // its arrows on time and side, so those pieces would collide on one id —
+    // and stacking identical arrows says nothing anyway. Keep the first.
+    const seen = new Set<string>()
+    return raw.filter((marker) => {
+      if (!Number.isFinite(marker.time) || !(marker.price > 0)) return false
+      const key = `${marker.time}:${marker.side}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [isPaper, paperAccount?.fills, liveFills, market])
+
   const priceLines = React.useMemo<ChartPriceLine[]>(() => {
     const lines: ChartPriceLine[] = chartAlerts.flatMap((alert) =>
       alert.kind === "price_level"
@@ -396,14 +432,42 @@ export function TradingWorkspace({
         })
       }
     }
+    const positionEntryPx = sandboxPosition?.entryPx
+      ? Number(sandboxPosition.entryPx)
+      : null
     for (const order of account?.openOrders ?? []) {
       if (order.coin !== market) continue
       const description = describeOpenOrder(order)
+      const isStop = description.label === "Stop Loss"
+      const isTarget = description.label === "Take Profit"
+      // A stop is what it costs and a target is what it pays, whichever way
+      // the position faces — so colour by meaning, not by buy/sell.
+      const color = isStop
+        ? "#f23645"
+        : isTarget
+          ? "#089981"
+          : order.side === "B"
+            ? "#089981"
+            : "#f23645"
+      const pnl =
+        isStop || isTarget
+          ? triggerPnlUsd({
+              triggerPx: Number(description.price),
+              entryPx: positionEntryPx,
+              sz: Number(order.sz),
+              side: order.side,
+            })
+          : null
       lines.push({
         id: `order-${order.oid}`,
         price: Number(description.price),
-        color: order.side === "B" ? "#089981" : "#f23645",
-        title: `${description.label} ${order.sz}`,
+        color,
+        // Dollars answer "what happens if this hits"; the coin size does not.
+        // With no position to close there is no answer, so show none.
+        title:
+          pnl === null
+            ? `${description.label} ${order.sz}`
+            : `${description.label} ${pnl >= 0 ? "+" : "-"}$${Math.abs(pnl).toFixed(2)}`,
         draggable: true,
       })
     }
@@ -724,6 +788,7 @@ export function TradingWorkspace({
                       coin={market}
                       interval={interval}
                       priceLines={priceLines}
+                      markers={chartMarkers}
                       indicators={pinnedIndicators}
                       onLineDragEnd={handleLineDragEnd}
                       onLineClick={handleLineClick}
@@ -854,7 +919,6 @@ export function TradingWorkspace({
 
       <ChartOrderMenu
         menu={chartMenu}
-        market={market}
         oneClickActions={
           <OneClickMenuActions
             walletId={

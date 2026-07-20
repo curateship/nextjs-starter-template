@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
 import { Button } from "@/components/ui/button"
 
 export type ChartMenuState = {
@@ -17,14 +16,12 @@ export type ChartMenuState = {
  */
 export function ChartOrderMenu({
   menu,
-  market,
   oneClickActions,
   onAddAlert,
   onResetView,
   onClose,
 }: {
   menu: ChartMenuState | null
-  market: string
   oneClickActions: React.ReactNode
   onAddAlert: (price: number) => void
   onResetView: () => void
@@ -72,9 +69,6 @@ export function ChartOrderMenu({
           Reset View
         </Button>
         <div className="my-1 border-t" />
-        <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
-          {market} @ {formatPriceDisplay(menu.px)}
-        </div>
         <Button
           type="button"
           variant="ghost"
