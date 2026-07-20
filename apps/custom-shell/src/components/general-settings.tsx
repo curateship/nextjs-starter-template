@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -81,7 +82,12 @@ export function GeneralSettings({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="admin-route">Home route</Label>
+            <FieldLabel
+              htmlFor="admin-route"
+              hint="Where the home page and /admin open, for example /admin/media. Empty opens Settings. It has to be a real route — an unknown path will 404."
+            >
+              Home route
+            </FieldLabel>
             <Input
               id="admin-route"
               value={config.adminRoute}
@@ -94,11 +100,6 @@ export function GeneralSettings({
               }
               placeholder="Leave empty for Settings"
             />
-            <p className="text-xs text-muted-foreground">
-              Where the home page (<code>/</code>) and <code>/admin</code> open
-              (e.g. <code>/admin/media</code>). Empty opens Settings. Must be a
-              real route — an unknown path will 404.
-            </p>
           </div>
 
           <div className="grid gap-2">

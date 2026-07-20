@@ -19,7 +19,6 @@ import {
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -447,7 +446,6 @@ export function NotificationsPage({
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
-        description="This permanently removes the selected notification history."
         confirmLabel="Delete"
         deleting={deleting}
         onConfirm={() => void deleteSelected()}
@@ -456,7 +454,6 @@ export function NotificationsPage({
         open={clearAllOpen}
         onOpenChange={setClearAllOpen}
         title="Clear all notifications?"
-        description="This permanently removes all notification history shown on this dashboard."
         confirmLabel="Clear all"
         deleting={deleting}
         onConfirm={() => void clearAll()}
@@ -468,7 +465,6 @@ export function NotificationsPage({
 function NotificationDeleteDialog({
   open,
   title,
-  description,
   confirmLabel,
   deleting,
   onOpenChange,
@@ -476,7 +472,6 @@ function NotificationDeleteDialog({
 }: {
   open: boolean
   title: string
-  description: string
   confirmLabel: string
   deleting: boolean
   onOpenChange: (open: boolean) => void
@@ -489,9 +484,7 @@ function NotificationDeleteDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>This cannot be undone.</DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </DialogBody>
+
         <DialogFooter variant="plain">
           <Button
             type="button"

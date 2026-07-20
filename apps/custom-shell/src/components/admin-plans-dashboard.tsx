@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -566,7 +567,7 @@ function PlanDialog({
               <Field label="Description" htmlFor="plan-description">
                 <Textarea
                   id="plan-description"
-                  rows={2}
+                  rows={1}
                   value={draft.description}
                   onChange={(event) => update("description", event.target.value)}
                 />
@@ -667,41 +668,39 @@ function PlanDialog({
               <Field label="Features" htmlFor="plan-features">
                 <Textarea
                   id="plan-features"
-                  rows={4}
+                  rows={1}
                   className="font-mono text-xs"
                   value={draft.features}
                   onChange={(event) => update("features", event.target.value)}
                 />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Order" htmlFor="plan-sort">
-                  <Input
-                    id="plan-sort"
-                    inputMode="numeric"
-                    value={draft.sortOrder}
-                    onChange={(event) => update("sortOrder", event.target.value)}
-                  />
-                </Field>
-                <div className="flex flex-col gap-2 pt-6">
-                  <CheckboxRow
-                    id="plan-public"
-                    label="Show on the pricing page"
-                    checked={draft.isPublic}
-                    onChange={(checked) => update("isPublic", checked)}
-                  />
-                  <CheckboxRow
-                    id="plan-default"
-                    label="Everyone starts on this plan"
-                    checked={draft.isDefault}
-                    onChange={(checked) => update("isDefault", checked)}
-                  />
-                  <CheckboxRow
-                    id="plan-active"
-                    label="Active"
-                    checked={draft.active}
-                    onChange={(checked) => update("active", checked)}
-                  />
-                </div>
+              <Field label="Order" htmlFor="plan-sort">
+                <Input
+                  id="plan-sort"
+                  inputMode="numeric"
+                  value={draft.sortOrder}
+                  onChange={(event) => update("sortOrder", event.target.value)}
+                />
+              </Field>
+              <div className="grid gap-2">
+                <CheckboxRow
+                  id="plan-public"
+                  label="Show on the pricing page"
+                  checked={draft.isPublic}
+                  onChange={(checked) => update("isPublic", checked)}
+                />
+                <CheckboxRow
+                  id="plan-default"
+                  label="Everyone starts on this plan"
+                  checked={draft.isDefault}
+                  onChange={(checked) => update("isDefault", checked)}
+                />
+                <CheckboxRow
+                  id="plan-active"
+                  label="Active"
+                  checked={draft.active}
+                  onChange={(checked) => update("active", checked)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -738,10 +737,11 @@ function Field({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <Label htmlFor={htmlFor}>{label}</Label>
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={htmlFor} hint={help}>
+        {label}
+      </FieldLabel>
       {children}
-      {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
     </div>
   )
 }

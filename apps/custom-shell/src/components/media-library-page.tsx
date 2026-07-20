@@ -557,11 +557,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               Delete {deleteIds?.length ?? 0} {(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?
             </DialogTitle>
           </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              This removes the selected media from the library. This action cannot be undone.
-            </p>
-          </DialogBody>
+
           <DialogFooter variant="plain">
             <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>
               Cancel

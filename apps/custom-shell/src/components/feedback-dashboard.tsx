@@ -11,6 +11,12 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
@@ -551,11 +557,7 @@ function DeleteFeedbackModal({
           <DialogTitle>Delete Feedback Item</DialogTitle>
           <DialogDescription>This action cannot be undone.</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this feedback item?
-          </p>
-        </DialogBody>
+
         <DialogFooter variant="plain">
           <>
             <Button
@@ -608,12 +610,7 @@ function MassDeleteFeedbackModal({
           </DialogTitle>
           <DialogDescription>This action cannot be undone.</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete {count} feedback item
-            {count === 1 ? "" : "s"}?
-          </p>
-        </DialogBody>
+
         <DialogFooter variant="plain">
           <>
             <Button
@@ -724,26 +721,31 @@ function EditFeedbackModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-2">
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Feedback</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+          <div className="grid gap-2">
             <Label htmlFor="feedback-message">Feedback</Label>
             <Textarea
               id="feedback-message"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              className="min-h-40 resize-none text-base"
+              rows={1}
               disabled={busy}
               autoFocus
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="grid gap-2">
             <Label htmlFor="feedback-type">Type</Label>
             <Select
               value={feedbackType}
               onValueChange={(value) => setFeedbackType(value as FeedbackType)}
               disabled={busy}
             >
-              <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
+              <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -755,15 +757,13 @@ function EditFeedbackModal({
               </SelectContent>
             </Select>
           </div>
+            </CardContent>
+          </Card>
 
           {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain">

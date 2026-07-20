@@ -4,6 +4,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
 
@@ -101,7 +102,9 @@ function RegisterRoute() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+          Password
+        </FieldLabel>
         <Input
           id="password"
           type="password"
@@ -111,9 +114,6 @@ function RegisterRoute() {
           onChange={(event) => setPassword(event.target.value)}
           required
         />
-        <p className="text-xs text-muted-foreground">
-          At least 8 characters.
-        </p>
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Creating account..." : "Create account"}
