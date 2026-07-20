@@ -27,7 +27,6 @@ interface AccountCoreBlockProps {
     emptyText?: string
     imageFit?: "crop" | "fit"
     imageHeight?: number
-    imageQuality?: number
     saveIconOpacity?: number
     displayMode?: "grid" | "list"
     mobileColumns?: number
@@ -129,10 +128,6 @@ export function AccountCoreBlock({
   const customImageHeight = Number(content?.imageHeight) > 0 ? Number(content?.imageHeight) : undefined
   const imageFrameStyle = customImageHeight ? { aspectRatio: `100 / ${customImageHeight}` } : undefined
   const imageAspectClassName = customImageHeight ? "" : "aspect-video"
-  const imageQualityNumber = Number(content?.imageQuality)
-  const resolvedImageQuality = Number.isFinite(imageQualityNumber) && imageQualityNumber > 0
-    ? Math.min(100, Math.max(1, imageQualityNumber))
-    : undefined
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
   const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 70))
   const sortBy = content?.sortBy === "title" ? "title" : "date"
@@ -300,7 +295,6 @@ export function AccountCoreBlock({
                                       fill
                                       className={`${imageFitClassName} object-center transition-opacity duration-200 group-hover/card:opacity-75`}
                                       sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw"
-                                      quality={resolvedImageQuality}
                                     />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center bg-muted text-foreground">

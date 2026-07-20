@@ -11,7 +11,6 @@ interface CategoryChildrenGridBlockProps {
     mobileColumns?: number
     imageFit?: "crop" | "fit"
     imageHeight?: number
-    imageQuality?: number
     visibility?: Record<string, boolean>
   }
   preloadedItems?: CategoryChildItem[]
@@ -56,7 +55,6 @@ export function CategoryChildrenGridBlock({
   const customImageHeight = Number(content?.imageHeight) > 0 ? Number(content?.imageHeight) : undefined
   const imageFrameStyle = customImageHeight ? { aspectRatio: `100 / ${customImageHeight}` } : undefined
   const imageAspectClassName = customImageHeight ? "" : "aspect-video"
-  const resolvedImageQuality = Math.min(100, Math.max(1, Number(content?.imageQuality) || 25))
 
   const containerStyle = siteWidth === "custom" ? { maxWidth: `${customWidth || 1152}px` } : undefined
 
@@ -92,7 +90,6 @@ export function CategoryChildrenGridBlock({
                       fill
                       className={cn(imageFit, "object-center transition-opacity duration-200 group-hover:opacity-75")}
                       sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw"
-                      quality={resolvedImageQuality}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-muted text-sm text-muted-foreground">

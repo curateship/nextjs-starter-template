@@ -121,7 +121,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       viewType: 'grid',
       listingStyle: 'default',
       imageFit: 'crop',
-      imageQuality: 25,
       saveIconOpacity: 70,
       categoryIds: [],
       categoryChipParentIds: [],

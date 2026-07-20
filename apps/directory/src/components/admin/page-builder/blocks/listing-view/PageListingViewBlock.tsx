@@ -204,7 +204,6 @@ interface SharedListingViewsBlockProps {
   listingStyle?: ListingStyle
   imageFit?: ImageFit
   imageHeight?: number
-  imageQuality?: number
   saveIconOpacity?: number
   displayMode?: 'grid' | 'list' | 'map'
   itemsToShow?: number
@@ -228,7 +227,6 @@ interface SharedListingViewsBlockProps {
   onListingStyleChange: (value: ListingStyle) => void
   onImageFitChange: (value: ImageFit) => void
   onImageHeightChange: (value: number | undefined) => void
-  onImageQualityChange: (value: number | undefined) => void
   onSaveIconOpacityChange: (value: number | undefined) => void
   onDisplayModeChange: (value: 'grid' | 'list' | 'map') => void
   onItemsToShowChange: (value: number) => void
@@ -255,7 +253,6 @@ export function PageListingViewBlock({
   listingStyle = 'default',
   imageFit = 'crop',
   imageHeight,
-  imageQuality = 25,
   saveIconOpacity = 70,
   displayMode = 'grid',
   itemsToShow = 6,
@@ -279,7 +276,6 @@ export function PageListingViewBlock({
   onListingStyleChange,
   onImageFitChange,
   onImageHeightChange,
-  onImageQualityChange,
   onSaveIconOpacityChange,
   onDisplayModeChange,
   onItemsToShowChange,
@@ -505,21 +501,6 @@ export function PageListingViewBlock({
                         onImageHeightChange(value > 0 ? value : undefined)
                       }}
                       placeholder="Default"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="imageQuality">Image Quality</Label>
-                    <Input
-                      id="imageQuality"
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={imageQuality ?? ''}
-                      onChange={(event) => {
-                        const value = Number(event.target.value)
-                        onImageQualityChange(value > 0 ? Math.min(100, value) : undefined)
-                      }}
-                      placeholder="25"
                     />
                   </div>
                 </div>

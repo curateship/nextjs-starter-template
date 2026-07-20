@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import dynamic from "@/lib/dynamic"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -8,7 +9,15 @@ import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlo
 import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlockClient"
 import { AccountCoreBlock } from "@/components/frontend/account/core/AccountCoreBlock"
 import { AccountEditProfileBlock } from "@/components/frontend/account/edit-profile/AccountEditProfileBlock"
-import { AccountClaimedListingsBlock } from "@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock"
+// Loaded on demand, not up front. This block lets an owner edit their listing
+// inline, so it pulls in the TipTap editor and the directory-builder blocks —
+// roughly 400 KB that every public page was downloading even though the block
+// only renders for a signed-in owner on an account page.
+const AccountClaimedListingsBlock = dynamic(() =>
+  import("@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock").then(
+    m => m.AccountClaimedListingsBlock
+  )
+)
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"

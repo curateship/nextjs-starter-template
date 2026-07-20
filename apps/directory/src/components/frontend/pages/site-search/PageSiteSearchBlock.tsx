@@ -230,7 +230,6 @@ export function PageSiteSearchBlock({
                           alt=""
                           width={96}
                           height={96}
-                          unoptimized
                           className="h-24 w-full rounded-md object-cover sm:w-24"
                         />
                       ) : showImages ? (

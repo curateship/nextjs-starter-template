@@ -28,7 +28,6 @@ export function CategoryChildrenGridTemplateBlock({ content, onContentChange, on
   const mobileColumns = content.mobileColumns ?? 2
   const imageFit = (content.imageFit ?? 'crop') as ImageFit
   const imageHeight = content.imageHeight as number | undefined
-  const imageQuality = content.imageQuality ?? 25
   const visibility = (content.visibility ?? {}) as Record<string, boolean>
   const showImage = visibility.showImage !== false
 
@@ -111,21 +110,6 @@ export function CategoryChildrenGridTemplateBlock({ content, onContentChange, on
                               onContentChange('imageHeight', value > 0 ? value : undefined)
                             }}
                             placeholder="Default"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="sg-imageQuality">Image Quality</Label>
-                          <Input
-                            id="sg-imageQuality"
-                            type="number"
-                            min={1}
-                            max={100}
-                            value={imageQuality ?? ''}
-                            onChange={(e) => {
-                              const value = Number(e.target.value)
-                              onContentChange('imageQuality', value > 0 ? Math.min(100, value) : undefined)
-                            }}
-                            placeholder="25"
                           />
                         </div>
                       </div>

@@ -2,20 +2,19 @@ import type { CSSProperties, ImgHTMLAttributes } from "react"
 
 type ImageSource = string | { src: string; width?: number; height?: number }
 
+// Note: no `quality` or `unoptimized` props. They were carried over from
+// next/image and silently discarded — sizing and compression are the CDN's job,
+// not this component's.
 type AppImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
   src: ImageSource
   fill?: boolean
   priority?: boolean
-  quality?: number
-  unoptimized?: boolean
 }
 
 export default function AppImage({
   src,
   fill,
   priority,
-  quality: _quality,
-  unoptimized: _unoptimized,
   style,
   width,
   height,

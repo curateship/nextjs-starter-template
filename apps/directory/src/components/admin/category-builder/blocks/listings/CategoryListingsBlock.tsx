@@ -130,7 +130,6 @@ export function CategoryListingsBlock({ siteId, content, onContentChange, onBack
   const listingStyle = (content.listingStyle ?? 'directory') as ListingStyle
   const imageFit = (content.imageFit ?? 'crop') as ImageFit
   const imageHeight = content.imageHeight as number | undefined
-  const imageQuality = content.imageQuality ?? 25
   const saveIconOpacity = content.saveIconOpacity ?? 70
   const displayMode = (content.displayMode ?? 'grid') as 'grid' | 'list'
   const itemsToShow = content.itemsToShow ?? 6
@@ -338,21 +337,6 @@ export function CategoryListingsBlock({ siteId, content, onContentChange, onBack
                             onContentChange('imageHeight', value > 0 ? value : undefined)
                           }}
                           placeholder="Default"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="imageQuality">Image Quality</Label>
-                        <Input
-                          id="imageQuality"
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={imageQuality ?? ''}
-                          onChange={(event) => {
-                            const value = Number(event.target.value)
-                            onContentChange('imageQuality', value > 0 ? Math.min(100, value) : undefined)
-                          }}
-                          placeholder="25"
                         />
                       </div>
                     </div>

@@ -32,6 +32,7 @@ import X from "lucide-react/dist/esm/icons/x.js"
 import Play from "lucide-react/dist/esm/icons/play.js"
 import Filter from "lucide-react/dist/esm/icons/funnel.js"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { resizeImageForUpload } from "@/lib/utils/image-resize"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -222,7 +223,9 @@ export function MediaPicker({
 
     try {
       const formData = new FormData()
-      formData.append('file', uploadFile)
+      // Shrunk before upload so visitors are not served the original camera- or
+      // export-sized file. Falls back to the original if it cannot be resized.
+      formData.append('file', await resizeImageForUpload(uploadFile))
       if (altText.trim()) {
         formData.append('altText', altText.trim())
       }
