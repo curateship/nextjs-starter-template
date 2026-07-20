@@ -47,6 +47,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
@@ -377,6 +385,29 @@ function SortableSidebarItem({
                 placeholder="/admin/example"
                 aria-label="Sidebar link URL"
               />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`item-roles-${item.id}`}>Visible to</Label>
+              <Select
+                value={item.roles?.includes("admin") ? "admin" : "everyone"}
+                onValueChange={(value) =>
+                  onItemChange(sectionId, item.id, {
+                    roles: value === "admin" ? ["admin"] : undefined,
+                  })
+                }
+              >
+                <SelectTrigger id={`item-roles-${item.id}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  <SelectItem value="everyone">Everyone</SelectItem>
+                  <SelectItem value="admin">Admins only</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Links to /admin pages are always hidden from members.
+              </p>
             </div>
 
             <div className="space-y-3">

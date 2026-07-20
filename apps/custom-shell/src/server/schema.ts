@@ -1,9 +1,12 @@
 import { sql } from "drizzle-orm"
+
+import type { PlanFeatures } from "@/lib/plan-features"
 import {
   bigint,
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -12,15 +15,27 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
-export const customShellUsers = pgTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  name: varchar("name", { length: 255 }).notNull(),
-  role: varchar("role", { length: 50 }).notNull(),
-  passwordHash: text("password_hash").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const customShellUsers = pgTable(
+  "users",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
+    name: varchar("name", { length: 255 }).notNull(),
+    role: varchar("role", { length: 50 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    passwordHash: text("password_hash").notNull(),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("users_role_check", sql`${table.role} in ('admin', 'member')`),
+    check(
+      "users_status_check",
+      sql`${table.status} in ('active', 'suspended')`
+    ),
+  ]
+)
 
 export const customShellSessions = pgTable(
   "sessions",
@@ -212,7 +227,147 @@ export const customShellMedia = pgTable(
   ]
 )
 
+export const customShellAuthTokens = pgTable(
+  "auth_tokens",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    purpose: varchar("purpose", { length: 20 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "auth_tokens_purpose_check",
+      sql`${table.purpose} in ('verify_email', 'reset_password')`
+    ),
+    index("ix_auth_tokens_user_purpose").on(table.userId, table.purpose),
+    index("ix_auth_tokens_expires_at").on(table.expiresAt),
+  ]
+)
+
+export const customShellRateLimits = pgTable("rate_limits", {
+  key: varchar("key", { length: 200 }).primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", {
+    withTimezone: true,
+  }).notNull(),
+  blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+export const customShellPlans = pgTable(
+  "plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    slug: varchar("slug", { length: 50 }).notNull().unique(),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull().default(""),
+    priceMonthlyCents: integer("price_monthly_cents").notNull().default(0),
+    priceYearlyCents: integer("price_yearly_cents").notNull().default(0),
+    currency: varchar("currency", { length: 10 }).notNull().default("usd"),
+    stripePriceIdMonthly: varchar("stripe_price_id_monthly", { length: 120 }),
+    stripePriceIdYearly: varchar("stripe_price_id_yearly", { length: 120 }),
+    trialDays: integer("trial_days").notNull().default(0),
+    /** Free-form per-product limits and flags, read through entitlements. */
+    features: jsonb("features")
+      .$type<PlanFeatures>()
+      .notNull()
+      .default({}),
+    /** The plan everyone without a paid subscription falls back to. */
+    isDefault: boolean("is_default").notNull().default(false),
+    isPublic: boolean("is_public").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "plans_prices_check",
+      sql`${table.priceMonthlyCents} >= 0 and ${table.priceYearlyCents} >= 0`
+    ),
+    check("plans_trial_days_check", sql`${table.trialDays} >= 0`),
+    index("ix_plans_sort_order").on(table.sortOrder),
+  ]
+)
+
+export const customShellSubscriptions = pgTable(
+  "subscriptions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .unique()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 }).references(
+      () => customShellPlans.id,
+      { onDelete: "set null" }
+    ),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }).unique(),
+    stripeSubscriptionId: varchar("stripe_subscription_id", {
+      length: 120,
+    }).unique(),
+    status: varchar("status", { length: 30 }).notNull(),
+    interval: varchar("interval", { length: 10 }).notNull().default("monthly"),
+    /** `manual` rows are comp plans granted by an admin, not billed by Stripe. */
+    source: varchar("source", { length: 10 }).notNull().default("stripe"),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "subscriptions_interval_check",
+      sql`${table.interval} in ('monthly', 'yearly')`
+    ),
+    check(
+      "subscriptions_source_check",
+      sql`${table.source} in ('stripe', 'manual')`
+    ),
+    index("ix_subscriptions_plan_id").on(table.planId),
+    index("ix_subscriptions_status").on(table.status),
+  ]
+)
+
+export const customShellBillingEvents = pgTable("billing_events", {
+  eventId: varchar("event_id", { length: 120 }).primaryKey(),
+  type: varchar("type", { length: 120 }).notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }).notNull(),
+})
+
+export const customShellAdminAuditLogs = pgTable(
+  "admin_audit_logs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    action: varchar("action", { length: 50 }).notNull(),
+    resource: varchar("resource", { length: 30 }).notNull(),
+    recordIds: jsonb("record_ids").$type<string[]>().notNull().default([]),
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_admin_audit_logs_actor_created").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
+export type CustomShellPlan = typeof customShellPlans.$inferSelect
+export type CustomShellSubscription =
+  typeof customShellSubscriptions.$inferSelect
 export type CustomShellWorkspace = typeof customShellWorkspaces.$inferSelect
 export type CustomShellMedia = typeof customShellMedia.$inferSelect
 export type CustomShellFeedback = typeof customShellFeedback.$inferSelect

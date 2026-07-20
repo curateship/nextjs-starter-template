@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { readdir, readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
@@ -54,6 +54,13 @@ import {
 } from "@/server/workspaces"
 import * as schema from "@/server/schema"
 
+/** The platform section keeps its own entries; account and admin sit above it. */
+function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {
+  return settings.sections.find(
+    (section) => section.id === "section-platform-settings"
+  )?.entries
+}
+
 let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
 const hadOriginalCustomShellR2PublicUrl = Object.prototype.hasOwnProperty.call(
@@ -66,16 +73,16 @@ beforeEach(async () => {
   process.env.CUSTOM_SHELL_R2_PUBLIC_URL =
     "https://custom-shell-media.example.test"
   client = new PGlite()
-  const migration = await readFile(
-    new URL("../../drizzle/0000_custom_shell_baseline.sql", import.meta.url),
-    "utf8"
-  )
-  const workspaceMigration = await readFile(
-    new URL("../../drizzle/0003_custom_shell_workspaces.sql", import.meta.url),
-    "utf8"
-  )
-  await client.exec(migration)
-  await client.exec(workspaceMigration)
+  // Replay every migration in order, the way setup-database.mjs does, so the
+  // test schema cannot drift from the real one.
+  const folder = new URL("../../drizzle/", import.meta.url)
+  const migrations = (await readdir(folder))
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+
+  for (const migration of migrations) {
+    await client.exec(await readFile(new URL(migration, folder), "utf8"))
+  }
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })
@@ -163,7 +170,12 @@ describe("custom shell workspaces", () => {
     })
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
-    expect(defaultSettings.sections[0]?.entries).toMatchObject([
+    expect(defaultSettings.sections.map((section) => section.id)).toEqual([
+      "section-account",
+      "section-administration",
+      "section-platform-settings",
+    ])
+    expect(platformEntries(defaultSettings)).toMatchObject([
       {
         type: "item",
         label: "Feedback",
@@ -208,7 +220,12 @@ describe("custom shell workspaces", () => {
     })
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
-    expect(secondSettings.sections[0]?.entries).toMatchObject([
+    expect(secondSettings.sections.map((section) => section.id)).toEqual([
+      "section-account",
+      "section-administration",
+      "section-platform-settings",
+    ])
+    expect(platformEntries(secondSettings)).toMatchObject([
       {
         type: "item",
         label: "Feedback",
@@ -310,7 +327,7 @@ describe("custom shell feedback comments", () => {
       id: userId,
       email: "commenter@internal.dev",
       name: "Commenter",
-      role: "user",
+      role: "member",
       passwordHash: "hash",
       createdAt,
       updatedAt: createdAt,
@@ -372,10 +389,10 @@ describe("custom shell feedback comments", () => {
     const otherId = uuid()
     const comment = { userId: ownerId }
 
-    expect(canManageFeedbackComment(comment, { id: ownerId, role: "user" })).toBe(
+    expect(canManageFeedbackComment(comment, { id: ownerId, role: "member" })).toBe(
       true
     )
-    expect(canManageFeedbackComment(comment, { id: otherId, role: "user" })).toBe(
+    expect(canManageFeedbackComment(comment, { id: otherId, role: "member" })).toBe(
       false
     )
     expect(canManageFeedbackComment(comment, { id: otherId, role: "admin" })).toBe(
@@ -400,7 +417,7 @@ describe("custom shell feedback notifications", () => {
         id: ownerId,
         email: "feedback-owner@internal.dev",
         name: "Owner",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -409,7 +426,7 @@ describe("custom shell feedback notifications", () => {
         id: actorId,
         email: "feedback-actor@internal.dev",
         name: "Actor",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -504,7 +521,7 @@ describe("custom shell feedback notifications", () => {
         id: actorId,
         email: "pager-actor@internal.dev",
         name: "Actor",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -513,7 +530,7 @@ describe("custom shell feedback notifications", () => {
         id: ownerId,
         email: "pager-owner@internal.dev",
         name: "Owner",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -522,7 +539,7 @@ describe("custom shell feedback notifications", () => {
         id: otherOwnerId,
         email: "pager-other@internal.dev",
         name: "Other",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -574,7 +591,7 @@ describe("custom shell feedback notifications", () => {
     ])
 
     const firstPage = await getNotificationPage({
-      currentUser: { id: ownerId, role: "user" },
+      currentUser: { id: ownerId, role: "member" },
       limit: 1,
       database: database as unknown as CustomShellDb,
     })
@@ -585,7 +602,7 @@ describe("custom shell feedback notifications", () => {
     expect(firstPage.next_cursor).toBeTruthy()
 
     const secondPage = await getNotificationPage({
-      currentUser: { id: ownerId, role: "user" },
+      currentUser: { id: ownerId, role: "member" },
       cursor: firstPage.next_cursor ?? undefined,
       limit: 1,
       database: database as unknown as CustomShellDb,
@@ -604,7 +621,7 @@ describe("custom shell feedback notifications", () => {
     const notificationId = uuid()
 
     expect(canViewAllNotifications({ role: "admin" })).toBe(true)
-    expect(canViewAllNotifications({ role: "user" })).toBe(false)
+    expect(canViewAllNotifications({ role: "member" })).toBe(false)
 
     await database.insert(customShellUsers).values([
       {
@@ -620,7 +637,7 @@ describe("custom shell feedback notifications", () => {
         id: ownerId,
         email: "notification-owner@internal.dev",
         name: "Owner",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -629,7 +646,7 @@ describe("custom shell feedback notifications", () => {
         id: actorId,
         email: "notification-actor@internal.dev",
         name: "Actor",
-        role: "user",
+        role: "member",
         passwordHash: "hash",
         createdAt,
         updatedAt: createdAt,
@@ -654,7 +671,7 @@ describe("custom shell feedback notifications", () => {
 
     await expect(
       getNotificationPage({
-        currentUser: { id: ownerId, role: "user" },
+        currentUser: { id: ownerId, role: "member" },
         includeAll: true,
         database: database as unknown as CustomShellDb,
       })

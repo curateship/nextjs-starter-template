@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 
 import {
   Avatar,
@@ -29,12 +30,15 @@ import {
   CreditCardIcon,
   LogOutIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   SparklesIcon,
 } from "lucide-react"
 
 export function UserDropdown({
   user,
   onLogout,
+  isAdmin,
+  showUpgrade,
 }: {
   user: {
     name: string
@@ -42,6 +46,8 @@ export function UserDropdown({
     avatar: string
   }
   onLogout: () => void
+  isAdmin: boolean
+  showUpgrade: boolean
 }) {
   const { isMobile } = useSidebar()
   const initials = React.useMemo(() => {
@@ -97,31 +103,55 @@ export function UserDropdown({
                 </div>
               </div>
             </DropdownMenuLabel>
+            {showUpgrade ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem asChild>
+                    <Link to="/pricing">
+                      <SparklesIcon />
+                      Upgrade
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <SparklesIcon />
-                Upgrade to Pro
+              <DropdownMenuItem asChild>
+                <Link to="/account">
+                  <BadgeCheckIcon />
+                  Account
+                </Link>
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <SettingsIcon />
-                Settings
+              <DropdownMenuItem asChild>
+                <Link to="/account/billing">
+                  <CreditCardIcon />
+                  Billing
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BadgeCheckIcon />
-                Account
+              <DropdownMenuItem asChild>
+                <Link to="/account/security">
+                  <ShieldCheckIcon />
+                  Security
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                Notifications
-              </DropdownMenuItem>
+              {isAdmin ? (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/notifications">
+                      <BellIcon />
+                      Notifications
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/settings">
+                      <SettingsIcon />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onLogout}>

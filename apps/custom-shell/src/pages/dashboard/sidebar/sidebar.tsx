@@ -17,17 +17,20 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import {
+  canSeeShellEntry,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
 import type { AuthUser } from "@/lib/api/auth"
+import type { PlanSummary } from "@/lib/api/billing"
 import type { WorkspaceItem } from "@/lib/api/workspaces"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
   user: AuthUser
+  plan: PlanSummary
   workspaces: WorkspaceItem[]
   onLogout: () => void
 }
@@ -41,14 +44,17 @@ function isActivePath(href: string, currentPath: string) {
   )
 }
 
-function getActiveHref(config: ShellConfig, currentPath: string) {
+function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
   const hrefs: string[] = []
 
   config.sections.forEach((section) => {
     section.entries.forEach((entry) => {
       if (!isShellItem(entry) || !entry.visible) return
+      if (!canSeeShellEntry(entry, role)) return
       hrefs.push(entry.href)
-      entry.children?.forEach((child) => hrefs.push(child.href))
+      entry.children
+        ?.filter((child) => canSeeShellEntry(child, role))
+        .forEach((child) => hrefs.push(child.href))
     })
   })
 
@@ -59,7 +65,8 @@ function getActiveHref(config: ShellConfig, currentPath: string) {
 
 function mapSectionEntries(
   section: ShellSection,
-  activeHref: string | undefined
+  activeHref: string | undefined,
+  role: string
 ): SidebarGroupEntry[] {
   const entries: SidebarGroupEntry[] = []
 
@@ -73,9 +80,13 @@ function mapSectionEntries(
       return
     }
 
-    if (!entry.visible) {
+    if (!entry.visible || !canSeeShellEntry(entry, role)) {
       return
     }
+
+    const children = entry.children?.filter((child) =>
+      canSeeShellEntry(child, role)
+    )
 
     entries.push({
       type: "item",
@@ -85,10 +96,8 @@ function mapSectionEntries(
       icon: renderShellIcon(entry.icon),
       active:
         entry.href === activeHref ||
-        Boolean(
-          entry.children?.some((child) => child.href === activeHref)
-        ),
-      children: entry.children?.map((child) => ({
+        Boolean(children?.some((child) => child.href === activeHref)),
+      children: children?.map((child) => ({
         id: child.id,
         label: child.label,
         href: child.href,
@@ -101,9 +110,15 @@ function mapSectionEntries(
   return entries
 }
 
+/** A section with nothing left after the role filter is not rendered at all. */
+function hasVisibleEntries(entries: SidebarGroupEntry[]) {
+  return entries.some((entry) => entry.type === "item")
+}
+
 export function AppSidebar({
   config,
   user,
+  plan,
   workspaces,
   onLogout,
   ...props
@@ -112,11 +127,18 @@ export function AppSidebar({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const activeHref = getActiveHref(config, currentPath)
+  const activeHref = getActiveHref(config, currentPath, user.role)
 
   const handleNavigate = React.useCallback((href: string) => {
     navigate({ href })
   }, [navigate])
+
+  const sections = config.sections
+    .map((section) => ({
+      section,
+      entries: mapSectionEntries(section, activeHref, user.role),
+    }))
+    .filter(({ entries }) => hasVisibleEntries(entries))
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -124,17 +146,17 @@ export function AppSidebar({
         <WorkspaceSwitcher
           workspaces={workspaces}
           workspaceName={config.workspaceName}
-          workspacePlan={config.workspacePlan}
+          workspacePlan={config.workspacePlan || plan.planName}
           favicon={config.favicon}
         />
       </SidebarHeader>
       <SidebarContent>
-        {config.sections.map((section) => (
+        {sections.map(({ section, entries }) => (
           <SidebarCollapsible
             key={section.id}
             id={section.id}
             title={section.title}
-            entries={mapSectionEntries(section, activeHref)}
+            entries={entries}
             onNavigate={handleNavigate}
           />
         ))}
@@ -142,6 +164,8 @@ export function AppSidebar({
       <SidebarFooter>
         <UserDropdown
           onLogout={onLogout}
+          isAdmin={user.role === "admin"}
+          showUpgrade={!plan.isPaid}
           user={{
             name: user.name,
             email: user.email,

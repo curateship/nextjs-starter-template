@@ -76,6 +76,23 @@ export async function getOrCreateCurrentWorkspace(
   })
 }
 
+/** The workspace switcher's list, already serialized for the browser. */
+export async function readWorkspaceList(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const { workspaces, currentWorkspaceId } = await listUserWorkspaces(
+    userId,
+    database
+  )
+
+  return {
+    workspaces: workspaces.map((row) =>
+      serializeWorkspace(row, currentWorkspaceId)
+    ),
+  }
+}
+
 export async function listUserWorkspaces(
   userId: string,
   database: CustomShellDb = db
@@ -373,6 +390,71 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
+    {
+      id: "section-account",
+      title: "Account",
+      entries: [
+        {
+          type: "item",
+          id: "item-account",
+          label: "Account",
+          href: "/account",
+          icon: "user-round",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-account-billing",
+          label: "Billing",
+          href: "/account/billing",
+          icon: "credit-card",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-account-security",
+          label: "Security",
+          href: "/account/security",
+          icon: "shield-check",
+          visible: true,
+        },
+      ],
+    },
+    {
+      // Members never see this section: every entry is admin-only, and the
+      // /admin route guard refuses them again server-side.
+      id: "section-administration",
+      title: "Administration",
+      entries: [
+        {
+          type: "item",
+          id: "item-admin-users",
+          label: "Users",
+          href: "/admin/users",
+          icon: "users",
+          visible: true,
+          roles: ["admin"],
+        },
+        {
+          type: "item",
+          id: "item-admin-plans",
+          label: "Plans",
+          href: "/admin/plans",
+          icon: "package",
+          visible: true,
+          roles: ["admin"],
+        },
+        {
+          type: "item",
+          id: "item-admin-revenue",
+          label: "Revenue",
+          href: "/admin/billing",
+          icon: "barChart3",
+          visible: true,
+          roles: ["admin"],
+        },
+      ],
+    },
     {
       id: "section-platform-settings",
       title: "Platform Settings",

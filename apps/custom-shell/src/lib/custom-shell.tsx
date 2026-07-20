@@ -194,11 +194,17 @@ function getDynamicLucideIconLabel(value: string) {
     .join(" ")
 }
 
+export const SHELL_ROLES = ["admin", "member"] as const
+
+export type ShellRole = (typeof SHELL_ROLES)[number]
+
 export type ShellChildItem = {
   id: string
   label: string
   href: string
   icon?: ShellIcon
+  /** Who sees this item. Absent means everyone. */
+  roles?: ShellRole[]
 }
 
 export type ShellItem = {
@@ -208,7 +214,32 @@ export type ShellItem = {
   href: string
   icon: ShellIcon
   visible: boolean
+  /** Who sees this item. Absent means everyone. */
+  roles?: ShellRole[]
   children?: ShellChildItem[]
+}
+
+export function isAdminHref(href: string | undefined) {
+  return Boolean(href && (href === "/admin" || href.startsWith("/admin/")))
+}
+
+/**
+ * Navigation is saved per workspace, so a stale or hand-edited entry could
+ * still point at an admin page. Members never see those, whatever is stored,
+ * and the /admin route guard refuses them a second time server-side.
+ */
+export function canSeeShellEntry(
+  entry: { href?: string; roles?: ShellRole[] },
+  role: string
+) {
+  if (role === "admin") {
+    return true
+  }
+  if (entry.roles?.length && !entry.roles.includes(role as ShellRole)) {
+    return false
+  }
+
+  return !isAdminHref(entry.href)
 }
 
 export type ShellDivider = {

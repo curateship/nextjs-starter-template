@@ -11,6 +11,15 @@ CREATE TABLE IF NOT EXISTS "workspaces" (
 CREATE INDEX IF NOT EXISTS "ix_workspaces_user_id" ON "workspaces" ("user_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "ux_workspaces_one_default_per_user" ON "workspaces" ("user_id") WHERE "is_default";
 
+-- One-time backfill: gives every account that predates workspaces one built from
+-- the settings row. It is recorded in "migration_state" because this file is
+-- replayed on every predev, and re-running it would hand a brand new account the
+-- pre-SaaS navigation instead of the current defaults in src/server/workspaces.ts.
+CREATE TABLE IF NOT EXISTS "migration_state" (
+  "key" text PRIMARY KEY NOT NULL,
+  "applied_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
 INSERT INTO "workspaces" (
   "id",
   "user_id",
@@ -49,4 +58,11 @@ WHERE NOT EXISTS (
   SELECT 1
   FROM "workspaces"
   WHERE "workspaces"."user_id" = "users"."id"
+)
+AND NOT EXISTS (
+  SELECT 1 FROM "migration_state" WHERE "key" = '0003_workspace_backfill'
 );
+
+INSERT INTO "migration_state" ("key")
+VALUES ('0003_workspace_backfill')
+ON CONFLICT ("key") DO NOTHING;

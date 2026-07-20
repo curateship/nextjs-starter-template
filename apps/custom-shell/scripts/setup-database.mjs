@@ -149,13 +149,16 @@ async function seedAdminUser(url) {
   const client = new Client({ connectionString: url })
   await client.connect()
   try {
+    // The seeded admin is verified on creation; sign-in requires a verified
+    // email and nobody can click a link for this account.
     await client.query(
-      `insert into users (id, email, name, role, password_hash, created_at, updated_at)
-       values (gen_random_uuid()::text, $1, $2, $3, $4, now(), now())
+      `insert into users (id, email, name, role, password_hash, email_verified_at, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, now(), now(), now())
        on conflict (email) do update
        set name = excluded.name,
            role = excluded.role,
            password_hash = excluded.password_hash,
+           email_verified_at = coalesce(users.email_verified_at, now()),
            updated_at = now()`,
       [adminUser.email, adminUser.name, adminUser.role, adminUser.passwordHash]
     )
