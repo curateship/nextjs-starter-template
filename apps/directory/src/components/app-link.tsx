@@ -21,14 +21,26 @@ function resolveHref(href: AppLinkProps["href"]) {
   return query ? `${pathname}?${query}` : pathname
 }
 
+// Only a path inside this app can be handled by the client router. Anything else
+// — another site, mailto:, tel:, a bare "#" — has to stay an ordinary anchor.
+function isInAppPath(href: string) {
+  return href.startsWith("/") && !href.startsWith("//")
+}
+
 const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppLink(
   { href, prefetch, replace, scroll: _scroll, ...props },
   ref
 ) {
+  const resolved = resolveHref(href)
+
+  if (!isInAppPath(resolved)) {
+    return <a ref={ref} href={resolved} {...props} />
+  }
+
   return (
     <Link
       ref={ref}
-      to={resolveHref(href)}
+      to={resolved}
       preload={prefetch === false ? false : "intent"}
       replace={replace}
       {...props}

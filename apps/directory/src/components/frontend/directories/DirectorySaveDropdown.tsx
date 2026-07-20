@@ -12,6 +12,7 @@ import {
   toggleDirectorySaveCollectionAction,
   type DirectorySaveCollectionState
 } from "@/lib/actions/directories/directory-save-actions"
+import Link from "@/components/app-link"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -154,9 +155,9 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
 
   if (!user) {
     return (
-      <a href={authHref} aria-label="Save listing" className={triggerClassName}>
+      <Link href={authHref} aria-label="Save listing" className={triggerClassName}>
         {icon}
-      </a>
+      </Link>
     )
   }
 
