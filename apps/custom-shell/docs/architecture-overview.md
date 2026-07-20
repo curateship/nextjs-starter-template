@@ -20,6 +20,13 @@ Its job is to be the base UI for future admin and internal apps in this repo, so
 - navigation patterns
 - theme and font presets
 - shared UI primitives
+- accounts: self-serve sign-up, email verification, password reset, sessions
+- roles: `admin` and `member`, with one gate on `/admin`
+- plans and entitlements, managed from the admin area
+- Stripe subscriptions, the member billing area, and the revenue summary
+
+See `docs/saas-foundation.md` for how those pieces fit together, how to run and
+test them, and how another app adopts them.
 
 ## Navigation Model
 

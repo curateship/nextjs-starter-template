@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
+  canSeeShellEntry,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   getModalStyleVars,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/custom-shell"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
+import type { PlanSummary } from "@/lib/api/billing"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -58,10 +60,12 @@ export function ShellLayout({
   user,
   settings,
   workspaces,
+  plan,
 }: {
   user: AuthUser
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
+  plan: PlanSummary
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -221,12 +225,13 @@ export function ShellLayout({
           <AppSidebar
             config={config}
             user={user}
+            plan={plan}
             workspaces={workspaces.workspaces}
             onLogout={handleLogout}
           />
           <SidebarInset>
             <StickyHeader
-              navLinks={getStickyHeaderNavLinks(config, currentPath)}
+              navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
               rightNavItems={config.topRightNavigation}
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
@@ -331,10 +336,14 @@ function getOrCreateShellFaviconLink() {
   return link
 }
 
-function getShellItems(config: ShellConfig) {
-  return config.sections.flatMap((section) =>
-    section.entries.filter(isShellItem)
-  )
+function getShellItems(config: ShellConfig, role: string) {
+  return config.sections
+    .flatMap((section) => section.entries.filter(isShellItem))
+    .filter((item) => canSeeShellEntry(item, role))
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter((child) => canSeeShellEntry(child, role)),
+    }))
 }
 
 function isActivePath(href: string, currentPath: string) {
@@ -355,10 +364,18 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
 
 // The header's top-left nav mirrors the sidebar: the active section item and
 // its children (or the single active item when it has none).
-function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
-  const items = getShellItems(config)
+function getStickyHeaderNavLinks(
+  config: ShellConfig,
+  currentPath: string,
+  role: string
+) {
+  const items = getShellItems(config, role)
   const activeSectionItem = findActiveSectionItem(items, currentPath)
-  const activeItem = items.find((item) => isActivePath(item.href, currentPath))
+  // Most specific match wins, so /account/billing shows Billing rather than the
+  // shorter /account that also matches.
+  const activeItem = items
+    .filter((item) => isActivePath(item.href, currentPath))
+    .sort((a, b) => b.href.length - a.href.length)[0]
 
   if (activeSectionItem) {
     return [

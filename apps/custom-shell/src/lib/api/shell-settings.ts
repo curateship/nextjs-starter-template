@@ -3,8 +3,8 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
-  createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  SHELL_ROLES,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
@@ -14,17 +14,23 @@ import {
   customShellSettings,
   customShellWorkspaces,
 } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
-
-const DEFAULT_SETTINGS_KEY = "default"
+import {
+  DEFAULT_SETTINGS_KEY,
+  pickShellGlobals,
+  readShellSettings,
+} from "@/server/shell-settings"
+import { now, requireAdmin, requireUser } from "@/server/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
+
+const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
   label: z.string(),
   href: z.string(),
   icon: shellIconSchema.optional(),
+  roles: shellRolesSchema,
 })
 
 const shellEntrySchema = z.discriminatedUnion("type", [
@@ -35,6 +41,7 @@ const shellEntrySchema = z.discriminatedUnion("type", [
     href: z.string(),
     icon: shellIconSchema,
     visible: z.boolean(),
+    roles: shellRolesSchema,
     children: z.array(shellChildItemSchema).optional(),
   }),
   z.object({
@@ -107,30 +114,7 @@ export function getShellSettingsErrorMessage(error: unknown) {
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
   async () => {
     const user = await requireUser()
-
-    const [row] = await db
-      .select()
-      .from(customShellSettings)
-      .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
-      .limit(1)
-
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
-    const shellGlobals = parseShellGlobals(row?.settings)
-
-    return {
-      settings: {
-        ...shellGlobals,
-        workspaceName: workspace.name,
-        sidebarWidth: workspaceSettings.sidebarWidth,
-        favicon: workspaceSettings.favicon,
-        topRightNavigation: workspaceSettings.topRightNavigation,
-        sections: workspaceSettings.sections,
-        styling: workspaceSettings.styling,
-      },
-    }
+    return { settings: await readShellSettings(user.id) }
   }
 )
 
@@ -138,7 +122,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(shellConfigSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const user = await requireAdminUser()
+    const user = await requireAdmin()
 
     const updatedAt = now()
     const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
@@ -249,55 +233,4 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
 
 export function saveSidebarWidth(sidebarWidth: number) {
   return saveSidebarWidthFn({ data: { sidebarWidth } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing Custom Shell session")
-  }
-  return user
-}
-
-async function requireAdminUser() {
-  const user = await requireUser()
-  if (user.role !== "admin") {
-    throw new Error("Not authorized")
-  }
-  return user
-}
-
-function parseShellGlobals(value: unknown) {
-  const fallback = createDefaultShellConfig()
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return pickShellGlobals(fallback)
-  }
-
-  const settings = value as Partial<ShellConfig>
-  return {
-    appName: settings.appName ?? fallback.appName,
-    workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
-    dashboardRowsPerPage:
-      typeof settings.dashboardRowsPerPage === "number" &&
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
-        settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
-      )
-        ? settings.dashboardRowsPerPage
-        : fallback.dashboardRowsPerPage,
-    adminRoute:
-      typeof settings.adminRoute === "string"
-        ? settings.adminRoute
-        : fallback.adminRoute,
-  }
-}
-
-function pickShellGlobals(settings: ShellConfig) {
-  return {
-    appName: settings.appName,
-    workspaceName: settings.workspaceName,
-    workspacePlan: settings.workspacePlan,
-    dashboardRowsPerPage: settings.dashboardRowsPerPage,
-    adminRoute: settings.adminRoute,
-  }
 }
