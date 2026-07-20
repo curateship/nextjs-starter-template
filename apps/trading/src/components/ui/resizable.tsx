@@ -24,13 +24,14 @@ function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
 }
 
 function ResizableHandle({
-  withHandle,
   gap,
+  collapsed,
   className,
   ...props
 }: ResizablePrimitive.SeparatorProps & {
-  withHandle?: boolean
   gap?: boolean
+  /** The panel on one side is collapsed, so the gutter closes up. */
+  collapsed?: boolean
 }) {
   return (
     <ResizablePrimitive.Separator
@@ -42,16 +43,28 @@ function ResizableHandle({
           // setting. The transparent after-strip stays as the drag hit area so
           // panels remain draggable even when the gutter is 0 (flat mode).
           "w-[var(--shell-gutter,0.75rem)] bg-transparent aria-[orientation=horizontal]:h-[var(--shell-gutter,0.75rem)] aria-[orientation=horizontal]:w-full",
+        // A hidden neighbour has no edge to separate, so the gutter collapses
+        // to nothing and the two remaining panels sit flush.
+        collapsed && "w-0 bg-transparent aria-[orientation=horizontal]:h-0",
         className
       )}
       {...props}
     >
-      {withHandle && (
-        <div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-border" />
-      )}
+      {gap && !collapsed ? (
+        // Grab knob: a small grey bar so the gutter reads as draggable.
+        <div className="z-10 h-6 w-1 shrink-0 rounded-full bg-border" />
+      ) : null}
     </ResizablePrimitive.Separator>
   )
 }
+
+/**
+ * The header row every bottom workspace panel wears — the automation activity
+ * log's bar. 56px tall with a divider under it; content on the left, the
+ * panel's own actions pushed right with `ml-auto`. Never a coloured band.
+ */
+const BOTTOM_PANEL_HEADER =
+  "flex min-h-14 shrink-0 items-center gap-2 border-b px-4"
 
 function WorkspacePanel({
   className,
@@ -70,6 +83,7 @@ function WorkspacePanel({
 }
 
 export {
+  BOTTOM_PANEL_HEADER,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,

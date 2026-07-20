@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Loader2Icon, SettingsIcon } from "lucide-react"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -35,6 +36,8 @@ import {
   type TicketPrefill,
 } from "@/components/trading/order-ticket"
 import { OneClickMenuActions } from "@/components/trading/one-click-panel"
+import { PanelToggle } from "@/components/panel-toggles"
+import { togglePanel } from "@/lib/panel-collapse"
 import {
   PaperFillsTable,
   PaperOpenOrdersTable,
@@ -66,6 +69,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  BOTTOM_PANEL_HEADER,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -128,12 +132,10 @@ import {
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
-// Bottom-panel tabs share the backtest workspace's underline styling: active
-// tabs are marked by an underline instead of a filled box.
-const BOTTOM_TABS_LIST =
-  "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
-const BOTTOM_TAB_TRIGGER =
-  "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
+// Collapsing the bottom panel leaves exactly its header on screen (the shared
+// 56px row plus the card's own top and bottom hairlines), so the toggles that
+// reopen it never disappear.
+const BOTTOM_COLLAPSED_HEIGHT = "58px"
 const ALERT_POLL_MS = 10_000
 
 type AlertEditorState = {
@@ -679,6 +681,37 @@ export function TradingWorkspace({
   const outerLayout = usePersistedLayout("trading-layout-vertical")
   const innerLayout = usePersistedLayout("trading-layout-horizontal")
   const rightLayout = usePersistedLayout("trading-layout-right")
+  // Collapsible market list, order ticket and bottom panel — the automation
+  // editor's pattern. Sizes (including "collapsed") ride along in the saved
+  // layout, so the workspace reopens the way it was left.
+  const watchlistPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const ticketPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const bottomPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const [watchlistCollapsed, setWatchlistCollapsed] = React.useState(false)
+  const [ticketCollapsed, setTicketCollapsed] = React.useState(false)
+  const [bottomCollapsed, setBottomCollapsed] = React.useState(false)
+  const panelToggles = (
+    <div className="flex shrink-0 items-center gap-1">
+      <PanelToggle
+        side="left"
+        collapsed={watchlistCollapsed}
+        label={watchlistCollapsed ? "Show market list" : "Hide market list"}
+        onClick={() => togglePanel(watchlistPanelRef, "16%")}
+      />
+      <PanelToggle
+        side="right"
+        collapsed={ticketCollapsed}
+        label={ticketCollapsed ? "Show order ticket" : "Hide order ticket"}
+        onClick={() => togglePanel(ticketPanelRef, "20%")}
+      />
+      <PanelToggle
+        side="bottom"
+        collapsed={bottomCollapsed}
+        label={bottomCollapsed ? "Show bottom panel" : "Hide bottom panel"}
+        onClick={() => togglePanel(bottomPanelRef, "28%")}
+      />
+    </div>
+  )
   // DB-backed indicator settings: local state flips instantly for the chart;
   // saves are fire-and-forget so they never add latency to a toggle.
   const [indicators, setIndicators] = React.useState(initialIndicators)
@@ -752,7 +785,17 @@ export function TradingWorkspace({
               defaultLayout={innerLayout.defaultLayout}
               onLayoutChanged={innerLayout.onLayoutChanged}
             >
-              <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
+              <ResizablePanel
+                id="watchlist"
+                panelRef={watchlistPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="16%"
+                minSize="10%"
+                onResize={(size) =>
+                  setWatchlistCollapsed(size.asPercentage < 0.5)
+                }
+              >
                 <WorkspacePanel>
                   <MarketWatchlist
                     rows={marketRows}
@@ -765,7 +808,7 @@ export function TradingWorkspace({
                   />
                 </WorkspacePanel>
               </ResizablePanel>
-              <ResizableHandle gap />
+              <ResizableHandle gap collapsed={watchlistCollapsed} />
               <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
                 <WorkspacePanel className="flex flex-col">
                   <ChartToolbar
@@ -851,8 +894,16 @@ export function TradingWorkspace({
                   </ResizablePanel>
                 </>
               ) : null}
-              <ResizableHandle gap />
-              <ResizablePanel id="ticket" defaultSize="20%" minSize="12%">
+              <ResizableHandle gap collapsed={ticketCollapsed} />
+              <ResizablePanel
+                id="ticket"
+                panelRef={ticketPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="20%"
+                minSize="12%"
+                onResize={(size) => setTicketCollapsed(size.asPercentage < 0.5)}
+              >
                 <WorkspacePanel className="flex flex-col">
                   <ScrollArea className="min-h-0 flex-1">
                     <OrderTicket
@@ -885,7 +936,17 @@ export function TradingWorkspace({
             </ResizablePanelGroup>
           </ResizablePanel>
           <ResizableHandle gap />
-          <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
+          <ResizablePanel
+            id="bottom"
+            panelRef={bottomPanelRef}
+            collapsible
+            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            defaultSize="28%"
+            minSize="10%"
+            onResize={() =>
+              setBottomCollapsed(bottomPanelRef.current?.isCollapsed() ?? false)
+            }
+          >
             <WorkspacePanel>
               {isPaper ? (
                 <PaperBottomTabs
@@ -893,9 +954,11 @@ export function TradingWorkspace({
                   confirmationEnabled={orderConfirmation}
                   onNotify={notify}
                   onSelectMarket={onMarketChange}
+                  toggles={panelToggles}
                 />
               ) : (
                 <SandboxBottomTabs
+                  toggles={panelToggles}
                   network={tradingNetwork}
                   account={account}
                   walletId={
@@ -995,11 +1058,13 @@ function PaperBottomTabs({
   confirmationEnabled,
   onNotify,
   onSelectMarket,
+  toggles,
 }: {
   account: PaperAccountResponse | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
   onSelectMarket: (coin: string) => void
+  toggles: React.ReactNode
 }) {
   const positionCount = account?.positions.length ?? 0
   const orderCount = account?.openOrders.length ?? 0
@@ -1009,17 +1074,20 @@ function PaperBottomTabs({
       defaultValue="positions"
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <TabsList variant="line" className={BOTTOM_TABS_LIST}>
-        <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
-          Positions{positionCount ? ` (${positionCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
-          Open Orders{orderCount ? ` (${orderCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
-          Fills
-        </TabsTrigger>
-      </TabsList>
+      <div className={BOTTOM_PANEL_HEADER}>
+        <TabsList variant="pill">
+          <TabsTrigger value="positions">
+            Positions{positionCount ? ` (${positionCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="orders">
+            Open Orders{orderCount ? ` (${orderCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="fills">
+            Fills
+          </TabsTrigger>
+        </TabsList>
+        <div className="ml-auto">{toggles}</div>
+      </div>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PaperPositionsTable
           account={account}
@@ -1049,6 +1117,7 @@ function SandboxBottomTabs({
   onSelectMarket,
   editOrder,
   onEditOrderHandled,
+  toggles,
 }: {
   network: TradingNetwork
   account: AccountSnapshot | null
@@ -1060,6 +1129,7 @@ function SandboxBottomTabs({
   onSelectMarket: (coin: string) => void
   editOrder: FrontendOpenOrder | null
   onEditOrderHandled: () => void
+  toggles: React.ReactNode
 }) {
   const positionCount = (
     account?.clearinghouseState?.assetPositions ?? []
@@ -1092,22 +1162,19 @@ function SandboxBottomTabs({
       onValueChange={setActiveTab}
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <div className="flex items-center border-b">
-        <TabsList
-          variant="line"
-          className={cn(BOTTOM_TABS_LIST, "w-auto flex-1 border-b-0")}
-        >
-          <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
+      <div className={BOTTOM_PANEL_HEADER}>
+        <TabsList variant="pill">
+          <TabsTrigger value="positions">
             Positions{positionCount ? ` (${positionCount})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
+          <TabsTrigger value="orders">
             Open Orders{orderCount ? ` (${orderCount})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
+          <TabsTrigger value="fills">
             Fills
           </TabsTrigger>
         </TabsList>
-        <div className="flex items-center gap-3 pr-3 text-xs text-muted-foreground">
+        <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
           <span>
             Open orders:{" "}
             <strong className="text-foreground">{orderCount}</strong>
@@ -1128,6 +1195,7 @@ function SandboxBottomTabs({
             Cancel all orders
           </Button>
         </div>
+        {toggles}
       </div>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PositionsTable

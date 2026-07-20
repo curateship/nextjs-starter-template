@@ -840,11 +840,11 @@ export function AutomationEditor({
       >
         <WorkspacePanel>{leftPanel}</WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle gap />
+      <ResizableHandle gap collapsed={paletteCollapsed} />
       <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
         <WorkspacePanel className="flex">{centerPanel}</WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle gap />
+      <ResizableHandle gap collapsed={inspectorCollapsed} />
       <ResizablePanel
         id="inspector"
         panelRef={inspectorPanelRef}

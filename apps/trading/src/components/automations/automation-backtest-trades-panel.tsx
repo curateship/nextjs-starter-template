@@ -2,6 +2,7 @@ import { ChevronsDownIcon } from "lucide-react"
 
 import { BacktestTradesTable } from "@/components/backtest/backtest-trades-table"
 import { Button } from "@/components/ui/button"
+import { BOTTOM_PANEL_HEADER } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { STICKY_SCROLL_OVERRIDES } from "@/components/ui/table"
 import type { BacktestResult, BacktestTrade } from "@/lib/backtest/types"
@@ -41,7 +42,7 @@ export function AutomationBacktestTradesPanel({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-b p-4">
+      <div className={BOTTOM_PANEL_HEADER}>
         <h2 className="text-xs font-semibold tracking-wide uppercase">
           Trades — {market}
         </h2>

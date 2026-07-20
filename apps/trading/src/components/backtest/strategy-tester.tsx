@@ -15,6 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { STICKY_SCROLL_OVERRIDES } from "@/components/ui/table"
+import { BOTTOM_PANEL_HEADER } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
@@ -47,21 +48,14 @@ export function StrategyTester({
 }) {
   return (
     <Tabs defaultValue="trades" className="flex h-full min-h-0 flex-col gap-0">
-      <div className="flex items-center gap-4 bg-muted/50 px-4">
-        <TabsList
-          variant="line"
-          className="h-auto gap-4 rounded-none border-none bg-transparent p-0"
-        >
+      <div className={BOTTOM_PANEL_HEADER}>
+        <TabsList variant="pill">
           {[
             ["trades", "List of Trades"],
             ["overview", "Overview"],
             ["performance", "Performance Summary"],
           ].map(([value, label]) => (
-            <TabsTrigger
-              key={value}
-              value={value}
-              className="rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
-            >
+            <TabsTrigger key={value} value={value}>
               {label}
             </TabsTrigger>
           ))}
