@@ -12,16 +12,10 @@ import {
 import {
   ArrowLeftIcon,
   ChevronDownIcon,
-  ChevronsDownIcon,
-  ChevronsUpIcon,
   HistoryIcon,
   ListFilterIcon,
   ListIcon,
   Loader2Icon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PanelRightCloseIcon,
-  PanelRightOpenIcon,
   PinIcon,
   PinOffIcon,
   Trash2Icon,
@@ -38,6 +32,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import { IconButton } from "@/components/icon-button"
+import { PanelToggle } from "@/components/panel-toggles"
+import { togglePanel } from "@/lib/panel-collapse"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -1141,14 +1137,6 @@ export function RunHistoryDashboard({
   const [tradesCollapsed, setTradesCollapsed] = React.useState(false)
   const horizontalLayout = usePanelLayout("group-workspace-horizontal")
   const verticalLayout = usePanelLayout("group-workspace-vertical")
-  const togglePanel = (
-    ref: React.RefObject<PanelImperativeHandle | null>
-  ) => {
-    const panel = ref.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
@@ -1169,37 +1157,29 @@ export function RunHistoryDashboard({
         <Badge variant="secondary" className="font-medium">
           {marketRuns.length} {marketRuns.length === 1 ? "market" : "markets"}
         </Badge>
-        <div className="ml-1 flex items-center gap-0.5">
-          <IconButton
-            label={summaryCollapsed ? "Show summary panel" : "Hide summary panel"}
-            onClick={() => togglePanel(summaryPanelRef)}
-          >
-            {summaryCollapsed ? (
-              <PanelLeftOpenIcon className="size-4" />
-            ) : (
-              <PanelLeftCloseIcon className="size-4" />
-            )}
-          </IconButton>
-          <IconButton
-            label={marketsCollapsed ? "Show markets panel" : "Hide markets panel"}
-            onClick={() => togglePanel(marketsPanelRef)}
-          >
-            {marketsCollapsed ? (
-              <PanelRightOpenIcon className="size-4" />
-            ) : (
-              <PanelRightCloseIcon className="size-4" />
-            )}
-          </IconButton>
-          <IconButton
+        <div className="ml-1 flex items-center gap-1">
+          <PanelToggle
+            side="left"
+            collapsed={summaryCollapsed}
+            label={
+              summaryCollapsed ? "Show summary panel" : "Hide summary panel"
+            }
+            onClick={() => togglePanel(summaryPanelRef, "21%")}
+          />
+          <PanelToggle
+            side="right"
+            collapsed={marketsCollapsed}
+            label={
+              marketsCollapsed ? "Show markets panel" : "Hide markets panel"
+            }
+            onClick={() => togglePanel(marketsPanelRef, "28%")}
+          />
+          <PanelToggle
+            side="bottom"
+            collapsed={tradesCollapsed}
             label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
-            onClick={() => togglePanel(tradesPanelRef)}
-          >
-            {tradesCollapsed ? (
-              <ChevronsUpIcon className="size-4" />
-            ) : (
-              <ChevronsDownIcon className="size-4" />
-            )}
-          </IconButton>
+            onClick={() => togglePanel(tradesPanelRef, "32%")}
+          />
         </div>
       </div>
 
@@ -1418,7 +1398,7 @@ export function RunHistoryDashboard({
                 </WorkspacePanel>
               </ResizablePanel>
 
-              <ResizableHandle gap />
+              <ResizableHandle gap collapsed={summaryCollapsed} />
 
               {/* CENTER — the selected market's replay chart. */}
               <ResizablePanel id="chart" defaultSize="51%" minSize="24%">
@@ -1447,7 +1427,7 @@ export function RunHistoryDashboard({
                 </WorkspacePanel>
               </ResizablePanel>
 
-              <ResizableHandle gap />
+              <ResizableHandle gap collapsed={marketsCollapsed} />
 
               {/* RIGHT — every market in the run; click one to load it. */}
               <ResizablePanel
@@ -1507,7 +1487,7 @@ export function RunHistoryDashboard({
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          <ResizableHandle gap />
+          <ResizableHandle gap collapsed={tradesCollapsed} />
 
           {/* BOTTOM — the selected market's trades. */}
           <ResizablePanel

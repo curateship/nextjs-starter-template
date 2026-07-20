@@ -18,15 +18,9 @@ import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
 import { useBotLive } from "@/components/bots/use-bot-live"
 import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { IconButton } from "@/components/icon-button"
-import {
-  ArrowLeftIcon,
-  ChevronsDownIcon,
-  ChevronsUpIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PanelRightCloseIcon,
-  PanelRightOpenIcon,
-} from "lucide-react"
+import { PanelToggle } from "@/components/panel-toggles"
+import { togglePanel } from "@/lib/panel-collapse"
+import { ArrowLeftIcon } from "lucide-react"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -107,12 +101,6 @@ export function BotWorkspace({
   const [tradesCollapsed, setTradesCollapsed] = React.useState(false)
   const horizontalLayout = usePanelLayout("bot-run-workspace-horizontal")
   const verticalLayout = usePanelLayout("bot-run-workspace-vertical")
-  const togglePanel = (ref: React.RefObject<PanelImperativeHandle | null>) => {
-    const panel = ref.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
@@ -136,41 +124,29 @@ export function BotWorkspace({
         <Badge variant="secondary" className="font-medium">
           {bot.markets.length} {bot.markets.length === 1 ? "market" : "markets"}
         </Badge>
-        <div className="ml-1 flex items-center gap-0.5">
-          <IconButton
+        <div className="ml-1 flex items-center gap-1">
+          <PanelToggle
+            side="left"
+            collapsed={summaryCollapsed}
             label={
               summaryCollapsed ? "Show summary panel" : "Hide summary panel"
             }
-            onClick={() => togglePanel(summaryPanelRef)}
-          >
-            {summaryCollapsed ? (
-              <PanelLeftOpenIcon className="size-4" />
-            ) : (
-              <PanelLeftCloseIcon className="size-4" />
-            )}
-          </IconButton>
-          <IconButton
+            onClick={() => togglePanel(summaryPanelRef, "21%")}
+          />
+          <PanelToggle
+            side="right"
+            collapsed={marketsCollapsed}
             label={
               marketsCollapsed ? "Show markets panel" : "Hide markets panel"
             }
-            onClick={() => togglePanel(marketsPanelRef)}
-          >
-            {marketsCollapsed ? (
-              <PanelRightOpenIcon className="size-4" />
-            ) : (
-              <PanelRightCloseIcon className="size-4" />
-            )}
-          </IconButton>
-          <IconButton
+            onClick={() => togglePanel(marketsPanelRef, "26%")}
+          />
+          <PanelToggle
+            side="bottom"
+            collapsed={tradesCollapsed}
             label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
-            onClick={() => togglePanel(tradesPanelRef)}
-          >
-            {tradesCollapsed ? (
-              <ChevronsUpIcon className="size-4" />
-            ) : (
-              <ChevronsDownIcon className="size-4" />
-            )}
-          </IconButton>
+            onClick={() => togglePanel(tradesPanelRef, "32%")}
+          />
         </div>
       </div>
       {!data.workerOnline ? (
@@ -216,7 +192,7 @@ export function BotWorkspace({
                     />
                   </WorkspacePanel>
                 </ResizablePanel>
-                <ResizableHandle gap />
+                <ResizableHandle gap collapsed={summaryCollapsed} />
                 <ResizablePanel id="chart" defaultSize="53%" minSize="30%">
                   <WorkspacePanel className="flex flex-col">
                     <BotLiveChartPanel
@@ -233,7 +209,7 @@ export function BotWorkspace({
                     />
                   </WorkspacePanel>
                 </ResizablePanel>
-                <ResizableHandle gap />
+                <ResizableHandle gap collapsed={marketsCollapsed} />
                 <ResizablePanel
                   id="markets"
                   panelRef={marketsPanelRef}
@@ -268,7 +244,7 @@ export function BotWorkspace({
                 </ResizablePanel>
               </ResizablePanelGroup>
             </ResizablePanel>
-            <ResizableHandle gap />
+            <ResizableHandle gap collapsed={tradesCollapsed} />
             <ResizablePanel
               id="trades"
               panelRef={tradesPanelRef}
