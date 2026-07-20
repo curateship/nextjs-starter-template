@@ -65,7 +65,13 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {/* Overlay is an explicit close target. Radix's own outside-press dismiss
+          ignores the first click after a Select inside the dialog was used (an
+          upstream DismissableLayer bug), so clicking the backdrop closes here
+          directly and reliably. */}
+      <DialogPrimitive.Close asChild>
+        <DialogOverlay />
+      </DialogPrimitive.Close>
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}
@@ -158,11 +164,9 @@ function DialogFooter({
       data-slot="dialog-footer"
       data-variant={variant}
       className={cn(
-        "flex flex-row justify-end gap-2 **:data-[slot=button]:h-9",
-        variant === "default" && "rounded-b-xl border-t bg-muted/50 px-6 py-5",
-        variant === "plain" &&
-          "items-center rounded-none border-t-0 bg-transparent",
-        variant === "plain" && !isAdminPlain && "px-6 py-5",
+        // The footer sits directly on the modal surface: no band, no divider.
+        "flex flex-row items-center justify-end gap-2 **:data-[slot=button]:h-9",
+        !isAdminPlain && "px-6 pt-0 pb-5",
         isAdminPlain && "px-6 pb-6",
         className
       )}
@@ -188,7 +192,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-base leading-none font-medium",
+        "text-lg leading-none font-medium",
         contentVariant === "admin" && "truncate",
         className
       )}

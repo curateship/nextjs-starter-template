@@ -5,6 +5,7 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { getAuthErrorMessage, resetPassword } from "@/lib/api/auth"
 
@@ -82,7 +83,9 @@ function ResetPasswordRoute() {
       }
     >
       <div className="space-y-2">
-        <Label htmlFor="password">New password</Label>
+        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+          New password
+        </FieldLabel>
         <Input
           id="password"
           type="password"
@@ -92,7 +95,6 @@ function ResetPasswordRoute() {
           onChange={(event) => setPassword(event.target.value)}
           required
         />
-        <p className="text-xs text-muted-foreground">At least 8 characters.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirm-password">Confirm new password</Label>

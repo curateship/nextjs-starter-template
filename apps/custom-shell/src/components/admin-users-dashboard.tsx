@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
+import { format } from "date-fns"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -240,7 +242,7 @@ export function AdminUsersDashboard({
               >
                 <SelectValue placeholder="Role" />
               </DashboardToolbarSelectTrigger>
-              <SelectContent position="popper">
+              <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
                 <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="member">Members</SelectItem>
@@ -259,7 +261,7 @@ export function AdminUsersDashboard({
               >
                 <SelectValue placeholder="Status" />
               </DashboardToolbarSelectTrigger>
-              <SelectContent position="popper">
+              <SelectContent>
                 <SelectItem value="all">All accounts</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
@@ -615,7 +617,7 @@ function EditAccountDialog({
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
                 <div className="grid gap-2">
                   <Label htmlFor="account-role">Role</Label>
                   <Select
@@ -624,10 +626,10 @@ function EditAccountDialog({
                       setRole(value as "admin" | "member")
                     }
                   >
-                    <SelectTrigger id="account-role" className="w-full">
+                    <SelectTrigger id="account-role" className="w-full sm:w-fit">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper">
+                    <SelectContent>
                       <SelectItem value="member">Member</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
@@ -641,10 +643,10 @@ function EditAccountDialog({
                       setStatus(value as "active" | "suspended")
                     }
                   >
-                    <SelectTrigger id="account-status" className="w-full">
+                    <SelectTrigger id="account-status" className="w-full sm:w-fit">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper">
+                    <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="suspended">Suspended</SelectItem>
                     </SelectContent>
@@ -663,14 +665,14 @@ function EditAccountDialog({
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="grid gap-2">
                   <Label htmlFor="account-plan">Plan</Label>
                   <Select value={planId} onValueChange={setPlanId}>
-                    <SelectTrigger id="account-plan" className="w-full">
+                    <SelectTrigger id="account-plan" className="w-full sm:w-fit">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper">
+                    <SelectContent>
                       <SelectItem value="none">No granted plan</SelectItem>
                       {plans.map((plan) => (
                         <SelectItem key={plan.id} value={plan.id}>
@@ -680,20 +682,23 @@ function EditAccountDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="account-ends-on">Ends on</Label>
-                  <Input
+                <div className="grid gap-2 sm:flex-1">
+                  <FieldLabel
+                    htmlFor="account-ends-on"
+                    hint="Leave empty to keep the plan until you remove it."
+                  >
+                    Ends on
+                  </FieldLabel>
+                  <DatePicker
                     id="account-ends-on"
-                    type="date"
-                    value={endsOn}
+                    value={endsOn ? new Date(`${endsOn}T00:00:00`) : undefined}
                     disabled={planId === "none"}
-                    onChange={(event) => setEndsOn(event.target.value)}
+                    onChange={(date) =>
+                      setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
+                    }
                   />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Leave the date empty to keep the plan until you remove it.
-              </p>
             </CardContent>
           </Card>
 

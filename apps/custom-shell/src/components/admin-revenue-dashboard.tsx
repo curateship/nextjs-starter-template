@@ -105,7 +105,8 @@ function StatCard({
     <Card size="sm">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl">{value}</CardTitle>
+        {/* Same variant as the size=sm title default so it overrides, not loses to, that rule. */}
+        <CardTitle className="group-data-[size=sm]/card:text-2xl">{value}</CardTitle>
       </CardHeader>
       {help ? (
         <CardContent>

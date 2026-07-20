@@ -294,8 +294,8 @@ plan lookup by Stripe price, webhook replay, and the admin guards including
 last-admin protection.
 
 ```bash
-npm run test
-npx tsc -p tsconfig.app.json --noEmit    # the typecheck script is a no-op here
+pnpm --filter custom-shell test
+pnpm --filter custom-shell exec tsc -p tsconfig.app.json --noEmit
 ```
 
 **Browser.** Drive the real app with Playwright: sign-up, the verification link

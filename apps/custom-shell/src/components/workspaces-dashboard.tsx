@@ -10,7 +10,14 @@ import {
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
@@ -63,6 +70,8 @@ export function WorkspacesDashboard({
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [formOpen, setFormOpen] = React.useState(false)
   const [form, setForm] = React.useState<WorkspaceForm>({
     name: "",
@@ -132,6 +141,41 @@ export function WorkspacesDashboard({
     }
   }
 
+  function toggleSelection(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedIds((current) =>
+      current.size === sortedWorkspaces.length
+        ? new Set()
+        : new Set(sortedWorkspaces.map((workspace) => workspace.id))
+    )
+  }
+
+  // One workspace always has to survive, so the last one cannot be selected away.
+  async function confirmMassDelete() {
+    setBusy(true)
+    setError(null)
+    try {
+      for (const id of selectedIds) {
+        await deleteWorkspace(id)
+      }
+      await router.invalidate()
+      setSelectedIds(new Set())
+      setMassDeleteOpen(false)
+    } catch (error) {
+      setError(getWorkspaceErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function confirmDelete() {
     if (!pendingDelete) return
 
@@ -159,15 +203,44 @@ export function WorkspacesDashboard({
           "size-4 text-muted-foreground sm:size-[18px]"
         )}
         count={sortedWorkspaces.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
         controls={
-          <DashboardToolbarButton type="button" onClick={openCreateForm}>
-            <PlusIcon className="size-4" />
-            Add Workspace
-          </DashboardToolbarButton>
+          <>
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={busy || selectedIds.size >= workspaces.length}
+              >
+                <Trash2Icon className="size-4" />
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarButton type="button" onClick={openCreateForm}>
+              <PlusIcon className="size-4" />
+              Add Workspace
+            </DashboardToolbarButton>
+          </>
         }
         header={
           <TableHeader>
             <TableRow>
+              <TableHead column="select">
+                <Checkbox
+                  checked={
+                    selectedIds.size === sortedWorkspaces.length &&
+                    sortedWorkspaces.length > 0
+                      ? true
+                      : selectedIds.size
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={toggleVisibleSelection}
+                  aria-label="Select visible workspaces"
+                />
+              </TableHead>
               <TableHead column="main">
                 <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
                   Workspace
@@ -184,7 +257,7 @@ export function WorkspacesDashboard({
         }
         isEmpty={sortedWorkspaces.length === 0}
         emptyText="No workspaces found."
-        emptyColSpan={3}
+        emptyColSpan={4}
         footer={{
           type: "summary",
           count: sortedWorkspaces.length,
@@ -192,7 +265,14 @@ export function WorkspacesDashboard({
         }}
       >
         {sortedWorkspaces.map((workspace) => (
-          <TableRow key={workspace.id}>
+          <TableRow key={workspace.id} className="group">
+            <TableCell column="select">
+              <Checkbox
+                checked={selectedIds.has(workspace.id)}
+                onCheckedChange={() => toggleSelection(workspace.id)}
+                aria-label={`Select ${workspace.name}`}
+              />
+            </TableCell>
             <TableCell column="main">
               <div className="flex items-center gap-3">
                 <span className="flex h-8 min-w-8 shrink-0 items-center justify-center border-border">
@@ -207,7 +287,13 @@ export function WorkspacesDashboard({
                   )}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{workspace.name}</div>
+                  <button
+                    type="button"
+                    className="block max-w-full truncate text-left font-medium group-hover:underline"
+                    onClick={() => openEditForm(workspace)}
+                  >
+                    {workspace.name}
+                  </button>
                   <div className="text-xs text-muted-foreground">
                     Private project
                   </div>
@@ -226,7 +312,7 @@ export function WorkspacesDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => openEditForm(workspace)}
                   aria-label={`Edit ${workspace.name}`}
                   title={`Edit ${workspace.name}`}
@@ -236,7 +322,7 @@ export function WorkspacesDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   disabled={workspaces.length <= 1}
                   onClick={() => setPendingDelete(workspace)}
                   aria-label={`Delete ${workspace.name}`}
@@ -249,6 +335,37 @@ export function WorkspacesDashboard({
           </TableRow>
         ))}
       </DashboardTable>
+
+      <Dialog open={massDeleteOpen} onOpenChange={setMassDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Delete {selectedIds.size}{" "}
+              {selectedIds.size === 1 ? "workspace" : "workspaces"}?
+            </DialogTitle>
+            <DialogDescription>
+              Their settings and navigation are removed. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMassDeleteOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmMassDelete}
+              disabled={busy}
+            >
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Delete workspaces
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <WorkspaceFormDialog
         open={formOpen}
@@ -300,40 +417,47 @@ function WorkspaceFormDialog({
             Choose the name and icon shown in the workspace switcher.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="workspace-name">Name</Label>
-            <Input
-              id="workspace-name"
-              value={form.name}
-              disabled={saving}
-              onChange={(event) =>
-                onFormChange({ ...form, name: event.target.value })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="workspace-icon">Icon</Label>
-            <Select
-              value={form.icon}
-              disabled={saving}
-              onValueChange={(value) =>
-                onFormChange({ ...form, icon: value as IconKey })
-              }
-            >
-              <SelectTrigger id="workspace-icon" className="h-8 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(iconMeta).map(([icon, meta]) => (
-                  <SelectItem key={icon} value={icon}>
-                    {renderShellIcon(icon as IconKey)}
-                    {meta.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Workspace</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="workspace-name">Name</Label>
+                <Input
+                  id="workspace-name"
+                  value={form.name}
+                  disabled={saving}
+                  onChange={(event) =>
+                    onFormChange({ ...form, name: event.target.value })
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="workspace-icon">Icon</Label>
+                <Select
+                  value={form.icon}
+                  disabled={saving}
+                  onValueChange={(value) =>
+                    onFormChange({ ...form, icon: value as IconKey })
+                  }
+                >
+                  <SelectTrigger id="workspace-icon" className="w-full sm:w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(iconMeta).map(([icon, meta]) => (
+                      <SelectItem key={icon} value={icon}>
+                        {renderShellIcon(icon as IconKey)}
+                        {meta.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
         </DialogBody>
         <DialogFooter variant="plain">
           <>
@@ -375,18 +499,10 @@ function DeleteWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>Delete Workspace</DialogTitle>
           <DialogDescription>
-            This deletes the workspace.
+            {workspace?.name ?? "This workspace"} and its settings are removed.
+            This cannot be undone.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <p className="text-sm">
-            Delete{" "}
-            <span className="font-medium">
-              {workspace?.name ?? "this workspace"}
-            </span>
-            ?
-          </p>
-        </DialogBody>
         <DialogFooter variant="plain">
           <>
             <Button

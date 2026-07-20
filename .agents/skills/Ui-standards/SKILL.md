@@ -6,7 +6,7 @@ tags: ui, design-system, standards
 
 # UI Rules
 
-Use these rules for every new or modified interface, in every app in this monorepo. The Trading app is the reference implementation; all other apps copy its visual design exactly. App-specific UI guides may add stricter rules. One rule comes first: reuse the existing UI instead of inventing a parallel version.
+Use these rules for every new or modified interface, in every app in this monorepo. **Custom Shell (`apps/custom-shell`) is the source of truth**: its `src/components/ui/*` primitives, tables, modals, and forms are the canonical implementation every other app matches. When an app needs a shared component or pattern changed, change it in Custom Shell first so every app inherits it — never fork a primitive or add an app-local rule that diverges from this document. One rule comes first: reuse the existing UI instead of inventing a parallel version.
 
 ## Core Components and Surfaces
 
@@ -29,6 +29,8 @@ Use these rules for every new or modified interface, in every app in this monore
 ## Runtime styling (Custom Shell)
 
 The Custom Shell app has a per-workspace **Styling** settings tab (`/admin/settings/styling`, `src/components/styling-settings.tsx`) that retunes spacing, borders, backgrounds, and modal chrome at runtime. Values live on `ShellConfig.styling` (`src/lib/custom-shell.tsx`), persist per-workspace (jsonb, no migration), and apply through CSS variables. The defaults below reproduce the standard look — only the mechanism changed. **New UI in this app must consume these variables (with the documented fallback) instead of hardcoding spacing/border/background, or the user's styling silently won't reach it.**
+
+The default settings, defined by `createDefaultStyling()` in `src/lib/custom-shell.tsx`, are the standard every app inherits: content gutter **24px**, content card border **1px**, content background muted at **60%** strength, chrome (sidebar + header) on the theme token, and modal padding **24px**, modal border **1px**, backdrop dimming **10%**. Treat these numbers as the baseline; change them in `createDefaultStyling()` (so every app follows), not per screen.
 
 - **Content spacing (gutter).** `DashboardContent` (`src/components/demo/dashboard-content.tsx`) sets `--shell-gutter` on its `<main data-content-styling>` and uses it for both the outer padding and the gap between children. Card-stacking containers consume it: `CardGroup` (`src/components/ui/card.tsx`), `DashboardRow`, and the settings page use `style={{ gap: "var(--shell-gutter, <fallback>)" }}`. Any new container that stacks cards must do the same. `--shell-gutter: 0` is "flat mode" — no gaps, and content cards lose their border and rounding (`[data-flat="true"]`).
 - **Card & table borders (content).** Inside `[data-content-styling]`, `[data-slot="card"]` and `[data-slot="table-surface"]` draw their border from a box-shadow built on `--shell-card-border-width` (px, 0 = off) and `--shell-card-border-color` (`src/theme.css`), overriding the primitive's `ring`. Use the shared `Card`/`TableSurface` (they carry the `data-slot`) so the setting reaches them; never hardcode a `border`/`ring` on a content surface.
@@ -68,9 +70,13 @@ The Custom Shell app has a per-workspace **Styling** settings tab (`/admin/setti
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
-- Give every field a visible label. Keep help and error text beside the field and preserve entered values after errors.
+- Give every field a visible label with an `id`/`htmlFor` pair, and preserve entered values after errors.
+- Field help belongs in a hover tooltip on the label, never in a paragraph under the control. Use the shared `FieldLabel` (`src/components/ui/field-label.tsx`): it renders the label with a small `InfoIcon` that reveals the hint on hover. Helper text under an input reads like an error, pushes the next field down, and makes side-by-side fields different heights. The icon is not a form control (`tabIndex={-1}`); it never takes focus from the field.
+- Prefer packing short fields side by side on desktop to reduce a form's height, stacking them full-width on mobile; reserve a full-width single-column field for genuinely wide content. Never leave one field occupying half of a two-column row — either fill the row or drop to one column.
+- Multi-line fields use the shared `Textarea`, which starts at one row and grows with its content (`field-sizing-content min-h-9`). Pass `rows={1}`; do not reserve empty rows with a tall `min-h` or a large `rows` value.
+- Each checkbox gets its own full-width row (`grid gap-2` stack of `Checkbox` + `Label`). Never pack checkboxes into a grid column beside other fields.
 - Draggable or repeatable text-field lists start with one default row. Users add more rows explicitly; do not create multiple empty rows by default.
-- Use `grid gap-2` between a label and its control, `gap-4` between fields and between columns in a field row, and `gap-6` between form sections (the `DialogBody` default in modals).
+- Spacing ladder: `gap-2` (8px) label to control, `gap-4` (16px) between fields and between a card's header and its content, `gap-6` (24px) between the stacked cards in a modal body (the `DialogBody` default).
 - Range/slider controls use the shared `Slider` primitive (`src/components/ui/slider.tsx` in Custom Shell), styled monochrome (foreground track and thumb) and constrained (not full width); do not hand-roll a native `<input type="range">` or color its track with `accent-primary`.
 
 ## Tabs
@@ -82,9 +88,9 @@ The Custom Shell app has a per-workspace **Styling** settings tab (`/admin/setti
 
 ## Tables
 
-- Use the app's established dashboard table wrapper (`DashboardTable` in Trading), shared `Table` primitives, and `TableSurface`. Do not build tables from raw div grids or one-off styling.
+- Use the shared `DashboardTable` wrapper (`src/components/dashboard-table.tsx` in Custom Shell), the `Table` primitives, and `TableSurface`. Do not build tables from raw div grids or one-off styling. Reference table: `src/components/admin-users-dashboard.tsx`.
 - Every table must have mass selection: a checkbox column first, with a select-all checkbox in the header (indeterminate when only some rows are selected) and a checkbox on every row. Selecting rows reveals the multi-selection actions (such as `Delete (n)`) at the start of the toolbar.
-- Every column must be sortable except the selection checkbox and actions columns. Use the shared `TableSortButton` in each sortable header; do not ship a data column without sorting.
+- Every column must be sortable except the selection checkbox and actions columns. Use the shared `TableSortButton` in each sortable header; do not ship a data column without sorting. The sort chevron is hidden until the header is hovered or focused; the actively-sorted column always shows its up/down arrow. The `TableSortButton` handles this — do not add your own always-visible sort icon.
 - Use a 40px header (`h-10`), compact cells (`px-5 py-2`), a muted header, and the shared rounded surface.
 - Keep the main column flexible, metadata compact, and actions in the final column.
 - The item title in the main column is always interactive, never plain text. If the item has its own dashboard or detail page, the title links there; otherwise clicking the title opens the item's edit modal.
@@ -97,18 +103,22 @@ The Custom Shell app has a per-workspace **Styling** settings tab (`/admin/setti
 ## Modals
 
 - Use shared `Dialog` for forms and `AlertDialog` or the established confirmation component for destructive actions. Do not nest modals.
-- Form modals use the app's established admin variant, with a visible header, scrollable body, and footer. In Trading, use `DialogContent variant="admin"`; do not invent shells, overlays, close buttons, or footer layouts.
+- Form modals use the shared admin variant, with a visible header, scrollable body, and footer: `DialogContent variant="admin"` (`src/components/ui/dialog.tsx` in Custom Shell). Do not invent shells, overlays, close buttons, or footer layouts.
 - The admin shell (defined in the shared `dialog.tsx`, never restated per modal) is: one uniform theme-aware light gray (`bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]`), `rounded-xl ring-1 ring-foreground/10`, `p-0 gap-0`, capped at `max-h-[calc(100vh-4rem)]`, full-screen on mobile. Default width is `sm:max-w-3xl`; narrow one-column forms may pass a smaller cap such as `sm:max-w-lg` on `DialogContent`.
 - Header is `DialogHeader` (`px-6 pt-6 pb-0`) with `DialogTitle`, a one-line `DialogDescription` in muted text, and the built-in ghost X close button top-right. Do not add your own close button.
 - The body is `DialogBody` — a `ScrollArea` with `grid gap-6 px-6 pt-6 pb-6` and cards forced shadowless. Keep that spacing; do not hardcode a different value. In Custom Shell the 24px padding and the inter-card gap both come from `--shell-modal-padding` (configurable via the Styling settings, `gap-6`/`px-6` as the default) and the modal surface, border, overlay dimming, and inner-card styling are variable-driven — see [Runtime styling (Custom Shell)](#runtime-styling-custom-shell).
-- Group the body into white `<Card size="sm">` sections. Put each section title inside `CardHeader`/`CardTitle`, optional help in `CardDescription`, and fields in `CardContent className="grid gap-4"`; do not leave form fields loose on the shell.
-- Inside a card: each field is `grid gap-2` (`Label` + control), side-by-side fields use `grid gap-4 sm:grid-cols-2` (or `sm:grid-cols-3`), and every control gets an `id` its `Label` points to with `htmlFor`. Helper text below a field group is `text-sm text-muted-foreground`.
-- Modal inputs and dropdowns use the default 32px height (`h-8`); selects add `w-full` so they fill their grid column.
-- Footer is `DialogFooter` sitting directly on the gray shell — no border or background band. It right-aligns buttons with `gap-2` and forces them to 36px (`h-9`); do not fight that height. Order is Cancel (`outline`), then the primary action; while submitting, disable both and show a `Loader2Icon` spinner inside the primary button.
+- All modal content lives in cards. Group the body into white `<Card size="sm">` sections, each with its title in `CardHeader`/`CardTitle`, optional context in `CardDescription`, and fields in `CardContent className="grid gap-4"` (or `flex flex-col gap-4`). Never leave a paragraph, field, or control loose on the shell between cards. A `size="sm"` card's header sits `gap-4` (16px) above its content.
+- Field width follows the control type, and rows pack side by side on desktop to keep modals short, stacking full-width on mobile:
+  - **Dropdowns / selects** are as wide as their text — `SelectTrigger className="w-full sm:w-fit"` (content-width on desktop, full on mobile). Never stretch a select to fill a column. Group two or more in a `flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start` so they sit side by side on desktop.
+  - **Text and number inputs and textareas are full width** — they fill their row. Date fields use the shared `DatePicker` (`src/components/ui/date-picker.tsx`) — a button that opens a `Calendar` in a popover — not a native `<input type="date">`, so the picker looks identical in every browser; it is full width like the other inputs. Alone, the field spans the container. Sharing a row with a dropdown, wrap the input's field in `sm:flex-1` so it fills the space beside the content-width select (`flex flex-col gap-4 sm:flex-row sm:items-start`, dropdown first, input `flex-1`). On mobile the row stacks and both are full width.
+  - **Checkboxes and switches are content-width and each take their own row** — never full width, never packed into a field grid.
+- Each field is `grid gap-2` (`FieldLabel` + control). Field help is a tooltip on the label, never a paragraph under the control (see Forms). Textareas start at one row.
+- Modal inputs and dropdowns use the default 32px height (`h-8`). Text/date inputs and textareas fill their column. A form select is `className="w-full sm:w-fit"` — full width on mobile, sized to its content on desktop. Selects use the shared `Select`'s default overlay menu, which opens on top of the trigger — do not pass `position="popper"` unless the menu must escape a clipping or zoom context (as `directory` does), and never to make it drop below the trigger.
+- Footer is `DialogFooter` sitting directly on the modal surface — no border, no background band, and no top padding (the body-to-footer gap comes from the body's own bottom padding). It right-aligns buttons with `gap-2` and forces them to 36px (`h-9`); do not fight that height. Order is Cancel (`outline`), then the primary action; while submitting, disable both and show a `Loader2Icon` spinner inside the primary button.
 - Show submit errors inline at the bottom of the body as `<p role="alert" className="text-sm text-destructive">`; keep entered values.
-- Keep confirmations compact and explain the consequence in plain English. Tiny title-and-description confirmations do not need cards.
+- A confirmation states the consequence in plain English in the `DialogDescription` and has no body at all — header plus footer only. Do not add a body paragraph that just restates the title.
 - Support Escape, focus trapping, focus restoration, and accessible titles. Block closing (including overlay and Escape paths) while a submit is in flight.
-- In Trading, use `src/components/automations/create-automation-dialog.tsx` and `src/components/backtest/new-run-dialog.tsx` as the reference form-modal implementations.
+- Reference form modal: `src/components/admin-plans-dashboard.tsx` in Custom Shell (card sections, `FieldLabel` hints, full-width and paired fields, checkbox rows, footer). Its edit-account sibling `admin-users-dashboard.tsx` is the reference for a modal that only sends the fields that changed.
 
 ## Scrolling
 

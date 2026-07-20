@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { getAuthErrorMessage, updateProfile } from "@/lib/api/auth"
 import type { AuthUser } from "@/lib/api/auth"
@@ -85,7 +86,7 @@ export function AccountProfilePage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
+            <div className="grid gap-2">
               <Label htmlFor="account-name">Name</Label>
               <Input
                 id="account-name"
@@ -95,12 +96,14 @@ export function AccountProfilePage({
                 required
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="account-email">Email</Label>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="account-email"
+                hint="Contact support to change the email on the account."
+              >
+                Email
+              </FieldLabel>
               <Input id="account-email" value={user.email} readOnly disabled />
-              <p className="text-xs text-muted-foreground">
-                Contact support to change the email on the account.
-              </p>
             </div>
             {error ? (
               <p role="alert" className="text-sm text-destructive">

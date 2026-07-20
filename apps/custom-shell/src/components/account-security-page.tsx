@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
   changePassword,
@@ -84,7 +85,7 @@ function ChangePasswordCard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
+          <div className="grid gap-2">
             <Label htmlFor="current-password">Current password</Label>
             <Input
               id="current-password"
@@ -95,8 +96,10 @@ function ChangePasswordCard() {
               required
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="new-password">New password</Label>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="new-password" hint="At least 8 characters.">
+              New password
+            </FieldLabel>
             <Input
               id="new-password"
               type="password"
@@ -106,9 +109,8 @@ function ChangePasswordCard() {
               onChange={(event) => setNewPassword(event.target.value)}
               required
             />
-            <p className="text-xs text-muted-foreground">At least 8 characters.</p>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="grid gap-2">
             <Label htmlFor="confirm-new-password">Confirm new password</Label>
             <Input
               id="confirm-new-password"
@@ -217,7 +219,7 @@ function DeleteAccountCard() {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="flex flex-col gap-1">
+            <div className="grid gap-2">
               <Label htmlFor="delete-password">Confirm your password</Label>
               <Input
                 id="delete-password"

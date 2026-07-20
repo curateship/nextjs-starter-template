@@ -47,7 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
   SelectContent,
@@ -387,8 +387,13 @@ function SortableSidebarItem({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor={`item-roles-${item.id}`}>Visible to</Label>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor={`item-roles-${item.id}`}
+                hint="Links to /admin pages are always hidden from members, whatever this says."
+              >
+                Visible to
+              </FieldLabel>
               <Select
                 value={item.roles?.includes("admin") ? "admin" : "everyone"}
                 onValueChange={(value) =>
@@ -397,17 +402,14 @@ function SortableSidebarItem({
                   })
                 }
               >
-                <SelectTrigger id={`item-roles-${item.id}`} className="w-full">
+                <SelectTrigger id={`item-roles-${item.id}`} className="w-full sm:w-fit">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent position="popper">
+                <SelectContent>
                   <SelectItem value="everyone">Everyone</SelectItem>
                   <SelectItem value="admin">Admins only</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Links to /admin pages are always hidden from members.
-              </p>
             </div>
 
             <div className="space-y-3">

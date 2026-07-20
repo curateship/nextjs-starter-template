@@ -543,11 +543,7 @@ function DeleteFeedbackCommentModal({
           <DialogTitle>Delete Comment</DialogTitle>
           <DialogDescription>This action cannot be undone.</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this comment?
-          </p>
-        </DialogBody>
+
         <DialogFooter variant="plain">
           <>
             <Button
@@ -600,12 +596,7 @@ function MassDeleteFeedbackCommentsModal({
           </DialogTitle>
           <DialogDescription>This action cannot be undone.</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete {count} comment
-            {count === 1 ? "" : "s"}?
-          </p>
-        </DialogBody>
+
         <DialogFooter variant="plain">
           <>
             <Button
@@ -724,7 +715,7 @@ function EditFeedbackCommentModal({
               id="feedback-comment-message"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              className="min-h-40 resize-none text-base"
+              rows={1}
               disabled={busy}
               autoFocus
             />
