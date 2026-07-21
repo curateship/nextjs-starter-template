@@ -492,27 +492,98 @@ export async function modifyManualOrder(
       applySlippage(String(mark), isBuy ? "buy" : "sell"),
       asset.szDecimals
     )
-    await modifyOrder(
+    // Cancelling the entry drops any take-profit / stop-loss linked to it, so
+    // capture their trigger prices now to re-attach them to the market order.
+    let takeProfitPx: string | undefined
+    let stopLossPx: string | undefined
+    for (const child of order.children) {
+      let modification
+      try {
+        modification = describeOpenOrder(child).modification
+      } catch {
+        continue
+      }
+      if (modification.kind !== "trigger") continue
+      if (modification.tpsl === "tp") takeProfitPx = child.triggerPx
+      else stopLossPx = child.triggerPx
+    }
+
+    // Hyperliquid's modify can't turn a resting order into a taking order (it
+    // rejects with "invalid new order"), so cancel the resting limit and place
+    // a fresh market order for the same side and size. Cancel first: if it
+    // fails nothing is placed, and a placement failure can never leave both the
+    // resting order and a new fill.
+    await cancelOrder(
       wallet,
       { actor: "user", userId },
-      {
-        oid: input.oid,
-        order: {
-          assetId: asset.assetId,
-          coin: order.coin,
-          isBuy,
-          px: execPx,
-          sz,
-          reduceOnly: order.reduceOnly,
-          ...(order.cloid ? { cloid: order.cloid } : {}),
-          kind: "limit",
-          // IOC priced through the book takes liquidity and fills now, then
-          // cancels any remainder — a market order in all but name.
-          tif: "Ioc",
-        },
-      },
+      { assetId: asset.assetId, coin: order.coin, oid: input.oid },
       database
     )
+    const marketEntry = {
+      assetId: asset.assetId,
+      coin: order.coin,
+      isBuy,
+      px: execPx,
+      sz,
+      reduceOnly: order.reduceOnly,
+      tif: "FrontendMarket" as const,
+      cloid: buildCloid(MANUAL_CLOID_PREFIX),
+    }
+    try {
+      if (takeProfitPx || stopLossPx) {
+        // Re-attach the original stop-loss and take-profit so the position the
+        // market order opens is never left unprotected.
+        await placeBracketOrder(
+          wallet,
+          { actor: "user", userId },
+          {
+            entry: marketEntry,
+            ...(takeProfitPx
+              ? {
+                  takeProfit: {
+                    triggerPx: takeProfitPx,
+                    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+                  },
+                }
+              : {}),
+            ...(stopLossPx
+              ? {
+                  stopLoss: {
+                    triggerPx: stopLossPx,
+                    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+                  },
+                }
+              : {}),
+          },
+          database
+        )
+      } else {
+        await placeOrder(
+          wallet,
+          { actor: "user", userId },
+          marketEntry,
+          database
+        )
+      }
+    } catch (error) {
+      if (error instanceof BracketOrderError) {
+        if (error.entryStatus === "accepted") {
+          throw new Error(
+            "The market order filled, but re-attaching its stop-loss or take-profit was rejected. Set them again from the position."
+          )
+        }
+        if (error.entryStatus === "rejected") {
+          throw new Error(
+            "The resting order was cancelled, but the market order was rejected. No position was opened."
+          )
+        }
+      }
+      throw new Error(
+        `The resting order was cancelled, but the market order failed: ${
+          error instanceof Error ? error.message : "unknown error"
+        }. Check your positions and open orders before retrying.`
+      )
+    }
     return { px: execPx, sz, filledAtMarket: true }
   }
 
