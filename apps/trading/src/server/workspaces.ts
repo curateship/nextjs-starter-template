@@ -30,6 +30,9 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   favicon: string
   automationFavoriteNodeKeys: AutomationPaletteKey[]
+  // Order of the market watchlist tabs (Fav/Active/Gainers/Losers) on the
+  // trade dashboard. Empty means "use the built-in order".
+  dashboardWatchlistTabOrder: string[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
@@ -368,6 +371,13 @@ function cleanWorkspaceSettings(
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
+    dashboardWatchlistTabOrder: Array.isArray(
+      settings.dashboardWatchlistTabOrder
+    )
+      ? settings.dashboardWatchlistTabOrder.filter(
+          (value): value is string => typeof value === "string"
+        )
+      : fallback.dashboardWatchlistTabOrder,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -384,6 +394,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     automationFavoriteNodeKeys: [],
+    dashboardWatchlistTabOrder: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     styling: normalizeStyling(undefined),

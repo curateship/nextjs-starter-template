@@ -46,6 +46,7 @@ import {
   buildModifiedOrder,
   buildRiskBracketModifications,
   inferPreMarkerRiskUsd,
+  isMarketableDragPrice,
 } from "@/server/trading-order-modification"
 
 export type ManualOrderInput = {
@@ -435,6 +436,8 @@ export type ModifyManualOrderInput = {
   oid: number
   px: string
   sz?: string
+  /** User confirmed filling a marketable drag at market. Required to convert. */
+  fillAtMarket?: boolean
 }
 
 /** Re-prices a resting order (used by chart line dragging). */
@@ -442,7 +445,7 @@ export async function modifyManualOrder(
   userId: string,
   input: ModifyManualOrderInput,
   database: CustomShellDb = db
-): Promise<{ px: string; sz: string }> {
+): Promise<{ px: string; sz: string; filledAtMarket?: boolean }> {
   const wallet = await requireActiveWallet(userId, input.walletId, database)
   const network = wallet.network as TradingNetwork
   assertNetworkEnabled(network)
@@ -470,8 +473,51 @@ export async function modifyManualOrder(
   const [, assetCtxs] = assetData
   const ctx = assetCtxs[asset.assetIndex]
   const mark = Number(ctx?.markPx)
+  const isBuy = order.side === "B"
+
+  // Dragging a plain resting limit through the mark (a buy above it or a sell
+  // below it) can only ever fill instantly. When the user has confirmed the
+  // "fill at market" prompt, fill it now — the same "marketable limit becomes a
+  // market order" behaviour the new-order path already has. Without that
+  // explicit opt-in a crossing price falls through to the reject below, so a
+  // real market order never fires unconfirmed. The size was risk-checked when
+  // the order was placed, so this changes when it fills, not how much.
+  if (
+    input.fillAtMarket &&
+    !order.isTrigger &&
+    input.sz === undefined &&
+    isMarketableDragPrice(px, mark, isBuy)
+  ) {
+    const execPx = roundPrice(
+      applySlippage(String(mark), isBuy ? "buy" : "sell"),
+      asset.szDecimals
+    )
+    await modifyOrder(
+      wallet,
+      { actor: "user", userId },
+      {
+        oid: input.oid,
+        order: {
+          assetId: asset.assetId,
+          coin: order.coin,
+          isBuy,
+          px: execPx,
+          sz,
+          reduceOnly: order.reduceOnly,
+          ...(order.cloid ? { cloid: order.cloid } : {}),
+          kind: "limit",
+          // IOC priced through the book takes liquidity and fills now, then
+          // cancels any remainder — a market order in all but name.
+          tif: "Ioc",
+        },
+      },
+      database
+    )
+    return { px: execPx, sz, filledAtMarket: true }
+  }
+
   if (!order.isTrigger) {
-    assertPassiveLimitPrice(px, mark, order.side === "B")
+    assertPassiveLimitPrice(px, mark, isBuy)
   }
 
   const entry = openOrders.find(

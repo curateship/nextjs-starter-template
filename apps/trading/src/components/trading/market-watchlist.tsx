@@ -1,5 +1,20 @@
 import * as React from "react"
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -44,6 +59,7 @@ import {
 import type { MarketRow } from "@/lib/hl/hooks"
 import { isMarketVisible } from "@/lib/hl/market-visibility"
 import type { PerpMarketCategory } from "@/lib/hl/perp-markets"
+import { saveDashboardWatchlistTabOrder } from "@/lib/api/shell-settings"
 import { cn } from "@/lib/utils"
 
 type WatchlistTab = "favorites" | "active" | "gainers" | "losers"
@@ -71,6 +87,75 @@ const TABS: { value: WatchlistTab; label: string }[] = [
   { value: "gainers", label: "Gainers" },
   { value: "losers", label: "Losers" },
 ]
+
+// Reconcile a saved order against the source `TABS` list: keep known values in
+// their stored order, drop anything unknown, and append any tabs that were
+// added to the app after the order was saved.
+function orderTabs(order: readonly string[]): typeof TABS {
+  const byValue = new Map<string, (typeof TABS)[number]>(
+    TABS.map((tab) => [tab.value, tab])
+  )
+  const seen = new Set<string>()
+  const result: typeof TABS = []
+  for (const value of order) {
+    const tab = byValue.get(value)
+    if (tab && !seen.has(value)) {
+      result.push(tab)
+      seen.add(value)
+    }
+  }
+  for (const tab of TABS) {
+    if (!seen.has(tab.value)) result.push(tab)
+  }
+  return result
+}
+
+// Resolve a saved order (possibly empty/partial) into a full list of tab
+// values, falling back to the built-in order.
+function resolveTabOrder(saved: readonly string[] | undefined): WatchlistTab[] {
+  const source = saved && saved.length > 0 ? saved : TABS.map((tab) => tab.value)
+  return orderTabs(source).map((tab) => tab.value)
+}
+
+function SortableTab({
+  value,
+  label,
+  active,
+  onSelect,
+}: {
+  value: WatchlistTab
+  label: string
+  active: boolean
+  onSelect: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: value })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onSelect}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "flex flex-1 touch-none items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        isDragging && "z-10 opacity-70"
+      )}
+    >
+      {label}
+    </button>
+  )
+}
 
 const CATEGORIES: Array<{ value: CategoryFilter; label: string }> = [
   { value: "all", label: "All categories" },
@@ -155,6 +240,8 @@ export function MarketWatchlist({
   favorites,
   onToggleFavorite,
   onSelect,
+  initialTabOrder,
+  accountLoading,
 }: {
   rows: MarketRow[]
   selected: string
@@ -163,9 +250,37 @@ export function MarketWatchlist({
   favorites: ReadonlySet<string>
   onToggleFavorite: (coin: string) => void
   onSelect: (coin: string) => void
+  // Saved tab order from the route loader (server/DB-backed). Available on the
+  // first render, so the correct first tab shows immediately — no flash.
+  initialTabOrder?: string[]
+  // True while the account snapshot (positions/open orders) is still loading.
+  // Lets the Active tab show a skeleton instead of a premature empty message.
+  accountLoading?: boolean
 }) {
   const [query, setQuery] = React.useState("")
-  const [tab, setTab] = React.useState<WatchlistTab>("favorites")
+  // Tab order and the initially-open tab both come from the loader-provided
+  // order, resolved once up front. Saving on drag keeps it in sync server-side.
+  const [tabOrder, setTabOrder] = React.useState<WatchlistTab[]>(() =>
+    resolveTabOrder(initialTabOrder)
+  )
+  const [tab, setTab] = React.useState<WatchlistTab>(() => tabOrder[0])
+  const orderedTabs = React.useMemo(() => orderTabs(tabOrder), [tabOrder])
+  const tabSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  )
+  const handleTabDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const base = orderedTabs.map((item) => item.value)
+    const from = base.indexOf(active.id as WatchlistTab)
+    const to = base.indexOf(over.id as WatchlistTab)
+    if (from === -1 || to === -1) return
+    const next = arrayMove(base, from, to)
+    setTabOrder(next)
+    saveDashboardWatchlistTabOrder(next).catch(() => {
+      // Best-effort; the new order still applies for this session.
+    })
+  }
   const [category, setCategory] = React.useState<CategoryFilter>("all")
   const [activeTab, setActiveTab] = React.useState<ActiveTab>("orders")
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>(
@@ -228,23 +343,28 @@ export function MarketWatchlist({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-2 p-3 pb-2">
-        <div className="flex gap-1.5">
-          {TABS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setTab(item.value)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors",
-                tab === item.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <DndContext
+          sensors={tabSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleTabDragEnd}
+        >
+          <SortableContext
+            items={orderedTabs.map((item) => item.value)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="flex gap-1.5">
+              {orderedTabs.map((item) => (
+                <SortableTab
+                  key={item.value}
+                  value={item.value}
+                  label={item.label}
+                  active={tab === item.value}
+                  onSelect={() => setTab(item.value)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
         <Select
           value={category}
           onValueChange={(value) => setCategory(value as CategoryFilter)}
@@ -362,9 +482,13 @@ export function MarketWatchlist({
           {rows.length === 0 ? (
             <MarketListLoadingSkeleton />
           ) : visible.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {emptyMarketText(tab, activeTab)}
-            </div>
+            tab === "active" && accountLoading ? (
+              <MarketListLoadingSkeleton />
+            ) : (
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+                {emptyMarketText(tab, activeTab)}
+              </div>
+            )
           ) : null}
         </div>
       </ScrollArea>

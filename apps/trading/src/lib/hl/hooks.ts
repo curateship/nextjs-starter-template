@@ -301,10 +301,20 @@ export function useAccountSnapshot(
   // snapshot — the same recovery a page refresh gives after placing an order.
   const [refreshNonce, setRefreshNonce] = React.useState(0)
   const refresh = React.useCallback(() => setRefreshNonce((n) => n + 1), [])
+  // Open orders arrive on their own subscription, separately from positions, so
+  // the snapshot can be non-null while orders are still in flight. This tracks
+  // the orders feed so callers can show a skeleton instead of a premature
+  // "no open orders" before the first orders message lands.
+  const [ordersLoaded, setOrdersLoaded] = React.useState(false)
 
   React.useEffect(() => {
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
     let cancelled = false
+    setOrdersLoaded(false)
+    // Never wedge on a skeleton if the orders feed stays silent.
+    const ordersTimeout = setTimeout(() => {
+      if (!cancelled) setOrdersLoaded(true)
+    }, 5_000)
     const user = address as `0x${string}`
     const unsubscribers: Array<() => void> = []
 
@@ -356,6 +366,7 @@ export function useAccountSnapshot(
           unsubscribers.push(
             subscribeOpenOrders(network, user, dex, (event) => {
               ordersByDex.set(dex, event.orders)
+              if (!cancelled) setOrdersLoaded(true)
               publish()
             })
           )
@@ -368,12 +379,14 @@ export function useAccountSnapshot(
     void connect()
     return () => {
       cancelled = true
+      clearTimeout(ordersTimeout)
       for (const unsubscribe of unsubscribers) unsubscribe()
     }
   }, [network, address, market?.dex, market?.collateralToken, dexKey, key, refreshNonce])
 
   return {
     data: state?.key === key ? state.data : null,
+    ordersLoaded: state?.key === key ? ordersLoaded : false,
     refresh,
   }
 }
