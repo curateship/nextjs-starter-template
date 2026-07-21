@@ -17,6 +17,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DashboardTable } from "@/components/dashboard-table"
@@ -31,11 +37,12 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
   SelectContent,
@@ -234,7 +241,7 @@ export function AiGenerationsDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -404,7 +411,7 @@ export function AiGenerationsDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible generations"
                   />
@@ -759,11 +766,15 @@ function GenerationPreviewDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Generation Preview</DialogTitle>
+          <DialogDescription>
+            Preview this AI generation and insert it into a project or retry a
+            failed run.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           {item ? (
-            <div className="space-y-5">
-              <div className="mx-auto grid max-h-[48vh] min-h-64 w-full max-w-xl place-items-center overflow-hidden rounded-lg border bg-black">
+            <>
+              <div className="mx-auto grid max-h-[48vh] min-h-64 w-full max-w-xl place-items-center overflow-hidden rounded-lg border bg-muted">
                 {item.status === "ready" && videoUrl ? (
                   <video
                     src={videoUrl}
@@ -796,31 +807,38 @@ function GenerationPreviewDialog({
                 )}
               </div>
 
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <MetaRow label="Project" value={item.project_name} />
-                <MetaRow label="Status" value={statusLabel(item.status)} />
-                <MetaRow label="Model" value={item.model} />
-                <MetaRow
-                  label="Duration"
-                  value={`${item.duration_seconds}s · ${item.aspect_ratio}`}
-                />
-                <MetaRow
-                  label="Created"
-                  value={dateFormatter.format(new Date(item.created_at))}
-                />
-                <MetaRow
-                  label="Updated"
-                  value={dateFormatter.format(new Date(item.updated_at))}
-                />
-              </div>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <MetaRow label="Project" value={item.project_name} />
+                    <MetaRow label="Status" value={statusLabel(item.status)} />
+                    <MetaRow label="Model" value={item.model} />
+                    <MetaRow
+                      label="Duration"
+                      value={`${item.duration_seconds}s · ${item.aspect_ratio}`}
+                    />
+                    <MetaRow
+                      label="Created"
+                      value={dateFormatter.format(new Date(item.created_at))}
+                    />
+                    <MetaRow
+                      label="Updated"
+                      value={dateFormatter.format(new Date(item.updated_at))}
+                    />
+                  </div>
 
-              <div className="grid gap-2">
-                <Label>Prompt</Label>
-                <div className="min-h-20 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  {item.prompt}
-                </div>
-              </div>
-            </div>
+                  <div className="grid gap-2">
+                    <FieldLabel>Prompt</FieldLabel>
+                    <div className="min-h-20 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                      {item.prompt}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain" className="justify-between">
@@ -906,41 +924,53 @@ function InsertGenerationDialog({
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Insert into a project</DialogTitle>
+          <DialogDescription>
+            Add this generated clip to one of your projects.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="grid gap-2">
-            <Label htmlFor="insert-generation-project">Project</Label>
-            <Select value={targetId} onValueChange={setTargetId}>
-              <SelectTrigger
-                id="insert-generation-project"
-                className="w-full"
-                aria-label="Choose a project"
-              >
-                <SelectValue placeholder="Choose a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              The clip is added on a new track at the end of the project's
-              timeline. Open the project to arrange it.
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Destination</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="insert-generation-project"
+                  hint="The clip is added on a new track at the end of the project's timeline. Open the project to arrange it."
+                >
+                  Project
+                </FieldLabel>
+                <Select value={targetId} onValueChange={setTargetId}>
+                  <SelectTrigger
+                    id="insert-generation-project"
+                    className="w-full sm:w-fit"
+                    aria-label="Choose a project"
+                  >
+                    <SelectValue placeholder="Choose a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {projects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    You don't have any projects yet. Create one in the editor
+                    first.
+                  </p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+          {insertError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {insertError}
             </p>
-            {projects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                You don't have any projects yet. Create one in the editor first.
-              </p>
-            ) : null}
-            {insertError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {insertError}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <Button

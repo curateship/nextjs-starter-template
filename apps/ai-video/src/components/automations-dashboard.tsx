@@ -10,6 +10,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DashboardTable } from "@/components/dashboard-table"
@@ -22,18 +28,20 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
 } from "@/components/ui/table"
 import {
   createAutomation,
@@ -47,6 +55,15 @@ import {
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
 import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
+
+type AutomationSortColumn =
+  | "name"
+  | "trigger"
+  | "enabled"
+  | "lastRun"
+  | "nextRun"
+  | "updated"
 
 const RUN_STATUS_LABELS: Record<AutomationRunStatus, string> = {
   queued: "Queued",
@@ -114,6 +131,9 @@ export function AutomationsDashboard() {
     }
   }, [])
 
+  const { sortColumn, sortDirection, toggleSort } =
+    useTableSort<AutomationSortColumn>("updated", "desc")
+
   const filteredAutomations = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return automations
@@ -122,11 +142,28 @@ export function AutomationsDashboard() {
     )
   }, [automations, searchQuery])
 
-  const totalPages = Math.ceil(filteredAutomations.length / pageSize)
+  const sortedAutomations = React.useMemo(() => {
+    const dir = sortDirection === "asc" ? 1 : -1
+    const ts = (value: string | null) => (value ? new Date(value).getTime() : 0)
+    return filteredAutomations.slice().sort((a, b) => {
+      if (sortColumn === "name") return a.name.localeCompare(b.name) * dir
+      if (sortColumn === "trigger")
+        return a.schedule_summary.localeCompare(b.schedule_summary) * dir
+      if (sortColumn === "enabled")
+        return (Number(a.enabled) - Number(b.enabled)) * dir
+      if (sortColumn === "lastRun")
+        return (ts(a.last_run_at) - ts(b.last_run_at)) * dir
+      if (sortColumn === "nextRun")
+        return (ts(a.next_run_at) - ts(b.next_run_at)) * dir
+      return (ts(a.updated_at) - ts(b.updated_at)) * dir
+    })
+  }, [filteredAutomations, sortColumn, sortDirection])
+
+  const totalPages = Math.ceil(sortedAutomations.length / pageSize)
   const paginatedAutomations = React.useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return filteredAutomations.slice(start, start + pageSize)
-  }, [currentPage, filteredAutomations, pageSize])
+    return sortedAutomations.slice(start, start + pageSize)
+  }, [currentPage, sortedAutomations, pageSize])
 
   function updateSearch(value: string) {
     setSearchQuery(value)
@@ -152,7 +189,7 @@ export function AutomationsDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -259,25 +296,71 @@ export function AutomationsDashboard() {
         }
         count={filteredAutomations.length}
         controls={controls}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => clearSelection()}
         header={
           <TableHeader>
             <TableRow>
               <TableHead column="select">
                 <Checkbox
-                  checked={allVisibleSelected}
+                  checked={selectAllState}
                   onCheckedChange={toggleVisibleSelected}
                   aria-label="Select visible automations"
                 />
               </TableHead>
-              <TableHead column="main">Automation</TableHead>
-              <TableHead column="meta">Trigger</TableHead>
-              <TableHead column="meta">Enabled</TableHead>
-              <TableHead column="meta">Last run</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                Next run
+              <TableHead column="main">
+                <TableSortButton
+                  active={sortColumn === "name"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("name")}
+                >
+                  Automation
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "trigger"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("trigger")}
+                >
+                  Trigger
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "enabled"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("enabled")}
+                >
+                  Enabled
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "lastRun"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("lastRun")}
+                >
+                  Last run
+                </TableSortButton>
               </TableHead>
               <TableHead column="meta" className="hidden lg:table-cell">
-                Updated
+                <TableSortButton
+                  active={sortColumn === "nextRun"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("nextRun")}
+                >
+                  Next run
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sortColumn === "updated"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("updated")}
+                >
+                  Updated
+                </TableSortButton>
               </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -319,40 +402,50 @@ export function AutomationsDashboard() {
         >
           <DialogHeader>
             <DialogTitle>New Automation</DialogTitle>
+            <DialogDescription>
+              Name your automation, then build its steps in the canvas editor.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <form
-              id="create-automation-form"
-              className="grid gap-2"
-              onSubmit={handleCreateSubmit}
-            >
-              <Label htmlFor="automation-name">Name</Label>
-              <Input
-                id="automation-name"
-                value={newName}
-                onChange={(event) => {
-                  setNewName(event.target.value)
-                  if (createError) setCreateError(null)
-                }}
-                placeholder="Study viral reels"
-                maxLength={120}
-                aria-invalid={createError ? true : undefined}
-                aria-describedby={
-                  createError ? "automation-name-error" : undefined
-                }
-                disabled={creating}
-                autoFocus
-              />
-              {createError ? (
-                <p
-                  id="automation-name-error"
-                  role="alert"
-                  className="text-sm text-destructive"
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Automation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form
+                  id="create-automation-form"
+                  className="grid gap-2"
+                  onSubmit={handleCreateSubmit}
                 >
-                  {createError}
-                </p>
-              ) : null}
-            </form>
+                  <FieldLabel htmlFor="automation-name">Name</FieldLabel>
+                  <Input
+                    id="automation-name"
+                    value={newName}
+                    onChange={(event) => {
+                      setNewName(event.target.value)
+                      if (createError) setCreateError(null)
+                    }}
+                    placeholder="Study viral reels"
+                    maxLength={120}
+                    aria-invalid={createError ? true : undefined}
+                    aria-describedby={
+                      createError ? "automation-name-error" : undefined
+                    }
+                    disabled={creating}
+                    autoFocus
+                  />
+                </form>
+              </CardContent>
+            </Card>
+            {createError ? (
+              <p
+                id="automation-name-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
+                {createError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
             <Button

@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   CopyIcon,
   DownloadIcon,
   FileVideoIcon,
@@ -21,15 +20,19 @@ import {
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -236,7 +239,7 @@ export function ExportDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -347,7 +350,7 @@ export function ExportDashboard() {
             <TableRow>
               <TableHead column="select">
                 <Checkbox
-                  checked={allVisibleSelected}
+                  checked={selectAllState}
                   onCheckedChange={toggleVisibleSelected}
                   aria-label="Select visible exports"
                 />
@@ -624,6 +627,7 @@ function ExportCoverDialogContent({
   )
   const [titleText, setTitleText] = React.useState("")
   const [useReference, setUseReference] = React.useState(false)
+  const [tab, setTab] = React.useState<"frame" | "ai">("frame")
   const frameRequest = React.useRef(0)
 
   React.useEffect(() => {
@@ -712,9 +716,15 @@ function ExportCoverDialogContent({
     <DialogContent variant="admin" className="sm:max-w-4xl">
       <DialogHeader>
         <DialogTitle>Choose a cover</DialogTitle>
+        <DialogDescription>
+          Pick a frame from the video or generate an AI cover image.
+        </DialogDescription>
       </DialogHeader>
-      <DialogBody className="max-h-[75vh] overflow-y-auto">
-        <Tabs defaultValue="frame">
+      <DialogBody>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as "frame" | "ai")}
+        >
           <TabsList>
             <TabsTrigger value="frame">Video frame</TabsTrigger>
             <TabsTrigger value="ai">
@@ -723,154 +733,173 @@ function ExportCoverDialogContent({
             </TabsTrigger>
           </TabsList>
 
-          {error ? (
-            <div
-              role="alert"
-              className="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
-          <TabsContent value="frame" className="mt-3 space-y-4">
-            <div className="relative grid min-h-64 w-full place-items-center overflow-hidden rounded-lg border bg-black">
-              {selectedFrame ? (
-                <img
-                  src={selectedFrame.image_data_url}
-                  alt={`Video frame at ${formatCoverTime(selectedFrame.time_seconds)}`}
-                  className="max-h-[56vh] w-full object-contain"
-                />
-              ) : null}
-              {loadingFrames || loadingExactFrame ? (
-                <div className="absolute inset-0 grid place-items-center bg-black/60 text-sm text-white">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Extracting frames
-                  </span>
+          <TabsContent value="frame" className="mt-3">
+            <Card size="sm">
+              <CardContent className="grid gap-4">
+                <div className="relative grid min-h-64 w-full place-items-center overflow-hidden rounded-lg border bg-muted">
+                  {selectedFrame ? (
+                    <img
+                      src={selectedFrame.image_data_url}
+                      alt={`Video frame at ${formatCoverTime(selectedFrame.time_seconds)}`}
+                      className="max-h-[56vh] w-full object-contain"
+                    />
+                  ) : null}
+                  {loadingFrames || loadingExactFrame ? (
+                    <div className="absolute inset-0 grid place-items-center bg-background/60 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2Icon className="size-4 animate-spin" />
+                        Extracting frames
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
 
-            {frames ? (
-              <>
+                {frames ? (
+                  <>
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <Label htmlFor="cover-frame-slider">
+                          Fine position
+                        </Label>
+                        <span className="tabular-nums text-muted-foreground">
+                          {formatCoverTime(sliderTime)}
+                        </span>
+                      </div>
+                      <Slider
+                        id="cover-frame-slider"
+                        min={0}
+                        max={frames.duration_seconds}
+                        step={0.1}
+                        value={[sliderTime]}
+                        disabled={loadingExactFrame}
+                        onValueChange={(value) => setSliderTime(value[0] ?? 0)}
+                        onValueCommit={(value) =>
+                          void loadExactFrame(value[0] ?? 0)
+                        }
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+                      {frames.frames.map((frame) => (
+                        <button
+                          type="button"
+                          key={frame.time_seconds}
+                          className="overflow-hidden rounded-md border bg-muted transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => selectFrame(frame)}
+                          aria-label={`Select frame at ${formatCoverTime(frame.time_seconds)}`}
+                        >
+                          <img
+                            src={frame.image_data_url}
+                            alt=""
+                            className="w-full object-contain"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-3">
+            <Card size="sm">
+              <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <Label htmlFor="cover-frame-slider">Fine position</Label>
-                    <span className="tabular-nums text-muted-foreground">
-                      {formatCoverTime(sliderTime)}
-                    </span>
-                  </div>
-                  <Slider
-                    id="cover-frame-slider"
-                    min={0}
-                    max={frames.duration_seconds}
-                    step={0.1}
-                    value={[sliderTime]}
-                    disabled={loadingExactFrame}
-                    onValueChange={(value) => setSliderTime(value[0] ?? 0)}
-                    onValueCommit={(value) =>
-                      void loadExactFrame(value[0] ?? 0)
-                    }
+                  <FieldLabel htmlFor="cover-prompt">Cover prompt</FieldLabel>
+                  <Textarea
+                    id="cover-prompt"
+                    value={prompt}
+                    maxLength={5000}
+                    rows={1}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    placeholder="Describe the cover image"
+                    className="resize-none"
                   />
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-                  {frames.frames.map((frame) => (
-                    <button
-                      type="button"
-                      key={frame.time_seconds}
-                      className="overflow-hidden rounded-md border bg-muted transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => selectFrame(frame)}
-                      aria-label={`Select frame at ${formatCoverTime(frame.time_seconds)}`}
-                    >
-                      <img
-                        src={frame.image_data_url}
-                        alt=""
-                        className="w-full object-contain"
-                      />
-                    </button>
-                  ))}
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="cover-title-text"
+                    hint="Uses your brand heading font and caption color."
+                  >
+                    Title text (optional)
+                  </FieldLabel>
+                  <Input
+                    id="cover-title-text"
+                    value={titleText}
+                    maxLength={EXPORT_TITLE_MAX_LENGTH}
+                    onChange={(event) => setTitleText(event.target.value)}
+                    placeholder={item.name}
+                  />
                 </div>
-              </>
-            ) : null}
 
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                disabled={!selectedFrame || savingFrame || loadingExactFrame}
-                onClick={saveFrame}
-              >
-                {savingFrame ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <ImageIcon className="size-4" />
-                )}
-                {savingFrame ? "Saving" : "Use this frame"}
-              </Button>
-            </div>
-          </TabsContent>
+                <div className="flex items-center gap-3 rounded-md border bg-background p-3">
+                  <Checkbox
+                    id="cover-reference-frame"
+                    checked={useReference}
+                    disabled={!selectedFrame}
+                    onCheckedChange={(checked) =>
+                      setUseReference(checked === true)
+                    }
+                  />
+                  <Label htmlFor="cover-reference-frame">
+                    Use the selected video frame as a reference
+                  </Label>
+                </div>
 
-          <TabsContent value="ai" className="mt-3 space-y-4">
-            <div className="grid gap-2">
-              <Label htmlFor="cover-prompt">Cover prompt</Label>
-              <Textarea
-                id="cover-prompt"
-                value={prompt}
-                maxLength={5000}
-                rows={5}
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Describe the cover image"
-                className="resize-none bg-background"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="cover-title-text">Title text (optional)</Label>
-              <Input
-                id="cover-title-text"
-                value={titleText}
-                maxLength={EXPORT_TITLE_MAX_LENGTH}
-                onChange={(event) => setTitleText(event.target.value)}
-                placeholder={item.name}
-              />
-              <p className="text-xs text-muted-foreground">
-                Uses your brand heading font and caption color.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-md border bg-background p-3">
-              <Checkbox
-                id="cover-reference-frame"
-                checked={useReference}
-                disabled={!selectedFrame}
-                onCheckedChange={(checked) => setUseReference(checked === true)}
-              />
-              <Label htmlFor="cover-reference-frame">
-                Use the selected video frame as a reference
-              </Label>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">
-                AI generation uses 10 credits.
-              </p>
-              <Button
-                type="button"
-                disabled={!prompt.trim() || generating}
-                onClick={generateCover}
-              >
-                {generating ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <SparklesIcon className="size-4" />
-                )}
-                {generating ? "Generating" : "Generate cover"}
-              </Button>
-            </div>
+                <p className="text-xs text-muted-foreground">
+                  AI generation uses 10 credits.
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
+
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
       </DialogBody>
+      <DialogFooter variant="plain">
+        <DialogClose asChild>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={savingFrame || generating}
+          >
+            Cancel
+          </Button>
+        </DialogClose>
+        {tab === "frame" ? (
+          <Button
+            type="button"
+            disabled={!selectedFrame || savingFrame || loadingExactFrame}
+            onClick={saveFrame}
+          >
+            {savingFrame ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <ImageIcon className="size-4" />
+            )}
+            {savingFrame ? "Saving" : "Use this frame"}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            disabled={!prompt.trim() || generating}
+            onClick={generateCover}
+          >
+            {generating ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <SparklesIcon className="size-4" />
+            )}
+            {generating ? "Generating" : "Generate cover"}
+          </Button>
+        )}
+      </DialogFooter>
     </DialogContent>
   )
 }
@@ -989,107 +1018,106 @@ function ExportPreviewDialogContent({
     <DialogContent variant="admin" className="sm:max-w-4xl">
       <DialogHeader>
         <DialogTitle>Project Export</DialogTitle>
+        <DialogDescription>
+          Preview the export, edit its title and caption, or download it.
+        </DialogDescription>
       </DialogHeader>
       <DialogBody>
-        <div className="space-y-5">
-          <div className="overflow-hidden rounded-lg border bg-black">
-            {preview.loading || !preview.objectUrl ? (
-              <div className="grid aspect-video max-h-[56vh] w-full place-items-center bg-black text-sm text-white/70">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Loading preview
+        <div className="overflow-hidden rounded-lg border bg-muted">
+          {preview.loading || !preview.objectUrl ? (
+            <div className="grid aspect-video max-h-[56vh] w-full place-items-center bg-muted text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <Loader2Icon className="size-4 animate-spin" />
+                Loading preview
+              </span>
+            </div>
+          ) : (
+            <video
+              key={item.project_id}
+              src={preview.objectUrl}
+              controls
+              playsInline
+              className="aspect-video max-h-[56vh] w-full bg-muted object-contain"
+              onError={() =>
+                setPreviewError(
+                  "Preview failed to load. The export file may be missing or storage is unavailable."
+                )
+              }
+              onLoadedData={() => setPreviewError(null)}
+            />
+          )}
+        </div>
+
+        {preview.error || previewError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {preview.error
+              ? "Preview failed to load. The export file may be missing or storage is unavailable."
+              : previewError}
+          </p>
+        ) : null}
+
+        <Card size="sm">
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="export-title">Title</FieldLabel>
+              <Input
+                id="export-title"
+                value={title}
+                maxLength={EXPORT_TITLE_MAX_LENGTH}
+                onChange={(event) => updateTitle(event.target.value)}
+                placeholder="Export title"
+              />
+            </div>
+
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <span className="text-muted-foreground">Size: </span>
+                <span className="font-medium">
+                  {formatFileSize(item.file_size)}
                 </span>
               </div>
-            ) : (
-              <video
-                key={item.project_id}
-                src={preview.objectUrl}
-                controls
-                playsInline
-                className="aspect-video max-h-[56vh] w-full bg-black object-contain"
-                onError={() =>
-                  setPreviewError(
-                    "Preview failed to load. The export file may be missing or storage is unavailable."
-                  )
-                }
-                onLoadedData={() => setPreviewError(null)}
+              <div>
+                <span className="text-muted-foreground">Exported: </span>
+                <span className="font-medium">
+                  {dateFormatter.format(new Date(item.exported_at))}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="export-caption">Caption</FieldLabel>
+              <Textarea
+                id="export-caption"
+                value={caption}
+                rows={1}
+                maxLength={EXPORT_CAPTION_MAX_LENGTH}
+                onChange={(event) => updateCaption(event.target.value)}
+                placeholder="No caption saved."
+                className="resize-none"
               />
-            )}
-          </div>
-
-          {preview.error || previewError ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                {preview.error
-                  ? "Preview failed to load. The export file may be missing or storage is unavailable."
-                  : previewError}
-              </span>
+              {descriptionStatus === "ready" ? (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Caption ready. Save to keep it.
+                </p>
+              ) : null}
+              {descriptionError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {descriptionError}
+                </p>
+              ) : null}
+              {saveError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {saveError}
+                </p>
+              ) : null}
+              {saved ? (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Saved.
+                </p>
+              ) : null}
             </div>
-          ) : null}
-
-          <div className="grid gap-2">
-            <Label htmlFor="export-title">Title</Label>
-            <Input
-              id="export-title"
-              value={title}
-              maxLength={EXPORT_TITLE_MAX_LENGTH}
-              onChange={(event) => updateTitle(event.target.value)}
-              placeholder="Export title"
-            />
-          </div>
-
-          <div className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <span className="text-muted-foreground">Size: </span>
-              <span className="font-medium">
-                {formatFileSize(item.file_size)}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Exported: </span>
-              <span className="font-medium">
-                {dateFormatter.format(new Date(item.exported_at))}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="export-caption">Caption</Label>
-            <Textarea
-              id="export-caption"
-              value={caption}
-              rows={5}
-              maxLength={EXPORT_CAPTION_MAX_LENGTH}
-              onChange={(event) => updateCaption(event.target.value)}
-              placeholder="No caption saved."
-              className="resize-none bg-background"
-            />
-            {descriptionStatus === "ready" ? (
-              <p role="status" className="text-xs text-muted-foreground">
-                Caption ready. Save to keep it.
-              </p>
-            ) : null}
-            {descriptionError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {descriptionError}
-              </p>
-            ) : null}
-            {saveError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {saveError}
-              </p>
-            ) : null}
-            {saved ? (
-              <p role="status" className="text-xs text-muted-foreground">
-                Saved.
-              </p>
-            ) : null}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </DialogBody>
       <DialogFooter
         variant="plain"

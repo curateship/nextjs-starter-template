@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  AlertCircleIcon,
   GaugeIcon,
   Loader2Icon,
   RefreshCwIcon,
@@ -28,7 +27,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
 } from "@/components/ui/table"
+import { useTableSort } from "@/lib/use-table-sort"
 import {
   getAdminApiUsageDashboard,
   getApiUsageErrorMessage,
@@ -49,6 +50,19 @@ type StatusFilter = "all" | "normal" | "warning" | "blocked"
 type EventStatusFilter = "all" | "success" | "failed" | "blocked"
 type ProviderFilter = "all" | "gemini" | "openai" | "veo" | "elevenlabs"
 type DailyProviderUsage = { credits: number; estimatedCostUsd: number }
+type UserSortColumn =
+  | "user"
+  | "used"
+  | "spend"
+  | "remaining"
+  | "status"
+type EventSortColumn =
+  | "activity"
+  | "provider"
+  | "credits"
+  | "cost"
+  | "status"
+  | "created"
 
 const EVENT_PAGE_SIZE = 20
 
@@ -182,6 +196,72 @@ export function ApiUsageDashboard() {
     [eventStatusFilter, events, providerFilter]
   )
 
+  const {
+    sortColumn: userSortColumn,
+    sortDirection: userSortDirection,
+    toggleSort: toggleUserSort,
+  } = useTableSort<UserSortColumn>("used", "desc")
+
+  const {
+    sortColumn: eventSortColumn,
+    sortDirection: eventSortDirection,
+    toggleSort: toggleEventSort,
+  } = useTableSort<EventSortColumn>("created", "desc")
+
+  const sortedUsers = React.useMemo(() => {
+    const dir = userSortDirection === "asc" ? 1 : -1
+    return [...filteredUsers].sort((a, b) => {
+      switch (userSortColumn) {
+        case "user":
+          return a.user_name.localeCompare(b.user_name) * dir
+        case "used":
+          return (a.used_credits - b.used_credits) * dir
+        case "spend":
+          return (a.estimated_used_cost_usd - b.estimated_used_cost_usd) * dir
+        case "remaining":
+          return (a.remaining_credits - b.remaining_credits) * dir
+        case "status":
+          return a.status.localeCompare(b.status) * dir
+        default:
+          return 0
+      }
+    })
+  }, [filteredUsers, userSortColumn, userSortDirection])
+
+  const sortedEvents = React.useMemo(() => {
+    const dir = eventSortDirection === "asc" ? 1 : -1
+    return [...filteredEvents].sort((a, b) => {
+      switch (eventSortColumn) {
+        case "activity":
+          return (
+            formatApiUsageFeature(a.feature).localeCompare(
+              formatApiUsageFeature(b.feature)
+            ) * dir
+          )
+        case "provider":
+          return (
+            (providerLabels[a.provider] ?? a.provider).localeCompare(
+              providerLabels[b.provider] ?? b.provider
+            ) * dir
+          )
+        case "credits":
+          return (a.credits - b.credits) * dir
+        case "cost":
+          return (a.estimated_cost_usd - b.estimated_cost_usd) * dir
+        case "status":
+          return a.status.localeCompare(b.status) * dir
+        case "created":
+          return (
+            (new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()) *
+            dir
+          )
+        default:
+          return 0
+      }
+    })
+  }, [filteredEvents, eventSortColumn, eventSortDirection])
+
   if (loading && !dashboard) {
     return null
   }
@@ -209,16 +289,6 @@ export function ApiUsageDashboard() {
         </div>
       </div>
 
-      {error ? (
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
       {dashboard ? (
         <>
           <MetricGrid dashboard={dashboard} />
@@ -228,6 +298,7 @@ export function ApiUsageDashboard() {
             title="Users"
             icon={<GaugeIcon className="size-4 text-muted-foreground" />}
             count={filteredUsers.length}
+            status={error ? { tone: "error", text: error } : null}
             controls={
               <>
                 <DashboardToolbarSearch
@@ -261,11 +332,51 @@ export function ApiUsageDashboard() {
             header={
               <TableHeader>
                 <TableRow>
-                  <TableHead column="main">User</TableHead>
-                  <TableHead column="meta">Used</TableHead>
-                  <TableHead column="meta">Est. spend</TableHead>
-                  <TableHead column="meta">Remaining</TableHead>
-                  <TableHead column="meta">Status</TableHead>
+                  <TableHead column="main">
+                    <TableSortButton
+                      active={userSortColumn === "user"}
+                      direction={userSortDirection}
+                      onClick={() => toggleUserSort("user")}
+                    >
+                      User
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={userSortColumn === "used"}
+                      direction={userSortDirection}
+                      onClick={() => toggleUserSort("used")}
+                    >
+                      Used
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta" className="hidden lg:table-cell">
+                    <TableSortButton
+                      active={userSortColumn === "spend"}
+                      direction={userSortDirection}
+                      onClick={() => toggleUserSort("spend")}
+                    >
+                      Est. spend
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={userSortColumn === "remaining"}
+                      direction={userSortDirection}
+                      onClick={() => toggleUserSort("remaining")}
+                    >
+                      Remaining
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={userSortColumn === "status"}
+                      direction={userSortDirection}
+                      onClick={() => toggleUserSort("status")}
+                    >
+                      Status
+                    </TableSortButton>
+                  </TableHead>
                   <TableHead column="meta">Override</TableHead>
                 </TableRow>
               </TableHeader>
@@ -279,7 +390,7 @@ export function ApiUsageDashboard() {
               label: "users",
             }}
           >
-            {filteredUsers.map((user) => (
+            {sortedUsers.map((user) => (
               <TableRow key={user.user_id}>
                 <TableCell column="main">
                   <div>
@@ -300,7 +411,7 @@ export function ApiUsageDashboard() {
                     </p>
                   </div>
                 </TableCell>
-                <TableCell column="meta">
+                <TableCell column="meta" className="hidden lg:table-cell">
                   {currencyFormatter.format(user.estimated_used_cost_usd)}
                 </TableCell>
                 <TableCell column="meta">{user.remaining_credits}</TableCell>
@@ -393,12 +504,60 @@ export function ApiUsageDashboard() {
             header={
               <TableHeader>
                 <TableRow>
-                  <TableHead column="main">Activity</TableHead>
-                  <TableHead column="meta">Provider</TableHead>
-                  <TableHead column="meta">Credits</TableHead>
-                  <TableHead column="meta">Est. cost</TableHead>
-                  <TableHead column="meta">Status</TableHead>
-                  <TableHead column="meta">Created</TableHead>
+                  <TableHead column="main">
+                    <TableSortButton
+                      active={eventSortColumn === "activity"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("activity")}
+                    >
+                      Activity
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={eventSortColumn === "provider"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("provider")}
+                    >
+                      Provider
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={eventSortColumn === "credits"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("credits")}
+                    >
+                      Credits
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta" className="hidden lg:table-cell">
+                    <TableSortButton
+                      active={eventSortColumn === "cost"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("cost")}
+                    >
+                      Est. cost
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={eventSortColumn === "status"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("status")}
+                    >
+                      Status
+                    </TableSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <TableSortButton
+                      active={eventSortColumn === "created"}
+                      direction={eventSortDirection}
+                      onClick={() => toggleEventSort("created")}
+                    >
+                      Created
+                    </TableSortButton>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
             }
@@ -414,7 +573,7 @@ export function ApiUsageDashboard() {
               label: "events",
             }}
           >
-            {filteredEvents.map((event) => (
+            {sortedEvents.map((event) => (
               <TableRow key={event.id}>
                 <TableCell column="main">
                   <div>
@@ -431,7 +590,7 @@ export function ApiUsageDashboard() {
                   {providerLabels[event.provider] ?? event.provider}
                 </TableCell>
                 <TableCell column="meta">{event.credits}</TableCell>
-                <TableCell column="meta">
+                <TableCell column="meta" className="hidden lg:table-cell">
                   {currencyFormatter.format(event.estimated_cost_usd)}
                 </TableCell>
                 <TableCell column="meta">

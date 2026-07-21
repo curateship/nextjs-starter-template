@@ -1,5 +1,5 @@
 import * as React from "react"
-import { AlertCircleIcon, Loader2Icon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
 import {
   TemplateSettingsDialog,
@@ -7,15 +7,22 @@ import {
 } from "@/components/template-settings-dialog"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { getProjectErrorMessage, renameProject } from "@/lib/api/video-projects"
 import {
   useEditorDocumentName,
@@ -115,36 +122,37 @@ function ProjectSettingsForm({ onClose }: { onClose: () => void }) {
     <>
       <DialogHeader>
         <DialogTitle>Project Settings</DialogTitle>
+        <DialogDescription>Rename this project.</DialogDescription>
       </DialogHeader>
       <DialogBody>
-        <div className="space-y-5">
-          {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="editor-settings-name">Name</FieldLabel>
+              <Input
+                id="editor-settings-name"
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Project name"
+                onKeyDown={(event) => {
+                  // Enter submits the single-field form.
+                  if (event.key === "Enter" && !disabled) {
+                    void handleSave()
+                  }
+                }}
+              />
             </div>
-          ) : null}
-
-          <div className="grid gap-2">
-            <Label htmlFor="editor-settings-name">Name</Label>
-            <Input
-              id="editor-settings-name"
-              autoFocus
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Project name"
-              onKeyDown={(event) => {
-                // Enter submits the single-field form.
-                if (event.key === "Enter" && !disabled) {
-                  void handleSave()
-                }
-              }}
-            />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
       </DialogBody>
       <DialogFooter variant="plain">
         <Button type="button" variant="outline" onClick={onClose}>

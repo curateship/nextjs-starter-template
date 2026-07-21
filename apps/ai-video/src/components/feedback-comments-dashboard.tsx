@@ -3,7 +3,6 @@ import {
   AlertCircleIcon,
   Loader2Icon,
   MessageSquareIcon,
-  SaveIcon,
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -21,6 +20,12 @@ import { DashboardTable } from "@/components/dashboard-table"
 import { FeedbackDeleteModal } from "@/components/feedback-delete-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -31,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
   SelectContent,
@@ -92,10 +97,8 @@ const feedbackTypeBadgeVariants: Record<
 const feedbackTypeClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+  question: "",
+  praise: "",
 }
 
 export function FeedbackCommentsDashboard() {
@@ -315,17 +318,17 @@ export function FeedbackCommentsDashboard() {
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
-            <PeriodTabs
-              activePeriod={periodFilter}
-              onPeriodChange={setPeriodFilter}
-            />
-
             <DashboardToolbarSearch
               name="comment-search"
               aria-label="Search comments"
               placeholder="Search comments..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
+            />
+
+            <PeriodTabs
+              activePeriod={periodFilter}
+              onPeriodChange={setPeriodFilter}
             />
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -598,58 +601,66 @@ function EditFeedbackCommentModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          {comment ? (
-            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              <span className="line-clamp-2">{comment.feedback_message}</span>
-            </div>
-          ) : null}
-
-          <div className="space-y-2">
-            <Label htmlFor="feedback-comment-message">Comment</Label>
-            <Textarea
-              id="feedback-comment-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              className="min-h-40 resize-none text-base"
-              disabled={busy}
-              autoFocus
-            />
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Comment</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              {comment ? (
+                <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  <span className="line-clamp-2">
+                    {comment.feedback_message}
+                  </span>
+                </div>
+              ) : null}
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="feedback-comment-message"
+                  hint="Editing changes the comment for everyone in the thread."
+                >
+                  Comment
+                </FieldLabel>
+                <Textarea
+                  id="feedback-comment-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={1}
+                  className="resize-none"
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={busy}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={busy}
+          >
+            {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {deleting ? "Deleting" : "Delete"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={busy}>
+            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {saving ? "Saving" : "Save"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

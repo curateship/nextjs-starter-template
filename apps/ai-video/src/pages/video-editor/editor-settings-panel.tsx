@@ -19,6 +19,13 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { FirstFrameCreateDialog } from "@/components/first-frame-create-dialog"
@@ -30,10 +37,12 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   getFirstFrameErrorMessage,
   listFirstFrames,
@@ -189,7 +198,7 @@ type TextFieldLayout = "plain" | "card"
 
 function textFieldClassName(layout: TextFieldLayout) {
   return cn(
-    "space-y-1.5",
+    "grid gap-2",
     layout === "card" && "rounded-md border bg-background p-3"
   )
 }
@@ -221,7 +230,7 @@ function TextClipFields({
   return (
     <>
       <div className={textFieldClassName(layout)}>
-        <Label htmlFor={`${idPrefix}-text`}>Content</Label>
+        <FieldLabel htmlFor={`${idPrefix}-text`}>Content</FieldLabel>
         <Textarea
           id={`${idPrefix}-text`}
           rows={1}
@@ -270,7 +279,7 @@ function TextStyleFields({
   return (
     <>
       <div className={textFieldClassName(layout)}>
-        <Label htmlFor={`${idPrefix}-font`}>Font</Label>
+        <FieldLabel htmlFor={`${idPrefix}-font`}>Font</FieldLabel>
         <TextFontSelect
           id={`${idPrefix}-font`}
           value={fontId}
@@ -279,7 +288,7 @@ function TextStyleFields({
         />
       </div>
       <div className={textFieldClassName(layout)}>
-        <Label>Font size</Label>
+        <FieldLabel>Font size</FieldLabel>
         <Slider
           value={[fontSize]}
           min={8}
@@ -290,7 +299,7 @@ function TextStyleFields({
         />
       </div>
       <div className={textFieldClassName(layout)}>
-        <Label htmlFor={`${idPrefix}-color`}>Text Color</Label>
+        <FieldLabel htmlFor={`${idPrefix}-color`}>Text Color</FieldLabel>
         <ColorPicker
           id={`${idPrefix}-color`}
           value={color}
@@ -649,120 +658,136 @@ function JumpCutDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>AI Jump Cut</DialogTitle>
+          <DialogDescription>
+            Detect and remove dead air or filler words from the selected clip.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-4">
-            <div className="rounded-md border bg-background p-3">
-              <div className="text-sm font-medium">
-                {selectedClip ? selectedClip.name : "No clip selected"}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {selectedClip
-                  ? `${selectedClip.kind} · ${formatTimecode(selectedClip.durationMs)}`
-                  : "Select a video or audio clip."}
-              </div>
+          <div className="rounded-md border bg-background p-3">
+            <div className="text-sm font-medium">
+              {selectedClip ? selectedClip.name : "No clip selected"}
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="jump-cut-target">Remove</Label>
-                <Select
-                  value={target}
-                  onValueChange={(value) => changeTarget(value as JumpCutMode)}
-                >
-                  <SelectTrigger id="jump-cut-target">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JUMP_CUT_TARGET_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="jump-cut-mode">Mode</Label>
-                <Select
-                  value={applyMode}
-                  onValueChange={(value) =>
-                    setApplyMode(value as JumpCutApplyMode)
-                  }
-                >
-                  <SelectTrigger id="jump-cut-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JUMP_CUT_APPLY_MODE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {selectedClip
+                ? `${selectedClip.kind} · ${formatTimecode(selectedClip.durationMs)}`
+                : "Select a video or audio clip."}
             </div>
+          </div>
 
-            {target === "dead-air" ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="jump-cut-sensitivity">Sensitivity</Label>
-                <Select
-                  value={sensitivity}
-                  onValueChange={(value) =>
-                    setSensitivity(value as JumpCutSensitivity)
-                  }
-                >
-                  <SelectTrigger id="jump-cut-sensitivity" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JUMP_CUT_SENSITIVITY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Filler words</Label>
-                <div className="grid grid-cols-2 gap-2 rounded-md border bg-background p-3 sm:grid-cols-3">
-                  {FILLER_WORD_OPTIONS.map((option) => {
-                    const id = `filler-term-${option.term.replace(/\s+/g, "-")}`
-                    return (
-                      <div key={option.term} className="flex items-center gap-2">
-                        <Checkbox
-                          id={id}
-                          checked={fillerTerms.has(option.term)}
-                          onCheckedChange={(checked) =>
-                            toggleFillerTerm(option.term, checked === true)
-                          }
-                        />
-                        <Label
-                          htmlFor={id}
-                          className="text-sm font-normal text-foreground"
-                        >
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Detection</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="jump-cut-target">Remove</FieldLabel>
+                  <Select
+                    value={target}
+                    onValueChange={(value) => changeTarget(value as JumpCutMode)}
+                  >
+                    <SelectTrigger
+                      id="jump-cut-target"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {JUMP_CUT_TARGET_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
                           {option.label}
-                        </Label>
-                      </div>
-                    )
-                  })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Ambiguous words like “like” or “so” can be real speech —
-                  review before applying.
-                </p>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="jump-cut-mode">Mode</FieldLabel>
+                  <Select
+                    value={applyMode}
+                    onValueChange={(value) =>
+                      setApplyMode(value as JumpCutApplyMode)
+                    }
+                  >
+                    <SelectTrigger
+                      id="jump-cut-mode"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {JUMP_CUT_APPLY_MODE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            )}
 
-            {error ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
+              {target === "dead-air" ? (
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="jump-cut-sensitivity">
+                    Sensitivity
+                  </FieldLabel>
+                  <Select
+                    value={sensitivity}
+                    onValueChange={(value) =>
+                      setSensitivity(value as JumpCutSensitivity)
+                    }
+                  >
+                    <SelectTrigger
+                      id="jump-cut-sensitivity"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {JUMP_CUT_SENSITIVITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  <FieldLabel hint="Ambiguous words like “like” or “so” can be real speech — review before applying.">
+                    Filler words
+                  </FieldLabel>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {FILLER_WORD_OPTIONS.map((option) => {
+                      const id = `filler-term-${option.term.replace(/\s+/g, "-")}`
+                      return (
+                        <div
+                          key={option.term}
+                          className="flex items-center gap-2"
+                        >
+                          <Checkbox
+                            id={id}
+                            checked={fillerTerms.has(option.term)}
+                            onCheckedChange={(checked) =>
+                              toggleFillerTerm(option.term, checked === true)
+                            }
+                          />
+                          <Label
+                            htmlFor={id}
+                            className="text-sm font-normal text-foreground"
+                          >
+                            {option.label}
+                          </Label>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
+          <div className="space-y-4">
             {applied ? (
               <div className="rounded-md border bg-background p-3 text-sm">
                 <div className="font-medium">Applied {applied.count} cuts</div>
@@ -826,6 +851,11 @@ function JumpCutDialog({
               </div>
             ) : null}
           </div>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <Button
@@ -1114,10 +1144,16 @@ function AiVideoDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      {/* The First Frame create dialog is a child modal. Hide this dialog while
+          it is open so the two are never stacked — this one reopens (with its
+          selected-frame result intact) when the child closes. */}
+      <Dialog open={open && !createOpen} onOpenChange={handleOpenChange}>
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>AI Video</DialogTitle>
+            <DialogDescription>
+              Animate a First Frame into a short AI video and insert it.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="space-y-4">
@@ -1148,7 +1184,9 @@ function AiVideoDialog({
               {step === "frame" ? (
                 <div className="space-y-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="ai-video-frame-search">First Frame</Label>
+                    <FieldLabel htmlFor="ai-video-frame-search">
+                      First Frame
+                    </FieldLabel>
                     <Input
                       id="ai-video-frame-search"
                       type="search"
@@ -1179,7 +1217,7 @@ function AiVideoDialog({
                                 "group relative h-32 shrink-0 overflow-hidden rounded-sm border bg-background text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-40 lg:h-[180px]",
                                 aiVideoFrameAspectClass(frame.aspect_ratio),
                                 selectedFrameId === frame.id &&
-                                  "border-2 border-green-500 ring-2 ring-green-500/25"
+                                  "border-2 border-primary ring-2 ring-primary/25"
                               )}
                             >
                               {frame.image_url ? (
@@ -1289,45 +1327,64 @@ function AiVideoDialog({
                           {selectedFrame.aspect_ratio}
                         </p>
                         {selectedFrame.aspect_ratio !== projectAspect ? (
-                          <p className="mt-2 text-xs text-amber-700">
+                          <p className="mt-2 text-xs text-muted-foreground">
                             This frame does not match the project aspect.
                           </p>
                         ) : null}
                       </div>
                     </div>
                   ) : null}
-                  <div className="grid gap-2">
-                    <Label htmlFor="ai-video-motion">Motion Prompt</Label>
-                    <Textarea
-                      id="ai-video-motion"
-                      rows={5}
-                      value={motionPrompt}
-                      onChange={(event) => setMotionPrompt(event.target.value)}
-                      placeholder="Describe camera movement, subject motion, lighting changes, and mood."
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Duration</Label>
-                    <Select
-                      value={String(durationSeconds)}
-                      onValueChange={(value) =>
-                        setDurationSeconds(
-                          Number(value) as AiVideoDurationSeconds
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AI_VIDEO_DURATIONS.map((duration) => (
-                          <SelectItem key={duration} value={String(duration)}>
-                            {duration}s
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Motion</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      <div className="grid gap-2">
+                        <FieldLabel htmlFor="ai-video-motion">
+                          Motion Prompt
+                        </FieldLabel>
+                        <Textarea
+                          id="ai-video-motion"
+                          rows={1}
+                          value={motionPrompt}
+                          onChange={(event) =>
+                            setMotionPrompt(event.target.value)
+                          }
+                          placeholder="Describe camera movement, subject motion, lighting changes, and mood."
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <FieldLabel htmlFor="ai-video-duration">
+                          Duration
+                        </FieldLabel>
+                        <Select
+                          value={String(durationSeconds)}
+                          onValueChange={(value) =>
+                            setDurationSeconds(
+                              Number(value) as AiVideoDurationSeconds
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            id="ai-video-duration"
+                            className="w-full sm:w-fit"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AI_VIDEO_DURATIONS.map((duration) => (
+                              <SelectItem
+                                key={duration}
+                                value={String(duration)}
+                              >
+                                {duration}s
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
                   {generationError ? (
                     <p role="alert" className="text-sm text-destructive">
                       {generationError}
@@ -1633,10 +1690,10 @@ function CaptionStyleFields({
 }) {
   return (
     <>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-style`}>Style</Label>
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={`${idPrefix}-style`}>Style</FieldLabel>
         <Select value={style.styleId} onValueChange={style.applyPreset}>
-          <SelectTrigger id={`${idPrefix}-style`} className="w-full">
+          <SelectTrigger id={`${idPrefix}-style`} className="w-full sm:w-fit">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1657,15 +1714,23 @@ function CaptionStyleFields({
         onChange={style.patch}
         swatches={style.swatches}
       />
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-animation`}>Animation</Label>
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor={`${idPrefix}-animation`}
+          hint="Word-by-word entrance for the spoken word (needs per-word timings)."
+        >
+          Animation
+        </FieldLabel>
         <Select
           value={style.animation}
           onValueChange={(value) =>
             style.setAnimation(value as CaptionAnimationId)
           }
         >
-          <SelectTrigger id={`${idPrefix}-animation`} className="w-full">
+          <SelectTrigger
+            id={`${idPrefix}-animation`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1676,9 +1741,6 @@ function CaptionStyleFields({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">
-          Word-by-word entrance for the spoken word (needs per-word timings).
-        </p>
       </div>
     </>
   )
@@ -1751,37 +1813,44 @@ function CaptionsDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Generate Captions</DialogTitle>
+          <DialogDescription>
+            Transcribes the project&apos;s audio and adds the lines as a new
+            caption track. Each caption is a normal text clip you can edit
+            afterwards.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Transcribes the project&apos;s audio and adds the lines as a new
-              caption track. Each caption is a normal text clip you can edit
-              afterwards.
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Captions</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="caption-model">Model</FieldLabel>
+                <Select
+                  value={provider}
+                  onValueChange={(value) =>
+                    setProvider(value as CaptionProvider)
+                  }
+                >
+                  <SelectTrigger id="caption-model" className="w-full sm:w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini">Google Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Style preset + adjustable styling (shared with the Voice dialog). */}
+              <CaptionStyleFields idPrefix="caption" style={captionStyle} />
+            </CardContent>
+          </Card>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
             </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="caption-model">Model</Label>
-              <Select
-                value={provider}
-                onValueChange={(value) => setProvider(value as CaptionProvider)}
-              >
-                <SelectTrigger id="caption-model" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gemini">Google Gemini</SelectItem>
-                  <SelectItem value="openai">OpenAI Whisper</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Style preset + adjustable styling (shared with the Voice dialog). */}
-            <CaptionStyleFields idPrefix="caption" style={captionStyle} />
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <Button
@@ -1836,13 +1905,13 @@ function VoiceStyleFields({
   onChange: (style: VoiceSettings) => void
 }) {
   return (
-    <div className="space-y-3">
+    <div className="grid gap-4">
       {VOICE_STYLE_SLIDERS.map((field) => (
-        <div key={field.key} className="space-y-1.5">
+        <div key={field.key} className="grid gap-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor={`${idPrefix}-style-${field.key}`}>
+            <FieldLabel htmlFor={`${idPrefix}-style-${field.key}`}>
               {field.label}
-            </Label>
+            </FieldLabel>
             <span className="text-xs text-muted-foreground tabular-nums">
               {style[field.key].toFixed(2)}
             </span>
@@ -2113,19 +2182,26 @@ function VoiceDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Add Voice</DialogTitle>
+          <DialogDescription>
+            Generate an ElevenLabs voiceover and drop it at the playhead.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-4">
-            {notConfigured ? (
-              <p className="text-sm text-muted-foreground">
-                ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API key
-                in Settings → AI Providers to generate voiceovers.
-              </p>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="voice-voice">Voice</Label>
-                  <div className="flex gap-2">
+          {notConfigured ? (
+            <p className="text-sm text-muted-foreground">
+              ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API key in
+              Settings → AI Providers to generate voiceovers.
+            </p>
+          ) : (
+            <>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Voice</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="voice-voice">Voice</FieldLabel>
+                    <div className="flex gap-2">
                     <Select
                       value={voiceId}
                       onValueChange={(value) => {
@@ -2172,36 +2248,42 @@ function VoiceDialog({
                     </Tooltip>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="voice-model">Model</Label>
-                  <Select
-                    value={modelId}
-                    onValueChange={(value) => {
-                      setModelId(value as VoiceModelId)
-                      setSavedDefault(false)
-                    }}
-                  >
-                    <SelectTrigger id="voice-model" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOICE_MODELS.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-sm font-medium">Voice style</div>
-                    <p className="text-xs text-muted-foreground">
-                      Adjustments apply to this generation only. Save as default
-                      keeps them as this workspace&apos;s AI Video default —
-                      your ElevenLabs account voice settings are not edited.
-                    </p>
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="voice-model">Model</FieldLabel>
+                    <Select
+                      value={modelId}
+                      onValueChange={(value) => {
+                        setModelId(value as VoiceModelId)
+                        setSavedDefault(false)
+                      }}
+                    >
+                      <SelectTrigger
+                        id="voice-model"
+                        className="w-full sm:w-fit"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VOICE_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Voice style</CardTitle>
+                  <CardDescription>
+                    Adjustments apply to this generation only. Save as default
+                    keeps them as this workspace&apos;s AI Video default — your
+                    ElevenLabs account voice settings are not edited.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                   <VoiceStyleFields
                     idPrefix="voice"
                     style={styleValues}
@@ -2210,30 +2292,38 @@ function VoiceDialog({
                       setSavedDefault(false)
                     }}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="voice-text">Text</Label>
-                  <Textarea
-                    id="voice-text"
-                    rows={3}
-                    value={text}
-                    placeholder="What should the voice say?"
-                    onChange={(event) => setText(event.target.value)}
-                  />
-                </div>
-                {/* Optional synced captions, styled with the same caption UI. */}
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="voice-captions-toggle">Add captions</Label>
-                  <Switch
-                    id="voice-captions-toggle"
-                    checked={addCaptions}
-                    onCheckedChange={setAddCaptions}
-                    aria-label="Add synced captions"
-                  />
-                </div>
-                {addCaptions ? (
-                  <CaptionStyleFields idPrefix="voice" style={captionStyle} />
-                ) : null}
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Script</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="voice-text">Text</FieldLabel>
+                    <Textarea
+                      id="voice-text"
+                      rows={1}
+                      value={text}
+                      placeholder="What should the voice say?"
+                      onChange={(event) => setText(event.target.value)}
+                    />
+                  </div>
+                  {/* Optional synced captions, styled with the same caption UI. */}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="voice-captions-toggle">Add captions</Label>
+                    <Switch
+                      id="voice-captions-toggle"
+                      checked={addCaptions}
+                      onCheckedChange={setAddCaptions}
+                      aria-label="Add synced captions"
+                    />
+                  </div>
+                  {addCaptions ? (
+                    <CaptionStyleFields idPrefix="voice" style={captionStyle} />
+                  ) : null}
+                </CardContent>
+              </Card>
               </>
             )}
             {voiceLoadError && !notConfigured ? (
@@ -2246,7 +2336,6 @@ function VoiceDialog({
                 {generateError}
               </p>
             ) : null}
-          </div>
         </DialogBody>
         <DialogFooter variant="plain">
           <Button
@@ -2550,6 +2639,10 @@ function HookDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Hook Variants</DialogTitle>
+          <DialogDescription>
+            Rewrite the video&apos;s opening hook line, preview it in a voice,
+            and swap the one you pick into the timeline.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
@@ -2557,101 +2650,129 @@ function HookDialog({
               <p className="text-sm text-muted-foreground">{detection.error}</p>
             ) : hook ? (
               <>
-                <div className="space-y-1.5">
-                  <Label>Current hook</Label>
-                  <blockquote className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                    “{hook.hookText}”
-                  </blockquote>
-                  <p className="text-xs text-muted-foreground">
-                    New lines aim for ~
-                    {hookWordBudget(hook.audioClip.durationMs)} words so they
-                    fit the same opening. Only this line and its voice change —
-                    the rest of the video stays untouched.
-                  </p>
-                </div>
-                {notConfigured ? (
-                  <p className="text-sm text-muted-foreground">
-                    ElevenLabs isn&apos;t configured yet. Add an ElevenLabs API
-                    key in Settings → AI Providers to voice and apply hooks.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="hook-voice">Voice</Label>
-                      <Select
-                        value={voiceId}
-                        onValueChange={(value) => {
-                          stopPreview()
-                          setVoiceId(value)
-                          // A different voice needs fresh previews.
-                          setLines((current) =>
-                            current.map((line) => ({ ...line, voice: null }))
-                          )
-                        }}
-                        disabled={!voices || voices.length === 0}
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Hook</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        hint={
+                          <>
+                            New lines aim for ~
+                            {hookWordBudget(hook.audioClip.durationMs)} words so
+                            they fit the same opening. Only this line and its
+                            voice change — the rest of the video stays
+                            untouched.
+                          </>
+                        }
                       >
-                        <SelectTrigger id="hook-voice" className="w-full">
-                          <SelectValue
-                            placeholder={!voices ? "Loading…" : "Select a voice"}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(voices ?? []).map((voice) => (
-                            <SelectItem key={voice.id} value={voice.id}>
-                              {voice.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        Current hook
+                      </FieldLabel>
+                      <blockquote className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                        “{hook.hookText}”
+                      </blockquote>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="hook-model">Model</Label>
-                      <Select
-                        value={modelId}
-                        onValueChange={(value) => {
-                          setModelId(value as VoiceModelId)
-                          setLines((current) =>
-                            current.map((line) => ({ ...line, voice: null }))
-                          )
-                        }}
-                      >
-                        <SelectTrigger id="hook-model" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VOICE_MODELS.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {notConfigured ? (
+                      <p className="text-sm text-muted-foreground">
+                        ElevenLabs isn&apos;t configured yet. Add an ElevenLabs
+                        API key in Settings → AI Providers to voice and apply
+                        hooks.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+                        <div className="grid gap-2">
+                          <FieldLabel htmlFor="hook-voice">Voice</FieldLabel>
+                          <Select
+                            value={voiceId}
+                            onValueChange={(value) => {
+                              stopPreview()
+                              setVoiceId(value)
+                              // A different voice needs fresh previews.
+                              setLines((current) =>
+                                current.map((line) => ({
+                                  ...line,
+                                  voice: null,
+                                }))
+                              )
+                            }}
+                            disabled={!voices || voices.length === 0}
+                          >
+                            <SelectTrigger
+                              id="hook-voice"
+                              className="w-full sm:w-fit"
+                            >
+                              <SelectValue
+                                placeholder={
+                                  !voices ? "Loading…" : "Select a voice"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(voices ?? []).map((voice) => (
+                                <SelectItem key={voice.id} value={voice.id}>
+                                  {voice.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <FieldLabel htmlFor="hook-model">Model</FieldLabel>
+                          <Select
+                            value={modelId}
+                            onValueChange={(value) => {
+                              setModelId(value as VoiceModelId)
+                              setLines((current) =>
+                                current.map((line) => ({
+                                  ...line,
+                                  voice: null,
+                                }))
+                              )
+                            }}
+                          >
+                            <SelectTrigger
+                              id="hook-model"
+                              className="w-full sm:w-fit"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VOICE_MODELS.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  {model.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="hook-notes">
+                        Notes for the writer (optional)
+                      </FieldLabel>
+                      <Textarea
+                        id="hook-notes"
+                        rows={1}
+                        value={notes}
+                        maxLength={500}
+                        placeholder="Angle, audience, words to use or avoid..."
+                        onChange={(event) => setNotes(event.target.value)}
+                      />
                     </div>
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="hook-notes">
-                    Notes for the writer (optional)
-                  </Label>
-                  <Textarea
-                    id="hook-notes"
-                    rows={2}
-                    value={notes}
-                    maxLength={500}
-                    placeholder="Angle, audience, words to use or avoid..."
-                    onChange={(event) => setNotes(event.target.value)}
-                  />
-                </div>
+                  </CardContent>
+                </Card>
                 {lines.map((line) => {
                   const lineBusy = busy?.lineId === line.id ? busy.task : null
                   const previewing = previewingId === line.id
                   return (
                     <div
                       key={line.id}
-                      className="space-y-1.5 rounded-md border p-2"
+                      className="space-y-2 rounded-md border p-2"
                     >
                       <Textarea
-                        rows={2}
+                        rows={1}
                         value={line.text}
                         maxLength={300}
                         aria-label="Hook line"
@@ -2990,6 +3111,10 @@ function BriefToReelDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Brief to Reel</DialogTitle>
+          <DialogDescription>
+            Generate a brief from this template&apos;s analyzed source reel, then
+            voice it and insert it.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
@@ -3011,36 +3136,39 @@ function BriefToReelDialog({
             </div>
 
             {step === "topic" ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Generate a brief from this template&apos;s analyzed source
-                  reel.
-                </p>
-                <div className="space-y-1.5">
-                  <Label htmlFor="brief-topic">Topic</Label>
-                  <Input
-                    id="brief-topic"
-                    value={topic}
-                    placeholder="e.g. founding member offer for a local gym"
-                    onChange={(event) => setTopic(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="brief-notes">Notes (optional)</Label>
-                  <Textarea
-                    id="brief-notes"
-                    rows={3}
-                    value={notes}
-                    placeholder="Mention what must be included or avoided..."
-                    onChange={(event) => setNotes(event.target.value)}
-                  />
-                </div>
-                {briefError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {briefError}
-                  </p>
-                ) : null}
-              </>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Topic</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="brief-topic">Topic</FieldLabel>
+                    <Input
+                      id="brief-topic"
+                      value={topic}
+                      placeholder="e.g. founding member offer for a local gym"
+                      onChange={(event) => setTopic(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="brief-notes">
+                      Notes (optional)
+                    </FieldLabel>
+                    <Textarea
+                      id="brief-notes"
+                      rows={1}
+                      value={notes}
+                      placeholder="Mention what must be included or avoided..."
+                      onChange={(event) => setNotes(event.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+            {step === "topic" && briefError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {briefError}
+              </p>
             ) : null}
 
             {step === "brief" && brief ? (
@@ -3099,11 +3227,13 @@ function BriefToReelDialog({
                   </div>
                   <p className="mt-1 text-sm">{brief.captionDraft}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="brief-voiceover">Voiceover script</Label>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="brief-voiceover">
+                    Voiceover script
+                  </FieldLabel>
                   <Textarea
                     id="brief-voiceover"
-                    rows={5}
+                    rows={1}
                     value={voiceoverText}
                     onChange={(event) => setVoiceoverText(event.target.value)}
                   />
@@ -3119,64 +3249,98 @@ function BriefToReelDialog({
                 </p>
               ) : (
                 <>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="brief-voice">Voice</Label>
-                    <Select
-                      value={voiceId}
-                      onValueChange={setVoiceId}
-                      disabled={
-                        !voices || voices.length === 0 || !!voiceLoadError
-                      }
-                    >
-                      <SelectTrigger id="brief-voice" className="w-full">
-                        <SelectValue placeholder={voicePlaceholder} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(voices ?? []).map((voice) => (
-                          <SelectItem key={voice.id} value={voice.id}>
-                            {voice.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="brief-model">Model</Label>
-                    <Select
-                      value={modelId}
-                      onValueChange={(value) =>
-                        setModelId(value as VoiceModelId)
-                      }
-                    >
-                      <SelectTrigger id="brief-model" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VOICE_MODELS.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <VoiceStyleFields
-                    idPrefix="brief"
-                    style={voiceStyle ?? createDefaultVoiceSettings()}
-                    onChange={setVoiceStyle}
-                  />
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="brief-captions-toggle">Add captions</Label>
-                    <Switch
-                      id="brief-captions-toggle"
-                      checked={addCaptions}
-                      onCheckedChange={setAddCaptions}
-                      aria-label="Add synced captions"
-                    />
-                  </div>
-                  {addCaptions ? (
-                    <CaptionStyleFields idPrefix="brief" style={captionStyle} />
-                  ) : null}
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Voice</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+                        <div className="grid gap-2">
+                          <FieldLabel htmlFor="brief-voice">Voice</FieldLabel>
+                          <Select
+                            value={voiceId}
+                            onValueChange={setVoiceId}
+                            disabled={
+                              !voices || voices.length === 0 || !!voiceLoadError
+                            }
+                          >
+                            <SelectTrigger
+                              id="brief-voice"
+                              className="w-full sm:w-fit"
+                            >
+                              <SelectValue placeholder={voicePlaceholder} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(voices ?? []).map((voice) => (
+                                <SelectItem key={voice.id} value={voice.id}>
+                                  {voice.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <FieldLabel htmlFor="brief-model">Model</FieldLabel>
+                          <Select
+                            value={modelId}
+                            onValueChange={(value) =>
+                              setModelId(value as VoiceModelId)
+                            }
+                          >
+                            <SelectTrigger
+                              id="brief-model"
+                              className="w-full sm:w-fit"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VOICE_MODELS.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  {model.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Voice style</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <VoiceStyleFields
+                        idPrefix="brief"
+                        style={voiceStyle ?? createDefaultVoiceSettings()}
+                        onChange={setVoiceStyle}
+                      />
+                    </CardContent>
+                  </Card>
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Captions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="brief-captions-toggle">
+                          Add captions
+                        </Label>
+                        <Switch
+                          id="brief-captions-toggle"
+                          checked={addCaptions}
+                          onCheckedChange={setAddCaptions}
+                          aria-label="Add synced captions"
+                        />
+                      </div>
+                      {addCaptions ? (
+                        <CaptionStyleFields
+                          idPrefix="brief"
+                          style={captionStyle}
+                        />
+                      ) : null}
+                    </CardContent>
+                  </Card>
                   {voiceLoadError ? (
                     <p role="alert" className="text-sm text-destructive">
                       {voiceLoadError}
@@ -3385,32 +3549,39 @@ function ScriptDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Write Script</DialogTitle>
+          <DialogDescription>
+            Writes a new script for your topic that follows the source
+            reel&apos;s analyzed beats — same structure, same pacing.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Topic</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="script-topic">Your topic</FieldLabel>
+                <Input
+                  id="script-topic"
+                  value={topic}
+                  placeholder="e.g. my coffee shop's new matcha menu"
+                  onChange={(event) => setTopic(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="script-notes">Notes (optional)</FieldLabel>
+                <Textarea
+                  id="script-notes"
+                  rows={1}
+                  value={notes}
+                  placeholder="Anything the script must mention or avoid..."
+                  onChange={(event) => setNotes(event.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Writes a new script for your topic that follows the source
-              reel&apos;s analyzed beats — same structure, same pacing.
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="script-topic">Your topic</Label>
-              <Input
-                id="script-topic"
-                value={topic}
-                placeholder="e.g. my coffee shop's new matcha menu"
-                onChange={(event) => setTopic(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="script-notes">Notes (optional)</Label>
-              <Textarea
-                id="script-notes"
-                rows={2}
-                value={notes}
-                placeholder="Anything the script must mention or avoid..."
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </div>
             {beats ? (
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border bg-background p-3">
                 {beats.map((beat, index) => (

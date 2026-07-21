@@ -9,13 +9,13 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { MediaGridSkeleton } from "@/components/loading-skeleton"
 import { useShellRuntime } from "@/components/shell-runtime"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -237,6 +237,11 @@ export function MediaPicker({
           <DialogTitle>
             {showVideos ? "Select Media" : "Select Image"}
           </DialogTitle>
+          <DialogDescription>
+            {showVideos
+              ? "Pick an image or video from your library, or upload a new file."
+              : "Pick an image from your library, or upload a new file."}
+          </DialogDescription>
         </DialogHeader>
 
         <DialogBody>
@@ -255,7 +260,7 @@ export function MediaPicker({
 
               {showVideos ? (
                 <Select value={filterType} onValueChange={handleFilterChange}>
-                  <SelectTrigger className="w-full sm:w-36">
+                  <SelectTrigger className="w-full sm:w-fit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,12 +288,6 @@ export function MediaPicker({
                 </label>
               </Button>
             </div>
-
-            {error ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
 
             {uploadFile ? (
               <div className="rounded-lg border bg-muted/30 p-3">
@@ -365,7 +364,9 @@ export function MediaPicker({
 
             <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
               {loading ? (
-                <MediaGridSkeleton count={8} />
+                <div className="flex items-center justify-center py-8">
+                  <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+                </div>
               ) : mediaItems.length === 0 ? (
                 <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                   <div>
@@ -383,7 +384,7 @@ export function MediaPicker({
                         "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
                         selectedMedia?.id === item.id ||
                           currentMediaUrl === item.url
-                          ? "border-green-500 ring-2 ring-green-500/20"
+                          ? "border-primary ring-2 ring-primary/20"
                           : "hover:border-muted-foreground/40"
                       )}
                       onClick={() => setSelectedMedia(item)}
@@ -406,7 +407,7 @@ export function MediaPicker({
                         />
                       )}
                       {currentMediaUrl === item.url ? (
-                        <span className="absolute top-2 right-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+                        <span className="absolute top-2 right-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                           Current
                         </span>
                       ) : null}
@@ -444,6 +445,12 @@ export function MediaPicker({
                   </Button>
                 </div>
               </div>
+            ) : null}
+
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
             ) : null}
           </div>
         </DialogBody>

@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -119,12 +120,13 @@ export function ShellIconPicker({
           className="data-[variant=admin]:max-h-none data-[variant=admin]:overflow-visible sm:max-w-3xl"
         >
           <DialogHeader>
-            <div className="flex min-w-0 flex-wrap items-center gap-3 pr-8">
-              <DialogTitle className="shrink-0">Choose Icon</DialogTitle>
-            </div>
+            <DialogTitle>Choose Icon</DialogTitle>
+            <DialogDescription>
+              Search the library or add any Lucide icon by name.
+            </DialogDescription>
           </DialogHeader>
 
-          <DialogBody className="gap-4 pt-7">
+          <DialogBody className="gap-4">
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -160,9 +162,9 @@ export function ShellIconPicker({
                       placeholder="octagon-x"
                     />
                     {customIconError ? (
-                      <p className="text-xs text-destructive">{customIconError}</p>
+                      <p className="text-sm text-destructive">{customIconError}</p>
                     ) : customLucideIcon ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         Found {getShellIconLabel(customLucideIcon)}.
                       </p>
                     ) : null}

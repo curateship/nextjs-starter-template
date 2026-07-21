@@ -1,9 +1,8 @@
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -35,11 +34,10 @@ export function FeedbackDeleteModal({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
+          <DialogDescription>
+            {body} This action cannot be undone.
+          </DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
-          <p className="text-sm text-muted-foreground">{body}</p>
-        </DialogBody>
         <DialogFooter variant="plain">
           <Button
             type="button"
@@ -55,12 +53,8 @@ export function FeedbackDeleteModal({
             onClick={onConfirm}
             disabled={deleting || confirmDisabled}
           >
-            {deleting ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2Icon className="h-4 w-4" />
-            )}
-            Delete
+            {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {deleting ? "Deleting" : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,9 +1,8 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   ClapperboardIcon,
-  EditIcon,
+  SettingsIcon,
   Loader2Icon,
   PlusIcon,
   Trash2Icon,
@@ -13,6 +12,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useShellRuntime } from "@/components/shell-runtime"
 import { DashboardTable } from "@/components/dashboard-table"
@@ -28,12 +33,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -72,7 +78,7 @@ import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
-type ProjectSortColumn = "name" | "clips" | "edited"
+type ProjectSortColumn = "name" | "type" | "clips" | "export" | "edited"
 type ProjectTypeFilter = "all" | "regular" | "template"
 type ProjectModalState =
   | { type: "create" }
@@ -179,8 +185,12 @@ export function ProjectsDashboard() {
         (project) => typeFilter === "all" || project.project_type === typeFilter
       )
       .sort((a, b) => {
+        if (sortColumn === "type")
+          return a.project_type.localeCompare(b.project_type) * direction
         if (sortColumn === "clips")
           return (a.clip_count - b.clip_count) * direction
+        if (sortColumn === "export")
+          return a.render_status.localeCompare(b.render_status) * direction
         if (sortColumn === "edited")
           return (
             (new Date(a.updated_at).getTime() -
@@ -307,7 +317,7 @@ export function ProjectsDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -383,10 +393,6 @@ export function ProjectsDashboard() {
     <>
       {selectedIds.size > 0 ? (
         <>
-          <DashboardToolbarButton type="button" onClick={openExportDialog}>
-            <UploadIcon className="size-4" />
-            Export {selectedIds.size}
-          </DashboardToolbarButton>
           <DashboardToolbarButton
             type="button"
             variant="destructive"
@@ -394,6 +400,10 @@ export function ProjectsDashboard() {
           >
             <Trash2Icon className="size-4" />
             Delete {selectedIds.size}
+          </DashboardToolbarButton>
+          <DashboardToolbarButton type="button" onClick={openExportDialog}>
+            <UploadIcon className="size-4" />
+            Export {selectedIds.size}
           </DashboardToolbarButton>
         </>
       ) : null}
@@ -484,7 +494,7 @@ export function ProjectsDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible projects"
                   />
@@ -498,7 +508,15 @@ export function ProjectsDashboard() {
                     Project
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta">Type</TableHead>
+                <TableHead column="meta">
+                  <TableSortButton
+                    active={sortColumn === "type"}
+                    direction={sortDirection}
+                    onClick={() => toggleSort("type")}
+                  >
+                    Type
+                  </TableSortButton>
+                </TableHead>
                 <TableHead column="meta">
                   <TableSortButton
                     active={sortColumn === "clips"}
@@ -508,7 +526,15 @@ export function ProjectsDashboard() {
                     Clips
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta">Export</TableHead>
+                <TableHead column="meta">
+                  <TableSortButton
+                    active={sortColumn === "export"}
+                    direction={sortDirection}
+                    onClick={() => toggleSort("export")}
+                  >
+                    Export
+                  </TableSortButton>
+                </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
                   <TableSortButton
                     active={sortColumn === "edited"}
@@ -550,70 +576,84 @@ export function ProjectsDashboard() {
             <DialogTitle>
               {modalState?.type === "rename" ? "Rename Project" : "New Project"}
             </DialogTitle>
+            <DialogDescription>
+              {modalState?.type === "rename"
+                ? "Give this project a new name."
+                : "Start a new video project, optionally from a template."}
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label htmlFor="project-name">Name</Label>
-                <Input
-                  id="project-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Project name"
-                  onKeyDown={(event) => {
-                    // Enter submits the single-field form.
-                    if (event.key !== "Enter" || primaryDisabled) return
-                    if (modalState?.type === "rename") {
-                      void handleRenameProject()
-                    } else {
-                      void handleCreateProject()
-                    }
-                  }}
-                />
-              </div>
-
-              {/* Template picker (create only). Hidden until templates load and
-                  only when the user has at least one; "Blank project" is the
-                  default. Selecting one copies its timeline into the project. */}
-              {modalState?.type === "create" &&
-              templates &&
-              templates.length > 0 ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="project-template">Template</Label>
-                  <Select
-                    value={selectedTemplateId ?? "blank"}
-                    onValueChange={(value) =>
-                      setSelectedTemplateId(value === "blank" ? null : value)
-                    }
-                  >
-                    <SelectTrigger id="project-template">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="blank">Blank project</SelectItem>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FieldLabel htmlFor="project-name">Name</FieldLabel>
+                  <Input
+                    id="project-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Project name"
+                    onKeyDown={(event) => {
+                      // Enter submits the single-field form.
+                      if (event.key !== "Enter" || primaryDisabled) return
+                      if (modalState?.type === "rename") {
+                        void handleRenameProject()
+                      } else {
+                        void handleCreateProject()
+                      }
+                    }}
+                  />
                 </div>
-              ) : null}
-            </div>
+
+                {/* Template picker (create only). Hidden until templates load
+                    and only when the user has at least one; "Blank project" is
+                    the default. Selecting one copies its timeline. */}
+                {modalState?.type === "create" &&
+                templates &&
+                templates.length > 0 ? (
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="project-template">Template</FieldLabel>
+                    <Select
+                      value={selectedTemplateId ?? "blank"}
+                      onValueChange={(value) =>
+                        setSelectedTemplateId(value === "blank" ? null : value)
+                      }
+                    >
+                      <SelectTrigger
+                        id="project-template"
+                        className="w-full sm:w-fit"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="blank">Blank project</SelectItem>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {modalError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {modalError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={closeModal}
+            >
               Cancel
             </Button>
             {modalState?.type === "rename" ? (
@@ -670,54 +710,63 @@ export function ProjectsDashboard() {
                 ? "Project"
                 : `${exportIds?.length ?? 0} Projects`}
             </DialogTitle>
+            <DialogDescription>
+              Each project is queued and rendered in the background. Finished
+              exports appear in the Exports gallery.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Each project is queued for export and rendered in the
-                background. Finished exports appear in the Exports gallery.
-              </p>
-              <div className="grid gap-2">
-                <Label htmlFor="bulk-export-quality">Quality</Label>
-                <Select
-                  value={exportQuality}
-                  onValueChange={(value) =>
-                    setExportQuality(value as RenderQuality)
-                  }
-                >
-                  <SelectTrigger id="bulk-export-quality" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RENDER_QUALITY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}{" "}
-                        <span className="text-muted-foreground">
-                          ({option.hint})
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3 rounded-md border bg-background p-3">
-                <Checkbox
-                  id="bulk-export-include-end-card"
-                  checked={includeEndCard}
-                  onCheckedChange={(checked) =>
-                    setIncludeEndCard(checked === true)
-                  }
-                />
-                <Label htmlFor="bulk-export-include-end-card">
-                  Include end card
-                </Label>
-              </div>
-            </div>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Export settings</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="bulk-export-quality">Quality</FieldLabel>
+                  <Select
+                    value={exportQuality}
+                    onValueChange={(value) =>
+                      setExportQuality(value as RenderQuality)
+                    }
+                  >
+                    <SelectTrigger
+                      id="bulk-export-quality"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RENDER_QUALITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}{" "}
+                          <span className="text-muted-foreground">
+                            ({option.hint})
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="bulk-export-include-end-card"
+                    checked={includeEndCard}
+                    onCheckedChange={(checked) =>
+                      setIncludeEndCard(checked === true)
+                    }
+                  />
+                  <FieldLabel htmlFor="bulk-export-include-end-card">
+                    Include end card
+                  </FieldLabel>
+                </div>
+              </CardContent>
+            </Card>
           </DialogBody>
           <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
+              disabled={exporting}
               onClick={() => setExportIds(null)}
             >
               Cancel
@@ -814,9 +863,6 @@ function ProjectTableRow({
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1">
-          <Button type="button" size="sm" variant="outline" onClick={onOpen}>
-            Open
-          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -824,7 +870,7 @@ function ProjectTableRow({
             onClick={onRename}
             aria-label="Rename project"
           >
-            <EditIcon className="size-4" />
+            <SettingsIcon className="size-4" />
           </Button>
           <Button
             type="button"
@@ -913,7 +959,7 @@ function ProjectGalleryItem({
           onClick={onRename}
           aria-label="Rename project"
         >
-          <EditIcon className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
         <Button
           type="button"
