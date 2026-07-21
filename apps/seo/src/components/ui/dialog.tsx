@@ -56,7 +56,6 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
-  style,
   variant = "default",
   showCloseButton = true,
   ...props
@@ -66,15 +65,20 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {/* Overlay is an explicit close target. Radix's own outside-press dismiss
+          ignores the first click after a Select inside the dialog was used (an
+          upstream DismissableLayer bug), so clicking the backdrop closes here
+          directly and reliably. */}
+      <DialogPrimitive.Close asChild>
+        <DialogOverlay />
+      </DialogPrimitive.Close>
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none !pointer-events-auto max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!ring-0 max-sm:overflow-y-auto sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!ring-0 max-sm:overflow-y-auto sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
-        style={{ ...style, pointerEvents: "auto" }}
         {...props}
       >
         <DialogContentVariantContext.Provider value={variant}>
@@ -160,11 +164,9 @@ function DialogFooter({
       data-slot="dialog-footer"
       data-variant={variant}
       className={cn(
-        "flex flex-row justify-end gap-2 **:data-[slot=button]:h-9",
-        variant === "default" && "rounded-b-xl border-t bg-muted/50 px-6 py-5",
-        variant === "plain" &&
-          "items-center rounded-none border-t-0 bg-transparent",
-        variant === "plain" && !isAdminPlain && "px-6 py-5",
+        // The footer sits directly on the modal surface: no band, no divider.
+        "flex flex-row items-center justify-end gap-2 **:data-[slot=button]:h-9",
+        !isAdminPlain && "px-6 pt-0 pb-5",
         isAdminPlain && "px-6 pb-6",
         className
       )}
@@ -190,7 +192,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-base leading-none font-medium",
+        "text-lg leading-none font-medium",
         contentVariant === "admin" && "truncate",
         className
       )}
