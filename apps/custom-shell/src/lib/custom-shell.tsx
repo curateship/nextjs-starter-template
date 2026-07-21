@@ -313,6 +313,8 @@ export type ShellStyling = {
   cardBorderWidth: number
   /** Card + table border color. */
   cardBorderColor: ShellBackground
+  /** Divider lines: the rules inside cards and tables, and the sidebar edge. */
+  dividerColor: ShellBackground
   /** Main content area background. */
   content: ShellBackground
   /** Sidebar + sticky header background. */
@@ -342,13 +344,13 @@ export type ShellModalStyling = {
 
 export const MIN_CONTENT_GUTTER = 0
 export const MAX_CONTENT_GUTTER = 48
-export const DEFAULT_CONTENT_GUTTER = 24
+export const DEFAULT_CONTENT_GUTTER = 14
 export const MAX_CARD_BORDER_WIDTH = 3
 export const DEFAULT_CARD_BORDER_WIDTH = 1
 export const MAX_MODAL_PADDING = 48
-export const DEFAULT_MODAL_PADDING = 24
-export const DEFAULT_MODAL_OVERLAY_OPACITY = 10
-// Default content background reproduces today's `bg-muted/60`.
+export const DEFAULT_MODAL_PADDING = 20
+export const DEFAULT_MODAL_OVERLAY_OPACITY = 8
+// Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
 export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
   "default",
@@ -381,30 +383,32 @@ export function clampOverlayOpacity(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_MODAL_OVERLAY_OPACITY)
 }
 
+// The out-of-the-box look for a new workspace/app and every reset. These are the
+// tuned values captured from Tyler's own workspace, kept verbatim (some settings
+// are deliberately left on "default"/Automatic) so a reset lands on the look he
+// actually wants rather than the raw theme colors.
 export function createDefaultModalStyling(): ShellModalStyling {
   return {
-    background: { mode: "default", strength: 100, color: "#ffffff" },
-    borderWidth: DEFAULT_CARD_BORDER_WIDTH,
-    borderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
-    padding: DEFAULT_MODAL_PADDING,
-    overlayOpacity: DEFAULT_MODAL_OVERLAY_OPACITY,
-    cardBackground: { mode: "default", strength: 100, color: "#ffffff" },
-    cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
-    cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    background: { mode: "muted", strength: 44, color: "#ffffff" },
+    borderWidth: 1,
+    borderColor: { mode: "default", strength: 28, color: "#d4d4d8" },
+    padding: 20,
+    overlayOpacity: 8,
+    cardBackground: { mode: "muted", strength: 0, color: "#ffffff" },
+    cardBorderWidth: 1,
+    cardBorderColor: { mode: "muted", strength: 6, color: "#d4d4d8" },
   }
 }
 
 export function createDefaultStyling(): ShellStyling {
   return {
-    gutter: DEFAULT_CONTENT_GUTTER,
-    cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
-    cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
-    content: {
-      mode: "muted",
-      strength: DEFAULT_CONTENT_BACKGROUND_STRENGTH,
-      color: "#f4f4f5",
-    },
-    chrome: { mode: "default", strength: 100, color: "#ffffff" },
+    gutter: 14,
+    cardBorderWidth: 1,
+    cardBorderColor: { mode: "muted", strength: 7, color: "#d4d4d8" },
+    // Starting value only — Tyler tunes this live, then it gets captured here.
+    dividerColor: { mode: "muted", strength: 10, color: "#d4d4d8" },
+    content: { mode: "muted", strength: 95, color: "#f4f4f5" },
+    chrome: { mode: "muted", strength: 27, color: "#ffffff" },
     modal: createDefaultModalStyling(),
   }
 }
@@ -440,6 +444,10 @@ export function normalizeStyling(value: unknown): ShellStyling {
     cardBorderColor: normalizeBackground(
       styling.cardBorderColor,
       fallback.cardBorderColor
+    ),
+    dividerColor: normalizeBackground(
+      styling.dividerColor,
+      fallback.dividerColor
     ),
     content: normalizeBackground(styling.content, fallback.content),
     chrome: normalizeBackground(styling.chrome, fallback.chrome),
