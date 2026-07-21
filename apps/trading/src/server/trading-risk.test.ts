@@ -119,6 +119,32 @@ describe("risk engine", () => {
     }
   })
 
+  it("lets a reduce-only close through even when leverage exceeds the limit", () => {
+    // A position opened at 5x must stay closable after the limit drops to 3x.
+    const result = checkOrderIntent(
+      { ...baseIntent, side: "sell", sz: "1", reduceOnly: true, leverage: 5 },
+      { ...baseAccount, positionSzi: "1", positionNotional: "2000" },
+      { ...baseLimits, maxLeverage: 3 },
+      freshRef()
+    )
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("still rejects an exposure-increasing reverse above the leverage limit", () => {
+    const result = checkOrderIntent(
+      { ...baseIntent, reduceOnly: false, leverage: 5 },
+      baseAccount,
+      { ...baseLimits, maxLeverage: 3 },
+      freshRef()
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.violations.map((violation) => violation.code)).toContain(
+        "max_leverage"
+      )
+    }
+  })
+
   it("rejects excessive leverage and open order count", () => {
     const leverage = checkOrderIntent(
       { ...baseIntent, leverage: 50 },
