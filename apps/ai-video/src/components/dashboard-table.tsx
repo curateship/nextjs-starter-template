@@ -205,7 +205,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
         rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}${footer.hasMore ? "+" : ""}`}
         firstDisabled
         previousDisabled
-        nextDisabled={!footer.hasMore || footer.loading}
+        nextDisabled={!footer.hasMore || Boolean(footer.loading)}
         lastDisabled
         onNext={footer.onLoadMore}
         nextIcon={footer.loading ? <Loader2Icon className="size-4 animate-spin" /> : undefined}
@@ -213,18 +213,17 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
     )
   }
 
-  const pageSize = footer.count || defaultPageSizeOptions[0]
+  // A summary footer counts rows; it has no pages. Rendering the pagination
+  // control here showed a dead "Rows per page" select set to the row count.
+  // Call sites pass the plural ("workspaces"), so drop the "s" for a single row.
+  const plural = footer.label ?? "items"
+  const label =
+    footer.count === 1 && plural.endsWith("s") ? plural.slice(0, -1) : plural
 
   return (
-    <DashboardTablePaginationFooter
-      pageSize={pageSize}
-      pageSizeOptions={[pageSize]}
-      rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}`}
-      firstDisabled
-      previousDisabled
-      nextDisabled
-      lastDisabled
-    />
+    <div className="flex items-center bg-muted/50 p-4 text-sm text-muted-foreground">
+      {footer.count} {label}
+    </div>
   )
 }
 
