@@ -20,6 +20,13 @@ import {
 import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -703,32 +710,34 @@ function EditFeedbackCommentModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          {comment ? (
-            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              <span className="line-clamp-2">{comment.feedback_message}</span>
-            </div>
-          ) : null}
-
-          <div className="space-y-2">
-            <Label htmlFor="feedback-comment-message">Comment</Label>
-            <Textarea
-              id="feedback-comment-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows={1}
-              disabled={busy}
-              autoFocus
-            />
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Comment</CardTitle>
+              {comment ? (
+                <CardDescription className="line-clamp-2">
+                  On: {comment.feedback_message}
+                </CardDescription>
+              ) : null}
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="feedback-comment-message">Comment</Label>
+                <Textarea
+                  id="feedback-comment-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={1}
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
