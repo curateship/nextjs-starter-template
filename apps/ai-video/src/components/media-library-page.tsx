@@ -1,6 +1,6 @@
 import * as React from "react"
 import {
-  EditIcon,
+  SettingsIcon,
   ImageIcon,
   Loader2Icon,
   MusicIcon,
@@ -12,6 +12,12 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -26,12 +32,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -268,7 +275,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -550,7 +557,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible media"
                   />
@@ -618,10 +625,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             <DialogTitle>
               {editingMedia ? getEditTitle(editingMedia) : "Edit Media"}
             </DialogTitle>
+            <DialogDescription>
+              Update this file's details.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             {editingMedia ? (
-              <div className="space-y-4">
+              <>
                 {editingMedia.file_type === "video" ? (
                   <video
                     src={editingMedia.proxy_url ?? editingMedia.url}
@@ -641,52 +651,65 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
                   />
                 )}
-                <div className="grid gap-2">
-                  <Label htmlFor="media-alt-text">
-                    {editingMedia.file_type === "image"
-                      ? "Alt text"
-                      : "Description"}
-                  </Label>
-                  <Input
-                    id="media-alt-text"
-                    value={editAltText}
-                    onChange={(event) => setEditAltText(event.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Details</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="media-alt-text">
+                        {editingMedia.file_type === "image"
+                          ? "Alt text"
+                          : "Description"}
+                      </FieldLabel>
+                      <Input
+                        id="media-alt-text"
+                        value={editAltText}
+                        onChange={(event) => setEditAltText(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             ) : null}
           </DialogBody>
-          <DialogFooter variant="plain">
-            {editingMedia ? (
+          <DialogFooter variant="plain" className="justify-between">
+            <div>
+              {editingMedia ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={savingEdit}
+                  onClick={() => {
+                    setDeleteIds([editingMedia.id])
+                    setEditingMedia(null)
+                  }}
+                >
+                  Delete
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
               <Button
                 type="button"
-                variant="destructive"
-                onClick={() => {
-                  setDeleteIds([editingMedia.id])
-                  setEditingMedia(null)
-                }}
+                variant="outline"
+                disabled={savingEdit}
+                onClick={() => setEditingMedia(null)}
               >
-                Delete
+                Cancel
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setEditingMedia(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={savingEdit}
-              onClick={handleSaveEdit}
-            >
-              {savingEdit ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {savingEdit ? "Saving" : "Save"}
-            </Button>
+              <Button
+                type="button"
+                disabled={savingEdit}
+                onClick={handleSaveEdit}
+              >
+                {savingEdit ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
+                {savingEdit ? "Saving" : "Save"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -745,7 +768,13 @@ function MediaTableRow({
             className="size-12 shrink-0 rounded-md border bg-muted"
           />
           <div className="min-w-0">
-            <div className="truncate font-medium">{item.original_name}</div>
+            <button
+              type="button"
+              className="truncate font-medium text-left hover:underline"
+              onClick={onEdit}
+            >
+              {item.original_name}
+            </button>
             {item.alt_text ? (
               <div className="max-w-[280px] truncate text-xs text-muted-foreground">
                 {item.alt_text}
@@ -773,7 +802,7 @@ function MediaTableRow({
             onClick={onEdit}
             aria-label="Edit media"
           >
-            <EditIcon className="size-4" />
+            <SettingsIcon className="size-4" />
           </Button>
           <Button
             type="button"
@@ -846,7 +875,7 @@ function GalleryItem({
           onClick={onEdit}
           aria-label="Edit media"
         >
-          <EditIcon className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
         <Button
           type="button"

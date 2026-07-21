@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
   EyeIcon,
@@ -33,15 +32,22 @@ import {
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import {
   TableCell,
@@ -297,7 +303,7 @@ export function ViralArchiveDashboard({
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -446,7 +452,7 @@ export function ViralArchiveDashboard({
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible videos"
                   />
@@ -936,59 +942,69 @@ function AddVideoModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
-        <DialogHeader><DialogTitle>Add Video</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Add Video</DialogTitle>
+          <DialogDescription>
+            Paste a TikTok or Instagram URL to download and analyze it.
+          </DialogDescription>
+        </DialogHeader>
         <DialogBody>
-          <div className="space-y-5">
-            {error ? (
-              <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            ) : null}
-
-            <div className="grid gap-2">
-              <Label htmlFor="add-video-url">TikTok or Instagram URL</Label>
-              <Input
-                id="add-video-url"
-                value={url}
-                readOnly={isTracking}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://www.tiktok.com/@..."
-                autoComplete="off"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !analyzeDisabled) void handleAnalyze()
-                }}
-              />
-            </div>
-
-            {isTracking ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className={isDone ? "font-medium text-emerald-600 dark:text-emerald-400" : isFailed ? "text-destructive" : "text-muted-foreground"}>
-                    {isFailed ? (processingVideo?.error ?? "Analysis failed") : progressLabel}
-                  </span>
-                  {isDone ? (
-                    <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
-                  ) : isProcessing ? (
-                    <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                  ) : null}
-                </div>
-                <Progress
-                  value={isFailed ? 100 : progressValue}
-                  className={isFailed ? "bg-destructive/20 [&>[data-slot=progress-indicator]]:bg-destructive" : undefined}
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Source</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="add-video-url">
+                  TikTok or Instagram URL
+                </FieldLabel>
+                <Input
+                  id="add-video-url"
+                  value={url}
+                  readOnly={isTracking}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://www.tiktok.com/@..."
+                  autoComplete="off"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !analyzeDisabled) void handleAnalyze()
+                  }}
                 />
               </div>
-            ) : null}
 
-            {isProcessing ? (
-              <p className="text-xs text-muted-foreground">
-                You can close this — analysis will continue in the background.
-              </p>
-            ) : null}
-          </div>
+              {isTracking ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className={isDone ? "font-medium text-foreground" : isFailed ? "text-destructive" : "text-muted-foreground"}>
+                      {isFailed ? (processingVideo?.error ?? "Analysis failed") : progressLabel}
+                    </span>
+                    {isDone ? (
+                      <CheckCircle2Icon className="size-4 text-foreground" />
+                    ) : isProcessing ? (
+                      <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                    ) : null}
+                  </div>
+                  <Progress
+                    value={isFailed ? 100 : progressValue}
+                    className={isFailed ? "bg-destructive/20 [&>[data-slot=progress-indicator]]:bg-destructive" : undefined}
+                  />
+                </div>
+              ) : null}
+
+              {isProcessing ? (
+                <p className="text-xs text-muted-foreground">
+                  You can close this — analysis will continue in the background.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" disabled={creating} onClick={() => onOpenChange(false)}>
             {isDone ? "Close" : "Cancel"}
           </Button>
           {isDone && processingVideo ? (

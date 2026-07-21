@@ -1,9 +1,9 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
-  EditIcon,
   ImageIcon,
   Loader2Icon,
+  PlusIcon,
+  SettingsIcon,
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -12,6 +12,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -27,12 +33,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -285,7 +292,7 @@ export function ActorDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -375,7 +382,7 @@ export function ActorDashboard() {
       </Select>
       <DashboardToolbarViewToggle viewMode={viewMode} onChange={setViewMode} />
       <DashboardToolbarButton type="button" onClick={openCreateModal}>
-        <SparklesIcon className="size-4" />
+        <PlusIcon className="size-4" />
         Create Actor
       </DashboardToolbarButton>
     </>
@@ -437,7 +444,7 @@ export function ActorDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible actors"
                   />
@@ -502,108 +509,119 @@ export function ActorDashboard() {
             <DialogTitle>
               {modalState?.type === "edit" ? "Edit Actor" : "Create Actor"}
             </DialogTitle>
+            <DialogDescription>
+              {modalState?.type === "edit"
+                ? "Update this actor's details and optionally regenerate its image."
+                : "Generate a reusable AI actor from a prompt and an optional reference image."}
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
+            {modalState?.type === "edit" ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Current Image</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ActorImagePreview actor={modalState.actor} />
+                </CardContent>
+              </Card>
+            ) : null}
 
-              {modalState?.type === "edit" ? (
-                <ActorImagePreview actor={modalState.actor} />
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label>Name</Label>
-                <Input
-                  id="actor-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Actor name"
-                />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={status}
-                    onValueChange={(value) => setStatus(value as ActorStatus)}
-                  >
-                    <SelectTrigger id="actor-status" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FieldLabel htmlFor="actor-name">Name</FieldLabel>
+                  <Input
+                    id="actor-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Actor name"
+                  />
                 </div>
+
+                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="actor-status">Status</FieldLabel>
+                    <Select
+                      value={status}
+                      onValueChange={(value) => setStatus(value as ActorStatus)}
+                    >
+                      <SelectTrigger id="actor-status" className="w-full sm:w-fit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="actor-model">AI Model</FieldLabel>
+                    <Select
+                      value={model}
+                      onValueChange={(value) => setModel(value as ActorModelId)}
+                    >
+                      <SelectTrigger id="actor-model" className="w-full sm:w-fit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACTOR_MODELS.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="grid gap-2">
-                  <Label>AI Model</Label>
-                  <Select
-                    value={model}
-                    onValueChange={(value) => setModel(value as ActorModelId)}
-                  >
-                    <SelectTrigger id="actor-model" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACTOR_MODELS.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FieldLabel htmlFor="actor-tags">Tags</FieldLabel>
+                  <Input
+                    id="actor-tags"
+                    value={tags}
+                    onChange={(event) => setTags(event.target.value)}
+                    placeholder="male, female, fit"
+                  />
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid gap-2">
-                <Label>Tags</Label>
-                <Input
-                  id="actor-tags"
-                  value={tags}
-                  onChange={(event) => setTags(event.target.value)}
-                  placeholder="male, female, fit"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Reference Image</Label>
-                <div className="flex gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setPickerOpen(true)}
-                    className={cn(
-                      "grid size-20 shrink-0 place-items-center overflow-hidden rounded-md",
-                      referenceMediaUrl
-                        ? "bg-background"
-                        : "border border-dotted bg-muted/40"
-                    )}
-                    aria-label="Select reference image"
-                  >
-                    {referenceMediaUrl ? (
-                      <img
-                        src={referenceMediaUrl}
-                        alt="Reference image"
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <ImageIcon className="size-6 text-muted-foreground" />
-                    )}
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted-foreground">
-                      Optional image reference from the media library.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Image</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel hint="Optional image reference from the media library.">
+                    Reference Image
+                  </FieldLabel>
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen(true)}
+                      className={cn(
+                        "grid size-20 shrink-0 place-items-center overflow-hidden rounded-md",
+                        referenceMediaUrl
+                          ? "bg-background"
+                          : "border border-dotted bg-muted/40"
+                      )}
+                      aria-label="Select reference image"
+                    >
+                      {referenceMediaUrl ? (
+                        <img
+                          src={referenceMediaUrl}
+                          alt="Reference image"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <ImageIcon className="size-6 text-muted-foreground" />
+                      )}
+                    </button>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2">
                       <Button
                         type="button"
                         variant="outline"
@@ -625,22 +643,33 @@ export function ActorDashboard() {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid gap-2">
-                <Label>Prompt</Label>
-                <Textarea
-                  id="actor-prompt"
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Describe the actor image to generate."
-                  rows={5}
-                />
-              </div>
-            </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="actor-prompt">Prompt</FieldLabel>
+                  <Textarea
+                    id="actor-prompt"
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    placeholder="Describe the actor image to generate."
+                    rows={1}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {modalError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {modalError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={closeModal}
+            >
               Cancel
             </Button>
             {modalState?.type === "edit" ? (
@@ -781,7 +810,7 @@ function ActorTableRow({
             onClick={onEdit}
             aria-label="Edit actor"
           >
-            <EditIcon className="size-4" />
+            <SettingsIcon className="size-4" />
           </Button>
           <Button
             type="button"
@@ -856,7 +885,7 @@ function ActorGalleryItem({
           onClick={onEdit}
           aria-label="Edit actor"
         >
-          <EditIcon className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
         <Button
           type="button"

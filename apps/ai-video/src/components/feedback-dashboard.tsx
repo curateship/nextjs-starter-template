@@ -4,7 +4,7 @@ import {
   Loader2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
-  SaveIcon,
+  PlusIcon,
   SettingsIcon,
   ThumbsUpIcon,
   Trash2Icon,
@@ -12,6 +12,12 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import { FeedbackDeleteModal } from "@/components/feedback-delete-modal"
@@ -20,7 +26,7 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
   SelectContent,
@@ -79,10 +85,8 @@ const feedbackTypeBadgeVariants: Record<
 const feedbackTypeClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+  question: "",
+  praise: "",
 }
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
@@ -338,7 +342,7 @@ export function FeedbackDashboard({
               type="button"
               onClick={onOpenFeedback}
             >
-              <MessageSquarePlusIcon className="size-4" />
+              <PlusIcon className="size-4" />
               New feedback
             </DashboardToolbarButton>
           </>
@@ -611,72 +615,76 @@ function EditFeedbackModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-2">
-            <Label htmlFor="feedback-message">Feedback</Label>
-            <Textarea
-              id="feedback-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              className="min-h-40 resize-none text-base"
-              disabled={busy}
-              autoFocus
-            />
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Feedback</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="feedback-message">Feedback</FieldLabel>
+                <Textarea
+                  id="feedback-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={1}
+                  className="resize-none"
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="feedback-type">Type</Label>
-            <Select
-              value={feedbackType}
-              onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-              disabled={busy}
-            >
-              <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                  <SelectItem key={type} value={type}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="feedback-type">Type</FieldLabel>
+                <Select
+                  value={feedbackType}
+                  onValueChange={(value) =>
+                    setFeedbackType(value as FeedbackType)
+                  }
+                  disabled={busy}
+                >
+                  <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+                      <SelectItem key={type} value={type}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
           {error ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={busy}
-            >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={busy}
+          >
+            {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {deleting ? "Deleting" : "Delete"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={busy}>
+            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            {saving ? "Saving" : "Save"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   Loader2Icon,
   MessageSquareIcon,
   PencilIcon,
@@ -79,10 +78,8 @@ const feedbackTypeBadgeVariants: Record<
 const feedbackTypeClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+  question: "",
+  praise: "",
 }
 
 function getInitial(name: string) {
@@ -415,19 +412,21 @@ export function FeedbackModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-        <div className="rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-          <Textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="What's on your mind?"
-            className="min-h-32 resize-none border-0 text-base shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            disabled={isSubmitting}
-            autoFocus={!targetFeedbackId}
-          />
+        <Card size="sm">
+          <CardContent className="grid gap-3">
+            <Textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="What's on your mind?"
+              rows={1}
+              className="resize-none"
+              disabled={isSubmitting}
+              autoFocus={!targetFeedbackId}
+            />
 
-          <div className="flex flex-col gap-2 p-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {feedbackTypes.map((item) => (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {feedbackTypes.map((item) => (
                   <Button
                     key={item.type}
                     type="button"
@@ -445,23 +444,24 @@ export function FeedbackModal({
                   >
                     {item.label}
                   </Button>
-              ))}
+                ))}
+              </div>
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="self-start sm:self-auto"
+              >
+                {isSubmitting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <SendIcon className="size-4" />
+                )}
+                {isSubmitting ? "Sending" : "Send"}
+              </Button>
             </div>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="self-start sm:self-auto"
-            >
-              {isSubmitting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SendIcon className="h-4 w-4" />
-              )}
-              {isSubmitting ? "Sending" : "Send"}
-            </Button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         <Card className="rounded-md bg-muted/50">
           <CardHeader>
@@ -469,7 +469,7 @@ export function FeedbackModal({
               {feedbackListTitle}{" "}
               <Badge variant="secondary">{filteredFeedback.length}</Badge>
             </CardTitle>
-            <CardAction className="flex gap-2">
+            <CardAction className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
               <Select
                 value={feedbackFilter}
                 onValueChange={(value) =>
@@ -477,7 +477,7 @@ export function FeedbackModal({
                 }
               >
                 <SelectTrigger
-                  className="h-8 text-xs"
+                  className="w-full sm:w-fit"
                   aria-label="Filter feedback"
                 >
                   <SelectValue />
@@ -495,7 +495,10 @@ export function FeedbackModal({
                 value={feedbackSort}
                 onValueChange={(value) => setFeedbackSort(value as FeedbackSort)}
               >
-                <SelectTrigger className="h-8 text-xs" aria-label="Sort feedback">
+                <SelectTrigger
+                  className="w-full sm:w-fit"
+                  aria-label="Sort feedback"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -788,13 +791,9 @@ export function FeedbackModal({
         </Card>
 
         {error ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
         ) : null}
         </DialogBody>
       </DialogContent>

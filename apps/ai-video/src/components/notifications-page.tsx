@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   BellIcon,
   Loader2Icon,
   ClapperboardIcon,
@@ -22,7 +21,6 @@ import {
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -322,22 +320,13 @@ export function NotificationsPage({
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
       <DashboardTable
         title="Notifications"
         icon={
           <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
         }
         count={filteredNotifications.length}
+        status={error ? { tone: "error", text: error } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -357,17 +346,6 @@ export function NotificationsPage({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              disabled={
-                notifications.length === 0 || deleting || loadingMore
-              }
-              onClick={() => setClearAllOpen(true)}
-            >
-              <Trash2Icon className="size-4" />
-              Clear all
-            </DashboardToolbarButton>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}
@@ -415,6 +393,15 @@ export function NotificationsPage({
                 <SelectItem value="api_usage_alert">API usage</SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton
+              type="button"
+              variant="destructive"
+              disabled={notifications.length === 0 || deleting || loadingMore}
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2Icon className="size-4" />
+              Clear all
+            </DashboardToolbarButton>
           </>
         }
         header={
@@ -480,7 +467,7 @@ export function NotificationsPage({
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sortColumn === "created"}
                   direction={sortDirection}
@@ -577,7 +564,7 @@ export function NotificationsPage({
                 {item.read_at ? "Read" : "Unread"}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {dateFormatter.format(new Date(item.created_at))}
             </TableCell>
           </TableRow>
@@ -627,11 +614,8 @@ function NotificationDeleteDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This cannot be undone.</DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </DialogBody>
         <DialogFooter variant="plain">
           <Button
             type="button"

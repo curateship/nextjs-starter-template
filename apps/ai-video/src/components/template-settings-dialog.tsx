@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   ImagePlusIcon,
   Loader2Icon,
   XIcon,
@@ -9,15 +8,22 @@ import {
 import { MediaPicker } from "@/components/media-picker"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import type { MediaItem } from "@/lib/api/media"
 import {
   getTemplateErrorMessage,
@@ -131,45 +137,53 @@ export function TemplateSettingsDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Template Settings</DialogTitle>
+          <DialogDescription>
+            Rename the template and set the cover image shown in the catalog.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-5">
-            {error ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Template</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="template-settings-name">Name</FieldLabel>
+                <Input
+                  id="template-settings-name"
+                  autoFocus
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Template name"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !disabled) {
+                      void handleSave()
+                    }
+                  }}
+                />
               </div>
-            ) : null}
 
-            <div className="grid gap-2">
-              <Label htmlFor="template-settings-name">Name</Label>
-              <Input
-                id="template-settings-name"
-                autoFocus
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Template name"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !disabled) {
-                    void handleSave()
-                  }
-                }}
+              <TemplateCoverUpload
+                disabled={coverUploading}
+                thumbnailUrl={coverUrl}
+                onRemove={handleCoverRemove}
+                onSelectMedia={handleCoverSelect}
               />
-            </div>
-
-            <TemplateCoverUpload
-              disabled={coverUploading}
-              thumbnailUrl={coverUrl}
-              onRemove={handleCoverRemove}
-              onSelectMedia={handleCoverSelect}
-            />
-          </div>
+            </CardContent>
+          </Card>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button type="button" disabled={disabled} onClick={handleSave}>
@@ -197,7 +211,7 @@ function TemplateCoverUpload({
 
   return (
     <div className="grid w-full max-w-52 gap-2">
-      <Label>Cover image</Label>
+      <FieldLabel>Cover image</FieldLabel>
       <button
         type="button"
         disabled={disabled}

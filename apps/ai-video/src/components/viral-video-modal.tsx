@@ -1,24 +1,30 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   LayoutTemplateIcon,
   Loader2Icon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   getViralVideo,
   getViralVideoErrorMessage,
@@ -33,17 +39,6 @@ import {
 } from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
 import { dateFormatter, formatCount } from "@/lib/dashboard-format"
-
-// Badge tint per narrative role so the pattern reads at a glance.
-const ROLE_BADGE_CLASSES: Record<SegmentRole, string> = {
-  hook: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  problem: "bg-red-500/15 text-red-700 dark:text-red-400",
-  agitation: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
-  solution: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  proof: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
-  cta: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
-  other: "bg-muted text-muted-foreground",
-}
 
 const ROLE_LABELS: Record<SegmentRole, string> = {
   hook: "Hook",
@@ -173,25 +168,27 @@ export function ViralVideoModal({
 
   return (
     <>
-      <Dialog open={!!videoId} onOpenChange={onOpenChange}>
+      {/* Mutually exclusive with the template-naming dialog below: opening that
+          dialog closes this one so two modals never stack. Closing it (Cancel)
+          reopens this view — videoId/detail state is preserved throughout. */}
+      <Dialog open={!!videoId && !templateOpen} onOpenChange={onOpenChange}>
         <DialogContent
           variant="admin"
           className="data-[variant=admin]:sm:max-w-6xl"
         >
           <DialogHeader>
-            <DialogTitle className="truncate pr-8">
+            <DialogTitle>
               {video?.title ?? video?.source_url ?? detail?.title ?? detail?.source_url ?? "Video"}
             </DialogTitle>
+            <DialogDescription>
+              Playback, engagement stats, and the detected pattern breakdown.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             {current && "error" in current ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{current.error}</span>
-              </div>
+              <p role="alert" className="text-sm text-destructive">
+                {current.error}
+              </p>
             ) : !detail ? (
               <div className="grid h-64 place-items-center">
                 <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
@@ -250,60 +247,52 @@ export function ViralVideoModal({
 
                 <div className="min-w-0 space-y-5">
                   {/* Narrative pattern — one card, segments flattened inside */}
-                  <section>
-                    {analysis?.segments.length ? (
-                      <div className="rounded-lg border">
-                        <div className="px-3 pb-3 pt-2">
-                          <h3 className="text-base font-semibold">Pattern</h3>
-                        </div>
-                        <div>
-                          {analysis.segments.map((segment, index) => (
-                            <button
-                              key={`${segment.role}-${index}`}
-                              type="button"
-                              aria-label={`Play ${ROLE_LABELS[segment.role]} at ${formatTimecode(segment.startMs)}`}
-                              onClick={() =>
-                                seekToMs(segment.startMs, `segment-${index}`)
-                              }
-                              className={cn(
-                                "block w-full cursor-pointer p-3 text-left transition-colors last:rounded-b-lg hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
-                                activeSeekKey === `segment-${index}` &&
-                                  "bg-muted/60"
-                              )}
-                            >
-                              <div className="mb-1 flex items-center gap-2">
-                                <Badge
-                                  className={cn(
-                                    "border-transparent",
-                                    ROLE_BADGE_CLASSES[segment.role]
-                                  )}
-                                >
-                                  {ROLE_LABELS[segment.role]}
-                                </Badge>
-                                <span className="font-mono text-xs text-muted-foreground">
-                                  {formatTimecode(segment.startMs)} –{" "}
-                                  {formatTimecode(segment.endMs)}
-                                </span>
-                              </div>
-                              <p className="text-sm">{segment.summary}</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No pattern breakdown yet.
-                      </p>
-                    )}
-                  </section>
+                  {analysis?.segments.length ? (
+                    <Card size="sm">
+                      <CardHeader>
+                        <CardTitle>Pattern</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-0">
+                        {analysis.segments.map((segment, index) => (
+                          <button
+                            key={`${segment.role}-${index}`}
+                            type="button"
+                            aria-label={`Play ${ROLE_LABELS[segment.role]} at ${formatTimecode(segment.startMs)}`}
+                            onClick={() =>
+                              seekToMs(segment.startMs, `segment-${index}`)
+                            }
+                            className={cn(
+                              "block w-full cursor-pointer p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                              activeSeekKey === `segment-${index}` &&
+                                "bg-muted/60"
+                            )}
+                          >
+                            <div className="mb-1 flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {ROLE_LABELS[segment.role]}
+                              </Badge>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {formatTimecode(segment.startMs)} –{" "}
+                                {formatTimecode(segment.endMs)}
+                              </span>
+                            </div>
+                            <p className="text-sm">{segment.summary}</p>
+                          </button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No pattern breakdown yet.
+                    </p>
+                  )}
 
-                  {/* Scenes + transcript share one card */}
-                  <div className="space-y-4 rounded-lg border p-3">
-                    {analysis?.scenes.length ? (
-                      <section>
-                        <h2 className="mb-3 text-base font-semibold">
-                          Scenes ({analysis.scenes.length})
-                        </h2>
+                  {analysis?.scenes.length ? (
+                    <Card size="sm">
+                      <CardHeader>
+                        <CardTitle>Scenes ({analysis.scenes.length})</CardTitle>
+                      </CardHeader>
+                      <CardContent>
                         <div className="flex flex-wrap gap-1.5">
                           {analysis.scenes.map((scene, index) => (
                             <Badge
@@ -333,13 +322,15 @@ export function ViralVideoModal({
                             </Badge>
                           ))}
                         </div>
-                      </section>
-                    ) : null}
+                      </CardContent>
+                    </Card>
+                  ) : null}
 
-                    <section>
-                      <h2 className="mb-3 text-base font-semibold">
-                        Transcript
-                      </h2>
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Transcript</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       {analysis?.transcript.length ? (
                         <ScrollArea className="h-56">
                           <div className="space-y-1.5 pr-3">
@@ -370,8 +361,8 @@ export function ViralVideoModal({
                           No transcript yet.
                         </p>
                       )}
-                    </section>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             )}
@@ -411,7 +402,7 @@ export function ViralVideoModal({
         </DialogContent>
       </Dialog>
 
-      {/* Template naming — stacked over the analysis modal */}
+      {/* Template naming — mutually exclusive with the analysis modal above. */}
       <Dialog
         open={templateOpen}
         onOpenChange={(open) => {
@@ -422,46 +413,46 @@ export function ViralVideoModal({
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Create Template</DialogTitle>
+            <DialogDescription>
+              The template copies this video's scene structure — every slot
+              keeps the original timing and can be replaced with your own
+              footage in the editor.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {templateError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{templateError}</span>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Template</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="template-name">Name</FieldLabel>
+                  <Input
+                    id="template-name"
+                    value={templateName}
+                    onChange={(event) => setTemplateName(event.target.value)}
+                    placeholder="Template name"
+                    onKeyDown={(event) => {
+                      // Enter submits the single-field form.
+                      if (event.key === "Enter" && !createDisabled) {
+                        void handleCreateTemplate()
+                      }
+                    }}
+                  />
                 </div>
-              ) : null}
-
-              <p className="text-sm text-muted-foreground">
-                The template copies this video's scene structure — every slot
-                keeps the original timing and can be replaced with your own
-                footage in the editor.
+              </CardContent>
+            </Card>
+            {templateError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {templateError}
               </p>
-
-              <div className="grid gap-2">
-                <Label htmlFor="template-name">Name</Label>
-                <Input
-                  id="template-name"
-                  value={templateName}
-                  onChange={(event) => setTemplateName(event.target.value)}
-                  placeholder="Template name"
-                  onKeyDown={(event) => {
-                    // Enter submits the single-field form.
-                    if (event.key === "Enter" && !createDisabled) {
-                      void handleCreateTemplate()
-                    }
-                  }}
-                />
-              </div>
-            </div>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
+              disabled={creating}
               onClick={() => setTemplateOpen(false)}
             >
               Cancel

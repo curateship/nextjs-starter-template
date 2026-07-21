@@ -11,6 +11,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -25,17 +31,19 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
 } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -58,6 +66,15 @@ import {
 } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
+import { useTableSort } from "@/lib/use-table-sort"
+
+type CreatorSortColumn =
+  | "creator"
+  | "platform"
+  | "followers"
+  | "reels"
+  | "watch"
+  | "lastAdded"
 
 function formatWatchSyncNotice(result: WatchSyncResult) {
   const checkedLabel = result.checked === 1 ? "creator" : "creators"
@@ -109,6 +126,9 @@ export function CreatorsDashboard() {
     return () => { active = false }
   }, [])
 
+  const { sortColumn, sortDirection, toggleSort } =
+    useTableSort<CreatorSortColumn>("lastAdded", "desc")
+
   const filteredCreators = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return creators
@@ -117,11 +137,29 @@ export function CreatorsDashboard() {
     )
   }, [creators, searchQuery])
 
-  const totalPages = Math.ceil(filteredCreators.length / pageSize)
+  const sortedCreators = React.useMemo(() => {
+    const dir = sortDirection === "asc" ? 1 : -1
+    const ts = (value: string | null) => (value ? new Date(value).getTime() : 0)
+    const nameOf = (c: CreatorItem) => c.display_name ?? c.username
+    return filteredCreators.slice().sort((a, b) => {
+      if (sortColumn === "creator")
+        return nameOf(a).localeCompare(nameOf(b)) * dir
+      if (sortColumn === "platform")
+        return a.platform.localeCompare(b.platform) * dir
+      if (sortColumn === "followers")
+        return ((a.follower_count ?? 0) - (b.follower_count ?? 0)) * dir
+      if (sortColumn === "reels") return (a.reel_count - b.reel_count) * dir
+      if (sortColumn === "watch")
+        return (Number(a.watch) - Number(b.watch)) * dir
+      return (ts(a.last_reel_at) - ts(b.last_reel_at)) * dir
+    })
+  }, [filteredCreators, sortColumn, sortDirection])
+
+  const totalPages = Math.ceil(sortedCreators.length / pageSize)
   const paginatedCreators = React.useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return filteredCreators.slice(start, start + pageSize)
-  }, [currentPage, filteredCreators, pageSize])
+    return sortedCreators.slice(start, start + pageSize)
+  }, [currentPage, sortedCreators, pageSize])
 
   function updateSearch(value: string) { setSearchQuery(value); setCurrentPage(1) }
   function changePageSize(size: number) { setPageSize(size); setCurrentPage(1) }
@@ -139,7 +177,7 @@ export function CreatorsDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -266,22 +304,72 @@ export function CreatorsDashboard() {
         icon={<UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={filteredCreators.length}
         controls={controls}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => clearSelection()}
         header={
           <TableHeader>
             <TableRow>
               <TableHead column="select">
                 <Checkbox
-                  checked={allVisibleSelected}
+                  checked={selectAllState}
                   onCheckedChange={toggleVisibleSelected}
                   aria-label="Select visible creators"
                 />
               </TableHead>
-              <TableHead column="main">Creator</TableHead>
-              <TableHead column="meta">Platform</TableHead>
-              <TableHead column="meta">Followers</TableHead>
-              <TableHead column="meta">Reels</TableHead>
-              <TableHead column="meta">Watch</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">Last Added</TableHead>
+              <TableHead column="main">
+                <TableSortButton
+                  active={sortColumn === "creator"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("creator")}
+                >
+                  Creator
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "platform"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("platform")}
+                >
+                  Platform
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "followers"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("followers")}
+                >
+                  Followers
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "reels"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("reels")}
+                >
+                  Reels
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "watch"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("watch")}
+                >
+                  Watch
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sortColumn === "lastAdded"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("lastAdded")}
+                >
+                  Last Added
+                </TableSortButton>
+              </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -320,41 +408,52 @@ export function CreatorsDashboard() {
         >
           <DialogHeader>
             <DialogTitle>Add Creator</DialogTitle>
+            <DialogDescription>
+              Paste a TikTok or Instagram profile URL to start watching a
+              creator.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <form
-              id="add-creator-form"
-              className="grid gap-2"
-              onSubmit={handleAddCreatorSubmit}
-            >
-              <Label htmlFor="creator-profile-url">
-                TikTok or Instagram profile URL
-              </Label>
-              <Input
-                id="creator-profile-url"
-                value={profileUrl}
-                onChange={(event) => {
-                  setProfileUrl(event.target.value)
-                  if (addCreatorError) setAddCreatorError(null)
-                }}
-                placeholder="https://www.tiktok.com/@creator"
-                aria-invalid={addCreatorError ? true : undefined}
-                aria-describedby={
-                  addCreatorError ? "creator-profile-url-error" : undefined
-                }
-                disabled={creatingCreator}
-                autoFocus
-              />
-              {addCreatorError ? (
-                <p
-                  id="creator-profile-url-error"
-                  role="alert"
-                  className="text-sm text-destructive"
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Creator</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form
+                  id="add-creator-form"
+                  className="grid gap-2"
+                  onSubmit={handleAddCreatorSubmit}
                 >
-                  {addCreatorError}
-                </p>
-              ) : null}
-            </form>
+                  <FieldLabel htmlFor="creator-profile-url">
+                    TikTok or Instagram profile URL
+                  </FieldLabel>
+                  <Input
+                    id="creator-profile-url"
+                    value={profileUrl}
+                    onChange={(event) => {
+                      setProfileUrl(event.target.value)
+                      if (addCreatorError) setAddCreatorError(null)
+                    }}
+                    placeholder="https://www.tiktok.com/@creator"
+                    aria-invalid={addCreatorError ? true : undefined}
+                    aria-describedby={
+                      addCreatorError ? "creator-profile-url-error" : undefined
+                    }
+                    disabled={creatingCreator}
+                    autoFocus
+                  />
+                </form>
+              </CardContent>
+            </Card>
+            {addCreatorError ? (
+              <p
+                id="creator-profile-url-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
+                {addCreatorError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
             <Button

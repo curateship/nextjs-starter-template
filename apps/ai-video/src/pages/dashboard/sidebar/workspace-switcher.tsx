@@ -11,13 +11,21 @@ import {
 
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   SidebarMenu,
   SidebarMenuItem,
@@ -232,7 +239,7 @@ export function WorkspaceSwitcher({
       </SidebarMenu>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>New workspace</DialogTitle>
             <DialogDescription>
@@ -240,27 +247,36 @@ export function WorkspaceSwitcher({
             </DialogDescription>
           </DialogHeader>
           <form
-            className="grid gap-4"
+            className="contents"
             onSubmit={(event) => {
               event.preventDefault()
               void handleCreate()
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="workspace-name">Name</Label>
-              <Input
-                id="workspace-name"
-                value={name}
-                disabled={creating}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-            <DialogFooter variant="plain" className="p-0">
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="workspace-name">Name</FieldLabel>
+                    <Input
+                      id="workspace-name"
+                      value={name}
+                      disabled={creating}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              {error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+            </DialogBody>
+            <DialogFooter variant="plain">
               <Button
                 type="button"
                 variant="outline"
@@ -270,6 +286,9 @@ export function WorkspaceSwitcher({
                 Cancel
               </Button>
               <Button type="submit" disabled={creating}>
+                {creating ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
                 {creating ? "Creating..." : "Create"}
               </Button>
             </DialogFooter>

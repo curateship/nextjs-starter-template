@@ -23,6 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import {
   GripVertical,
+  Loader2Icon,
   MinusIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -32,8 +33,12 @@ import {
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
+  CardDescription,
   CardGroup,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ShellIconPicker } from "@/components/shell-icon-picker"
@@ -47,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
@@ -331,90 +337,123 @@ function SortableSidebarItem({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <ShellIconPicker
-                value={item.icon}
-                compact
-                onValueChange={(icon) =>
-                  icon ? onItemChange(sectionId, item.id, { icon }) : undefined
-                }
-              />
-              <Input
-                value={item.label}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, {
-                    label: event.target.value,
-                  })
-                }
-                placeholder="Label"
-                aria-label="Sidebar link label"
-              />
-              <Input
-                value={item.href}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, {
-                    href: event.target.value,
-                  })
-                }
-                placeholder="/admin/example"
-                aria-label="Sidebar link URL"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Child links</p>
-                  <p className="text-xs text-muted-foreground">
-                    These become the nested links and sticky header shortcuts.
-                  </p>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Destination</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+                  <div className="grid gap-2">
+                    <FieldLabel>Icon</FieldLabel>
+                    <ShellIconPicker
+                      value={item.icon}
+                      compact
+                      onValueChange={(icon) =>
+                        icon
+                          ? onItemChange(sectionId, item.id, { icon })
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor={`sidebar-item-label-${item.id}`}>
+                      Label
+                    </FieldLabel>
+                    <Input
+                      id={`sidebar-item-label-${item.id}`}
+                      value={item.label}
+                      onChange={(event) =>
+                        onItemChange(sectionId, item.id, {
+                          label: event.target.value,
+                        })
+                      }
+                      placeholder="Label"
+                    />
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onChildAdd(sectionId, item.id)}
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  Add Child
-                </Button>
-              </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor={`sidebar-item-href-${item.id}`}>
+                    URL
+                  </FieldLabel>
+                  <Input
+                    id={`sidebar-item-href-${item.id}`}
+                    value={item.href}
+                    onChange={(event) =>
+                      onItemChange(sectionId, item.id, {
+                        href: event.target.value,
+                      })
+                    }
+                    placeholder="/admin/example"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-              {children.length ? (
-                <DndContext
-                  id={`ai-video-sidebar-children-${item.id}`}
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
-                >
-                  <SortableContext
-                    items={children.map((child) => child.id)}
-                    strategy={verticalListSortingStrategy}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Child links</CardTitle>
+                <CardDescription>
+                  These become the nested links and sticky header shortcuts.
+                </CardDescription>
+                <CardAction>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onChildAdd(sectionId, item.id)}
                   >
-                    <div className="space-y-2">
-                      {children.map((child) => (
-                        <SortableChild
-                          key={child.id}
-                          child={child}
-                          onChange={(childId, patch) =>
-                            onChildChange(sectionId, item.id, childId, patch)
-                          }
-                          onDelete={(childId) =>
-                            onChildDelete(sectionId, item.id, childId)
-                          }
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                  No child links.
-                </div>
-              )}
-            </div>
+                    <PlusIcon className="h-4 w-4" />
+                    Add Child
+                  </Button>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                {children.length ? (
+                  <DndContext
+                    id={`ai-video-sidebar-children-${item.id}`}
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) =>
+                      onChildDragEnd(sectionId, item.id, event)
+                    }
+                  >
+                    <SortableContext
+                      items={children.map((child) => child.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {children.map((child) => (
+                          <SortableChild
+                            key={child.id}
+                            child={child}
+                            onChange={(childId, patch) =>
+                              onChildChange(sectionId, item.id, childId, patch)
+                            }
+                            onDelete={(childId) =>
+                              onChildDelete(sectionId, item.id, childId)
+                            }
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                    No child links.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </DialogBody>
           <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              onClick={() => setDialogOpen(false)}
+            >
+              Cancel
+            </Button>
             <Button
               type="button"
               disabled={isSaving}
@@ -423,6 +462,9 @@ function SortableSidebarItem({
                 if (saved) setDialogOpen(false)
               }}
             >
+              {isSaving ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
               {isSaving ? "Saving" : "Save"}
             </Button>
           </DialogFooter>
@@ -511,7 +553,7 @@ function SortableSectionCard({
               type="button"
               variant="outline"
               size="sm"
-              className="hover:bg-red-50"
+              className="hover:bg-destructive/10"
               onClick={() => onSectionDelete(section.id)}
               aria-label={`Delete ${section.title || "sidebar section"}`}
             >

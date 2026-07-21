@@ -1,8 +1,7 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
-  EditIcon,
+  SettingsIcon,
   LayoutTemplateIcon,
   Loader2Icon,
   PlayIcon,
@@ -31,15 +30,22 @@ import {
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -355,7 +361,7 @@ export function TemplatesDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -495,7 +501,7 @@ export function TemplatesDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible templates"
                   />
@@ -613,39 +619,49 @@ export function TemplatesDashboard() {
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Name Your Project</DialogTitle>
+            <DialogDescription>
+              Name the new project created from this template.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {useError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{useError}</span>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Project</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="use-project-name">
+                    Project name
+                  </FieldLabel>
+                  <Input
+                    id="use-project-name"
+                    autoFocus
+                    value={useName}
+                    onChange={(event) => setUseName(event.target.value)}
+                    placeholder="My video"
+                    onKeyDown={(event) => {
+                      // Enter submits the single-field form.
+                      if (event.key === "Enter" && !useDisabled) {
+                        void handleConfirmUse()
+                      }
+                    }}
+                  />
                 </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label htmlFor="use-project-name">Project name</Label>
-                <Input
-                  id="use-project-name"
-                  autoFocus
-                  value={useName}
-                  onChange={(event) => setUseName(event.target.value)}
-                  placeholder="My video"
-                  onKeyDown={(event) => {
-                    // Enter submits the single-field form.
-                    if (event.key === "Enter" && !useDisabled) {
-                      void handleConfirmUse()
-                    }
-                  }}
-                />
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+            {useError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {useError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeUseModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={useSubmitting}
+              onClick={closeUseModal}
+            >
               Cancel
             </Button>
             <Button
@@ -671,39 +687,47 @@ export function TemplatesDashboard() {
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>New Template</DialogTitle>
+            <DialogDescription>
+              Name the blank template before it opens in the editor.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {createError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{createError}</span>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Template</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="create-template-name">Name</FieldLabel>
+                  <Input
+                    id="create-template-name"
+                    autoFocus
+                    value={createName}
+                    onChange={(event) => setCreateName(event.target.value)}
+                    placeholder="Template name"
+                    onKeyDown={(event) => {
+                      // Enter submits the single-field form.
+                      if (event.key === "Enter" && !createDisabled) {
+                        void handleConfirmCreate()
+                      }
+                    }}
+                  />
                 </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label htmlFor="create-template-name">Name</Label>
-                <Input
-                  id="create-template-name"
-                  autoFocus
-                  value={createName}
-                  onChange={(event) => setCreateName(event.target.value)}
-                  placeholder="Template name"
-                  onKeyDown={(event) => {
-                    // Enter submits the single-field form.
-                    if (event.key === "Enter" && !createDisabled) {
-                      void handleConfirmCreate()
-                    }
-                  }}
-                />
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+            {createError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {createError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeCreateModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={createSubmitting}
+              onClick={closeCreateModal}
+            >
               Cancel
             </Button>
             <Button
@@ -865,7 +889,7 @@ function TemplateTableRow({
             onClick={onSettings}
             aria-label="Template settings"
           >
-            <EditIcon className="size-4" />
+            <SettingsIcon className="size-4" />
           </Button>
           <Button
             type="button"
@@ -972,7 +996,7 @@ function TemplateGalleryItem({
           onClick={onSettings}
           aria-label="Template settings"
         >
-          <EditIcon className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
         <Button
           type="button"

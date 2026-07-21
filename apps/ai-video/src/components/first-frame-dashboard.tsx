@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   CopyIcon,
   ImageIcon,
   Loader2Icon,
@@ -15,6 +14,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -35,11 +40,12 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
   SelectContent,
@@ -243,7 +249,7 @@ export function FirstFrameDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -588,7 +594,7 @@ export function FirstFrameDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible first frames"
                   />
@@ -671,71 +677,94 @@ export function FirstFrameDashboard() {
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Edit First Frame</DialogTitle>
+            <DialogDescription>
+              Update this first frame's details or regenerate its image.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <FirstFrameNameAspectFields
+                  name={name}
+                  onNameChange={setName}
+                  aspectRatio={aspectRatio}
+                  aspectRatios={FIRST_FRAME_ASPECT_RATIOS}
+                  onAspectRatioChange={setAspectRatio}
+                  onSelectOpenChange={handleModalSelectOpenChange}
+                />
+              </CardContent>
+            </Card>
 
-              <FirstFrameNameAspectFields
-                name={name}
-                onNameChange={setName}
-                aspectRatio={aspectRatio}
-                aspectRatios={FIRST_FRAME_ASPECT_RATIOS}
-                onAspectRatioChange={setAspectRatio}
-                onSelectOpenChange={handleModalSelectOpenChange}
-              />
-
-              <div className="grid gap-2">
-                <Label>Reference Source</Label>
-                <p className="text-sm text-muted-foreground">
-                  {modalState
-                    ? referenceSourceLabels[modalState.item.reference_source]
-                    : ""}
-                </p>
-                <div className="grid w-full max-w-52 gap-2">
-                  <div className="overflow-hidden rounded-lg border-2 border-dashed text-left">
-                    {referencePreviewUrl ? (
-                      <div className="relative aspect-square">
-                        <img
-                          src={referencePreviewUrl}
-                          alt="Reference"
-                          className="h-full w-full object-cover"
-                          draggable={false}
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50">
-                        <ImageIcon className="size-8 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          Reference unavailable
-                        </span>
-                      </div>
-                    )}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Reference image</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel>Reference Source</FieldLabel>
+                  <p className="text-sm text-muted-foreground">
+                    {modalState
+                      ? referenceSourceLabels[modalState.item.reference_source]
+                      : ""}
+                  </p>
+                  <div className="grid w-full max-w-52 gap-2">
+                    <div className="overflow-hidden rounded-lg border-2 border-dashed text-left">
+                      {referencePreviewUrl ? (
+                        <div className="relative aspect-square">
+                          <img
+                            src={referencePreviewUrl}
+                            alt="Reference"
+                            className="h-full w-full object-cover"
+                            draggable={false}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50">
+                          <ImageIcon className="size-8 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            Reference unavailable
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <FirstFramePromptFields
-                prompt={prompt}
-                onPromptChange={setPrompt}
-                tags={tags}
-                onTagsChange={setTags}
-                model={model}
-                onModelChange={setModel}
-                onSelectOpenChange={handleModalSelectOpenChange}
-              />
-            </div>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Prompt</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <FirstFramePromptFields
+                  prompt={prompt}
+                  onPromptChange={setPrompt}
+                  tags={tags}
+                  onTagsChange={setTags}
+                  model={model}
+                  onModelChange={setModel}
+                  onSelectOpenChange={handleModalSelectOpenChange}
+                />
+              </CardContent>
+            </Card>
+
+            {modalError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {modalError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={closeModal}
+            >
               Cancel
             </Button>
             <Button
@@ -1028,10 +1057,13 @@ function FirstFramePreviewDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{item?.name ?? "First Frame Preview"}</DialogTitle>
+          <DialogDescription>
+            Review the generated first frame and its settings.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           {item ? (
-            <div className="space-y-5">
+            <>
               <div className="mx-auto grid max-h-[48vh] min-h-64 w-full max-w-xl place-items-center overflow-hidden rounded-lg border bg-muted">
                 {item.image_url ? (
                   <img
@@ -1049,31 +1081,38 @@ function FirstFramePreviewDialog({
                 )}
               </div>
 
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <MetaRow label="Actor" value={item.actor.name} />
-                <MetaRow label="Aspect" value={item.aspect_ratio} />
-                <MetaRow label="Model" value={modelLabel(item.model)} />
-                <MetaRow
-                  label="Source"
-                  value={referenceSourceLabels[item.reference_source]}
-                />
-                <MetaRow
-                  label="Created"
-                  value={dateFormatter.format(new Date(item.created_at))}
-                />
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground">Tags</div>
-                  <FirstFrameTags tags={item.tags} />
-                </div>
-              </div>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <MetaRow label="Actor" value={item.actor.name} />
+                    <MetaRow label="Aspect" value={item.aspect_ratio} />
+                    <MetaRow label="Model" value={modelLabel(item.model)} />
+                    <MetaRow
+                      label="Source"
+                      value={referenceSourceLabels[item.reference_source]}
+                    />
+                    <MetaRow
+                      label="Created"
+                      value={dateFormatter.format(new Date(item.created_at))}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground">Tags</div>
+                      <FirstFrameTags tags={item.tags} />
+                    </div>
+                  </div>
 
-              <div className="grid gap-2">
-                <Label>Prompt</Label>
-                <div className="min-h-24 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  {item.prompt}
-                </div>
-              </div>
-            </div>
+                  <div className="grid gap-2">
+                    <FieldLabel>Prompt</FieldLabel>
+                    <div className="min-h-24 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                      {item.prompt}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : null}
         </DialogBody>
         <DialogFooter variant="plain" className="justify-between">
