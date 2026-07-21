@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
 import {
   Card,
   CardContent,
@@ -54,6 +55,8 @@ export function StylingSettings({
     update({ chrome: { ...styling.chrome, ...patch } })
   const updateBorderColor = (patch: Partial<ShellBackground>) =>
     update({ cardBorderColor: { ...styling.cardBorderColor, ...patch } })
+  const updateDividerColor = (patch: Partial<ShellBackground>) =>
+    update({ dividerColor: { ...styling.dividerColor, ...patch } })
 
   const modal = styling.modal
   const updateModal = (patch: Partial<ShellModalStyling>) =>
@@ -74,255 +77,267 @@ export function StylingSettings({
 
   return (
     <CardGroup>
-      <Card>
-        <CardHeader>
-          <CardTitle>Spacing & borders</CardTitle>
-          <CardDescription>
-            Adjust the content gutter and card borders for this workspace.
-            Changes preview live and apply after you save.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <SliderRow
-            label="Content spacing"
-            value={styling.gutter}
-            min={MIN_CONTENT_GUTTER}
-            max={MAX_CONTENT_GUTTER}
-            valueLabel={`${styling.gutter}px`}
-            disabled={isSaving}
-            onChange={(gutter) => update({ gutter })}
-            help="The outer padding and the gap between cards. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
-          />
+      <CollapsibleSettingsCard
+        storageId="styling-spacing"
+        title="Spacing & borders"
+        description="Adjust the content gutter and card borders for this workspace. Changes preview live and apply after you save."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Content spacing"
+          value={styling.gutter}
+          min={MIN_CONTENT_GUTTER}
+          max={MAX_CONTENT_GUTTER}
+          valueLabel={`${styling.gutter}px`}
+          disabled={isSaving}
+          onChange={(gutter) => update({ gutter })}
+          help="The outer padding and the gap between cards. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
+        />
 
-          <SliderRow
-            label="Card border"
-            value={styling.cardBorderWidth}
-            min={0}
-            max={MAX_CARD_BORDER_WIDTH}
-            valueLabel={
-              isFlat || styling.cardBorderWidth === 0
-                ? "Off"
-                : `${styling.cardBorderWidth}px`
-            }
-            disabled={isSaving || isFlat}
-            onChange={(cardBorderWidth) => update({ cardBorderWidth })}
-            help={
-              isFlat
-                ? "Card and table borders are off while content spacing is 0 (flat mode)."
-                : "Border thickness around cards and tables. 0 removes the border."
-            }
-          />
+        <SliderRow
+          label="Card border"
+          value={styling.cardBorderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={
+            isFlat || styling.cardBorderWidth === 0
+              ? "Off"
+              : `${styling.cardBorderWidth}px`
+          }
+          disabled={isSaving || isFlat}
+          onChange={(cardBorderWidth) => update({ cardBorderWidth })}
+          help={
+            isFlat
+              ? "Card and table borders are off while content spacing is 0 (flat mode)."
+              : "Border thickness around cards and tables. 0 removes the border."
+          }
+        />
 
-          <div className="grid gap-3">
-            <div className="grid gap-0.5">
-              <Label>Border color</Label>
-              <p className="text-xs text-muted-foreground">
-                The color of card and table borders.
-              </p>
-            </div>
-            <BackgroundField
-              idPrefix="card-border-color"
-              value={styling.cardBorderColor}
-              isSaving={isSaving || isFlat}
-              defaultHint="A subtle default border that adapts to light and dark."
-              onChange={updateBorderColor}
-            />
+        <div className="grid gap-3">
+          <div className="grid gap-0.5">
+            <Label>Border color</Label>
+            <p className="text-xs text-muted-foreground">
+              The color of card and table borders.
+            </p>
           </div>
-
-          <div className="grid gap-2">
-            <Label>Preview</Label>
-            <div
-              data-content-styling=""
-              data-flat={isFlat ? "true" : undefined}
-              className={cn(
-                "flex max-w-lg flex-col overflow-hidden rounded-lg border border-border",
-                contentBackground ? undefined : "bg-muted/60"
-              )}
-              style={
-                {
-                  padding: styling.gutter,
-                  gap: styling.gutter,
-                  backgroundColor: contentBackground,
-                  "--shell-card-border-width": String(styling.cardBorderWidth),
-                  ...(borderColor
-                    ? { "--shell-card-border-color": borderColor }
-                    : {}),
-                } as React.CSSProperties
-              }
-            >
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Card title</CardTitle>
-                  <CardDescription>Sample content card</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  Spacing, borders, and background update as you change the
-                  settings above.
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardContent className="text-sm text-muted-foreground">
-                  A second card shows the gap between cards.
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Main content area</CardTitle>
-          <CardDescription>
-            The background behind your pages and cards.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
           <BackgroundField
-            idPrefix="content-bg"
-            value={styling.content}
-            isSaving={isSaving}
-            defaultHint="Uses the standard muted canvas (adapts to light and dark)."
-            onChange={updateContent}
+            idPrefix="card-border-color"
+            value={styling.cardBorderColor}
+            isSaving={isSaving || isFlat}
+            defaultHint="A subtle default border that adapts to light and dark."
+            onChange={updateBorderColor}
           />
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sidebar & sticky bar</CardTitle>
-          <CardDescription>
-            The background of the sidebar rail and the sticky top bar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <BackgroundField
-            idPrefix="chrome-bg"
-            value={styling.chrome}
-            isSaving={isSaving}
-            defaultHint="Uses the theme's sidebar color (adapts to light and dark)."
-            onChange={updateChrome}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Modal</CardTitle>
-          <CardDescription>
-            Dialogs like Send Feedback. Changes apply to any open modal live.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <SliderRow
-            label="Backdrop dimming"
-            value={modal.overlayOpacity}
-            min={0}
-            max={100}
-            valueLabel={`${modal.overlayOpacity}%`}
-            disabled={isSaving}
-            onChange={(overlayOpacity) => updateModal({ overlayOpacity })}
-            help="How dark the area outside the modal gets."
-          />
-
-          <SliderRow
-            label="Inner spacing"
-            value={modal.padding}
-            min={0}
-            max={MAX_MODAL_PADDING}
-            valueLabel={`${modal.padding}px`}
-            disabled={isSaving}
-            onChange={(padding) => updateModal({ padding })}
-            help="Padding between the modal edge and its content."
-          />
-
-          <div className="grid gap-3">
-            <Label>Background</Label>
-            <BackgroundField
-              idPrefix="modal-bg"
-              value={modal.background}
-              isSaving={isSaving}
-              defaultHint="Uses the theme's popover surface."
-              onChange={updateModalBackground}
-            />
-          </div>
-
-          <SliderRow
-            label="Border"
-            value={modal.borderWidth}
-            min={0}
-            max={MAX_CARD_BORDER_WIDTH}
-            valueLabel={modal.borderWidth === 0 ? "Off" : `${modal.borderWidth}px`}
-            disabled={isSaving}
-            onChange={(borderWidth) => updateModal({ borderWidth })}
-            help="Modal border thickness. 0 removes it."
-          />
-
-          <div className="grid gap-3">
-            <div className="grid gap-0.5">
-              <Label>Border color</Label>
-            </div>
-            <BackgroundField
-              idPrefix="modal-border"
-              value={modal.borderColor}
-              isSaving={isSaving || modal.borderWidth === 0}
-              defaultHint="A subtle default border."
-              onChange={updateModalBorderColor}
-            />
-          </div>
-
-          <ModalPreview modal={modal} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Cards inside modals</CardTitle>
-          <CardDescription>
-            The bordered sections within a modal (like the feedback list).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-3">
-            <Label>Background</Label>
-            <BackgroundField
-              idPrefix="modal-card-bg"
-              value={modal.cardBackground}
-              isSaving={isSaving}
-              defaultHint="Uses the theme's card surface."
-              onChange={updateModalCardBackground}
-            />
-          </div>
-
-          <SliderRow
-            label="Border"
-            value={modal.cardBorderWidth}
-            min={0}
-            max={MAX_CARD_BORDER_WIDTH}
-            valueLabel={
-              modal.cardBorderWidth === 0 ? "Off" : `${modal.cardBorderWidth}px`
+        <div className="grid gap-2">
+          <Label>Preview</Label>
+          <div
+            data-content-styling=""
+            data-flat={isFlat ? "true" : undefined}
+            className={cn(
+              "flex max-w-lg flex-col overflow-hidden rounded-lg border border-border",
+              contentBackground ? undefined : "bg-muted/60"
+            )}
+            style={
+              {
+                padding: styling.gutter,
+                gap: styling.gutter,
+                backgroundColor: contentBackground,
+                "--shell-card-border-width": String(styling.cardBorderWidth),
+                ...(borderColor
+                  ? { "--shell-card-border-color": borderColor }
+                  : {}),
+              } as React.CSSProperties
             }
-            disabled={isSaving}
-            onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
-            help="Border thickness of cards inside the modal. 0 removes it."
-          />
-
-          <div className="grid gap-3">
-            <div className="grid gap-0.5">
-              <Label>Border color</Label>
-            </div>
-            <BackgroundField
-              idPrefix="modal-card-border"
-              value={modal.cardBorderColor}
-              isSaving={isSaving || modal.cardBorderWidth === 0}
-              defaultHint="A subtle default border."
-              onChange={updateModalCardBorderColor}
-            />
+          >
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Card title</CardTitle>
+                <CardDescription>Sample content card</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Spacing, borders, and background update as you change the
+                settings above.
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardContent className="text-sm text-muted-foreground">
+                A second card shows the gap between cards.
+              </CardContent>
+            </Card>
           </div>
+        </div>
+      </CollapsibleSettingsCard>
 
-          <ModalPreview modal={modal} />
-        </CardContent>
-      </Card>
+      <CollapsibleSettingsCard
+        storageId="styling-divider"
+        title="Divider lines"
+        description="The thin lines inside cards and tables, and the sidebar edge. The whole admin area recolors live as you adjust this."
+        contentClassName="space-y-6"
+      >
+        <BackgroundField
+          idPrefix="divider-color"
+          value={styling.dividerColor}
+          isSaving={isSaving}
+          defaultHint="Uses the theme's own divider color (adapts to light and dark)."
+          onChange={updateDividerColor}
+        />
+
+        <div className="grid gap-2">
+          <Label>Preview</Label>
+          <div className="max-w-lg overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
+              Section header
+            </div>
+            <div className="border-b px-4 py-2 text-sm text-muted-foreground">
+              A row, separated by a divider.
+            </div>
+            <div className="px-4 py-2 text-sm text-muted-foreground">
+              The last row has no divider under it.
+            </div>
+          </div>
+        </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-content"
+        title="Main content area"
+        description="The background behind your pages and cards."
+      >
+        <BackgroundField
+          idPrefix="content-bg"
+          value={styling.content}
+          isSaving={isSaving}
+          defaultHint="Uses the standard muted canvas (adapts to light and dark)."
+          onChange={updateContent}
+        />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-chrome"
+        title="Sidebar & sticky bar"
+        description="The background of the sidebar rail and the sticky top bar."
+      >
+        <BackgroundField
+          idPrefix="chrome-bg"
+          value={styling.chrome}
+          isSaving={isSaving}
+          defaultHint="Uses the theme's sidebar color (adapts to light and dark)."
+          onChange={updateChrome}
+        />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-modal"
+        title="Modal"
+        description="Dialogs like Send Feedback. Changes apply to any open modal live."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Backdrop dimming"
+          value={modal.overlayOpacity}
+          min={0}
+          max={100}
+          valueLabel={`${modal.overlayOpacity}%`}
+          disabled={isSaving}
+          onChange={(overlayOpacity) => updateModal({ overlayOpacity })}
+          help="How dark the area outside the modal gets."
+        />
+
+        <SliderRow
+          label="Inner spacing"
+          value={modal.padding}
+          min={0}
+          max={MAX_MODAL_PADDING}
+          valueLabel={`${modal.padding}px`}
+          disabled={isSaving}
+          onChange={(padding) => updateModal({ padding })}
+          help="Padding between the modal edge and its content."
+        />
+
+        <div className="grid gap-3">
+          <Label>Background</Label>
+          <BackgroundField
+            idPrefix="modal-bg"
+            value={modal.background}
+            isSaving={isSaving}
+            defaultHint="Uses the theme's popover surface."
+            onChange={updateModalBackground}
+          />
+        </div>
+
+        <SliderRow
+          label="Border"
+          value={modal.borderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={modal.borderWidth === 0 ? "Off" : `${modal.borderWidth}px`}
+          disabled={isSaving}
+          onChange={(borderWidth) => updateModal({ borderWidth })}
+          help="Modal border thickness. 0 removes it."
+        />
+
+        <div className="grid gap-3">
+          <div className="grid gap-0.5">
+            <Label>Border color</Label>
+          </div>
+          <BackgroundField
+            idPrefix="modal-border"
+            value={modal.borderColor}
+            isSaving={isSaving || modal.borderWidth === 0}
+            defaultHint="A subtle default border."
+            onChange={updateModalBorderColor}
+          />
+        </div>
+
+        <ModalPreview modal={modal} />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-modal-cards"
+        title="Cards inside modals"
+        description="The bordered sections within a modal (like the feedback list)."
+        contentClassName="space-y-6"
+      >
+        <div className="grid gap-3">
+          <Label>Background</Label>
+          <BackgroundField
+            idPrefix="modal-card-bg"
+            value={modal.cardBackground}
+            isSaving={isSaving}
+            defaultHint="Uses the theme's card surface."
+            onChange={updateModalCardBackground}
+          />
+        </div>
+
+        <SliderRow
+          label="Border"
+          value={modal.cardBorderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={
+            modal.cardBorderWidth === 0 ? "Off" : `${modal.cardBorderWidth}px`
+          }
+          disabled={isSaving}
+          onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
+          help="Border thickness of cards inside the modal. 0 removes it."
+        />
+
+        <div className="grid gap-3">
+          <div className="grid gap-0.5">
+            <Label>Border color</Label>
+          </div>
+          <BackgroundField
+            idPrefix="modal-card-border"
+            value={modal.cardBorderColor}
+            isSaving={isSaving || modal.cardBorderWidth === 0}
+            defaultHint="A subtle default border."
+            onChange={updateModalCardBorderColor}
+          />
+        </div>
+
+        <ModalPreview modal={modal} />
+      </CollapsibleSettingsCard>
     </CardGroup>
   )
 }

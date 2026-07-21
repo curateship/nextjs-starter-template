@@ -195,17 +195,22 @@ export function ShellLayout({
   const chromeBackground = resolveBackground(config.styling.chrome, {
     opaque: true,
   })
+  // Divider lines resolve to the theme --border token; overriding it (and the
+  // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
+  // the sidebar border across the whole shell at once.
+  const dividerColor = resolveBackground(config.styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const rootStyle = {
+    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
+    ...(dividerColor
+      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
+      : {}),
+  } as React.CSSProperties
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div
-        className="min-h-screen bg-muted/60"
-        style={
-          chromeBackground
-            ? ({ "--sidebar": chromeBackground } as React.CSSProperties)
-            : undefined
-        }
-      >
+      <div className="min-h-screen bg-muted/60" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}

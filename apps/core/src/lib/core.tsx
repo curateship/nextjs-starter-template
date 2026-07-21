@@ -288,6 +288,8 @@ export type ShellStyling = {
   cardBorderWidth: number
   /** Card + table border color. */
   cardBorderColor: ShellBackground
+  /** Divider lines: the rules inside cards and tables, and the sidebar edge. */
+  dividerColor: ShellBackground
   /** Main content area background. */
   content: ShellBackground
   /** Sidebar + sticky header background. */
@@ -374,6 +376,7 @@ export function createDefaultStyling(): ShellStyling {
     gutter: DEFAULT_CONTENT_GUTTER,
     cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
     cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    dividerColor: { mode: "muted", strength: 10, color: "#d4d4d8" },
     content: {
       mode: "muted",
       strength: DEFAULT_CONTENT_BACKGROUND_STRENGTH,
@@ -415,6 +418,10 @@ export function normalizeStyling(value: unknown): ShellStyling {
     cardBorderColor: normalizeBackground(
       styling.cardBorderColor,
       fallback.cardBorderColor
+    ),
+    dividerColor: normalizeBackground(
+      styling.dividerColor,
+      fallback.dividerColor
     ),
     content: normalizeBackground(styling.content, fallback.content),
     chrome: normalizeBackground(styling.chrome, fallback.chrome),
