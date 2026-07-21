@@ -34,6 +34,9 @@ const modifyOrderSchema = z
     oid: z.number().int().positive(),
     px: decimalString,
     sz: decimalString.optional(),
+    // Set only after the user confirms the "fill at market" prompt. Without it,
+    // a drag priced through the mark is rejected, never silently market-filled.
+    fillAtMarket: z.boolean().optional(),
   })
   .strict()
 
@@ -146,13 +149,17 @@ const oneClickOrderFn = createServerFn({ method: "POST" })
 
 const modifyOrderFn = createServerFn({ method: "POST" })
   .inputValidator(modifyOrderSchema)
-  .handler(async ({ data }): Promise<{ px: string; sz: string }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { modifyManualOrder } = await import("@/server/trading")
-    requireAppOrigin()
-    const user = await requireUser()
-    return modifyManualOrder(user.id, data)
-  })
+  .handler(
+    async ({
+      data,
+    }): Promise<{ px: string; sz: string; filledAtMarket?: boolean }> => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      const { modifyManualOrder } = await import("@/server/trading")
+      requireAppOrigin()
+      const user = await requireUser()
+      return modifyManualOrder(user.id, data)
+    }
+  )
 
 const positionTpslFn = createServerFn({ method: "POST" })
   .inputValidator(positionTpslSchema)

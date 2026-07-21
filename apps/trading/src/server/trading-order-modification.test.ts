@@ -5,6 +5,7 @@ import {
   buildModifiedOrder,
   buildRiskBracketModifications,
   inferPreMarkerRiskUsd,
+  isMarketableDragPrice,
 } from "@/server/trading-order-modification"
 
 const baseOrder = {
@@ -201,5 +202,49 @@ describe("assertPassiveLimitPrice", () => {
   it("accepts limit orders at the current price", () => {
     expect(() => assertPassiveLimitPrice("100", 100, true)).not.toThrow()
     expect(() => assertPassiveLimitPrice("100", 100, false)).not.toThrow()
+  })
+})
+
+describe("isMarketableDragPrice", () => {
+  it("treats a sell dragged below mark as marketable (short market order)", () => {
+    // The reported bug: dragging a short limit below the price should fill,
+    // not error.
+    expect(isMarketableDragPrice("99.99", 100, false)).toBe(true)
+    expect(isMarketableDragPrice(90, 100, false)).toBe(true)
+  })
+
+  it("treats a buy dragged above mark as marketable", () => {
+    expect(isMarketableDragPrice("100.01", 100, true)).toBe(true)
+    expect(isMarketableDragPrice(110, 100, true)).toBe(true)
+  })
+
+  it("leaves passive drops (sell above / buy below) resting", () => {
+    expect(isMarketableDragPrice("101", 100, false)).toBe(false)
+    expect(isMarketableDragPrice("99", 100, true)).toBe(false)
+  })
+
+  it("does not treat a drop exactly at mark as marketable", () => {
+    expect(isMarketableDragPrice("100", 100, false)).toBe(false)
+    expect(isMarketableDragPrice("100", 100, true)).toBe(false)
+  })
+
+  it("is the exact inverse of assertPassiveLimitPrice's reject condition", () => {
+    for (const isBuy of [true, false]) {
+      for (const price of ["90", "99.99", "100", "100.01", "110"]) {
+        const marketable = isMarketableDragPrice(price, 100, isBuy)
+        let rejected = false
+        try {
+          assertPassiveLimitPrice(price, 100, isBuy)
+        } catch {
+          rejected = true
+        }
+        expect(marketable).toBe(rejected)
+      }
+    }
+  })
+
+  it("is never marketable when the mark price is unavailable", () => {
+    expect(isMarketableDragPrice("90", Number.NaN, false)).toBe(false)
+    expect(isMarketableDragPrice("90", 0, false)).toBe(false)
   })
 })

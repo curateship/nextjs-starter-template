@@ -151,6 +151,12 @@ export type { ChartMarker } from "@/components/chart/chart-markers"
 export type PriceChartHandle = {
   /** Re-frame the chart to its default view and re-enable price auto-scaling. */
   resetView: () => void
+  /**
+   * Snap a dragged line back to its prop-driven price immediately, dropping the
+   * post-drop hold. Used when the parent rejects a drag (e.g. the user cancels
+   * a confirm dialog) so the line doesn't linger at the dropped price.
+   */
+  revertLine: (id: string) => void
 }
 
 /** A fill pulsed on the chart to locate a focused trade among the markers. */
@@ -569,12 +575,21 @@ export function PriceChartView({
     repinOverlaysAfterReflow()
   }, [repinOverlaysAfterReflow])
 
+  const revertLine = React.useCallback((id: string) => {
+    recentDropsRef.current.delete(id)
+    const spec = lineSpecsRef.current.get(id)
+    const line = priceLineRefs.current.get(id)
+    if (spec && line) {
+      line.applyOptions({ price: spec.price })
+    }
+  }, [])
+
   // Hand the imperative API up so a parent can add "Reset View" to its own menu.
   React.useEffect(() => {
     if (!registerApi) return
-    registerApi({ resetView })
+    registerApi({ resetView, revertLine })
     return () => registerApi(null)
-  }, [registerApi, resetView])
+  }, [registerApi, resetView, revertLine])
 
   React.useEffect(() => {
     const chart = chartRef.current

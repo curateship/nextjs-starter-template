@@ -151,6 +151,7 @@ export function TradingWorkspace({
   selectedValue,
   workerOnline,
   initialIndicators,
+  initialWatchlistTabOrder,
   orderConfirmation,
   orderDefaults,
   onMarketChange,
@@ -165,6 +166,8 @@ export function TradingWorkspace({
   workerOnline?: boolean
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
+  /** Saved order of the watchlist tabs, from the route loader (DB-backed). */
+  initialWatchlistTabOrder: string[]
   orderConfirmation: boolean
   /** Starting order-ticket values from Trading settings. */
   orderDefaults: OrderDefaults
@@ -239,7 +242,11 @@ export function TradingWorkspace({
       )
     onMarketChange(fallback.coin)
   }, [market, marketRow, marketRows, onMarketChange])
-  const { data: account, refresh: refreshAccount } = useAccountSnapshot(
+  const {
+    data: account,
+    ordersLoaded: accountOrdersLoaded,
+    refresh: refreshAccount,
+  } = useAccountSnapshot(
     tradingNetwork,
     isPaper ? null : accountAddress,
     marketRow?.liveData ? marketRow : null,
@@ -274,6 +281,15 @@ export function TradingWorkspace({
   }, [market, refreshChartAlerts])
 
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
+  // A dragged order line that crossed the mark, awaiting the user's OK to fill
+  // it at market. Null when no such prompt is pending.
+  const [marketFillConfirm, setMarketFillConfirm] = React.useState<{
+    oid: number
+    side: "buy" | "sell"
+    px: string
+    walletId: string
+  } | null>(null)
+  const [marketFillBusy, setMarketFillBusy] = React.useState(false)
   const positionMarkets = React.useMemo(
     () =>
       new Set(
@@ -304,6 +320,12 @@ export function TradingWorkspace({
     () => new Set([...positionMarkets, ...openOrderMarkets]),
     [positionMarkets, openOrderMarkets]
   )
+  // The Active tab shows a skeleton until the account's positions AND open
+  // orders have both loaded, rather than a premature "No open orders" while the
+  // orders feed is still in flight.
+  const accountLoading = isPaper
+    ? paperAccount == null
+    : account == null || !accountOrdersLoaded
 
   const summary: AccountSummary | null = isPaper
     ? paperAccount
@@ -564,6 +586,53 @@ export function TradingWorkspace({
     setChartMenu({ price, px: roundForMarket(price), x, y })
   }
 
+  function submitOrderModify(
+    oid: number,
+    px: string,
+    walletId: string,
+    fillAtMarket = false
+  ) {
+    return modifyOrder({
+      walletId,
+      market,
+      oid,
+      px,
+      ...(fillAtMarket ? { fillAtMarket: true } : {}),
+    })
+      .then((result) => {
+        notify(
+          result.filledAtMarket
+            ? `Order #${oid} filled at market (${result.px}).`
+            : `Order #${oid} moved to ${result.px}.`,
+          "ok"
+        )
+      })
+      .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
+  }
+
+  function confirmMarketFill() {
+    const request = marketFillConfirm
+    if (!request) return
+    setMarketFillBusy(true)
+    void submitOrderModify(
+      request.oid,
+      request.px,
+      request.walletId,
+      true
+    ).finally(() => {
+      setMarketFillBusy(false)
+      setMarketFillConfirm(null)
+    })
+  }
+
+  function cancelMarketFill() {
+    const request = marketFillConfirm
+    setMarketFillConfirm(null)
+    // Snap the line back to its resting price instead of leaving it at the
+    // crossed price the user just declined to fill.
+    if (request) chartApiRef.current?.revertLine(`order-${request.oid}`)
+  }
+
   function handleLineDragEnd(id: string, price: number) {
     const px = roundForMarket(price)
 
@@ -601,14 +670,27 @@ export function TradingWorkspace({
     if (id.startsWith("order-")) {
       if (!selectedWallet?.is_active) return
       const oid = Number(id.slice("order-".length))
-      void modifyOrder({
-        walletId: selectedWallet.id,
-        market,
-        oid,
-        px,
-      })
-        .then((result) => notify(`Order #${oid} moved to ${result.px}.`, "ok"))
-        .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
+      const order = account?.openOrders.find(
+        (candidate) => candidate.oid === oid
+      )
+      // A plain resting limit dragged through the mark (a buy above it or a
+      // sell below it) fills at market — real money — so confirm first. Passive
+      // moves and trigger orders just re-price silently as before.
+      const crossesToMarket =
+        order != null &&
+        !order.isTrigger &&
+        markPx > 0 &&
+        (order.side === "B" ? Number(px) > markPx : Number(px) < markPx)
+      if (crossesToMarket) {
+        setMarketFillConfirm({
+          oid,
+          side: order.side === "B" ? "buy" : "sell",
+          px,
+          walletId: selectedWallet.id,
+        })
+        return
+      }
+      void submitOrderModify(oid, px, selectedWallet.id)
     }
   }
 
@@ -805,6 +887,8 @@ export function TradingWorkspace({
                     favorites={favorites}
                     onToggleFavorite={toggleFavorite}
                     onSelect={onMarketChange}
+                    initialTabOrder={initialWatchlistTabOrder}
+                    accountLoading={accountLoading}
                   />
                 </WorkspacePanel>
               </ResizablePanel>
@@ -1049,6 +1133,49 @@ export function TradingWorkspace({
           }}
         />
       ) : null}
+
+      <Dialog
+        open={marketFillConfirm != null}
+        onOpenChange={(open) => {
+          if (!open && !marketFillBusy) cancelMarketFill()
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>
+              Fill this {marketFillConfirm?.side === "buy" ? "long" : "short"}{" "}
+              order at market?
+            </DialogTitle>
+            <DialogDescription>
+              You dragged a {marketFillConfirm?.side === "buy" ? "buy" : "sell"}{" "}
+              order {marketFillConfirm?.side === "buy" ? "above" : "below"} the
+              current price, so it can only fill immediately. Confirming sends a{" "}
+              {marketFillConfirm?.side === "buy" ? "long" : "short"} market order
+              on {market} now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={marketFillBusy}
+              onClick={cancelMarketFill}
+            >
+              Keep it resting
+            </Button>
+            <Button
+              type="button"
+              disabled={marketFillBusy}
+              onClick={confirmMarketFill}
+            >
+              {marketFillBusy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              Fill at market
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

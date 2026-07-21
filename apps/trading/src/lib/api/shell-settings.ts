@@ -293,6 +293,57 @@ export function saveSidebarWidth(sidebarWidth: number) {
   return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
+const loadDashboardWatchlistTabOrderFn = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const user = await requireUser()
+  const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } = await import(
+    "@/server/workspaces"
+  )
+  const workspace = await getOrCreateCurrentWorkspace(user.id)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return { order: settings.dashboardWatchlistTabOrder }
+})
+
+const saveDashboardWatchlistTabOrderFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ order: z.array(z.string().min(1)).max(20) }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(customShellWorkspaces)
+      .set({
+        settings: { ...settings, dashboardWatchlistTabOrder: data.order },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellWorkspaces.id, workspace.id),
+          eq(customShellWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function loadDashboardWatchlistTabOrder() {
+  return loadDashboardWatchlistTabOrderFn()
+}
+
+export function saveDashboardWatchlistTabOrder(order: string[]) {
+  return saveDashboardWatchlistTabOrderFn({ data: { order } })
+}
+
 async function requireUser() {
   const user = await findCurrentUser()
   if (!user) {
