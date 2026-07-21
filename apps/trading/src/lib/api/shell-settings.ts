@@ -79,6 +79,7 @@ const shellStylingSchema = z.object({
   gutter: z.number().int().min(0).max(48),
   cardBorderWidth: z.number().int().min(0).max(3),
   cardBorderColor: shellBackgroundSchema,
+  dividerColor: shellBackgroundSchema,
   content: shellBackgroundSchema,
   chrome: shellBackgroundSchema,
   modal: shellModalStylingSchema,
