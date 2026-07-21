@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -497,33 +498,35 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           </DialogHeader>
           <DialogBody>
             {editingMedia ? (
-              <div className="space-y-4">
-                {editingMedia.file_type === "video" ? (
-                  <video
-                    src={editingMedia.url}
-                    className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
-                    controls
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={editingMedia.url}
-                    alt={editingMedia.alt_text ?? editingMedia.original_name}
-                    className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
-                  />
-                )}
-                <div className="grid gap-2">
-                  <Label htmlFor="media-alt-text">
-                    {editingMedia.file_type === "video" ? "Description" : "Alt text"}
-                  </Label>
-                  <Input
-                    id="media-alt-text"
-                    value={editAltText}
-                    onChange={(event) => setEditAltText(event.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
+              <Card size="sm">
+                <CardContent className="grid gap-4">
+                  {editingMedia.file_type === "video" ? (
+                    <video
+                      src={editingMedia.url}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                      controls
+                      muted
+                    />
+                  ) : (
+                    <img
+                      src={editingMedia.url}
+                      alt={editingMedia.alt_text ?? editingMedia.original_name}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                    />
+                  )}
+                  <div className="grid gap-2">
+                    <Label htmlFor="media-alt-text">
+                      {editingMedia.file_type === "video" ? "Description" : "Alt text"}
+                    </Label>
+                    <Input
+                      id="media-alt-text"
+                      value={editAltText}
+                      onChange={(event) => setEditAltText(event.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
