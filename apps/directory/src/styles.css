@@ -491,15 +491,16 @@ button:not(:disabled):not([data-sidebar="rail"]),
 /*
  * Admin-variant dialogs keep the surface flush so the scroll body can run edge
  * to edge, and spend the inner spacing on the header, body, and footer. The
- * header→body and body→footer gaps live on the FIXED header and footer (their
- * padding), not the scrolling body, so they stay put while the body scrolls.
+ * scroll body carries its own top/bottom padding so the first and last cards get
+ * breathing room and their ringed edges aren't clipped at the scroll boundary.
+ * The header keeps a bottom pad (and footer a top pad) as a fixed buffer, so
+ * content that scrolls under them never butts flush against the header/footer.
  */
 [data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-header"] {
   padding: var(--shell-modal-padding, 1.5rem);
 }
 [data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-body"] {
-  padding-left: var(--shell-modal-padding, 1.5rem);
-  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding: var(--shell-modal-padding, 1.5rem);
   gap: var(--shell-modal-padding, 1.5rem);
 }
 [data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-footer"] {
