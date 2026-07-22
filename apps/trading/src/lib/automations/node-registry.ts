@@ -5,6 +5,7 @@ import type {
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
   DEFAULT_DCA_RUNGS,
+  DEFAULT_DCA_SIZE_MULTIPLIER,
 } from "@/lib/automations/dca"
 import {
   DEFAULT_MARKET_SCANNER_SETTINGS,
@@ -307,6 +308,7 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
       kind: "dca",
       rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
       maxPositionPct: DEFAULT_DCA_MAX_POSITION_PCT,
+      sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
       x,
       y,
     }),

@@ -1,46 +1,74 @@
 import { z } from "zod"
 
-/** One rung of a DCA buy ladder. */
+/** One rung of a DCA buy ladder. Sizing is set by the ladder's Size ramp
+ * (`sizeMultiplier`), not per rung — a rung only carries its drop depth. */
 export type AutomationDcaRung = {
-  /** How far below the fed base this buy rests, in percent (5 = 5% under). */
+  /**
+   * How far below the PREVIOUS buy this rung rests, in percent (the first rung
+   * is measured from the base). So 5, 8 means: first buy 5% under the base,
+   * second buy a further 8% under the first buy — not 8% under the base.
+   */
   deviation: number
-  /** This rung's size as a percent; 100 = one base unit. */
-  size: number
 }
 
-/** Default ladder: five rungs, every 3% deeper, equal size. */
+/** Default ladder: five rungs, every 3% deeper below the buy above. */
 export const DEFAULT_DCA_RUNGS: AutomationDcaRung[] = [
-  { deviation: 5, size: 100 },
-  { deviation: 8, size: 100 },
-  { deviation: 11, size: 100 },
-  { deviation: 14, size: 100 },
-  { deviation: 17, size: 100 },
+  { deviation: 5 },
+  { deviation: 8 },
+  { deviation: 11 },
+  { deviation: 14 },
+  { deviation: 17 },
 ]
 
 /** Most of the account the whole ladder may ever hold, in percent. */
 export const DEFAULT_DCA_MAX_POSITION_PCT = 25
 
+/**
+ * How much bigger each buy is than the one above it. 1 = every buy equal; 2 =
+ * each buy doubles the last (exponential — buy more the deeper it drops). New
+ * ladders default to this; configs saved before the field existed load as 1
+ * (equal), preserving their behavior.
+ */
+export const DEFAULT_DCA_SIZE_MULTIPLIER = 2
+
+// A rung only carries its drop depth. Configs saved with an old per-rung `size`
+// still load — zod drops the now-unknown key.
 export const dcaRungSchema = z.object({
   deviation: z.number().positive().max(99),
-  size: z.number().positive().max(10_000),
 })
 
 export const dcaRungsSchema = z.array(dcaRungSchema).min(1).max(20)
 
-/** Rung buy prices: each `deviation`% below the fed base. */
+/**
+ * Rung buy prices. Each rung's `deviation` is measured from the PREVIOUS rung
+ * (the first from the base), so the drops compound: base −5% → then −8% of that
+ * → then −11% of that, and so on. This spreads the ladder out, rather than
+ * bunching every rung a few percent apart under the base.
+ */
 export function dcaLevels(base: number, rungs: AutomationDcaRung[]): number[] {
-  return rungs.map((rung) => base * (1 - rung.deviation / 100))
+  const levels: number[] = []
+  let price = base
+  for (const rung of rungs) {
+    price = price * (1 - rung.deviation / 100)
+    levels.push(price)
+  }
+  return levels
 }
 
 /**
- * Each rung's share of the account, in percent: the max position split across
- * rungs by their Size weight. The shares sum to `maxPositionPct`.
+ * Each rung's share of the account, in percent. The max position is split
+ * across the rungs by an exponential ramp: rung i gets `sizeMultiplier ** i` of
+ * the weight, so each buy is `sizeMultiplier`× the one above it (1 = equal, 2 =
+ * doubling). The shares always sum to `maxPositionPct`.
  */
 export function dcaAllocationPcts(
-  rungs: AutomationDcaRung[],
-  maxPositionPct: number
+  rungCount: number,
+  maxPositionPct: number,
+  sizeMultiplier: number
 ): number[] {
-  const total = rungs.reduce((sum, rung) => sum + rung.size, 0)
-  if (!(total > 0)) return rungs.map(() => 0)
-  return rungs.map((rung) => (maxPositionPct * rung.size) / total)
+  const ramp = sizeMultiplier > 0 ? sizeMultiplier : 1
+  const weights = Array.from({ length: rungCount }, (_, i) => ramp ** i)
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+  if (!(total > 0)) return weights.map(() => 0)
+  return weights.map((weight) => (maxPositionPct * weight) / total)
 }

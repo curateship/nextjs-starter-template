@@ -37,6 +37,7 @@ import {
   automationNodeInspector,
   automationNodeName,
 } from "@/lib/automations/node-registry"
+import { dcaAllocationPcts } from "@/lib/automations/dca"
 import { qflAllocationPcts } from "@/lib/automations/qfl"
 import type { IndicatorParamField } from "@/lib/indicators/contract"
 import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
@@ -49,6 +50,8 @@ export function AutomationInspector({
   favorite,
   savingFavorite,
   interval,
+  feedsFromDca,
+  referenceEquity,
   onNodeChange,
   onToggleFavorite,
   onAddNode,
@@ -61,6 +64,10 @@ export function AutomationInspector({
   savingFavorite?: boolean
   /** The automation's own timeframe — enables the indicator Timeframe field. */
   interval?: AutomationInterval
+  /** True when the selected Take Profit node is fed by a DCA node. */
+  feedsFromDca?: boolean
+  /** Account size for previewing a DCA ladder in dollars (the test capital). */
+  referenceEquity?: number
   onNodeChange: (node: AutomationNode) => void
   onToggleFavorite?: () => void
   onAddNode?: (node: AutomationNode) => void
@@ -131,6 +138,8 @@ export function AutomationInspector({
             <NodeFields
               node={selectedNode}
               interval={interval}
+              feedsFromDca={feedsFromDca}
+              referenceEquity={referenceEquity}
               onChange={onNodeChange}
             />
           ) : null}
@@ -168,10 +177,14 @@ export function AutomationInspector({
 function NodeFields({
   node,
   interval,
+  feedsFromDca,
+  referenceEquity,
   onChange,
 }: {
   node: AutomationNode
   interval?: AutomationInterval
+  feedsFromDca?: boolean
+  referenceEquity?: number
   onChange: (node: AutomationNode) => void
 }) {
   const inspector = automationNodeInspector(node)
@@ -199,13 +212,25 @@ function NodeFields({
     return <QflFields node={node} onChange={onChange} />
   }
   if (inspector === "dca" && node.kind === "dca") {
-    return <DcaFields node={node} onChange={onChange} />
+    return (
+      <DcaFields
+        node={node}
+        referenceEquity={referenceEquity}
+        onChange={onChange}
+      />
+    )
   }
   if (
     inspector === "protection" &&
     (node.kind === "takeProfit" || node.kind === "stopLoss")
   ) {
-    return <ProtectionNodeFields node={node} onChange={onChange} />
+    return (
+      <ProtectionNodeFields
+        node={node}
+        feedsFromDca={feedsFromDca}
+        onChange={onChange}
+      />
+    )
   }
   return (
     <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -354,20 +379,19 @@ function MarketScannerFields({
 
 function DcaFields({
   node,
+  referenceEquity,
   onChange,
 }: {
   node: Extract<AutomationNode, { kind: "dca" }>
+  /** Account size used to preview the ladder in dollars (the test capital). */
+  referenceEquity?: number
   onChange: (node: AutomationNode) => void
 }) {
-  const setRung = (
-    index: number,
-    field: "deviation" | "size",
-    value: number
-  ) => {
+  const setDeviation = (index: number, value: number) => {
     onChange({
       ...node,
       rungs: node.rungs.map((rung, i) =>
-        i === index ? { ...rung, [field]: value } : rung
+        i === index ? { ...rung, deviation: value } : rung
       ),
     })
   }
@@ -382,13 +406,24 @@ function DcaFields({
       ...node,
       rungs: [
         ...node.rungs,
-        {
-          deviation: last ? Math.min(99, last.deviation + 3) : 5,
-          size: last?.size ?? 100,
-        },
+        { deviation: last ? Math.min(99, last.deviation + 3) : 5 },
       ],
     })
   }
+
+  const equity =
+    referenceEquity && referenceEquity > 0 ? referenceEquity : 10_000
+  const allocations = dcaAllocationPcts(
+    node.rungs.length,
+    node.maxPositionPct,
+    node.sizeMultiplier
+  )
+  const potUsd = (equity * node.maxPositionPct) / 100
+  const money = (value: number) =>
+    value >= 100
+      ? `$${Math.round(value).toLocaleString()}`
+      : `$${value.toFixed(2)}`
+
   return (
     <div className="grid gap-3">
       <NumberField
@@ -399,18 +434,39 @@ function DcaFields({
         min={1}
         max={100}
         step={1}
-        info="The most of your account the whole ladder can ever hold. Rungs split this amount by their Size weight."
+        info="The most of your account the whole ladder can ever spend. It's split across the buys automatically by the Size ramp below."
         onChange={(field, value) => onChange({ ...node, [field]: value })}
       />
+      <NumberField
+        id={`dca-${node.id}-sizeMultiplier`}
+        label="Size ramp (× each buy)"
+        field="sizeMultiplier"
+        value={node.sizeMultiplier}
+        min={1}
+        max={10}
+        step={0.1}
+        info="How much bigger each buy is than the one above it. 1 = every buy the same size; 2 = each buy is double the last, so you buy far more the deeper price drops."
+        onChange={(field, value) => onChange({ ...node, [field]: value })}
+      />
+      <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Money in the pot</span>
+          <span className="font-medium tabular-nums">{money(potUsd)}</span>
+        </div>
+        <p className="mt-0.5 text-muted-foreground">
+          {node.maxPositionPct}% of a {money(equity)} account. The amounts below
+          scale with whatever account actually runs it.
+        </p>
+      </div>
       <div className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2 text-[11px] text-muted-foreground">
         <span>#</span>
         <span className="flex items-center gap-1">
           Deviation %
-          <InfoHint text="How far below the base this rung's buy rests, in percent." />
+          <InfoHint text="How far below the PREVIOUS buy this rung rests, in percent. The first rung is measured from the base; each rung after it drops a further this-much below the one above." />
         </span>
         <span className="flex items-center gap-1">
-          Size %
-          <InfoHint text="This rung's weight when splitting the max position. 100% is one unit; raise deeper rungs to buy bigger." />
+          Buy size
+          <InfoHint text="How much this buy spends — set automatically by the Size ramp, bigger the deeper it drops. Shown for the account size above; it scales with the real account." />
         </span>
         <span />
       </div>
@@ -428,20 +484,15 @@ function DcaFields({
             max={99}
             step={0.1}
             onChange={(event) =>
-              setRung(index, "deviation", Number(event.target.value))
+              setDeviation(index, Number(event.target.value))
             }
           />
-          <Input
-            type="number"
-            aria-label={`Rung ${index + 1} size percent`}
-            value={rung.size}
-            min={1}
-            max={10_000}
-            step={1}
-            onChange={(event) =>
-              setRung(index, "size", Number(event.target.value))
-            }
-          />
+          <div
+            className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs tabular-nums text-muted-foreground"
+            aria-label={`Rung ${index + 1} buy amount`}
+          >
+            {money((equity * (allocations[index] ?? 0)) / 100)}
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -467,10 +518,9 @@ function DcaFields({
         Add rung
       </Button>
       <p className="text-[11px] text-muted-foreground">
-        Each rung rests a buy that percent below the base it&apos;s fed. Sizes
-        are relative weights that split the max position between rungs — raise
-        the deeper ones to buy bigger as price falls. Take Profit and Stop Loss
-        hang on this node.
+        Each buy rests that percent below the buy above it, and the Size ramp
+        splits the pot so you buy bigger the deeper price drops. Take Profit and
+        Stop Loss hang on this node.
       </p>
     </div>
   )
@@ -1029,14 +1079,20 @@ function TimeframeFields({
 
 function ProtectionNodeFields({
   node,
+  feedsFromDca,
   onChange,
 }: {
   node: Extract<AutomationNode, { kind: "takeProfit" | "stopLoss" }>
+  /** True for a Take Profit fed by a DCA node — unlocks the "previous rung" styles. */
+  feedsFromDca?: boolean
   onChange: (node: AutomationNode) => void
 }) {
   const isTp = node.kind === "takeProfit"
   const max = isTp ? 1000 : 100
   const trailing = node.kind === "stopLoss" && node.mode === "trailing"
+  const tpMode =
+    node.kind === "takeProfit" ? (node.mode ?? "average") : "average"
+  const previousRung = tpMode !== "average"
   return (
     <div className="grid gap-3">
       {node.kind === "stopLoss" ? (
@@ -1071,39 +1127,76 @@ function ProtectionNodeFields({
           </Select>
         </div>
       ) : null}
-      <div className="grid gap-1.5">
-        <FieldLabel
-          htmlFor={`protection-${node.id}`}
-          info={
-            isTp
-              ? "How far above the entry to take profit."
+      {node.kind === "takeProfit" && feedsFromDca ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`tp-mode-${node.id}`}
+            info="Average: close the whole position once it's this far above your average buy. Previous rung: as price recovers, sell each averaged-in buy at the price of the buy above it. 'Close at base' also sells the first buy at the base; 'hold first buy' keeps that buy for a bigger move (only the stop loss closes it)."
+          >
+            Take profit style
+          </FieldLabel>
+          <Select
+            value={tpMode}
+            onValueChange={(value) =>
+              onChange({
+                ...node,
+                mode: value as
+                  | "average"
+                  | "previousRungSellAll"
+                  | "previousRungHoldFirst",
+              })
+            }
+          >
+            <SelectTrigger id={`tp-mode-${node.id}`} className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value="average">At the average price</SelectItem>
+              <SelectItem value="previousRungSellAll">
+                Sell at previous rung — close at base
+              </SelectItem>
+              <SelectItem value="previousRungHoldFirst">
+                Sell at previous rung — hold first buy
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {isTp && previousRung ? null : (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`protection-${node.id}`}
+            info={
+              isTp
+                ? "How far above the entry to take profit."
+                : trailing
+                  ? "How far below the best price the trailing stop sits."
+                  : "How far below the entry to cut the loss."
+            }
+          >
+            {isTp ? "Take profit %" : trailing ? "Trail distance %" : "Stop loss %"}
+          </FieldLabel>
+          <Input
+            id={`protection-${node.id}`}
+            type="number"
+            min={0}
+            max={max}
+            step={0.1}
+            value={node.pct}
+            className="h-8 text-xs"
+            onChange={(event) =>
+              onChange({ ...node, pct: Number(event.target.value) })
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {isTp
+              ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
               : trailing
-                ? "How far below the best price the trailing stop sits."
-                : "How far below the entry to cut the loss."
-          }
-        >
-          {isTp ? "Take profit %" : trailing ? "Trail distance %" : "Stop loss %"}
-        </FieldLabel>
-        <Input
-          id={`protection-${node.id}`}
-          type="number"
-          min={0}
-          max={max}
-          step={0.1}
-          value={node.pct}
-          className="h-8 text-xs"
-          onChange={(event) =>
-            onChange({ ...node, pct: Number(event.target.value) })
-          }
-        />
-        <p className="text-[11px] text-muted-foreground">
-          {isTp
-            ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
-            : trailing
-              ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
-              : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
-        </p>
-      </div>
+                ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
+                : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
+          </p>
+        </div>
+      )}
       {trailing ? (
         <div className="grid gap-1.5">
           <FieldLabel
