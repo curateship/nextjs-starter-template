@@ -5,7 +5,7 @@ import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -167,13 +167,14 @@ export function CampaignEditorDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="admin" className="sm:max-w-3xl">
+        <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>{campaign ? "Edit campaign" : "New campaign"}</DialogTitle>
             <DialogDescription>Configure content, targeting, timing, and visitor frequency.</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-5 py-2 sm:grid-cols-2">
+          <DialogBody>
+            <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="campaign-name">Name</Label>
               <Input id="campaign-name" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="Summer sale" />
@@ -301,6 +302,7 @@ export function CampaignEditorDialog({
               <Input id="campaign-end" type="datetime-local" value={form.endsAt} onChange={(event) => update("endsAt", event.target.value)} />
             </div>
           </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>

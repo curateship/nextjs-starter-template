@@ -197,16 +197,16 @@ export function NewsletterSettingsModal({
             title="Newsletter Settings"
             titleAccessory={
               <div className="flex items-center gap-4">
+                <TabsList className="h-9 shrink-0">
+                  <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                  <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                </TabsList>
                 <div className="flex items-center space-x-2">
                   <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
                   <span className="text-sm font-medium">
                     {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                   </span>
                 </div>
-                <TabsList className="h-9 shrink-0">
-                  <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-                  <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-                </TabsList>
               </div>
             }
             footer={

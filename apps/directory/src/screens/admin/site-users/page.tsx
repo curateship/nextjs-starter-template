@@ -32,7 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -757,11 +757,11 @@ export default function SiteUsersPage() {
         </div>
 
         <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-          <DialogContent size="admin" className="flex flex-col overflow-hidden p-6">
+          <DialogContent variant="admin">
             <DialogHeader>
               <DialogTitle>Filter Site Users</DialogTitle>
             </DialogHeader>
-            <div className="min-h-0 space-y-4 overflow-y-auto">
+            <DialogBody>
               <div className="flex items-center gap-3 text-sm font-medium">
                 <span>Matching</span>
                 <Tabs
@@ -944,9 +944,9 @@ export default function SiteUsersPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            </div>
+            </DialogBody>
 
-            <div className="flex items-center justify-between pt-4">
+            <DialogFooter className="justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -965,16 +965,20 @@ export default function SiteUsersPage() {
                   Apply Filters
                 </Button>
               </div>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
         <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-          <DialogContent size="admin" className="p-6">
+          <DialogContent variant="admin">
             <DialogHeader>
               <DialogTitle>Add Site User</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateUser} className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
+            <form
+              onSubmit={handleCreateUser}
+              className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
+            >
+              <DialogBody>
               {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label htmlFor="site-user-email">Email *</Label>
@@ -1019,7 +1023,7 @@ export default function SiteUsersPage() {
                   }
                 />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="site-user-role">Role</Label>
                   <Select
@@ -1059,14 +1063,16 @@ export default function SiteUsersPage() {
                   </Select>
                 </div>
               </div>
-              <div className="flex justify-between pt-2">
+              </DialogBody>
+
+              <DialogFooter className="justify-between">
                 <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={creating}>
                   {creating ? "Creating..." : "Create User"}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -1077,11 +1083,15 @@ export default function SiteUsersPage() {
             if (!open) setEditUser(null)
           }}
         >
-          <DialogContent size="admin" className="p-6">
+          <DialogContent variant="admin">
             <DialogHeader>
               <DialogTitle>Edit Site User</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleUpdateUser} className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
+            <form
+              onSubmit={handleUpdateUser}
+              className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
+            >
+              <DialogBody>
               {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label>Email</Label>
@@ -1100,7 +1110,7 @@ export default function SiteUsersPage() {
                   }
                 />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="edit-site-user-role">Role</Label>
                   <Select
@@ -1142,14 +1152,16 @@ export default function SiteUsersPage() {
                   </Select>
                 </div>
               </div>
-              <div className="flex justify-between pt-2">
+              </DialogBody>
+
+              <DialogFooter className="justify-between">
                 <Button type="button" variant="outline" onClick={() => setEditUser(null)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={saving}>
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>

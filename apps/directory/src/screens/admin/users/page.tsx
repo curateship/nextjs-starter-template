@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -644,12 +644,12 @@ export default function UsersPage() {
           </AdminTableShell>
 
           <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-            <DialogContent size="admin" className="flex flex-col overflow-hidden p-6">
+            <DialogContent variant="admin">
               <DialogHeader>
                 <DialogTitle>Filter Platform Users</DialogTitle>
                 <DialogDescription className="sr-only">Choose filters to narrow platform users.</DialogDescription>
               </DialogHeader>
-              <div className="min-h-0 space-y-4 overflow-y-auto">
+              <DialogBody>
                 <div className="flex items-center gap-3 text-sm font-medium">
                   <span>Matching</span>
                   <Tabs
@@ -838,9 +838,9 @@ export default function UsersPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              </div>
+              </DialogBody>
 
-              <div className="flex items-center justify-between pt-4">
+              <DialogFooter className="justify-between">
                 <button
                   type="button"
                   onClick={() => setPendingFilters(emptyFilterGroup())}
@@ -856,7 +856,7 @@ export default function UsersPage() {
                     Apply Filters
                   </Button>
                 </div>
-              </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 
