@@ -1,4 +1,11 @@
-import { AlertCircleIcon, PlusIcon, StarIcon, Trash2Icon } from "lucide-react"
+import {
+  AlertCircleIcon,
+  InfoIcon,
+  PlusIcon,
+  StarIcon,
+  Trash2Icon,
+} from "lucide-react"
+import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,6 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Select,
   SelectContent,
@@ -185,6 +198,9 @@ function NodeFields({
   if (inspector === "qfl" && node.kind === "qfl") {
     return <QflFields node={node} onChange={onChange} />
   }
+  if (inspector === "dca" && node.kind === "dca") {
+    return <DcaFields node={node} onChange={onChange} />
+  }
   if (
     inspector === "protection" &&
     (node.kind === "takeProfit" || node.kind === "stopLoss")
@@ -201,6 +217,47 @@ function NodeFields({
   )
 }
 
+/** Small "i" beside a label; hover/tap shows what the parameter does. */
+function InfoHint({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={text}
+            className="inline-flex text-muted-foreground/60 hover:text-foreground"
+            onClick={(event) => event.preventDefault()}
+          >
+            <InfoIcon className="size-3" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/** A field label with an optional info tooltip beside it. */
+function FieldLabel({
+  htmlFor,
+  info,
+  children,
+}: {
+  htmlFor?: string
+  info?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <Label htmlFor={htmlFor} className="text-xs">
+        {children}
+      </Label>
+      {info ? <InfoHint text={info} /> : null}
+    </div>
+  )
+}
+
 function NumberField<K extends string>({
   id,
   label,
@@ -210,6 +267,7 @@ function NumberField<K extends string>({
   max,
   step,
   disabled,
+  info,
   onChange,
 }: {
   id: string
@@ -220,13 +278,14 @@ function NumberField<K extends string>({
   max?: number
   step?: number
   disabled?: boolean
+  info?: string
   onChange: (field: K, value: number) => void
 }) {
   return (
     <div className="grid gap-1">
-      <Label htmlFor={id} className="text-xs">
+      <FieldLabel htmlFor={id} info={info}>
         {label}
-      </Label>
+      </FieldLabel>
       <Input
         id={id}
         type="number"
@@ -258,17 +317,21 @@ function MarketScannerFields({
         min={0}
         max={1_000_000_000_000}
         step={1_000_000}
+        info="Skip markets that trade less than this much per day, so the bot avoids thin, illiquid coins."
         onChange={(field, value) => onChange({ ...node, [field]: value })}
       />
-      <label className="flex cursor-pointer items-center gap-2 text-xs">
-        <Checkbox
-          checked={node.historyFilterEnabled}
-          onCheckedChange={(checked) =>
-            onChange({ ...node, historyFilterEnabled: checked === true })
-          }
-        />
-        Require minimum market history
-      </label>
+      <div className="flex items-center gap-1">
+        <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <Checkbox
+            checked={node.historyFilterEnabled}
+            onCheckedChange={(checked) =>
+              onChange({ ...node, historyFilterEnabled: checked === true })
+            }
+          />
+          Require minimum market history
+        </label>
+        <InfoHint text="Only allow markets that have existed for at least the number of months below." />
+      </div>
       <NumberField
         id={`market-scanner-${node.id}-minHistoryMonths`}
         label="Minimum history (months)"
@@ -278,11 +341,136 @@ function MarketScannerFields({
         max={60}
         step={1}
         disabled={!node.historyFilterEnabled}
+        info="How many months of price history a market must have to be eligible."
         onChange={(field, value) => onChange({ ...node, [field]: value })}
       />
       <p className="text-[11px] text-muted-foreground">
         Markets are chosen when creating the bot or Backtest. This node only
         decides whether a chosen market is eligible for QFL.
+      </p>
+    </div>
+  )
+}
+
+function DcaFields({
+  node,
+  onChange,
+}: {
+  node: Extract<AutomationNode, { kind: "dca" }>
+  onChange: (node: AutomationNode) => void
+}) {
+  const setRung = (
+    index: number,
+    field: "deviation" | "size",
+    value: number
+  ) => {
+    onChange({
+      ...node,
+      rungs: node.rungs.map((rung, i) =>
+        i === index ? { ...rung, [field]: value } : rung
+      ),
+    })
+  }
+  const removeRung = (index: number) => {
+    if (node.rungs.length <= 1) return
+    onChange({ ...node, rungs: node.rungs.filter((_, i) => i !== index) })
+  }
+  const addRung = () => {
+    if (node.rungs.length >= 20) return
+    const last = node.rungs.at(-1)
+    onChange({
+      ...node,
+      rungs: [
+        ...node.rungs,
+        {
+          deviation: last ? Math.min(99, last.deviation + 3) : 5,
+          size: last?.size ?? 100,
+        },
+      ],
+    })
+  }
+  return (
+    <div className="grid gap-3">
+      <NumberField
+        id={`dca-${node.id}-maxPositionPct`}
+        label="Max position size (% of account)"
+        field="maxPositionPct"
+        value={node.maxPositionPct}
+        min={1}
+        max={100}
+        step={1}
+        info="The most of your account the whole ladder can ever hold. Rungs split this amount by their Size weight."
+        onChange={(field, value) => onChange({ ...node, [field]: value })}
+      />
+      <div className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2 text-[11px] text-muted-foreground">
+        <span>#</span>
+        <span className="flex items-center gap-1">
+          Deviation %
+          <InfoHint text="How far below the base this rung's buy rests, in percent." />
+        </span>
+        <span className="flex items-center gap-1">
+          Size %
+          <InfoHint text="This rung's weight when splitting the max position. 100% is one unit; raise deeper rungs to buy bigger." />
+        </span>
+        <span />
+      </div>
+      {node.rungs.map((rung, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2"
+        >
+          <span className="text-xs text-muted-foreground">{index + 1}</span>
+          <Input
+            type="number"
+            aria-label={`Rung ${index + 1} deviation percent`}
+            value={rung.deviation}
+            min={0.1}
+            max={99}
+            step={0.1}
+            onChange={(event) =>
+              setRung(index, "deviation", Number(event.target.value))
+            }
+          />
+          <Input
+            type="number"
+            aria-label={`Rung ${index + 1} size percent`}
+            value={rung.size}
+            min={1}
+            max={10_000}
+            step={1}
+            onChange={(event) =>
+              setRung(index, "size", Number(event.target.value))
+            }
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 text-muted-foreground"
+            disabled={node.rungs.length <= 1}
+            aria-label={`Remove rung ${index + 1}`}
+            onClick={() => removeRung(index)}
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="justify-start"
+        disabled={node.rungs.length >= 20}
+        onClick={addRung}
+      >
+        <PlusIcon className="size-4" />
+        Add rung
+      </Button>
+      <p className="text-[11px] text-muted-foreground">
+        Each rung rests a buy that percent below the base it&apos;s fed. Sizes
+        are relative weights that split the max position between rungs — raise
+        the deeper ones to buy bigger as price falls. Take Profit and Stop Loss
+        hang on this node.
       </p>
     </div>
   )
@@ -309,6 +497,7 @@ function QflFields({
       max?: number
       step?: number
       disabled?: boolean
+      info?: string
     } = {}
   ) => (
     <NumberField
@@ -322,17 +511,21 @@ function QflFields({
   )
   const toggle = (
     field: "stopEnabled" | "timeExitEnabled" | "respectFilterEnabled",
-    label: string
+    label: string,
+    info?: string
   ) => (
-    <label className="flex cursor-pointer items-center gap-2 text-xs">
-      <Checkbox
-        checked={node[field]}
-        onCheckedChange={(checked) =>
-          onChange({ ...node, [field]: checked === true })
-        }
-      />
-      {label}
-    </label>
+    <div className="flex items-center gap-1">
+      <label className="flex cursor-pointer items-center gap-2 text-xs">
+        <Checkbox
+          checked={node[field]}
+          onCheckedChange={(checked) =>
+            onChange({ ...node, [field]: checked === true })
+          }
+        />
+        {label}
+      </label>
+      {info ? <InfoHint text={info} /> : null}
+    </div>
   )
   const allocations = qflAllocationPcts(node)
 
@@ -344,21 +537,36 @@ function QflFields({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-2">
-            {number("basePeriods", "Base search", { min: 4, step: 1 })}
-            {number("pumpPeriods", "Base confirmation", { min: 1, step: 1 })}
+            {number("basePeriods", "Base search", {
+              min: 4,
+              step: 1,
+              info: "How many candles back to search for the lowest low that forms a base.",
+            })}
+            {number("pumpPeriods", "Base confirmation", {
+              min: 1,
+              step: 1,
+              info: "How many candles the new low must hold before the base counts as confirmed.",
+            })}
             {number("crackPct", "Crack below base (%)", {
               min: 0.01,
               step: 0.1,
+              info: "How far below the base a candle must close to count as a crack.",
             })}
             {number("maxCrackBars", "Maximum fall (candles)", {
               min: 1,
               step: 1,
+              info: "The drop must be quick: price was still up at the base within this many candles before the crack, so a slow slide underneath it is ignored.",
             })}
             {number("volumeMultiplier", "Volume multiple", {
               min: 0,
               step: 0.1,
+              info: "The crack candle's volume must be at least this many times the recent average. 0 turns the check off.",
             })}
-            {number("volumeLookback", "Volume lookback", { min: 2, step: 1 })}
+            {number("volumeLookback", "Volume lookback", {
+              min: 2,
+              step: 1,
+              info: "How many candles to average when judging whether the crack's volume is high.",
+            })}
           </div>
         </CardContent>
       </Card>
@@ -368,26 +576,36 @@ function QflFields({
         </CardHeader>
         <CardContent className="grid gap-2">
           <div className="grid grid-cols-2 gap-2">
-            {number("totalOrders", "Total buys", { min: 1, max: 20, step: 1 })}
+            {number("totalOrders", "Total buys", {
+              min: 1,
+              max: 20,
+              step: 1,
+              info: "How many buy orders the ladder places below the base.",
+            })}
             {number("priceStepPct", "Level spacing (%)", {
               min: 0.01,
               step: 0.1,
+              info: "How far apart the ladder's buy levels sit, in percent.",
             })}
             {number("stepMultiplier", "Spacing growth (×)", {
               min: 0.1,
               step: 0.1,
+              info: "Widens each gap as you go deeper. 1 keeps even spacing; above 1 spreads the deeper buys further apart.",
             })}
             {number("sizeMultiplier", "Size growth (×)", {
               min: 0.1,
               step: 0.1,
+              info: "Grows each buy as you go deeper. 1 keeps them equal; above 1 makes the deeper buys bigger.",
             })}
             {number("takeProfitPct", "Profit per buy (%)", {
               min: 0.01,
               step: 0.1,
+              info: "How far above each buy's average price to take profit.",
             })}
             {number("ceilingPct", "Ceiling below base (%)", {
               min: 0,
               step: 0.1,
+              info: "Caps the profit target this far below the base, so it never tries to sell above the broken base.",
             })}
           </div>
           <p className="text-[11px] text-muted-foreground">
@@ -406,24 +624,36 @@ function QflFields({
               min: 0.1,
               max: 100,
               step: 1,
+              info: "The most of your account one market's ladder can ever hold.",
             })}
             {number("maxPortfolioExposurePct", "Maximum across QFL (%)", {
               min: 0.1,
               max: 100,
               step: 1,
+              info: "The most of your account all QFL ladders combined can hold at once.",
             })}
           </div>
-          {toggle("stopEnabled", "Use stop loss")}
+          {toggle(
+            "stopEnabled",
+            "Use stop loss",
+            "Sell everything if price falls below the ladder's deepest buy by the amount set here."
+          )}
           {number("stopBelowFinalPct", "Stop below final buy (%)", {
             min: 0.01,
             step: 0.1,
             disabled: !node.stopEnabled,
+            info: "How far below the deepest buy the stop sits.",
           })}
-          {toggle("timeExitEnabled", "Use time exit")}
+          {toggle(
+            "timeExitEnabled",
+            "Use time exit",
+            "Close the trade if it hasn't finished within the hold time below."
+          )}
           {number("maxHoldHours", "Maximum hold (hours)", {
             min: 1,
             step: 1,
             disabled: !node.timeExitEnabled,
+            info: "How long to hold before giving up and closing the trade.",
           })}
         </CardContent>
       </Card>
@@ -434,7 +664,8 @@ function QflFields({
         <CardContent className="grid gap-2">
           {toggle(
             "respectFilterEnabled",
-            "Require bases to have recovered before"
+            "Require bases to have recovered before",
+            "Only trade markets whose past cracks tended to bounce back."
           )}
           <div className="grid grid-cols-2 gap-2">
             {number("respectLookbackMonths", "History (months)", {
@@ -442,18 +673,21 @@ function QflFields({
               max: 60,
               step: 1,
               disabled: !node.respectFilterEnabled,
+              info: "How many months of history to judge the market's past base quality over.",
             })}
             {number("minRespectPct", "Minimum respected (%)", {
               min: 0,
               max: 100,
               step: 1,
               disabled: !node.respectFilterEnabled,
+              info: "The smallest share of past cracks that must have recovered before a trade is allowed.",
             })}
             {number("recoveryTargetPct", "Recovery vs first base (%)", {
               min: -50,
               max: 50,
               step: 0.1,
               disabled: !node.respectFilterEnabled,
+              info: "How far above the base counts as a recovery (negative means below the base).",
             })}
           </div>
           <p className="text-[11px] text-muted-foreground">
@@ -485,6 +719,7 @@ function WhaleWallFields({
       min: 1,
       max: 1_000_000_000_000,
       step: 50_000,
+      info: "How big a resting order must be to count as a wall worth following.",
     },
     {
       key: "relativeSize" as const,
@@ -493,6 +728,7 @@ function WhaleWallFields({
       min: 1,
       max: 1_000,
       step: 0.5,
+      info: "The wall must be at least this many times bigger than the typical nearby order.",
     },
     {
       key: "maxDistancePct" as const,
@@ -501,6 +737,7 @@ function WhaleWallFields({
       min: 0.01,
       max: 10,
       step: 0.1,
+      info: "How close to the current price the wall must sit to be followed, in percent.",
     },
     {
       key: "confirmationMs" as const,
@@ -509,6 +746,7 @@ function WhaleWallFields({
       min: 0.1,
       max: 60,
       step: 0.1,
+      info: "How long the wall must hold steady before the bot places its order in front of it.",
     },
   ]
 
@@ -516,12 +754,9 @@ function WhaleWallFields({
     <div className="grid gap-4">
       {fields.map((field) => (
         <div key={field.key} className="grid gap-1.5">
-          <Label
-            htmlFor={`whale-wall-${node.id}-${field.key}`}
-            className="text-xs"
-          >
+          <FieldLabel htmlFor={`whale-wall-${node.id}-${field.key}`} info={field.info}>
             {field.label}
-          </Label>
+          </FieldLabel>
           <Input
             id={`whale-wall-${node.id}-${field.key}`}
             type="number"
@@ -631,22 +866,25 @@ function IndicatorField({
 }) {
   if (field.kind === "boolean") {
     return (
-      <label className="flex cursor-pointer items-center gap-2 text-xs">
-        <Checkbox
-          checked={Boolean(value)}
-          onCheckedChange={(checked) => onChange(checked === true)}
-        />
-        {field.label}
-      </label>
+      <div className="flex items-center gap-1">
+        <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <Checkbox
+            checked={Boolean(value)}
+            onCheckedChange={(checked) => onChange(checked === true)}
+          />
+          {field.label}
+        </label>
+        {field.info ? <InfoHint text={field.info} /> : null}
+      </div>
     )
   }
 
   if (field.kind === "select" && field.options) {
     return (
       <div className="grid gap-1.5">
-        <Label htmlFor={inputId} className="text-xs">
+        <FieldLabel htmlFor={inputId} info={field.info}>
           {field.label}
-        </Label>
+        </FieldLabel>
         <Select value={String(value ?? "")} onValueChange={onChange}>
           <SelectTrigger id={inputId} className="h-8 text-xs">
             <SelectValue />
@@ -665,9 +903,9 @@ function IndicatorField({
 
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={inputId} className="text-xs">
+      <FieldLabel htmlFor={inputId} info={field.info}>
         {field.label}
-      </Label>
+      </FieldLabel>
       <Input
         id={inputId}
         type="number"
@@ -689,9 +927,12 @@ function LookbackFields({
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={`lookback-${node.id}`} className="text-xs">
+      <FieldLabel
+        htmlFor={`lookback-${node.id}`}
+        info="How many candles the incoming signal stays valid after it fires, before it goes stale."
+      >
         Valid for (candles)
-      </Label>
+      </FieldLabel>
       <Input
         id={`lookback-${node.id}`}
         type="number"
@@ -743,9 +984,12 @@ function TimeframeFields({
     : ALL_INTERVALS
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={`timeframe-${node.id}`} className="text-xs">
+      <FieldLabel
+        htmlFor={`timeframe-${node.id}`}
+        info="The larger candles the indicators feeding this node evaluate on, instead of the bot's own timeframe."
+      >
         Higher timeframe
-      </Label>
+      </FieldLabel>
       {higher.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">
           No timeframe exists above the automation's {interval}. Lower the
@@ -797,9 +1041,12 @@ function ProtectionNodeFields({
     <div className="grid gap-3">
       {node.kind === "stopLoss" ? (
         <div className="grid gap-1.5">
-          <Label htmlFor={`protection-mode-${node.id}`} className="text-xs">
+          <FieldLabel
+            htmlFor={`protection-mode-${node.id}`}
+            info="Fixed keeps the stop at the entry distance; Trailing follows the best price and only moves in your favor."
+          >
             Stop behavior
-          </Label>
+          </FieldLabel>
           <Select
             value={node.mode ?? "fixed"}
             onValueChange={(mode) =>
@@ -825,9 +1072,18 @@ function ProtectionNodeFields({
         </div>
       ) : null}
       <div className="grid gap-1.5">
-        <Label htmlFor={`protection-${node.id}`} className="text-xs">
+        <FieldLabel
+          htmlFor={`protection-${node.id}`}
+          info={
+            isTp
+              ? "How far above the entry to take profit."
+              : trailing
+                ? "How far below the best price the trailing stop sits."
+                : "How far below the entry to cut the loss."
+          }
+        >
           {isTp ? "Take profit %" : trailing ? "Trail distance %" : "Stop loss %"}
-        </Label>
+        </FieldLabel>
         <Input
           id={`protection-${node.id}`}
           type="number"
@@ -850,9 +1106,12 @@ function ProtectionNodeFields({
       </div>
       {trailing ? (
         <div className="grid gap-1.5">
-          <Label htmlFor={`protection-activation-${node.id}`} className="text-xs">
+          <FieldLabel
+            htmlFor={`protection-activation-${node.id}`}
+            info="Wait until the trade is up this much before the trailing stop starts to follow."
+          >
             Start trailing after +% (optional)
-          </Label>
+          </FieldLabel>
           <Input
             id={`protection-activation-${node.id}`}
             type="number"
@@ -901,9 +1160,12 @@ function ActionFields({
   return (
     <Card size="sm" className="bg-muted/40">
       <CardContent className="grid gap-1.5">
-        <Label htmlFor={`target-${node.id}`} className="text-xs">
+        <FieldLabel
+          htmlFor={`target-${node.id}`}
+          info="The share of your account this entry aims to hold."
+        >
           Target account equity %
-        </Label>
+        </FieldLabel>
         <Input
           id={`target-${node.id}`}
           type="number"

@@ -59,6 +59,8 @@ export type IndicatorParamField = {
   kind?: "number" | "select" | "boolean"
   step?: number
   options?: string[]
+  /** One plain sentence shown in an info tooltip beside the field's label. */
+  info?: string
 }
 
 export type IndicatorModule<P = Record<string, unknown>> = {

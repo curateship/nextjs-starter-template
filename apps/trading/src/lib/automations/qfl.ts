@@ -253,9 +253,20 @@ export function advanceQflBaseTracker(
   }
 }
 
+/** Only the base/crack/recovery fields the respect scan reads — so a DCA
+ * config (which shares these) can be scored without a full QflSettings. */
+export type QflRespectSettings = Pick<
+  QflSettings,
+  | "basePeriods"
+  | "pumpPeriods"
+  | "crackPct"
+  | "recoveryTargetPct"
+  | "respectLookbackMonths"
+>
+
 export function qflBaseRespectScore(
   candles: IndicatorCandle[],
-  settings: QflSettings,
+  settings: QflRespectSettings,
   now: number = candles.at(-1)?.t ?? 0
 ): QflRespectScore {
   const visible = candles.filter((candle) => candle.t <= now)

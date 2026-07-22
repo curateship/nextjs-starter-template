@@ -26,9 +26,24 @@ export const bollingerIndicator: IndicatorModule<BollingerParams> = {
   paramsSchema,
   defaultParams: { period: 20, k: 2, mode: "revert" },
   paramFields: [
-    { key: "period", label: "Period" },
-    { key: "k", label: "StdDev", step: 0.5 },
-    { key: "mode", label: "Mode", kind: "select", options: ["revert", "breakout"] },
+    {
+      key: "period",
+      label: "Period",
+      info: "How many candles the middle average and the bands are measured over.",
+    },
+    {
+      key: "k",
+      label: "StdDev",
+      step: 0.5,
+      info: "How many standard deviations wide the bands sit from the middle line.",
+    },
+    {
+      key: "mode",
+      label: "Mode",
+      kind: "select",
+      options: ["revert", "breakout"],
+      info: "Revert buys at the lower band expecting a bounce; breakout buys when price pushes through it.",
+    },
   ],
   warmupBars: (params) => Math.max(params.period * 3, 60),
 

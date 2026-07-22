@@ -52,26 +52,63 @@ export const qqeIndicator: IndicatorModule<QqeIndicatorParams> = {
     swingLookback: 50,
   },
   paramFields: [
-    { key: "rsiPeriod", label: "RSI period" },
-    { key: "rsiSmoothing", label: "RSI smoothing" },
-    { key: "qqeFactor", label: "QQE factor", step: 0.1 },
-    { key: "threshold", label: "Threshold", step: 0.5 },
+    {
+      key: "rsiPeriod",
+      label: "RSI period",
+      info: "How many candles the momentum reading is calculated over.",
+    },
+    {
+      key: "rsiSmoothing",
+      label: "RSI smoothing",
+      info: "How much to smooth the momentum line — higher is calmer and slower to react.",
+    },
+    {
+      key: "qqeFactor",
+      label: "QQE factor",
+      step: 0.1,
+      info: "How wide the trailing band is; a larger value needs a bigger move to flip the signal.",
+    },
+    {
+      key: "threshold",
+      label: "Threshold",
+      step: 0.5,
+      info: "How far past the midline momentum must travel before a signal counts.",
+    },
     {
       key: "maType",
       label: "MA type",
       kind: "select",
       options: ["ALMA", "EMA", "DEMA", "TEMA", "WMA", "VWMA", "SMA", "SMMA", "HMA", "LSMA", "PEMA"],
+      info: "Which moving-average formula smooths the line.",
     },
     {
       key: "rsiSource",
       label: "RSI source",
       kind: "select",
       options: ["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"],
+      info: "Which candle price the momentum reading is based on.",
     },
-    { key: "consolidationFilter", label: "Consolidation filter", kind: "boolean" },
-    { key: "loopbackPeriod", label: "Consolidation lookback" },
-    { key: "minConsolidationLen", label: "Min consolidation bars" },
-    { key: "swingLookback", label: "Swing lookback" },
+    {
+      key: "consolidationFilter",
+      label: "Consolidation filter",
+      kind: "boolean",
+      info: "Only fire after price has coiled in a tight range, skipping choppy moves.",
+    },
+    {
+      key: "loopbackPeriod",
+      label: "Consolidation lookback",
+      info: "How many candles back to look for that tight range.",
+    },
+    {
+      key: "minConsolidationLen",
+      label: "Min consolidation bars",
+      info: "The fewest candles the tight range must last to count.",
+    },
+    {
+      key: "swingLookback",
+      label: "Swing lookback",
+      info: "How many candles back to measure the swing highs and lows used by the filter.",
+    },
   ],
   paramGroups: [
     {
