@@ -261,6 +261,17 @@ export function AutomationEditor({
     (selectedNodeId
       ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
       : null)
+  // The "previous rung" take-profit modes only make sense on a Take Profit fed
+  // by a DCA node (they reference its buy ladder), so the inspector only offers
+  // them when the selected TP node has a DCA node wired into it.
+  const selectedTpFeedsDca = React.useMemo(() => {
+    if (selectedNode?.kind !== "takeProfit") return false
+    return graph.edges.some(
+      (edge) =>
+        edge.to === selectedNode.id &&
+        graph.nodes.find((node) => node.id === edge.from)?.kind === "dca"
+    )
+  }, [selectedNode, graph.edges, graph.nodes])
   const selectedPaletteKey = selectedNode
     ? automationPaletteKeyForNode(selectedNode)
     : null
@@ -666,6 +677,8 @@ export function AutomationEditor({
       selectedNode={selectedNode}
       errors={compiled.errors}
       interval={interval}
+      feedsFromDca={selectedTpFeedsDca}
+      referenceEquity={backtestSettings.startingEquity}
       favorite={
         selectedPaletteKey
           ? favoriteNodeKeys.includes(selectedPaletteKey)

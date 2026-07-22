@@ -85,6 +85,16 @@ export type AutomationTakeProfitNode = {
   id: string
   kind: "takeProfit"
   pct: number
+  /**
+   * How profit is taken. "average" (default): close the whole position at `pct`
+   * above the blended average entry. The two "previousRung" modes apply ONLY
+   * when a DCA node feeds this take-profit — as price recovers, each averaged-in
+   * buy is sold at the price of the buy above it (the second buy sells where the
+   * first bought, etc). "previousRungSellAll" also sells the first buy at the
+   * base, fully closing on a return to base; "previousRungHoldFirst" keeps the
+   * first buy (held for a bigger move; only the stop loss closes it).
+   */
+  mode?: "average" | "previousRungSellAll" | "previousRungHoldFirst"
   x: number
   y: number
 }
@@ -136,10 +146,9 @@ export type AutomationQflNode = QflSettings & {
 
 /**
  * Dollar-Cost-Averaging buy ladder. Places one resting buy per rung, each a set
- * percent below the base it is fed and sized by the rung's own percent. It owns
- * averaging-IN only — Take Profit and Stop Loss nodes hung on it own the exits
- * and read its running average. Execution lands with the exits; until then a DCA
- * automation compiles to a not-yet-runnable error rather than an empty bot.
+ * percent below the buy above it (the first below the base), sized automatically
+ * by the ladder's Size ramp. It owns averaging-IN only — Take Profit and Stop
+ * Loss nodes hung on it own the exits and read its running average.
  */
 export type AutomationDcaNode = {
   id: string
@@ -147,6 +156,8 @@ export type AutomationDcaNode = {
   rungs: AutomationDcaRung[]
   /** Most of the account the whole ladder may ever hold, in percent. */
   maxPositionPct: number
+  /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
+  sizeMultiplier: number
   x: number
   y: number
 }
@@ -244,6 +255,12 @@ export type AutomationGraph = {
 /** One side's protective exits, percent from entry. */
 export type ProtectionLevels = {
   takeProfitPct?: number
+  /**
+   * Absent/"average": the whole position closes at `takeProfitPct` above the
+   * blended average. The "previousRung" modes (DCA entries only) instead sell
+   * each rung at the price of the rung above it. See {@link AutomationTakeProfitNode}.
+   */
+  takeProfitMode?: "average" | "previousRungSellAll" | "previousRungHoldFirst"
   stopLossPct?: number
   /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
   stopLossMode?: "fixed" | "trailing"
@@ -339,6 +356,8 @@ export type AutomationDcaConfig = {
   nodeId: string
   rungs: AutomationDcaRung[]
   maxPositionPct: number
+  /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
+  sizeMultiplier: number
   basePeriods: number
   pumpPeriods: number
   crackPct: number
@@ -473,6 +492,9 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("takeProfit"),
     pct: z.number().finite(),
+    mode: z
+      .enum(["average", "previousRungSellAll", "previousRungHoldFirst"])
+      .optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -519,6 +541,9 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
       .positive()
       .max(100)
       .default(DEFAULT_DCA_MAX_POSITION_PCT),
+    // Defaults to 1 (equal buys) so ladders saved with per-rung weights keep
+    // their behavior; NEW ladders are created with an exponential ramp.
+    sizeMultiplier: z.number().min(1).max(10).default(1),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -526,6 +551,9 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
 
 const protectionLevelsSchema = z.object({
   takeProfitPct: z.number().positive().max(1000).optional(),
+  takeProfitMode: z
+    .enum(["average", "previousRungSellAll", "previousRungHoldFirst"])
+    .optional(),
   stopLossPct: z.number().positive().max(100).optional(),
   stopLossMode: z.enum(["fixed", "trailing"]).optional(),
   trailActivationPct: z.number().min(0).max(1000).optional(),
@@ -702,6 +730,7 @@ const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
   nodeId: idSchema,
   rungs: dcaRungsSchema,
   maxPositionPct: z.number().positive().max(100),
+  sizeMultiplier: z.number().min(1).max(10).default(1),
   basePeriods: z.number().int().min(4).max(500),
   pumpPeriods: z.number().int().min(1).max(499),
   crackPct: z.number().positive().max(50),
@@ -1341,6 +1370,7 @@ export function compileAutomationGraph(input: {
         nodeId: dcaNode.id,
         rungs: dcaNode.rungs.map((rung) => ({ ...rung })),
         maxPositionPct: dcaNode.maxPositionPct,
+        sizeMultiplier: dcaNode.sizeMultiplier,
         basePeriods: baseParams.basePeriods,
         pumpPeriods: baseParams.pumpPeriods,
         crackPct: baseParams.crackPct,
@@ -1394,6 +1424,9 @@ export function compileAutomationGraph(input: {
   const stopBehavior: Partial<
     Record<"long" | "short", { trailing: boolean; activationPct?: number }>
   > = {}
+  // A take-profit's "previous rung" mode only applies when a DCA node feeds it
+  // (it references the buy ladder). Collected here and folded in after.
+  let longTpMode: ProtectionLevels["takeProfitMode"]
   const setStopBehavior = (
     side: "long" | "short",
     node: AutomationStopLossNode
@@ -1428,6 +1461,13 @@ export function compileAutomationGraph(input: {
       if (parent?.kind === "dca") {
         setLevel("long", key, node.pct, node.id)
         if (node.kind === "stopLoss") setStopBehavior("long", node)
+        if (
+          node.kind === "takeProfit" &&
+          node.mode &&
+          node.mode !== "average"
+        ) {
+          longTpMode = node.mode
+        }
         continue
       }
       if (parent?.kind !== "action") continue
@@ -1452,6 +1492,12 @@ export function compileAutomationGraph(input: {
         ? { trailActivationPct: behavior.activationPct }
         : {}),
     }
+  }
+  // Fold the DCA "previous rung" take-profit mode onto the long side (DCA is
+  // long-only). Left absent for the default "average" so existing configs stay
+  // byte-identical.
+  if (longTpMode && protection.long) {
+    protection.long = { ...protection.long, takeProfitMode: longTpMode }
   }
 
   // A capped filter must be able to SEE a signal maxAgeBars old inside the

@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button"
 import {
   PriceChart,
   type ChartCandle,
+  type ChartMarker,
   type ChartPriceLine,
 } from "@/components/chart/price-chart"
 import {
   CHART_DOWN_COLOR,
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
+import { buildBotFillMarkers } from "@/components/bots/bot-chart-overlays"
 import type { BacktestTuneDrag } from "@/components/backtest/backtest-run-chart"
 import { Label } from "@/components/ui/label"
 import {
@@ -20,15 +22,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type {
-  AutomationGraph,
-  AutomationNode,
+import {
+  AUTOMATION_INTERVAL_MS,
+  type AutomationGraph,
+  type AutomationNode,
 } from "@/lib/automations/automation"
+import { simulateAutomation } from "@/lib/automations/live-sim"
 import { qflDeviations } from "@/lib/automations/qfl"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { qflBase } from "@/lib/strategies/indicators"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import type { ProtectionSettings } from "@/lib/strategies/settings"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
+import {
+  effectiveStopPx,
+  nextTrailState,
+  type TrailState,
+} from "@/lib/strategies/trailing-stop"
+import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import { usePersistedState } from "@/lib/use-persisted-state"
 
 /** Visualize always uses real market data; testnet books are too sparse. */
@@ -57,6 +68,26 @@ function qflBaseByNode(
     }
   }
   return bases
+}
+
+/**
+ * The stop price in force right now for an open sim position — a trailing stop
+ * ratchets, so fold the trade's bars to rebuild the extreme, then read the
+ * shared stop math (the exact level the engine would enforce).
+ */
+function currentStopPx(
+  settings: ProtectionSettings,
+  position: { szi: number; entryPx: number },
+  entryTime: number,
+  candles: ChartCandle[]
+): number | null {
+  let trail: TrailState | null = null
+  for (const candle of candles) {
+    if (Number(candle.t) < entryTime) continue
+    const extreme = position.szi > 0 ? Number(candle.h) : Number(candle.l)
+    trail = nextTrailState(trail, position, extreme)
+  }
+  return effectiveStopPx(settings, position, trail)
 }
 
 function roundPct(value: number, min: number, max: number): number {
@@ -198,45 +229,148 @@ export function AutomationVisualizePanel({
     [candles, qflNodes]
   )
 
+  // The automation, run as a paper bot over the candles in view. It re-runs
+  // only when a candle CLOSES (or the market/interval/config change), never on
+  // every streaming tick of the forming bar — a full replay per tick is waste.
+  const candlesRef = React.useRef(candles)
+  candlesRef.current = candles
+  const closedCount = candles.length
+  const lastClosedTime =
+    candles.length >= 2 ? Number(candles[candles.length - 2].t) : 0
+  const sim = React.useMemo(() => {
+    if (!config) return null
+    const source = candlesRef.current.map((candle) => ({
+      t: Number(candle.t),
+      o: Number(candle.o),
+      h: Number(candle.h),
+      l: Number(candle.l),
+      c: Number(candle.c),
+      v: Number(candle.v),
+    }))
+    return simulateAutomation({ config, candles: source, market: coin, interval })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, coin, interval, closedCount, lastClosedTime])
+
+  // Every buy and sell the sim made across the window, as the same green/red/
+  // yellow O/C/F chips the deployed bot paints — one chip PER fill, so each DCA
+  // ladder rung shows as its own buy (not one blended entry).
+  const markers = React.useMemo<ChartMarker[]>(() => {
+    if (!sim) return []
+    const fills = sim.fills.map((fill, index) => ({
+      id: String(index),
+      market: coin,
+      side: fill.side,
+      px: String(fill.px),
+      sz: String(fill.sz),
+      notional: String(fill.px * fill.sz),
+      fee: String(fill.fee),
+      closed_pnl: String(fill.closedPnl),
+      fill_time: new Date(fill.t).toISOString(),
+    }))
+    return buildBotFillMarkers(fills, AUTOMATION_INTERVAL_MS[interval])
+  }, [sim, coin, interval])
+  const open = sim?.openPosition ?? null
+
+  // The base drawn the way the trade chart draws it: a short horizontal dash at
+  // each confirmed base (not a connected line, which ramps between bases). The
+  // shared paint path only does this for the old QFL node, so feed the DCA base
+  // overlay explicitly with the same params the engine's base tracker uses.
+  const baseIndicators = React.useMemo<IndicatorConfig[]>(() => {
+    if (!config?.dca) return []
+    return [
+      {
+        id: "viz:dca-base",
+        type: "base",
+        enabled: true,
+        params: {
+          basePeriods: config.dca.basePeriods,
+          pumpPeriods: config.dca.pumpPeriods,
+        },
+      },
+    ]
+  }, [config])
+
   const priceLines = React.useMemo<ChartPriceLine[]>(() => {
-    if (anchor === null) return []
     const lines: ChartPriceLine[] = []
-    const protective = graph.nodes.filter(
-      (node) => node.kind === "takeProfit" || node.kind === "stopLoss"
-    )
-    if (protective.length > 0) {
-      // TP/SL are % from entry; "entry" here is the latest close, marked so
-      // the anchor of the dashed levels is never a mystery.
+
+    if (open && config) {
+      // The sim is holding a position: show its real, live levels off the
+      // blended average entry (a trailing stop ratchets with price).
+      const long = open.side === "long"
+      const settings = long ? config.protection.long : config.protection.short
+      const position = {
+        szi: long ? Math.abs(open.szi) : -Math.abs(open.szi),
+        entryPx: open.entryPx,
+      }
       lines.push({
-        id: "viz:entry",
-        price: anchor,
+        id: "viz:pos-entry",
+        price: open.entryPx,
         color: ENTRY_GUIDE_COLOR,
-        title: "Entry (now)",
-        lineStyle: "dashed",
+        title: "Avg entry",
+        lineStyle: "solid",
         lineWidth: 1,
       })
-    }
-    for (const node of protective) {
-      if (node.kind === "takeProfit") {
+      if (settings?.takeProfitPct) {
         lines.push({
-          id: `viz:tp:${node.id}`,
-          price: anchor * (1 + node.pct / 100),
+          id: "viz:pos-tp",
+          price:
+            open.entryPx * (1 + ((long ? 1 : -1) * settings.takeProfitPct) / 100),
           color: CHART_UP_COLOR,
-          title: `TP +${node.pct}%`,
+          title: `TP +${settings.takeProfitPct}%`,
           lineStyle: "dashed",
-          draggable: true,
-        })
-      } else if (node.kind === "stopLoss") {
-        lines.push({
-          id: `viz:sl:${node.id}`,
-          price: anchor * (1 - node.pct / 100),
-          color: CHART_DOWN_COLOR,
-          title: `${node.mode === "trailing" ? "Trail SL" : "SL"} -${node.pct}%`,
-          lineStyle: "dashed",
-          draggable: true,
         })
       }
+      const stop = settings
+        ? currentStopPx(settings, position, open.entryTime, candles)
+        : null
+      if (stop !== null) {
+        lines.push({
+          id: "viz:pos-sl",
+          price: stop,
+          color: CHART_DOWN_COLOR,
+          title: settings?.stopLossMode === "trailing" ? "Trailing stop" : "Stop",
+          lineStyle: "dashed",
+        })
+      }
+    } else if (anchor !== null) {
+      // Flat: preview the protective levels from the latest close, draggable so
+      // dropping one rewrites the node's setting (planning while out of a trade).
+      const protective = graph.nodes.filter(
+        (node) => node.kind === "takeProfit" || node.kind === "stopLoss"
+      )
+      if (protective.length > 0) {
+        lines.push({
+          id: "viz:entry",
+          price: anchor,
+          color: ENTRY_GUIDE_COLOR,
+          title: "Entry (now)",
+          lineStyle: "dashed",
+          lineWidth: 1,
+        })
+      }
+      for (const node of protective) {
+        if (node.kind === "takeProfit") {
+          lines.push({
+            id: `viz:tp:${node.id}`,
+            price: anchor * (1 + node.pct / 100),
+            color: CHART_UP_COLOR,
+            title: `TP +${node.pct}%`,
+            lineStyle: "dashed",
+            draggable: true,
+          })
+        } else if (node.kind === "stopLoss") {
+          lines.push({
+            id: `viz:sl:${node.id}`,
+            price: anchor * (1 - node.pct / 100),
+            color: CHART_DOWN_COLOR,
+            title: `${node.mode === "trailing" ? "Trail SL" : "SL"} -${node.pct}%`,
+            lineStyle: "dashed",
+            draggable: true,
+          })
+        }
+      }
     }
+
     for (const node of qflNodes) {
       const base = qflBases.get(node.id)
       if (base === undefined) continue
@@ -269,8 +403,13 @@ export function AutomationVisualizePanel({
         })
       })
     }
+
+    // The DCA buy ladder is drawn as MOVING overlay lines (baseOverlays), not
+    // static price lines, since each buy is a set percent below the base that
+    // was active then — a fixed line would misrepresent every past buy.
+
     return lines
-  }, [anchor, graph.nodes, qflNodes, qflBases, config])
+  }, [open, anchor, graph.nodes, qflNodes, qflBases, config, candles])
 
   const handleLineDragEnd = React.useCallback(
     (id: string, price: number) => {
@@ -327,6 +466,8 @@ export function AutomationVisualizePanel({
           coin={coin}
           interval={interval}
           automationConfig={config}
+          indicators={baseIndicators}
+          markers={markers}
           priceLines={priceLines}
           onLineDragEnd={handleLineDragEnd}
           onCandlesChange={setCandles}

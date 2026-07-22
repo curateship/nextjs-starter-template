@@ -33,11 +33,12 @@ export class QflPortfolio implements QflPortfolioControl {
   private readonly expectedMarkets: Set<string>
   private readonly equityDeltas = new Map<string, number>()
   private startingEquity: number | null = null
+  private readonly maximumPct: number
 
-  constructor(
-    private readonly maximumPct: number,
-    markets: Iterable<string> = []
-  ) {
+  // Explicit field assignment (not a constructor parameter property) so the
+  // browser can import the shared engine under the app's erasable-syntax rule.
+  constructor(maximumPct: number, markets: Iterable<string> = []) {
+    this.maximumPct = maximumPct
     this.expectedMarkets = new Set(markets)
   }
 

@@ -50,11 +50,9 @@ function dcaConfig(overrides: Partial<AutomationConfig["dca"]> = {}): Automation
     protection: { long: { takeProfitPct: 3 } },
     dca: {
       nodeId: "dca",
-      rungs: [
-        { deviation: 5, size: 100 },
-        { deviation: 8, size: 100 },
-      ],
+      rungs: [{ deviation: 5 }, { deviation: 8 }],
       maxPositionPct: 10,
+      sizeMultiplier: 1,
       basePeriods: 4,
       pumpPeriods: 1,
       crackPct: 2.5,
@@ -116,6 +114,53 @@ describe("DCA through the real backtest runner", () => {
     ])
     expect(result.fills.length).toBe(0)
     expect(result.openPosition).toBeNull()
+  })
+
+  it("previous-rung sell-all: each rung sells at the buy above it, first at base", () => {
+    const base = dcaConfig()
+    const config: AutomationConfig = {
+      ...base,
+      protection: {
+        long: { takeProfitPct: 3, takeProfitMode: "previousRungSellAll" },
+      },
+    }
+    const result = run(config, [
+      ...setup,
+      bar(7, 80, 70, 88, 10, 87), // deep dip fills both rungs
+      bar(8, 96, 79, 97, 10, 82), // recover to the first rung's price
+      bar(9, 120, 95, 210, 10, 96), // recover to (and past) the base
+    ])
+    const sell1 = result.fills.find((f) => f.purpose === "dca:s:1")
+    const sell0 = result.fills.find((f) => f.purpose === "dca:s:0")
+    const buy1 = result.fills.find((f) => f.purpose === "dca:b:1")
+    expect(sell1).toBeTruthy()
+    expect(sell0).toBeTruthy()
+    // The deeper rung sold above where it was bought (a profit)...
+    expect(sell1!.px).toBeGreaterThan(buy1!.px)
+    // ...and the first rung sells one step higher, at the base: base / (base·0.95).
+    expect(sell0!.px / sell1!.px).toBeCloseTo(1 / 0.95, 3)
+    // Everything peeled off — flat once price returned to the base.
+    expect(result.openPosition).toBeNull()
+  })
+
+  it("previous-rung hold-first: deeper rungs peel off but the first is held", () => {
+    const base = dcaConfig()
+    const config: AutomationConfig = {
+      ...base,
+      protection: {
+        long: { takeProfitPct: 3, takeProfitMode: "previousRungHoldFirst" },
+      },
+    }
+    const result = run(config, [
+      ...setup,
+      bar(7, 80, 70, 88, 10, 87),
+      bar(8, 96, 79, 97, 10, 82),
+      bar(9, 120, 95, 210, 10, 96),
+    ])
+    expect(result.fills.find((f) => f.purpose === "dca:s:1")).toBeTruthy()
+    // The first rung is never sold — held as free coins.
+    expect(result.fills.find((f) => f.purpose === "dca:s:0")).toBeUndefined()
+    expect(result.openPosition?.side).toBe("long")
   })
 
   it("does nothing without a crack", () => {

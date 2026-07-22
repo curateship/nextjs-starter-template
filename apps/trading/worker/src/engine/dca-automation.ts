@@ -38,6 +38,8 @@ type DcaRungState = {
   plannedPx: number
   targetSz: number
   filledSz: number
+  /** Units of this rung already sold back (previous-rung take-profit). */
+  soldSz: number
   entryMode: "market" | "limit"
   entrySubmitted: boolean
   entryComplete: boolean
@@ -170,7 +172,11 @@ function buildCycle(
   mid: number
 ): DcaCycle {
   const levels = dcaLevels(base, dca.rungs)
-  const allocations = dcaAllocationPcts(dca.rungs, dca.maxPositionPct)
+  const allocations = dcaAllocationPcts(
+    dca.rungs.length,
+    dca.maxPositionPct,
+    dca.sizeMultiplier
+  )
   return {
     base,
     startedAt: candleTime,
@@ -184,6 +190,7 @@ function buildCycle(
         plannedPx,
         targetSz: (equity * allocations[index]) / 100 / sizingPx,
         filledSz: 0,
+        soldSz: 0,
         entryMode: crossed ? "market" : "limit",
         entrySubmitted: false,
         entryComplete: false,
@@ -239,6 +246,18 @@ export function createDcaAutomationStrategy(
   if (!dca) throw new Error("DCA configuration is required.")
   const window = dcaHistoryBars(dca, config.interval)
   const protection = config.protection.long ?? {}
+  // "Previous rung" take-profit: as price recovers, each averaged-in buy is
+  // sold at the price of the buy above it (the first at the base). "Hold first"
+  // keeps the first rung as free coins. In these modes the average take-profit
+  // is replaced by the peel-off sells below, so only the stop loss still
+  // force-closes the whole position.
+  const previousRung =
+    protection.takeProfitMode === "previousRungSellAll" ||
+    protection.takeProfitMode === "previousRungHoldFirst"
+  const holdFirstRung = protection.takeProfitMode === "previousRungHoldFirst"
+  const closeProtection = previousRung
+    ? { ...protection, takeProfitPct: undefined }
+    : protection
   const closeRules = config.rules.filter((rule) => rule.action === "close")
   const closeConfig: AutomationConfig | null =
     closeRules.length > 0
@@ -320,13 +339,16 @@ export function createDcaAutomationStrategy(
       }
 
       if (state.active) {
-        // Reset the ladder to a fresh, lower base only until the first buy
-        // fills; once we're committed, the base moving no longer moves orders.
+        // The FIRST rung always sits under the NEWEST base: until that first
+        // buy fills, re-arm the ladder onto any fresh, lower base that forms —
+        // no second crack required (that was the bug: a new lower base would
+        // form but the ladder kept firing off the old, higher one). Once the
+        // first buy fills we're committed, and the deeper rungs stay counted
+        // off that first base — they no longer move when the base does.
         if (
           !state.active.hadFill &&
-          cracked &&
           currentBase !== null &&
-          currentBase !== state.active.base
+          currentBase < state.active.base
         ) {
           state = {
             ...state,
@@ -361,7 +383,7 @@ export function createDcaAutomationStrategy(
         trail === prevTrail ? ctx.state : { ...ctx.state, trail }
       if (state !== ctx.state) ctx.setState(state)
       if (state.exitRequested || pos.szi <= 0) return
-      const hit = tickExit(protection, pos, state, Number(ctx.mid))
+      const hit = tickExit(closeProtection, pos, state, Number(ctx.mid))
       if (!hit) return
       ctx.setState({ ...state, exitRequested: true })
       ctx.emit("dca_exit", `DCA ${hit === "tp" ? "take profit" : "stop"} hit.`)
@@ -383,6 +405,24 @@ export function createDcaAutomationStrategy(
           hadFill: true,
         }
         ctx.setState({ ...ctx.state, active: next })
+        return
+      }
+      const sellIndex = purposeIndex(fill.purpose, "dca:s:")
+      if (sellIndex !== null) {
+        // A peel-off sell filled — mark that rung sold. If it took us flat, the
+        // cycle is done; otherwise keep going as price recovers.
+        if (positionOf(ctx).szi <= EPSILON) {
+          ctx.emit("dca_cycle_complete", "DCA sold its ladder back to flat.")
+          releaseCycle(ctx)
+        } else {
+          ctx.setState({
+            ...ctx.state,
+            active: updateRung(active, sellIndex, (rung) => ({
+              ...rung,
+              soldSz: Math.min(rung.filledSz, rung.soldSz + Number(fill.sz)),
+            })),
+          })
+        }
         return
       }
       if (fill.purpose === "dca:exit" && positionOf(ctx).szi <= EPSILON) {
@@ -425,7 +465,9 @@ export function createDcaAutomationStrategy(
     },
     exitTriggers: (ctx) => {
       const pos = positionOf(ctx)
-      return pos.szi > 0 ? exitLevels(protection, pos, ctx.state) : []
+      // The peel-off sells are resting limit orders (they fill on the intrabar
+      // path like the buy ladder), so only the stop loss needs a trigger here.
+      return pos.szi > 0 ? exitLevels(closeProtection, pos, ctx.state) : []
     },
     desiredOrders: (ctx) => {
       let state = ctx.state
@@ -489,6 +531,34 @@ export function createDcaAutomationStrategy(
           reduceOnly: false,
           sizeIsRemaining: rung.entryMode === "limit",
         })
+      }
+
+      // Previous-rung take-profit: rest a reduce-only sell for each filled rung
+      // at the price of the rung ABOVE it (the first rung at the base), so as
+      // price recovers each averaged-in buy is sold where the buy above it was
+      // made. "Hold first" keeps the first rung (only the stop loss closes it).
+      if (previousRung && positionSz > EPSILON) {
+        for (const rung of active.rungs) {
+          if (holdFirstRung && rung.index === 0) continue
+          const unsold = Math.max(0, rung.filledSz - rung.soldSz)
+          if (unsold <= EPSILON) continue
+          const sellPx =
+            rung.index === 0
+              ? active.base
+              : active.rungs.find((other) => other.index === rung.index - 1)
+                  ?.plannedPx
+          if (sellPx === undefined || !(sellPx > 0)) continue
+          orders.push({
+            purpose: `dca:s:${rung.index}`,
+            side: "sell",
+            orderType: "limit",
+            px: String(sellPx),
+            sz: String(unsold),
+            tif: "Gtc",
+            reduceOnly: true,
+            sizeIsRemaining: true,
+          })
+        }
       }
       return orders
     },
