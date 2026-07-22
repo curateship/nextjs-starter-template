@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
+import { useOpenAccount } from "@/components/account-dialog"
 import {
   Avatar,
   AvatarFallback,
@@ -50,6 +51,7 @@ export function UserDropdown({
   showUpgrade: boolean
 }) {
   const { isMobile } = useSidebar()
+  const openAccount = useOpenAccount()
   const initials = React.useMemo(() => {
     const source = user.name || user.email || "User"
 
@@ -118,23 +120,17 @@ export function UserDropdown({
             ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link to="/account">
-                  <BadgeCheckIcon />
-                  Account
-                </Link>
+              <DropdownMenuItem onSelect={() => openAccount("profile")}>
+                <BadgeCheckIcon />
+                Account
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/account/billing">
-                  <CreditCardIcon />
-                  Billing
-                </Link>
+              <DropdownMenuItem onSelect={() => openAccount("billing")}>
+                <CreditCardIcon />
+                Billing
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/account/security">
-                  <ShieldCheckIcon />
-                  Security
-                </Link>
+              <DropdownMenuItem onSelect={() => openAccount("security")}>
+                <ShieldCheckIcon />
+                Security
               </DropdownMenuItem>
               {isAdmin ? (
                 <>

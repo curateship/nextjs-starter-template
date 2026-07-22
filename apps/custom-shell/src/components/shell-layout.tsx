@@ -1,7 +1,14 @@
 import * as React from "react"
-import { Outlet, useRouterState } from "@tanstack/react-router"
+import {
+  Outlet,
+  useNavigate,
+  useRouter,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router"
 import { toast } from "sonner"
 
+import { AccountDialog, accountTabForHref } from "@/components/account-dialog"
 import { DashboardContent } from "@/components/demo/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -21,6 +28,7 @@ import {
   type ShellConfig,
   type ShellItem,
   type ShellModalStyling,
+  type ShellSection,
 } from "@/lib/custom-shell"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
@@ -70,6 +78,9 @@ export function ShellLayout({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const navigate = useNavigate()
+  const router = useRouter()
+  const { account: accountTab } = useSearch({ from: "/_authenticated" })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   // Last width the server confirmed, plus a serialized save queue + version
   // counter so rapid drags persist in order and a failure rolls back to the
@@ -252,6 +263,21 @@ export function ShellLayout({
           targetFeedbackId={targetFeedbackId}
           onCreated={() => setFeedbackRefreshToken((current) => current + 1)}
         />
+        <AccountDialog
+          tab={accountTab ?? null}
+          user={user}
+          plan={plan}
+          onTabChange={(tab) =>
+            navigate({ to: ".", search: (prev) => ({ ...prev, account: tab }) })
+          }
+          onClose={() =>
+            navigate({
+              to: ".",
+              search: ({ account: _account, ...rest }) => rest,
+            })
+          }
+          onProfileSaved={() => router.invalidate()}
+        />
       </div>
     </ShellRuntimeContext.Provider>
   )
@@ -280,11 +306,25 @@ function normalizeConfig(settings: ShellConfig | null) {
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),
-    sections: Array.isArray(settings.sections)
-      ? settings.sections
-      : fallback.sections,
+    sections: stripRetiredAccountEntries(
+      Array.isArray(settings.sections) ? settings.sections : fallback.sections
+    ),
     styling: normalizeStyling(settings.styling),
   }
+}
+
+// The account area is a modal reached from the user menu, not the sidebar, so
+// drop its retired nav links (and any section left empty by that) from saved
+// configs — no config migration needed.
+function stripRetiredAccountEntries(sections: ShellSection[]): ShellSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      entries: section.entries.filter(
+        (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
+      ),
+    }))
+    .filter((section) => section.entries.length > 0)
 }
 
 // The dialog portals to document.body, outside the shell subtree, so modal

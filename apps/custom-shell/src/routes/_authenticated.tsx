@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ShellLayout } from "@/components/shell-layout"
+import { isAccountTab } from "@/components/account-dialog"
 import { loadShellBootstrap } from "@/lib/api/shell"
 
 // The shell's data changes rarely and every mutation that touches it calls
@@ -9,6 +10,11 @@ const SHELL_STALE_TIME_MS = 60_000
 
 export const Route = createFileRoute("/_authenticated")({
   staleTime: SHELL_STALE_TIME_MS,
+  // `?account=<tab>` drives the account modal, so it is valid on every
+  // authenticated page. Anything else is dropped.
+  validateSearch: (search: Record<string, unknown>) => {
+    return isAccountTab(search.account) ? { account: search.account } : {}
+  },
   loader: async () => {
     const { user, ...shell } = await loadShellBootstrap()
     if (!user) {

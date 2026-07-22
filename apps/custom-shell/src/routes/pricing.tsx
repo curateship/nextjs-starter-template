@@ -97,7 +97,9 @@ function PricingFooter({ user }: { user: AuthUser | null }) {
     return (
       <div className="flex justify-center">
         <Button asChild variant="outline">
-          <Link to="/account/billing">Back to billing</Link>
+          <Link to="/" search={{ account: "billing" }}>
+            Back to billing
+          </Link>
         </Button>
       </div>
     )
