@@ -1,6 +1,4 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { Loader2Icon, SaveIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,17 +19,29 @@ export function AccountProfilePage({
   user,
   planName,
   isPaid,
+  formId,
   onSaved,
+  onManageBilling,
+  onStatusChange,
 }: {
   user: AuthUser
   planName: string
   isPaid: boolean
+  // The Save button lives in the modal footer, so it submits this form by id
+  // and mirrors the status reported back through onStatusChange.
+  formId: string
   onSaved: () => void
+  onManageBilling: () => void
+  onStatusChange: (status: { saving: boolean; saved: boolean }) => void
 }) {
   const [name, setName] = React.useState(user.name)
   const [error, setError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => {
+    onStatusChange({ saving, saved })
+  }, [saving, saved, onStatusChange])
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -71,14 +81,19 @@ export function AccountProfilePage({
           {user.emailVerified ? null : (
             <Badge variant="outline">Email not verified</Badge>
           )}
-          <Button asChild variant="outline" className="ml-auto">
-            <Link to="/account/billing">Manage billing</Link>
+          <Button
+            type="button"
+            variant="outline"
+            className="ml-auto"
+            onClick={onManageBilling}
+          >
+            Manage billing
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
           <CardHeader>
             <CardTitle>Profile</CardTitle>
             <CardDescription>
@@ -110,19 +125,6 @@ export function AccountProfilePage({
                 {error}
               </p>
             ) : null}
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <SaveIcon className="h-4 w-4" />
-                )}
-                {saving ? "Saving" : "Save"}
-              </Button>
-              {saved ? (
-                <span className="text-sm text-muted-foreground">Saved</span>
-              ) : null}
-            </div>
           </CardContent>
         </form>
       </Card>

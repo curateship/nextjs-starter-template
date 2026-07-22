@@ -20,9 +20,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as AuthenticatedAccountIndexRouteImport } from './routes/_authenticated/account/index'
-import { Route as AuthenticatedAccountBillingRouteImport } from './routes/_authenticated/account/billing'
-import { Route as AuthenticatedAccountSecurityRouteImport } from './routes/_authenticated/account/security'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
@@ -91,24 +88,6 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAccountIndexRoute =
-  AuthenticatedAccountIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedAccountRoute,
-  } as any)
-const AuthenticatedAccountBillingRoute =
-  AuthenticatedAccountBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
-    getParentRoute: () => AuthenticatedAccountRoute,
-  } as any)
-const AuthenticatedAccountSecurityRoute =
-  AuthenticatedAccountSecurityRouteImport.update({
-    id: '/security',
-    path: '/security',
-    getParentRoute: () => AuthenticatedAccountRoute,
-  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -193,8 +172,6 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
-  '/account/billing': typeof AuthenticatedAccountBillingRoute
-  '/account/security': typeof AuthenticatedAccountSecurityRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -203,7 +180,6 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
-  '/account/': typeof AuthenticatedAccountIndexRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -217,10 +193,9 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/account': typeof AuthenticatedAccountRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
-  '/account/billing': typeof AuthenticatedAccountBillingRoute
-  '/account/security': typeof AuthenticatedAccountSecurityRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -229,7 +204,6 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
-  '/account': typeof AuthenticatedAccountIndexRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -249,8 +223,6 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
-  '/_authenticated/account/billing': typeof AuthenticatedAccountBillingRoute
-  '/_authenticated/account/security': typeof AuthenticatedAccountSecurityRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -259,7 +231,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
-  '/_authenticated/account/': typeof AuthenticatedAccountIndexRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -279,8 +250,6 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/workspaces'
-    | '/account/billing'
-    | '/account/security'
     | '/admin/billing'
     | '/admin/feedback'
     | '/admin/media'
@@ -289,7 +258,6 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/api/webhooks/stripe'
-    | '/account/'
     | '/admin/'
     | '/account/billing/success'
     | '/admin/feedback/comments'
@@ -303,10 +271,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify-email'
+    | '/account'
     | '/workspaces'
     | '/'
-    | '/account/billing'
-    | '/account/security'
     | '/admin/billing'
     | '/admin/feedback'
     | '/admin/media'
@@ -315,7 +282,6 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/api/webhooks/stripe'
-    | '/account'
     | '/admin'
     | '/account/billing/success'
     | '/admin/feedback/comments'
@@ -334,8 +300,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
-    | '/_authenticated/account/billing'
-    | '/_authenticated/account/security'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
@@ -344,7 +308,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/users'
     | '/api/webhooks/stripe'
-    | '/_authenticated/account/'
     | '/_authenticated/admin/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/feedback/comments'
@@ -443,27 +406,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/account/': {
-      id: '/_authenticated/account/'
-      path: '/'
-      fullPath: '/account/'
-      preLoaderRoute: typeof AuthenticatedAccountIndexRouteImport
-      parentRoute: typeof AuthenticatedAccountRoute
-    }
-    '/_authenticated/account/billing': {
-      id: '/_authenticated/account/billing'
-      path: '/billing'
-      fullPath: '/account/billing'
-      preLoaderRoute: typeof AuthenticatedAccountBillingRouteImport
-      parentRoute: typeof AuthenticatedAccountRoute
-    }
-    '/_authenticated/account/security': {
-      id: '/_authenticated/account/security'
-      path: '/security'
-      fullPath: '/account/security'
-      preLoaderRoute: typeof AuthenticatedAccountSecurityRouteImport
-      parentRoute: typeof AuthenticatedAccountRoute
-    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -559,16 +501,10 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAccountRouteChildren {
-  AuthenticatedAccountBillingRoute: typeof AuthenticatedAccountBillingRoute
-  AuthenticatedAccountSecurityRoute: typeof AuthenticatedAccountSecurityRoute
-  AuthenticatedAccountIndexRoute: typeof AuthenticatedAccountIndexRoute
   AuthenticatedAccountBillingSuccessRoute: typeof AuthenticatedAccountBillingSuccessRoute
 }
 
 const AuthenticatedAccountRouteChildren: AuthenticatedAccountRouteChildren = {
-  AuthenticatedAccountBillingRoute: AuthenticatedAccountBillingRoute,
-  AuthenticatedAccountSecurityRoute: AuthenticatedAccountSecurityRoute,
-  AuthenticatedAccountIndexRoute: AuthenticatedAccountIndexRoute,
   AuthenticatedAccountBillingSuccessRoute:
     AuthenticatedAccountBillingSuccessRoute,
 }

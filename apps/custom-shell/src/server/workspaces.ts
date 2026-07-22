@@ -389,37 +389,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 }
 
 function createDefaultWorkspaceSections(): ShellSection[] {
+  // The account area is a modal opened from the user menu, so it has no sidebar
+  // section of its own.
   return [
-    {
-      id: "section-account",
-      title: "Account",
-      entries: [
-        {
-          type: "item",
-          id: "item-account",
-          label: "Account",
-          href: "/account",
-          icon: "user-round",
-          visible: true,
-        },
-        {
-          type: "item",
-          id: "item-account-billing",
-          label: "Billing",
-          href: "/account/billing",
-          icon: "credit-card",
-          visible: true,
-        },
-        {
-          type: "item",
-          id: "item-account-security",
-          label: "Security",
-          href: "/account/security",
-          icon: "shield-check",
-          visible: true,
-        },
-      ],
-    },
     {
       // Members never see this section: every entry is admin-only, and the
       // /admin route guard refuses them again server-side.

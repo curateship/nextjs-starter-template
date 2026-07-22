@@ -99,7 +99,9 @@ function BillingSuccessRoute() {
         </CardHeader>
         <CardContent>
           <Button asChild>
-            <Link to="/account/billing">Go to billing</Link>
+            <Link to="/" search={{ account: "billing" }}>
+              Go to billing
+            </Link>
           </Button>
         </CardContent>
       </Card>
