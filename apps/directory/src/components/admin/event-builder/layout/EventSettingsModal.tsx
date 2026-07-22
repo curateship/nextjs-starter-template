@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -138,9 +140,9 @@ export function EventSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="admin">
+      <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+          <DialogTitle className="flex min-w-0 flex-wrap items-center gap-3">
             Configure settings for &quot;{event.title}&quot;
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
@@ -153,15 +155,19 @@ export function EventSettingsModal({
           </DialogTitle>
         </DialogHeader>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+textarea]:mt-2"
+        >
+          <DialogBody>
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-          {/* Event Settings */}
-          <div className="grid grid-cols-2 gap-6">
+            {/* Event Settings */}
+            <div className="grid grid-cols-2 gap-6">
             {/* Template */}
             <div className="col-span-2">
               <Label htmlFor="modal-template">Template</Label>
@@ -236,8 +242,10 @@ export function EventSettingsModal({
             </p>
           </div>
 
+          </DialogBody>
+
           {/* Form Actions */}
-          <div className="flex justify-between pt-4">
+          <DialogFooter className="justify-between">
             <Button
               type="button"
               variant="outline"
@@ -247,13 +255,9 @@ export function EventSettingsModal({
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button
-                type="submit"
-                variant="outline"
-              disabled={saving}
-            >
-              {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
-            </Button>
+              <Button type="submit" variant="outline" disabled={saving}>
+                {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+              </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
@@ -262,9 +266,8 @@ export function EventSettingsModal({
                 {savingAction === 'publish' ? 'Saving...' : event?.is_published ? 'Save' : 'Publish'}
               </Button>
             </div>
-          </div>
+          </DialogFooter>
         </form>
-
       </DialogContent>
     </Dialog>
   )

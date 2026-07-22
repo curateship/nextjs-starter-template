@@ -6,7 +6,7 @@
  * admin_settings table and applied through directory's admin shell.
  *
  * Defaults are tuned to reproduce directory's current look (12px canvas gutter,
- * borderless cards, bg-background modals, black/50 backdrop), so enabling the
+ * borderless cards, popover modal surface, light 10% backdrop), so enabling the
  * feature changes nothing until an admin adjusts a control.
  */
 
@@ -28,6 +28,8 @@ export type AdminModalStyling = {
   borderWidth: number
   /** Modal border color. */
   borderColor: AdminBackground
+  /** Inner spacing: modal padding + the gaps between its sections/cards, in px. */
+  padding: number
   /** Backdrop dimming behind the modal, 0–100. */
   overlayOpacity: number
   /** Background of cards inside the modal. */
@@ -62,8 +64,12 @@ export const DEFAULT_CONTENT_GUTTER = 12
 export const MAX_CARD_BORDER_WIDTH = 3
 // Directory admin cards are borderless by default.
 export const DEFAULT_CARD_BORDER_WIDTH = 0
-// Reproduces the overlay's current `bg-black/50`.
-export const DEFAULT_MODAL_OVERLAY_OPACITY = 50
+export const MAX_MODAL_PADDING = 48
+// A modal's inner spacing (padding + section/card gaps), independent of the
+// page content gutter.
+export const DEFAULT_MODAL_PADDING = 24
+// A light dimming behind the modal, matching the shared custom-shell standard.
+export const DEFAULT_MODAL_OVERLAY_OPACITY = 10
 export const DEFAULT_STRENGTH = 60
 
 export const ADMIN_BACKGROUND_MODES: readonly AdminBackgroundMode[] = [
@@ -89,6 +95,10 @@ export function clampStrength(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_STRENGTH)
 }
 
+export function clampModalPadding(value: unknown): number {
+  return clampInt(value, 0, MAX_MODAL_PADDING, DEFAULT_MODAL_PADDING)
+}
+
 export function clampOverlayOpacity(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_MODAL_OVERLAY_OPACITY)
 }
@@ -98,6 +108,7 @@ export function createDefaultModalStyling(): AdminModalStyling {
     background: { mode: "default", strength: 100, color: "#ffffff" },
     borderWidth: 1,
     borderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    padding: DEFAULT_MODAL_PADDING,
     overlayOpacity: DEFAULT_MODAL_OVERLAY_OPACITY,
     cardBackground: { mode: "default", strength: 100, color: "#ffffff" },
     cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
@@ -144,6 +155,7 @@ export function normalizeModalStyling(value: unknown): AdminModalStyling {
     background: normalizeBackground(modal.background, fallback.background),
     borderWidth: clampCardBorderWidth(modal.borderWidth ?? fallback.borderWidth),
     borderColor: normalizeBackground(modal.borderColor, fallback.borderColor),
+    padding: clampModalPadding(modal.padding ?? fallback.padding),
     overlayOpacity: clampOverlayOpacity(modal.overlayOpacity ?? fallback.overlayOpacity),
     cardBackground: normalizeBackground(modal.cardBackground, fallback.cardBackground),
     cardBorderWidth: clampCardBorderWidth(modal.cardBorderWidth ?? fallback.cardBorderWidth),
@@ -198,14 +210,15 @@ export function resolveBackground(
  * in styles.css. Values in "default" mode are omitted so the theme's own tokens
  * (via the CSS fallbacks) show through.
  *
- * `--shell-gutter` is emitted here as well as on the content canvas: modals use
- * the same content-spacing setting for their outer padding and the gaps between
- * their sections, so a modal reads as the page canvas in miniature.
+ * `--shell-gutter` is emitted here as well as on the content canvas so portaled
+ * surfaces can read the page content spacing. Modals no longer follow it: their
+ * inner spacing has its own setting, emitted as `--shell-modal-padding`.
  */
 export function getRootStyleVars(styling: AdminStyling): Record<string, string> {
   const modal = styling.modal
   const vars: Record<string, string> = {
     "--shell-gutter": `${clampGutter(styling.gutter)}px`,
+    "--shell-modal-padding": `${clampModalPadding(modal.padding)}px`,
     "--shell-modal-overlay-opacity": `${clampOverlayOpacity(modal.overlayOpacity)}%`,
     "--shell-modal-border-width": String(clampCardBorderWidth(modal.borderWidth)),
     "--shell-modal-card-border-width": String(clampCardBorderWidth(modal.cardBorderWidth)),
@@ -237,6 +250,7 @@ export const ROOT_STYLE_VAR_NAMES = [
   "--shell-gutter",
   "--border",
   "--sidebar-border",
+  "--shell-modal-padding",
   "--shell-modal-overlay-opacity",
   "--shell-modal-border-width",
   "--shell-modal-border-color",

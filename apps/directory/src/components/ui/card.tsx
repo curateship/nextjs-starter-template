@@ -31,7 +31,9 @@ const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
       data-slot="card-group"
       className={cn(className)}
       // Gap between cards tracks the content-spacing setting via --shell-gutter.
-      style={{ gap: "var(--shell-gutter, 0.75rem)", ...style }}
+      // Inside a modal the dialog surface sets --card-group-gap to the modal's
+      // own Inner-spacing, so modal cards space by the modal setting instead.
+      style={{ gap: "var(--card-group-gap, var(--shell-gutter, 0.75rem))", ...style }}
       {...props}
     />
   )

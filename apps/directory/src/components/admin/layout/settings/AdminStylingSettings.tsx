@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider"
 import {
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
+  MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
   resolveBackground,
   type AdminBackground,
@@ -91,7 +92,7 @@ export function AdminStylingSettings({
             valueLabel={`${styling.gutter}px`}
             disabled={isSaving}
             onChange={(gutter) => update({ gutter })}
-            help="One spacing value for the whole admin area: the outer padding of the page canvas, the gaps between cards, and the padding and section gaps inside modals. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
+            help="One spacing value for the page area: the outer padding of the page canvas and the gaps between cards. Set to 0 for a flat layout with no card borders, rounded corners, or spacing. Modals have their own Inner spacing setting (in the Modal card below)."
           />
 
           <SliderRow
@@ -239,11 +240,20 @@ export function AdminStylingSettings({
           <CardTitle>Modal</CardTitle>
           <CardDescription>
             Dialogs across the admin area. Changes apply to any open modal live.
-            Modal padding and the gaps between its sections follow the Content
-            spacing setting above.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          <SliderRow
+            label="Inner spacing"
+            value={modal.padding}
+            min={0}
+            max={MAX_MODAL_PADDING}
+            valueLabel={`${modal.padding}px`}
+            disabled={isSaving}
+            onChange={(padding) => updateModal({ padding })}
+            help="Padding inside the modal and the gaps between its sections and cards."
+          />
+
           <SliderRow
             label="Backdrop dimming"
             value={modal.overlayOpacity}
@@ -349,10 +359,13 @@ function ModalPreview({ modal }: { modal: AdminModalStyling }) {
             backgroundColor: `color-mix(in oklab, black ${modal.overlayOpacity}%, transparent)`,
           }}
         />
-        {/* Mimics the real dialog structure so the modal CSS variables preview here. */}
+        {/* Mimics the real dialog structure so the modal CSS variables preview
+            here. Padding + gap are inlined from the live Inner-spacing value so
+            the preview tracks the slider without depending on the root var. */}
         <div
           data-slot="dialog-content"
-          className="relative mx-auto flex max-w-sm flex-col gap-4 overflow-hidden rounded-xl"
+          className="relative mx-auto flex max-w-sm flex-col overflow-hidden rounded-xl"
+          style={{ padding: modal.padding, gap: modal.padding }}
         >
           <div data-slot="dialog-header" className="flex flex-col gap-1 text-left">
             <div className="text-base leading-none font-medium">Dialog title</div>
