@@ -267,9 +267,6 @@ export function AdminUsersDashboard({
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
-            {loading ? (
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            ) : null}
           </>
         }
         header={
