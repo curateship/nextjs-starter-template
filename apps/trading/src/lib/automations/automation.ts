@@ -12,6 +12,11 @@ import {
   automationNodeSourcePortIsValid,
 } from "./node-registry"
 import {
+  DEFAULT_DCA_MAX_POSITION_PCT,
+  dcaRungsSchema,
+  type AutomationDcaRung,
+} from "./dca"
+import {
   marketScannerSettingsFieldsSchema,
   marketScannerSettingsSchema,
   qflSettingsFieldsSchema,
@@ -129,6 +134,23 @@ export type AutomationQflNode = QflSettings & {
   y: number
 }
 
+/**
+ * Dollar-Cost-Averaging buy ladder. Places one resting buy per rung, each a set
+ * percent below the base it is fed and sized by the rung's own percent. It owns
+ * averaging-IN only — Take Profit and Stop Loss nodes hung on it own the exits
+ * and read its running average. Execution lands with the exits; until then a DCA
+ * automation compiles to a not-yet-runnable error rather than an empty bot.
+ */
+export type AutomationDcaNode = {
+  id: string
+  kind: "dca"
+  rungs: AutomationDcaRung[]
+  /** Most of the account the whole ladder may ever hold, in percent. */
+  maxPositionPct: number
+  x: number
+  y: number
+}
+
 export type AutomationNode =
   | AutomationIndicatorNode
   | AutomationLogicNode
@@ -140,6 +162,7 @@ export type AutomationNode =
   | AutomationWhaleWallNode
   | AutomationMarketScannerNode
   | AutomationQflNode
+  | AutomationDcaNode
 
 /**
  * Ceiling on the engine's per-candle evaluation window (candles). A Look Back
@@ -306,6 +329,28 @@ export type AutomationMarketScannerConfig = MarketScannerSettings & {
   nodeId: string
 }
 
+/**
+ * Compiled DCA ladder: the rung table and pot cap from the DCA node plus the
+ * base-detection params from the Base indicator feeding it. The Take Profit /
+ * Stop Loss hung on the node fold into `AutomationConfig.protection.long`, and
+ * the exits measure from the broker's blended average — no separate averaging.
+ */
+export type AutomationDcaConfig = {
+  nodeId: string
+  rungs: AutomationDcaRung[]
+  maxPositionPct: number
+  basePeriods: number
+  pumpPeriods: number
+  crackPct: number
+  /** Fast-fall gate: only count a crack that fell within this many candles. */
+  maxCrackBars: number
+  /** Past base quality: skip a crack unless the market's history earns it. */
+  respectFilterEnabled: boolean
+  respectLookbackMonths: number
+  minRespectPct: number
+  recoveryTargetPct: number
+}
+
 export type AutomationConfig = {
   v: 2
   kind: "automation"
@@ -314,6 +359,26 @@ export type AutomationConfig = {
   protection: AutomationProtection
   marketScanner?: AutomationMarketScannerConfig
   qfl?: AutomationQflConfig
+  dca?: AutomationDcaConfig
+}
+
+/**
+ * Candles a DCA ladder must keep loaded: enough for the base tracker, plus the
+ * months the Past-base-quality check scans when it is on. One source of truth
+ * for both the engine window sizing and the runner's candle fetch.
+ */
+export function dcaHistoryBars(
+  dca: AutomationDcaConfig,
+  interval: AutomationInterval
+): number {
+  const base = dca.basePeriods + dca.pumpPeriods + 50
+  if (!dca.respectFilterEnabled) return base
+  const MONTH_MS = 30 * 86_400_000
+  return (
+    Math.ceil(
+      (dca.respectLookbackMonths * MONTH_MS) / AUTOMATION_INTERVAL_MS[interval]
+    ) + base
+  )
 }
 
 export type AutomationValidationError = {
@@ -365,6 +430,7 @@ const draftIndicatorSelectionSchema = z.object({
       "Too many parameters"
     ),
 })
+
 
 const automationNodeSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -440,6 +506,19 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("qfl"),
     ...qflSettingsFieldsSchema.shape,
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("dca"),
+    rungs: dcaRungsSchema,
+    // Default keeps DCA nodes saved before this field existed loadable.
+    maxPositionPct: z
+      .number()
+      .positive()
+      .max(100)
+      .default(DEFAULT_DCA_MAX_POSITION_PCT),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -619,6 +698,20 @@ const automationQflConfigSchema: z.ZodType<AutomationQflConfig> =
 const automationMarketScannerConfigSchema: z.ZodType<AutomationMarketScannerConfig> =
   z.intersection(z.object({ nodeId: idSchema }), marketScannerSettingsSchema)
 
+const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
+  nodeId: idSchema,
+  rungs: dcaRungsSchema,
+  maxPositionPct: z.number().positive().max(100),
+  basePeriods: z.number().int().min(4).max(500),
+  pumpPeriods: z.number().int().min(1).max(499),
+  crackPct: z.number().positive().max(50),
+  maxCrackBars: z.number().int().min(1).max(500),
+  respectFilterEnabled: z.boolean(),
+  respectLookbackMonths: z.number().int().min(1).max(60),
+  minRespectPct: z.number().min(0).max(100),
+  recoveryTargetPct: z.number().min(-50).max(50),
+})
+
 function conditionHasLiveWall(condition: AutomationCondition): boolean {
   if (condition.kind === "liveWall") return true
   if (condition.kind === "trigger") return false
@@ -640,13 +733,21 @@ export const automationConfigSchema: z.ZodType<AutomationConfig> = z
     protection: automationProtectionSchema,
     marketScanner: automationMarketScannerConfigSchema.optional(),
     qfl: automationQflConfigSchema.optional(),
+    dca: automationDcaConfigSchema.optional(),
   })
   .superRefine((config, ctx) => {
-    if (config.rules.length === 0 && !config.qfl) {
+    if (config.rules.length === 0 && !config.qfl && !config.dca) {
       ctx.addIssue({
         code: "custom",
         path: ["rules"],
         message: "Add at least one executable entry.",
+      })
+    }
+    if (config.qfl && config.dca) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["dca"],
+        message: "An Automation can't mix a DCA node and a QFL node.",
       })
     }
     if (config.marketScanner && !config.qfl) {
@@ -662,6 +763,13 @@ export const automationConfigSchema: z.ZodType<AutomationConfig> = z
         code: "custom",
         path: ["rules"],
         message: "QFL must be the Automation's only entry owner.",
+      })
+    }
+    if (config.dca && entryRules.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message: "DCA must be the Automation's only entry owner.",
       })
     }
     if (
@@ -747,6 +855,13 @@ export function compileAutomationGraph(input: {
         code: "invalid_strategy",
         nodeId: node.id,
         message: "QFL settings are outside their allowed ranges.",
+      })
+    }
+    if (node.kind === "dca" && !dcaRungsSchema.safeParse(node.rungs).success) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: node.id,
+        message: "DCA rungs are outside their allowed ranges.",
       })
     }
     if (
@@ -848,13 +963,30 @@ export function compileAutomationGraph(input: {
   const qflNodes = nodes.filter(
     (node): node is AutomationQflNode => node.kind === "qfl"
   )
-  if (actions.length === 0 && qflNodes.length === 0)
+  const dcaNodes = nodes.filter(
+    (node): node is AutomationDcaNode => node.kind === "dca"
+  )
+  if (actions.length === 0 && qflNodes.length === 0 && dcaNodes.length === 0)
     addError({ code: "empty", message: "Add at least one action." })
   if (qflNodes.length > 1) {
     addError({
       code: "invalid_strategy",
       nodeId: qflNodes[1].id,
       message: "An Automation can contain only one QFL node.",
+    })
+  }
+  if (dcaNodes.length > 1) {
+    addError({
+      code: "invalid_strategy",
+      nodeId: dcaNodes[1].id,
+      message: "An Automation can contain only one DCA node.",
+    })
+  }
+  if (dcaNodes.length > 0 && qflNodes.length > 0) {
+    addError({
+      code: "invalid_strategy",
+      nodeId: dcaNodes[0].id,
+      message: "An Automation can't mix a DCA node and a QFL node.",
     })
   }
   for (const node of nodes) {
@@ -955,17 +1087,19 @@ export function compileAutomationGraph(input: {
       const port = node.kind === "takeProfit" ? "tp" : "sl"
       const attached = (incoming.get(node.id) ?? []).some((edge) => {
         const parent = nodeById.get(edge.from)
+        if (edge.sourcePort !== port) return false
+        // A DCA node is a long entry with the same tp/sl hooks as a Long action.
+        if (parent?.kind === "dca") return true
         return (
           parent?.kind === "action" &&
-          (parent.action === "buy" || parent.action === "short") &&
-          edge.sourcePort === port
+          (parent.action === "buy" || parent.action === "short")
         )
       })
       if (!attached) {
         addError({
           code: "invalid_protection",
           nodeId: node.id,
-          message: `${label} must hang off a Long or Short entry's ${node.kind === "takeProfit" ? "take-profit" : "stop-loss"} hook.`,
+          message: `${label} must hang off a Long, Short, or DCA entry's ${node.kind === "takeProfit" ? "take-profit" : "stop-loss"} hook.`,
         })
       }
     }
@@ -999,6 +1133,14 @@ export function compileAutomationGraph(input: {
   }
 
   const ownedEntry = actions.find((node) => node.action !== "close")
+  if (dcaNodes.length > 0 && ownedEntry) {
+    addError({
+      code: "action_input",
+      nodeId: ownedEntry.id,
+      message:
+        "DCA owns entries. Remove Long, Short, Reverse, and Whale Wall entry paths.",
+    })
+  }
   if (qflNodes.length > 0 && ownedEntry) {
     addError({
       code: "action_input",
@@ -1011,6 +1153,7 @@ export function compileAutomationGraph(input: {
   const connected = new Set<string>([
     ...actions.map((node) => node.id),
     ...qflNodes.map((node) => node.id),
+    ...dcaNodes.map((node) => node.id),
   ])
   const markAncestors = (id: string) => {
     for (const edge of incoming.get(id) ?? []) {
@@ -1021,13 +1164,15 @@ export function compileAutomationGraph(input: {
   }
   for (const action of actions) markAncestors(action.id)
   for (const qfl of qflNodes) markAncestors(qfl.id)
-  // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action → node), so
+  for (const dca of dcaNodes) markAncestors(dca.id)
+  // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action/DCA → node), so
   // ancestor-marking never reaches them — count an attached one as connected.
   for (const node of nodes) {
     if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
-    const attached = (incoming.get(node.id) ?? []).some(
-      (edge) => nodeById.get(edge.from)?.kind === "action"
-    )
+    const attached = (incoming.get(node.id) ?? []).some((edge) => {
+      const from = nodeById.get(edge.from)?.kind
+      return from === "action" || from === "dca"
+    })
     if (attached) connected.add(node.id)
   }
   for (const node of nodes) {
@@ -1035,7 +1180,7 @@ export function compileAutomationGraph(input: {
       addError({
         code: "dangling",
         nodeId: node.id,
-        message: "Node is not connected to an action or QFL.",
+        message: "Node is not connected to an action or DCA.",
       })
     }
   }
@@ -1163,6 +1308,51 @@ export function compileAutomationGraph(input: {
     }
   }
 
+  const dcaNode = dcaNodes[0]
+  let dca: AutomationDcaConfig | undefined
+  if (dcaNode) {
+    const baseEdge = (incoming.get(dcaNode.id) ?? []).find((edge) => {
+      const from = nodeById.get(edge.from)
+      return from?.kind === "indicator" && from.indicator.type === "base"
+    })
+    const baseNode = baseEdge ? nodeById.get(baseEdge.from) : undefined
+    if (!baseNode || baseNode.kind !== "indicator") {
+      addError({
+        code: "invalid_strategy",
+        nodeId: dcaNode.id,
+        message: "Connect a Base indicator to the DCA node.",
+      })
+    } else {
+      // Base params passed the per-node indicator check above; parse to read
+      // them as the base-detection settings the runtime ladder anchors to.
+      const baseParams = INDICATORS.base.paramsSchema.parse(
+        baseNode.indicator.params
+      ) as {
+        basePeriods: number
+        pumpPeriods: number
+        crackPct: number
+        maxCrackBars: number
+        respectFilterEnabled: boolean
+        respectLookbackMonths: number
+        minRespectPct: number
+        recoveryTargetPct: number
+      }
+      dca = {
+        nodeId: dcaNode.id,
+        rungs: dcaNode.rungs.map((rung) => ({ ...rung })),
+        maxPositionPct: dcaNode.maxPositionPct,
+        basePeriods: baseParams.basePeriods,
+        pumpPeriods: baseParams.pumpPeriods,
+        crackPct: baseParams.crackPct,
+        maxCrackBars: baseParams.maxCrackBars,
+        respectFilterEnabled: baseParams.respectFilterEnabled,
+        respectLookbackMonths: baseParams.respectLookbackMonths,
+        minRespectPct: baseParams.minRespectPct,
+        recoveryTargetPct: baseParams.recoveryTargetPct,
+      }
+    }
+  }
+
   const rules = actions.map((node): AutomationRule => {
     const inputs = (incoming.get(node.id) ?? []).map(compileEdge)
     const rule: AutomationRule = {
@@ -1234,6 +1424,12 @@ export function compileAutomationGraph(input: {
     const key = node.kind === "takeProfit" ? "takeProfitPct" : "stopLossPct"
     for (const edge of incoming.get(node.id) ?? []) {
       const parent = nodeById.get(edge.from)
+      // A DCA node is a long entry — its exits fold into the long side.
+      if (parent?.kind === "dca") {
+        setLevel("long", key, node.pct, node.id)
+        if (node.kind === "stopLoss") setStopBehavior("long", node)
+        continue
+      }
       if (parent?.kind !== "action") continue
       if (parent.action === "buy") {
         setLevel("long", key, node.pct, node.id)
@@ -1363,6 +1559,7 @@ export function compileAutomationGraph(input: {
       protection,
       ...(marketScanner ? { marketScanner } : {}),
       ...(qfl ? { qfl } : {}),
+      ...(dca ? { dca } : {}),
     },
     errors: [],
   }

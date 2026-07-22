@@ -3,6 +3,10 @@ import type {
   AutomationSourcePort,
 } from "@/lib/automations/automation"
 import {
+  DEFAULT_DCA_MAX_POSITION_PCT,
+  DEFAULT_DCA_RUNGS,
+} from "@/lib/automations/dca"
+import {
   DEFAULT_MARKET_SCANNER_SETTINGS,
   DEFAULT_QFL_SETTINGS,
 } from "@/lib/automations/qfl"
@@ -18,6 +22,7 @@ export type AutomationPaletteKey =
   | "scanner-market"
   | "scanner-whale-wall"
   | "strategy-qfl"
+  | "strategy-dca"
   | "filter-lookback"
   | "filter-timeframe"
   | "action-buy"
@@ -43,6 +48,7 @@ export type AutomationNodeIconName =
 
 export type AutomationNodeInspectorKind =
   | "action"
+  | "dca"
   | "indicator"
   | "legacy"
   | "lookback"
@@ -136,9 +142,9 @@ function indicatorDefinition(id: IndicatorId): AutomationNodeDefinition {
           ? null
           : "The Trend output can only connect to an indicator, Look Back, Timeframe, or QFL node."
       }
-      return target.kind === "action"
+      return target.kind === "action" || target.kind === "dca"
         ? null
-        : "Bullish and Bearish outputs can only connect to an action."
+        : "Bullish and Bearish outputs can only connect to an action or a DCA node."
     },
   }
 }
@@ -288,6 +294,51 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     inspector: "qfl",
     outputPorts: noOutputs,
     connectionError: noConnection,
+  },
+  {
+    palette: {
+      key: "strategy-dca",
+      group: "Strategies",
+      description: "Average into a position with a ladder of buys below the base",
+    },
+    matches: (node) => node.kind === "dca",
+    create: ({ id, x, y }) => ({
+      id,
+      kind: "dca",
+      rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
+      maxPositionPct: DEFAULT_DCA_MAX_POSITION_PCT,
+      x,
+      y,
+    }),
+    name: () => "DCA",
+    description: (node) => {
+      if (node.kind !== "dca") return ""
+      const first = node.rungs[0]?.deviation ?? 0
+      const last = node.rungs.at(-1)?.deviation ?? 0
+      return `${node.rungs.length} buys to ${node.maxPositionPct}%, ${first}%–${last}% below the base.`
+    },
+    icon: "layers",
+    inspector: "dca",
+    // No signal output; TP/SL hang off its top/bottom hooks and read its average.
+    outputPorts: noOutputs,
+    sourcePorts: ["tp", "sl"],
+    attachmentPorts: [
+      { id: "tp", edge: "top" },
+      { id: "sl", edge: "bottom" },
+    ],
+    connectionError: (sourcePort, target) => {
+      if (sourcePort === "tp") {
+        return target.kind === "takeProfit"
+          ? null
+          : "The Take Profit hook can only connect to a Take Profit node."
+      }
+      if (sourcePort === "sl") {
+        return target.kind === "stopLoss"
+          ? null
+          : "The Stop Loss hook can only connect to a Stop Loss node."
+      }
+      return noConnection()
+    },
   },
   actionDefinition(
     "buy",

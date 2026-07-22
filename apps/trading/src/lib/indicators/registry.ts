@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { IndicatorModule } from "./contract"
+import { baseIndicator } from "./defs/base"
 import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
 import { emaCrossIndicator } from "./defs/ema-cross"
@@ -21,6 +22,7 @@ export const INDICATOR_IDS = [
   "price_action",
   "fair_value_gap",
   "trendline",
+  "base",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -45,6 +47,7 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   price_action: erase(priceActionIndicator),
   fair_value_gap: erase(fairValueGapIndicator),
   trendline: erase(trendlineIndicator),
+  base: erase(baseIndicator),
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

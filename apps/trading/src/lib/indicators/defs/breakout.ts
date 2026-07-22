@@ -23,7 +23,13 @@ export const breakoutIndicator: IndicatorModule<BreakoutParams> = {
     "Buys when price closes above its recent high-water mark, sells when it closes below the recent low.",
   paramsSchema,
   defaultParams: { lookback: 55 },
-  paramFields: [{ key: "lookback", label: "Lookback bars" }],
+  paramFields: [
+    {
+      key: "lookback",
+      label: "Lookback bars",
+      info: "How many candles back to measure the recent high and low that price must break to fire.",
+    },
+  ],
   warmupBars: (params) => params.lookback + 10,
 
   compute: (candles, params): IndicatorOutput => {

@@ -23,6 +23,7 @@ import type {
 import { nextTrailState, type TrailState } from "@/lib/strategies/trailing-stop"
 import { exitLevels, tickExit } from "./trade-manager"
 import { closestBookWalls, type BookWall } from "../scanner/book-metrics"
+import { createDcaAutomationStrategy } from "./dca-automation"
 import { createQflAutomationStrategy } from "./qfl-automation"
 
 const WALL_ENTRY_PURPOSE = "auto:wall-entry"
@@ -223,6 +224,12 @@ export function createAutomationStrategy(
 ): Strategy<never, AutomationState> {
   if (config.qfl) {
     return createQflAutomationStrategy(config) as unknown as Strategy<
+      never,
+      AutomationState
+    >
+  }
+  if (config.dca) {
+    return createDcaAutomationStrategy(config) as unknown as Strategy<
       never,
       AutomationState
     >

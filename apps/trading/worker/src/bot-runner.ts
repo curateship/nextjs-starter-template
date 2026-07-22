@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm"
 import type { CandleWsEvent } from "@nktkas/hyperliquid"
 
+import { dcaHistoryBars } from "@/lib/automations/automation"
 import {
   qflHistoryBars,
   qflRequiredHistoryMonths,
@@ -110,6 +111,7 @@ export class BotRunner {
       this.asset = await getAssetInfo(this.botNetwork, this.market)
       await this.loadState()
       await this.loadQflHistory()
+      await this.loadDcaHistory()
 
       if (this.bot.mode === "paper") {
         const broker = new PaperBroker({
@@ -656,15 +658,14 @@ export class BotRunner {
     return merged.length <= n ? merged : merged.slice(merged.length - n)
   }
 
-  private async loadQflHistory() {
-    const qfl = this.params.qfl
-    if (!qfl) return
-    const months = qflRequiredHistoryMonths(qfl, this.params.marketScanner)
-    if (months <= 0) return
-
-    const interval = this.params.interval
+  /** Prefetch `bars` closed candles into the warmup cache for one interval. */
+  private async loadHistoryBars(
+    interval: AutomationConfig["interval"],
+    bars: number,
+    warnType: string,
+    waitingLabel: string
+  ) {
     const endMs = Date.now()
-    const bars = qflHistoryBars(qfl, interval, months)
     try {
       const history = await fetchCandleHistory(
         this.market,
@@ -691,10 +692,34 @@ export class BotRunner {
       const reason = error instanceof Error ? error.message : "history failed"
       await this.event(
         "warn",
-        "qfl_history_warmup",
-        `QFL is waiting for enough history: ${reason.slice(0, 220)}`
+        warnType,
+        `${waitingLabel}: ${reason.slice(0, 220)}`
       )
     }
+  }
+
+  private async loadQflHistory() {
+    const qfl = this.params.qfl
+    if (!qfl) return
+    const months = qflRequiredHistoryMonths(qfl, this.params.marketScanner)
+    if (months <= 0) return
+    await this.loadHistoryBars(
+      this.params.interval,
+      qflHistoryBars(qfl, this.params.interval, months),
+      "qfl_history_warmup",
+      "QFL is waiting for enough history"
+    )
+  }
+
+  private async loadDcaHistory() {
+    const dca = this.params.dca
+    if (!dca) return
+    await this.loadHistoryBars(
+      this.params.interval,
+      dcaHistoryBars(dca, this.params.interval),
+      "dca_history_warmup",
+      "DCA is waiting for enough history"
+    )
   }
 
   private async loadState() {

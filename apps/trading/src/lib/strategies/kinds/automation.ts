@@ -2,6 +2,7 @@ import {
   AUTOMATION_MAX_WINDOW_BARS,
   automationHtfInterval,
   automationIntervalRatio,
+  dcaHistoryBars,
   type AutomationCondition,
   type AutomationConfig,
 } from "@/lib/automations/automation"
@@ -34,6 +35,7 @@ export function automationWarmupBars(config: AutomationConfig) {
           ),
         ]
       : []),
+    ...(config.dca ? [dcaHistoryBars(config.dca, config.interval)] : []),
     ...triggers.flatMap((trigger) => [
       bars(trigger.indicator),
       // A Look Back filter must SEE a signal up to maxAgeBars old, so its
