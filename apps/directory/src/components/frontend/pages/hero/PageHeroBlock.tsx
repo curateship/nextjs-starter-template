@@ -165,6 +165,9 @@ const EmailSubscriptionForm = ({ config, alignment, siteId, blockId }: { config:
       setEmail('');
       const redirectUrl = getRedirectUrl();
       if (redirectUrl) {
+        // Admin-configured redirect after subscribe — may be an external URL or
+        // an internal path, so use a full navigation that handles both. Keep
+        // intentional; do not convert to SPA routing.
         window.location.assign(redirectUrl);
         return;
       }
