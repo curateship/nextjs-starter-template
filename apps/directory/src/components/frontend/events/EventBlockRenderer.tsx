@@ -27,6 +27,10 @@ interface EventBlockRendererProps {
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  /** Absolute URL of this event page, used for add-to-calendar links. */
+  eventUrl?: string
+  /** Absolute URL of the site-wide events feed, used for one-click subscribe. */
+  feedUrl?: string
 }
 
 function EventContentStyled({
@@ -34,11 +38,15 @@ function EventContentStyled({
   event,
   siteWidth,
   customWidth,
+  eventUrl,
+  feedUrl,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
   event: EventWithBlocks
   siteWidth?: 'full' | 'custom'
   customWidth?: number
+  eventUrl?: string
+  feedUrl?: string
 }) {
   const styleName = block.content.eventContentStyle || 'default'
   const styleConfig = block.content.styleConfig || {}
@@ -61,6 +69,8 @@ function EventContentStyled({
             venueAddress: block.content.venueAddress,
             externalCtaUrl: block.content.externalCtaUrl,
             body: block.content.body,
+            eventUrl,
+            feedUrl,
           }}
         />
       </div>
@@ -68,7 +78,7 @@ function EventContentStyled({
   )
 }
 
-export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
+export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = false, hideSiteChrome = false, eventUrl, feedUrl }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
   const getBlockContent = (block: typeof eventBlocks[number]) => getRenderBlockContent(block, isPreview)
@@ -96,6 +106,8 @@ export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = 
                 event={event}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
+                eventUrl={eventUrl}
+                feedUrl={feedUrl}
               />
               </div>
             )
