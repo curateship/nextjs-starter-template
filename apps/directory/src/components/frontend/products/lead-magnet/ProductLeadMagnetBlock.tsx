@@ -92,6 +92,9 @@ export function ProductLeadMagnetBlock({
       setEmail("")
       const redirectUrl = getRedirectUrl()
       if (redirectUrl) {
+        // Admin-configured redirect after signup — may be an external URL or an
+        // internal path, so use a full navigation that handles both. Keep
+        // intentional; do not convert to SPA routing.
         window.location.assign(redirectUrl)
         return
       }

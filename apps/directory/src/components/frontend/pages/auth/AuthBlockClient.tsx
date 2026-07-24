@@ -298,6 +298,9 @@ export function AuthBlock({
       } else {
         const rawRedirect = searchParams.get("redirect") || loginRedirectPath
         const redirectTo = getSiteAwareRedirectPath(rawRedirect)
+        // Full reload (not SPA nav): sign-in just set a new session cookie, so
+        // the whole client must rebuild with the authenticated session. Keep
+        // intentional; SPA routing would carry the signed-out state forward.
         window.location.href = redirectTo
       }
     } catch (err) {
@@ -341,6 +344,9 @@ export function AuthBlock({
 
         showVerificationState(registerEmail)
       } else {
+        // Full reload (not SPA nav): registration auto-signed-in and set a new
+        // session cookie, so the whole client must rebuild with the
+        // authenticated session. Keep intentional.
         window.location.href = getSiteAwareRedirectPath(registerRedirectPath)
       }
     } catch (err) {

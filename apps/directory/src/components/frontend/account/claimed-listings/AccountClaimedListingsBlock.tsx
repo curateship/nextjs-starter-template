@@ -341,6 +341,8 @@ export function AccountClaimedListingsBlock({
       return
     }
 
+    // External redirect to Stripe Checkout — leaving the app entirely, so this
+    // must stay a full navigation, never SPA routing.
     window.location.href = result.url
   }
 

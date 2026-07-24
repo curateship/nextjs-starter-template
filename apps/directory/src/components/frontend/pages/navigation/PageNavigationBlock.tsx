@@ -640,6 +640,8 @@ export const NavBlock = memo(function NavBlock({
   ])
   const handleSignOut = async () => {
     await authClient.signOut()
+    // Full reload (not SPA nav): sign-out clears the session cookie, so the
+    // whole client must be rebuilt as a signed-out visitor. Keep intentional.
     window.location.href = '/'
   }
 

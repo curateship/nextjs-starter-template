@@ -68,6 +68,8 @@ export function SidebarUserAdmin({
   const handleLogout = async () => {
     const redirectTo = getLogoutRedirect()
     await authClient.signOut()
+    // Full reload (not SPA nav): sign-out clears the session cookie, so the
+    // whole client must be rebuilt as a signed-out visitor. Keep intentional.
     window.location.replace(redirectTo)
   }
 

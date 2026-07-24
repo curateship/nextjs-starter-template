@@ -56,6 +56,11 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
   const search = searchParams.toString()
   const redirectPath = `${pathname || "/"}${search ? `?${search}` : ""}`
   const authHref = buildAuthHref(loginPath, redirectPath)
+  // The `!user` render below navigates to authHref with the SPA Link. The
+  // `!result.authenticated` branches in the handlers instead do a full reload:
+  // there the client thought it was signed in but the server disagreed (session
+  // expired), so we rebuild the whole client with correct auth state rather than
+  // SPA-nav on top of stale state. Keep those as full reloads.
 
   const loadState = async () => {
     setLoading(true)

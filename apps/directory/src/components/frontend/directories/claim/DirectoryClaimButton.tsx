@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { usePathname, useSearchParams } from "@/lib/navigation-client"
+import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
 import Building2 from "lucide-react/dist/esm/icons/building-2.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
@@ -54,6 +54,7 @@ export function DirectoryClaimButton({
   mutedRowClassName,
 }: DirectoryClaimButtonProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const user = useSiteAuthUser()
   const [state, setState] = useState<ClaimState | null>(null)
@@ -93,6 +94,9 @@ export function DirectoryClaimButton({
     }
 
     if (!result.authenticated) {
+      // Stale session: this button only renders for a signed-in user, but the
+      // server says otherwise (cookie expired). Full reload so the whole client
+      // rebuilds with correct auth state — an SPA nav would keep the wrong one.
       window.location.href = authHref
       return
     }
@@ -103,7 +107,10 @@ export function DirectoryClaimButton({
     }
 
     if (result.canEdit) {
-      window.location.href = OWNER_EDIT_PATH
+      // Already the owner and still signed in — no session change, just an
+      // in-app move to their listings, so use SPA navigation (matches the
+      // "Edit Listing" Link render path below).
+      router.push(OWNER_EDIT_PATH)
       return
     }
 
