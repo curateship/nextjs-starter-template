@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   AlertCircleIcon,
   BellIcon,
-  Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
   Trash2Icon,
@@ -248,11 +247,7 @@ export function NotificationsPage({
                 disabled={deleting || loadingMore}
                 onClick={() => setMassDeleteOpen(true)}
               >
-                {deleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
+                <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
@@ -500,8 +495,7 @@ function NotificationDeleteDialog({
             disabled={deleting}
             onClick={onConfirm}
           >
-            {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            {deleting ? "Working…" : confirmLabel}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

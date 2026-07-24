@@ -5,7 +5,6 @@ import { Link, useRouter } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
-  Loader2Icon,
   PlusIcon,
 } from "lucide-react"
 
@@ -175,15 +174,11 @@ export function WorkspaceSwitcher({
                         className="gap-2 p-2"
                       >
                         <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                          {busy ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <WorkspaceLogo
-                              favicon={workspaceFavicon}
-                              icon={workspace.icon}
-                              name={displayName}
-                            />
-                          )}
+                          <WorkspaceLogo
+                            favicon={workspaceFavicon}
+                            icon={workspace.icon}
+                            name={displayName}
+                          />
                         </div>
                         <div className="flex-1">
                           <div className="font-medium">{displayName}</div>

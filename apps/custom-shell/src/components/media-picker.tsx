@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   ImageIcon,
-  Loader2Icon,
   PlayIcon,
   SearchIcon,
   UploadIcon,
@@ -287,8 +286,8 @@ export function MediaPicker({
                       />
                     </div>
                     <Button type="button" onClick={handleUpload} disabled={uploading}>
-                      {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-                      {uploading ? "Uploading" : "Upload and select"}
+                      <UploadIcon className="size-4" />
+                      Upload and select
                     </Button>
                   </div>
                 </div>
@@ -296,11 +295,7 @@ export function MediaPicker({
             ) : null}
 
             <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
-              {loading ? (
-                <div className="grid h-56 place-items-center">
-                  <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : mediaItems.length === 0 ? (
+              {loading ? null : mediaItems.length === 0 ? (
                 <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <ImageIcon className="mx-auto mb-3 size-10" />

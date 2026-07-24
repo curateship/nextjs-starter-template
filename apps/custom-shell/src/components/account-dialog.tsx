@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Loader2Icon, SaveIcon } from "lucide-react"
+import { SaveIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account-profile-page"
-import { AccountBillingPage } from "@/components/account-billing-page"
+import {
+  AccountBillingPage,
+  BillingTabSkeleton,
+} from "@/components/account-billing-page"
 import { AccountSecurityPage } from "@/components/account-security-page"
 import type { AuthUser } from "@/lib/api/auth"
 import {
@@ -151,12 +154,8 @@ export function AccountDialog({
                 form={PROFILE_FORM_ID}
                 disabled={profileStatus.saving}
               >
-                {profileStatus.saving ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <SaveIcon className="size-4" />
-                )}
-                {profileStatus.saving ? "Saving" : "Save"}
+                <SaveIcon className="size-4" />
+                Save
               </Button>
             </DialogFooter>
           ) : null}
@@ -199,11 +198,7 @@ function BillingTab() {
   }
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <BillingTabSkeleton />
   }
 
   return <AccountBillingPage overview={data.overview} invoices={data.invoices} />

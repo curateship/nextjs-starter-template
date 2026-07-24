@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  Loader2Icon,
   PackageIcon,
   PlusIcon,
   SettingsIcon,
@@ -197,11 +196,7 @@ export function AdminPlansDashboard({
                 onClick={() => setMassArchiveOpen(true)}
                 disabled={massArchiving}
               >
-                {massArchiving ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
+                <Trash2Icon className="size-4" />
                 Archive ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
@@ -403,9 +398,6 @@ export function AdminPlansDashboard({
                 }
               }}
             >
-              {massArchiving ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
               Archive plans
             </Button>
           </DialogFooter>
@@ -716,7 +708,6 @@ function PlanDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2Icon className="h-4 w-4 animate-spin" /> : null}
             {plan ? "Save plan" : "Create plan"}
           </Button>
         </DialogFooter>

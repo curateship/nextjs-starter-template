@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
-  Loader2Icon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -360,7 +359,6 @@ export function WorkspacesDashboard({
               onClick={confirmMassDelete}
               disabled={busy}
             >
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Delete workspaces
             </Button>
           </DialogFooter>
@@ -470,10 +468,7 @@ function WorkspaceFormDialog({
               Cancel
             </Button>
             <Button type="button" disabled={saving} onClick={onSave}>
-              {saving ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {saving ? "Saving..." : "Save"}
+              Save
             </Button>
           </>
         </DialogFooter>
@@ -519,11 +514,7 @@ function DeleteWorkspaceDialog({
               disabled={deleting}
               onClick={onConfirm}
             >
-              {deleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="size-4" />
-              )}
+              <Trash2Icon className="size-4" />
               Delete
             </Button>
           </>

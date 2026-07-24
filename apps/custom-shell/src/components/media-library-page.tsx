@@ -5,7 +5,6 @@ import {
   GridIcon,
   ImageIcon,
   ListIcon,
-  Loader2Icon,
   Trash2Icon,
   UploadIcon,
   VideoIcon,
@@ -348,8 +347,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         disabled={uploading}
         onClick={() => fileInputRef.current?.click()}
       >
-        {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-        {uploading ? "Uploading" : "Upload Media"}
+        <UploadIcon className="size-4" />
+        Upload Media
       </DashboardToolbarButton>
     </>
   )
@@ -546,8 +545,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               Cancel
             </Button>
             <Button type="button" disabled={savingEdit} onClick={handleSaveEdit}>
-              {savingEdit ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {savingEdit ? "Saving" : "Save"}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

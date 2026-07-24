@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -129,8 +128,7 @@ function ChangePasswordCard() {
           ) : null}
           <div>
             <Button type="submit" disabled={saving}>
-              {saving ? <Loader2Icon className="h-4 w-4 animate-spin" /> : null}
-              {saving ? "Updating" : "Update password"}
+              Update password
             </Button>
           </div>
         </CardContent>
@@ -168,7 +166,6 @@ function SessionsCard() {
       </CardHeader>
       <CardContent>
         <Button variant="outline" onClick={handleSignOutOthers} disabled={working}>
-          {working ? <Loader2Icon className="h-4 w-4 animate-spin" /> : null}
           Sign out other devices
         </Button>
       </CardContent>
@@ -244,7 +241,6 @@ function DeleteAccountCard() {
               onClick={handleDelete}
               disabled={deleting || !password}
             >
-              {deleting ? <Loader2Icon className="h-4 w-4 animate-spin" /> : null}
               Delete account
             </Button>
           </DialogFooter>

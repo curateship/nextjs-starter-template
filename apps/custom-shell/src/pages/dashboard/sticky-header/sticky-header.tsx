@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PanelLeftIcon } from "lucide-react"
+import { CheckIcon, PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -14,11 +14,14 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
+type SaveStatus = "idle" | "saving" | "saved"
+
 type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
+  saveStatus?: SaveStatus
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -28,6 +31,7 @@ export function StickyHeader({
   navLinks,
   navContent,
   rightNavItems,
+  saveStatus,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderProps) {
@@ -62,12 +66,33 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={navLinks} />
           )}
         </div>
-        <StickyHeaderRightNav
-          items={rightNavItems}
-          onOpenFeedback={onOpenFeedback}
-          onOpenFeedbackThread={onOpenFeedbackThread}
-        />
+        <div className="flex items-center gap-3">
+          <SaveStatusIndicator status={saveStatus} />
+          <StickyHeaderRightNav
+            items={rightNavItems}
+            onOpenFeedback={onOpenFeedback}
+            onOpenFeedbackThread={onOpenFeedbackThread}
+          />
+        </div>
       </div>
     </header>
   )
+}
+
+// Auto-save status for the settings page, surfaced in the shared header so the
+// settings page itself needs no save button or header. Renders nothing unless a
+// save is in flight or just finished.
+function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
+  if (status === "saving") {
+    return <span className="text-sm text-muted-foreground">Saving…</span>
+  }
+  if (status === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        <CheckIcon className="h-4 w-4" />
+        Saved
+      </span>
+    )
+  }
+  return null
 }

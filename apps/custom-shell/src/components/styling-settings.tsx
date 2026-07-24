@@ -35,13 +35,11 @@ import { cn } from "@/lib/utils"
 
 type StylingSettingsProps = {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
 }
 
 export function StylingSettings({
   config,
-  isSaving,
   onConfigChange,
 }: StylingSettingsProps) {
   const styling = config.styling
@@ -80,7 +78,7 @@ export function StylingSettings({
       <CollapsibleSettingsCard
         storageId="styling-spacing"
         title="Spacing & borders"
-        description="Adjust the content gutter and card borders for this workspace. Changes preview live and apply after you save."
+        description="Adjust the content gutter and card borders for this workspace. Changes save automatically."
         contentClassName="space-y-6"
       >
         <SliderRow
@@ -89,7 +87,6 @@ export function StylingSettings({
           min={MIN_CONTENT_GUTTER}
           max={MAX_CONTENT_GUTTER}
           valueLabel={`${styling.gutter}px`}
-          disabled={isSaving}
           onChange={(gutter) => update({ gutter })}
           help="The outer padding and the gap between cards. Set to 0 for a flat layout with no card borders, rounded corners, or spacing."
         />
@@ -104,7 +101,7 @@ export function StylingSettings({
               ? "Off"
               : `${styling.cardBorderWidth}px`
           }
-          disabled={isSaving || isFlat}
+          disabled={isFlat}
           onChange={(cardBorderWidth) => update({ cardBorderWidth })}
           help={
             isFlat
@@ -123,7 +120,7 @@ export function StylingSettings({
           <BackgroundField
             idPrefix="card-border-color"
             value={styling.cardBorderColor}
-            isSaving={isSaving || isFlat}
+            disabled={isFlat}
             defaultHint="A subtle default border that adapts to light and dark."
             onChange={updateBorderColor}
           />
@@ -178,7 +175,6 @@ export function StylingSettings({
         <BackgroundField
           idPrefix="divider-color"
           value={styling.dividerColor}
-          isSaving={isSaving}
           defaultHint="Uses the theme's own divider color (adapts to light and dark)."
           onChange={updateDividerColor}
         />
@@ -207,7 +203,6 @@ export function StylingSettings({
         <BackgroundField
           idPrefix="content-bg"
           value={styling.content}
-          isSaving={isSaving}
           defaultHint="Uses the standard muted canvas (adapts to light and dark)."
           onChange={updateContent}
         />
@@ -221,7 +216,6 @@ export function StylingSettings({
         <BackgroundField
           idPrefix="chrome-bg"
           value={styling.chrome}
-          isSaving={isSaving}
           defaultHint="Uses the theme's sidebar color (adapts to light and dark)."
           onChange={updateChrome}
         />
@@ -239,7 +233,6 @@ export function StylingSettings({
           min={0}
           max={100}
           valueLabel={`${modal.overlayOpacity}%`}
-          disabled={isSaving}
           onChange={(overlayOpacity) => updateModal({ overlayOpacity })}
           help="How dark the area outside the modal gets."
         />
@@ -250,7 +243,6 @@ export function StylingSettings({
           min={0}
           max={MAX_MODAL_PADDING}
           valueLabel={`${modal.padding}px`}
-          disabled={isSaving}
           onChange={(padding) => updateModal({ padding })}
           help="Padding between the modal edge and its content."
         />
@@ -260,7 +252,6 @@ export function StylingSettings({
           <BackgroundField
             idPrefix="modal-bg"
             value={modal.background}
-            isSaving={isSaving}
             defaultHint="Uses the theme's popover surface."
             onChange={updateModalBackground}
           />
@@ -272,7 +263,6 @@ export function StylingSettings({
           min={0}
           max={MAX_CARD_BORDER_WIDTH}
           valueLabel={modal.borderWidth === 0 ? "Off" : `${modal.borderWidth}px`}
-          disabled={isSaving}
           onChange={(borderWidth) => updateModal({ borderWidth })}
           help="Modal border thickness. 0 removes it."
         />
@@ -284,7 +274,7 @@ export function StylingSettings({
           <BackgroundField
             idPrefix="modal-border"
             value={modal.borderColor}
-            isSaving={isSaving || modal.borderWidth === 0}
+            disabled={modal.borderWidth === 0}
             defaultHint="A subtle default border."
             onChange={updateModalBorderColor}
           />
@@ -304,7 +294,6 @@ export function StylingSettings({
           <BackgroundField
             idPrefix="modal-card-bg"
             value={modal.cardBackground}
-            isSaving={isSaving}
             defaultHint="Uses the theme's card surface."
             onChange={updateModalCardBackground}
           />
@@ -318,7 +307,6 @@ export function StylingSettings({
           valueLabel={
             modal.cardBorderWidth === 0 ? "Off" : `${modal.cardBorderWidth}px`
           }
-          disabled={isSaving}
           onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
           help="Border thickness of cards inside the modal. 0 removes it."
         />
@@ -330,7 +318,7 @@ export function StylingSettings({
           <BackgroundField
             idPrefix="modal-card-border"
             value={modal.cardBorderColor}
-            isSaving={isSaving || modal.cardBorderWidth === 0}
+            disabled={modal.cardBorderWidth === 0}
             defaultHint="A subtle default border."
             onChange={updateModalCardBorderColor}
           />
@@ -392,13 +380,13 @@ const BACKGROUND_MODE_LABELS: Record<ShellBackgroundMode, string> = {
 function BackgroundField({
   idPrefix,
   value,
-  isSaving,
+  disabled,
   defaultHint,
   onChange,
 }: {
   idPrefix: string
   value: ShellBackground
-  isSaving: boolean
+  disabled?: boolean
   defaultHint: string
   onChange: (patch: Partial<ShellBackground>) => void
 }) {
@@ -410,7 +398,7 @@ function BackgroundField({
         <Label htmlFor={`${idPrefix}-mode`}>Mode</Label>
         <Select
           value={value.mode}
-          disabled={isSaving}
+          disabled={disabled}
           onValueChange={(mode) =>
             onChange({ mode: mode as ShellBackgroundMode })
           }
@@ -442,7 +430,7 @@ function BackgroundField({
           min={0}
           max={100}
           valueLabel={`${value.strength}%`}
-          disabled={isSaving}
+          disabled={disabled}
           onChange={(strength) => onChange({ strength })}
           help="How strong the muted tone is. Lower is more transparent."
         />
@@ -456,14 +444,14 @@ function BackgroundField({
               id={`${idPrefix}-color`}
               type="color"
               value={color}
-              disabled={isSaving}
+              disabled={disabled}
               onChange={(event) => onChange({ color: event.target.value })}
               className="h-8 w-12 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Pick a color"
             />
             <Input
               value={value.color}
-              disabled={isSaving}
+              disabled={disabled}
               onChange={(event) => onChange({ color: event.target.value })}
               placeholder="#ffffff"
               className="w-40"

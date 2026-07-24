@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  Loader2Icon,
   MessageSquareIcon,
   SaveIcon,
   SettingsIcon,
@@ -319,11 +318,7 @@ export function FeedbackCommentsDashboard() {
                 onClick={() => setMassDeleteOpen(true)}
                 disabled={massDeleting}
               >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
+                <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
@@ -567,11 +562,7 @@ function DeleteFeedbackCommentModal({
               onClick={onConfirm}
               disabled={deleting || !comment}
             >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
+              <Trash2Icon className="h-4 w-4" />
               Delete
             </Button>
           </>
@@ -620,11 +611,7 @@ function MassDeleteFeedbackCommentsModal({
               onClick={onConfirm}
               disabled={deleting || count === 0}
             >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
+              <Trash2Icon className="h-4 w-4" />
               Delete
             </Button>
           </>
@@ -748,19 +735,11 @@ function EditFeedbackCommentModal({
               onClick={handleDelete}
               disabled={busy}
             >
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="h-4 w-4" />
-              )}
+              <Trash2Icon className="h-4 w-4" />
               Delete
             </Button>
             <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
+              <SaveIcon className="h-4 w-4" />
               Save
             </Button>
           </>
