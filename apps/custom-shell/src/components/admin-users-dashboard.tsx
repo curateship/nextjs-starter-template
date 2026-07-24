@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
+import { SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 
@@ -211,11 +211,7 @@ export function AdminUsersDashboard({
                 onClick={() => setMassDeleteOpen(true)}
                 disabled={massDeleting}
               >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
+                <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
@@ -506,9 +502,6 @@ export function AdminUsersDashboard({
                 }
               }}
             >
-              {massDeleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
               Delete accounts
             </Button>
           </DialogFooter>
@@ -710,7 +703,6 @@ function EditAccountDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
             Save changes
           </Button>
         </DialogFooter>

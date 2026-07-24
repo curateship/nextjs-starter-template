@@ -1,6 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router"
-import { CheckCircle2Icon, Loader2Icon } from "lucide-react"
+import { CheckCircle2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -82,11 +82,7 @@ function BillingSuccessRoute() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {confirmed ? (
-              <CheckCircle2Icon className="h-5 w-5" />
-            ) : waiting ? (
-              <Loader2Icon className="h-5 w-5 animate-spin" />
-            ) : null}
+            {confirmed ? <CheckCircle2Icon className="h-5 w-5" /> : null}
             {confirmed ? `You are on ${planName}` : "Finishing your payment"}
           </CardTitle>
           <CardDescription>

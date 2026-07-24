@@ -4,7 +4,6 @@ import {
   ChevronRightIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
-  Loader2Icon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -207,7 +206,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
         nextDisabled={!footer.hasMore || Boolean(footer.loading)}
         lastDisabled
         onNext={footer.onLoadMore}
-        nextIcon={footer.loading ? <Loader2Icon className="size-4 animate-spin" /> : undefined}
+        nextIcon={undefined}
       />
     )
   }

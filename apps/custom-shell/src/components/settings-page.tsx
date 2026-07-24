@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router"
 import { Card, CardContent } from "@/components/ui/card"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { StylingSettings } from "@/components/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
-import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
+import { AlertCircleIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
@@ -15,7 +14,6 @@ const settingsTabs = [
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
-type SaveStatus = "idle" | "saving" | "saved"
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
@@ -28,55 +26,20 @@ export function SettingsPage({
   activeTab,
   config,
   settingsError,
-  saveStatus,
   onConfigChange,
   onSaveConfig,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
   settingsError: string | null
-  saveStatus: SaveStatus
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }) {
-  const isSaving = saveStatus === "saving"
-
   return (
     <div
       className="flex w-full flex-col pb-8"
       style={{ gap: "var(--shell-gutter, 1.5rem)" }}
     >
-      <Card>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="font-heading text-xl font-semibold">Settings</h1>
-            <p className="text-sm text-muted-foreground">
-              Configure the shell defaults for this workspace.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {saveStatus === "saved" ? (
-              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                <CheckIcon className="h-4 w-4" />
-                Saved
-              </span>
-            ) : null}
-            <DashboardToolbarButton
-              type="button"
-              onClick={onSaveConfig}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              {isSaving ? "Saving" : "Save"}
-            </DashboardToolbarButton>
-          </div>
-        </CardContent>
-      </Card>
-
       {settingsError ? (
         <div
           role="alert"
@@ -108,26 +71,17 @@ export function SettingsPage({
 
         <div className="min-w-0 flex-1">
           {activeTab === "general" ? (
-            <GeneralSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-            />
+            <GeneralSettings config={config} onConfigChange={onConfigChange} />
           ) : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}
-              isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
             />
           ) : null}
           {activeTab === "styling" ? (
-            <StylingSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-            />
+            <StylingSettings config={config} onConfigChange={onConfigChange} />
           ) : null}
         </div>
       </div>

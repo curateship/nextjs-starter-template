@@ -81,7 +81,6 @@ function getSectionIdFromDropId(id: string) {
 
 type SidebarSettingsProps = {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }
@@ -89,7 +88,6 @@ type SidebarSettingsProps = {
 type SortableItemProps = {
   sectionId: string
   item: ShellItem
-  isSaving: boolean
   onItemChange: (
     sectionId: string,
     itemId: string,
@@ -121,7 +119,6 @@ type SortableChildProps = {
 type SortableSectionProps = {
   section: ShellSection
   isDraggingItem: boolean
-  isSaving: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
   onReset: () => void
@@ -249,7 +246,6 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
-  isSaving,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -468,13 +464,13 @@ function SortableSidebarItem({
           <DialogFooter variant="plain">
             <Button
               type="button"
-              disabled={isSaving}
               onClick={async () => {
-                const saved = await onSaveConfig()
-                if (saved) setDialogOpen(false)
+                // Edits already auto-save; flush any pending debounce, then close.
+                await onSaveConfig()
+                setDialogOpen(false)
               }}
             >
-              {isSaving ? "Saving" : "Save"}
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -486,7 +482,6 @@ function SortableSidebarItem({
 function SortableSectionCard({
   section,
   isDraggingItem,
-  isSaving,
   onSectionTitleChange,
   onSectionDelete,
   onReset,
@@ -589,7 +584,6 @@ function SortableSectionCard({
                   key={entry.id}
                   sectionId={section.id}
                   item={entry}
-                  isSaving={isSaving}
                   onItemChange={onItemChange}
                   onItemDelete={onItemDelete}
                   onChildAdd={onChildAdd}
@@ -621,7 +615,6 @@ function SortableSectionCard({
 
 export function SidebarSettings({
   config,
-  isSaving,
   onConfigChange,
   onSaveConfig,
 }: SidebarSettingsProps) {
@@ -1053,7 +1046,6 @@ export function SidebarSettings({
                 key={section.id}
                 section={section}
                 isDraggingItem={isDraggingItem}
-                isSaving={isSaving}
                 onSectionTitleChange={handleSectionTitleChange}
                 onSectionDelete={handleSectionDelete}
                 onReset={() => onConfigChange(createDefaultShellConfig())}

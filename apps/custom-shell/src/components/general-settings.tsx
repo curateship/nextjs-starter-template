@@ -18,13 +18,11 @@ import {
 
 type GeneralSettingsProps = {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
 }
 
 export function GeneralSettings({
   config,
-  isSaving,
   onConfigChange,
 }: GeneralSettingsProps) {
   return (
@@ -39,9 +37,7 @@ export function GeneralSettings({
           <Label htmlFor="workspace-name">Workspace name</Label>
           <Input
             id="workspace-name"
-            value={config.workspaceName}
-            disabled={isSaving}
-            onChange={(event) =>
+            value={config.workspaceName}            onChange={(event) =>
               onConfigChange({
                 ...config,
                 workspaceName: event.target.value,
@@ -55,9 +51,7 @@ export function GeneralSettings({
           <Label htmlFor="workspace-subheader">Workspace subheader</Label>
           <Input
             id="workspace-subheader"
-            value={config.workspacePlan}
-            disabled={isSaving}
-            onChange={(event) =>
+            value={config.workspacePlan}            onChange={(event) =>
               onConfigChange({
                 ...config,
                 workspacePlan: event.target.value,
@@ -76,9 +70,7 @@ export function GeneralSettings({
           </FieldLabel>
           <Input
             id="admin-route"
-            value={config.adminRoute}
-            disabled={isSaving}
-            onChange={(event) =>
+            value={config.adminRoute}            onChange={(event) =>
               onConfigChange({
                 ...config,
                 adminRoute: event.target.value,
@@ -93,9 +85,7 @@ export function GeneralSettings({
             Default dashboard rows per page
           </Label>
           <Select
-            value={String(config.dashboardRowsPerPage)}
-            disabled={isSaving}
-            onValueChange={(value) =>
+            value={String(config.dashboardRowsPerPage)}            onValueChange={(value) =>
               onConfigChange({
                 ...config,
                 dashboardRowsPerPage: Number(value),
