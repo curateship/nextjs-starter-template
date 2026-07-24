@@ -13,6 +13,10 @@ export interface EventContentStyleRendererProps {
     venueAddress?: string
     externalCtaUrl?: string
     body?: string
+    /** Absolute URL of this event page, used for add-to-calendar links. */
+    eventUrl?: string
+    /** Absolute URL of the site-wide events feed, used for one-click subscribe. */
+    feedUrl?: string
   }
   children?: ReactNode
 }

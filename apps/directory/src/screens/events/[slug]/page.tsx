@@ -8,6 +8,8 @@ import { mergeEventTemplateBlocks } from '@/lib/actions/events/event-template-in
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "@/lib/navigation-server"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { getSitemapBaseUrl } from "@/lib/utils/sitemap"
+import { isValidEventSlug } from "@/lib/utils/event-slug"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import {
   getContentBreadcrumbItems,
@@ -21,10 +23,6 @@ interface EventPageProps {
 }
 
 const EVENT_PAGE_NOT_FOUND_ERROR = 'EVENT_PAGE_NOT_FOUND'
-
-function isValidEventSlug(slug: string) {
-  return /^[a-zA-Z0-9_-]{1,100}$/.test(slug)
-}
 
 function isEventPageNotFoundError(error: unknown) {
   return error instanceof Error && error.message === EVENT_PAGE_NOT_FOUND_ERROR
@@ -128,6 +126,10 @@ export default async function EventPage({ params }: EventPageProps) {
       })
     : []
 
+  const baseUrl = getSitemapBaseUrl(site)
+  const eventUrl = `${baseUrl}/events/${event.slug}`
+  const feedUrl = `${baseUrl}/events.ics`
+
   return (
     <>
       <StructuredData site={site} content={eventWithBlocks} contentType="event" />
@@ -135,6 +137,8 @@ export default async function EventPage({ params }: EventPageProps) {
         site={site}
         event={eventWithBlocks}
         breadcrumbs={breadcrumbs}
+        eventUrl={eventUrl}
+        feedUrl={feedUrl}
       />
     </>
   )

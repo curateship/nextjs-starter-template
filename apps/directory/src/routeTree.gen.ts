@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ContentSitemapRouteImport } from './routes/content-sitemap'
+import { Route as EventsDoticsRouteImport } from './routes/events[.]ics'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as RscActionRouteImport } from './routes/rsc-action'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -22,6 +23,7 @@ import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as CdnSplatRouteImport } from './routes/cdn/$'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
 import { Route as EmbedListingDirectoryIdRouteImport } from './routes/embed/listing/$directoryId'
+import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events/$slug/calendar[.]ics'
 import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
 
 const IndexRoute = IndexRouteImport.update({
@@ -42,6 +44,11 @@ const AdminRoute = AdminRouteImport.update({
 const ContentSitemapRoute = ContentSitemapRouteImport.update({
   id: '/content-sitemap',
   path: '/content-sitemap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsDoticsRoute = EventsDoticsRouteImport.update({
+  id: '/events.ics',
+  path: '/events.ics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -89,6 +96,12 @@ const EmbedListingDirectoryIdRoute = EmbedListingDirectoryIdRouteImport.update({
   path: '/embed/listing/$directoryId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsSlugCalendarDoticsRoute =
+  EventsSlugCalendarDoticsRouteImport.update({
+    id: '/events/$slug/calendar.ics',
+    path: '/events/$slug/calendar.ics',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const SponsorReportsTokenExportRoute =
   SponsorReportsTokenExportRouteImport.update({
     id: '/sponsor-reports/$token/export',
@@ -101,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/content-sitemap': typeof ContentSitemapRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rsc-action': typeof RscActionRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -110,12 +124,14 @@ export interface FileRoutesByFullPath {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/admin/': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
+  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/content-sitemap': typeof ContentSitemapRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rsc-action': typeof RscActionRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -125,6 +141,7 @@ export interface FileRoutesByTo {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/admin': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
+  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesById {
@@ -133,6 +150,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/content-sitemap': typeof ContentSitemapRoute
+  '/events.ics': typeof EventsDoticsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rsc-action': typeof RscActionRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -142,6 +160,7 @@ export interface FileRoutesById {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/admin/': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
+  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRouteTypes {
@@ -151,6 +170,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/content-sitemap'
+    | '/events.ics'
     | '/robots.txt'
     | '/rsc-action'
     | '/sitemap.xml'
@@ -160,12 +180,14 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/admin/'
     | '/embed/listing/$directoryId'
+    | '/events/$slug/calendar.ics'
     | '/sponsor-reports/$token/export'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$'
     | '/content-sitemap'
+    | '/events.ics'
     | '/robots.txt'
     | '/rsc-action'
     | '/sitemap.xml'
@@ -175,6 +197,7 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/admin'
     | '/embed/listing/$directoryId'
+    | '/events/$slug/calendar.ics'
     | '/sponsor-reports/$token/export'
   id:
     | '__root__'
@@ -182,6 +205,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/content-sitemap'
+    | '/events.ics'
     | '/robots.txt'
     | '/rsc-action'
     | '/sitemap.xml'
@@ -191,6 +215,7 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/admin/'
     | '/embed/listing/$directoryId'
+    | '/events/$slug/calendar.ics'
     | '/sponsor-reports/$token/export'
   fileRoutesById: FileRoutesById
 }
@@ -199,6 +224,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   ContentSitemapRoute: typeof ContentSitemapRoute
+  EventsDoticsRoute: typeof EventsDoticsRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   RscActionRoute: typeof RscActionRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -206,6 +232,7 @@ export interface RootRouteChildren {
   CdnSplatRoute: typeof CdnSplatRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   EmbedListingDirectoryIdRoute: typeof EmbedListingDirectoryIdRoute
+  EventsSlugCalendarDoticsRoute: typeof EventsSlugCalendarDoticsRoute
   SponsorReportsTokenExportRoute: typeof SponsorReportsTokenExportRoute
 }
 
@@ -237,6 +264,13 @@ declare module '@tanstack/react-router' {
       path: '/content-sitemap'
       fullPath: '/content-sitemap'
       preLoaderRoute: typeof ContentSitemapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events.ics': {
+      id: '/events.ics'
+      path: '/events.ics'
+      fullPath: '/events.ics'
+      preLoaderRoute: typeof EventsDoticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -302,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedListingDirectoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events/$slug/calendar.ics': {
+      id: '/events/$slug/calendar.ics'
+      path: '/events/$slug/calendar.ics'
+      fullPath: '/events/$slug/calendar.ics'
+      preLoaderRoute: typeof EventsSlugCalendarDoticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sponsor-reports/$token/export': {
       id: '/sponsor-reports/$token/export'
       path: '/sponsor-reports/$token/export'
@@ -329,6 +370,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   ContentSitemapRoute: ContentSitemapRoute,
+  EventsDoticsRoute: EventsDoticsRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   RscActionRoute: RscActionRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
@@ -336,6 +378,7 @@ const rootRouteChildren: RootRouteChildren = {
   CdnSplatRoute: CdnSplatRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   EmbedListingDirectoryIdRoute: EmbedListingDirectoryIdRoute,
+  EventsSlugCalendarDoticsRoute: EventsSlugCalendarDoticsRoute,
   SponsorReportsTokenExportRoute: SponsorReportsTokenExportRoute,
 }
 export const routeTree = rootRouteImport

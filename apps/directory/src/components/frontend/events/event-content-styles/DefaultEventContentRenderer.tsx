@@ -1,5 +1,7 @@
 import type { EventContentStyleRendererProps } from "./index"
 import { buttonVariants } from "@/components/ui/button"
+import { AddToCalendarMenu } from "@/components/frontend/events/AddToCalendarMenu"
+import { buildEventLocation, buildGoogleCalendarUrl } from "@/lib/utils/calendar"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { sanitizeExternalHttpUrl } from "@/lib/utils/url-validator"
 
@@ -47,6 +49,8 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
     venueAddress,
     externalCtaUrl,
     body,
+    eventUrl,
+    feedUrl,
   } = sharedContent
 
   const isCenter = alignment === 'center'
@@ -67,6 +71,18 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsQuery)}`
     : ''
   const ctaUrl = sanitizeExternalHttpUrl(externalCtaUrl)
+  const calendarLocation = buildEventLocation(cleanVenueName, cleanVenueAddress)
+  const googleCalendarUrl = eventDate
+    ? buildGoogleCalendarUrl({
+        uid: '',
+        title: title || 'Event',
+        location: calendarLocation || undefined,
+        url: eventUrl,
+        startDate: eventDate,
+        startTime: eventTime,
+      })
+    : null
+  const calendarIcsHref = eventUrl && eventDate ? `${eventUrl}/calendar.ics` : null
 
   return (
     <div
@@ -107,6 +123,11 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
           RSVP
         </a>
       )}
+      <AddToCalendarMenu
+        eventGoogleUrl={googleCalendarUrl}
+        eventIcsHref={calendarIcsHref}
+        feedUrl={feedUrl}
+      />
       {featuredImage && showFeaturedImage && (
         <img
           src={featuredImage}
