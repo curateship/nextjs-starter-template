@@ -30,6 +30,10 @@ import {
   resolveCaptionAnimation,
 } from "@/lib/caption-animations"
 import {
+  resolveIncomingTransition,
+  type ClipTransition,
+} from "@/lib/clip-transitions"
+import {
   requireCanonicalTimeline,
   SAVED_TIMELINE_INVALID_MESSAGE,
 } from "@/lib/timeline-schema"
@@ -153,7 +157,14 @@ export function timelineEndMs(tracks: EditorTrack[]) {
 // A clip flattened with its track's mute + duck state; visual order is
 // bottom-first (the preview stacks track 0 on top, so later overlays must win).
 // `duck` marks audio that should be lowered under other tracks' audio.
-type RenderClip = { clip: EditorClip; muted: boolean; duck: boolean }
+// `transition` is the resolved (adjacency-checked, clamped) blend at the seam
+// entering a visual clip, or null for a hard cut.
+type RenderClip = {
+  clip: EditorClip
+  muted: boolean
+  duck: boolean
+  transition?: ClipTransition | null
+}
 type RenderWatermark = {
   file: string
   position: BrandKitConfig["watermark"]["position"]
@@ -177,16 +188,28 @@ function flattenForRender(tracks: EditorTrack[]) {
   for (let i = tracks.length - 1; i >= 0; i--) {
     const track = tracks[i]
     const duck = !!track.duck
-    for (const clip of track.clips ?? []) {
-      if (!clip.durationMs || clip.durationMs <= 0) continue
+    const clips = track.clips ?? []
+    clips.forEach((clip, idx) => {
+      if (!clip.durationMs || clip.durationMs <= 0) return
       if (clip.kind === "audio") {
         audio.push({ clip, muted: track.muted || !!clip.muted, duck })
       } else if (clip.kind === "text") {
         if (clip.text?.trim()) visuals.push({ clip, muted: true, duck: false })
       } else if (clip.mediaId) {
-        visuals.push({ clip, muted: track.muted || !!clip.muted, duck })
+        // The predecessor on the same track (clips are stored sorted) decides
+        // whether this seam blends.
+        const transition = resolveIncomingTransition(
+          clip,
+          idx > 0 ? clips[idx - 1] : null
+        )
+        visuals.push({
+          clip,
+          muted: track.muted || !!clip.muted,
+          duck,
+          transition,
+        })
       }
-    }
+    })
   }
   return { visuals, audio }
 }
@@ -470,7 +493,11 @@ async function buildFfmpegCommand(options: {
     audioLabels.push(label)
   }
 
-  for (const { clip, muted, duck } of visuals) {
+  // Dip-to-black seams collected here and composited on top after every clip,
+  // so the fade to black covers whatever is beneath (including lower tracks).
+  const dipSeams: { seamS: number; halfS: number }[] = []
+
+  for (const { clip, muted, duck, transition } of visuals) {
     const startS = clip.startMs / 1000
     const endS = (clip.startMs + clip.durationMs) / 1000
     const durS = clip.durationMs / 1000
@@ -541,17 +568,64 @@ async function buildFfmpegCommand(options: {
           file
         )
       }
+      // Dip-to-black is a top overlay (queued below); the clip itself renders
+      // normally. Crossfade/slide draw this clip early over the previous one.
+      const reach =
+        transition && transition.kind !== "dip" ? transition : null
+      if (transition?.kind === "dip") {
+        dipSeams.push({ seamS: startS, halfS: transition.durationMs / 2000 })
+      }
       // object-contain: scale to fit, overlay centered — no pad, so lower
       // layers stay visible in the letterbox area exactly like the preview.
-      filters.push(
-        `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
-      )
+      if (reach) {
+        // Draw D seconds early over the outgoing clip's tail. tpad clones this
+        // clip's first frame backward to fill the reach-back so content is
+        // continuous at the seam (it plays from the seam onward, unchanged);
+        // crossfade ramps alpha 0->1, slide travels in from the right.
+        const d = reach.durationMs / 1000
+        const drawStartS = startS - d
+        const chain = [
+          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease`,
+          `tpad=start_duration=${d.toFixed(3)}:start_mode=clone`,
+        ]
+        if (reach.kind === "crossfade") {
+          chain.push("format=rgba", `fade=t=in:st=0:d=${d.toFixed(3)}:alpha=1`)
+        }
+        chain.push(`setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`)
+        const xExpr =
+          reach.kind === "slide"
+            ? `'if(gte(t,${startS.toFixed(3)}),(W-w)/2,(W-w)/2+(W-(W-w)/2)*((${startS.toFixed(3)}-t)/${d.toFixed(3)}))'`
+            : "(W-w)/2"
+        filters.push(
+          `${chain.join(",")}[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=(H-h)/2:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
+        )
+      } else {
+        filters.push(
+          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+        )
+      }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
         pushAudio(inputIndex, clip.startMs, duck)
       }
     }
     inputIndex += 1
+    visualStep += 1
+  }
+
+  // Dip-to-black seams: a full-frame black overlay whose alpha ramps up to the
+  // seam then back down, composited on top of all clips (a lavfi color source,
+  // so no extra -i input). Sourced entirely from each side's own footage — the
+  // clips play through underneath unchanged.
+  for (const { seamS, halfS } of dipSeams) {
+    const fromS = seamS - halfS
+    const toS = seamS + halfS
+    filters.push(
+      `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
+      `[dipsrc${visualStep}]format=yuva420p,fade=t=in:st=0:d=${halfS.toFixed(3)}:alpha=1,fade=t=out:st=${halfS.toFixed(3)}:d=${halfS.toFixed(3)}:alpha=1,setpts=PTS-STARTPTS+${fromS.toFixed(3)}/TB[dip${visualStep}]`,
+      `[v${visualStep}][dip${visualStep}]overlay=x=0:y=0:enable='between(t,${fromS.toFixed(3)},${toS.toFixed(3)})'[v${visualStep + 1}]`
+    )
     visualStep += 1
   }
 

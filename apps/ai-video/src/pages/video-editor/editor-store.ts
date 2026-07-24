@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { CaptionAnimationId } from "../../lib/caption-animations.ts"
+import type { ClipTransition } from "../../lib/clip-transitions.ts"
 import {
   applyHookVariant,
   type HookVariantInput,
@@ -63,6 +64,10 @@ export type EditorClip = {
   // the media while the slot keeps its timeline position and length.
   replaceable?: boolean
   segmentLabel?: string
+  // Blend at the seam entering this clip (crossfade/dip/slide). Unset = hard
+  // cut. Only rendered when the preceding same-track clip butts against this
+  // one and both are visual — see lib/clip-transitions.ts.
+  transition?: ClipTransition
 }
 
 export type EditorTrack = {
@@ -499,7 +504,8 @@ export function editorReducer(
       const addKeptSegment = (endMs: number) => {
         const durationMs = endMs - sourceCursorMs
         if (durationMs < MIN_CLIP_MS) return
-        const id = first ? found.clip.id : editorId()
+        const isFirst = first
+        const id = isFirst ? found.clip.id : editorId()
         first = false
         clips.push({
           ...found.clip,
@@ -507,6 +513,10 @@ export function editorReducer(
           startMs: timelineCursorMs,
           durationMs,
           trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+          // Only the first kept segment keeps the incoming transition (its seam
+          // with the preceding clip survives). Later segments butt against a
+          // same-content cut, so they must not carry a blend.
+          transition: isFirst ? found.clip.transition : undefined,
         })
         timelineCursorMs += durationMs
       }
@@ -553,10 +563,12 @@ export function editorReducer(
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
-      // The copy prefers the slot right after the original on its track.
+      // The copy prefers the slot right after the original on its track. Drop
+      // any incoming transition: the copy butts against its source clip, and a
+      // blend between a clip and its own duplicate is never intended.
       return placeClip(
         state,
-        { ...found.clip, id: editorId() },
+        { ...found.clip, id: editorId(), transition: undefined },
         found.clip.startMs + found.clip.durationMs,
         found.track.id
       )
@@ -654,6 +666,10 @@ export function editorReducer(
         return state
       }
 
+      // The left half keeps the clip's incoming transition (its seam with the
+      // preceding clip is unchanged). The right half's new left edge is a
+      // same-content cut against the left half, so it must NOT carry the
+      // transition — that would render a spurious blend mid-clip.
       const left: EditorClip = { ...clip, durationMs: offset }
       const right: EditorClip = {
         ...clip,
@@ -661,6 +677,7 @@ export function editorReducer(
         startMs: clip.startMs + offset,
         durationMs: clip.durationMs - offset,
         trimStartMs: clip.trimStartMs + offset,
+        transition: undefined,
       }
       const tracks = withTrack(state.tracks, found.track.id, (t) => ({
         ...t,

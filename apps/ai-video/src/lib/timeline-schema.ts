@@ -1,9 +1,19 @@
 import { z } from "zod"
 
 import { CAPTION_ANIMATION_IDS } from "./caption-animations.ts"
+import { TRANSITION_KINDS } from "./clip-transitions.ts"
 import { MUSIC_TRACK_IDS } from "./music-library.ts"
 import { SOUND_EFFECT_IDS } from "./sound-effects.ts"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
+
+// A blend at the seam entering this clip (see clip-transitions.ts). Absent =
+// hard cut, so timelines saved before this feature validate unchanged.
+const clipTransitionSchema = z
+  .object({
+    kind: z.enum(TRANSITION_KINDS),
+    durationMs: z.number().positive().finite(),
+  })
+  .strict()
 
 const clipWordSchema = z
   .object({
@@ -41,6 +51,7 @@ const clipSchema = z
     y: z.number().min(0).max(1).optional(),
     replaceable: z.boolean().optional(),
     segmentLabel: z.string().max(100).optional(),
+    transition: clipTransitionSchema.optional(),
   })
   .strict()
   .superRefine((clip, context) => {

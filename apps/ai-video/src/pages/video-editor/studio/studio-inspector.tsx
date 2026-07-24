@@ -7,6 +7,17 @@ import {
   resolveCaptionAnimation,
 } from "@/lib/caption-animations"
 import {
+  clampTransitionMs,
+  DEFAULT_TRANSITION_MS,
+  isTransitionableKind,
+  MAX_TRANSITION_MS,
+  MIN_TRANSITION_MS,
+  precedingClipOnTrack,
+  TRANSITION_ADJACENCY_EPS_MS,
+  TRANSITION_OPTIONS,
+  type TransitionKind,
+} from "@/lib/clip-transitions"
+import {
   findClip,
   useEditorDurationMs,
   useEditorRuntime,
@@ -623,6 +634,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
         </div>
       ) : null}
 
+      <TransitionSection clip={clip} />
+
       <Timing clip={clip} />
 
       {clip.kind !== "text" ? (
@@ -632,6 +645,139 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           onOpenChange={setReplaceOpen}
           onReplace={handleReplace}
         />
+      ) : null}
+    </div>
+  )
+}
+
+// The blend entering this clip from the previous one. Only shown when the clip
+// is visual and butts directly against a preceding visual clip — the same
+// gate the preview and renderer apply — so a transition can never be set where
+// nothing would render.
+function TransitionSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const prevClip = useEditorSelector((state) => {
+    const found = findClip(state.tracks, clip.id)
+    return found ? precedingClipOnTrack(found.track.clips, clip) : null
+  })
+
+  const eligible =
+    isTransitionableKind(clip.kind) &&
+    !!prevClip &&
+    isTransitionableKind(prevClip.kind) &&
+    Math.abs(clip.startMs - (prevClip.startMs + prevClip.durationMs)) <=
+      TRANSITION_ADJACENCY_EPS_MS
+  if (!eligible || !prevClip) return null
+
+  const active = clip.transition ?? null
+  const currentId: TransitionKind | "none" = active?.kind ?? "none"
+  const maxMs = Math.max(
+    MIN_TRANSITION_MS,
+    Math.min(MAX_TRANSITION_MS, prevClip.durationMs, clip.durationMs)
+  )
+  const durationMs = clampTransitionMs(
+    active?.durationMs ?? DEFAULT_TRANSITION_MS,
+    prevClip.durationMs,
+    clip.durationMs
+  )
+
+  function setKind(kind: TransitionKind | "none") {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: {
+        transition:
+          kind === "none" ? undefined : { kind, durationMs: durationMs },
+      },
+    })
+  }
+  function setDuration(ms: number) {
+    if (!active) return
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: {
+        transition: {
+          kind: active.kind,
+          durationMs: clampTransitionMs(
+            ms,
+            prevClip!.durationMs,
+            clip.durationMs
+          ),
+        },
+      },
+      transient: true,
+    })
+  }
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <Label style={{ marginBottom: 9 }}>Transition in</Label>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+          marginBottom: active ? 14 : 0,
+        }}
+      >
+        {TRANSITION_OPTIONS.map((option) => {
+          const on = currentId === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              title={option.description}
+              onClick={() => setKind(option.id)}
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                fontSize: 12,
+                cursor: "pointer",
+                border: `1px solid ${on ? "var(--acc)" : "var(--line)"}`,
+                background: on ? "var(--acc-soft)" : "var(--panel2)",
+                color: "var(--ink)",
+              }}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+      {active ? (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 9,
+            }}
+          >
+            <span className="st-lbl">Duration</span>
+            <span
+              style={{
+                fontSize: 11.5,
+                color: "var(--ink2)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {(durationMs / 1000).toFixed(1)}s
+            </span>
+          </div>
+          <input
+            type="range"
+            min={MIN_TRANSITION_MS}
+            max={maxMs}
+            step={50}
+            value={durationMs}
+            onChange={(e) => setDuration(Number(e.target.value))}
+            style={{
+              width: "100%",
+              background: fillTrack(durationMs, MIN_TRANSITION_MS, maxMs),
+            }}
+          />
+        </>
       ) : null}
     </div>
   )
