@@ -1,5 +1,6 @@
 import type { AnyNodeDescriptor, NodeGroup, NodeOutputPort } from './node-descriptor'
 import { agentNode } from './nodes/agent'
+import { feedNode } from './nodes/feed'
 import { imageNode } from './nodes/image'
 import { listingNode } from './nodes/listing'
 import { postNode } from './nodes/post'
@@ -13,6 +14,7 @@ import type { AutomationNode, AutomationNodeKind } from './types'
 export const AUTOMATION_NODES: AnyNodeDescriptor[] = [
   timeNode,
   scraperNode,
+  feedNode,
   routerNode,
   agentNode,
   imageNode,

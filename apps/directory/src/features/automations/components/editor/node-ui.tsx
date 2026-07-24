@@ -10,6 +10,7 @@ import Globe2 from "lucide-react/dist/esm/icons/earth.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Rss from "lucide-react/dist/esm/icons/rss.js"
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
@@ -80,6 +81,16 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
       return `${count} website${count === 1 ? "" : "s"}`;
     },
     Panel: ScraperPanel,
+  },
+  feed: {
+    icon: Rss,
+    hideName: true,
+    describe: (node) => {
+      if (node.kind !== "feed") return "";
+      const count = node.config.urls.filter(Boolean).length;
+      return `${count} feed${count === 1 ? "" : "s"}`;
+    },
+    Panel: FeedPanel,
   },
   router: {
     icon: GitBranch,
@@ -333,6 +344,69 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
         >
           <Plus />
           Add URL
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function FeedPanel({ node, onChange }: NodePanelProps) {
+  if (node.kind !== "feed") return null;
+  const setUrls = (urls: string[]) => onChange({ ...node, config: { urls } });
+  return (
+    <div className="grid gap-3">
+      <div>
+        <Label>Feed URLs</Label>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Public RSS or Atom feeds. Each entry is processed once across runs.
+        </p>
+      </div>
+      <div className="grid gap-2 rounded-2xl border border-foreground/5 bg-muted/40 p-2.5">
+        {node.config.urls.map((url, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-2 rounded-xl border border-foreground/5 bg-card p-2.5 shadow-sm"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 font-mono text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <Input
+              aria-label={`Feed URL ${index + 1}`}
+              className="h-8 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+              type="url"
+              value={url}
+              placeholder="https://example.com/feed.xml"
+              onChange={(event) =>
+                setUrls(
+                  node.config.urls.map((item, itemIndex) =>
+                    itemIndex === index ? event.target.value : item,
+                  ),
+                )
+              }
+            />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() =>
+                setUrls(node.config.urls.filter((_, itemIndex) => itemIndex !== index))
+              }
+              disabled={node.config.urls.length === 1}
+              aria-label={`Remove feed URL ${index + 1}`}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full"
+          onClick={() => setUrls([...node.config.urls, ""])}
+          disabled={node.config.urls.length >= 20}
+        >
+          <Plus />
+          Add feed
         </Button>
       </div>
     </div>

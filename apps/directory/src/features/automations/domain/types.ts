@@ -4,7 +4,7 @@ export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'success' | 'partial' | 'failed' | 'noop'
 export type AutomationStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'router' | 'agent' | 'image' | 'post' | 'listing'
+export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'post' | 'listing'
 
 export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
 
@@ -29,6 +29,11 @@ export interface TimeAutomationNode extends AutomationNodeBase {
 
 export interface ScraperAutomationNode extends AutomationNodeBase {
   kind: 'scraper'
+  config: { urls: string[] }
+}
+
+export interface FeedAutomationNode extends AutomationNodeBase {
+  kind: 'feed'
   config: { urls: string[] }
 }
 
@@ -90,6 +95,7 @@ export interface ListingAutomationNode extends AutomationNodeBase {
 export type AutomationNode =
   | TimeAutomationNode
   | ScraperAutomationNode
+  | FeedAutomationNode
   | RouterAutomationNode
   | AgentAutomationNode
   | ImageAutomationNode
