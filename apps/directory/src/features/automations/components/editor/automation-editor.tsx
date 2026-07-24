@@ -25,6 +25,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { createAutomationNode } from "@/features/automations/domain/catalog";
 import { validateAutomationGraph } from "@/features/automations/domain/graph";
+import { isAutomationNodeKind } from "@/features/automations/domain/node-registry";
 import type {
   AutomationEditorData,
   AutomationGraph,
@@ -98,7 +99,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         localStorage.getItem(FAVORITE_NODE_KINDS_KEY) || "[]",
       );
       setFavoriteNodeKinds(
-        Array.isArray(saved) ? [...new Set(saved.filter(isNodeKind))] : [],
+        Array.isArray(saved) ? [...new Set(saved.filter(isAutomationNodeKind))] : [],
       );
     } catch {
       setFavoriteNodeKinds([]);
@@ -777,17 +778,6 @@ function clientResourceErrors(
       });
   }
   return errors;
-}
-
-function isNodeKind(value: unknown): value is AutomationNodeKind {
-  return (
-    value === "time" ||
-    value === "scraper" ||
-    value === "router" ||
-    value === "agent" ||
-    value === "post" ||
-    value === "listing"
-  );
 }
 
 function dedupeValidationErrors(errors: AutomationValidationError[]) {

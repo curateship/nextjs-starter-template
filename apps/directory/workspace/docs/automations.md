@@ -13,14 +13,15 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 
 ## Graph Contract
 
-Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Allowed paths are:
+Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, or Listing. Allowed paths are:
 
 ```text
-Time -> Scraper -> AI Router -> AI Agent -> [AI Image ->] Post
-Time -> Scraper -------------> AI Agent -> [AI Image ->] Post
-Time ------------------------> AI Agent -> [AI Image ->] Post
-Time -> Scraper -> AI Router ------------> Listing
-Time -> Scraper -------------------------> Listing
+Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] Post
+Time -> RSS Feed -> AI Router -> AI Agent -> [AI Image ->] Post
+Time -> Scraper  -------------> AI Agent -> [AI Image ->] Post
+Time ------------------------->  AI Agent -> [AI Image ->] Post
+Time -> RSS Feed -> AI Router ------------> Listing
+Time -> Scraper  -------------------------> Listing
 ```
 
 The optional AI Image node sits between the AI Agent and the Post. It generates one
@@ -35,14 +36,26 @@ nodes.
 
 AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
 
+The RSS Feed node is a source like Scraper, but reads RSS 2.0, RSS 1.0/RDF, and Atom
+feeds instead of raw pages. Per run it fetches each configured feed (same SSRF-hardened
+fetch as Scraper — public HTTPS, pinned DNS, no redirects, size cap), normalizes every
+entry (title, link, date, summary/content), and emits **only entries not seen on a prior
+run** as `documents` the downstream Router/Agent/Listing already consume. Each entry's
+identity — feed URL plus its guid, else its link, else a content hash — is recorded in
+`site_automation_source_states`, so an immediate re-run emits nothing until the feed
+publishes something new. HTML inside a summary is stripped to plain text. A feed that
+fails to fetch or is not valid RSS/Atom fails that node's step with a clear message; other
+branches continue. Full-article text is out of scope — chain a Scraper after it to fetch
+the page behind a feed link.
+
 The Listing node reads scraped pages directly (like AI Agent), extracts real business/place listings with its own structured AI call, and drafts one directory listing per business onto the chosen directory template. Listings are **always** drafts — the node cannot publish, in any configuration. Each is stamped `sourceType='automation'` plus a stable per-business `sourceId`, so re-runs skip businesses that already exist (matched by that source key or an existing listing title); extracted addresses are geocoded through the normal directory save path. Skipped businesses are recorded in the run step. A configured default category, when set, is applied as the listing's primary category.
 
 ## Execution
 
 - Active schedules are checked every minute. One-time schedules pause after completion.
 - A database lock prevents overlapping runs.
-- Scraper URLs must use public HTTPS. DNS resolution is pinned and private/reserved addresses, redirects, oversized responses, and slow requests are blocked.
-- Content hashes skip unchanged pages and their downstream branches.
+- Scraper and RSS Feed URLs must use public HTTPS. DNS resolution is pinned and private/reserved addresses, redirects, oversized responses, and slow requests are blocked.
+- Content hashes skip unchanged Scraper pages, and per-entry state skips already-seen RSS Feed entries; either way an unchanged source yields no downstream work.
 - Scraper and AI network failures receive at most two retries. Validation and malformed output do not retry.
 - Independent branches continue after another branch fails. Mixed post and failure outcomes are `partial`; no changed input is `noop`.
 - Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing links plus skipped-listing counts. Full scraped text and generated bodies are not stored in run logs.

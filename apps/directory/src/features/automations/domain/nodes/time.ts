@@ -12,5 +12,5 @@ export const timeNode = defineNode({
     const scheduleError = validateAutomationSchedule(node.config.schedule)
     if (scheduleError) push('schedule', scheduleError)
   },
-  allowedTargets: (port) => (port === 'then' ? ['scraper', 'agent'] : []),
+  allowedTargets: (port) => (port === 'then' ? ['scraper', 'feed', 'agent'] : []),
 })

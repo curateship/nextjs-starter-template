@@ -3,6 +3,7 @@ import type {
   AutomationNode,
   AutomationNodeKind,
   AutomationTriggerType,
+  FeedAutomationNode,
   ImageAutomationNode,
   ListingAutomationNode,
   PostAutomationNode,
@@ -10,6 +11,7 @@ import type {
   ScraperAutomationNode,
 } from '@/features/automations/domain/types'
 import { runAgentNode } from './nodes/agent'
+import { runFeedNode } from './nodes/feed'
 import { runImageNode } from './nodes/image'
 import { runListingNode } from './nodes/listing'
 import { runPostNode } from './nodes/post'
@@ -40,6 +42,18 @@ const NODE_EXECUTORS: Record<AutomationNodeKind, NodeExecutor> = {
     retry: true,
     run: async (ctx, _payloads, node) => {
       const result = await runScraperNode(ctx.automationId, node as ScraperAutomationNode)
+      return {
+        type: 'documents',
+        documents: result.documents,
+        fetchedCount: result.fetchedCount,
+        unchangedCount: result.unchangedCount,
+      }
+    },
+  },
+  feed: {
+    retry: true,
+    run: async (ctx, _payloads, node) => {
+      const result = await runFeedNode(ctx.automationId, node as FeedAutomationNode)
       return {
         type: 'documents',
         documents: result.documents,
