@@ -17,6 +17,12 @@ import {
   resolveCaptionAnimation,
 } from "@/lib/caption-animations"
 import {
+  dipOpacityAt,
+  resolveIncomingTransition,
+  transitionReachState,
+  type ClipTransition,
+} from "@/lib/clip-transitions"
+import {
   timelineDurationMs,
   useEditorRuntime,
   useEditorSelector,
@@ -32,14 +38,23 @@ const PAUSED_DRIFT_S = 0.04
 const MEDIA_LOOK_AHEAD_MS = 2000
 
 // Clock-synced video/audio elements need their track (mute state)...
+// `transition` is the resolved blend entering this clip (crossfade/slide draw
+// the clip early over the previous one; dip is handled by a separate overlay).
 type MediaEntry = {
   clip: EditorClip
   track: EditorTrack
   zIndex: number
   order: number
+  transition?: ClipTransition | null
 }
 // ...while images/text are static visuals that only need stacking order.
-type VisualEntry = { clip: EditorClip; zIndex: number }
+type VisualEntry = {
+  clip: EditorClip
+  zIndex: number
+  transition?: ClipTransition | null
+}
+// A dip-to-black seam: a black overlay peaking on the seam (see dipOpacityAt).
+type DipWindow = { seamMs: number; durationMs: number }
 type PlaybackFrame = {
   startMs: number
   videos: Map<string, MediaEntry>
@@ -95,24 +110,33 @@ function seekPreviewMedia(
   requests.set(el, { mode, targetS })
 }
 
-// Flatten clips with their stacking order (track 0 on top).
+// Flatten clips with their stacking order (track 0 on top), resolving the
+// transition entering each clip from its same-track predecessor.
 function flattenTracks(tracks: EditorTrack[]) {
   const media: MediaEntry[] = []
   const images: VisualEntry[] = []
   const texts: VisualEntry[] = []
+  const dips: DipWindow[] = []
   tracks.forEach((track, trackIndex) => {
     const zIndex = tracks.length - trackIndex
-    for (const clip of track.clips) {
+    track.clips.forEach((clip, idx) => {
+      const transition = resolveIncomingTransition(
+        clip,
+        idx > 0 ? track.clips[idx - 1] : null
+      )
+      if (transition?.kind === "dip") {
+        dips.push({ seamMs: clip.startMs, durationMs: transition.durationMs })
+      }
       if (clip.kind === "text") {
         texts.push({ clip, zIndex })
       } else if (clip.kind === "image" && clip.url) {
-        images.push({ clip, zIndex })
+        images.push({ clip, zIndex, transition })
       } else if (clip.url) {
-        media.push({ clip, track, zIndex, order: media.length })
+        media.push({ clip, track, zIndex, order: media.length, transition })
       }
-    }
+    })
   })
-  return { media, images, texts }
+  return { media, images, texts, dips }
 }
 
 // Registers/unregisters an element in a shared map. The ref object is
@@ -179,6 +203,8 @@ export function EditorPreview() {
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
+  // Full-frame black layer driven by any active dip-to-black seam.
+  const dipRef = React.useRef<HTMLDivElement>(null)
   const syncFrameRef = React.useRef<() => void>(() => undefined)
   // Per-word spans for karaoke captions, keyed `${clipId}:${index}`.
   const wordRefs = React.useRef(new Map<string, HTMLSpanElement>())
@@ -219,7 +245,7 @@ export function EditorPreview() {
   }
 
   // The clip lists only change on edits.
-  const { media, images, texts } = React.useMemo(
+  const { media, images, texts, dips } = React.useMemo(
     () => flattenTracks(tracks),
     [tracks]
   )
@@ -239,14 +265,21 @@ export function EditorPreview() {
     const empty = () => ({ enter: [], leave: [], prepare: [], release: [] })
     const add = (item: PlaybackEntry) => {
       const { clip } = item.entry
-      const start = events.get(clip.startMs) ?? empty()
+      // Crossfade/slide clips are drawn early over the outgoing clip's tail, so
+      // they become active `durationMs` before their real start. Dip does not
+      // reach back (it is a separate black overlay). Leave stays at the end.
+      const transition = item.entry.transition
+      const reachMs =
+        transition && transition.kind !== "dip" ? transition.durationMs : 0
+      const enterMs = clip.startMs - reachMs
+      const start = events.get(enterMs) ?? empty()
       start.enter.push(item)
-      events.set(clip.startMs, start)
+      events.set(enterMs, start)
       const endMs = clip.startMs + clip.durationMs
       const end = events.get(endMs) ?? empty()
       end.leave.push(item)
       if (item.kind === "media") {
-        const prepareMs = Math.max(0, clip.startMs - MEDIA_LOOK_AHEAD_MS)
+        const prepareMs = Math.max(0, enterMs - MEDIA_LOOK_AHEAD_MS)
         const prepare = events.get(prepareMs) ?? empty()
         prepare.prepare.push(item.entry)
         events.set(prepareMs, prepare)
@@ -429,12 +462,17 @@ export function EditorPreview() {
     // then touches only active entries and clips crossing a boundary.
     for (const el of videoRefs.current.values()) {
       if (el.style.opacity !== "0") el.style.opacity = "0"
+      if (el.style.transform) el.style.transform = ""
       if (!el.paused) el.pause()
     }
     for (const el of audioRefs.current.values()) {
       if (!el.paused) el.pause()
     }
-    for (const el of imageRefs.current.values()) el.style.visibility = "hidden"
+    for (const el of imageRefs.current.values()) {
+      el.style.visibility = "hidden"
+      if (el.style.opacity && el.style.opacity !== "1") el.style.opacity = "1"
+      if (el.style.transform) el.style.transform = ""
+    }
     for (const el of textRefs.current.values()) el.style.visibility = "hidden"
     for (const el of wordRefs.current.values()) {
       el.style.opacity = String(KARAOKE_DIM)
@@ -505,18 +543,47 @@ export function EditorPreview() {
       for (const [url, entry] of frame.videos) {
         const el = videoRefs.current.get(url)
         if (!el) continue
-        if (el.style.opacity !== "1") el.style.opacity = "1"
-        const zIndex = String(entry.zIndex)
-        if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
-        const muted = entry.track.muted || !!entry.clip.muted
+        const { clip } = entry
+        // Reach-back: this clip is drawn early over the previous one, held on
+        // its first frame while its alpha/slide ramps in (see the export path
+        // in video-render.ts). It sits one layer above its same-track neighbour.
+        const reaching =
+          !!entry.transition &&
+          entry.transition.kind !== "dip" &&
+          timeMs < clip.startMs
+        if (reaching) {
+          const state = transitionReachState(
+            entry.transition!.kind,
+            clip.startMs,
+            entry.transition!.durationMs,
+            timeMs
+          )
+          const opacity = String(state.opacity)
+          if (el.style.opacity !== opacity) el.style.opacity = opacity
+          const zIndex = String(entry.zIndex + 1)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          const transform = state.translateXPct
+            ? `translateX(${state.translateXPct}%)`
+            : ""
+          if (el.style.transform !== transform) el.style.transform = transform
+        } else {
+          if (el.style.opacity !== "1") el.style.opacity = "1"
+          const zIndex = String(entry.zIndex)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          if (el.style.transform) el.style.transform = ""
+        }
+        const muted = entry.track.muted || !!clip.muted
         if (el.muted !== muted) el.muted = muted
         const volume = entry.track.duck
           ? sampleEnvelope(duckEnvelope, timeMs)
           : 1
         if (el.volume !== volume) el.volume = volume
-        const targetS =
-          (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
-        if (!playing && !el.paused) el.pause()
+        // Freeze the first frame during the reach-back so content is continuous
+        // once real playback begins at the seam.
+        const targetS = reaching
+          ? clip.trimStartMs / 1000
+          : (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
+        if ((!playing || reaching) && !el.paused) el.pause()
         seekPreviewMedia(
           el,
           targetS,
@@ -524,7 +591,9 @@ export function EditorPreview() {
           seekToleranceS,
           mediaSeekRequests
         )
-        if (playing && el.paused) void el.play().catch(() => undefined)
+        if (playing && !reaching && el.paused) {
+          void el.play().catch(() => undefined)
+        }
       }
 
       // Audio: only active clips are visited on each tick.
@@ -545,6 +614,45 @@ export function EditorPreview() {
           mediaSeekRequests
         )
         if (playing && el.paused) void el.play().catch(() => undefined)
+      }
+
+      // Image reach-back: an incoming image drawn early over the previous clip
+      // fades/slides in exactly like a video (it just holds its single frame).
+      for (const entry of frame.images.values()) {
+        const transition = entry.transition
+        if (!transition || transition.kind === "dip") continue
+        const el = imageRefs.current.get(entry.clip.id)
+        if (!el) continue
+        if (timeMs < entry.clip.startMs) {
+          const state = transitionReachState(
+            transition.kind,
+            entry.clip.startMs,
+            transition.durationMs,
+            timeMs
+          )
+          el.style.opacity = String(state.opacity)
+          el.style.zIndex = String(entry.zIndex + 1)
+          el.style.transform = state.translateXPct
+            ? `translateX(${state.translateXPct}%)`
+            : ""
+        } else {
+          if (el.style.opacity !== "1") el.style.opacity = "1"
+          const zIndex = String(entry.zIndex)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          if (el.style.transform) el.style.transform = ""
+        }
+      }
+
+      // Dip-to-black: a full-frame black layer at whichever seam is nearest.
+      const dipEl = dipRef.current
+      if (dipEl) {
+        let dipOpacity = 0
+        for (const dip of dips) {
+          const value = dipOpacityAt(dip.seamMs, dip.durationMs, timeMs)
+          if (value > dipOpacity) dipOpacity = value
+        }
+        const opacity = String(dipOpacity)
+        if (dipEl.style.opacity !== opacity) dipEl.style.opacity = opacity
       }
 
       // Karaoke: binary-search the active word and update spans imperatively.
@@ -600,7 +708,7 @@ export function EditorPreview() {
       }
       unsubscribe()
     }
-  }, [clock, playbackFrames, duckEnvelope])
+  }, [clock, playbackFrames, duckEnvelope, dips])
 
   // --- Drag a text overlay to reposition it on the frame -------------------
   // Grab anywhere on the text; the offset between the pointer and the text's
@@ -815,6 +923,15 @@ export function EditorPreview() {
           </div>
           )
         })}
+
+        {/* Dip-to-black overlay: opacity driven by the sync loop, on top of
+            every clip so the frame truly dips through black. */}
+        <div
+          ref={dipRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-black"
+          style={{ opacity: 0, zIndex: 90 }}
+        />
 
         {/* Empty-project hint */}
         {!hasClips && (

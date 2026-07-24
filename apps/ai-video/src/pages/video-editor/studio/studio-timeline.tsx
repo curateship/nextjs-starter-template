@@ -25,6 +25,11 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/pages/video-editor/editor-store"
+import {
+  resolveIncomingTransition,
+  TRANSITION_OPTIONS,
+  type ClipTransition,
+} from "@/lib/clip-transitions"
 import type { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   clampRowDelta,
@@ -461,14 +466,20 @@ function TimelineRow({
         onLostPointerCapture={seekCancel}
         style={{ position: "relative", flex: 1, background: "transparent" }}
       >
-        {track.clips.map((clip) => (
-          <ClipChip
-            key={clip.id}
-            clip={clip}
-            trackIndex={index}
-            accent={accent}
-          />
-        ))}
+        {track.clips.map((clip, i) => {
+          const transition = resolveIncomingTransition(
+            clip,
+            i > 0 ? track.clips[i - 1] : null
+          )
+          return (
+            <React.Fragment key={clip.id}>
+              <ClipChip clip={clip} trackIndex={index} accent={accent} />
+              {transition ? (
+                <SeamBadge clip={clip} transition={transition} />
+              ) : null}
+            </React.Fragment>
+          )
+        })}
       </div>
     </div>
   )
@@ -852,6 +863,57 @@ function ClipChip({
         <span style={gripBar} />
       </div>
     </div>
+  )
+}
+
+// A small diamond straddling the seam between two clips, marking a transition.
+// Clicking it selects the incoming clip so its inspector shows the blend
+// controls. Rendered in the lane (not inside the overflow-clipped clip) so it
+// can sit on the boundary.
+function SeamBadge({
+  clip,
+  transition,
+}: {
+  clip: EditorClip
+  transition: ClipTransition
+}) {
+  const pps = useEditorSelector((state) => state.pxPerSecond)
+  const selected = useEditorSelector(
+    (state) => state.selectedClipId === clip.id
+  )
+  const { dispatch } = useEditorRuntime()
+  // While selected, the inspector's Transition card is the control surface and
+  // the clip shows its trim grips (the left one sits on this seam) — so hide the
+  // badge to avoid intercepting the grip.
+  if (selected) return null
+  const label =
+    TRANSITION_OPTIONS.find((option) => option.id === transition.kind)?.label ??
+    "Transition"
+  return (
+    <button
+      type="button"
+      title={`${label} · ${(transition.durationMs / 1000).toFixed(1)}s`}
+      aria-label={`${label} transition, ${(transition.durationMs / 1000).toFixed(1)} seconds`}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        dispatch({ type: "SELECT_CLIP", clipId: clip.id })
+      }}
+      style={{
+        position: "absolute",
+        left: msToPx(clip.startMs, pps),
+        top: "50%",
+        width: 13,
+        height: 13,
+        padding: 0,
+        border: "1.5px solid var(--panel)",
+        borderRadius: 4,
+        background: "var(--acc)",
+        transform: "translate(-50%,-50%) rotate(45deg)",
+        cursor: "pointer",
+        zIndex: 5,
+        boxShadow: "var(--sh-sm)",
+      }}
+    />
   )
 }
 
