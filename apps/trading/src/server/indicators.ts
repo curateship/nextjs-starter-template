@@ -167,6 +167,37 @@ export async function upsertUserIndicator(
       throw new Error("Invalid Fair Value Gap parameter: showFilled")
     }
   }
+  if (def.type === "base") {
+    // Ranges mirror the Base module's paramsSchema, so a value stored from the
+    // chart card is always one the indicator can actually run with.
+    const ranges: Record<string, [number, number]> = {
+      basePeriods: [4, 500],
+      pumpPeriods: [1, 499],
+      formedValidBars: [1, 1000],
+    }
+    for (const [key, [min, max]] of Object.entries(ranges)) {
+      const value = input.params[key]
+      if (
+        value !== undefined &&
+        (!Number.isInteger(value) || value < min || value > max)
+      ) {
+        throw new Error(`Invalid Base parameter: ${key}`)
+      }
+    }
+    const rising = input.params.formedRequireRising
+    if (rising !== undefined && rising !== 0 && rising !== 1) {
+      throw new Error("Invalid Base parameter: formedRequireRising")
+    }
+    const formedWithinPct = input.params.formedWithinPct
+    if (
+      formedWithinPct !== undefined &&
+      (!Number.isFinite(formedWithinPct) ||
+        formedWithinPct <= 0 ||
+        formedWithinPct > 50)
+    ) {
+      throw new Error("Invalid Base parameter: formedWithinPct")
+    }
+  }
   if (def.type === "trendline") {
     const lookback = input.params.swingLookback
     if (

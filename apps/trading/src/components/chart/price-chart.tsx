@@ -82,6 +82,7 @@ import {
   rsi,
 } from "@/lib/strategies/indicators"
 import {
+  baseChartToModuleParams,
   bollingerChartToModuleParams,
   emaLines,
   fairValueGapChartToModuleParams,
@@ -2874,6 +2875,31 @@ export function PriceChart({
     return { overlayLines: outputToOverlays(out).overlayLines, markers }
   }, [indicators, candles])
 
+  // Base arrows: ONE green up arrow per base, on the first candle back at the
+  // base level. Base emits only this formed-base long — breaking a base is the
+  // DCA ladder's rule and never draws here.
+  const baseMarkers = React.useMemo<ChartMarker[]>(() => {
+    const cfg = indicators.find((ind) => ind.type === "base" && ind.enabled)
+    if (!cfg || candles.length === 0) return []
+    const numeric = candles.map((c) => ({
+      t: c.t,
+      o: Number(c.o),
+      h: Number(c.h),
+      l: Number(c.l),
+      c: Number(c.c),
+      v: Number(c.v),
+    }))
+    const out = INDICATORS.base.compute(
+      numeric,
+      baseChartToModuleParams(cfg.params) as never
+    )
+    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
+    return out.signals.flatMap((signal) => {
+      const price = closeAt.get(signal.time)
+      return price ? [{ time: signal.time, side: signal.side, price }] : []
+    })
+  }, [indicators, candles])
+
   // Bollinger arrows: the bands themselves render from the chart's own
   // config; the buy/sell arrows come from the module so the chart marks
   // exactly what the Bollinger strategy node (same mode) would trade.
@@ -3018,6 +3044,7 @@ export function PriceChart({
         ...emaCrossMarkers,
         ...priceActionMarkers,
         ...bollingerMarkers,
+        ...baseMarkers,
         ...trendline.markers,
       ]}
       indicators={[...indicators, ...strategy.indicators]}

@@ -104,7 +104,16 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "base",
     enabled: false,
     pinned: false,
-    params: { basePeriods: 36, pumpPeriods: 8 },
+    // Base forming only — the crack settings live on the automation's Base node
+    // for the DCA ladder to read; nothing the chart paints uses them.
+    params: {
+      basePeriods: 36,
+      pumpPeriods: 8,
+      formedWithinPct: 1,
+      formedValidBars: 40,
+      // Booleans ride as 0/1 in chart configs.
+      formedRequireRising: 1,
+    },
   },
   {
     id: "session",
@@ -235,6 +244,27 @@ export function fairValueGapChartToModuleParams(
   }
 }
 
+/** Chart Base params → the Base module's typed params. Only the base-forming
+ * settings are on the chart card; the crack and respect-filter settings belong to
+ * the DCA node, so they fall back to the module's own defaults here. */
+export function baseChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | boolean> {
+  return {
+    basePeriods: params.basePeriods ?? 36,
+    pumpPeriods: params.pumpPeriods ?? 8,
+    formedWithinPct: params.formedWithinPct ?? 1,
+    formedValidBars: params.formedValidBars ?? 40,
+    formedRequireRising: (params.formedRequireRising ?? 1) !== 0,
+    crackPct: 2.5,
+    maxCrackBars: 4,
+    respectFilterEnabled: false,
+    respectLookbackMonths: 6,
+    minRespectPct: 80,
+    recoveryTargetPct: -2,
+  }
+}
+
 export function trendlineChartToModuleParams(
   params: Record<string, number>
 ): Record<string, number | boolean> {
@@ -338,8 +368,38 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "signal", label: "Signal" },
   ],
   base: [
-    { key: "basePeriods", label: "Base periods" },
-    { key: "pumpPeriods", label: "Pump periods" },
+    {
+      key: "basePeriods",
+      label: "Base periods",
+      description:
+        "How many candles back to search for the lowest low that forms a base.",
+    },
+    {
+      key: "pumpPeriods",
+      label: "Pump periods",
+      description:
+        "How many candles the new low must hold before the base counts as confirmed. A green up arrow prints on the candle that confirms it.",
+    },
+    {
+      key: "formedWithinPct",
+      label: "Formed within %",
+      step: 0.1,
+      description:
+        "How close to the base a candle must close for the formed-base arrow to print. Once a base is confirmed the arrow waits for the first candle back at the base and skips anything further away.",
+    },
+    {
+      key: "formedValidBars",
+      label: "Valid for (candles)",
+      description:
+        "How long a base keeps waiting for price to come back. If no candle closes near the base within this many candles of it being confirmed, that base goes stale and never prints an arrow.",
+    },
+    {
+      key: "formedRequireRising",
+      label: "Only rising signals",
+      kind: "boolean",
+      description:
+        "Only draw an arrow that sits above the previous base's arrow, confirming the trend is stepping up. Bases that would print lower are still tracked as the yardstick, they just aren't drawn.",
+    },
   ],
   session: [],
   priceAction: [

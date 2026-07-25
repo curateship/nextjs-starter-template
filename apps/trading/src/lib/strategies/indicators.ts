@@ -342,17 +342,20 @@ type LowCandle = { l: number | string }
  *  - `line`: a SHORT horizontal mark drawn at each base's low bar (NaN
  *    elsewhere) — what to plot, so bases show as separate short lines rather
  *    than one level held across the whole chart.
- * Both are NaN until the first base is confirmed.
+ *  - `confirmed`: true on the bar a base became confirmed (the bar the hold
+ *    completed, `pumpPeriods` after the low itself) — the "base formed" event.
+ * `raw` and `line` are NaN until the first base is confirmed.
  */
 export function qflBase(
   candles: LowCandle[],
   basePeriods: number,
   pumpPeriods: number
-): { raw: number[]; line: number[] } {
+): { raw: number[]; line: number[]; confirmed: boolean[] } {
   const n = candles.length
   const raw = new Array<number>(n).fill(Number.NaN)
   const line = new Array<number>(n).fill(Number.NaN)
-  if (n === 0 || basePeriods < 4) return { raw, line }
+  const confirmed = new Array<boolean>(n).fill(false)
+  if (n === 0 || basePeriods < 4) return { raw, line, confirmed }
   // Pine clamps pumpPeriods below basePeriods.
   const pump = pumpPeriods >= basePeriods ? basePeriods - 1 : pumpPeriods
 
@@ -382,6 +385,7 @@ export function qflBase(
       held === now
     if (newBase) {
       current = now
+      confirmed[i] = true
       const lowBar = i - pump
       const from = Math.max(0, lowBar - halfSpan)
       const to = Math.min(n - 1, lowBar + halfSpan)
@@ -390,5 +394,5 @@ export function qflBase(
     raw[i] = current
   }
 
-  return { raw, line }
+  return { raw, line, confirmed }
 }
