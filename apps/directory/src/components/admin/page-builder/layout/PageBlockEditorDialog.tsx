@@ -17,6 +17,7 @@ import { PageSiteSearchBlock } from "../blocks/site-search/PageSiteSearchBlock"
 import { PageMemberDirectoryBlock } from "../blocks/member-directory/PageMemberDirectoryBlock"
 import { PageEventsCalendarBlock } from "../blocks/events-calendar/PageEventsCalendarBlock"
 import { PageEventSubmissionBlock } from "../blocks/event-submission/PageEventSubmissionBlock"
+import { PageListingSubmissionBlock } from "../blocks/listing-submission/PageListingSubmissionBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -152,6 +153,13 @@ export function PageBlockEditorDialog({
 
                 {selectedBlock.type === "event-submission" && (
                   <PageEventSubmissionBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+
+                {selectedBlock.type === "listing-submission" && (
+                  <PageListingSubmissionBlock
                     content={draftContent}
                     onContentChange={onContentChange}
                   />
