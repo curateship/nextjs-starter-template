@@ -21,6 +21,7 @@ import { PageCategoriesListingBlock } from "@/components/frontend/pages/categori
 import { PageSiteSearchBlock } from "@/components/frontend/pages/site-search/PageSiteSearchBlock"
 import { PageMemberDirectoryBlock } from "@/components/frontend/pages/member-directory/PageMemberDirectoryBlock"
 import { PageEventsCalendarBlock } from "@/components/frontend/pages/events-calendar/PageEventsCalendarBlock"
+import { PageEventSubmissionBlock } from "@/components/frontend/pages/event-submission/PageEventSubmissionBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { PublicProfileData } from "@/lib/actions/profiles/public-profile-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -214,6 +215,19 @@ export function BlockRenderer({
                 content={blockContent}
                 siteId={site.id}
                 preloadedData={site.eventsCalendarData?.[block.id]}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'event-submission') {
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <PageEventSubmissionBlock
+                content={blockContent}
+                siteId={site.id}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
