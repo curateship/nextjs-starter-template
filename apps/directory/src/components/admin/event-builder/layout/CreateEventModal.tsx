@@ -28,8 +28,11 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getEventTemplatesBySite, type EventTemplate } from "@/lib/actions/events/event-template-actions"
+import { setEventRecurrenceAction } from "@/lib/actions/events/event-recurrence-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Event } from "@/lib/actions/events/event-actions"
+import type { RecurrenceRule } from "@/lib/utils/event-recurrence"
+import { EventScheduleCard } from "./EventScheduleCard"
 
 interface CreateEventModalProps {
   onSuccess: (event: Event, continueToBuilder?: boolean) => void
@@ -47,6 +50,9 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [templates, setTemplates] = useState<EventTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [eventDate, setEventDate] = useState("")
+  const [eventTime, setEventTime] = useState("")
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | null>(null)
 
   // Load event templates and preselect the default (or first)
   useEffect(() => {
@@ -93,13 +99,22 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       content_blocks: {
         ...(isPrivate ? { _settings: { is_private: true } } : {}),
         show_featured_image: true,
+        // Seed the event-content block with the schedule so the calendar and any
+        // repeat rule have a date to work from (canonical key; pruned to template).
+        ...(eventDate ? { "event-content-default": { id: "event-content-default", type: "event-content", content: { eventDate, ...(eventTime ? { eventTime } : {}) } } } : {}),
       },
     }),
-    // Assign selected categories after the event row exists
+    // Assign categories, then apply the repeat rule, after the event row exists
     afterCreate: async (created) => {
-      if (selectedCategoryIds.length === 0) return null
-      const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: created.id, contentType: 'event', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
-      return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
+      if (selectedCategoryIds.length > 0) {
+        const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: created.id, contentType: 'event', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
+        if (!categoryResult.success) return categoryResult.error || 'Failed to save categories'
+      }
+      if (eventDate && recurrenceRule) {
+        const recurrenceResult = await setEventRecurrenceAction({ data: { eventId: created.id, rule: recurrenceRule } })
+        if (!recurrenceResult.success) return recurrenceResult.error || 'Failed to save repeat'
+      }
+      return null
     },
   })
 
@@ -197,6 +212,16 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </Card>
 
           <FeaturedImageCard imageUrl={featuredImage} onChange={setFeaturedImage} />
+
+          <EventScheduleCard
+            date={eventDate}
+            time={eventTime}
+            rule={recurrenceRule}
+            onDateChange={setEventDate}
+            onTimeChange={setEventTime}
+            onRuleChange={setRecurrenceRule}
+            disabled={loading}
+          />
 
           <Card>
             <CardHeader>

@@ -20,6 +20,8 @@ import {
   safeDeleteSiteSearchDocument,
   safeSyncSiteSearchDocument,
 } from '@/lib/actions/site-search/site-search-index'
+import { onEventEdited } from './event-recurrence.server'
+import type { RecurrenceRule } from '@/lib/utils/event-recurrence'
 
 export type EventRow = typeof events.$inferSelect
 
@@ -34,6 +36,8 @@ export interface Event {
   content_blocks: Record<string, any>
   featured_image: string | null
   meta_description: string | null
+  recurrence_rule: RecurrenceRule | null
+  series_id: string | null
   created_at: string
   updated_at: string
 }
@@ -254,6 +258,8 @@ export async function updateEventActionImpl(eventId: string, data: UpdateEventDa
     }
 
     await safeSyncSiteSearchDocument('event', updatedEvent)
+    // Series bookkeeping: detach an edited occurrence, or push shared content to the series
+    await onEventEdited(updatedEvent)
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`event-${eventId}`)
@@ -441,6 +447,9 @@ export async function updateEventBlocksActionImpl(eventId: string, contentBlocks
       })
       .where(eq(events.id, eventId))
     await safeSyncSiteSearchDocument('event', { ...event, contentBlocks: valueBlocks })
+    // Series bookkeeping: editing an occurrence's blocks detaches it; editing the
+    // anchor's blocks pushes them onto the series' upcoming dates.
+    await onEventEdited(event)
 
     // Revalidate cache
     revalidateTag('events')
