@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/tooltip"
 import type { BacktestGroupRun } from "@/lib/api/backtests"
 import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
-import { MAX_EXTRA_MARKETS, maxWindowDays } from "@/lib/backtest/types"
+import { maxRunMarkets, maxWindowDays } from "@/lib/backtest/types"
+import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 
 import {
@@ -44,7 +45,7 @@ const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 export function AutomationBacktestSidePanel({
   backtest,
   interval,
-  isDca,
+  config,
   runnable,
   disabledReason,
   canSaveAndRerun,
@@ -52,8 +53,9 @@ export function AutomationBacktestSidePanel({
 }: {
   backtest: AutomationBacktestState
   interval: AutomationInterval
-  /** True when a DCA ladder runs the whole basket off one shared wallet. */
-  isDca: boolean
+  /** The compiled Automation: sets the market cap's warm-up cost, and says
+   * whether a DCA ladder runs the whole basket off one shared wallet. */
+  config: AutomationConfig | null
   /** Compiled + saved — gates Run/New run live (edits mid-mode disable them). */
   runnable: boolean
   disabledReason?: string
@@ -80,7 +82,31 @@ export function AutomationBacktestSidePanel({
     selectedRunId,
   } = backtest
 
+  const isDca = Boolean(config?.dca)
   const maxDays = maxWindowDays(interval)
+  // How many markets this run can still afford. A market costs its window of
+  // candles plus the strategy's warm-up, and one run may only pull so many
+  // bars in total — so the answer moves with the timeframe and the window,
+  // not just with the basket cap. An unparseable day count falls back to the
+  // longest window, which gives the smallest (safest) cap.
+  const windowDaysForCap = Math.min(
+    Math.max(Number.parseInt(days, 10) || maxDays, 1),
+    maxDays
+  )
+  const marketCap = React.useMemo(
+    () => maxRunMarkets(config, interval, windowDaysForCap),
+    [config, interval, windowDaysForCap]
+  )
+  // The window is restored from the automation's last run, which may have been
+  // on a coarser timeframe — 2083 days is fine at 1h and impossible at 15m. Pull
+  // it back to the limit rather than holding a number the run can only reject.
+  React.useEffect(() => {
+    const current = Number.parseInt(days, 10)
+    if (Number.isFinite(current) && current > maxDays) {
+      setDays(String(maxDays))
+      setError(null)
+    }
+  }, [days, maxDays, setDays, setError])
   // Set lookup, not `includes`: with hundreds of markets selected, filtering an
   // array inside an array walk is quadratic and re-runs on every price tick,
   // which locks up the panel.
@@ -131,15 +157,23 @@ export function AutomationBacktestSidePanel({
         )
       : 0
 
-  // Fill the basket with a fresh random draw up to the market cap — a fast way
-  // to grab a broad, unbiased spread instead of hand-picking coins.
+  // Every basket edit goes through here: changing the selection can only fix
+  // an over-the-cap error, so the stale message goes with it.
+  const changeMarkets = (next: string[]) => {
+    setSelectedMarkets(next)
+    setError(null)
+  }
+
+  // Fill the basket with a fresh random draw up to the market cap for the
+  // current timeframe and window — a fast way to grab a broad, unbiased spread
+  // instead of hand-picking coins.
   const randomizeMarkets = () => {
     const pool = markets.map((row) => row.coin)
     for (let i = pool.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[pool[i], pool[j]] = [pool[j], pool[i]]
     }
-    setSelectedMarkets(pool.slice(0, MAX_EXTRA_MARKETS + 1))
+    changeMarkets(pool.slice(0, marketCap))
   }
 
   const submit = () => {
@@ -156,6 +190,16 @@ export function AutomationBacktestSidePanel({
     }
     if (selectedMarkets.length === 0) {
       setError("Pick at least one market.")
+      return
+    }
+    // Reachable by lengthening the window after picking: the cap shrinks under
+    // an already-chosen basket. Say what to remove instead of failing upstream.
+    if (selectedMarkets.length > marketCap) {
+      setError(
+        `A ${interval} run over ${windowDays} days fits ${marketCap} ${
+          marketCap === 1 ? "market" : "markets"
+        }. Remove ${selectedMarkets.length - marketCap} or shorten the window.`
+      )
       return
     }
     void backtest.start(windowDays)
@@ -203,7 +247,15 @@ export function AutomationBacktestSidePanel({
             <>
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <Label>Markets</Label>
+                  {/* Chosen / allowed. Kept to two numbers because this row
+                      also carries two buttons in a narrow panel; the line under
+                      the form spells out what the limit depends on. */}
+                  <Label className="whitespace-nowrap">
+                    Markets{" "}
+                    <span className="font-normal text-muted-foreground">
+                      {selectedMarkets.length}/{marketCap}
+                    </span>
+                  </Label>
                   <div className="flex items-center gap-1">
                     <Button
                       type="button"
@@ -222,7 +274,7 @@ export function AutomationBacktestSidePanel({
                         variant="ghost"
                         size="sm"
                         className="text-muted-foreground"
-                        onClick={() => setSelectedMarkets([])}
+                        onClick={() => changeMarkets([])}
                       >
                         Clear all
                       </Button>
@@ -241,7 +293,7 @@ export function AutomationBacktestSidePanel({
                         type="button"
                         aria-label={`Remove ${coin}`}
                         onClick={() =>
-                          setSelectedMarkets(
+                          changeMarkets(
                             selectedMarkets.filter((c) => c !== coin)
                           )
                         }
@@ -252,7 +304,7 @@ export function AutomationBacktestSidePanel({
                   ))}
                 </div>
                 {availableMarkets.length > 0 &&
-                selectedMarkets.length < MAX_EXTRA_MARKETS + 1 ? (
+                selectedMarkets.length < marketCap ? (
                   <MarketPicker
                     rows={availableMarkets}
                     selected=""
@@ -263,14 +315,12 @@ export function AutomationBacktestSidePanel({
                     // only, so the funding/volume/open-interest columns are off.
                     metrics={false}
                     multiple
-                    maxSelectable={
-                      MAX_EXTRA_MARKETS + 1 - selectedMarkets.length
-                    }
+                    maxSelectable={marketCap - selectedMarkets.length}
                     onSelectMany={(coins) =>
-                      setSelectedMarkets(
+                      changeMarkets(
                         [...new Set([...selectedMarkets, ...coins])].slice(
                           0,
-                          MAX_EXTRA_MARKETS + 1
+                          marketCap
                         )
                       )
                     }
@@ -303,7 +353,10 @@ export function AutomationBacktestSidePanel({
                   step={1}
                   className="w-32"
                   value={days}
-                  onChange={(event) => setDays(event.target.value)}
+                  onChange={(event) => {
+                    setDays(event.target.value)
+                    setError(null)
+                  }}
                 />
               </div>
 
@@ -333,7 +386,8 @@ export function AutomationBacktestSidePanel({
 
               <p className="text-[11px] text-muted-foreground">
                 {isDca ? "One shared DCA wallet" : "One run per market"} · max{" "}
-                {MAX_EXTRA_MARKETS + 1} markets.
+                {marketCap} markets for a {windowDaysForCap}-day window at{" "}
+                {interval}.
               </p>
             </>
           ) : phase === "running" ? (

@@ -330,6 +330,31 @@ export function totalRunBars(
 export const MAX_TOTAL_RUN_BARS = 1_000_000
 
 /**
+ * Markets that actually fit in one run at this interval and window: the shared
+ * bar budget divided by what a single market costs, never more than the basket
+ * cap. Same arithmetic as the MAX_TOTAL_RUN_BARS check the server applies when
+ * a run starts, so the picker can never offer a basket the run would reject.
+ *
+ * The number moves with the timeframe because a market's cost does: 30 days of
+ * 15m candles is 2,880 bars, the same 30 days of 1m is 43,200. Coarser candles
+ * are cheaper, so more markets fit.
+ */
+export function maxRunMarkets(
+  params: unknown,
+  interval: BacktestInterval,
+  windowDays: number
+): number {
+  const perMarket = Math.max(
+    1,
+    windowBars(interval, windowDays) + warmupBarsFor(params)
+  )
+  return Math.max(
+    1,
+    Math.min(MAX_EXTRA_MARKETS + 1, Math.floor(MAX_TOTAL_RUN_BARS / perMarket))
+  )
+}
+
+/**
  * User-configurable candle ceiling bounds (Settings → Max chart candles).
  * Applies everywhere candles are loaded: the count a live trading chart
  * fetches, and the per-interval window ceiling for backtest runs.
