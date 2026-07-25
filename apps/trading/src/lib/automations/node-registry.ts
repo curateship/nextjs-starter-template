@@ -1,7 +1,9 @@
 import type {
+  AutomationConfig,
   AutomationNode,
   AutomationSourcePort,
 } from "@/lib/automations/automation"
+import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
   DEFAULT_DCA_RUNGS,
@@ -17,6 +19,67 @@ import {
   type IndicatorId,
   type IndicatorParamValue,
 } from "@/lib/indicators/registry"
+
+/**
+ * A run/order purpose → a human title for the chart. Purposes follow one shared
+ * grammar across every strategy node — `<node>:b:<n>` (buy), `<node>:s|tp:<n>`
+ * (sell / take-profit), `<node>:s:all` — so ONE decoder covers QFL, DCA, and any
+ * future node without the chart knowing a single strategy's id format. A node
+ * with an exotic purpose can special-case it here; everything else falls back to
+ * the cleaned-up purpose string.
+ */
+export function orderLabelFor(purpose: string): string {
+  const rung = purpose.match(/^[a-z]+:(b|s|tp):(\d+)$/)
+  if (rung) {
+    const kind = rung[1] === "b" ? "Buy" : rung[1] === "tp" ? "TP" : "Sell"
+    return `${kind} ${Number(rung[2]) + 1}`
+  }
+  if (/^[a-z]+:s:all$/.test(purpose)) return "Sell all"
+  return purpose.replace(/^auto:/, "").replace(/-/g, " ")
+}
+
+/**
+ * The chart's Base indicator config — short horizontal dashes at each confirmed
+ * base, keyed to the node that owns it. A `type: "base"` indicator, NOT a line
+ * series, so the chart draws separate dashes instead of a ramp between bases.
+ */
+function baseOverlay(
+  nodeId: string,
+  basePeriods: number,
+  pumpPeriods: number
+): IndicatorConfig {
+  return {
+    id: `${nodeId}:base`,
+    type: "base",
+    enabled: true,
+    params: { basePeriods, pumpPeriods },
+  }
+}
+
+/** Which price line was dragged: a stop, a take-profit, or the base/crack line. */
+export type TuneTarget = "tp" | "sl" | "crack"
+
+function roundPct(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value * 100) / 100))
+}
+
+/**
+ * The node update a dragged price line maps to — the ONE place the per-node
+ * setting math lives (replaces the switch that used to be duplicated across the
+ * visualize and backtest drag handlers). `ref` is the position's entry for a
+ * TP/SL drag, or the base for a crack drag. Returns null when the drag doesn't
+ * apply to this node. A new draggable node just adds its own `applyTuneDrag`.
+ */
+export function nodeTuneUpdate(
+  node: AutomationNode,
+  target: TuneTarget,
+  price: number,
+  ref: number,
+  side: "long" | "short"
+): AutomationNode | null {
+  if (!(price > 0)) return null
+  return definitionForNode(node).applyTuneDrag?.(node, target, price, ref, side) ?? null
+}
 
 export type AutomationPaletteKey =
   | `indicator-${IndicatorId}`
@@ -95,6 +158,19 @@ type AutomationNodeDefinition = {
   sourcePorts?: readonly AutomationSourcePort[]
   attachmentPorts?: readonly AutomationNodeAttachmentPort[]
   inputMode?: "side" | "protection"
+  /** Chart overlays this node draws (base dashes, ladder levels), read from the
+   * COMPILED config — a strategy's base settings are resolved at compile time,
+   * so this takes the config, not the raw node. Empty/absent = draws nothing. */
+  overlays?: (config: AutomationConfig) => IndicatorConfig[]
+  /** How dragging one of this node's price lines rewrites its setting. `ref` is
+   * the entry anchor (TP/SL) or the base (crack). Absent = no draggable line. */
+  applyTuneDrag?: (
+    node: AutomationNode,
+    target: TuneTarget,
+    price: number,
+    ref: number,
+    side: "long" | "short"
+  ) => AutomationNode | null
   connectionError: (
     sourcePort: AutomationSourcePort,
     target: AutomationNode
@@ -294,6 +370,20 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     icon: "layers",
     inspector: "qfl",
     outputPorts: noOutputs,
+    overlays: (config) =>
+      config.qfl
+        ? [
+            baseOverlay(
+              config.qfl.nodeId,
+              config.qfl.basePeriods,
+              config.qfl.pumpPeriods
+            ),
+          ]
+        : [],
+    applyTuneDrag: (node, target, price, ref) =>
+      node.kind === "qfl" && target === "crack" && ref > 0
+        ? { ...node, crackPct: roundPct(((ref - price) / ref) * 100, 0.1, 50) }
+        : null,
     connectionError: noConnection,
   },
   {
@@ -309,6 +399,9 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
       rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
       maxPositionPct: DEFAULT_DCA_MAX_POSITION_PCT,
       sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
+      compound: true,
+      rungEntry: "market",
+      requireTwoGreen: false,
       x,
       y,
     }),
@@ -321,6 +414,16 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     },
     icon: "layers",
     inspector: "dca",
+    overlays: (config) =>
+      config.dca
+        ? [
+            baseOverlay(
+              config.dca.nodeId,
+              config.dca.basePeriods,
+              config.dca.pumpPeriods
+            ),
+          ]
+        : [],
     // No signal output; TP/SL hang off its top/bottom hooks and read its average.
     outputPorts: noOutputs,
     sourcePorts: ["tp", "sl"],
@@ -476,6 +579,18 @@ function protectionDefinition(
     inspector: "protection",
     outputPorts: noOutputs,
     inputMode: "protection",
+    applyTuneDrag: (node, target, price, ref, side) => {
+      if (node.kind !== kind || !(ref > 0)) return null
+      if (kind === "takeProfit" && target === "tp") {
+        const raw = ((side === "long" ? price - ref : ref - price) / ref) * 100
+        return { ...node, pct: roundPct(raw, 0.1, 1000) }
+      }
+      if (kind === "stopLoss" && target === "sl") {
+        const raw = ((side === "long" ? ref - price : price - ref) / ref) * 100
+        return { ...node, pct: roundPct(raw, 0.1, 95) }
+      }
+      return null
+    },
     connectionError: noConnection,
   }
 }
@@ -544,6 +659,17 @@ export function automationPaletteKeyForRegisteredNode(
   node: AutomationNode
 ): AutomationPaletteKey | null {
   return definitionForNode(node).palette?.key ?? null
+}
+
+/**
+ * Every chart overlay the compiled config's nodes want drawn (base dashes today).
+ * The chart and the paint pipeline call THIS instead of hardcoding a strategy —
+ * a new node just declares its own `overlays` and gets drawn for free.
+ */
+export function configNodeOverlays(config: AutomationConfig): IndicatorConfig[] {
+  return AUTOMATION_NODE_DEFINITIONS.flatMap(
+    (definition) => definition.overlays?.(config) ?? []
+  )
 }
 
 export function automationNodeName(node: AutomationNode): string {

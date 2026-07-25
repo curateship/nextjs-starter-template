@@ -12,6 +12,7 @@ import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { useChartDrawings } from "@/components/chart/use-chart-drawings"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { configOverlays } from "@/components/chart/indicator-overlays"
+import { orderLabelFor } from "@/lib/automations/node-registry"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -157,15 +158,6 @@ function RunPaintMenu({
   )
 }
 
-/** "qfl:b:3" → "Buy 4", "qfl:tp:3" → "TP 4"; anything else keeps its purpose. */
-function orderTitle(purpose: string): string {
-  const qflBuy = purpose.match(/^qfl:b:(\d+)$/)
-  if (qflBuy) return `Buy ${Number(qflBuy[1]) + 1}`
-  const qflTp = purpose.match(/^qfl:tp:(\d+)$/)
-  if (qflTp) return `TP ${Number(qflTp[1]) + 1}`
-  return purpose.replace(/^auto:/, "").replace(/-/g, " ")
-}
-
 /**
  * A dropped tune-drag on the run chart: the editor rewrites the matching
  * node's setting from it (the rule — never a per-order override).
@@ -178,7 +170,7 @@ export type BacktestTuneDrag =
       anchor: number
       side: "long" | "short"
     }
-  | { kind: "qflCrack"; price: number; base: number }
+  | { kind: "crack"; price: number; base: number }
 
 /**
  * The one chart for a finished backtest run — used by the standalone backtest
@@ -626,7 +618,7 @@ export function BacktestRunChart({
         id: `tape:order:${purpose}`,
         price: order.px,
         color: order.side === "buy" ? LADDER_COLOR : CHART_UP_COLOR,
-        title: orderTitle(purpose),
+        title: orderLabelFor(purpose),
         lineStyle: "dashed",
         axisLabelVisible: false,
         draggable: firstRung && Boolean(onTuneDrag && tapeState.qflBase),
@@ -684,7 +676,7 @@ export function BacktestRunChart({
             side: tuneAnchor.side,
           })
         } else if (id === "tape:order:qfl:b:0" && tapeState?.qflBase) {
-          onTuneDrag({ kind: "qflCrack", price, base: tapeState.qflBase })
+          onTuneDrag({ kind: "crack", price, base: tapeState.qflBase })
         }
         return
       }
