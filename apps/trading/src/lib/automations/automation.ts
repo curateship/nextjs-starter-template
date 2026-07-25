@@ -87,14 +87,16 @@ export type AutomationTakeProfitNode = {
   pct: number
   /**
    * How profit is taken. "average" (default): close the whole position at `pct`
-   * above the blended average entry. The two "previousRung" modes apply ONLY
-   * when a DCA node feeds this take-profit — as price recovers, each averaged-in
-   * buy is sold at the price of the buy above it (the second buy sells where the
-   * first bought, etc). "previousRungSellAll" also sells the first buy at the
-   * base, fully closing on a return to base; "previousRungHoldFirst" keeps the
-   * first buy (held for a bigger move; only the stop loss closes it).
+   * above the blended average entry. The two rung modes apply ONLY when a DCA
+   * node feeds this take-profit (they reference the buy ladder).
+   * "previousRungSellAll" peels the ladder: as price recovers, each averaged-in
+   * buy is sold at the price of the buy above it (the second sells where the
+   * first bought, the first at the base). "nearestRungSellAll" instead rests one
+   * order for the WHOLE position at the nearest rung above the deepest buy, so a
+   * bounce back to that single level closes everything at once (and that level
+   * slides down as deeper rungs fill).
    */
-  mode?: "average" | "previousRungSellAll" | "previousRungHoldFirst"
+  mode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
   x: number
   y: number
 }
@@ -111,6 +113,13 @@ export type AutomationStopLossNode = {
   pct: number
   mode?: "fixed" | "trailing"
   activationPct?: number
+  /**
+   * What the stop measures from. "average" (default) uses the position's
+   * blended entry, which a DCA ladder drags down as it adds rungs — letting the
+   * earliest buys lose more than `pct`. "first" pins it to the first entry so
+   * `pct` means exactly that from where the position started.
+   */
+  anchor?: "average" | "first"
   x: number
   y: number
 }
@@ -150,6 +159,17 @@ export type AutomationQflNode = QflSettings & {
  * by the ladder's Size ramp. It owns averaging-IN only — Take Profit and Stop
  * Loss nodes hung on it own the exits and read its running average.
  */
+/**
+ * How each rung buys once its level is reached.
+ * - "market" (default): react on the candle close and market-buy one rung at a
+ *   time; the fill lands a little past the level (that's the slippage), and a
+ *   violent candle trips the flash-crash fail-safe.
+ * - "limit": rest ONE limit order at the next rung's EXACT price, so it fills
+ *   at exactly that level with no slippage; as each fills the next is placed.
+ * Neither ties up money ahead of a fill — only what actually fills is committed.
+ */
+export type DcaRungEntry = "market" | "limit"
+
 export type AutomationDcaNode = {
   id: string
   kind: "dca"
@@ -158,6 +178,21 @@ export type AutomationDcaNode = {
   maxPositionPct: number
   /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
   sizeMultiplier: number
+  /**
+   * true (default): size each buy off the account's CURRENT balance, so profits
+   * compound into bigger bets and losses shrink them. false: size off the
+   * starting balance, so every bet stays the same dollar amount regardless of
+   * how the account grows.
+   */
+  compound: boolean
+  /** Market-buy on confirmation (default) or rest a limit at each rung's level. */
+  rungEntry: DcaRungEntry
+  /**
+   * Only buy a rung after two back-to-back green candles (each close above its
+   * open), so a wall of red candles can't fill the ladder while price is still
+   * knifing down. Off by default.
+   */
+  requireTwoGreen: boolean
   x: number
   y: number
 }
@@ -257,15 +292,25 @@ export type ProtectionLevels = {
   takeProfitPct?: number
   /**
    * Absent/"average": the whole position closes at `takeProfitPct` above the
-   * blended average. The "previousRung" modes (DCA entries only) instead sell
-   * each rung at the price of the rung above it. See {@link AutomationTakeProfitNode}.
+   * blended average. The rung modes (DCA entries only) sell against the buy
+   * ladder instead — "previousRungSellAll" peels each rung off at the rung above
+   * it; "nearestRungSellAll" sells the whole position at the nearest rung above
+   * the deepest buy. See {@link AutomationTakeProfitNode}.
    */
-  takeProfitMode?: "average" | "previousRungSellAll" | "previousRungHoldFirst"
+  takeProfitMode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
   stopLossPct?: number
   /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
   stopLossMode?: "fixed" | "trailing"
   /** Trailing only: start following after this % move in the trade's favor. */
   trailActivationPct?: number
+  /**
+   * Absent/"average": the stop sits `stopLossPct` below the blended average, so
+   * a DCA ladder drags it down with every rung it adds and the earliest buys can
+   * lose far more than that percent. "first": the stop measures from the FIRST
+   * entry, so the percent is the position's real worst case. Take profit always
+   * measures from the average.
+   */
+  stopAnchor?: "average" | "first"
 }
 
 /**
@@ -358,6 +403,12 @@ export type AutomationDcaConfig = {
   maxPositionPct: number
   /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
   sizeMultiplier: number
+  /** true: size off the current balance (compound); false: off the starting balance (fixed bet). */
+  compound: boolean
+  /** Market-buy on confirmation (default) or rest a limit at each rung's level. */
+  rungEntry: DcaRungEntry
+  /** Only buy a rung once the last two candles both closed green. */
+  requireTwoGreen: boolean
   basePeriods: number
   pumpPeriods: number
   crackPct: number
@@ -451,6 +502,15 @@ const draftIndicatorSelectionSchema = z.object({
 })
 
 
+// A DCA-fed take-profit's style. The removed "previousRungHoldFirst" mode (a
+// redundant variant of the peel) loads as the plain peel, so older saved
+// automations and stored run configs keep parsing.
+const takeProfitModeSchema = z.preprocess(
+  (value) =>
+    value === "previousRungHoldFirst" ? "previousRungSellAll" : value,
+  z.enum(["average", "previousRungSellAll", "nearestRungSellAll"]).optional()
+)
+
 const automationNodeSchema = z.discriminatedUnion("kind", [
   z.object({
     id: idSchema,
@@ -492,9 +552,7 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("takeProfit"),
     pct: z.number().finite(),
-    mode: z
-      .enum(["average", "previousRungSellAll", "previousRungHoldFirst"])
-      .optional(),
+    mode: takeProfitModeSchema,
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -504,6 +562,7 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     pct: z.number().finite(),
     mode: z.enum(["fixed", "trailing"]).optional(),
     activationPct: z.number().finite().optional(),
+    anchor: z.enum(["average", "first"]).optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -544,6 +603,15 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     // Defaults to 1 (equal buys) so ladders saved with per-rung weights keep
     // their behavior; NEW ladders are created with an exponential ramp.
     sizeMultiplier: z.number().min(1).max(10).default(1),
+    // Defaults to true (compound) so ladders saved before this field keep their
+    // current behavior — sizing off the live balance.
+    compound: z.boolean().default(true),
+    // Defaults to "market" (reactive confirmation + fail-safe) for ladders saved
+    // before this field existed.
+    rungEntry: z.enum(["market", "limit"]).default("market"),
+    // Defaults to false so ladders saved before this field keep buying on every
+    // confirmed rung; when on, a rung only buys after two green candles in a row.
+    requireTwoGreen: z.boolean().default(false),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -551,12 +619,11 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
 
 const protectionLevelsSchema = z.object({
   takeProfitPct: z.number().positive().max(1000).optional(),
-  takeProfitMode: z
-    .enum(["average", "previousRungSellAll", "previousRungHoldFirst"])
-    .optional(),
+  takeProfitMode: takeProfitModeSchema,
   stopLossPct: z.number().positive().max(100).optional(),
   stopLossMode: z.enum(["fixed", "trailing"]).optional(),
   trailActivationPct: z.number().min(0).max(1000).optional(),
+  stopAnchor: z.enum(["average", "first"]).optional(),
 })
 
 /**
@@ -731,6 +798,9 @@ const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
   rungs: dcaRungsSchema,
   maxPositionPct: z.number().positive().max(100),
   sizeMultiplier: z.number().min(1).max(10).default(1),
+  compound: z.boolean().default(true),
+  rungEntry: z.enum(["market", "limit"]).default("market"),
+  requireTwoGreen: z.boolean().default(false),
   basePeriods: z.number().int().min(4).max(500),
   pumpPeriods: z.number().int().min(1).max(499),
   crackPct: z.number().positive().max(50),
@@ -1371,6 +1441,9 @@ export function compileAutomationGraph(input: {
         rungs: dcaNode.rungs.map((rung) => ({ ...rung })),
         maxPositionPct: dcaNode.maxPositionPct,
         sizeMultiplier: dcaNode.sizeMultiplier,
+        compound: dcaNode.compound,
+        rungEntry: dcaNode.rungEntry,
+        requireTwoGreen: dcaNode.requireTwoGreen,
         basePeriods: baseParams.basePeriods,
         pumpPeriods: baseParams.pumpPeriods,
         crackPct: baseParams.crackPct,
@@ -1422,7 +1495,10 @@ export function compileAutomationGraph(input: {
   // percent. Only trailing is stored — absent mode means fixed, so configs
   // compiled before trailing existed stay byte-identical.
   const stopBehavior: Partial<
-    Record<"long" | "short", { trailing: boolean; activationPct?: number }>
+    Record<
+      "long" | "short",
+      { trailing: boolean; activationPct?: number; anchor?: "average" | "first" }
+    >
   > = {}
   // A take-profit's "previous rung" mode only applies when a DCA node feeds it
   // (it references the buy ladder). Collected here and folded in after.
@@ -1436,12 +1512,14 @@ export function compileAutomationGraph(input: {
       ...(node.mode === "trailing" && node.activationPct
         ? { activationPct: node.activationPct }
         : {}),
+      ...(node.anchor === "first" ? { anchor: "first" as const } : {}),
     }
     const existing = stopBehavior[side]
     if (
       existing &&
       (existing.trailing !== behavior.trailing ||
-        existing.activationPct !== behavior.activationPct)
+        existing.activationPct !== behavior.activationPct ||
+        existing.anchor !== behavior.anchor)
     ) {
       addError({
         code: "invalid_protection",
@@ -1482,15 +1560,20 @@ export function compileAutomationGraph(input: {
   }
   for (const side of ["long", "short"] as const) {
     const behavior = stopBehavior[side]
-    if (!behavior?.trailing || protection[side]?.stopLossPct === undefined) {
-      continue
+    if (!behavior || protection[side]?.stopLossPct === undefined) continue
+    // Only non-default behavior is written, so configs compiled before these
+    // options existed stay byte-identical.
+    if (behavior.trailing) {
+      protection[side] = {
+        ...protection[side],
+        stopLossMode: "trailing",
+        ...(behavior.activationPct !== undefined
+          ? { trailActivationPct: behavior.activationPct }
+          : {}),
+      }
     }
-    protection[side] = {
-      ...protection[side],
-      stopLossMode: "trailing",
-      ...(behavior.activationPct !== undefined
-        ? { trailActivationPct: behavior.activationPct }
-        : {}),
+    if (behavior.anchor === "first") {
+      protection[side] = { ...protection[side], stopAnchor: "first" }
     }
   }
   // Fold the DCA "previous rung" take-profit mode onto the long side (DCA is

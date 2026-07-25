@@ -21,4 +21,15 @@ export type ProtectionSettings = {
    * activation the stop waits at the fixed entry distance.
    */
   trailActivationPct?: number
+  /**
+   * What the stop measures from.
+   * - Absent or "average" (today's behavior): the position's blended average
+   *   entry. A DCA ladder drags that average down with every rung it adds, and
+   *   the stop follows it down — so the earliest buys can lose far more than
+   *   `stopLossPct` before it triggers.
+   * - "first": the position's FIRST entry, so the stop stays put and
+   *   `stopLossPct` means that much from where the position started.
+   * Take profit always measures from the average.
+   */
+  stopAnchor?: "average" | "first"
 }

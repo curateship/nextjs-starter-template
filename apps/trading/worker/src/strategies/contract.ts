@@ -64,6 +64,10 @@ export type QflPortfolioControl = {
   restore: (market: string, exposurePct: number) => boolean
   release: (market: string) => void
   reservedPct: () => number
+  /** Set a market's held exposure directly (DCA reserves only what has filled). */
+  setExposure?: (market: string, exposurePct: number) => void
+  /** Total exposure this market may still hold: the cap minus everyone else's. */
+  remaining?: (market: string) => number
   reportEquity?: (
     market: string,
     equity: number,

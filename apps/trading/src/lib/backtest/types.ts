@@ -31,6 +31,7 @@ export type BacktestTrade = {
   n: number
   side: "long" | "short"
   entryTime: number
+  /** The real price this piece was bought at (a DCA rung's own fill price). */
   entryPx: number
   exitTime: number
   exitPx: number
@@ -42,6 +43,12 @@ export type BacktestTrade = {
   returnPct: number
   /** Running sum of pnl through this trade. */
   cumPnl: number
+  /**
+   * The position's blended average cost at the moment this piece closed — not a
+   * traded price, just where the whole ladder's average sat. The chart draws it
+   * as a reference line; older stored trades don't carry it.
+   */
+  avgPx?: number
 }
 
 export type BacktestOpenPosition = {
@@ -105,7 +112,12 @@ export type BacktestResult = {
   openPosition: BacktestOpenPosition
   stats: BacktestStats
   /** Present when sibling rows are contributions to one shared account. */
-  portfolio?: { sharedAccount: true; marketCount: number }
+  portfolio?: {
+    sharedAccount: true
+    marketCount: number
+    /** The most of the shared wallet ever deployed at once, in percent. */
+    peakExposurePct?: number
+  }
   /**
    * Replay tape. Stripped into its own DB column at save time and loaded
    * lazily by the replay chart — never part of the always-loaded blob.
@@ -158,6 +170,13 @@ export const MAX_TIMELINE_EVENTS = 20_000
 export type GroupPortfolioMetrics = {
   /** Completed markets blended into the combined curve. */
   markets: number
+  /**
+   * The basket's capital base — the denominator for its return. ONE shared
+   * wallet for a shared-account group (the markets take turns on one pot), the
+   * summed starting capital for independent-wallet markets. Never the naive sum
+   * of a shared group's per-market equity, which double-counts the one wallet.
+   */
+  startEquity: number
   /** Combined basket peak-to-trough drawdown %, ≤ 0 (0 = only ever rose). */
   combinedDrawdownPct: number
   /** Bar time (ms) of the drawdown trough; null when there is no drawdown. */

@@ -23,8 +23,12 @@ export function toNativeSignalMarkers(
   return markers
     .filter((marker) => !marker.letter)
     .sort((a, b) => a.time - b.time)
-    .map((marker) => ({
-      id: `signal:${marker.time}:${marker.side}`,
+    .map((marker, index) => ({
+      // Index keeps the id unique: a DCA ladder fills several rungs inside one
+      // candle, so every buy shares a time and side. A shared id would make the
+      // chart dedupe them to a single arrow (the bunched-at-the-bottom look);
+      // a unique id lets all rungs draw, each at its own fill price.
+      id: `signal:${marker.time}:${marker.side}:${index}`,
       time: Math.floor(marker.time / 1000) as UTCTimestamp,
       position: marker.side === "buy" ? "atPriceBottom" : "atPriceTop",
       price: marker.price,

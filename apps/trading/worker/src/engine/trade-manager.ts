@@ -16,6 +16,23 @@ type ExitState = {
   exitRequested: boolean
   /** Trailing-stop extreme, ratcheted by the strategy's tick handler. */
   trail?: TrailState | null
+  /**
+   * Measure the stop from THIS price instead of the position's average entry.
+   * A DCA ladder drags its average down with every rung it adds, which drags a
+   * percentage stop down with it — so the earliest buys can bleed far past the
+   * percentage you set. Anchoring to the first entry makes "10%" mean 10% from
+   * where the position started. Take profit still measures off the average.
+   */
+  stopAnchorPx?: number | null
+}
+
+/** The position the stop measures against — the anchor when one is set. */
+function stopBasis(
+  position: { szi: number; entryPx: number },
+  state: ExitState
+): { szi: number; entryPx: number } {
+  const anchor = state.stopAnchorPx
+  return anchor && anchor > 0 ? { szi: position.szi, entryPx: anchor } : position
 }
 
 /**
@@ -38,7 +55,7 @@ export function exitLevels(
   if (settings.takeProfitPct) {
     levels.push(entry * (1 + (sign * settings.takeProfitPct) / 100))
   }
-  const stop = effectiveStopPx(settings, position, state.trail)
+  const stop = effectiveStopPx(settings, stopBasis(position, state), state.trail)
   if (stop !== null) levels.push(stop)
   return levels
 }
@@ -59,7 +76,7 @@ export function tickExit(
     const tp = entry * (1 + ((long ? 1 : -1) * settings.takeProfitPct) / 100)
     if (long ? mid >= tp : mid <= tp) return "tp"
   }
-  const sl = effectiveStopPx(settings, position, state.trail)
+  const sl = effectiveStopPx(settings, stopBasis(position, state), state.trail)
   if (sl !== null && (long ? mid <= sl : mid >= sl)) return "sl"
   return null
 }

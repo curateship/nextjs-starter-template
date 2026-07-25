@@ -33,6 +33,7 @@ export class QflPortfolio implements QflPortfolioControl {
   private readonly expectedMarkets: Set<string>
   private readonly equityDeltas = new Map<string, number>()
   private startingEquity: number | null = null
+  private peakReserved = 0
   private readonly maximumPct: number
 
   // Explicit field assignment (not a constructor parameter property) so the
@@ -107,6 +108,7 @@ export class QflPortfolio implements QflPortfolioControl {
     const free = this.maximumPct - this.reservedPct()
     if (!winners.has(market) || exposurePct > free + 1e-9) return false
     this.reservations.set(market, exposurePct)
+    this.trackPeak()
     return true
   }
 
@@ -114,6 +116,7 @@ export class QflPortfolio implements QflPortfolioControl {
     if (this.reservations.has(market)) return true
     if (this.reservedPct() + exposurePct > this.maximumPct + 1e-9) return false
     this.reservations.set(market, exposurePct)
+    this.trackPeak()
     return true
   }
 
@@ -125,6 +128,33 @@ export class QflPortfolio implements QflPortfolioControl {
     let total = 0
     for (const value of this.reservations.values()) total += value
     return total
+  }
+
+  private trackPeak() {
+    const total = this.reservedPct()
+    if (total > this.peakReserved) this.peakReserved = total
+  }
+
+  /** The most of the wallet ever committed at once, across the whole run. */
+  peakReservedPct() {
+    return this.peakReserved
+  }
+
+  // DCA reserves only the exposure that has actually filled — growing as the
+  // ladder builds and clearing when flat — rather than the whole pot up front,
+  // so a market holding one small rung doesn't block the wallet for everyone.
+  setExposure(market: string, exposurePct: number) {
+    if (exposurePct > 1e-9) this.reservations.set(market, exposurePct)
+    else this.reservations.delete(market)
+    this.trackPeak()
+  }
+
+  // What a market may still hold: the cap minus everyone else's reservations
+  // (its own current reservation doesn't count against itself).
+  remaining(market: string): number {
+    return (
+      this.maximumPct - this.reservedPct() + (this.reservations.get(market) ?? 0)
+    )
   }
 
   reportEquity(market: string, equity: number, startingEquity: number) {

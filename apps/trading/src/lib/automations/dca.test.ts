@@ -31,6 +31,9 @@ const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
   rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
   maxPositionPct,
   sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
+  compound: true,
+  rungEntry: "market",
+  requireTwoGreen: false,
   x: 0,
   y: 0,
 })
@@ -110,6 +113,9 @@ describe("compileAutomationGraph — DCA", () => {
       rungs: DEFAULT_DCA_RUNGS,
       maxPositionPct: 25,
       sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
+      compound: true,
+      rungEntry: "market",
+      requireTwoGreen: false,
       basePeriods: 36,
       pumpPeriods: 8,
       crackPct: 2.5,
@@ -129,14 +135,14 @@ describe("compileAutomationGraph — DCA", () => {
     expect(automationConfigSchema.safeParse(result.config).success).toBe(true)
   })
 
-  it("folds a DCA-fed take-profit's 'previous rung' mode onto the long side", () => {
+  it("folds a DCA-fed take-profit's 'nearest rung' mode onto the long side", () => {
     const result = compileAutomationGraph({
       interval: "1h",
       graph: {
         nodes: [
           baseIndicator("base"),
           dca("dca", 25),
-          takeProfit("tp", 3, "previousRungHoldFirst"),
+          takeProfit("tp", 3, "nearestRungSellAll"),
         ],
         edges: [
           edge("e1", "base", "bullish", "dca"),
@@ -148,8 +154,39 @@ describe("compileAutomationGraph — DCA", () => {
     expect(result.errors).toEqual([])
     expect(result.config?.protection.long).toEqual({
       takeProfitPct: 3,
-      takeProfitMode: "previousRungHoldFirst",
+      takeProfitMode: "nearestRungSellAll",
     })
+  })
+
+  it("loads the removed 'hold first' mode as the plain previous-rung peel", () => {
+    // Backward compatibility: automations saved with the deleted
+    // "previousRungHoldFirst" mode must still parse, as the kept peel mode.
+    const compiled = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [baseIndicator("base"), dca("dca", 25), takeProfit("tp", 3)],
+        edges: [
+          edge("e1", "base", "bullish", "dca"),
+          edge("e2", "dca", "tp", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    }).config
+    const stored = {
+      ...compiled,
+      protection: {
+        ...compiled?.protection,
+        long: {
+          ...compiled?.protection.long,
+          takeProfitMode: "previousRungHoldFirst",
+        },
+      },
+    }
+    const parsed = automationConfigSchema.safeParse(stored)
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.protection.long?.takeProfitMode).toBe(
+      "previousRungSellAll"
+    )
   })
 
   it("rejects a DCA node with no Base indicator feeding it", () => {

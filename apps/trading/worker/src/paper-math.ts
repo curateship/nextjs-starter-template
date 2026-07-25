@@ -1,5 +1,12 @@
 /** Pure position/cash arithmetic shared by the paper broker and engine. */
 
+/**
+ * Below this many base units a position counts as flat. Real order sizes are far
+ * larger; this only catches float dust left when a laddered position is summed
+ * and then closed.
+ */
+const POSITION_DUST = 1e-9
+
 export type PaperPositionState = { szi: number; entryPx: number } | null
 
 export type PaperFillResult = {
@@ -28,7 +35,12 @@ export function applyPaperFill(
     closedPnl = (px - entryPx) * closedSz * Math.sign(szi)
   }
 
-  const nextSzi = szi + signed
+  // Snap a position that nets to within dust of flat to exactly flat. Filling a
+  // ladder rung by rung and selling it back sums many fractional sizes, so the
+  // close can land on ~1e-15 instead of 0; without this that dust reads as a
+  // phantom open position that never quite closes.
+  const rawNextSzi = szi + signed
+  const nextSzi = Math.abs(rawNextSzi) < POSITION_DUST ? 0 : rawNextSzi
   let nextPosition: PaperPositionState
   if (nextSzi === 0) {
     nextPosition = null
