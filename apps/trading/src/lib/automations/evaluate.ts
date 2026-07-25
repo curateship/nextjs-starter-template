@@ -4,6 +4,7 @@ import type {
   IndicatorPaint,
 } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
+import { configNodeOverlays } from "@/lib/automations/node-registry"
 import { ema } from "@/lib/strategies/indicators"
 import { emaLines, indicatorColor } from "@/lib/trading/indicators-config"
 
@@ -241,20 +242,10 @@ export function evaluateAutomation(
       ).filter((candle) => candle.t % htfMs === 0)
     : []
 
-  if (config.qfl) {
-    // Emit the chart's own Base indicator config (NOT a line series): the
-    // chart draws each base as its own short horizontal dash, exactly like
-    // the pinned Base overlay — a connected line would ramp between bases.
-    paint.indicators.push({
-      id: `${config.qfl.nodeId}:base`,
-      type: "base",
-      enabled: true,
-      params: {
-        basePeriods: config.qfl.basePeriods,
-        pumpPeriods: config.qfl.pumpPeriods,
-      },
-    })
-  }
+  // Base dashes (and any future node overlay) come from the node registry, so a
+  // DCA run draws its base the same way a QFL run does — no strategy hardcoded
+  // here. Each strategy node declares its own `overlays`.
+  paint.indicators.push(...configNodeOverlays(config))
 
   for (const source of [...triggers, ...filters]) {
     const sourceInterval = "side" in source ? undefined : source.interval

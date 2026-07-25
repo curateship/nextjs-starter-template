@@ -448,14 +448,78 @@ function DcaFields({
         info="How much bigger each buy is than the one above it. 1 = every buy the same size; 2 = each buy is double the last, so you buy far more the deeper price drops."
         onChange={(field, value) => onChange({ ...node, [field]: value })}
       />
+      <div className="grid gap-1.5">
+        <FieldLabel
+          htmlFor={`dca-${node.id}-compound`}
+          info="Compound: each buy is sized off your CURRENT balance, so profits grow your bets and losses shrink them. Fixed: each buy is the same dollar size based on your starting balance, no matter how the account grows."
+        >
+          Bet sizing
+        </FieldLabel>
+        <Select
+          value={node.compound ? "compound" : "fixed"}
+          onValueChange={(value) =>
+            onChange({ ...node, compound: value === "compound" })
+          }
+        >
+          <SelectTrigger id={`dca-${node.id}-compound`} className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper">
+            <SelectItem value="compound">
+              Compound — grow bets with the account
+            </SelectItem>
+            <SelectItem value="fixed">Fixed — same bet every time</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
+        <FieldLabel
+          htmlFor={`dca-${node.id}-rungEntry`}
+          info="Market: the buy fires the moment price reaches a rung, so the fill lands a little past the exact price (that's slippage), and a violent crash makes it wait for the first green candle then take just one rung at the bounce. Limit: sets a single limit order at the rung's exact price, so you fill at exactly that level with no slippage. Neither ties up money until a buy actually fills."
+        >
+          When a rung is hit
+        </FieldLabel>
+        <Select
+          value={node.rungEntry}
+          onValueChange={(value) =>
+            onChange({ ...node, rungEntry: value as "market" | "limit" })
+          }
+        >
+          <SelectTrigger id={`dca-${node.id}-rungEntry`} className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper">
+            <SelectItem value="market">
+              Market — buy on confirmation (a bit of slippage)
+            </SelectItem>
+            <SelectItem value="limit">
+              Limit — exact price at each rung, no slippage
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-1">
+        <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <Checkbox
+            checked={node.requireTwoGreen}
+            onCheckedChange={(checked) =>
+              onChange({ ...node, requireTwoGreen: checked === true })
+            }
+          />
+          Only buy after 2 green candles
+        </label>
+        <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
+      </div>
       <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-[11px]">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Money in the pot</span>
           <span className="font-medium tabular-nums">{money(potUsd)}</span>
         </div>
         <p className="mt-0.5 text-muted-foreground">
-          {node.maxPositionPct}% of a {money(equity)} account. The amounts below
-          scale with whatever account actually runs it.
+          {node.maxPositionPct}% of a {money(equity)} account.{" "}
+          {node.compound
+            ? "The amounts below scale with whatever account actually runs it."
+            : "Fixed sizing — the amounts below stay the same however the account grows."}
         </p>
       </div>
       <div className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2 text-[11px] text-muted-foreground">
@@ -1127,11 +1191,45 @@ function ProtectionNodeFields({
           </Select>
         </div>
       ) : null}
+      {node.kind === "stopLoss" ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`stop-anchor-${node.id}`}
+            info="Average buy: the stop sits this far below your blended average, so every extra buy drags the stop down with it — your earliest buys can end up losing far more than the percent you set. First buy: the stop stays this far below your very first entry, so the percent is the real worst case for the whole position."
+          >
+            Measured from
+          </FieldLabel>
+          <Select
+            value={node.anchor ?? "average"}
+            onValueChange={(value) =>
+              onChange({
+                ...node,
+                anchor: value === "first" ? "first" : "average",
+              })
+            }
+          >
+            <SelectTrigger
+              id={`stop-anchor-${node.id}`}
+              className="h-8 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value="average">
+                Average buy — slides down as you add
+              </SelectItem>
+              <SelectItem value="first">
+                First buy — the percent is your real max loss
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       {node.kind === "takeProfit" && feedsFromDca ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`tp-mode-${node.id}`}
-            info="Average: close the whole position once it's this far above your average buy. Previous rung: as price recovers, sell each averaged-in buy at the price of the buy above it. 'Close at base' also sells the first buy at the base; 'hold first buy' keeps that buy for a bigger move (only the stop loss closes it)."
+            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once."
           >
             Take profit style
           </FieldLabel>
@@ -1143,7 +1241,7 @@ function ProtectionNodeFields({
                 mode: value as
                   | "average"
                   | "previousRungSellAll"
-                  | "previousRungHoldFirst",
+                  | "nearestRungSellAll",
               })
             }
           >
@@ -1153,10 +1251,10 @@ function ProtectionNodeFields({
             <SelectContent position="popper">
               <SelectItem value="average">At the average price</SelectItem>
               <SelectItem value="previousRungSellAll">
-                Sell at previous rung — close at base
+                Sell at previous rung
               </SelectItem>
-              <SelectItem value="previousRungHoldFirst">
-                Sell at previous rung — hold first buy
+              <SelectItem value="nearestRungSellAll">
+                Sell everything at nearest rung
               </SelectItem>
             </SelectContent>
           </Select>

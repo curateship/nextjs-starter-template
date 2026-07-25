@@ -93,7 +93,7 @@ describe("nodeAfterTuneDrag", () => {
 
   it("maps a first-ladder drag back to the crack percentage", () => {
     expect(
-      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 190, base: 200 })
+      nodeAfterTuneDrag(nodes, { kind: "crack", price: 190, base: 200 })
     ).toEqual({ ...qfl, crackPct: 5 })
   })
 
@@ -103,7 +103,7 @@ describe("nodeAfterTuneDrag", () => {
       nodeAfterTuneDrag(nodes, { kind: "sl", price: 150, anchor: 100, side: "long" })
     ).toEqual({ ...sl, pct: 0.1 })
     expect(
-      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 10, base: 200 })
+      nodeAfterTuneDrag(nodes, { kind: "crack", price: 10, base: 200 })
     ).toEqual({ ...qfl, crackPct: 50 })
   })
 
@@ -115,10 +115,10 @@ describe("nodeAfterTuneDrag", () => {
       nodeAfterTuneDrag(nodes, { kind: "tp", price: 105, anchor: 0, side: "long" })
     ).toBeNull()
     expect(
-      nodeAfterTuneDrag(nodes, { kind: "qflCrack", price: 0, base: 200 })
+      nodeAfterTuneDrag(nodes, { kind: "crack", price: 0, base: 200 })
     ).toBeNull()
     expect(
-      nodeAfterTuneDrag([tp, sl], { kind: "qflCrack", price: 190, base: 200 })
+      nodeAfterTuneDrag([tp, sl], { kind: "crack", price: 190, base: 200 })
     ).toBeNull()
   })
 })

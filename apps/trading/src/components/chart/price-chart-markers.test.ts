@@ -30,4 +30,25 @@ describe("native chart signal markers", () => {
       }),
     ])
   })
+
+  it("gives same-candle ladder fills unique ids so every rung draws", () => {
+    // A DCA ladder fills several rungs inside one crash candle: same time,
+    // same side, different fill prices. Each must keep a distinct id, or the
+    // chart dedupes them to a single arrow (the bunched-at-the-bottom bug).
+    const markers: ChartMarker[] = [
+      { time: 5_000, side: "buy", price: 276.85 },
+      { time: 5_000, side: "buy", price: 268.54 },
+      { time: 5_000, side: "buy", price: 260.49 },
+      { time: 5_000, side: "buy", price: 252.67 },
+    ]
+
+    const native = toNativeSignalMarkers(markers)
+    const ids = native.map((marker) => marker.id)
+
+    expect(native).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+    expect(native.map((marker) => marker.price)).toEqual([
+      276.85, 268.54, 260.49, 252.67,
+    ])
+  })
 })

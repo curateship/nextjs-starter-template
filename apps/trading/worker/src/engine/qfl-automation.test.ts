@@ -168,7 +168,7 @@ describe("QFL through the real backtest runner", () => {
     expect(result.openPosition).toBeNull()
   })
 
-  it("ranks simultaneous markets before reserving shared exposure", () => {
+  it("ranks simultaneous markets before reserving shared exposure", async () => {
     const config = qflConfig()
     const low = [...setup, bar(7, 87, 86, 88)]
     const high = setup.map((candle, index) =>
@@ -176,7 +176,7 @@ describe("QFL through the real backtest runner", () => {
     )
     high.push(bar(7, 87, 86, 88))
 
-    const results = runQflPortfolioBacktests([
+    const results = await runQflPortfolioBacktests([
       portfolioConfig("LOW", config, low),
       portfolioConfig("HIGH", config, high),
     ])
@@ -187,7 +187,7 @@ describe("QFL through the real backtest runner", () => {
     ).toBe(true)
   })
 
-  it("uses realized profit from one market when sizing the next market", () => {
+  it("uses realized profit from one market when sizing the next market", async () => {
     const config = qflConfig()
     const first = [
       ...setup,
@@ -202,7 +202,7 @@ describe("QFL through the real backtest runner", () => {
       bar(13, 87, 86, 88),
     ]
 
-    const results = runQflPortfolioBacktests([
+    const results = await runQflPortfolioBacktests([
       portfolioConfig("FIRST", config, first),
       portfolioConfig("SECOND", config, second),
     ])

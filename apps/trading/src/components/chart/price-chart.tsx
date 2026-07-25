@@ -285,6 +285,7 @@ export function PriceChartView({
   onChartContextMenu,
   onVisibleRangeChange,
   registerApi,
+  onResetView,
   drawings = EMPTY_CHART_DRAWINGS,
   onDrawingsChange,
   onDrawingsCommit,
@@ -331,6 +332,9 @@ export function PriceChartView({
    * null on unmount — lets a parent wire "Reset View" into its own menu.
    */
   registerApi?: (api: PriceChartHandle | null) => void
+  /** Fired when the user picks "Reset View" — lets a parent also reset its own
+   * view state (e.g. the backtest chart snapping back to the run's timeframe). */
+  onResetView?: () => void
   /** Saved trendlines and position drawings for this chart. */
   drawings?: ChartDrawings
   /** Updates the in-memory drawing set while drawing or dragging. */
@@ -564,10 +568,19 @@ export function PriceChartView({
     })
   }, [])
 
+  // Keep the latest onResetView without re-creating resetView (which the API
+  // handle depends on).
+  const onResetViewRef = React.useRef(onResetView)
+  React.useEffect(() => {
+    onResetViewRef.current = onResetView
+  })
+
   // Reset View: back to the chart's default zoom and scroll — the most recent
   // bars at a comfortable bar spacing — with price auto-scale switched back on
-  // in case the user dragged the axis.
+  // in case the user dragged the axis. Also lets the parent reset its own view
+  // (e.g. the backtest chart snaps its timeframe back to the run's).
   const resetView = React.useCallback(() => {
+    onResetViewRef.current?.()
     const chart = chartRef.current
     if (!chart) return
     chart.timeScale().resetTimeScale()

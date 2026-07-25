@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
 import { AutomationBacktestParamsPanel } from "@/components/automations/automation-backtest-params-panel"
 import { AutomationBacktestSidePanel } from "@/components/automations/automation-backtest-side-panel"
+import { combineMarketStats } from "@/components/backtest/backtest-combine"
 import { AutomationBacktestTradesPanel } from "@/components/automations/automation-backtest-trades-panel"
 import { AutomationBotSidePanel } from "@/components/automations/automation-bot-side-panel"
 import { AutomationCanvasSettingsDialog } from "@/components/automations/automation-canvas-settings-dialog"
@@ -520,6 +521,36 @@ export function AutomationEditor({
       : null
   const selectedBacktestResult = selectedBacktestRun?.result ?? null
 
+  // The whole basket's combined numbers for the left params panel — summed P&L,
+  // trades and a weighted win rate across every finished market, so the panel
+  // describes the entire run rather than only the market on the chart. DCA/QFL
+  // run every market off one shared wallet, so the percent is measured against
+  // that single starting equity; any other strategy runs one account PER market,
+  // so the denominator scales with the market count (handled in combine).
+  const sharedAccount = Boolean(compiled.config?.qfl || compiled.config?.dca)
+  const combinedBacktest = React.useMemo(() => {
+    if (!backtest.open) return null
+    const stats = backtest.runs
+      .filter((run) => run.status === "done")
+      .map((run) => backtest.runStats.get(run.id))
+      .filter((stat): stat is NonNullable<typeof stat> => stat != null)
+      .map((stat) => ({
+        netPnl: stat.netPnl,
+        tradeCount: stat.tradeCount,
+        winRate: stat.winRate,
+      }))
+    return combineMarketStats(stats, {
+      startingEquity: backtestSettings.startingEquity,
+      sharedAccount,
+    })
+  }, [
+    backtest.open,
+    backtest.runs,
+    backtest.runStats,
+    backtestSettings.startingEquity,
+    sharedAccount,
+  ])
+
   // A dropped tune line rewrites the matching node's setting — the rule, not
   // that one order. The graph goes dirty like any inspector edit.
   const handleTuneDrag = React.useCallback(
@@ -795,6 +826,13 @@ export function AutomationEditor({
   const paramsPanel = (
     <AutomationBacktestParamsPanel
       selectedRun={selectedBacktestRun}
+      combined={combinedBacktest}
+      combinedDrawdownPct={backtest.combinedDrawdownPct}
+      potAtMaxDdUsd={backtest.potAtMaxDdUsd}
+      peakWalletPct={
+        selectedBacktestResult?.portfolio?.peakExposurePct ?? null
+      }
+      marketsTotal={backtest.runs.length}
       interval={interval}
       days={backtest.days}
       backtestSettings={backtestSettings}

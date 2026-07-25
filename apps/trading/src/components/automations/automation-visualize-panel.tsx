@@ -28,6 +28,7 @@ import {
   type AutomationNode,
 } from "@/lib/automations/automation"
 import { simulateAutomation } from "@/lib/automations/live-sim"
+import { nodeTuneUpdate } from "@/lib/automations/node-registry"
 import { qflDeviations } from "@/lib/automations/qfl"
 import { useMarketRows } from "@/lib/hl/hooks"
 import { qflBase } from "@/lib/strategies/indicators"
@@ -90,14 +91,12 @@ function currentStopPx(
   return effectiveStopPx(settings, position, trail)
 }
 
-function roundPct(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, Math.round(value * 100) / 100))
-}
-
 /**
  * The node update a dropped visualize line maps to, or null when the drop
- * changes nothing (unknown line, missing anchor, or non-positive price).
- * Percentages clamp to each setting's schema bounds and round to 2 decimals.
+ * changes nothing (unknown line, missing anchor, or non-positive price). The
+ * per-node clamp/rounding lives on each node's `applyTuneDrag` in the registry;
+ * this just decodes the line id and picks the reference price. Visualize lines
+ * anchor off the last close, which is always a long entry, so side is "long".
  */
 export function nodeAfterLineDrag(
   nodes: AutomationNode[],
@@ -106,23 +105,14 @@ export function nodeAfterLineDrag(
   anchor: number | null,
   qflBases: Map<string, number>
 ): AutomationNode | null {
-  if (!(price > 0)) return null
   const [, kind, nodeId] = lineId.split(":")
   const node = nodes.find((candidate) => candidate.id === nodeId)
   if (!node) return null
-  if (kind === "tp" && node.kind === "takeProfit" && anchor) {
-    return { ...node, pct: roundPct(((price - anchor) / anchor) * 100, 0.1, 1000) }
+  if (kind === "tp" || kind === "sl") {
+    return nodeTuneUpdate(node, kind, price, anchor ?? 0, "long")
   }
-  if (kind === "sl" && node.kind === "stopLoss" && anchor) {
-    return { ...node, pct: roundPct(((anchor - price) / anchor) * 100, 0.1, 95) }
-  }
-  if (kind === "qfl-crack" && node.kind === "qfl") {
-    const base = qflBases.get(node.id)
-    if (!base) return null
-    return {
-      ...node,
-      crackPct: roundPct(((base - price) / base) * 100, 0.1, 50),
-    }
+  if (kind === "qfl-crack") {
+    return nodeTuneUpdate(node, "crack", price, qflBases.get(node.id) ?? 0, "long")
   }
   return null
 }
@@ -130,40 +120,23 @@ export function nodeAfterLineDrag(
 /**
  * The node update a dropped backtest tune-line maps to (dragging the recorded
  * Stop/TP/first-ladder line on the replay chart), or null when it changes
- * nothing. Same clamps and rounding as visualize drags; side-aware, since the
- * anchor is the replayed position's real entry.
+ * nothing. Decodes the drag into a target + reference price and lets the owning
+ * node's `applyTuneDrag` do the clamp/rounding; side-aware, since the anchor is
+ * the replayed position's real entry. First matching node in the graph wins.
  */
 export function nodeAfterTuneDrag(
   nodes: AutomationNode[],
   change: BacktestTuneDrag
 ): AutomationNode | null {
-  if (!(change.price > 0)) return null
-  if (change.kind === "qflCrack") {
-    const node = nodes.find((candidate) => candidate.kind === "qfl")
-    if (!node || !(change.base > 0)) return null
-    return {
-      ...node,
-      crackPct: roundPct(((change.base - change.price) / change.base) * 100, 0.1, 50),
-    }
+  const [target, ref, side] =
+    change.kind === "crack"
+      ? (["crack", change.base, "long"] as const)
+      : ([change.kind, change.anchor, change.side] as const)
+  for (const node of nodes) {
+    const updated = nodeTuneUpdate(node, target, change.price, ref, side)
+    if (updated) return updated
   }
-  if (!(change.anchor > 0)) return null
-  const long = change.side === "long"
-  if (change.kind === "tp") {
-    const node = nodes.find((candidate) => candidate.kind === "takeProfit")
-    if (!node) return null
-    const raw =
-      ((long ? change.price - change.anchor : change.anchor - change.price) /
-        change.anchor) *
-      100
-    return { ...node, pct: roundPct(raw, 0.1, 1000) }
-  }
-  const node = nodes.find((candidate) => candidate.kind === "stopLoss")
-  if (!node) return null
-  const raw =
-    ((long ? change.anchor - change.price : change.price - change.anchor) /
-      change.anchor) *
-    100
-  return { ...node, pct: roundPct(raw, 0.1, 95) }
+  return null
 }
 
 /**

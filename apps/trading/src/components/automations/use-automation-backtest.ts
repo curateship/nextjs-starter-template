@@ -2,6 +2,7 @@ import * as React from "react"
 
 import {
   loadBacktest,
+  loadBacktestGroupSummary,
   loadLatestAutomationBacktest,
   pollBacktestProgress,
   renameBacktestGroup,
@@ -54,6 +55,12 @@ export function useAutomationBacktest(automationId: string) {
   )
   /** Current group's name; "Previous run …" names mark it replaceable. */
   const [groupName, setGroupName] = React.useState<string | null>(null)
+  /** The whole pot's peak-to-trough drawdown (all markets' equity blended). */
+  const [combinedDrawdownPct, setCombinedDrawdownPct] = React.useState<
+    number | null
+  >(null)
+  /** Money in the pot (combined equity) at the moment of that worst drawdown. */
+  const [potAtMaxDdUsd, setPotAtMaxDdUsd] = React.useState<number | null>(null)
   // Read groupId inside the hydration effect without making it a dep — else
   // the setGroupId the fetch performs would re-run the effect and its cleanup
   // would spuriously cancel the still-pending win-rate fetch nested inside.
@@ -89,6 +96,12 @@ export function useAutomationBacktest(automationId: string) {
         setGroupId(latest.groupId)
         setGroupName(latest.name)
         setRuns(latest.runs)
+        // Remember the last run's markets AND window in the setup form, so "New
+        // run" after reopening the editor keeps your basket and days instead of
+        // resetting to BTC / 30d.
+        const lastMarkets = [...new Set(latest.runs.map((run) => run.market))]
+        if (lastMarkets.length > 0) setSelectedMarkets(lastMarkets)
+        if (latest.windowDays > 0) setDays(String(latest.windowDays))
         const status = summarizeGroupProgress(latest.runs)
         setPhase(status.allTerminal ? "results" : "running")
         if (status.allTerminal) {
@@ -196,6 +209,40 @@ export function useAutomationBacktest(automationId: string) {
     }
   }, [selectedRunId])
 
+  // The whole pot's combined drawdown — every market's equity blended into one
+  // curve, server-side. This is the honest portfolio risk (a single market's
+  // worst moment isn't the basket's), so it refreshes whenever results land.
+  React.useEffect(() => {
+    if (!open || phase !== "results" || !groupId) return
+    let cancelled = false
+    void loadBacktestGroupSummary(groupId)
+      .then((response) => {
+        if (cancelled) return
+        const metrics = response.groupMetrics[groupId]
+        setCombinedDrawdownPct(metrics?.combinedDrawdownPct ?? null)
+        // The combined equity at the drawdown trough — how much was in the pot
+        // when it was at its worst. Walk the curve to the trough's bar time.
+        const at = metrics?.drawdownAt ?? null
+        const points = response.groupCurve?.points ?? []
+        if (at != null && points.length > 0) {
+          let eq = points[0].eq
+          for (const point of points) {
+            if (point.t <= at) eq = point.eq
+            else break
+          }
+          setPotAtMaxDdUsd(eq)
+        } else {
+          setPotAtMaxDdUsd(null)
+        }
+      })
+      .catch(() => {
+        // Transient — the tile falls back to "—" until a retry succeeds.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, phase, groupId])
+
   const enter = React.useCallback(() => setOpen(true), [])
   const exit = React.useCallback(() => setOpen(false), [])
 
@@ -288,6 +335,8 @@ export function useAutomationBacktest(automationId: string) {
     focusedTrade,
     setFocusedTrade,
     groupName,
+    combinedDrawdownPct,
+    potAtMaxDdUsd,
     replaceable,
     keep,
     enter,

@@ -55,6 +55,14 @@ type PendingFill = { fill: BrokerFill; purpose: string; cloid: string }
 const round = (value: number) => Math.round(value * 1e6) / 1e6
 
 /**
+ * Max pauses when walking one bar's price path. It only needs to exceed the
+ * number of distinct resting-order + exit-trigger prices a bar can cross (a DCA
+ * ladder allows up to 20 rungs plus its stop), and each pause strictly advances
+ * toward the target, so the loop always terminates well under this.
+ */
+const MAX_PATH_PAUSES = 64
+
+/**
  * Replays historical candles through a real strategy with the same
  * desiredOrders → diff → place/cancel loop as the live BotRunner.
  * Fully deterministic: identical inputs yield an identical result. Each bar is
@@ -103,14 +111,17 @@ class BacktestRunner {
 
   // Round-trip tracking, driven off fill deltas.
   private legSzi = 0
-  private openLeg: {
-    side: "long" | "short"
+  /**
+   * Open buys as lots (a DCA rung each), newest last. A reduce sells them off
+   * newest-first, so each closed lot books a round trip at its OWN real buy
+   * price rather than the blended average.
+   */
+  private lots: Array<{
     entryTime: number
+    price: number
     qty: number
-    entryNotional: number
-    realized: number
-    fees: number
-  } | null = null
+    buyFee: number
+  }> = []
 
   // Risk runtime, mirroring BotRunner.
   private dailyRealizedPnl = 0
@@ -234,28 +245,39 @@ class BacktestRunner {
   }
 
   private stepThroughToClose(target: number, time: number) {
-    for (let guard = 0; guard < 8 && !this.stopped; guard += 1) {
-      const from = this.price
-      const rising = target > from
-      const levels =
-        this.strategy.exitTriggers?.(this.ctx(), this.params as never) ?? []
-      let next: number | null = null
-      for (const level of levels) {
-        if (!Number.isFinite(level)) continue
-        if (
-          rising
-            ? level <= from || level >= target
-            : level >= from || level <= target
-        ) {
-          continue
-        }
-        if (next === null || (rising ? level < next : level > next)) {
-          next = level
-        }
-      }
+    for (let guard = 0; guard < MAX_PATH_PAUSES && !this.stopped; guard += 1) {
+      const next = this.nextPauseLevel(this.price, target)
       if (next === null) break
       this.step(next, time, null)
     }
+  }
+
+  /**
+   * The prices where something can happen between `from` and `target`: every
+   * resting order's limit price plus the strategy's exit triggers. Pausing here
+   * fills a ladder rung by rung, so the position — and the stop derived from its
+   * average — builds up as price arrives, instead of the whole ladder filling at
+   * the bar's extreme and the stop booking there (which faked huge losses on a
+   * one-candle crash). Returns the nearest such level strictly between the two,
+   * or null when the path can run straight to the target.
+   */
+  private nextPauseLevel(from: number, target: number): number | null {
+    const rising = target > from
+    let next: number | null = null
+    const consider = (level: number) => {
+      if (!Number.isFinite(level)) return
+      if (rising ? level <= from || level >= target : level >= from || level <= target) {
+        return
+      }
+      if (next === null || (rising ? level < next : level > next)) next = level
+    }
+    for (const level of this.strategy.exitTriggers?.(this.ctx(), this.params as never) ?? []) {
+      consider(level)
+    }
+    for (const order of this.openOrders.values()) {
+      consider(Number(order.px ?? 0))
+    }
+    return next
   }
 
   processBarCloseOrders(index: number) {
@@ -373,7 +395,7 @@ class BacktestRunner {
           side: (Number(pos.szi) > 0 ? "long" : "short") as "long" | "short",
           szi: Number(pos.szi),
           entryPx: Number(pos.entryPx),
-          entryTime: this.openLeg?.entryTime ?? this.now,
+          entryTime: this.lots[0]?.entryTime ?? this.now,
         }
       : null
 
@@ -462,26 +484,11 @@ class BacktestRunner {
     time: number,
     closingCandle: CandleWsEvent | null
   ) {
-    // Re-read the levels after every pause: a fill there can close the
-    // position or move an anchor, changing (or clearing) what remains.
-    for (let guard = 0; guard < 8 && !this.stopped; guard += 1) {
-      const from = this.price
-      const rising = target > from
-      const levels =
-        this.strategy.exitTriggers?.(this.ctx(), this.params as never) ?? []
-      let next: number | null = null
-      for (const level of levels) {
-        if (!Number.isFinite(level)) continue
-        if (
-          rising
-            ? level <= from || level >= target
-            : level >= from || level <= target
-        ) {
-          continue
-        }
-        if (next === null || (rising ? level < next : level > next))
-          next = level
-      }
+    // Re-read the levels after every pause: a fill there can open or close the
+    // position, add the stop that a fresh entry needs, or move an anchor —
+    // changing (or clearing) what remains between here and the target.
+    for (let guard = 0; guard < MAX_PATH_PAUSES && !this.stopped; guard += 1) {
+      const next = this.nextPauseLevel(this.price, target)
       if (next === null) break
       this.step(next, time, null)
     }
@@ -615,70 +622,94 @@ class BacktestRunner {
     if (equity > this.peakEquity) this.peakEquity = equity
   }
 
-  /** Builds flat→flat round trips from fill deltas for the trades table. */
+  /** Builds round trips from fill deltas — one per lot (rung) closed. */
   private recordTrade(fill: BrokerFill) {
     const sz = Number(fill.sz)
     const px = Number(fill.px)
     const fee = Number(fill.fee)
-    const closedPnl = Number(fill.closedPnl)
     const delta = fill.side === "buy" ? sz : -sz
     const before = this.legSzi
-    const after = before + delta
+    const raw = before + delta
+    // Snap a position that nets to within dust of flat to exactly flat. Summing
+    // many laddered rung fills leaves a residue like 1e-15 that would otherwise
+    // read as a phantom open lot.
+    const after =
+      Math.abs(raw) < 1e-6 * Math.max(Math.abs(before), Math.abs(delta)) ? 0 : raw
     this.legSzi = after
 
-    if (!this.openLeg || before === 0) {
-      if (after !== 0) this.openLeg = this.startLeg(after, px, fill.time, fee)
+    // Opening or scaling in: remember this buy as its own lot (rung).
+    if (before === 0 || Math.sign(delta) === Math.sign(before)) {
+      this.lots.push({ entryTime: fill.time, price: px, qty: sz, buyFee: fee })
       return
     }
 
-    const addingToPosition = Math.sign(delta) === Math.sign(before)
-    if (addingToPosition) {
-      this.openLeg.qty = Math.abs(after)
-      this.openLeg.entryNotional += px * sz
-      this.openLeg.fees += fee
-      return
+    // Reducing/closing/flipping: sell lots off newest-first, booking each as its
+    // own round trip at that lot's real buy price. `avgPx` records where the
+    // whole position's average sat as this piece closed (for the chart's line).
+    const side: "long" | "short" = before > 0 ? "long" : "short"
+    const sideSign = before > 0 ? 1 : -1
+    const avgPx = this.lotsAverage()
+    let toClose = Math.min(Math.abs(delta), Math.abs(before))
+    while (toClose > 1e-12 && this.lots.length > 0) {
+      const lot = this.lots[this.lots.length - 1]
+      const q = Math.min(toClose, lot.qty)
+      const gross = (px - lot.price) * q * sideSign
+      const buyFeeShare = lot.qty > 0 ? (lot.buyFee * q) / lot.qty : 0
+      const sellFeeShare =
+        Math.abs(delta) > 0 ? (fee * q) / Math.abs(delta) : 0
+      const pnl = gross - buyFeeShare - sellFeeShare
+      this.cumPnl += pnl
+      const entryNotional = lot.price * q
+      this.trades.push({
+        n: this.trades.length + 1,
+        side,
+        entryTime: lot.entryTime,
+        entryPx: lot.price,
+        exitTime: fill.time,
+        exitPx: px,
+        qty: q,
+        pnl: round(pnl),
+        returnPct: entryNotional > 0 ? (pnl / entryNotional) * 100 : 0,
+        cumPnl: round(this.cumPnl),
+        avgPx: round(avgPx),
+      })
+      lot.qty -= q
+      lot.buyFee -= buyFeeShare
+      if (lot.qty <= 1e-12) this.lots.pop()
+      toClose -= q
     }
 
-    // Reducing, closing, or flipping through zero.
-    this.openLeg.realized += closedPnl
-    this.openLeg.fees += fee
-    if (after === 0) {
-      this.closeLeg(fill.time, px)
-    } else if (Math.sign(after) !== Math.sign(before)) {
-      this.closeLeg(fill.time, px)
-      this.openLeg = this.startLeg(after, px, fill.time, 0)
+    // Flipped through zero — the leftover opens a fresh lot the other way. Carry
+    // the opening side's share of this fill's fee onto that new lot: the close
+    // above only booked the fee for the portion it closed (q/|delta|), so the
+    // rest belongs to what just opened. Without this the flip's opening fee is
+    // silently dropped and the backtest overstates P&L. (Long-only DCA never
+    // flips; this is for reverse/short strategies.)
+    if (after !== 0 && Math.sign(after) !== Math.sign(before)) {
+      const openFee =
+        Math.abs(delta) > 0 ? (fee * Math.abs(after)) / Math.abs(delta) : 0
+      this.lots = [
+        {
+          entryTime: fill.time,
+          price: px,
+          qty: Math.abs(after),
+          buyFee: openFee,
+        },
+      ]
+    } else if (after === 0) {
+      this.lots = []
     }
   }
 
-  private startLeg(szi: number, px: number, time: number, fee: number) {
-    return {
-      side: (szi > 0 ? "long" : "short") as "long" | "short",
-      entryTime: time,
-      qty: Math.abs(szi),
-      entryNotional: px * Math.abs(szi),
-      realized: 0,
-      fees: fee,
+  /** The open position's blended average price across all held lots. */
+  private lotsAverage(): number {
+    let notional = 0
+    let qty = 0
+    for (const lot of this.lots) {
+      notional += lot.price * lot.qty
+      qty += lot.qty
     }
-  }
-
-  private closeLeg(exitTime: number, exitPx: number) {
-    const leg = this.openLeg
-    if (!leg) return
-    const pnl = leg.realized - leg.fees
-    this.cumPnl += pnl
-    this.trades.push({
-      n: this.trades.length + 1,
-      side: leg.side,
-      entryTime: leg.entryTime,
-      entryPx: leg.qty > 0 ? leg.entryNotional / leg.qty : exitPx,
-      exitTime,
-      exitPx,
-      qty: leg.qty,
-      pnl: round(pnl),
-      returnPct: leg.entryNotional > 0 ? (pnl / leg.entryNotional) * 100 : 0,
-      cumPnl: round(this.cumPnl),
-    })
-    this.openLeg = null
+    return qty > 0 ? notional / qty : 0
   }
 
   /**
@@ -751,15 +782,54 @@ export function runBacktest(cfg: RunBacktestConfig): BacktestResult {
   return new BacktestRunner(cfg).run()
 }
 
+/**
+ * A DCA basket shares one wallet capped at 100% of it — no leverage — so the
+ * markets compete for one real balance instead of each getting its own private
+ * account. Once the wallet is committed, a further market's crack is skipped
+ * until room frees up, exactly like a single live account.
+ */
+const DCA_PORTFOLIO_MAX_PCT = 100
+
+/**
+ * Called every ~1% of the way through a portfolio replay with the fraction done
+ * (0..1). The runner awaits it, so a handler can flush a progress write to the
+ * DB — the replay is one long synchronous block otherwise, so without this the
+ * whole basket shows no movement until it finishes all at once.
+ */
+export type PortfolioProgress = (fraction: number) => void | Promise<void>
+
 /** Replays QFL markets on one clock with one exposure and equity coordinator. */
-export function runQflPortfolioBacktests(
-  configs: RunBacktestConfig[]
-): Map<string, BacktestResult> {
+export async function runQflPortfolioBacktests(
+  configs: RunBacktestConfig[],
+  onProgress?: PortfolioProgress
+): Promise<Map<string, BacktestResult>> {
   if (configs.length === 0) return new Map()
   const maximum = configs[0].params.qfl?.maxPortfolioExposurePct
   if (!maximum) throw new Error("A QFL portfolio backtest needs QFL settings.")
+  return runPortfolioBacktests(configs, maximum, onProgress)
+}
+
+/** Replays a DCA basket across markets on one shared $-wallet (see above). */
+export async function runDcaPortfolioBacktests(
+  configs: RunBacktestConfig[],
+  onProgress?: PortfolioProgress
+): Promise<Map<string, BacktestResult>> {
+  if (configs.length === 0) return new Map()
+  return runPortfolioBacktests(configs, DCA_PORTFOLIO_MAX_PCT, onProgress)
+}
+
+/**
+ * The shared engine behind both portfolio runners: every market runs on one
+ * clock, sizing off one shared equity number and reserving from one exposure
+ * bank capped at `maximumPct`.
+ */
+async function runPortfolioBacktests(
+  configs: RunBacktestConfig[],
+  maximumPct: number,
+  onProgress?: PortfolioProgress
+): Promise<Map<string, BacktestResult>> {
   const portfolio = new QflPortfolio(
-    maximum,
+    maximumPct,
     configs.map((config) => config.market)
   )
   const runners = configs.map(
@@ -781,7 +851,10 @@ export function runQflPortfolioBacktests(
       new Map(config.candles.map((candle, index) => [candle.t, index]))
   )
 
-  for (const time of times) {
+  // Report progress ~100 times across the replay (and yield so the write lands).
+  const reportEvery = Math.max(1, Math.floor(times.length / 100))
+  for (let ti = 0; ti < times.length; ti += 1) {
+    const time = times[ti]
     const due = runners.flatMap((runner, runnerIndex) => {
       const index = indexes[runnerIndex].get(time)
       return index === undefined
@@ -796,8 +869,12 @@ export function runQflPortfolioBacktests(
       if (!dueMarkets.has(config.market)) portfolio.observe(config.market, time)
     }
     for (const item of due) item.runner.processBarCloseOrders(item.index)
+    if (onProgress && ti % reportEvery === 0) {
+      await onProgress((ti + 1) / times.length)
+    }
   }
 
+  const peakExposurePct = round(portfolio.peakReservedPct())
   return new Map(
     runners.map((runner, index) => {
       const result = runner.result()
@@ -808,6 +885,7 @@ export function runQflPortfolioBacktests(
           portfolio: {
             sharedAccount: true as const,
             marketCount: runners.length,
+            peakExposurePct,
           },
         },
       ]
