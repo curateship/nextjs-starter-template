@@ -342,17 +342,20 @@ type LowCandle = { l: number | string }
  *  - `line`: a SHORT horizontal mark drawn at each base's low bar (NaN
  *    elsewhere) — what to plot, so bases show as separate short lines rather
  *    than one level held across the whole chart.
- * Both are NaN until the first base is confirmed.
+ *  - `confirmed`: true on the bar a base became confirmed (the bar the hold
+ *    completed, `pumpPeriods` after the low itself) — the "base formed" event.
+ * `raw` and `line` are NaN until the first base is confirmed.
  */
 export function qflBase(
   candles: LowCandle[],
   basePeriods: number,
   pumpPeriods: number
-): { raw: number[]; line: number[] } {
+): { raw: number[]; line: number[]; confirmed: boolean[] } {
   const n = candles.length
   const raw = new Array<number>(n).fill(Number.NaN)
   const line = new Array<number>(n).fill(Number.NaN)
-  if (n === 0 || basePeriods < 4) return { raw, line }
+  const confirmed = new Array<boolean>(n).fill(false)
+  if (n === 0 || basePeriods < 4) return { raw, line, confirmed }
   // Pine clamps pumpPeriods below basePeriods.
   const pump = pumpPeriods >= basePeriods ? basePeriods - 1 : pumpPeriods
 
@@ -382,6 +385,7 @@ export function qflBase(
       held === now
     if (newBase) {
       current = now
+      confirmed[i] = true
       const lowBar = i - pump
       const from = Math.max(0, lowBar - halfSpan)
       const to = Math.min(n - 1, lowBar + halfSpan)
@@ -390,5 +394,63 @@ export function qflBase(
     raw[i] = current
   }
 
-  return { raw, line }
+  return { raw, line, confirmed }
+}
+
+type HighCandle = { h: number | string }
+
+/**
+ * The mirror of {@link qflBase}: a "ceiling" is confirmed at the HIGHEST high of
+ * the last `basePeriods` bars once that high has held for `pumpPeriods` bars
+ * (price rejected off it without making a higher high). Same three outputs, read
+ * the same way — `raw` is the resistance in force, `line` is the short dash to
+ * plot, `confirmed` is the bar the ceiling completed. A short entry uses these the
+ * way a long entry uses bases; the base is then the level to take profit at.
+ */
+export function qflCeiling(
+  candles: HighCandle[],
+  basePeriods: number,
+  pumpPeriods: number
+): { raw: number[]; line: number[]; confirmed: boolean[] } {
+  const n = candles.length
+  const raw = new Array<number>(n).fill(Number.NaN)
+  const line = new Array<number>(n).fill(Number.NaN)
+  const confirmed = new Array<boolean>(n).fill(false)
+  if (n === 0 || basePeriods < 4) return { raw, line, confirmed }
+  const pump = pumpPeriods >= basePeriods ? basePeriods - 1 : pumpPeriods
+
+  const highs = candles.map((candle) => Number(candle.h))
+  const highestHigh = new Array<number>(n).fill(Number.NaN)
+  for (let i = basePeriods - 1; i < n; i += 1) {
+    let hi = -Infinity
+    for (let j = i - basePeriods + 1; j <= i; j += 1) hi = Math.max(hi, highs[j])
+    highestHigh[i] = hi
+  }
+
+  const halfSpan = Math.max(2, Math.round(pump))
+  let current = Number.NaN
+  for (let i = 0; i < n; i += 1) {
+    const prior = highestHigh[i - pump - 1]
+    const held = highestHigh[i - pump]
+    const now = highestHigh[i]
+    // A new high was set `pump` bars ago and has capped price ever since.
+    const newCeiling =
+      i - pump - 1 >= 0 &&
+      !Number.isNaN(prior) &&
+      !Number.isNaN(held) &&
+      !Number.isNaN(now) &&
+      prior < held &&
+      held === now
+    if (newCeiling) {
+      current = now
+      confirmed[i] = true
+      const highBar = i - pump
+      const from = Math.max(0, highBar - halfSpan)
+      const to = Math.min(n - 1, highBar + halfSpan)
+      for (let k = from; k <= to; k += 1) line[k] = now
+    }
+    raw[i] = current
+  }
+
+  return { raw, line, confirmed }
 }

@@ -104,7 +104,17 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "base",
     enabled: false,
     pinned: false,
-    params: { basePeriods: 36, pumpPeriods: 8 },
+    // Base forming only — the crack settings live on the automation's Base node
+    // for the DCA ladder to read; nothing the chart paints uses them.
+    // Booleans ride as 0/1 in chart configs.
+    params: {
+      basePeriods: 36,
+      pumpPeriods: 8,
+      formedRequireHigherBase: 1,
+      formedMinBars: 20,
+      formedShowLong: 1,
+      formedShowShort: 1,
+    },
   },
   {
     id: "session",
@@ -235,6 +245,28 @@ export function fairValueGapChartToModuleParams(
   }
 }
 
+/** Chart Base params → the Base module's typed params. Only the base-forming
+ * settings are on the chart card; the crack and respect-filter settings belong to
+ * the DCA node, so they fall back to the module's own defaults here. */
+export function baseChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string | boolean> {
+  return {
+    basePeriods: params.basePeriods ?? 36,
+    pumpPeriods: params.pumpPeriods ?? 8,
+    formedRequireHigherBase: (params.formedRequireHigherBase ?? 1) !== 0,
+    formedMinBars: params.formedMinBars ?? 20,
+    formedShowLong: (params.formedShowLong ?? 1) !== 0,
+    formedShowShort: (params.formedShowShort ?? 1) !== 0,
+    crackPct: 2.5,
+    maxCrackBars: 4,
+    respectFilterEnabled: false,
+    respectLookbackMonths: 6,
+    minRespectPct: 80,
+    recoveryTargetPct: -2,
+  }
+}
+
 export function trendlineChartToModuleParams(
   params: Record<string, number>
 ): Record<string, number | boolean> {
@@ -338,8 +370,45 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "signal", label: "Signal" },
   ],
   base: [
-    { key: "basePeriods", label: "Base periods" },
-    { key: "pumpPeriods", label: "Pump periods" },
+    {
+      key: "basePeriods",
+      label: "Base periods",
+      description:
+        "How many candles back to search for the lowest low that forms a base.",
+    },
+    {
+      key: "pumpPeriods",
+      label: "Pump periods",
+      description:
+        "How many candles the new low must hold before the base counts as confirmed. A green up arrow prints on the candle that confirms it.",
+    },
+    {
+      key: "formedRequireHigherBase",
+      label: "Only levels with the trend",
+      kind: "boolean",
+      description:
+        "On: long marks only a base above the base before it (higher low), short marks only a ceiling below the ceiling before it (lower high). Off: mark every level. This is usually why a level has a dash but no arrow.",
+    },
+    {
+      key: "formedShowLong",
+      label: "Show long arrows (bases)",
+      kind: "boolean",
+      description:
+        "Green up arrow and a teal dash at each confirmed base — support.",
+    },
+    {
+      key: "formedShowShort",
+      label: "Show short arrows (ceilings)",
+      kind: "boolean",
+      description:
+        "Red down arrow and a red dash at each confirmed ceiling — resistance.",
+    },
+    {
+      key: "formedMinBars",
+      label: "Minimum candles between arrows",
+      description:
+        "Arrows can never appear closer together than this many candles, so they stop bunching up. An arrow also only prints on a floor above the last one marked; after price sets a lower floor the indicator measures from there.",
+    },
   ],
   session: [],
   priceAction: [
