@@ -796,7 +796,7 @@ export function AutomationEditor({
     <AutomationBacktestSidePanel
       backtest={backtest}
       interval={interval}
-      isDca={Boolean(compiled.config?.dca)}
+      config={compiled.config}
       runnable={runnableNow && !backtestDisabledReason}
       disabledReason={backtestDisabledReason ?? runnableDisabledReason}
       canSaveAndRerun={dirty && compiled.config !== null && !saving}

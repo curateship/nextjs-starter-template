@@ -14,6 +14,12 @@ have to repeat myself. Plain English on purpose.
   ~5,000 candles per timeframe (15m ≈ 52 days), which is too short. Binance keeps
   years of history and lists more coins, so all backtest candles come from
   Binance. Hyperliquid is still used for live trading, order books, and slippage.
+- **How many markets fit depends on the timeframe and the window.** One run may
+  pull a million candles in total, so a market's cost — its window of candles plus
+  the strategy's warm-up — sets how many fit. 51 is the ceiling; 30 days of 1-minute
+  candles allows 22, and the longest window at any timeframe allows 19. Randomize
+  fills to whatever the current setting allows, and the panel prints the number, so
+  the 20-market minimum above is reachable at every timeframe.
 
 ## Costs — the thing that makes or breaks it
 
