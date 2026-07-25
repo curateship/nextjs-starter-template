@@ -309,3 +309,14 @@ export function extractEventContentFields(contentBlocks: unknown): {
 
   return {}
 }
+
+// The content_blocks key of the event-content block (where date/time live), or
+// null if the event has no such block yet. The block is keyed by its id (e.g.
+// `event-content-default`); callers that write the date need the exact key.
+export function findEventContentBlockKey(contentBlocks: unknown): string | null {
+  if (!contentBlocks || typeof contentBlocks !== 'object') return null
+  for (const [key, value] of Object.entries(contentBlocks as Record<string, unknown>)) {
+    if (value && typeof value === 'object' && (value as { type?: unknown }).type === 'event-content') return key
+  }
+  return null
+}

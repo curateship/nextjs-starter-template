@@ -6,6 +6,7 @@ import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resou
 import { serializeEvent } from '@/lib/utils/content-serializer'
 import { UUID_REGEX } from '@/lib/utils/validation'
 import { safeSyncSiteSearchDocument } from '@/lib/actions/site-search/site-search-index'
+import { onEventEdited } from '@/lib/actions/events/event-recurrence.server'
 
 const config = {
   entityName: 'Event',
@@ -50,7 +51,11 @@ const config = {
 
     return updateValues
   },
-  afterUpdate: (row: typeof events.$inferSelect) => safeSyncSiteSearchDocument('event', row),
+  afterUpdate: async (row: typeof events.$inferSelect) => {
+    await safeSyncSiteSearchDocument('event', row)
+    // Detach an edited occurrence, or push shared settings (title/image/meta) to the series.
+    await onEventEdited(row)
+  },
 }
 
 export const GET = getResourceHandler(config)

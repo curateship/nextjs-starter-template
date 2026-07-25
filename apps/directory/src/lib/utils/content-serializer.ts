@@ -44,6 +44,10 @@ type ContentRow = {
   is_homepage?: boolean
   metaDescription?: string | null
   meta_description?: string | null
+  recurrenceRule?: unknown
+  recurrence_rule?: unknown
+  seriesId?: string | null
+  series_id?: string | null
   status?: string
   createdAt?: Date | string
   created_at?: Date | string
@@ -109,6 +113,8 @@ export function serializeEvent(row: EventRow | ContentRow): Event {
   return {
     ...serializeContentRow(row),
     template_id: requireValue(contentRow.templateId ?? contentRow.template_id, 'template_id'),
+    recurrence_rule: (contentRow.recurrenceRule ?? contentRow.recurrence_rule ?? null) as Event['recurrence_rule'],
+    series_id: contentRow.seriesId ?? contentRow.series_id ?? null,
   } as Event
 }
 

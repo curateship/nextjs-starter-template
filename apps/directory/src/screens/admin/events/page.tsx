@@ -2,8 +2,11 @@
 
 import dynamic from "@/lib/dynamic"
 import Calendar from "lucide-react/dist/esm/icons/calendar.js"
+import Repeat from "lucide-react/dist/esm/icons/repeat.js"
 
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
+import { Badge } from "@/components/ui/badge"
+import { describeRecurrence } from "@/lib/utils/event-recurrence"
 import {
   deleteEventAction,
   deleteEventsAction,
@@ -11,6 +14,30 @@ import {
   getSiteEventsWithCategoriesAction,
   type Event,
 } from "@/lib/actions/events/event-actions"
+
+// Status cell for events: the usual Published/Draft badge plus a series marker so
+// owners can see at a glance which events repeat and which are auto-created dates.
+function EventStatusBadge({ event }: { event: Event }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {event.is_published ? (
+        <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+      ) : (
+        <Badge variant="secondary">Draft</Badge>
+      )}
+      {event.recurrence_rule && (
+        <Badge variant="outline" className="gap-1" title={describeRecurrence(event.recurrence_rule)}>
+          <Repeat className="size-3" /> Repeats
+        </Badge>
+      )}
+      {event.series_id && (
+        <Badge variant="outline" className="gap-1 text-muted-foreground">
+          <Repeat className="size-3" /> Series date
+        </Badge>
+      )}
+    </div>
+  )
+}
 
 const CreateEventModal = dynamic(
   () =>
@@ -48,6 +75,7 @@ export default function EventsPage() {
       itemLabelPlural="Events"
       listLabel="Events"
       pathPrefix="events"
+      renderStatusBadge={(event) => <EventStatusBadge event={event} />}
       renderCreateModal={({ onCancel, onSuccess }) => (
         <CreateEventModal onSuccess={onSuccess} onCancel={onCancel} />
       )}
