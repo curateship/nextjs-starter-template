@@ -37,6 +37,11 @@ export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
       pts: [...m.curve].sort((a, b) => a.t - b.t),
     }))
   if (ms.length === 0) return null
+  // A group is homogeneous by construction — every market in it is DCA, or every
+  // one QFL (both shared-wallet), or every one an independent single-market run.
+  // So `every` and `some` agree here; a mixed group can't occur. If one ever
+  // could, the shared branch (one wallet) and the summed branch would BOTH
+  // mis-denominate it, so the invariant matters more than the choice of reducer.
   const sharedAccount = ms.every((market) => market.sharedAccount)
   const totalStart = sharedAccount
     ? ms[0].start
@@ -108,6 +113,7 @@ function computeCombinedFromBlend(
 
   return {
     markets: marketCount,
+    startEquity: totalStart,
     combinedDrawdownPct: maxDrawdown * 100,
     drawdownAt,
     bucketLowPct: Math.min(0, (minTotal / totalStart - 1) * 100),

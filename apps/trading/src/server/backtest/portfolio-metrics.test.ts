@@ -31,4 +31,19 @@ describe("backtest portfolio curve", () => {
       ],
     })
   })
+
+  it("sums capital for independent-wallet markets (each its own pot)", () => {
+    const blended = blendCurves([
+      { start: 100, curve: [{ t: 0, eq: 100 }, { t: 1, eq: 110 }] },
+      { start: 100, curve: [{ t: 0, eq: 100 }, { t: 1, eq: 90 }] },
+    ])
+    // Two separate $100 wallets → $200 base, and the curve sums both balances.
+    expect(blended).toEqual({
+      totalStart: 200,
+      series: [
+        { t: 0, total: 200 },
+        { t: 1, total: 200 },
+      ],
+    })
+  })
 })

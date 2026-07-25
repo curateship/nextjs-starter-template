@@ -574,11 +574,17 @@ export function RunGroupsDashboard({
       const done = groupRuns.filter(
         (run) => run.status === "done" && run.netPnl !== null
       )
-      // Equal-capital portfolio: sum dollar P&L over summed starting capital.
-      const basketEquity = done.reduce(
-        (sum, run) => sum + run.startingEquity,
-        0
-      )
+      // Whole-basket risk AND capital base from the combined equity curve
+      // (server-computed), not an average of each market's own worst day.
+      const metrics = groupMetrics[groupId]
+      // The basket's real capital base. A shared-account group (DCA/QFL) runs
+      // every market off ONE wallet, so its denominator is that single wallet —
+      // the server's blend reports it as `startEquity`. Summing each market's
+      // starting equity would count the one shared pot once per market and make
+      // the return read ~N× too small. Independent baskets fall back to the sum.
+      const basketEquity =
+        metrics?.startEquity ??
+        done.reduce((sum, run) => sum + run.startingEquity, 0)
       const netPnl =
         done.length > 0
           ? done.reduce((sum, run) => sum + (run.netPnl as number), 0)
@@ -591,9 +597,6 @@ export function RunGroupsDashboard({
         done.length > 0
           ? done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0)
           : null
-      // Whole-basket risk from the combined equity curve (server-computed),
-      // not an average of each market's own worst day.
-      const metrics = groupMetrics[groupId]
       const finished = groupRuns.filter(
         (run) => run.status === "done" || run.status === "error"
       ).length
@@ -1029,7 +1032,12 @@ export function RunHistoryDashboard({
   // This run's headline stats, blended across its completed markets.
   const summary = React.useMemo(() => {
     const done = marketRuns.filter((run) => run.status === "done")
-    const equity = done.reduce((sum, run) => sum + run.startingEquity, 0)
+    // One shared wallet for a shared-account basket (server's `startEquity`),
+    // summed capital for independent markets — never the naive per-market sum
+    // of a shared pot. See the group-list summary above for the full rationale.
+    const equity =
+      metrics?.startEquity ??
+      done.reduce((sum, run) => sum + run.startingEquity, 0)
     const pnl = done.reduce((sum, run) => sum + (run.netPnl ?? 0), 0)
     return {
       markets: marketRuns.length,
@@ -1038,7 +1046,7 @@ export function RunHistoryDashboard({
       netPnlPct: equity > 0 ? (pnl / equity) * 100 : null,
       trades: done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0),
     }
-  }, [marketRuns])
+  }, [marketRuns, metrics])
 
   const summaryRows: {
     label: string
