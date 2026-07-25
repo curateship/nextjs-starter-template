@@ -8,6 +8,7 @@ import { DIRECTORY_MAP_LISTING_LIMIT, isDirectoryMapBlock } from '@/lib/actions/
 import { getDirectoryMapConfigAction } from '@/lib/actions/directories/directory-map-actions'
 import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
 import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
+import { getEventsCalendarData, type EventsCalendarData } from './page-events-calendar-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 import { resolveSiteByHostInternal } from '@/lib/site-host-resolution'
 
@@ -193,6 +194,7 @@ export interface SiteWithBlocks {
   mapApiKey?: string | null
   categoryListingData?: Record<string, CategoriesListingData>
   memberDirectoryData?: Record<string, MemberDirectoryData>
+  eventsCalendarData?: Record<string, EventsCalendarData>
 }
 
 /**
@@ -400,6 +402,32 @@ async function prefetchMemberDirectoryData(
   return memberDirectoryData
 }
 
+async function prefetchEventsCalendarData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any>; display_order: number }>,
+  siteId: string
+): Promise<Record<string, EventsCalendarData>> {
+  const eventsCalendarData: Record<string, EventsCalendarData> = {}
+  // Every calendar block on a page shows the same site-wide event set, so fetch
+  // it once and share it across blocks.
+  const hasCalendarBlock = blocks.some((block) => block.type === 'events-calendar')
+  if (!hasCalendarBlock) return eventsCalendarData
+
+  try {
+    const result = await getEventsCalendarData({ data: { params: { siteId } } })
+    if (result.success && result.data) {
+      for (const block of blocks) {
+        if (block.type === 'events-calendar') {
+          eventsCalendarData[block.id] = result.data
+        }
+      }
+    }
+  } catch (error) {
+    // Silently continue - block will fall back to client loading
+  }
+
+  return eventsCalendarData
+}
+
 async function buildSiteWithBlocksResult(
   lookup: SitePageLookup | null,
   actualPageSlug: string,
@@ -424,11 +452,12 @@ async function buildSiteWithBlocksResult(
   }
 
   const blocks = buildPublicPageBlocks(page)
-  const [listingData, mapApiKey, categoryListingData, memberDirectoryData] = await Promise.all([
+  const [listingData, mapApiKey, categoryListingData, memberDirectoryData, eventsCalendarData] = await Promise.all([
     prefetchListingData(blocks, site.id, options),
     prefetchMapApiKey(blocks, site.id),
     prefetchCategoryListingData(blocks, site.id),
     prefetchMemberDirectoryData(blocks, site.id),
+    prefetchEventsCalendarData(blocks, site.id),
   ])
 
   return {
@@ -455,6 +484,7 @@ async function buildSiteWithBlocksResult(
       mapApiKey,
       categoryListingData: Object.keys(categoryListingData).length > 0 ? categoryListingData : undefined,
       memberDirectoryData: Object.keys(memberDirectoryData).length > 0 ? memberDirectoryData : undefined,
+      eventsCalendarData: Object.keys(eventsCalendarData).length > 0 ? eventsCalendarData : undefined,
     },
   }
 }

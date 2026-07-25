@@ -15,6 +15,7 @@ import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBl
 import { PageCategoriesListingBlock } from "../blocks/categories-listing/PageCategoriesListingBlock"
 import { PageSiteSearchBlock } from "../blocks/site-search/PageSiteSearchBlock"
 import { PageMemberDirectoryBlock } from "../blocks/member-directory/PageMemberDirectoryBlock"
+import { PageEventsCalendarBlock } from "../blocks/events-calendar/PageEventsCalendarBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -136,6 +137,13 @@ export function PageBlockEditorDialog({
 
                 {selectedBlock.type === "member-directory" && (
                   <PageMemberDirectoryBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+
+                {selectedBlock.type === "events-calendar" && (
+                  <PageEventsCalendarBlock
                     content={draftContent}
                     onContentChange={onContentChange}
                   />

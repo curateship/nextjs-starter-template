@@ -9,6 +9,7 @@ import LogIn from "lucide-react/dist/esm/icons/log-in.js"
 import Tags from "lucide-react/dist/esm/icons/tags.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
+import CalendarDays from "lucide-react/dist/esm/icons/calendar-days.js"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -174,6 +175,18 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       showSearch: true,
       showRoleChips: true,
       includedRoles: ['owner', 'admin', 'member'],
+      visibility: {},
+    }
+  },
+  {
+    type: 'events-calendar',
+    name: 'Events Calendar',
+    icon: CalendarDays,
+    description: 'Month grid and list of the site\'s upcoming events, each linking to its event page',
+    defaultContent: {
+      title: 'Upcoming Events',
+      subtitle: '',
+      defaultView: 'month',
       visibility: {},
     }
   },
