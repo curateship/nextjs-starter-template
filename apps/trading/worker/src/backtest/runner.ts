@@ -22,9 +22,9 @@ import type {
   DesiredOrder,
   Strategy,
   StrategyCtx,
-  QflPortfolioControl,
+  SharedWalletPortfolioControl,
 } from "../strategies/contract"
-import { QflPortfolio } from "../qfl-portfolio"
+import { SharedWalletPortfolio } from "../shared-wallet-portfolio"
 import { BacktestBroker } from "./broker"
 
 export type RunBacktestConfig = {
@@ -39,8 +39,8 @@ export type RunBacktestConfig = {
   interval: CandleInterval
   /** Fee/slippage assumptions in bps. */
   costs: BacktestCosts
-  /** Shared only by synchronized QFL basket runs. */
-  qflPortfolio?: QflPortfolioControl
+  /** Shared only by synchronized basket runs on one wallet. */
+  sharedWalletPortfolio?: SharedWalletPortfolioControl
   /**
    * The automation's higher-timeframe series (ascending, with its own
    * warmup). Served through ctx.candles(interval) with a strict
@@ -78,7 +78,7 @@ class BacktestRunner {
   private readonly simStartMs: number
   private readonly startingEquity: number
   private readonly market: string
-  private readonly qflPortfolio?: QflPortfolioControl
+  private readonly sharedWalletPortfolio?: SharedWalletPortfolioControl
 
   private readonly broker: BacktestBroker
   private strategyState: unknown
@@ -147,7 +147,7 @@ class BacktestRunner {
     this.simStartMs = cfg.simStartMs
     this.startingEquity = cfg.startingEquity
     this.market = cfg.market
-    this.qflPortfolio = cfg.qflPortfolio
+    this.sharedWalletPortfolio = cfg.sharedWalletPortfolio
     this.peakEquity = cfg.startingEquity
     this.dailyPnlDate = new Date(cfg.simStartMs).toISOString().slice(0, 10)
 
@@ -363,7 +363,7 @@ class BacktestRunner {
       this.prevTpPx = tpPx
     }
 
-    // Strategy-owned replay state (the QFL ladder), on change only.
+    // Strategy-owned replay state (the DCA ladder), on change only.
     const snapshot =
       this.strategy.snapshot?.(this.ctx(false), this.params as never) ?? null
     const json = JSON.stringify(snapshot) ?? "null"
@@ -713,7 +713,7 @@ class BacktestRunner {
   }
 
   /**
-   * @param report Whether to report this market's equity to the QFL portfolio
+   * @param report Whether to report this market's equity to the shared-wallet portfolio
    *   coordinator. True for the strategy callbacks that drive the run; false
    *   for read-only recording (exitTriggers/snapshot in recordTimeline), so
    *   observing the tape can never shift a portfolio sibling's exposure math.
@@ -721,7 +721,7 @@ class BacktestRunner {
   private ctx(report = true): StrategyCtx<unknown> {
     const localEquity = this.broker.equity(this.price)
     if (report) {
-      this.qflPortfolio?.reportEquity?.(
+      this.sharedWalletPortfolio?.reportEquity?.(
         this.market,
         localEquity,
         this.startingEquity
@@ -735,9 +735,9 @@ class BacktestRunner {
           ? this.htfWindowCandles(n)
           : this.windowCandles(n),
       position: this.broker.positionState(),
-      equity: String(this.qflPortfolio?.equity?.(localEquity) ?? localEquity),
+      equity: String(this.sharedWalletPortfolio?.equity?.(localEquity) ?? localEquity),
       startingEquity: String(this.startingEquity),
-      qflPortfolio: this.qflPortfolio,
+      sharedWalletPortfolio: this.sharedWalletPortfolio,
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next
@@ -798,17 +798,6 @@ const DCA_PORTFOLIO_MAX_PCT = 100
  */
 export type PortfolioProgress = (fraction: number) => void | Promise<void>
 
-/** Replays QFL markets on one clock with one exposure and equity coordinator. */
-export async function runQflPortfolioBacktests(
-  configs: RunBacktestConfig[],
-  onProgress?: PortfolioProgress
-): Promise<Map<string, BacktestResult>> {
-  if (configs.length === 0) return new Map()
-  const maximum = configs[0].params.qfl?.maxPortfolioExposurePct
-  if (!maximum) throw new Error("A QFL portfolio backtest needs QFL settings.")
-  return runPortfolioBacktests(configs, maximum, onProgress)
-}
-
 /** Replays a DCA basket across markets on one shared $-wallet (see above). */
 export async function runDcaPortfolioBacktests(
   configs: RunBacktestConfig[],
@@ -828,12 +817,12 @@ async function runPortfolioBacktests(
   maximumPct: number,
   onProgress?: PortfolioProgress
 ): Promise<Map<string, BacktestResult>> {
-  const portfolio = new QflPortfolio(
+  const portfolio = new SharedWalletPortfolio(
     maximumPct,
     configs.map((config) => config.market)
   )
   const runners = configs.map(
-    (config) => new BacktestRunner({ ...config, qflPortfolio: portfolio })
+    (config) => new BacktestRunner({ ...config, sharedWalletPortfolio: portfolio })
   )
   for (const runner of runners) runner.begin()
 

@@ -78,8 +78,8 @@ import {
   bollinger,
   ema,
   macd,
-  qflBase,
-  qflCeiling,
+  baseLevels,
+  ceilingLevels,
   rsi,
 } from "@/lib/strategies/indicators"
 import {
@@ -279,6 +279,7 @@ export function PriceChartView({
   barColors = [],
   visibleStartMs,
   focusPoints = EMPTY_FOCUS_POINTS,
+  focusRings = true,
   focusResult = null,
   onCrosshairOhlc,
   onLineDragEnd,
@@ -310,8 +311,13 @@ export function PriceChartView({
   barColors?: ChartBarColor[]
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
-  /** Points pulsed on the chart to locate a focused trade among the arrows. */
+  /**
+   * The focused trade's entry and exit. They anchor the result box and pan the
+   * trade into view; `focusRings` decides whether they are also drawn.
+   */
   focusPoints?: ChartFocusPoint[]
+  /** Draw a pulsing ring + label on each focus point (default true). */
+  focusRings?: boolean
   /** Result box spanning the focused trade's entry → exit; null hides it. */
   focusResult?: ChartFocusResult | null
   /** Crosshair candle readout; null when the cursor leaves the chart. */
@@ -381,7 +387,7 @@ export function PriceChartView({
   const prevLenRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
-  // One short line series per QFL base mark — separate series so marks never
+  // One short line series per base mark — separate series so marks never
   // connect to each other across the gaps between them.
   const baseSeriesRef = React.useRef<ISeriesApi<"Line">[]>([])
   const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
@@ -1965,7 +1971,7 @@ export function PriceChartView({
     const ctors = seriesCtorsRef.current
     if (!ready || candles.length === 0 || !chart || !ctors) return
 
-    // Rebuild QFL base marks from scratch each run (candles/config change).
+    // Rebuild base marks from scratch each run (candles/config change).
     for (const series of baseSeriesRef.current) chart.removeSeries(series)
     baseSeriesRef.current = []
     const isDark = document.documentElement.classList.contains("dark")
@@ -2027,7 +2033,7 @@ export function PriceChartView({
         const showBases = (ind.params.formedShowLong ?? 1) !== 0
         const showCeilings = (ind.params.formedShowShort ?? 1) !== 0
         if (showBases) {
-          const { line } = qflBase(
+          const { line } = baseLevels(
             candles,
             ind.params.basePeriods,
             ind.params.pumpPeriods
@@ -2036,7 +2042,7 @@ export function PriceChartView({
         }
         // Ceilings in the down colour, so "sell here" reads apart from the base.
         if (showCeilings) {
-          const ceilings = qflCeiling(
+          const ceilings = ceilingLevels(
             candles,
             ind.params.basePeriods,
             ind.params.pumpPeriods
@@ -2441,7 +2447,7 @@ export function PriceChartView({
           })}
         </div>
       ) : null}
-      {focusPixels.length > 0 ? (
+      {focusRings && focusPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
           {focusPixels.map((point) => (
             <div

@@ -2,13 +2,13 @@ import { z } from "zod"
 
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
-import { qflBase } from "@/lib/strategies/indicators"
+import { baseLevels } from "@/lib/strategies/indicators"
 
 const MONTH_MS = 30 * 86_400_000
 const DAY_MS = 86_400_000
 
-/** Bounds history retained across every market in one live QFL bot. */
-export const MAX_QFL_PORTFOLIO_HISTORY_BARS = 1_000_000
+/** Bounds history retained across every market in one live shared-wallet bot. */
+export const MAX_SHARED_WALLET_HISTORY_BARS = 1_000_000
 
 export const DEFAULT_MARKET_SCANNER_SETTINGS = {
   minDailyVolumeUsd: 5_000_000,
@@ -25,7 +25,7 @@ export const marketScannerSettingsFieldsSchema = z.object({
 export const marketScannerSettingsSchema = marketScannerSettingsFieldsSchema
 export type MarketScannerSettings = z.infer<typeof marketScannerSettingsSchema>
 
-export const DEFAULT_QFL_SETTINGS = {
+export const DEFAULT_LADDER_SETTINGS = {
   basePeriods: 36,
   pumpPeriods: 8,
   crackPct: 2.5,
@@ -50,7 +50,7 @@ export const DEFAULT_QFL_SETTINGS = {
   recoveryTargetPct: -2,
 }
 
-export const qflSettingsFieldsSchema = z.object({
+export const ladderSettingsFieldsSchema = z.object({
   basePeriods: z.number().int().min(4).max(500),
   pumpPeriods: z.number().int().min(1).max(499),
   crackPct: z.number().positive().max(50),
@@ -78,7 +78,7 @@ export const qflSettingsFieldsSchema = z.object({
   recoveryTargetPct: z.number().min(-50).max(50),
 })
 
-export const qflSettingsSchema = qflSettingsFieldsSchema.superRefine(
+export const ladderSettingsSchema = ladderSettingsFieldsSchema.superRefine(
   (settings, ctx) => {
     if (settings.pumpPeriods >= settings.basePeriods) {
       ctx.addIssue({
@@ -98,7 +98,7 @@ export const qflSettingsSchema = qflSettingsFieldsSchema.superRefine(
       ctx.addIssue({
         code: "custom",
         path: ["maxMarketExposurePct"],
-        message: "One ladder cannot exceed the shared QFL exposure limit.",
+        message: "One ladder cannot exceed the shared wallet exposure limit.",
       })
     }
     if (settings.recoveryTargetPct <= -settings.crackPct) {
@@ -108,7 +108,7 @@ export const qflSettingsSchema = qflSettingsFieldsSchema.superRefine(
         message: "Recovery must be above the crack entry level.",
       })
     }
-    const deepestDeviation = qflDeviations(settings).at(-1) ?? 0
+    const deepestDeviation = ladderDeviations(settings).at(-1) ?? 0
     if (deepestDeviation >= 100) {
       ctx.addIssue({
         code: "custom",
@@ -119,10 +119,10 @@ export const qflSettingsSchema = qflSettingsFieldsSchema.superRefine(
   }
 )
 
-export type QflSettings = z.infer<typeof qflSettingsSchema>
+export type LadderSettings = z.infer<typeof ladderSettingsSchema>
 
-export function qflRequiredHistoryMonths(
-  settings: QflSettings,
+export function ladderRequiredHistoryMonths(
+  settings: LadderSettings,
   marketScanner?: MarketScannerSettings
 ): number {
   return Math.max(
@@ -135,23 +135,23 @@ export function qflRequiredHistoryMonths(
   )
 }
 
-export type QflRespectScore = {
+export type BaseRespectScore = {
   respected: number
   total: number
   rate: number | null
   hasFullHistory: boolean
 }
 
-export type QflCandidate = {
+export type LadderCandidate = {
   candleTime: number
   base: number
   triggerPrice: number
   volumeMultiple: number
   dailyVolumeUsd: number
-  respect: QflRespectScore
+  respect: BaseRespectScore
 }
 
-export type QflBaseTracker = {
+export type BaseTracker = {
   processedTime: number | null
   basePeriods: number
   pumpPeriods: number
@@ -160,9 +160,9 @@ export type QflBaseTracker = {
   lows: number[]
 }
 
-export function qflDeviations(
+export function ladderDeviations(
   settings: Pick<
-    QflSettings,
+    LadderSettings,
     "crackPct" | "priceStepPct" | "stepMultiplier" | "totalOrders"
   >
 ): number[] {
@@ -176,13 +176,13 @@ export function qflDeviations(
   return deviations
 }
 
-export function qflLevels(base: number, settings: QflSettings): number[] {
-  return qflDeviations(settings).map(
+export function ladderLevels(base: number, settings: LadderSettings): number[] {
+  return ladderDeviations(settings).map(
     (deviation) => base * (1 - deviation / 100)
   )
 }
 
-export function qflAllocationPcts(settings: QflSettings): number[] {
+export function ladderAllocationPcts(settings: LadderSettings): number[] {
   const weights = Array.from(
     { length: settings.totalOrders },
     (_, index) => settings.sizeMultiplier ** index
@@ -193,10 +193,10 @@ export function qflAllocationPcts(settings: QflSettings): number[] {
   )
 }
 
-export function qflProfitTarget(
+export function ladderProfitTarget(
   fillPrice: number,
   base: number,
-  settings: QflSettings
+  settings: LadderSettings
 ): number {
   return Math.min(
     fillPrice * (1 + settings.takeProfitPct / 100),
@@ -204,15 +204,15 @@ export function qflProfitTarget(
   )
 }
 
-export function qflStopPrice(base: number, settings: QflSettings): number {
-  const deepest = qflLevels(base, settings).at(-1) ?? base
+export function ladderStopPrice(base: number, settings: LadderSettings): number {
+  const deepest = ladderLevels(base, settings).at(-1) ?? base
   return deepest * (1 - settings.stopBelowFinalPct / 100)
 }
 
-export function createQflBaseTracker(
+export function createBaseTracker(
   basePeriods: number,
   pumpPeriods: number
-): QflBaseTracker {
+): BaseTracker {
   return {
     processedTime: null,
     basePeriods,
@@ -223,10 +223,10 @@ export function createQflBaseTracker(
   }
 }
 
-export function advanceQflBaseTracker(
-  tracker: QflBaseTracker,
+export function advanceBaseTracker(
+  tracker: BaseTracker,
   candle: Pick<IndicatorCandle, "t" | "l">
-): QflBaseTracker {
+): BaseTracker {
   if (tracker.processedTime !== null && candle.t <= tracker.processedTime) {
     return tracker
   }
@@ -254,9 +254,9 @@ export function advanceQflBaseTracker(
 }
 
 /** Only the base/crack/recovery fields the respect scan reads — so a DCA
- * config (which shares these) can be scored without a full QflSettings. */
-export type QflRespectSettings = Pick<
-  QflSettings,
+ * config (which shares these) can be scored without a full LadderSettings. */
+export type BaseRespectSettings = Pick<
+  LadderSettings,
   | "basePeriods"
   | "pumpPeriods"
   | "crackPct"
@@ -264,15 +264,15 @@ export type QflRespectSettings = Pick<
   | "respectLookbackMonths"
 >
 
-export function qflBaseRespectScore(
+export function baseRespectScore(
   candles: IndicatorCandle[],
-  settings: QflRespectSettings,
+  settings: BaseRespectSettings,
   now: number = candles.at(-1)?.t ?? 0
-): QflRespectScore {
+): BaseRespectScore {
   const visible = candles.filter((candle) => candle.t <= now)
   const cutoff = now - settings.respectLookbackMonths * MONTH_MS
   const hasFullHistory = (visible[0]?.t ?? Number.POSITIVE_INFINITY) <= cutoff
-  const bases = qflBase(visible, settings.basePeriods, settings.pumpPeriods).raw
+  const bases = baseLevels(visible, settings.basePeriods, settings.pumpPeriods).raw
   let active: { base: number; startedAt: number } | null = null
   let respected = 0
   let total = 0
@@ -310,26 +310,26 @@ export function qflBaseRespectScore(
   }
 }
 
-export function findQflCandidate(
+export function findLadderCandidate(
   candles: IndicatorCandle[],
-  settings: QflSettings
-): QflCandidate | null {
+  settings: LadderSettings
+): LadderCandidate | null {
   const index = candles.length - 1
   if (index < Math.max(settings.volumeLookback, settings.maxCrackBars) + 1) {
     return null
   }
-  const bases = qflBase(candles, settings.basePeriods, settings.pumpPeriods).raw
+  const bases = baseLevels(candles, settings.basePeriods, settings.pumpPeriods).raw
   const base = bases[index]
   const previousBase = bases[index - 1]
-  return findQflCandidateAtBase(candles, settings, base, previousBase)
+  return findLadderCandidateAtBase(candles, settings, base, previousBase)
 }
 
-export function findQflCandidateAtBase(
+export function findLadderCandidateAtBase(
   candles: IndicatorCandle[],
-  settings: QflSettings,
+  settings: LadderSettings,
   base: number | null,
   previousBase: number | null
-): QflCandidate | null {
+): LadderCandidate | null {
   const index = candles.length - 1
   if (index < Math.max(settings.volumeLookback, settings.maxCrackBars) + 1) {
     return null
@@ -366,7 +366,7 @@ export function findQflCandidateAtBase(
   }
 
   // The current crack is the candidate, not historical evidence for itself.
-  const respect = qflBaseRespectScore(
+  const respect = baseRespectScore(
     candles.slice(0, index),
     settings,
     candle.t
@@ -396,15 +396,15 @@ export function findQflCandidateAtBase(
   }
 }
 
-export function qflMinimumBars(settings: QflSettings): number {
+export function ladderMinimumBars(settings: LadderSettings): number {
   return Math.max(
     settings.basePeriods + settings.pumpPeriods + settings.maxCrackBars + 5,
     settings.volumeLookback + 5
   )
 }
 
-export function qflHistoryBars(
-  settings: QflSettings,
+export function ladderHistoryBars(
+  settings: LadderSettings,
   interval: AutomationInterval,
   historyMonths = settings.respectLookbackMonths
 ): number {
@@ -419,7 +419,7 @@ export function qflHistoryBars(
   // Candidate ranking and Market Scanner both use trailing daily volume.
   // Keep a complete day even when the base/volume lookbacks are shorter.
   const minimumBars = Math.max(
-    qflMinimumBars(settings),
+    ladderMinimumBars(settings),
     Math.ceil(DAY_MS / intervalMs[interval]) + 1
   )
   if (historyMonths <= 0) return minimumBars
@@ -429,18 +429,18 @@ export function qflHistoryBars(
   )
 }
 
-export function qflPortfolioHistoryBars(
-  settings: QflSettings,
+export function sharedWalletHistoryBars(
+  settings: LadderSettings,
   interval: AutomationInterval,
   marketScanner: MarketScannerSettings | undefined,
   marketCount: number
 ): number {
   return (
     Math.max(0, marketCount) *
-    qflHistoryBars(
+    ladderHistoryBars(
       settings,
       interval,
-      qflRequiredHistoryMonths(settings, marketScanner)
+      ladderRequiredHistoryMonths(settings, marketScanner)
     )
   )
 }

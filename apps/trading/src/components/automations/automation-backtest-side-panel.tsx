@@ -44,7 +44,7 @@ const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 export function AutomationBacktestSidePanel({
   backtest,
   interval,
-  isQfl,
+  isDca,
   runnable,
   disabledReason,
   canSaveAndRerun,
@@ -52,7 +52,8 @@ export function AutomationBacktestSidePanel({
 }: {
   backtest: AutomationBacktestState
   interval: AutomationInterval
-  isQfl: boolean
+  /** True when a DCA ladder runs the whole basket off one shared wallet. */
+  isDca: boolean
   /** Compiled + saved — gates Run/New run live (edits mid-mode disable them). */
   runnable: boolean
   disabledReason?: string
@@ -331,7 +332,7 @@ export function AutomationBacktestSidePanel({
               </div>
 
               <p className="text-[11px] text-muted-foreground">
-                {isQfl ? "One shared QFL portfolio" : "One run per market"} · max{" "}
+                {isDca ? "One shared DCA wallet" : "One run per market"} · max{" "}
                 {MAX_EXTRA_MARKETS + 1} markets.
               </p>
             </>

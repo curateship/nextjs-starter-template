@@ -47,7 +47,7 @@ export type PositionState = {
   entryPx: string
 } | null
 
-export type QflPortfolioCandidate = {
+export type SharedWalletCandidate = {
   market: string
   candleTime: number
   exposurePct: number
@@ -56,8 +56,8 @@ export type QflPortfolioCandidate = {
   dailyVolumeUsd: number
 }
 
-export type QflPortfolioControl = {
-  submit: (candidate: QflPortfolioCandidate) => void
+export type SharedWalletPortfolioControl = {
+  submit: (candidate: SharedWalletCandidate) => void
   observe?: (market: string, candleTime: number) => void
   ready?: (candleTime: number) => boolean
   reserve: (market: string, candleTime: number, exposurePct: number) => boolean
@@ -87,8 +87,8 @@ export type StrategyCtx<S> = {
   equity: string
   /** Equity at the start of the run — the baseline compounding scales against. */
   startingEquity?: string
-  /** Shared exposure gate used by multi-market QFL runners. */
-  qflPortfolio?: QflPortfolioControl
+  /** Shared exposure gate used by multi-market runners of one bot. */
+  sharedWalletPortfolio?: SharedWalletPortfolioControl
   state: S
   setState: (next: S) => void
   emit: (type: string, message: string, data?: unknown) => void
@@ -102,7 +102,7 @@ export type WarmupSpec = {
 
 /**
  * Strategy-owned state exposed to the backtest replay recorder — details the
- * runner can't see generically (the QFL ladder lives inside opaque strategy
+ * runner can't see generically (a DCA ladder lives inside opaque strategy
  * state). Shapes here are what the replay chart draws.
  */
 export type StrategySnapshot = {
@@ -241,7 +241,7 @@ export interface Strategy<P, S> {
    */
   exitTriggers?: (ctx: StrategyCtx<S>, params: P) => number[]
   /**
-   * Pure snapshot of strategy-owned replay state (e.g. the QFL ladder). Only
+   * Pure snapshot of strategy-owned replay state (e.g. a DCA ladder). Only
    * the backtest recorder reads it, once per bar — must not call setState.
    */
   snapshot?: (ctx: StrategyCtx<S>, params: P) => StrategySnapshot | null

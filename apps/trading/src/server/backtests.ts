@@ -236,7 +236,8 @@ export async function claimNextPendingBacktest(
       .where(
         and(
           eq(tradingBacktests.status, "pending"),
-          // QFL and DCA baskets share one wallet, so only the group leader
+          // Shared-wallet baskets (DCA, and legacy qfl rows) run off one wallet,
+          // so only the group leader
           // (id = groupId) is claimable — it then pulls in its siblings. Every
           // other strategy is one independent run per market, claimed on its own.
           sql<boolean>`(((${tradingBacktests.params} -> 'qfl') is null and (${tradingBacktests.params} -> 'dca') is null) or ${tradingBacktests.id} = ${tradingBacktests.groupId})`

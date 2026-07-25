@@ -22,7 +22,6 @@ describe("AutomationPalette", () => {
     expect(markup).toContain("EMA Cross")
     expect(markup).toContain("Market Scanner")
     expect(markup).toContain("Whale Wall")
-    expect(markup).toContain("QFL")
     expect(markup).toContain("Take Profit")
     expect(markup).not.toContain("favorites")
     expect(markup.match(/aria-label="Add [^"]+ node"/g)).toHaveLength(

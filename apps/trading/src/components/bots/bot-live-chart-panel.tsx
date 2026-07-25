@@ -110,7 +110,6 @@ export function BotLiveChartPanel({
         intervals={[interval]}
         interval={interval}
         onIntervalChange={() => {}}
-        legend={{ chips: markers.length > 0 }}
         leading={<span className="text-sm font-bold">{market}</span>}
       >
         {toolbarActions}

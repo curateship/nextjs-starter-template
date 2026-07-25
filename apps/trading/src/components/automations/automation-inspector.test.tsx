@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { AutomationNode } from "@/lib/automations/automation"
 import {
   DEFAULT_MARKET_SCANNER_SETTINGS,
-  DEFAULT_QFL_SETTINGS,
-} from "@/lib/automations/qfl"
+} from "@/lib/automations/dca-ladder"
 import { INDICATORS } from "@/lib/indicators/registry"
 
 import { AutomationInspector } from "./automation-inspector"
@@ -67,31 +66,6 @@ describe("AutomationInspector", () => {
     expect(markup).toContain("Add node")
     expect(markup).toContain("Delete node")
     expect(markup).not.toContain("relative border-b px-4 py-3")
-  })
-
-  it("shows QFL ladder, exposure, and recovery controls", () => {
-    const markup = renderToStaticMarkup(
-      <AutomationInspector
-        selectedNode={{
-          id: "qfl-1",
-          kind: "qfl",
-          ...DEFAULT_QFL_SETTINGS,
-          x: 0,
-          y: 0,
-        }}
-        errors={[]}
-        onNodeChange={vi.fn()}
-        onDeleteNode={vi.fn()}
-      />
-    )
-
-    expect(markup).toContain("Panic setup")
-    expect(markup).toContain("Maximum across QFL (%)")
-    expect(markup).toContain("Past base quality")
-    expect(markup).toContain("h-full min-h-0 flex-1")
-    expect(markup).toContain('data-slot="scroll-area"')
-    expect(markup.match(/data-slot="card"/g)).toHaveLength(4)
-    expect(markup.match(/bg-muted\/40/g)).toHaveLength(4)
   })
 
   it("keeps market choice out of the Market Scanner node", () => {

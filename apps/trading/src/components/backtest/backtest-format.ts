@@ -15,10 +15,15 @@ export function signedUsd(value: number): string {
   return `${value >= 0 ? "+" : "-"}$${num(Math.abs(value))}`
 }
 
-/** Trade-duration label for the result box: finer precision for shorter trips. */
+/**
+ * Trade-duration label for the result box. Under a day reads in hours (and under
+ * an hour in minutes): "0.34d" is unreadable for a trade that lasted 8 hours.
+ */
 export function formatFocusDays(days: number): string {
-  const decimals = days < 1 ? 2 : days < 10 ? 1 : 0
-  return `${days.toFixed(decimals)}d`
+  const hours = days * 24
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m`
+  if (days < 1) return `${hours.toFixed(hours < 10 ? 1 : 0)}h`
+  return `${days.toFixed(days < 10 ? 1 : 0)}d`
 }
 
 export function pct(value: number, digits = 2): string {

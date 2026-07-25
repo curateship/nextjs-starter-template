@@ -38,7 +38,7 @@ export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
     }))
   if (ms.length === 0) return null
   // A group is homogeneous by construction — every market in it is DCA, or every
-  // one QFL (both shared-wallet), or every one an independent single-market run.
+  // one shared-wallet basket, or every one an independent single-market run.
   // So `every` and `some` agree here; a mixed group can't occur. If one ever
   // could, the shared branch (one wallet) and the summed branch would BOTH
   // mis-denominate it, so the invariant matters more than the choice of reducer.

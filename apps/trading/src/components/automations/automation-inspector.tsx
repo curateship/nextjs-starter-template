@@ -38,7 +38,6 @@ import {
   automationNodeName,
 } from "@/lib/automations/node-registry"
 import { dcaAllocationPcts } from "@/lib/automations/dca"
-import { qflAllocationPcts } from "@/lib/automations/qfl"
 import type { IndicatorParamField } from "@/lib/indicators/contract"
 import { INDICATORS, type IndicatorParamValue } from "@/lib/indicators/registry"
 import { cn } from "@/lib/utils"
@@ -51,6 +50,7 @@ export function AutomationInspector({
   savingFavorite,
   interval,
   feedsFromDca,
+  graphHasDca,
   referenceEquity,
   onNodeChange,
   onToggleFavorite,
@@ -66,6 +66,8 @@ export function AutomationInspector({
   interval?: AutomationInterval
   /** True when the selected Take Profit node is fed by a DCA node. */
   feedsFromDca?: boolean
+  /** True when the automation contains a DCA ladder anywhere in the graph. */
+  graphHasDca?: boolean
   /** Account size for previewing a DCA ladder in dollars (the test capital). */
   referenceEquity?: number
   onNodeChange: (node: AutomationNode) => void
@@ -139,6 +141,7 @@ export function AutomationInspector({
               node={selectedNode}
               interval={interval}
               feedsFromDca={feedsFromDca}
+              graphHasDca={graphHasDca}
               referenceEquity={referenceEquity}
               onChange={onNodeChange}
             />
@@ -174,16 +177,70 @@ export function AutomationInspector({
   )
 }
 
-function NodeFields({
+/**
+ * The house card every node's settings sit in: light gray surface, small title.
+ * Nodes with several sections (DCA, grouped indicators) render one per section;
+ * single-section nodes get one from {@link NodeFields}.
+ */
+function NodeCard({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card size="sm" className="bg-muted/40">
+      <CardHeader>
+        <CardTitle className="text-xs">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">{children}</CardContent>
+    </Card>
+  )
+}
+
+/** Nodes whose settings are one section — wrapped in a single card by name. */
+const SINGLE_CARD_TITLE: Partial<Record<AutomationNode["kind"], string>> = {
+  marketScanner: "Market eligibility",
+  whaleWall: "Wall detection",
+  lookback: "Signal window",
+  timeframe: "Timeframe",
+  takeProfit: "Exit",
+  stopLoss: "Exit",
+}
+
+function NodeFields(props: {
+  node: AutomationNode
+  interval?: AutomationInterval
+  feedsFromDca?: boolean
+  /** True when the automation contains a DCA ladder anywhere in the graph. */
+  graphHasDca?: boolean
+  referenceEquity?: number
+  onChange: (node: AutomationNode) => void
+}) {
+  const title = SINGLE_CARD_TITLE[props.node.kind]
+  if (title) {
+    return (
+      <NodeCard title={title}>
+        <NodeFieldsInner {...props} />
+      </NodeCard>
+    )
+  }
+  return <NodeFieldsInner {...props} />
+}
+
+function NodeFieldsInner({
   node,
   interval,
   feedsFromDca,
+  graphHasDca,
   referenceEquity,
   onChange,
 }: {
   node: AutomationNode
   interval?: AutomationInterval
   feedsFromDca?: boolean
+  graphHasDca?: boolean
   referenceEquity?: number
   onChange: (node: AutomationNode) => void
 }) {
@@ -208,9 +265,6 @@ function NodeFields({
   if (inspector === "marketScanner" && node.kind === "marketScanner") {
     return <MarketScannerFields node={node} onChange={onChange} />
   }
-  if (inspector === "qfl" && node.kind === "qfl") {
-    return <QflFields node={node} onChange={onChange} />
-  }
   if (inspector === "dca" && node.kind === "dca") {
     return (
       <DcaFields
@@ -228,6 +282,7 @@ function NodeFields({
       <ProtectionNodeFields
         node={node}
         feedsFromDca={feedsFromDca}
+        graphHasDca={graphHasDca}
         onChange={onChange}
       />
     )
@@ -371,7 +426,7 @@ function MarketScannerFields({
       />
       <p className="text-[11px] text-muted-foreground">
         Markets are chosen when creating the bot or Backtest. This node only
-        decides whether a chosen market is eligible for QFL.
+        decides whether a chosen market is eligible for the DCA ladder.
       </p>
     </div>
   )
@@ -444,11 +499,7 @@ function DcaFields({
 
   return (
     <div className="grid gap-4">
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Base break</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
+      <NodeCard title="Base break">
           <p className="text-[11px] text-muted-foreground">
             What starts the ladder. The Base indicator wired into this node says
             where the base is; these two say what breaking it means.
@@ -466,13 +517,8 @@ function DcaFields({
               info: "The drop must be quick: price was still up at the base within this many candles, so a slow slide underneath it is ignored.",
             })}
           </div>
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Past base quality</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
+      </NodeCard>
+      <NodeCard title="Past base quality">
           <div className="flex items-center gap-1">
             <label className="flex cursor-pointer items-center gap-2 text-xs">
               <Checkbox
@@ -508,13 +554,8 @@ function DcaFields({
               info: "How far above the base price counts as a recovery. Negative means below the base.",
             })}
           </div>
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Ladder</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
+      </NodeCard>
+      <NodeCard title="Ladder">
           <div className="rounded-md border bg-background/60 px-2.5 py-2 text-[11px]">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Money in the pot</span>
@@ -586,13 +627,8 @@ function DcaFields({
             <PlusIcon className="size-4" />
             Add rung
           </Button>
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Sizing and fills</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
+      </NodeCard>
+      <NodeCard title="Sizing and fills">
           <div className="grid grid-cols-2 gap-2">
             {number("maxPositionPct", "Max position (% of account)", {
               min: 1,
@@ -626,7 +662,7 @@ function DcaFields({
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent position="popper">
+              <SelectContent>
                 <SelectItem value="compound">
                   Compound — grow bets with the account
                 </SelectItem>
@@ -655,7 +691,7 @@ function DcaFields({
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent position="popper">
+              <SelectContent>
                 <SelectItem value="market">
                   Market — buy on confirmation (a bit of slippage)
                 </SelectItem>
@@ -677,8 +713,7 @@ function DcaFields({
             </label>
             <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
           </div>
-        </CardContent>
-      </Card>
+      </NodeCard>
       <p className="text-[11px] text-muted-foreground">
         Take Profit and Stop Loss hang on this node.
       </p>
@@ -686,234 +721,6 @@ function DcaFields({
   )
 }
 
-
-function QflFields({
-  node,
-  onChange,
-}: {
-  node: Extract<AutomationNode, { kind: "qfl" }>
-  onChange: (node: AutomationNode) => void
-}) {
-  type NumberKey = {
-    [K in keyof typeof node]: (typeof node)[K] extends number ? K : never
-  }[keyof typeof node] &
-    string
-  const setNumber = (field: NumberKey, value: number) =>
-    onChange({ ...node, [field]: value })
-  const number = (
-    field: NumberKey,
-    label: string,
-    options: {
-      min?: number
-      max?: number
-      step?: number
-      disabled?: boolean
-      info?: string
-    } = {}
-  ) => (
-    <NumberField
-      id={`qfl-${node.id}-${field}`}
-      label={label}
-      field={field}
-      value={node[field] as number}
-      onChange={setNumber}
-      {...options}
-    />
-  )
-  const toggle = (
-    field: "stopEnabled" | "timeExitEnabled" | "respectFilterEnabled",
-    label: string,
-    info?: string
-  ) => (
-    <div className="flex items-center gap-1">
-      <label className="flex cursor-pointer items-center gap-2 text-xs">
-        <Checkbox
-          checked={node[field]}
-          onCheckedChange={(checked) =>
-            onChange({ ...node, [field]: checked === true })
-          }
-        />
-        {label}
-      </label>
-      {info ? <InfoHint text={info} /> : null}
-    </div>
-  )
-  const allocations = qflAllocationPcts(node)
-
-  return (
-    <div className="grid gap-4">
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Panic setup</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-2">
-            {number("basePeriods", "Base search", {
-              min: 4,
-              step: 1,
-              info: "How many candles back to search for the lowest low that forms a base.",
-            })}
-            {number("pumpPeriods", "Base confirmation", {
-              min: 1,
-              step: 1,
-              info: "How many candles the new low must hold before the base counts as confirmed.",
-            })}
-            {number("crackPct", "Crack below base (%)", {
-              min: 0.01,
-              step: 0.1,
-              info: "How far below the base a candle must close to count as a crack.",
-            })}
-            {number("maxCrackBars", "Maximum fall (candles)", {
-              min: 1,
-              step: 1,
-              info: "The drop must be quick: price was still up at the base within this many candles before the crack, so a slow slide underneath it is ignored.",
-            })}
-            {number("volumeMultiplier", "Volume multiple", {
-              min: 0,
-              step: 0.1,
-              info: "The crack candle's volume must be at least this many times the recent average. 0 turns the check off.",
-            })}
-            {number("volumeLookback", "Volume lookback", {
-              min: 2,
-              step: 1,
-              info: "How many candles to average when judging whether the crack's volume is high.",
-            })}
-          </div>
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Ladder</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            {number("totalOrders", "Total buys", {
-              min: 1,
-              max: 20,
-              step: 1,
-              info: "How many buy orders the ladder places below the base.",
-            })}
-            {number("priceStepPct", "Level spacing (%)", {
-              min: 0.01,
-              step: 0.1,
-              info: "How far apart the ladder's buy levels sit, in percent.",
-            })}
-            {number("stepMultiplier", "Spacing growth (×)", {
-              min: 0.1,
-              step: 0.1,
-              info: "Widens each gap as you go deeper. 1 keeps even spacing; above 1 spreads the deeper buys further apart.",
-            })}
-            {number("sizeMultiplier", "Size growth (×)", {
-              min: 0.1,
-              step: 0.1,
-              info: "Grows each buy as you go deeper. 1 keeps them equal; above 1 makes the deeper buys bigger.",
-            })}
-            {number("takeProfitPct", "Profit per buy (%)", {
-              min: 0.01,
-              step: 0.1,
-              info: "How far above each buy's average price to take profit.",
-            })}
-            {number("ceilingPct", "Ceiling below base (%)", {
-              min: 0,
-              step: 0.1,
-              info: "Caps the profit target this far below the base, so it never tries to sell above the broken base.",
-            })}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Equity by level:{" "}
-            {allocations.map((value) => `${value.toFixed(1)}%`).join(" · ")}
-          </p>
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Exposure and exits</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            {number("maxMarketExposurePct", "Maximum per market (%)", {
-              min: 0.1,
-              max: 100,
-              step: 1,
-              info: "The most of your account one market's ladder can ever hold.",
-            })}
-            {number("maxPortfolioExposurePct", "Maximum across QFL (%)", {
-              min: 0.1,
-              max: 100,
-              step: 1,
-              info: "The most of your account all QFL ladders combined can hold at once.",
-            })}
-          </div>
-          {toggle(
-            "stopEnabled",
-            "Use stop loss",
-            "Sell everything if price falls below the ladder's deepest buy by the amount set here."
-          )}
-          {number("stopBelowFinalPct", "Stop below final buy (%)", {
-            min: 0.01,
-            step: 0.1,
-            disabled: !node.stopEnabled,
-            info: "How far below the deepest buy the stop sits.",
-          })}
-          {toggle(
-            "timeExitEnabled",
-            "Use time exit",
-            "Close the trade if it hasn't finished within the hold time below."
-          )}
-          {number("maxHoldHours", "Maximum hold (hours)", {
-            min: 1,
-            step: 1,
-            disabled: !node.timeExitEnabled,
-            info: "How long to hold before giving up and closing the trade.",
-          })}
-        </CardContent>
-      </Card>
-      <Card size="sm" className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-xs">Past base quality</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {toggle(
-            "respectFilterEnabled",
-            "Require bases to have recovered before",
-            "Only trade markets whose past cracks tended to bounce back."
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            {number("respectLookbackMonths", "History (months)", {
-              min: 1,
-              max: 60,
-              step: 1,
-              disabled: !node.respectFilterEnabled,
-              info: "How many months of history to judge the market's past base quality over.",
-            })}
-            {number("minRespectPct", "Minimum respected (%)", {
-              min: 0,
-              max: 100,
-              step: 1,
-              disabled: !node.respectFilterEnabled,
-              info: "The smallest share of past cracks that must have recovered before a trade is allowed.",
-            })}
-            {number("recoveryTargetPct", "Recovery vs first base (%)", {
-              min: -50,
-              max: 50,
-              step: 0.1,
-              disabled: !node.respectFilterEnabled,
-              info: "How far above the base counts as a recovery (negative means below the base).",
-            })}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Negative recovery values stop below the first broken base. Zero
-            requires a full reclaim; positive values require price to pass it.
-          </p>
-        </CardContent>
-      </Card>
-      <p className="text-[11px] text-muted-foreground">
-        A connected Trend must be bullish to start a new ladder. Once a ladder
-        starts, it continues even if that Trend later changes.
-      </p>
-    </div>
-  )
-}
 
 function WhaleWallFields({
   node,
@@ -1048,20 +855,15 @@ function IndicatorFields({
     return (
       <div className="grid gap-4">
         {groups.map((group) => (
-          <Card key={group.title} size="sm" className="bg-muted/40">
-            <CardHeader>
-              <CardTitle className="text-xs">{group.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {group.fields.map(field)}
-            </CardContent>
-          </Card>
+          <NodeCard key={group.title} title={group.title}>
+            {group.fields.map(field)}
+          </NodeCard>
         ))}
       </div>
     )
   }
 
-  return <div className="grid gap-4">{module.paramFields.map(field)}</div>
+  return <NodeCard title="Settings">{module.paramFields.map(field)}</NodeCard>
 }
 
 function IndicatorField({
@@ -1217,7 +1019,7 @@ function TimeframeFields({
             <SelectTrigger id={`timeframe-${node.id}`} className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent>
               {higher.map((candidate) => (
                 <SelectItem key={candidate} value={candidate}>
                   {candidate}
@@ -1241,11 +1043,13 @@ function TimeframeFields({
 function ProtectionNodeFields({
   node,
   feedsFromDca,
+  graphHasDca,
   onChange,
 }: {
   node: Extract<AutomationNode, { kind: "takeProfit" | "stopLoss" }>
   /** True for a Take Profit fed by a DCA node — unlocks the "previous rung" styles. */
   feedsFromDca?: boolean
+  graphHasDca?: boolean
   onChange: (node: AutomationNode) => void
 }) {
   const isTp = node.kind === "takeProfit"
@@ -1279,7 +1083,7 @@ function ProtectionNodeFields({
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent>
               <SelectItem value="fixed">Fixed — stays at the entry</SelectItem>
               <SelectItem value="trailing">
                 Trailing — follows the best price
@@ -1288,7 +1092,7 @@ function ProtectionNodeFields({
           </Select>
         </div>
       ) : null}
-      {node.kind === "stopLoss" ? (
+      {node.kind === "stopLoss" && graphHasDca ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`stop-anchor-${node.id}`}
@@ -1311,7 +1115,7 @@ function ProtectionNodeFields({
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent>
               <SelectItem value="average">
                 Average buy — slides down as you add
               </SelectItem>
@@ -1345,7 +1149,7 @@ function ProtectionNodeFields({
             <SelectTrigger id={`tp-mode-${node.id}`} className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent>
               <SelectItem value="average">At the average price</SelectItem>
               <SelectItem value="previousRungSellAll">
                 Sell at previous rung
@@ -1446,8 +1250,8 @@ function ActionFields({
   }
 
   return (
-    <Card size="sm" className="bg-muted/40">
-      <CardContent className="grid gap-1.5">
+    <NodeCard title="Sizing">
+      <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`target-${node.id}`}
           info="The share of your account this entry aims to hold."
@@ -1471,7 +1275,7 @@ function ActionFields({
             ? "When the position flips, the new opposite side targets this percentage of account equity. With no open position there is nothing to reverse."
             : "The engine adjusts toward this target instead of stacking another full order on every signal."}
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </NodeCard>
   )
 }

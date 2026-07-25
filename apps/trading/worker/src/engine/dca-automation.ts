@@ -11,11 +11,11 @@ import {
 } from "@/lib/automations/dca"
 import { evaluateAutomation } from "@/lib/automations/evaluate"
 import {
-  advanceQflBaseTracker,
-  createQflBaseTracker,
-  qflBaseRespectScore,
-  type QflBaseTracker,
-} from "@/lib/automations/qfl"
+  advanceBaseTracker,
+  createBaseTracker,
+  baseRespectScore,
+  type BaseTracker,
+} from "@/lib/automations/dca-ladder"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { nextTrailState, type TrailState } from "@/lib/strategies/trailing-stop"
 
@@ -85,7 +85,7 @@ type DcaCycle = {
 
 export type DcaAutomationState = {
   lastEvaluatedCandleTime: number | null
-  baseTracker: QflBaseTracker | null
+  baseTracker: BaseTracker | null
   /** A confirmed base waiting for the ladder to be built under it. */
   candidateBase: number | null
   candidateTime: number | null
@@ -124,7 +124,7 @@ const initialState = (): DcaAutomationState => ({
 
 /**
  * Past base quality: with the filter on, only a crack in a market whose recent
- * cracks mostly recovered qualifies. Same scoring the QFL entry uses.
+ * cracks mostly recovered qualifies. Same scoring the ladder entry uses.
  */
 function respectQualifies(
   candles: IndicatorCandle[],
@@ -132,7 +132,7 @@ function respectQualifies(
   now: number
 ): boolean {
   if (!dca.respectFilterEnabled) return true
-  const score = qflBaseRespectScore(candles, dca, now)
+  const score = baseRespectScore(candles, dca, now)
   return (
     score.hasFullHistory &&
     score.rate !== null &&
@@ -152,11 +152,11 @@ function numericCandles(candles: CandleWsEvent[]): IndicatorCandle[] {
 }
 
 function updateBaseTracker(
-  current: QflBaseTracker | null,
+  current: BaseTracker | null,
   candles: IndicatorCandle[],
   dca: AutomationDcaConfig,
   intervalMs: number
-): QflBaseTracker {
+): BaseTracker {
   const settingsChanged =
     current !== null &&
     (current.basePeriods !== dca.basePeriods ||
@@ -164,7 +164,7 @@ function updateBaseTracker(
   let tracker =
     current && !settingsChanged
       ? current
-      : createQflBaseTracker(dca.basePeriods, dca.pumpPeriods)
+      : createBaseTracker(dca.basePeriods, dca.pumpPeriods)
   let pending = candles.filter(
     (candle) =>
       tracker.processedTime === null || candle.t > tracker.processedTime
@@ -175,10 +175,10 @@ function updateBaseTracker(
     pending[0] &&
     pending[0].t - tracker.processedTime > intervalMs * 1.5
   ) {
-    tracker = createQflBaseTracker(dca.basePeriods, dca.pumpPeriods)
+    tracker = createBaseTracker(dca.basePeriods, dca.pumpPeriods)
     pending = candles
   }
-  for (const candle of pending) tracker = advanceQflBaseTracker(tracker, candle)
+  for (const candle of pending) tracker = advanceBaseTracker(tracker, candle)
   return tracker
 }
 
@@ -335,7 +335,7 @@ export function createDcaAutomationStrategy(
   const releaseCycle = (ctx: StrategyCtx<DcaAutomationState>) => {
     // Hand this market's room back to the shared wallet (no-op when running a
     // single market or a live bot, which have no shared portfolio).
-    ctx.qflPortfolio?.release?.(ctx.market)
+    ctx.sharedWalletPortfolio?.release?.(ctx.market)
     ctx.setState({
       ...ctx.state,
       active: null,
@@ -529,8 +529,8 @@ export function createDcaAutomationStrategy(
             dca.sizeMultiplier
           )[0]
           if (
-            ctx.qflPortfolio?.remaining &&
-            ctx.qflPortfolio.remaining(ctx.market) + 1e-9 < firstRungPct
+            ctx.sharedWalletPortfolio?.remaining &&
+            ctx.sharedWalletPortfolio.remaining(ctx.market) + 1e-9 < firstRungPct
           ) {
             ctx.emit(
               "dca_exposure_skipped",
@@ -875,9 +875,9 @@ export function createDcaAutomationStrategy(
       // Reserve only this market's live FILLED exposure — nothing is committed
       // until a rung actually fills, in either mode. Lets the room math below see
       // everyone else's real commitments.
-      ctx.qflPortfolio?.setExposure?.(ctx.market, filledExposurePct)
-      const roomPct = ctx.qflPortfolio?.remaining
-        ? ctx.qflPortfolio.remaining(ctx.market)
+      ctx.sharedWalletPortfolio?.setExposure?.(ctx.market, filledExposurePct)
+      const roomPct = ctx.sharedWalletPortfolio?.remaining
+        ? ctx.sharedWalletPortfolio.remaining(ctx.market)
         : Number.POSITIVE_INFINITY
 
       const orders: DesiredOrder[] = []

@@ -56,12 +56,12 @@ same settings. Never add a capability to only one side.
 The Base indicator marks two things: a **base** (support) confirmed by a low that
 held, and a **ceiling** (resistance) confirmed by a high that held. Each side has its
 own switch (`formedShowLong` / `formedShowShort`, both default ON) and its own
-spacing clock, and both come from one pass over the candles — `qflBase` and its
-mirror `qflCeiling`.
+spacing clock, and both come from one pass over the candles — `baseLevels` and its
+mirror `ceilingLevels`.
 
 **Breaking a level is not here.** Price cracking below a base ("the crack") is the
 DCA ladder's rule and lives in `worker/src/engine/dca-automation.ts` with helpers in
-`lib/automations/qfl.ts`; it never reads this indicator's signals. Never put a
+`lib/automations/dca-ladder.ts`; it never reads this indicator's signals. Never put a
 crack/break trigger back in: both events are *buys*, so on a chart they draw two
 identical green up arrows with no way to tell them apart (July 24, 2026).
 

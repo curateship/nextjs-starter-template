@@ -14,7 +14,7 @@ import { assertNetworkEnabled } from "@/server/hyperliquid/transport"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import type { CandleInterval } from "./strategies/contract"
 
-// Covers QFL's largest valid base window (1,504 bars) and a full day of 1m
+// Covers the ladder's largest valid base window (1,504 bars) and a full day of 1m
 // volume while staying well below Hyperliquid's snapshot limit.
 const CANDLE_HISTORY = 1600
 
