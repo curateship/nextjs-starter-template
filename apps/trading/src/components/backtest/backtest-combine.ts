@@ -29,7 +29,7 @@ export type CombinedBacktestSummary = {
  * trade count. Returns null when nothing has finished yet.
  *
  * The percent divides summed profit by the capital ACTUALLY deployed:
- * - A shared-account basket (DCA/QFL) runs every market off ONE wallet, so its
+ * - A shared-account basket (DCA) runs every market off ONE wallet, so its
  *   denominator is that single `startingEquity`.
  * - Independent markets each run on their own full `startingEquity`, so the
  *   denominator is `startingEquity × markets`. Dividing those by one account's

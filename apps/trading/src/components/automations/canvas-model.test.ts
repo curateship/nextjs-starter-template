@@ -3,8 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { AutomationNode } from "@/lib/automations/automation"
 import {
   DEFAULT_MARKET_SCANNER_SETTINGS,
-  DEFAULT_QFL_SETTINGS,
-} from "@/lib/automations/qfl"
+} from "@/lib/automations/dca-ladder"
 
 import {
   canConnectNodes,
@@ -92,20 +91,30 @@ describe("Automation canvas model", () => {
     expect(portIn(indicator)).toEqual({ x: 100, y: 94 })
   })
 
-  it("allows a Trend input into QFL", () => {
-    const qfl = {
-      id: "qfl",
-      kind: "qfl",
-      ...DEFAULT_QFL_SETTINGS,
-      x: 0,
-      y: 0,
-    } satisfies AutomationNode
+  const dcaNode = {
+    id: "dca",
+    kind: "dca",
+    rungs: [{ deviation: 5 }],
+    maxPositionPct: 25,
+    sizeMultiplier: 2,
+    compound: true,
+    rungEntry: "market",
+    requireTwoGreen: false,
+    crackPct: 2.5,
+    maxCrackBars: 4,
+    respectFilterEnabled: false,
+    respectLookbackMonths: 6,
+    minRespectPct: 80,
+    recoveryTargetPct: -2,
+    x: 0,
+    y: 0,
+  } satisfies AutomationNode
 
-    expect(canConnectNodes(indicator, "trend", qfl)).toBe(true)
-    expect(canConnectNodes(indicator, "bullish", qfl)).toBe(false)
+  it("allows a Trend input into the DCA ladder", () => {
+    expect(canConnectNodes(indicator, "trend", dcaNode)).toBe(true)
   })
 
-  it("connects Market Scanner only to QFL", () => {
+  it("connects Market Scanner only to the DCA ladder", () => {
     const scanner = {
       id: "scanner",
       kind: "marketScanner",
@@ -113,15 +122,7 @@ describe("Automation canvas model", () => {
       x: 0,
       y: 0,
     } satisfies AutomationNode
-    const qfl = {
-      id: "qfl",
-      kind: "qfl",
-      ...DEFAULT_QFL_SETTINGS,
-      x: 0,
-      y: 0,
-    } satisfies AutomationNode
-
-    expect(canConnectNodes(scanner, "markets", qfl)).toBe(true)
+    expect(canConnectNodes(scanner, "markets", dcaNode)).toBe(true)
     expect(canConnectNodes(scanner, "markets", longNode)).toBe(false)
   })
 

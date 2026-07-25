@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { blendCurves } from "./portfolio-metrics"
 
 describe("backtest portfolio curve", () => {
-  it("counts shared QFL capital once and combines each market's change", () => {
+  it("counts shared wallet capital once and combines each market's change", () => {
     const blended = blendCurves([
       {
         start: 100,

@@ -4,8 +4,8 @@ import {
   crossedAbove,
   crossedBelow,
   ema,
-  qflBase,
-  qflCeiling,
+  baseLevels,
+  ceilingLevels,
 } from "@/lib/strategies/indicators"
 import { computeConsolidation, computeQqeSeries } from "@/lib/strategies/qqe"
 import {
@@ -191,7 +191,7 @@ describe("Base indicator signals", () => {
 
   it("fires a long on the candle that confirms a base", () => {
     const candles = candlesFromLows(LOWS)
-    const { confirmed } = qflBase(candles, 4, 2)
+    const { confirmed } = baseLevels(candles, 4, 2)
     expect(confirmed.flatMap((flag, i) => (flag ? [i] : []))).toEqual([7])
 
     const output = INDICATORS.base.compute(candles, PARAMS)
@@ -219,7 +219,7 @@ describe("Base indicator signals", () => {
     const closes = lows.map((low) => low + 0.5)
     closes[14] = 25
     const candles = candlesFromLows(lows, closes)
-    const { confirmed } = qflBase(candles, 4, 2)
+    const { confirmed } = baseLevels(candles, 4, 2)
     expect(confirmed.flatMap((flag, i) => (flag ? [i] : []))).toEqual([8, 14])
 
     expect(
@@ -237,7 +237,7 @@ describe("Base indicator signals", () => {
     ]
     const candles = candlesFromLows(lows)
 
-    const { confirmed } = qflBase(candles, 4, 2)
+    const { confirmed } = baseLevels(candles, 4, 2)
     expect(confirmed.flatMap((flag, i) => (flag ? [i] : []))).toEqual([8, 14, 22])
 
     // Base 15 is LOWER, so it never marks — it just becomes the level to beat.
@@ -285,7 +285,7 @@ describe("Base indicator signals", () => {
     // capped below it, so the ceiling confirms two bars later at index 7.
     const HIGHS = [10, 12, 14, 16, 18, 20, 18, 17, 16, 15, 14, 13]
     const candles = candlesFromHighs(HIGHS)
-    const { confirmed } = qflCeiling(candles, 4, 2)
+    const { confirmed } = ceilingLevels(candles, 4, 2)
     expect(confirmed.flatMap((flag, i) => (flag ? [i] : []))).toEqual([7])
 
     const shorts = INDICATORS.base.compute(
@@ -308,7 +308,7 @@ describe("Base indicator signals", () => {
       [rising, "higher high"],
     ] as const) {
       const candles = candlesFromHighs(highs)
-      const { confirmed } = qflCeiling(candles, 4, 2)
+      const { confirmed } = ceilingLevels(candles, 4, 2)
       const marks = INDICATORS.base.compute(
         candles,
         params({ formedShowLong: false, formedShowShort: true })
@@ -382,7 +382,7 @@ describe("Base indicator signals", () => {
     // Two bases five candles apart: 20, then a higher 20.1 — the bunched case.
     const lows = [40, 38, 34, 30, 26, 22, 20, 21, 22, 23, 24, 20.1, 25, 26]
     const candles = candlesFromLows(lows)
-    const { confirmed } = qflBase(candles, 4, 2)
+    const { confirmed } = baseLevels(candles, 4, 2)
     expect(confirmed.flatMap((flag, i) => (flag ? [i] : []))).toEqual([8, 13])
 
     // No spacing required: both print, five candles apart.

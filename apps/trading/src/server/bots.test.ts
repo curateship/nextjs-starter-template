@@ -5,7 +5,6 @@ import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
-import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
 import { createUserBot, getBotDetail, sendBotCommand } from "@/server/bots"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
@@ -66,13 +65,29 @@ const WALL_CONFIG: AutomationConfig = {
   ],
 }
 
-const QFL_CONFIG: AutomationConfig = {
+const SHARED_WALLET_CONFIG: AutomationConfig = {
   v: 2,
   kind: "automation",
   interval: "15m",
   protection: {},
   rules: [],
-  qfl: { nodeId: "qfl", ...DEFAULT_QFL_SETTINGS },
+  dca: {
+    nodeId: "dca",
+    rungs: [{ deviation: 5 }, { deviation: 8 }],
+    maxPositionPct: 25,
+    sizeMultiplier: 2,
+    compound: true,
+    rungEntry: "market" as const,
+    requireTwoGreen: false,
+    basePeriods: 36,
+    pumpPeriods: 8,
+    crackPct: 2.5,
+    maxCrackBars: 4,
+    respectFilterEnabled: false,
+    respectLookbackMonths: 6,
+    minRespectPct: 80,
+    recoveryTargetPct: -2,
+  },
 }
 
 async function applyMigration(target: PGlite, file: string) {
@@ -213,10 +228,10 @@ describe("Automation bot creation", () => {
     expect(live.mode).toBe("live")
   })
 
-  it("creates selected QFL markets and their runtime state together", async () => {
+  it("creates selected shared-wallet markets and their runtime state together", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
-    const automationId = await createAutomation(userId, QFL_CONFIG, "QFL")
+    const automationId = await createAutomation(userId, SHARED_WALLET_CONFIG, "Ladder")
 
     const bot = await createUserBot(userId, {
       ...botInput(walletId, automationId),
@@ -231,21 +246,21 @@ describe("Automation bot creation", () => {
     ])
   })
 
-  it("rejects a QFL market basket whose required history would exhaust the worker", async () => {
+  it("rejects a shared-wallet market basket whose required history would exhaust the worker", async () => {
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(
       userId,
       {
-        ...QFL_CONFIG,
+        ...SHARED_WALLET_CONFIG,
         interval: "1m",
-        qfl: {
-          ...QFL_CONFIG.qfl!,
+        dca: {
+          ...SHARED_WALLET_CONFIG.dca!,
           respectFilterEnabled: true,
           respectLookbackMonths: 60,
         },
       },
-      "Large QFL"
+      "Large shared-wallet ladder"
     )
 
     await expect(
@@ -282,7 +297,7 @@ describe("Automation bot creation", () => {
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(userId)
 
-    // A non-QFL Automation runs one independent runner per market — many
+    // A single-market Automation runs one independent runner per market — many
     // markets are allowed, not capped to one.
     const bot = await createUserBot(userId, {
       ...botInput(walletId, automationId),

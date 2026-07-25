@@ -21,7 +21,6 @@ import type { TradingBacktest } from "@/server/schema"
 import {
   runBacktest as runEngine,
   runDcaPortfolioBacktests,
-  runQflPortfolioBacktests,
   type RunBacktestConfig,
 } from "./runner"
 import { resolveStrategy } from "../strategies/registry"
@@ -125,10 +124,10 @@ export class BacktestQueueWorker implements WorkerService {
   private async runOne(row: TradingBacktest) {
     const params = row.params as AutomationConfig
     const interval = row.interval as BacktestInterval
-    // QFL and DCA baskets both share one wallet across their markets, so the
+    // A DCA basket shares one wallet across its markets, so the
     // leader claims the whole group and replays it on one account. (A one-market
     // run has no siblings and falls through to the plain single-market path.)
-    if (params.qfl || params.dca) {
+    if (params.dca) {
       const siblings = await claimPendingBacktestGroup(
         row.groupId,
         this.workerId
@@ -287,7 +286,7 @@ export class BacktestQueueWorker implements WorkerService {
           "Running portfolio simulation"
         )
       }
-      // Same shared-wallet replay for both; QFL uses its own exposure cap, DCA
+      // Shared-wallet replay; DCA
       // shares 100% of the one wallet. All markets run together on one clock, so
       // they finish as a set — report the replay's progress (50→95%) on every
       // row (throttled) so the UI shows one climbing bar instead of a long
@@ -310,9 +309,10 @@ export class BacktestQueueWorker implements WorkerService {
           )
         )
       }
-      const results = (rows[0].params as AutomationConfig).qfl
-        ? await runQflPortfolioBacktests(portfolioConfigs, onProgress)
-        : await runDcaPortfolioBacktests(portfolioConfigs, onProgress)
+      const results = await runDcaPortfolioBacktests(
+        portfolioConfigs,
+        onProgress
+      )
       for (const { row } of configs) {
         const result = results.get(row.market)
         if (!result)

@@ -577,7 +577,7 @@ export function RunGroupsDashboard({
       // Whole-basket risk AND capital base from the combined equity curve
       // (server-computed), not an average of each market's own worst day.
       const metrics = groupMetrics[groupId]
-      // The basket's real capital base. A shared-account group (DCA/QFL) runs
+      // The basket's real capital base. A shared-account group (DCA) runs
       // every market off ONE wallet, so its denominator is that single wallet —
       // the server's blend reports it as `startEquity`. Summing each market's
       // starting equity would count the one shared pot once per market and make

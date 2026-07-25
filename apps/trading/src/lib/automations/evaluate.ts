@@ -243,7 +243,7 @@ export function evaluateAutomation(
     : []
 
   // Base dashes (and any future node overlay) come from the node registry, so a
-  // DCA run draws its base the same way a QFL run does — no strategy hardcoded
+  // A DCA run draws its base from the tape — no strategy hardcoded
   // here. Each strategy node declares its own `overlays`.
   paint.indicators.push(...configNodeOverlays(config))
 

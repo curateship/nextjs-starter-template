@@ -7,10 +7,6 @@ import {
   type AutomationConfig,
 } from "@/lib/automations/automation"
 import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
-import {
-  qflHistoryBars,
-  qflRequiredHistoryMonths,
-} from "@/lib/automations/qfl"
 
 function triggersOf(
   condition: AutomationCondition
@@ -26,15 +22,6 @@ export function automationWarmupBars(config: AutomationConfig) {
     INDICATORS[selection.type].warmupBars(selection.params as never) + extra + 5
   return Math.max(
     5,
-    ...(config.qfl
-      ? [
-          qflHistoryBars(
-            config.qfl,
-            config.interval,
-            qflRequiredHistoryMonths(config.qfl, config.marketScanner)
-          ),
-        ]
-      : []),
     ...(config.dca ? [dcaHistoryBars(config.dca, config.interval)] : []),
     ...triggers.flatMap((trigger) => [
       bars(trigger.indicator),
@@ -84,11 +71,10 @@ export function automationHtfWindowBars(config: AutomationConfig): number {
 
 /** One-line settings summary for automation cards and list rows. */
 export function automationSummary(config: AutomationConfig): string {
-  const parts = config.qfl
+  const parts = config.dca
     ? [
-        `QFL ${config.qfl.totalOrders} buys`,
-        `max ${config.qfl.maxPortfolioExposurePct}%`,
-        `TP ${config.qfl.takeProfitPct}%`,
+        `DCA ${config.dca.rungs.length} buys`,
+        `max ${config.dca.maxPositionPct}%`,
       ]
     : [
         `${config.rules.length} ${config.rules.length === 1 ? "action" : "actions"}`,
@@ -130,17 +116,17 @@ export function automationInputRows(
   return [
     { label: "Type", value: "Automation" },
     { label: "Actions", value: String(config.rules.length) },
-    ...(config.qfl
+    ...(config.dca
       ? [
-          { label: "QFL buys", value: String(config.qfl.totalOrders) },
+          { label: "DCA buys", value: String(config.dca.rungs.length) },
           {
-            label: "QFL maximum exposure",
-            value: `${config.qfl.maxPortfolioExposurePct}%`,
+            label: "DCA maximum position",
+            value: `${config.dca.maxPositionPct}%`,
           },
           {
-            label: "QFL base respect",
-            value: config.qfl.respectFilterEnabled
-              ? `${config.qfl.minRespectPct}% over ${config.qfl.respectLookbackMonths} months`
+            label: "DCA base respect",
+            value: config.dca.respectFilterEnabled
+              ? `${config.dca.minRespectPct}% over ${config.dca.respectLookbackMonths} months`
               : "off",
           },
         ]
@@ -161,7 +147,6 @@ export function automationTakeProfitPct(
   config: AutomationConfig
 ): number | null {
   const values = [
-    config.qfl?.takeProfitPct,
     config.protection.long?.takeProfitPct,
     config.protection.short?.takeProfitPct,
   ].filter((value): value is number => value !== undefined)

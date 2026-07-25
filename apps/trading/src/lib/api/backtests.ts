@@ -261,7 +261,7 @@ const runBacktestFn = createServerFn({ method: "POST" })
     }
 
     // Enqueue markets as one atomic pending group and return immediately. The
-    // worker loads their history in the background; QFL replays the group on
+    // worker loads their history in the background; a shared wallet replays the group on
     // one shared clock and account.
     const result = await enqueueRun(user.id, data, run, {
       createUserBacktestGroup,

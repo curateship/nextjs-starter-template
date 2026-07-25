@@ -72,7 +72,7 @@ const EDGE_BUFFER_MS = 2 * DAY_MS
 const TICK_MS = 100
 const SPEED_OPTIONS = [1, 5, 15, 60] as const
 
-/** Amber for resting entry ladders — matches the Visualize mode's QFL lines. */
+/** Amber for resting entry ladders. */
 const LADDER_COLOR = "#f59e0b"
 
 /** Merge two candle sets, de-duped by open time and sorted ascending. */
@@ -419,24 +419,13 @@ export function BacktestRunChart({
     setCommittedFocus(focusedTrade)
   }, [focusedTrade, runStartMs, runEndMs, barMs, loadOlderTo])
 
-  // Pulsing rings on the focused trade's entry and exit arrows. Sides match
-  // the arrows: a long enters with a buy and exits with a sell.
+  // The focused trade's entry and exit: they position the P&L measurement box
+  // and pan the trade into view. Nothing is drawn at the points themselves.
   const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
     if (!committedFocus) return []
-    const long = committedFocus.side === "long"
     return [
-      {
-        time: committedFocus.entryTime,
-        side: long ? "buy" : "sell",
-        label: "Entry",
-        price: committedFocus.entryPx,
-      },
-      {
-        time: committedFocus.exitTime,
-        side: long ? "sell" : "buy",
-        label: "Exit",
-        price: committedFocus.exitPx,
-      },
+      { time: committedFocus.entryTime, price: committedFocus.entryPx },
+      { time: committedFocus.exitTime, price: committedFocus.exitPx },
     ]
   }, [committedFocus])
 
@@ -616,7 +605,7 @@ export function BacktestRunChart({
     const orders = new Map<string, { side: "buy" | "sell"; px: number }>()
     let stopPx: number | null = null
     let tpPx: number | null = null
-    let qflBase: number | null = null
+    let baseLevels: number | null = null
     for (const event of events) {
       if (event.t > limit) break
       if (event.k === "order") {
@@ -629,10 +618,10 @@ export function BacktestRunChart({
         stopPx = event.stopPx
         tpPx = event.tpPx
       } else if (event.k === "qfl") {
-        qflBase = event.base
+        baseLevels = event.base
       }
     }
-    return { orders, stopPx, tpPx, qflBase }
+    return { orders, stopPx, tpPx, baseLevels }
   }, [timeline, cutoff])
 
   // Entry price + side of the position under the playhead — the anchor a
@@ -664,7 +653,7 @@ export function BacktestRunChart({
         title: orderLabelFor(purpose),
         lineStyle: "dashed",
         axisLabelVisible: false,
-        draggable: firstRung && Boolean(onTuneDrag && tapeState.qflBase),
+        draggable: firstRung && Boolean(onTuneDrag && tapeState.baseLevels),
       })
     }
     const protectDraggable = Boolean(tuneAnchor)
@@ -688,10 +677,10 @@ export function BacktestRunChart({
         draggable: protectDraggable,
       })
     }
-    if (tapeState.qflBase) {
+    if (tapeState.baseLevels) {
       lines.push({
         id: "tape:qfl-base",
-        price: tapeState.qflBase,
+        price: tapeState.baseLevels,
         color: LADDER_COLOR,
         title: "Base",
         lineWidth: 1,
@@ -718,8 +707,8 @@ export function BacktestRunChart({
             anchor: tuneAnchor.entryPx,
             side: tuneAnchor.side,
           })
-        } else if (id === "tape:order:qfl:b:0" && tapeState?.qflBase) {
-          onTuneDrag({ kind: "crack", price, base: tapeState.qflBase })
+        } else if (id === "tape:order:qfl:b:0" && tapeState?.baseLevels) {
+          onTuneDrag({ kind: "crack", price, base: tapeState.baseLevels })
         }
         return
       }
@@ -778,7 +767,6 @@ export function BacktestRunChart({
         intervals={intervalOptions}
         interval={interval}
         onIntervalChange={setChartInterval}
-        legend={{ chips: true }}
         legendLines={labeledOverlayLines}
         leading={toolbarLeading}
         afterIntervals={

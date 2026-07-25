@@ -12,9 +12,7 @@ import { now } from "@/server/util"
 
 import { BotRunner } from "./bot-runner"
 import { marketHub } from "./market-hub"
-import { automationConfigSchema } from "@/lib/automations/automation"
 import { globalCommandReason } from "@/lib/trading/guardian"
-import { QflPortfolio } from "./qfl-portfolio"
 
 /**
  * Owns one BotRunner per (bot, market) — a bot now trades several markets at
@@ -24,7 +22,6 @@ import { QflPortfolio } from "./qfl-portfolio"
  */
 export class BotSupervisor {
   private runners = new Map<string, BotRunner>()
-  private qflPortfolios = new Map<string, QflPortfolio>()
 
   private key(botId: string, market: string): string {
     return `${botId}::${market}`
@@ -57,7 +54,6 @@ export class BotSupervisor {
       await runner.stop("Worker shutting down").catch(() => {})
     }
     this.runners.clear()
-    this.qflPortfolios.clear()
   }
 
   meta() {
@@ -126,7 +122,6 @@ export class BotSupervisor {
             await runner.stop()
             this.runners.delete(this.key(bot.id, runner.market))
           }
-          this.qflPortfolios.delete(bot.id)
         } else {
           await db
             .update(tradingBotState)
@@ -172,7 +167,6 @@ export class BotSupervisor {
           await runner.stop("Restarting with updated parameters")
           this.runners.delete(this.key(bot.id, runner.market))
         }
-        this.qflPortfolios.delete(bot.id)
         if (fresh && fresh.desiredState === "running") {
           await this.spawn(fresh)
         }
@@ -192,18 +186,10 @@ export class BotSupervisor {
       .limit(1)
     if (!wallet) throw new Error(`Wallet for bot ${bot.name} not found`)
 
-    const parsed = automationConfigSchema.safeParse(bot.params)
-    const qfl = parsed.success ? parsed.data.qfl : undefined
-    let portfolio = this.qflPortfolios.get(bot.id)
-    if (qfl && !portfolio) {
-      portfolio = new QflPortfolio(qfl.maxPortfolioExposurePct, bot.markets)
-      this.qflPortfolios.set(bot.id, portfolio)
-    }
-
     for (const market of bot.markets) {
       const key = this.key(bot.id, market)
       if (this.runners.has(key)) continue
-      const runner = new BotRunner(bot, market, marketHub, portfolio)
+      const runner = new BotRunner(bot, market, marketHub)
       this.runners.set(key, runner)
       try {
         await runner.start(wallet)
@@ -211,7 +197,6 @@ export class BotSupervisor {
         // One bad market shouldn't block the bot's other markets; the runner
         // has already flagged its own error status.
         this.runners.delete(key)
-        portfolio?.removeMarket(market)
         console.error(`failed to start bot ${bot.name} on ${market}`, error)
       }
     }

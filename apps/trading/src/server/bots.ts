@@ -2,15 +2,13 @@ import { randomBytes } from "node:crypto"
 
 import { and, count, desc, eq, inArray, sql, sum } from "drizzle-orm"
 
+import { dcaHistoryBars } from "@/lib/automations/automation"
 import { PREVIOUS_RUN_NAME_PREFIX } from "@/lib/backtest/types"
 import {
   automationConfigSchema,
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
-import {
-  MAX_QFL_PORTFOLIO_HISTORY_BARS,
-  qflPortfolioHistoryBars,
-} from "@/lib/automations/qfl"
+import { MAX_SHARED_WALLET_HISTORY_BARS } from "@/lib/automations/dca-ladder"
 import { db, type CustomShellDb } from "@/server/db"
 import { getActivePerpMarkets } from "@/server/hyperliquid/info"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
@@ -66,28 +64,24 @@ async function validateMarkets(network: TradingNetwork, markets: string[]) {
 
 function validateBotMarketCount(params: AutomationConfig, marketCount: number) {
   if (marketCount === 0) throw new Error("Pick at least one market.")
-  // QFL is one shared portfolio with a real history-size ceiling; every other
-  // strategy runs one independent runner per market and isn't capped.
-  if (params.qfl && marketCount > 200) {
+  // A DCA ladder runs one shared wallet with a real history-size ceiling; every
+  // other strategy runs one independent runner per market and isn't capped.
+  if (params.dca && marketCount > 200) {
     throw new Error("Pick no more than 200 markets.")
   }
-  validateQflPortfolioSize(params, marketCount)
+  validateSharedWalletSize(params, marketCount)
 }
 
-function validateQflPortfolioSize(
+function validateSharedWalletSize(
   params: AutomationConfig,
   marketCount: number
 ) {
-  if (!params.qfl) return
-  const historyBars = qflPortfolioHistoryBars(
-    params.qfl,
-    params.interval,
-    params.marketScanner,
-    marketCount
-  )
-  if (historyBars > MAX_QFL_PORTFOLIO_HISTORY_BARS) {
+  if (!params.dca) return
+  const historyBars =
+    Math.max(0, marketCount) * dcaHistoryBars(params.dca, params.interval)
+  if (historyBars > MAX_SHARED_WALLET_HISTORY_BARS) {
     throw new Error(
-      `This QFL bot needs about ${historyBars.toLocaleString()} history candles across its markets. Use fewer markets, less history, or a coarser timeframe.`
+      `This bot needs about ${historyBars.toLocaleString()} history candles across its markets. Use fewer markets, less history, or a coarser timeframe.`
     )
   }
 }

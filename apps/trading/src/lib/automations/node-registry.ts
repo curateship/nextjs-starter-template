@@ -11,8 +11,7 @@ import {
 } from "@/lib/automations/dca"
 import {
   DEFAULT_MARKET_SCANNER_SETTINGS,
-  DEFAULT_QFL_SETTINGS,
-} from "@/lib/automations/qfl"
+} from "@/lib/automations/dca-ladder"
 import {
   INDICATORS,
   INDICATOR_IDS,
@@ -23,7 +22,7 @@ import {
 /**
  * A run/order purpose → a human title for the chart. Purposes follow one shared
  * grammar across every strategy node — `<node>:b:<n>` (buy), `<node>:s|tp:<n>`
- * (sell / take-profit), `<node>:s:all` — so ONE decoder covers QFL, DCA, and any
+ * (sell / take-profit), `<node>:s:all` — so ONE decoder covers DCA, legacy qfl tapes, and any
  * future node without the chart knowing a single strategy's id format. A node
  * with an exotic purpose can special-case it here; everything else falls back to
  * the cleaned-up purpose string.
@@ -85,7 +84,6 @@ export type AutomationPaletteKey =
   | `indicator-${IndicatorId}`
   | "scanner-market"
   | "scanner-whale-wall"
-  | "strategy-qfl"
   | "strategy-dca"
   | "filter-lookback"
   | "filter-timeframe"
@@ -119,7 +117,6 @@ export type AutomationNodeInspectorKind =
   | "timeframe"
   | "marketScanner"
   | "protection"
-  | "qfl"
   | "whaleWall"
 
 export type AutomationPaletteGroup =
@@ -215,9 +212,9 @@ function indicatorDefinition(id: IndicatorId): AutomationNodeDefinition {
         return target.kind === "indicator" ||
           target.kind === "lookback" ||
           target.kind === "timeframe" ||
-          target.kind === "qfl"
+          target.kind === "dca"
           ? null
-          : "The Trend output can only connect to an indicator, Look Back, Timeframe, or QFL node."
+          : "The Trend output can only connect to an indicator, Look Back, Timeframe, or DCA node."
       }
       return target.kind === "action" || target.kind === "dca"
         ? null
@@ -255,9 +252,9 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     inspector: "lookback",
     outputPorts: [{ id: "trend", label: "Trend" }],
     connectionError: (_sourcePort, target) =>
-      target.kind === "indicator" || target.kind === "qfl"
+      target.kind === "indicator"
         ? null
-        : "A Look Back node can only connect to an indicator or QFL.",
+        : "A Look Back node can only connect to an indicator.",
   },
   {
     palette: {
@@ -306,7 +303,9 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     inspector: "marketScanner",
     outputPorts: [{ id: "markets", label: "Markets" }],
     connectionError: (_sourcePort, target) =>
-      target.kind === "qfl" ? null : "Market Scanner can only connect to QFL.",
+      target.kind === "dca"
+        ? null
+        : "Market Scanner can only connect to the DCA ladder.",
   },
   {
     palette: {
@@ -347,44 +346,6 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
         ? null
         : "Ask Wall can only connect to Short."
     },
-  },
-  {
-    palette: {
-      key: "strategy-qfl",
-      group: "Strategies",
-      description: "Buy panic cracks below confirmed bases in a managed ladder",
-    },
-    matches: (node) => node.kind === "qfl",
-    create: ({ id, x, y }) => ({
-      id,
-      kind: "qfl",
-      ...DEFAULT_QFL_SETTINGS,
-      x,
-      y,
-    }),
-    name: () => "QFL",
-    description: (node) =>
-      node.kind === "qfl"
-        ? `${node.totalOrders} buys · max ${node.maxPortfolioExposurePct}% · TP ${node.takeProfitPct}%.`
-        : "",
-    icon: "layers",
-    inspector: "qfl",
-    outputPorts: noOutputs,
-    overlays: (config) =>
-      config.qfl
-        ? [
-            baseOverlay(
-              config.qfl.nodeId,
-              config.qfl.basePeriods,
-              config.qfl.pumpPeriods
-            ),
-          ]
-        : [],
-    applyTuneDrag: (node, target, price, ref) =>
-      node.kind === "qfl" && target === "crack" && ref > 0
-        ? { ...node, crackPct: roundPct(((ref - price) / ref) * 100, 0.1, 50) }
-        : null,
-    connectionError: noConnection,
   },
   {
     palette: {

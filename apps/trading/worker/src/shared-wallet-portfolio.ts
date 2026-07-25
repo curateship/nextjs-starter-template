@@ -1,17 +1,17 @@
 import type {
-  QflPortfolioCandidate,
-  QflPortfolioControl,
+  SharedWalletCandidate,
+  SharedWalletPortfolioControl,
 } from "./strategies/contract"
 
-const score = (candidate: QflPortfolioCandidate) => [
+const score = (candidate: SharedWalletCandidate) => [
   candidate.respectRate ?? -1,
   candidate.volumeMultiple,
   candidate.dailyVolumeUsd,
 ]
 
 function compareCandidates(
-  left: QflPortfolioCandidate,
-  right: QflPortfolioCandidate
+  left: SharedWalletCandidate,
+  right: SharedWalletCandidate
 ) {
   const a = score(left)
   const b = score(right)
@@ -22,10 +22,10 @@ function compareCandidates(
 }
 
 /** One synchronous reservation bank shared by every market runner of a bot. */
-export class QflPortfolio implements QflPortfolioControl {
+export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
   private readonly candidates = new Map<
     number,
-    Map<string, QflPortfolioCandidate>
+    Map<string, SharedWalletCandidate>
   >()
   private readonly reservations = new Map<string, number>()
   private readonly decisions = new Map<number, Set<string>>()
@@ -55,7 +55,7 @@ export class QflPortfolio implements QflPortfolioControl {
     }
   }
 
-  submit(candidate: QflPortfolioCandidate) {
+  submit(candidate: SharedWalletCandidate) {
     const group = this.candidates.get(candidate.candleTime) ?? new Map()
     group.set(candidate.market, candidate)
     this.candidates.set(candidate.candleTime, group)

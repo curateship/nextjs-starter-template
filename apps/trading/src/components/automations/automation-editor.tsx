@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
-import { ChartCandlestickIcon, ChevronsUpIcon, XIcon } from "lucide-react"
+import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -18,10 +18,7 @@ import {
   AutomationToolbar,
   type AutomationView,
 } from "@/components/automations/automation-toolbar"
-import {
-  AutomationVisualizePanel,
-  nodeAfterTuneDrag,
-} from "@/components/automations/automation-visualize-panel"
+import { nodeAfterTuneDrag } from "@/components/automations/node-tune-drag"
 import {
   BacktestRunChart,
   type BacktestTuneDrag,
@@ -125,7 +122,6 @@ export function AutomationEditor({
     width: 0,
     height: 0,
   })
-  const [visualize, setVisualize] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -148,10 +144,8 @@ export function AutomationEditor({
     if (enteredInitialView.current) return
     enteredInitialView.current = true
     if (initialView === "backtest") {
-      setVisualize(false)
       backtest.enter()
     } else if (initialView === "bot") {
-      setVisualize(false)
       bot.enter()
     }
   }, [initialView, backtest, bot])
@@ -273,6 +267,13 @@ export function AutomationEditor({
         graph.nodes.find((node) => node.id === edge.from)?.kind === "dca"
     )
   }, [selectedNode, graph.edges, graph.nodes])
+  // The stop's "Measured from" only means something when several buys average
+  // into one position, which is what a DCA ladder does — so the option shows
+  // whenever the automation contains one, wherever the stop sits.
+  const graphHasDca = React.useMemo(
+    () => graph.nodes.some((node) => node.kind === "dca"),
+    [graph.nodes]
+  )
   const selectedPaletteKey = selectedNode
     ? automationPaletteKeyForNode(selectedNode)
     : null
@@ -499,14 +500,12 @@ export function AutomationEditor({
     }
     if (next === "backtest") {
       if (bot.open) bot.exit()
-      setVisualize(false)
       backtest.enter()
       openSidePanels()
       return
     }
     if (next === "bot") {
       if (backtest.open) backtest.exit()
-      setVisualize(false)
       bot.enter()
       openSidePanels()
       return
@@ -523,11 +522,11 @@ export function AutomationEditor({
 
   // The whole basket's combined numbers for the left params panel — summed P&L,
   // trades and a weighted win rate across every finished market, so the panel
-  // describes the entire run rather than only the market on the chart. DCA/QFL
-  // run every market off one shared wallet, so the percent is measured against
-  // that single starting equity; any other strategy runs one account PER market,
-  // so the denominator scales with the market count (handled in combine).
-  const sharedAccount = Boolean(compiled.config?.qfl || compiled.config?.dca)
+  // describes the entire run rather than only the market on the chart. A DCA
+  // ladder runs every market off one shared wallet, so the percent is measured
+  // against that single starting equity; any other strategy runs one account PER
+  // market, so the denominator scales with the market count (handled in combine).
+  const sharedAccount = Boolean(compiled.config?.dca)
   const combinedBacktest = React.useMemo(() => {
     if (!backtest.open) return null
     const stats = backtest.runs
@@ -709,6 +708,7 @@ export function AutomationEditor({
       errors={compiled.errors}
       interval={interval}
       feedsFromDca={selectedTpFeedsDca}
+      graphHasDca={graphHasDca}
       referenceEquity={backtestSettings.startingEquity}
       favorite={
         selectedPaletteKey
@@ -760,15 +760,7 @@ export function AutomationEditor({
         }
         onTuneDrag={handleTuneDrag}
       />
-    ) : visualize ? (
-    <AutomationVisualizePanel
-      graph={graph}
-      config={compiled.config}
-      interval={interval}
-      onNodeChange={updateNode}
-      onExit={() => setVisualize(false)}
-    />
-  ) : (
+    ) : (
     <div className="relative flex min-h-0 min-w-0 flex-1">
       <AutomationFlowCanvas
         graph={graph}
@@ -788,18 +780,6 @@ export function AutomationEditor({
             : undefined
         }
       />
-      {backtest.open || bot.open ? null : (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="absolute top-3 right-3 z-10 h-8 shadow-sm"
-          onClick={() => setVisualize(true)}
-        >
-          <ChartCandlestickIcon className="size-3.5" />
-          Visualize
-        </Button>
-      )}
     </div>
   )
 
@@ -816,7 +796,7 @@ export function AutomationEditor({
     <AutomationBacktestSidePanel
       backtest={backtest}
       interval={interval}
-      isQfl={Boolean(compiled.config?.qfl)}
+      isDca={Boolean(compiled.config?.dca)}
       runnable={runnableNow && !backtestDisabledReason}
       disabledReason={backtestDisabledReason ?? runnableDisabledReason}
       canSaveAndRerun={dirty && compiled.config !== null && !saving}
@@ -842,7 +822,7 @@ export function AutomationEditor({
   const botSidePanel = (
     <AutomationBotSidePanel
       bot={bot}
-      isQfl={Boolean(compiled.config?.qfl)}
+      isDca={Boolean(compiled.config?.dca)}
       runnable={runnableNow}
       disabledReason={runnableDisabledReason}
     />

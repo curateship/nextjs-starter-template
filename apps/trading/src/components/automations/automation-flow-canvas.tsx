@@ -233,7 +233,7 @@ export function AutomationFlowCanvas({
     const current = currentRef.current.graph
     const source = current.nodes.find((node) => node.id === draft.from)
     const target = current.nodes.find((node) => node.id === targetId)
-    // Trend chains indicators (optionally via Look Back) or filters QFL; the
+    // Trend chains indicators (optionally via Look Back) or filters the DCA ladder; the
     // TP/SL hooks attach protective exit nodes.
     const allowed =
       source && target && canConnectNodes(source, draft.sourcePort, target)

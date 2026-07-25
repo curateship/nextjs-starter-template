@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { qflBase, qflCeiling } from "@/lib/strategies/indicators"
+import { baseLevels, ceilingLevels } from "@/lib/strategies/indicators"
 import type { IndicatorModule, IndicatorOutput, IndicatorSignal } from "../contract"
 
 const paramsSchema = z
@@ -100,8 +100,8 @@ function baseFormedSignals(
   for (const { on, short } of sides) {
     if (!on) continue
     const { raw: levels, confirmed } = short
-      ? qflCeiling(candles, params.basePeriods, params.pumpPeriods)
-      : qflBase(candles, params.basePeriods, params.pumpPeriods)
+      ? ceilingLevels(candles, params.basePeriods, params.pumpPeriods)
+      : baseLevels(candles, params.basePeriods, params.pumpPeriods)
     // Each side counts its own spacing, so the two never crowd each other out.
     let previous = Number.NaN
     let markedAt = -Infinity
@@ -124,7 +124,7 @@ function baseFormedSignals(
 }
 
 /**
- * Base (QFL) indicator: finding levels, and NOTHING else. It marks each confirmed
+ * Base indicator: finding levels, and NOTHING else. It marks each confirmed
  * base (support) and ceiling (resistance) on the candle that confirms it, as a
  * green up or red down arrow. Timing an entry near a level belongs to the Price
  * Action indicator; this one only reports that a level is now in place.
@@ -132,7 +132,7 @@ function baseFormedSignals(
  * Breaking a level is deliberately NOT here, and neither are its settings: the
  * crack rule and the past-base-quality filter live on the DCA NODE (moved there
  * July 25, 2026), which tracks bases itself in worker/src/engine/dca-automation.ts
- * using the helpers in lib/automations/qfl.ts. This indicator hands the DCA node
+ * using the helpers in lib/automations/dca-ladder.ts. This indicator hands the DCA node
  * nothing but `basePeriods` / `pumpPeriods` — where the levels are.
  *
  * Draws through the chart's own "base" overlay (each base as a short horizontal

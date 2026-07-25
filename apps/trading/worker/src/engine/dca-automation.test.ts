@@ -10,7 +10,7 @@ import {
   type RunBacktestConfig,
 } from "../backtest/runner"
 import { resolveStrategy } from "../strategies/registry"
-import { QflPortfolio } from "../qfl-portfolio"
+import { SharedWalletPortfolio } from "../shared-wallet-portfolio"
 
 const STEP = 900_000
 const costs: BacktestCosts = { takerFeeBps: 0, makerFeeBps: 0, slippageBps: 0 }
@@ -413,7 +413,7 @@ describe("DCA through the real backtest runner", () => {
   })
 
   it("reserves only filled exposure and frees it when flat (shared-wallet room math)", () => {
-    const p = new QflPortfolio(100, ["A", "B", "C"])
+    const p = new SharedWalletPortfolio(100, ["A", "B", "C"])
     p.setExposure("A", 40)
     p.setExposure("B", 40)
     // C may take what's left after A and B (100 - 80 = 20).

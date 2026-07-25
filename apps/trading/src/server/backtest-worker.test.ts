@@ -6,7 +6,6 @@ import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
-import { DEFAULT_QFL_SETTINGS } from "@/lib/automations/qfl"
 import type { CustomShellDb } from "@/server/db"
 import * as schema from "@/server/schema"
 import {
@@ -74,20 +73,36 @@ afterEach(async () => {
 })
 
 describe("backtest worker claiming", () => {
-  it("creates every selected QFL market in one claimable group", async () => {
+  it("creates every selected shared-wallet market in one claimable group", async () => {
     const params: AutomationConfig = {
       v: 2,
       kind: "automation",
       interval: "15m",
       rules: [],
       protection: {},
-      qfl: { nodeId: "qfl", ...DEFAULT_QFL_SETTINGS },
+      dca: {
+        nodeId: "dca",
+        rungs: [{ deviation: 5 }, { deviation: 8 }],
+        maxPositionPct: 25,
+        sizeMultiplier: 2,
+        compound: true,
+        rungEntry: "market" as const,
+        requireTwoGreen: false,
+        basePeriods: 36,
+        pumpPeriods: 8,
+        crackPct: 2.5,
+        maxCrackBars: 4,
+        respectFilterEnabled: false,
+        respectLookbackMonths: 6,
+        minRespectPct: 80,
+        recoveryTargetPct: -2,
+      },
     }
     const endTime = new Date()
     const group = await createUserBacktestGroup(
       "user-1",
       ["SOL", "DOGE"].map((market) => ({
-        name: "QFL group",
+        name: "DCA group",
         market,
         network: "mainnet" as const,
         interval: "15m",

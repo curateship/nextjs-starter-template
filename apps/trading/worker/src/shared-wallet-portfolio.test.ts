@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { QflPortfolio } from "./qfl-portfolio"
+import { SharedWalletPortfolio } from "./shared-wallet-portfolio"
 
-describe("QFL shared exposure", () => {
+describe("shared wallet exposure", () => {
   it("reserves the best respected simultaneous market and releases capacity", () => {
-    const portfolio = new QflPortfolio(25)
+    const portfolio = new SharedWalletPortfolio(25)
     portfolio.submit({
       market: "LOW",
       candleTime: 100,
@@ -30,7 +30,7 @@ describe("QFL shared exposure", () => {
   })
 
   it("waits for every live market before ranking the candle", () => {
-    const portfolio = new QflPortfolio(25, ["LOW", "HIGH"])
+    const portfolio = new SharedWalletPortfolio(25, ["LOW", "HIGH"])
     portfolio.submit({
       market: "LOW",
       candleTime: 100,

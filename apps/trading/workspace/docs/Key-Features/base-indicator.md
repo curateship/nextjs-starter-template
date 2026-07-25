@@ -75,7 +75,7 @@ to that candle. If anyone writes a rule that peeks ahead, that test fails.
 **It never signals a level breaking.** Price cracking below a base ("the crack") is
 the DCA ladder's rule and lives on the DCA side: the ladder tracks bases itself in
 the worker engine (`worker/src/engine/dca-automation.ts`, helpers in
-`lib/automations/qfl.ts`) and never reads this indicator's signals.
+`lib/automations/dca-ladder.ts`) and never reads this indicator's signals.
 
 Why they stay apart: both events are *buys*, and the chart draws every buy as a green
 up arrow. Having both in one indicator meant two different events drew two identical
@@ -176,7 +176,7 @@ and past-base-quality settings that used to sit here are on the DCA node now.
 
 - Indicator: `src/lib/indicators/defs/base.ts` (one compute path for chart, backtest
   and live bot).
-- Level detection: `qflBase` and its mirror `qflCeiling` in
+- Level detection: `baseLevels` and its mirror `ceilingLevels` in
   `src/lib/strategies/indicators.ts` — each returns the level in force, the dash to
   plot, and the bar it was confirmed on.
 - Chart card settings: `src/lib/trading/indicators-config.ts`; dashes and arrows are

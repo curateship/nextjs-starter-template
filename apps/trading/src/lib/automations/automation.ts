@@ -19,11 +19,8 @@ import {
 import {
   marketScannerSettingsFieldsSchema,
   marketScannerSettingsSchema,
-  qflSettingsFieldsSchema,
-  qflSettingsSchema,
   type MarketScannerSettings,
-  type QflSettings,
-} from "./qfl"
+} from "./dca-ladder"
 
 export type { AutomationInterval }
 
@@ -145,14 +142,6 @@ export type AutomationMarketScannerNode = MarketScannerSettings & {
   y: number
 }
 
-/** Stateful Quickfingers Luc long ladder. It owns entries and exits. */
-export type AutomationQflNode = QflSettings & {
-  id: string
-  kind: "qfl"
-  x: number
-  y: number
-}
-
 /**
  * Dollar-Cost-Averaging buy ladder. Places one resting buy per rung, each a set
  * percent below the buy above it (the first below the base), sized automatically
@@ -224,7 +213,6 @@ export type AutomationNode =
   | AutomationStopLossNode
   | AutomationWhaleWallNode
   | AutomationMarketScannerNode
-  | AutomationQflNode
   | AutomationDcaNode
 
 /**
@@ -398,12 +386,6 @@ export type AutomationRule = {
   condition: AutomationCondition
 }
 
-export type AutomationQflConfig = QflSettings & {
-  nodeId: string
-  /** Optional bullish Trend permission for starting a fresh ladder. */
-  filters?: AutomationFilter[]
-}
-
 export type AutomationMarketScannerConfig = MarketScannerSettings & {
   nodeId: string
 }
@@ -445,7 +427,6 @@ export type AutomationConfig = {
   rules: AutomationRule[]
   protection: AutomationProtection
   marketScanner?: AutomationMarketScannerConfig
-  qfl?: AutomationQflConfig
   dca?: AutomationDcaConfig
 }
 
@@ -597,13 +578,6 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("marketScanner"),
     ...marketScannerSettingsFieldsSchema.shape,
-    x: z.number().finite(),
-    y: z.number().finite(),
-  }),
-  z.object({
-    id: idSchema,
-    kind: z.literal("qfl"),
-    ...qflSettingsFieldsSchema.shape,
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -795,28 +769,6 @@ const automationRuleSchema = z
     }
   })
 
-const automationQflConfigSchema: z.ZodType<AutomationQflConfig> =
-  z.intersection(
-    z.intersection(z.object({ nodeId: idSchema }), qflSettingsSchema),
-    z.object({
-      filters: z
-        .array(
-          z.object({
-            nodeId: idSchema,
-            indicator: indicatorSelectionSchema,
-            maxAgeBars: z
-              .number()
-              .int()
-              .min(1)
-              .max(AUTOMATION_MAX_WINDOW_BARS)
-              .optional(),
-          })
-        )
-        .max(100)
-        .optional(),
-    })
-  )
-
 const automationMarketScannerConfigSchema: z.ZodType<AutomationMarketScannerConfig> =
   z.intersection(z.object({ nodeId: idSchema }), marketScannerSettingsSchema)
 
@@ -858,39 +810,24 @@ export const automationConfigSchema: z.ZodType<AutomationConfig> = z
     rules: z.array(automationRuleSchema).max(100),
     protection: automationProtectionSchema,
     marketScanner: automationMarketScannerConfigSchema.optional(),
-    qfl: automationQflConfigSchema.optional(),
     dca: automationDcaConfigSchema.optional(),
   })
   .superRefine((config, ctx) => {
-    if (config.rules.length === 0 && !config.qfl && !config.dca) {
+    if (config.rules.length === 0 && !config.dca) {
       ctx.addIssue({
         code: "custom",
         path: ["rules"],
         message: "Add at least one executable entry.",
       })
     }
-    if (config.qfl && config.dca) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["dca"],
-        message: "An Automation can't mix a DCA node and a QFL node.",
-      })
-    }
-    if (config.marketScanner && !config.qfl) {
+    if (config.marketScanner && !config.dca) {
       ctx.addIssue({
         code: "custom",
         path: ["marketScanner"],
-        message: "Market Scanner must feed QFL.",
+        message: "Market Scanner must feed the DCA ladder.",
       })
     }
     const entryRules = config.rules.filter((rule) => rule.action !== "close")
-    if (config.qfl && entryRules.length > 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["rules"],
-        message: "QFL must be the Automation's only entry owner.",
-      })
-    }
     if (config.dca && entryRules.length > 0) {
       ctx.addIssue({
         code: "custom",
@@ -974,13 +911,6 @@ export function compileAutomationGraph(input: {
         code: "invalid_scanner",
         nodeId: node.id,
         message: "Whale Wall settings are outside their allowed ranges.",
-      })
-    }
-    if (node.kind === "qfl" && !qflSettingsSchema.safeParse(node).success) {
-      addError({
-        code: "invalid_strategy",
-        nodeId: node.id,
-        message: "QFL settings are outside their allowed ranges.",
       })
     }
     if (node.kind === "dca" && !dcaRungsSchema.safeParse(node.rungs).success) {
@@ -1086,33 +1016,16 @@ export function compileAutomationGraph(input: {
   const actions = nodes.filter(
     (node): node is AutomationActionNode => node.kind === "action"
   )
-  const qflNodes = nodes.filter(
-    (node): node is AutomationQflNode => node.kind === "qfl"
-  )
   const dcaNodes = nodes.filter(
     (node): node is AutomationDcaNode => node.kind === "dca"
   )
-  if (actions.length === 0 && qflNodes.length === 0 && dcaNodes.length === 0)
+  if (actions.length === 0 && dcaNodes.length === 0)
     addError({ code: "empty", message: "Add at least one action." })
-  if (qflNodes.length > 1) {
-    addError({
-      code: "invalid_strategy",
-      nodeId: qflNodes[1].id,
-      message: "An Automation can contain only one QFL node.",
-    })
-  }
   if (dcaNodes.length > 1) {
     addError({
       code: "invalid_strategy",
       nodeId: dcaNodes[1].id,
       message: "An Automation can contain only one DCA node.",
-    })
-  }
-  if (dcaNodes.length > 0 && qflNodes.length > 0) {
-    addError({
-      code: "invalid_strategy",
-      nodeId: dcaNodes[0].id,
-      message: "An Automation can't mix a DCA node and a QFL node.",
     })
   }
   for (const node of nodes) {
@@ -1154,20 +1067,20 @@ export function compileAutomationGraph(input: {
         })
       }
     }
-    if (node.kind === "qfl") {
+    if (node.kind === "dca") {
       const inputs = incoming.get(node.id) ?? []
       if (inputs.filter((edge) => edge.sourcePort === "trend").length > 1) {
         addError({
           code: "invalid_strategy",
           nodeId: node.id,
-          message: "QFL accepts only one direct Trend filter.",
+          message: "DCA accepts only one direct Trend filter.",
         })
       }
       if (inputs.filter((edge) => edge.sourcePort === "markets").length > 1) {
         addError({
           code: "invalid_strategy",
           nodeId: node.id,
-          message: "QFL accepts only one Market Scanner.",
+          message: "DCA accepts only one Market Scanner.",
         })
       }
     }
@@ -1267,18 +1180,9 @@ export function compileAutomationGraph(input: {
         "DCA owns entries. Remove Long, Short, Reverse, and Whale Wall entry paths.",
     })
   }
-  if (qflNodes.length > 0 && ownedEntry) {
-    addError({
-      code: "action_input",
-      nodeId: ownedEntry.id,
-      message:
-        "QFL owns entries. Remove Long, Short, Reverse, and Whale Wall entry paths.",
-    })
-  }
 
   const connected = new Set<string>([
     ...actions.map((node) => node.id),
-    ...qflNodes.map((node) => node.id),
     ...dcaNodes.map((node) => node.id),
   ])
   const markAncestors = (id: string) => {
@@ -1289,7 +1193,6 @@ export function compileAutomationGraph(input: {
     }
   }
   for (const action of actions) markAncestors(action.id)
-  for (const qfl of qflNodes) markAncestors(qfl.id)
   for (const dca of dcaNodes) markAncestors(dca.id)
   // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action/DCA → node), so
   // ancestor-marking never reaches them — count an attached one as connected.
@@ -1412,11 +1315,12 @@ export function compileAutomationGraph(input: {
     }
   }
 
-  const qflNode = qflNodes[0]
   let marketScanner: AutomationMarketScannerConfig | undefined
-  let qfl: AutomationQflConfig | undefined
-  if (qflNode) {
-    const scannerEdge = (incoming.get(qflNode.id) ?? []).find(
+  const dcaNode = dcaNodes[0]
+  let dca: AutomationDcaConfig | undefined
+  if (dcaNode) {
+    // The Market Scanner feeds the ladder its market list.
+    const scannerEdge = (incoming.get(dcaNode.id) ?? []).find(
       (edge) => edge.sourcePort === "markets"
     )
     const scannerNode = scannerEdge ? nodeById.get(scannerEdge.from) : undefined
@@ -1426,17 +1330,6 @@ export function compileAutomationGraph(input: {
         ...marketScannerSettingsSchema.parse(scannerNode),
       }
     }
-    const filters = collectFilters(qflNode.id)
-    qfl = {
-      nodeId: qflNode.id,
-      ...qflSettingsSchema.parse(qflNode),
-      ...(filters.length > 0 ? { filters } : {}),
-    }
-  }
-
-  const dcaNode = dcaNodes[0]
-  let dca: AutomationDcaConfig | undefined
-  if (dcaNode) {
     const baseEdge = (incoming.get(dcaNode.id) ?? []).find((edge) => {
       const from = nodeById.get(edge.from)
       return from?.kind === "indicator" && from.indicator.type === "base"
@@ -1672,17 +1565,6 @@ export function compileAutomationGraph(input: {
     checkFilters(condition.filters ?? [])
   }
   for (const rule of rules) triggersOf(rule.condition)
-  checkFilters(qfl?.filters ?? [])
-  for (const filter of qfl?.filters ?? []) {
-    if (filter.interval) {
-      addError({
-        code: "invalid_strategy",
-        nodeId: filter.nodeId,
-        message:
-          "QFL can't use a higher-timeframe filter yet — remove the node's timeframe.",
-      })
-    }
-  }
   // v1 cap: one distinct higher timeframe per graph keeps live subscriptions
   // and backtest data volume sane.
   const timeframeNodes = nodes.filter(
@@ -1706,7 +1588,6 @@ export function compileAutomationGraph(input: {
       rules,
       protection,
       ...(marketScanner ? { marketScanner } : {}),
-      ...(qfl ? { qfl } : {}),
       ...(dca ? { dca } : {}),
     },
     errors: [],

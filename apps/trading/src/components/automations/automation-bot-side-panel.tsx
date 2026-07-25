@@ -40,10 +40,10 @@ import type { TradingNetwork } from "@/lib/hl/network"
 
 import type { AutomationBotState } from "./use-automation-bot"
 
-// QFL runs one shared portfolio, capped by how much history one portfolio
+// A DCA basket runs one shared wallet, capped by how much history one portfolio
 // calculation can handle; every other strategy runs one independent runner
 // per market and isn't capped.
-const MAX_QFL_MARKETS = 200
+const MAX_SHARED_WALLET_MARKETS = 200
 
 /** Nothing is pinned in the add-market picker; the list is already filtered. */
 const EMPTY_MARKETS: ReadonlySet<string> = new Set()
@@ -56,13 +56,14 @@ const EMPTY_MARKETS: ReadonlySet<string> = new Set()
  */
 export function AutomationBotSidePanel({
   bot,
-  isQfl,
+  isDca,
   runnable,
   disabledReason,
 }: {
   bot: AutomationBotState
-  /** QFL runs one shared portfolio over many markets; others take one. */
-  isQfl: boolean
+  /** A DCA ladder runs one shared wallet over many markets; others take one. */
+  /** True when a DCA ladder runs the whole basket off one shared wallet. */
+  isDca: boolean
   /** Compiled + saved — deploying mid-edit is blocked, like backtest runs. */
   runnable: boolean
   disabledReason?: string
@@ -104,7 +105,7 @@ export function AutomationBotSidePanel({
     () => marketRows.filter((row) => !selectedSet.has(row.coin)),
     [marketRows, selectedSet]
   )
-  const maxMarkets = isQfl ? MAX_QFL_MARKETS : Infinity
+  const maxMarkets = isDca ? MAX_SHARED_WALLET_MARKETS : Infinity
 
   // Keeping finishes the run; when it still holds a position, that means
   // closing it — a money action, so it goes through a confirmation.
@@ -179,8 +180,8 @@ export function AutomationBotSidePanel({
                     Markets{" "}
                     <span className="font-normal text-muted-foreground">
                       (
-                      {isQfl
-                        ? `one shared QFL portfolio · max ${MAX_QFL_MARKETS}`
+                      {isDca
+                        ? `one shared DCA portfolio · max ${MAX_SHARED_WALLET_MARKETS}`
                         : "one runner per market"}
                       )
                     </span>

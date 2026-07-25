@@ -346,7 +346,7 @@ type LowCandle = { l: number | string }
  *    completed, `pumpPeriods` after the low itself) — the "base formed" event.
  * `raw` and `line` are NaN until the first base is confirmed.
  */
-export function qflBase(
+export function baseLevels(
   candles: LowCandle[],
   basePeriods: number,
   pumpPeriods: number
@@ -400,14 +400,14 @@ export function qflBase(
 type HighCandle = { h: number | string }
 
 /**
- * The mirror of {@link qflBase}: a "ceiling" is confirmed at the HIGHEST high of
+ * The mirror of {@link baseLevels}: a "ceiling" is confirmed at the HIGHEST high of
  * the last `basePeriods` bars once that high has held for `pumpPeriods` bars
  * (price rejected off it without making a higher high). Same three outputs, read
  * the same way — `raw` is the resistance in force, `line` is the short dash to
  * plot, `confirmed` is the bar the ceiling completed. A short entry uses these the
  * way a long entry uses bases; the base is then the level to take profit at.
  */
-export function qflCeiling(
+export function ceilingLevels(
   candles: HighCandle[],
   basePeriods: number,
   pumpPeriods: number
