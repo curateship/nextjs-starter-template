@@ -42,23 +42,6 @@ const paramsSchema = z
      * left 1 of 11 arrows.
      */
     formedRequireHigherBase: z.boolean().default(true),
-    /** DCA ladder setting (not an indicator signal): how far below the base a
-     * close must fall to count as a crack. Read by the DCA node. */
-    crackPct: z.number().positive().max(50).default(2.5),
-    /** DCA ladder setting: the fall must be fast — price sat at/above the base
-     * within this many candles before the crack, so slow bleeds don't count. */
-    maxCrackBars: z.number().int().min(1).max(500).default(4),
-    /**
-     * Past base quality: only trust markets whose past cracks tended to
-     * recover. Enforced by a DCA ladder fed from this node (like QFL), which
-     * scores the last `respectLookbackMonths` of history and skips a crack
-     * unless at least `minRespectPct` of past cracks recovered.
-     */
-    respectFilterEnabled: z.boolean().default(false),
-    respectLookbackMonths: z.number().int().min(1).max(60).default(6),
-    minRespectPct: z.number().min(0).max(100).default(80),
-    /** How far above the base price counts as a recovery (negative = below). */
-    recoveryTargetPct: z.number().min(-50).max(50).default(-2),
   })
   .superRefine((params, ctx) => {
     if (params.pumpPeriods >= params.basePeriods) {
@@ -66,13 +49,6 @@ const paramsSchema = z
         code: "custom",
         path: ["pumpPeriods"],
         message: "Base confirmation must be shorter than the base search.",
-      })
-    }
-    if (params.recoveryTargetPct <= -params.crackPct) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["recoveryTargetPct"],
-        message: "Recovery must stay above the crack level.",
       })
     }
   })
@@ -148,18 +124,16 @@ function baseFormedSignals(
 }
 
 /**
- * Base (QFL) indicator: forming bases, and NOTHING else. It marks each confirmed
- * price base — a low that formed and then held — and fires ONE long signal per
- * base, on the candle that confirms it, painted as a green up arrow. Timing an
- * entry back near the base level belongs to the Price Action indicator; this one
- * only reports that a base is now in place.
+ * Base (QFL) indicator: finding levels, and NOTHING else. It marks each confirmed
+ * base (support) and ceiling (resistance) on the candle that confirms it, as a
+ * green up or red down arrow. Timing an entry near a level belongs to the Price
+ * Action indicator; this one only reports that a level is now in place.
  *
- * Breaking a base is deliberately NOT here. The crack rule (price closing
- * `crackPct` under the base after a fast fall) belongs to the DCA ladder, which
- * tracks bases itself in worker/src/engine/dca-automation.ts using the helpers in
- * lib/automations/qfl.ts (`advanceQflBaseTracker`, `qflBaseRespectScore`). The
- * crack settings still ride on this indicator's params because the DCA node reads
- * its base detection from the Base node wired into it.
+ * Breaking a level is deliberately NOT here, and neither are its settings: the
+ * crack rule and the past-base-quality filter live on the DCA NODE (moved there
+ * July 25, 2026), which tracks bases itself in worker/src/engine/dca-automation.ts
+ * using the helpers in lib/automations/qfl.ts. This indicator hands the DCA node
+ * nothing but `basePeriods` / `pumpPeriods` — where the levels are.
  *
  * Draws through the chart's own "base" overlay (each base as a short horizontal
  * dash), so an automation using Base paints exactly what the trade chart's Base
@@ -178,12 +152,6 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
     formedRequireHigherBase: true,
     formedShowLong: true,
     formedShowShort: true,
-    crackPct: 2.5,
-    maxCrackBars: 4,
-    respectFilterEnabled: false,
-    respectLookbackMonths: 6,
-    minRespectPct: 80,
-    recoveryTargetPct: -2,
   },
   paramFields: [
     {
@@ -218,67 +186,6 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
       key: "formedMinBars",
       label: "Minimum candles between arrows",
       info: "Arrows can never appear closer together than this many candles, so they stop bunching up. Separately and with no setting: an arrow only prints on a floor above the last one marked, and after price sets a lower floor the indicator measures from there.",
-    },
-    {
-      key: "crackPct",
-      label: "Crack %",
-      step: 0.1,
-      info: "Used by the DCA node, not by this indicator's own signal: how far below the base a candle must close for the DCA ladder to count a break.",
-    },
-    {
-      key: "maxCrackBars",
-      label: "Maximum fall (candles)",
-      info: "Used by the DCA node: the drop must be quick — price was still up at the base within this many candles, so a slow slide underneath it is ignored.",
-    },
-    {
-      key: "respectFilterEnabled",
-      label: "Filter by past base quality",
-      kind: "boolean",
-      info: "Only trade markets whose past cracks tended to bounce back.",
-    },
-    {
-      key: "respectLookbackMonths",
-      label: "History (months)",
-      info: "How many months of history to judge the market's past base quality over.",
-    },
-    {
-      key: "minRespectPct",
-      label: "Minimum respected (%)",
-      info: "The smallest share of past cracks that must have recovered before a trade is allowed.",
-    },
-    {
-      key: "recoveryTargetPct",
-      label: "Recovery vs base (%)",
-      step: 0.1,
-      info: "How far above the base price counts as a recovery (negative means below the base).",
-    },
-  ],
-  paramGroups: [
-    {
-      title: "Base",
-      keys: [
-        "basePeriods",
-        "pumpPeriods",
-        "formedRequireHigherBase",
-        "formedMinBars",
-        "formedShowLong",
-        "formedShowShort",
-      ],
-    },
-    {
-      // Not this indicator's signal: the DCA node reads these off the Base node
-      // wired into it to run its own crack rule.
-      title: "Base break (DCA node)",
-      keys: ["crackPct", "maxCrackBars"],
-    },
-    {
-      title: "Past base quality (DCA node)",
-      keys: [
-        "respectFilterEnabled",
-        "respectLookbackMonths",
-        "minRespectPct",
-        "recoveryTargetPct",
-      ],
     },
   ],
   warmupBars: (params) => params.basePeriods + params.pumpPeriods + 2,

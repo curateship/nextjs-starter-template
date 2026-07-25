@@ -193,6 +193,23 @@ export type AutomationDcaNode = {
    * knifing down. Off by default.
    */
   requireTwoGreen: boolean
+  /**
+   * The crack that starts the ladder: how far below the base a candle must close,
+   * and how fast the fall must be (price was still at/above the base within this
+   * many candles). These live HERE, not on the Base indicator feeding this node —
+   * the indicator only finds levels; breaking one is this ladder's rule.
+   */
+  crackPct: number
+  maxCrackBars: number
+  /**
+   * Past base quality: only trade markets whose recent cracks tended to recover.
+   * Scores the last `respectLookbackMonths` and skips a crack unless at least
+   * `minRespectPct` of past cracks recovered to `recoveryTargetPct` of the base.
+   */
+  respectFilterEnabled: boolean
+  respectLookbackMonths: number
+  minRespectPct: number
+  recoveryTargetPct: number
   x: number
   y: number
 }
@@ -612,6 +629,16 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     // Defaults to false so ladders saved before this field keep buying on every
     // confirmed rung; when on, a rung only buys after two green candles in a row.
     requireTwoGreen: z.boolean().default(false),
+    // Moved off the Base indicator on July 25, 2026: the indicator finds levels,
+    // this ladder decides what breaking one means. Defaults match the values the
+    // Base node used to carry, so a graph saved before the move still runs the
+    // same ladder.
+    crackPct: z.number().positive().max(50).default(2.5),
+    maxCrackBars: z.number().int().min(1).max(500).default(4),
+    respectFilterEnabled: z.boolean().default(false),
+    respectLookbackMonths: z.number().int().min(1).max(60).default(6),
+    minRespectPct: z.number().min(0).max(100).default(80),
+    recoveryTargetPct: z.number().min(-50).max(50).default(-2),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -1422,20 +1449,12 @@ export function compileAutomationGraph(input: {
         message: "Connect a Base indicator to the DCA node.",
       })
     } else {
-      // Base params passed the per-node indicator check above; parse to read
-      // them as the base-detection settings the runtime ladder anchors to.
+      // Base params passed the per-node indicator check above; parse to read the
+      // base DETECTION settings the runtime ladder anchors to. Everything about
+      // breaking that base lives on the DCA node itself.
       const baseParams = INDICATORS.base.paramsSchema.parse(
         baseNode.indicator.params
-      ) as {
-        basePeriods: number
-        pumpPeriods: number
-        crackPct: number
-        maxCrackBars: number
-        respectFilterEnabled: boolean
-        respectLookbackMonths: number
-        minRespectPct: number
-        recoveryTargetPct: number
-      }
+      ) as { basePeriods: number; pumpPeriods: number }
       dca = {
         nodeId: dcaNode.id,
         rungs: dcaNode.rungs.map((rung) => ({ ...rung })),
@@ -1446,12 +1465,12 @@ export function compileAutomationGraph(input: {
         requireTwoGreen: dcaNode.requireTwoGreen,
         basePeriods: baseParams.basePeriods,
         pumpPeriods: baseParams.pumpPeriods,
-        crackPct: baseParams.crackPct,
-        maxCrackBars: baseParams.maxCrackBars,
-        respectFilterEnabled: baseParams.respectFilterEnabled,
-        respectLookbackMonths: baseParams.respectLookbackMonths,
-        minRespectPct: baseParams.minRespectPct,
-        recoveryTargetPct: baseParams.recoveryTargetPct,
+        crackPct: dcaNode.crackPct,
+        maxCrackBars: dcaNode.maxCrackBars,
+        respectFilterEnabled: dcaNode.respectFilterEnabled,
+        respectLookbackMonths: dcaNode.respectLookbackMonths,
+        minRespectPct: dcaNode.minRespectPct,
+        recoveryTargetPct: dcaNode.recoveryTargetPct,
       }
     }
   }
