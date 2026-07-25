@@ -9,6 +9,7 @@ import CalendarPlus from "lucide-react/dist/esm/icons/calendar-plus.js"
 import CheckCheck from "lucide-react/dist/esm/icons/check-check.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
+import Store from "lucide-react/dist/esm/icons/store.js"
 
 import {
   listHubNotificationPage,
@@ -45,6 +46,7 @@ const notificationIcons: Record<HubNotificationItem["type"], LucideIcon> = {
   directory_featured_expired: AlertTriangle,
   newsletter_paused: AlertTriangle,
   event_submission: CalendarPlus,
+  directory_submission: Store,
 }
 
 function getHubNotificationErrorMessage(error: unknown) {

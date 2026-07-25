@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Bell from "lucide-react/dist/esm/icons/bell.js"
+import CalendarPlus from "lucide-react/dist/esm/icons/calendar-plus.js"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import CheckCheck from "lucide-react/dist/esm/icons/check-check.js"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
@@ -11,6 +12,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
+import Store from "lucide-react/dist/esm/icons/store.js"
 import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
 
@@ -142,6 +144,8 @@ const NOTIFICATION_ICONS: Record<HubNotificationType, typeof Bell> = {
   directory_featured: ShoppingCart,
   directory_featured_expired: TriangleAlert,
   newsletter_paused: TriangleAlert,
+  event_submission: CalendarPlus,
+  directory_submission: Store,
 }
 
 const TRIGGER_LABELS: Record<string, string> = {

@@ -22,6 +22,7 @@ import { PageSiteSearchBlock } from "@/components/frontend/pages/site-search/Pag
 import { PageMemberDirectoryBlock } from "@/components/frontend/pages/member-directory/PageMemberDirectoryBlock"
 import { PageEventsCalendarBlock } from "@/components/frontend/pages/events-calendar/PageEventsCalendarBlock"
 import { PageEventSubmissionBlock } from "@/components/frontend/pages/event-submission/PageEventSubmissionBlock"
+import { PageListingSubmissionBlock } from "@/components/frontend/pages/listing-submission/PageListingSubmissionBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { PublicProfileData } from "@/lib/actions/profiles/public-profile-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -226,6 +227,19 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <PageEventSubmissionBlock
+                content={blockContent}
+                siteId={site.id}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'listing-submission') {
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <PageListingSubmissionBlock
                 content={blockContent}
                 siteId={site.id}
                 siteWidth={siteWidth}

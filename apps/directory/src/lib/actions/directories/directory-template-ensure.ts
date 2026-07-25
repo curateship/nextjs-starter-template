@@ -32,3 +32,19 @@ export async function ensureDirectoryBlankTemplateForSite(siteId: string) {
 
   return createdTemplate
 }
+
+// Resolve the template to assign when a listing is created without an explicit
+// choice (the public-submission approval path): site default, else ensured Blank.
+export async function getDefaultDirectoryTemplateIdForSite(siteId: string) {
+  const [defaultTemplate] = await db
+    .select({ id: directoryTemplates.id })
+    .from(directoryTemplates)
+    .where(and(eq(directoryTemplates.siteId, siteId), eq(directoryTemplates.isDefault, true)))
+    .orderBy(desc(directoryTemplates.updatedAt))
+    .limit(1)
+
+  if (defaultTemplate) return defaultTemplate.id
+
+  const blankTemplate = await ensureDirectoryBlankTemplateForSite(siteId)
+  return blankTemplate.id
+}

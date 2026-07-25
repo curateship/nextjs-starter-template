@@ -11,6 +11,7 @@ import Search from "lucide-react/dist/esm/icons/search.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import CalendarDays from "lucide-react/dist/esm/icons/calendar-days.js"
 import CalendarPlus from "lucide-react/dist/esm/icons/calendar-plus.js"
+import Store from "lucide-react/dist/esm/icons/store.js"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -201,6 +202,20 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       subtitle: '',
       submitButtonText: 'Submit Event',
       successMessage: "Thanks! Your event has been submitted for review. We'll take a look soon.",
+      visibility: {},
+    }
+  },
+  {
+    type: 'listing-submission',
+    name: 'Add Your Listing',
+    icon: Store,
+    description: 'Public form where visitors submit a business listing for the site owner to review and approve',
+    defaultContent: {
+      title: 'Add your listing',
+      subtitle: '',
+      submitButtonText: 'Submit listing',
+      successMessage: "Thanks! Check your inbox for a confirmation link. After you confirm, we'll review your listing before it goes live.",
+      categoryLabel: 'Category',
       visibility: {},
     }
   },
