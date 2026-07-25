@@ -34,6 +34,12 @@ const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
   compound: true,
   rungEntry: "market",
   requireTwoGreen: false,
+  crackPct: 2.5,
+  maxCrackBars: 4,
+  respectFilterEnabled: false,
+  respectLookbackMonths: 6,
+  minRespectPct: 80,
+  recoveryTargetPct: -2,
   x: 0,
   y: 0,
 })

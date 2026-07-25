@@ -245,9 +245,8 @@ export function fairValueGapChartToModuleParams(
   }
 }
 
-/** Chart Base params → the Base module's typed params. Only the base-forming
- * settings are on the chart card; the crack and respect-filter settings belong to
- * the DCA node, so they fall back to the module's own defaults here. */
+/** Chart Base params → the Base module's typed params. The card and the module
+ * carry the same shape now that the crack settings live on the DCA node. */
 export function baseChartToModuleParams(
   params: Record<string, number>
 ): Record<string, number | string | boolean> {
@@ -258,12 +257,6 @@ export function baseChartToModuleParams(
     formedMinBars: params.formedMinBars ?? 20,
     formedShowLong: (params.formedShowLong ?? 1) !== 0,
     formedShowShort: (params.formedShowShort ?? 1) !== 0,
-    crackPct: 2.5,
-    maxCrackBars: 4,
-    respectFilterEnabled: false,
-    respectLookbackMonths: 6,
-    minRespectPct: 80,
-    recoveryTargetPct: -2,
   }
 }
 

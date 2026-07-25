@@ -27,6 +27,28 @@ Four related changes went in together:
    roughly N times too small (the "$510k deployed" bug). It now uses the one shared
    wallet as the denominator.
 
+## Where the ladder's settings live (July 25, 2026)
+
+The DCA node owns every setting its own rule reads, in four cards in the inspector:
+
+1. **Base break** — Crack below base %, Maximum fall (candles). What starts the
+   ladder.
+2. **Past base quality** — the recovery filter, its history window, the minimum
+   share respected, and the recovery target. The three numbers grey out when the
+   filter is off.
+3. **Ladder** — the pot preview, the rung table (deviation + computed buy size),
+   add/remove rung.
+4. **Sizing and fills** — max position %, size ramp, compound vs fixed, market vs
+   limit, and the 2-green step-down toggle.
+
+Those first two cards used to sit on the **Base indicator** node, labelled "Base
+break (DCA node)" — a parameter parked on a neighbour, with the owning node's name
+in its own group title. The Base node now supplies only `basePeriods` /
+`pumpPeriods` (where the levels are); everything about breaking a level is here.
+Graphs saved before the move fall back to the same defaults the Base node carried
+(crack 2.5%, max fall 4, filter off), and no saved automation used a DCA node at the
+time of the move, so nothing changed behaviour.
+
 ## Caveats and open risks
 
 ### Not verified in a live or running context

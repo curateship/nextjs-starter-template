@@ -65,10 +65,12 @@ DCA ladder's rule and lives in `worker/src/engine/dca-automation.ts` with helper
 crack/break trigger back in: both events are *buys*, so on a chart they draw two
 identical green up arrows with no way to tell them apart (July 24, 2026).
 
-The crack settings (Crack %, Maximum fall, the respect filter) still ride on the Base
-indicator's params, because the DCA node reads its base detection from the Base node
-wired into it. They are grouped in the inspector under "Base break (DCA node)" and are
-NOT on the trade chart's card.
+The crack settings (Crack below base %, Maximum fall, the past-base-quality filter)
+live on the **DCA node** — moved off this indicator on July 25, 2026, since a node
+should own the settings it consumes. The Base node hands the DCA node `basePeriods` /
+`pumpPeriods` and nothing else. When adding a setting, put it on the node whose rule
+reads it; a parameter parked on a neighbour is how "Base break (DCA node)" ended up
+labelled with the name of the node it belonged to.
 
 **The two filters, exactly as shipped** — get these the right way round:
 

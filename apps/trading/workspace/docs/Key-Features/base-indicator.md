@@ -81,11 +81,10 @@ Why they stay apart: both events are *buys*, and the chart draws every buy as a 
 up arrow. Having both in one indicator meant two different events drew two identical
 arrows with no way to tell them apart (24 July 2026).
 
-The crack settings — **Crack %**, **Maximum fall (candles)** and the past-base
-quality filter — still appear on the Base node in an Automation, because the DCA node
-reads its base detection from the Base node wired into it. They are grouped under
-"Base break (DCA node)" and "Past base quality (DCA node)" so it is clear they are
-not this indicator's own signal, and they are **not** on the trade chart's card.
+The crack settings — **Crack below base %**, **Maximum fall (candles)** and the
+past-base-quality filter — live on the **DCA node**, not here (moved 25 July 2026).
+This indicator hands the DCA node only `basePeriods` / `pumpPeriods`: where the
+levels are. Deciding what breaking one means is the ladder's business.
 
 ## Filter designs that were wrong (do not reintroduce)
 
@@ -170,9 +169,8 @@ Trade chart card and Automation node:
 | Only levels with the trend | Long needs a higher low, short needs a lower high (default on). |
 | Minimum candles between arrows | Closest two arrows on one side may appear (default 20). |
 
-On the Automation node only, read by the DCA ladder and not by this indicator:
-Crack %, Maximum fall (candles), Filter by past base quality, History (months),
-Minimum respected (%), Recovery vs base (%).
+That is the whole set, on both the chart card and the Automation node. The crack
+and past-base-quality settings that used to sit here are on the DCA node now.
 
 ## Where the code lives
 
