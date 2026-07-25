@@ -79,6 +79,7 @@ import {
   ema,
   macd,
   qflBase,
+  qflCeiling,
   rsi,
 } from "@/lib/strategies/indicators"
 import {
@@ -1991,39 +1992,56 @@ export function PriceChartView({
           setLine(`${ind.id}:${line.slot}`, ema(closes, ind.params[line.periodKey]))
         }
       } else if (ind.type === "base") {
-        const { line } = qflBase(
-          candles,
-          ind.params.basePeriods,
-          ind.params.pumpPeriods
-        )
-        const color = ind.color ?? indicatorColor("base", isDark)
         // Draw each contiguous run of equal value as its own 2-point series so
-        // bases are separate short horizontal marks, never joined to each other.
-        let i = 0
-        while (i < line.length) {
-          if (Number.isNaN(line[i])) {
-            i += 1
-            continue
+        // levels are separate short horizontal marks, never joined to each other.
+        const drawDashes = (marks: number[], color: string) => {
+          let i = 0
+          while (i < marks.length) {
+            if (Number.isNaN(marks[i])) {
+              i += 1
+              continue
+            }
+            let j = i
+            while (j + 1 < marks.length && marks[j + 1] === marks[i]) j += 1
+            const series = chart.addSeries(
+              ctors.LineSeries,
+              {
+                color,
+                lineWidth: 3,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+              },
+              0
+            )
+            series.setData([
+              { time: at(i), value: marks[i] },
+              { time: at(j), value: marks[i] },
+            ])
+            baseSeriesRef.current.push(series)
+            i = j + 1
           }
-          let j = i
-          while (j + 1 < line.length && line[j + 1] === line[i]) j += 1
-          const series = chart.addSeries(
-            ctors.LineSeries,
-            {
-              color,
-              lineWidth: 3,
-              priceLineVisible: false,
-              lastValueVisible: false,
-              crosshairMarkerVisible: false,
-            },
-            0
+        }
+        // Each side has its own switch, spelled the same in a pinned chart config
+        // and in an automation's paint. Absent (an older saved row) means shown.
+        const showBases = (ind.params.formedShowLong ?? 1) !== 0
+        const showCeilings = (ind.params.formedShowShort ?? 1) !== 0
+        if (showBases) {
+          const { line } = qflBase(
+            candles,
+            ind.params.basePeriods,
+            ind.params.pumpPeriods
           )
-          series.setData([
-            { time: at(i), value: line[i] },
-            { time: at(j), value: line[i] },
-          ])
-          baseSeriesRef.current.push(series)
-          i = j + 1
+          drawDashes(line, ind.color ?? indicatorColor("base", isDark))
+        }
+        // Ceilings in the down colour, so "sell here" reads apart from the base.
+        if (showCeilings) {
+          const ceilings = qflCeiling(
+            candles,
+            ind.params.basePeriods,
+            ind.params.pumpPeriods
+          )
+          drawDashes(ceilings.line, DOWN_COLOR)
         }
       } else if (ind.type === "bollinger") {
         const bands = bollinger(closes, ind.params.period, ind.params.k)

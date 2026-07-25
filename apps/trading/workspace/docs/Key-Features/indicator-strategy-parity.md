@@ -45,49 +45,78 @@ same settings. Never add a capability to only one side.
   two fastest switched-on lines, Price Action's detected patterns, Bollinger
   (per its Mode — the chart card carries the same revert/breakout Mode the
   strategy node has), Trendline Break (all but QQE added July 17, 2026 by
-  request), and Base — one long per formed base (added July 24, 2026 by request;
-  the chart card carries the same Formed within % the strategy node has). Fair
+  request), and Base — a long at each confirmed base and a short at each confirmed
+  ceiling, either side switchable (added July 24–25, 2026 by request; the chart card
+  carries the same settings the strategy node has). Fair
   Value Gap deliberately stays arrow-less — its boxes are the visual. One signal
   is still not a trade.
 
-### Base forms bases. It does NOT break them.
+### Base marks levels. It does NOT break them, and it has NO edge.
 
-The Base indicator signals ONE thing: a base has formed. Breaking a base (price
-cracking below it) is the **DCA node's** rule and lives there — the ladder tracks
-bases itself in `worker/src/engine/dca-automation.ts` with the helpers in
-`lib/automations/qfl.ts`, and never reads the Base indicator's signals. Never put
-a crack/break trigger back into the indicator: both events are *buys*, so on a
-chart they draw two identical green up arrows with no way to tell them apart,
-which is exactly why this was split (July 24, 2026, by request).
+The Base indicator marks two things: a **base** (support) confirmed by a low that
+held, and a **ceiling** (resistance) confirmed by a high that held. Each side has its
+own switch (`formedShowLong` / `formedShowShort`, both default ON) and its own
+spacing clock, and both come from one pass over the candles — `qflBase` and its
+mirror `qflCeiling`.
 
-The crack settings (Crack %, Maximum fall, the respect filter) still ride on the
-Base indicator's params, because the DCA node reads its base detection from the
-Base node wired into it. They are grouped in the inspector under "Base break (DCA
-node)" so it's clear they are not the indicator's own signal, and they are NOT on
-the trade chart's Base card, which only paints base forming.
+**Breaking a level is not here.** Price cracking below a base ("the crack") is the
+DCA ladder's rule and lives in `worker/src/engine/dca-automation.ts` with helpers in
+`lib/automations/qfl.ts`; it never reads this indicator's signals. Never put a
+crack/break trigger back in: both events are *buys*, so on a chart they draw two
+identical green up arrows with no way to tell them apart (July 24, 2026).
 
-Timing detail worth keeping: a base confirms `pumpPeriods` bars AFTER its low, and
-by then price has usually bounced well clear of it — on ETH daily, all 7
-confirmations in the last 500 days closed 11–20% above their base. So the formed
-long does not print on the confirming candle. It waits for the first candle whose
-close is within `formedWithinPct` (default 1%) of the base level, prints once, and
-skips that base afterwards, so the arrow always sits AT the base.
+The crack settings (Crack %, Maximum fall, the respect filter) still ride on the Base
+indicator's params, because the DCA node reads its base detection from the Base node
+wired into it. They are grouped in the inspector under "Base break (DCA node)" and are
+NOT on the trade chart's card.
 
-That wait is bounded by `formedValidBars` (default 40): if price hasn't come back
-within that many candles of the confirmation, the base goes stale and never prints,
-so an old base can't fire a signal long after it stopped mattering. The default
-comes from measurement — on ETH 1h and 1d, genuine returns to a base land 0–35
-candles after confirmation, while the stale cases sat 110+ candles out.
+**The two filters, exactly as shipped** — get these the right way round:
 
-`formedRequireRising` (default ON) is the last gate, and it compares SIGNALS, not
-candles: a mark is only drawn when it sits above the PREVIOUS mark, so a staircase
-of lower and lower bases draws nothing and only a rising sequence shows arrows.
-Skipped marks are still computed and remain the yardstick the next mark is measured
-against — so a mark can be drawn while sitting below an older, higher one, as long
-as it beats the mark immediately before it. The first mark in the series has nothing
-to compare against and always stands. (Candle colour is NOT part of this: an
-earlier attempt gated on "two green candles" and was wrong — a run of green candles
-can still step downhill, so it left marks mid-fall.)
+- `formedRequireHigherBase` (default ON): a level is marked only if it beats the level
+  **immediately before it on the same side** — higher for a base, lower for a ceiling.
+  That is the textbook higher low / lower high, proven identical to it on four real
+  datasets. It hides 14 of 25 bases on ALGO 15m, which is why it needs to be visible
+  as a switch.
+- `formedMinBars` (default 20): two arrows on the same side can never be closer than
+  that many candles.
+
+Seven filter designs that were WRONG, all caught on the chart July 24, 2026 — do not
+reintroduce any of them. Note especially the third and fourth: they are the two ways
+of picking the wrong reference point.
+
+- A proximity rule (`formedWithinPct`) plus a staleness window (`formedValidBars`).
+  Duplicated the Price Action indicator's job and printed nothing on real settings.
+- Candle colour ("two green candles"). A run of green candles can still step downhill,
+  so marks landed mid-fall.
+- Comparing the arrows' print prices instead of the level values. A confirming candle
+  can close ABOVE the previous mark while its level is BELOW the previous level (real
+  case on ETH 1h: levels 1778.8 → 1750.5, closes 1821.0 → 1881.8), which drew arrows
+  straight down a staircase.
+- Comparing against the last level MARKED (with a reset down to any lower level)
+  instead of the level immediately before. Every small bounce in a fall beat the
+  skipped level below it, so arrows clustered a few candles apart at one price.
+- Splitting the gate into a boolean plus a percent, where the percent did nothing
+  while the boolean was off and the UI gave no hint why. Never ship a setting that can
+  be silently inert.
+- A PERCENT gap at all. ALGO 15m spent ten days inside a 2%-wide band, so any percent
+  worth setting marked one level and then nothing. Frequency is governed by
+  `basePeriods`, not by this gate.
+- An "only higher bases" switch measuring against the HIGHEST level ever marked. The
+  default comparison already means "beats the one before", so the switch could only be
+  redundant or destructive — it left 1 of 11 arrows.
+
+**Measured result: no edge.** Across 21 Binance markets, walk-forward, real costs, the
+short side returned −4.49%/month out-of-sample on 15m and about break-even on 4h/1d;
+the long side −4.19%/month on 15m; and random entries with the identical stop beat it
+in 5 of 6 cells. Win rate lands exactly on the break-even line at every risk-reward
+ratio. Treat Base as a level finder for stops and context, not an entry — and do not
+tune its filters expecting that to change. Full numbers and method:
+base-indicator.md.
+
+The gate must stay causal: it only reads the last base already drawn, never future
+candles. `parity.test.ts` enforces this by replaying every prefix of a 600-candle
+series and requiring each prefix's marks to match the full series up to that
+candle, so the live bot and the chart cannot disagree.
 - **Old saved settings.** When adding a parameter, give it a zod `.default()`
   that preserves the old behavior, and remember editors must display
   schema-PARSED params (see `IndicatorFields` in the automation inspector) so

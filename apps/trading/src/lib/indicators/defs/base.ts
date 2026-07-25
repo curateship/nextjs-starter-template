@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { qflBase } from "@/lib/strategies/indicators"
+import { qflBase, qflCeiling } from "@/lib/strategies/indicators"
 import type { IndicatorModule, IndicatorOutput, IndicatorSignal } from "../contract"
 
 const paramsSchema = z
@@ -10,28 +10,38 @@ const paramsSchema = z
     /** Bars the new low must hold before the base is confirmed. */
     pumpPeriods: z.number().int().min(1).max(499).default(8),
     /**
-     * Base-formed longs only print on a candle NEAR the base: its close must sit
-     * within this percent of the base level, above or below. A base confirms
-     * `pumpPeriods` bars after its low, by which point price has usually bounced
-     * well clear of it, so the mark waits for the first candle back at the base
-     * (one per base) and skips everything further away.
+     * Spacing: how many candles must pass before another level on the SAME side can
+     * be marked. Arrows bunched a few candles apart at nearly one price are the
+     * complaint this exists for, and spacing in candles is what "bunched" means.
+     *
+     * A percent gap was tried first and was the wrong shape — a market whose whole
+     * range is 2% wide (ALGO 15m, July 24, 2026) can never clear a percent
+     * threshold, so every value produced one or two arrows a month. Frequency is
+     * governed by `basePeriods`, not by this.
      */
-    formedWithinPct: z.number().positive().max(50).default(1),
+    formedMinBars: z.number().int().min(1).max(1000).default(20),
     /**
-     * How long a confirmed base keeps waiting for that near-base candle. If price
-     * hasn't come back within this many candles of the confirmation, the base
-     * goes stale and never prints. Measured on ETH: genuine returns land 0–35
-     * candles after confirmation, so 40 keeps those and drops the stale ones.
+     * Which sides to mark. Both on by default — the indicator finds support and
+     * resistance in the same pass, so hiding one is only ever a display choice.
+     *  - long: BASES (support), green up arrow at each confirmed base.
+     *  - short: CEILINGS (resistance), red down arrow at each confirmed ceiling.
+     * Each side keeps its own spacing clock, so a long can never crowd out a short.
      */
-    formedValidBars: z.number().int().min(1).max(1000).default(40),
+    formedShowLong: z.boolean().default(true),
+    formedShowShort: z.boolean().default(true),
     /**
-     * Trend confirmation, measured between SIGNALS (not candles): only draw a
-     * base-formed mark when it sits above the previous mark. Marks that would land
-     * lower are still computed — the next mark is measured against them — but are
-     * never drawn, so a staircase of falling bases paints nothing and only a
-     * rising sequence of bases shows arrows.
+     * On (default): only mark a base that sits ABOVE the base before it — the
+     * textbook higher low, so a staircase down draws nothing. Off: mark every
+     * confirmed base, subject only to spacing.
+     *
+     * This exists because the rule is otherwise invisible. On a real chart (ALGO
+     * 15m, base 24 / pump 6) it hides 14 of 25 bases, and with spacing set low
+     * that leaves a chart full of dashes with no arrows and nothing to explain it
+     * (July 24, 2026). NOTE the comparison: the base immediately before, NOT the
+     * highest base ever marked — that stricter reading was tried the same day and
+     * left 1 of 11 arrows.
      */
-    formedRequireRising: z.boolean().default(true),
+    formedRequireHigherBase: z.boolean().default(true),
     /** DCA ladder setting (not an indicator signal): how far below the base a
      * close must fall to count as a crack. Read by the DCA node. */
     crackPct: z.number().positive().max(50).default(2.5),
@@ -70,69 +80,79 @@ const paramsSchema = z
 export type BaseParams = z.infer<typeof paramsSchema>
 
 /**
- * The "base formed" longs — the ONLY Base signal the chart paints as arrows.
- * A base is confirmed `pumpPeriods` bars after its low, by which point price has
- * usually bounced clear of it, so the mark waits for the first candle that closes
- * within `formedWithinPct` of the base level and prints once per base.
+ * The level-formed signals — one per level, on the candle that CONFIRMS it (the
+ * bar the hold completes, `pumpPeriods` after the extreme itself). No proximity
+ * rule: a confirming candle usually sits well away from the level, and timing an
+ * entry near it is the Price Action indicator's job, not this one's.
  *
- * With `formedRequireRising` on, a signal is only DRAWN when it sits above the
- * previous signal — the trend has to be stepping up. Lower signals are still
- * computed (they are the yardstick the next one is measured against) but never
- * shown, so a staircase of falling bases paints nothing.
+ * Both sides are found in the same pass, each with its own switch:
+ *  - long: BASES (support). Marked when the base is HIGHER than the one before —
+ *    a higher low, so a market stepping down marks nothing.
+ *  - short: CEILINGS (resistance). Marked when the ceiling is LOWER than the one
+ *    before — a lower high, so a market stepping up marks nothing.
+ * A short's take-profit level is the base below it, so leaving both sides on shows
+ * the entry and the target together.
+ *
+ * A level is marked at least `formedMinBars` candles after the last arrow on its
+ * own side. Three deliberate choices, each one a bug that reached the chart first:
+ *  - Compare LEVELS, not the candles the arrows print on. A confirming candle can
+ *    close higher while its level is lower, which drew arrows down a staircase.
+ *  - Compare against the level immediately before it, marked or not — the textbook
+ *    higher low / lower high. Comparing against the highest level ever MARKED was
+ *    tried and left 1 of 11 arrows on a real chart; comparing against the last one
+ *    MARKED (with a reset) let every small bounce in a fall qualify.
+ *  - Count spacing in CANDLES, not percent: in a tight range no percent gap can
+ *    ever be cleared, so the setting silently did nothing.
  */
 function baseFormedSignals(
-  candles: { t: number; c: number; l: number }[],
+  candles: { t: number; c: number; l: number; h: number }[],
   params: Pick<
     BaseParams,
     | "basePeriods"
     | "pumpPeriods"
-    | "formedWithinPct"
-    | "formedValidBars"
-    | "formedRequireRising"
+    | "formedMinBars"
+    | "formedRequireHigherBase"
+    | "formedShowLong"
+    | "formedShowShort"
   >
 ): IndicatorSignal[] {
-  const { raw: bases, confirmed } = qflBase(
-    candles,
-    params.basePeriods,
-    params.pumpPeriods
-  )
-  // Every base's mark, shown or not, with the price it would print at.
-  const candidates: { time: number; price: number }[] = []
-  let awaiting = Number.NaN
-  let confirmedAt = 0
-  for (let i = 0; i < candles.length; i += 1) {
-    if (confirmed[i]) {
-      awaiting = bases[i]
-      confirmedAt = i
+  const sides = [
+    { on: params.formedShowLong, short: false },
+    { on: params.formedShowShort, short: true },
+  ]
+  const signals: IndicatorSignal[] = []
+  for (const { on, short } of sides) {
+    if (!on) continue
+    const { raw: levels, confirmed } = short
+      ? qflCeiling(candles, params.basePeriods, params.pumpPeriods)
+      : qflBase(candles, params.basePeriods, params.pumpPeriods)
+    // Each side counts its own spacing, so the two never crowd each other out.
+    let previous = Number.NaN
+    let markedAt = -Infinity
+    for (let i = 0; i < candles.length; i += 1) {
+      if (!confirmed[i]) continue
+      const level = levels[i]
+      // Long wants a higher low; short wants a lower high. Same rule, mirrored.
+      const withTrend =
+        !Number.isFinite(previous) ||
+        (short ? level < previous : level > previous)
+      previous = level
+      if (params.formedRequireHigherBase && !withTrend) continue
+      if (i - markedAt < params.formedMinBars) continue
+      signals.push({ time: candles[i].t, side: short ? "sell" : "buy" })
+      markedAt = i
     }
-    if (!Number.isFinite(awaiting)) continue
-    // Stale: price never came back inside the window, so this base is done.
-    if (i - confirmedAt > params.formedValidBars) {
-      awaiting = Number.NaN
-      continue
-    }
-    const distancePct = (Math.abs(candles[i].c - awaiting) / awaiting) * 100
-    if (distancePct >= params.formedWithinPct) continue
-    candidates.push({ time: candles[i].t, price: candles[i].c })
-    awaiting = Number.NaN
   }
-
-  return candidates
-    .filter((candidate, index) => {
-      if (!params.formedRequireRising) return true
-      // The first mark has nothing to compare against, so it stands.
-      const previous = candidates[index - 1]
-      return !previous || candidate.price > previous.price
-    })
-    .map((candidate) => ({ time: candidate.time, side: "buy" as const }))
+  // Consumers walk signals with a forward-only cursor, so keep them in order.
+  return signals.sort((a, b) => a.time - b.time)
 }
 
 /**
  * Base (QFL) indicator: forming bases, and NOTHING else. It marks each confirmed
  * price base — a low that formed and then held — and fires ONE long signal per
- * base: the first candle that closes within `formedWithinPct` of the base level
- * and no later than `formedValidBars` candles after the base was confirmed,
- * painted as a green up arrow sitting at the base.
+ * base, on the candle that confirms it, painted as a green up arrow. Timing an
+ * entry back near the base level belongs to the Price Action indicator; this one
+ * only reports that a base is now in place.
  *
  * Breaking a base is deliberately NOT here. The crack rule (price closing
  * `crackPct` under the base after a fast fall) belongs to the DCA ladder, which
@@ -149,14 +169,15 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
   type: "base",
   label: "Base",
   description:
-    "Marks each confirmed price base and signals a long when price is back at that base.",
+    "Marks each confirmed price base and signals a long on the candle that confirms it.",
   paramsSchema,
   defaultParams: {
     basePeriods: 36,
     pumpPeriods: 8,
-    formedWithinPct: 1,
-    formedValidBars: 40,
-    formedRequireRising: true,
+    formedMinBars: 20,
+    formedRequireHigherBase: true,
+    formedShowLong: true,
+    formedShowShort: true,
     crackPct: 2.5,
     maxCrackBars: 4,
     respectFilterEnabled: false,
@@ -176,21 +197,27 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
       info: "How many candles the new low must hold before the base counts as confirmed.",
     },
     {
-      key: "formedWithinPct",
-      label: "Formed within (%)",
-      step: 0.1,
-      info: "How close to the base a candle must close for the formed-base long to print. Candles further away than this are skipped, so the mark lands on the base itself.",
-    },
-    {
-      key: "formedValidBars",
-      label: "Valid for (candles)",
-      info: "How long a base keeps waiting for price to come back to it. If no candle closes near the base within this many candles of it being confirmed, that base goes stale and never prints.",
-    },
-    {
-      key: "formedRequireRising",
-      label: "Only rising signals",
+      key: "formedRequireHigherBase",
+      label: "Only levels with the trend",
       kind: "boolean",
-      info: "Only show a base mark that sits above the previous base mark, so a staircase of lower and lower bases shows nothing. The skipped marks are still measured against, they just aren't drawn.",
+      info: "On: going long, only mark a base above the base before it (a higher low); going short, only mark a ceiling below the ceiling before it (a lower high). Off: mark every level. This is usually why a level has a dash but no arrow.",
+    },
+    {
+      key: "formedShowLong",
+      label: "Show long arrows (bases)",
+      kind: "boolean",
+      info: "Green up arrow and a teal dash at each confirmed base — support.",
+    },
+    {
+      key: "formedShowShort",
+      label: "Show short arrows (ceilings)",
+      kind: "boolean",
+      info: "Red down arrow and a red dash at each confirmed ceiling — resistance.",
+    },
+    {
+      key: "formedMinBars",
+      label: "Minimum candles between arrows",
+      info: "Arrows can never appear closer together than this many candles, so they stop bunching up. Separately and with no setting: an arrow only prints on a floor above the last one marked, and after price sets a lower floor the indicator measures from there.",
     },
     {
       key: "crackPct",
@@ -232,9 +259,10 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
       keys: [
         "basePeriods",
         "pumpPeriods",
-        "formedWithinPct",
-        "formedValidBars",
-        "formedRequireRising",
+        "formedRequireHigherBase",
+        "formedMinBars",
+        "formedShowLong",
+        "formedShowShort",
       ],
     },
     {
@@ -273,6 +301,10 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
             params: {
               basePeriods: params.basePeriods,
               pumpPeriods: params.pumpPeriods,
+              // Each side's dashes follow its own switch, under the SAME names the
+              // chart card uses so the renderer reads one spelling.
+              formedShowLong: params.formedShowLong ? 1 : 0,
+              formedShowShort: params.formedShowShort ? 1 : 0,
             },
           },
         ],

@@ -106,13 +106,14 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     pinned: false,
     // Base forming only — the crack settings live on the automation's Base node
     // for the DCA ladder to read; nothing the chart paints uses them.
+    // Booleans ride as 0/1 in chart configs.
     params: {
       basePeriods: 36,
       pumpPeriods: 8,
-      formedWithinPct: 1,
-      formedValidBars: 40,
-      // Booleans ride as 0/1 in chart configs.
-      formedRequireRising: 1,
+      formedRequireHigherBase: 1,
+      formedMinBars: 20,
+      formedShowLong: 1,
+      formedShowShort: 1,
     },
   },
   {
@@ -249,13 +250,14 @@ export function fairValueGapChartToModuleParams(
  * the DCA node, so they fall back to the module's own defaults here. */
 export function baseChartToModuleParams(
   params: Record<string, number>
-): Record<string, number | boolean> {
+): Record<string, number | string | boolean> {
   return {
     basePeriods: params.basePeriods ?? 36,
     pumpPeriods: params.pumpPeriods ?? 8,
-    formedWithinPct: params.formedWithinPct ?? 1,
-    formedValidBars: params.formedValidBars ?? 40,
-    formedRequireRising: (params.formedRequireRising ?? 1) !== 0,
+    formedRequireHigherBase: (params.formedRequireHigherBase ?? 1) !== 0,
+    formedMinBars: params.formedMinBars ?? 20,
+    formedShowLong: (params.formedShowLong ?? 1) !== 0,
+    formedShowShort: (params.formedShowShort ?? 1) !== 0,
     crackPct: 2.5,
     maxCrackBars: 4,
     respectFilterEnabled: false,
@@ -381,24 +383,31 @@ export const INDICATOR_PARAM_FIELDS: Record<
         "How many candles the new low must hold before the base counts as confirmed. A green up arrow prints on the candle that confirms it.",
     },
     {
-      key: "formedWithinPct",
-      label: "Formed within %",
-      step: 0.1,
-      description:
-        "How close to the base a candle must close for the formed-base arrow to print. Once a base is confirmed the arrow waits for the first candle back at the base and skips anything further away.",
-    },
-    {
-      key: "formedValidBars",
-      label: "Valid for (candles)",
-      description:
-        "How long a base keeps waiting for price to come back. If no candle closes near the base within this many candles of it being confirmed, that base goes stale and never prints an arrow.",
-    },
-    {
-      key: "formedRequireRising",
-      label: "Only rising signals",
+      key: "formedRequireHigherBase",
+      label: "Only levels with the trend",
       kind: "boolean",
       description:
-        "Only draw an arrow that sits above the previous base's arrow, confirming the trend is stepping up. Bases that would print lower are still tracked as the yardstick, they just aren't drawn.",
+        "On: long marks only a base above the base before it (higher low), short marks only a ceiling below the ceiling before it (lower high). Off: mark every level. This is usually why a level has a dash but no arrow.",
+    },
+    {
+      key: "formedShowLong",
+      label: "Show long arrows (bases)",
+      kind: "boolean",
+      description:
+        "Green up arrow and a teal dash at each confirmed base — support.",
+    },
+    {
+      key: "formedShowShort",
+      label: "Show short arrows (ceilings)",
+      kind: "boolean",
+      description:
+        "Red down arrow and a red dash at each confirmed ceiling — resistance.",
+    },
+    {
+      key: "formedMinBars",
+      label: "Minimum candles between arrows",
+      description:
+        "Arrows can never appear closer together than this many candles, so they stop bunching up. An arrow also only prints on a floor above the last one marked; after price sets a lower floor the indicator measures from there.",
     },
   ],
   session: [],

@@ -173,7 +173,7 @@ export async function upsertUserIndicator(
     const ranges: Record<string, [number, number]> = {
       basePeriods: [4, 500],
       pumpPeriods: [1, 499],
-      formedValidBars: [1, 1000],
+      formedMinBars: [1, 1000],
     }
     for (const [key, [min, max]] of Object.entries(ranges)) {
       const value = input.params[key]
@@ -184,18 +184,15 @@ export async function upsertUserIndicator(
         throw new Error(`Invalid Base parameter: ${key}`)
       }
     }
-    const rising = input.params.formedRequireRising
-    if (rising !== undefined && rising !== 0 && rising !== 1) {
-      throw new Error("Invalid Base parameter: formedRequireRising")
+    const higher = input.params.formedRequireHigherBase
+    if (higher !== undefined && higher !== 0 && higher !== 1) {
+      throw new Error("Invalid Base parameter: formedRequireHigherBase")
     }
-    const formedWithinPct = input.params.formedWithinPct
-    if (
-      formedWithinPct !== undefined &&
-      (!Number.isFinite(formedWithinPct) ||
-        formedWithinPct <= 0 ||
-        formedWithinPct > 50)
-    ) {
-      throw new Error("Invalid Base parameter: formedWithinPct")
+    for (const key of ["formedShowLong", "formedShowShort"]) {
+      const value = input.params[key]
+      if (value !== undefined && value !== 0 && value !== 1) {
+        throw new Error(`Invalid Base parameter: ${key}`)
+      }
     }
   }
   if (def.type === "trendline") {
