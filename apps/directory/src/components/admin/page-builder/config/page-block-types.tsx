@@ -10,6 +10,7 @@ import Tags from "lucide-react/dist/esm/icons/tags.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import CalendarDays from "lucide-react/dist/esm/icons/calendar-days.js"
+import CalendarPlus from "lucide-react/dist/esm/icons/calendar-plus.js"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -187,6 +188,19 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       title: 'Upcoming Events',
       subtitle: '',
       defaultView: 'month',
+      visibility: {},
+    }
+  },
+  {
+    type: 'event-submission',
+    name: 'Submit an Event',
+    icon: CalendarPlus,
+    description: 'Public form where visitors submit events for the site owner to review and approve',
+    defaultContent: {
+      title: 'Submit an Event',
+      subtitle: '',
+      submitButtonText: 'Submit Event',
+      successMessage: "Thanks! Your event has been submitted for review. We'll take a look soon.",
       visibility: {},
     }
   },

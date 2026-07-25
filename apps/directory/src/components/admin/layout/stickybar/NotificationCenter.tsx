@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/navigation-client"
 import type { LucideIcon } from "lucide-react"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import Bell from "lucide-react/dist/esm/icons/bell.js"
+import CalendarPlus from "lucide-react/dist/esm/icons/calendar-plus.js"
 import CheckCheck from "lucide-react/dist/esm/icons/check-check.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
@@ -43,6 +44,7 @@ const notificationIcons: Record<HubNotificationItem["type"], LucideIcon> = {
   directory_featured: ShoppingCart,
   directory_featured_expired: AlertTriangle,
   newsletter_paused: AlertTriangle,
+  event_submission: CalendarPlus,
 }
 
 function getHubNotificationErrorMessage(error: unknown) {

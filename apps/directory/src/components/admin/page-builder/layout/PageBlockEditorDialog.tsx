@@ -16,6 +16,7 @@ import { PageCategoriesListingBlock } from "../blocks/categories-listing/PageCat
 import { PageSiteSearchBlock } from "../blocks/site-search/PageSiteSearchBlock"
 import { PageMemberDirectoryBlock } from "../blocks/member-directory/PageMemberDirectoryBlock"
 import { PageEventsCalendarBlock } from "../blocks/events-calendar/PageEventsCalendarBlock"
+import { PageEventSubmissionBlock } from "../blocks/event-submission/PageEventSubmissionBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -144,6 +145,13 @@ export function PageBlockEditorDialog({
 
                 {selectedBlock.type === "events-calendar" && (
                   <PageEventsCalendarBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+
+                {selectedBlock.type === "event-submission" && (
+                  <PageEventSubmissionBlock
                     content={draftContent}
                     onContentChange={onContentChange}
                   />
