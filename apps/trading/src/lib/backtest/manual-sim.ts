@@ -57,10 +57,19 @@ export type ManualSessionSnapshot = {
   tradeCount: number
   wins: number
   maxDrawdownPct: number
-  /** Open notional ÷ equity; 0 when flat. */
+  /** Total open notional ÷ equity; 0 when flat. */
   leverage: number
   pendingOrders: number
-  openPosition: { side: "long" | "short"; entryPx: number; qty: number } | null
+  /** Every open position — each drawn box trades independently. */
+  positions: {
+    side: "long" | "short"
+    entryPx: number
+    qty: number
+    stop: number
+    target: number
+  }[]
+  /** Waiting orders' entry levels, for on-chart "waiting" lines. */
+  pendingEntries: { side: "long" | "short"; px: number }[]
   halted: boolean
   haltReason: string | null
 }
@@ -72,7 +81,8 @@ export class ManualSession {
 
   private cash: number
   private orders = new Map<string, ManualOrder>()
-  private open: ManualOpenPosition | null = null
+  /** Open positions, keyed by their box — every drawn box trades on its own. */
+  private positions = new Map<string, ManualOpenPosition>()
   private trades: BacktestTrade[] = []
   private fills: BacktestFill[] = []
   private equityCurve: BacktestEquityPoint[] = []
@@ -116,17 +126,21 @@ export class ManualSession {
    * the live stop/TP while their position is open), and deleting the open
    * position's box is the manual market close.
    */
-  syncBoxes(positions: ChartPosition[]): void {
+  syncBoxes(boxes: ChartPosition[]): void {
     const seen = new Set<string>()
-    for (const box of positions) {
+    for (const box of boxes) {
       seen.add(box.id)
       if (this.consumed.includes(box.id)) continue
 
-      if (this.open?.boxId === box.id) {
-        if (this.open.stop !== box.stop || this.open.target !== box.target) {
-          this.open.stop = box.stop
-          this.open.target = box.target
-          this.recordProtect()
+      const openPosition = this.positions.get(box.id)
+      if (openPosition) {
+        if (
+          openPosition.stop !== box.stop ||
+          openPosition.target !== box.target
+        ) {
+          openPosition.stop = box.stop
+          openPosition.target = box.target
+          this.recordProtect(openPosition)
         }
         continue
       }
@@ -171,9 +185,9 @@ export class ManualSession {
       }
     }
 
-    // Deleting the open position's box is the user's market exit.
-    if (this.open && !seen.has(this.open.boxId)) {
-      this.closeOpenPosition("manual:close")
+    // Deleting an open position's box is the user's market exit for it.
+    for (const boxId of [...this.positions.keys()]) {
+      if (!seen.has(boxId)) this.closePositionById(boxId, "manual:close")
     }
   }
 
@@ -184,14 +198,15 @@ export class ManualSession {
 
     this.expireOrders(candle)
     if (!this.halted) {
-      if (this.open) {
-        this.checkExit(candle, true)
+      for (const position of [...this.positions.values()]) {
+        this.checkExit(position, candle, true)
       }
-      if (!this.open) {
-        const entered = this.checkEntries(candle)
-        // Entry and exit inside the same candle: assume the adverse path —
-        // the stop is checked first, never the optimistic read.
-        if (entered && this.open) this.checkExit(candle, false)
+      const entered = this.checkEntries(candle)
+      // Entry and exit inside the same candle: assume the adverse path —
+      // the stop is checked first, never the optimistic read.
+      for (const boxId of entered) {
+        const position = this.positions.get(boxId)
+        if (position) this.checkExit(position, candle, false)
       }
     }
 
@@ -227,8 +242,12 @@ export class ManualSession {
     const mark = this.lastClose
     const openPnl = mark === null ? 0 : this.unrealized(mark)
     const equity = this.cash + openPnl
-    const notional =
-      this.open && mark !== null ? this.open.qty * mark : 0
+    let notional = 0
+    if (mark !== null) {
+      for (const position of this.positions.values()) {
+        notional += position.qty * mark
+      }
+    }
     return {
       equity,
       openPnl,
@@ -238,13 +257,17 @@ export class ManualSession {
       maxDrawdownPct: this.maxDrawdownPct,
       leverage: equity > 0 && notional > 0 ? notional / equity : 0,
       pendingOrders: this.orders.size,
-      openPosition: this.open
-        ? {
-            side: this.open.side,
-            entryPx: this.open.entryPx,
-            qty: this.open.qty,
-          }
-        : null,
+      positions: [...this.positions.values()].map((position) => ({
+        side: position.side,
+        entryPx: position.entryPx,
+        qty: position.qty,
+        stop: position.stop,
+        target: position.target,
+      })),
+      pendingEntries: [...this.orders.values()].map((order) => ({
+        side: order.side,
+        px: order.entry,
+      })),
       halted: this.halted,
       haltReason: this.haltReason,
     }
@@ -255,7 +278,9 @@ export class ManualSession {
    * and everything is totaled into a normal BacktestResult.
    */
   finalize(): BacktestResult {
-    if (this.open) this.closeOpenPosition("manual:close")
+    for (const boxId of [...this.positions.keys()]) {
+      this.closePositionById(boxId, "manual:close")
+    }
     for (const order of this.orders.values()) {
       this.recordOrder(order, "cancel")
     }
@@ -294,18 +319,21 @@ export class ManualSession {
   }
 
   /**
-   * Fills the first waiting order the candle triggers. The entry fills at its
-   * own price when the bar's range trades through it; a bar that gapped past
-   * the entry at the open fills at the open instead.
+   * Fills EVERY waiting order the candle triggers — each drawn box trades
+   * independently. An entry fills at its own price when the bar's range
+   * trades through it; a bar that gapped past the entry at the open fills at
+   * the open instead. Sizing risks the chosen percent of current cash, so
+   * each additional concurrent trade naturally sizes off what's left.
    */
-  private checkEntries(candle: HistoryCandle): boolean {
-    if (this.halted) return false
+  private checkEntries(candle: HistoryCandle): string[] {
+    const entered: string[] = []
+    if (this.halted) return entered
     for (const [boxId, order] of this.orders) {
       const fillPx = this.entryFillPrice(order.entry, candle)
       if (fillPx === null) continue
 
       const equity = this.cash
-      if (!(equity > 0)) return false
+      if (!(equity > 0)) break
       const stopDistance = Math.abs(fillPx - order.stop)
       if (!(stopDistance > 0) || !(fillPx > 0)) continue
       const riskUsd = (equity * this.riskPct) / 100
@@ -319,7 +347,7 @@ export class ManualSession {
       const fee = this.fee(qty * fillPx, crossed ? "taker" : "maker")
       this.cash -= fee
       this.orders.delete(boxId)
-      this.open = {
+      const position: ManualOpenPosition = {
         boxId,
         side: order.side,
         qty,
@@ -329,6 +357,7 @@ export class ManualSession {
         stop: order.stop,
         target: order.target,
       }
+      this.positions.set(boxId, position)
       this.fills.push({
         t: candle.t,
         side: order.side === "long" ? "buy" : "sell",
@@ -347,10 +376,10 @@ export class ManualSession {
         px: fillPx,
         sz: qty,
       })
-      this.recordProtect(candle.t)
-      return true
+      this.recordProtect(position, candle.t)
+      entered.push(boxId)
     }
-    return false
+    return entered
   }
 
   /** The entry's fill price for this candle, or null when it doesn't trigger. */
@@ -368,96 +397,119 @@ export class ManualSession {
   }
 
   /**
-   * Checks the open position's exits inside this candle, stop before target.
+   * Checks one position's exits inside this candle, stop before target.
    * `allowGap` is false when the position was opened this same bar — the open
    * price happened before the entry, so gap-at-open branches don't apply.
    */
-  private checkExit(candle: HistoryCandle, allowGap: boolean): void {
-    const open = this.open
-    if (!open) return
-    const long = open.side === "long"
+  private checkExit(
+    position: ManualOpenPosition,
+    candle: HistoryCandle,
+    allowGap: boolean
+  ): void {
+    if (!this.positions.has(position.boxId)) return
+    const long = position.side === "long"
 
-    const stopGapped = long ? candle.o <= open.stop : candle.o >= open.stop
-    const stopTouched = long ? candle.l <= open.stop : candle.h >= open.stop
+    const stopGapped = long
+      ? candle.o <= position.stop
+      : candle.o >= position.stop
+    const stopTouched = long
+      ? candle.l <= position.stop
+      : candle.h >= position.stop
     if (allowGap && stopGapped) {
       // Gapped through the stop: exit at the open, not the stop — honest slippage.
-      this.exitOpenPosition(candle.o, candle.t, "taker", "manual:sl")
+      this.exitPosition(position, candle.o, candle.t, "taker", "manual:sl")
       return
     }
     if (stopTouched) {
-      this.exitOpenPosition(open.stop, candle.t, "taker", "manual:sl")
+      this.exitPosition(position, position.stop, candle.t, "taker", "manual:sl")
       return
     }
 
-    const targetGapped = long ? candle.o >= open.target : candle.o <= open.target
-    const targetTouched = long ? candle.h >= open.target : candle.l <= open.target
+    const targetGapped = long
+      ? candle.o >= position.target
+      : candle.o <= position.target
+    const targetTouched = long
+      ? candle.h >= position.target
+      : candle.l <= position.target
     if (allowGap && targetGapped) {
       // A favorable gap on a resting limit really does fill at the open.
-      this.exitOpenPosition(candle.o, candle.t, "maker", "manual:tp")
+      this.exitPosition(position, candle.o, candle.t, "maker", "manual:tp")
       return
     }
     if (targetTouched) {
-      this.exitOpenPosition(open.target, candle.t, "maker", "manual:tp")
+      this.exitPosition(
+        position,
+        position.target,
+        candle.t,
+        "maker",
+        "manual:tp"
+      )
     }
   }
 
-  /** Market-closes the open position at the last processed price. */
-  private closeOpenPosition(purpose: string): void {
-    if (!this.open || this.lastClose === null) {
-      // Nothing has been processed yet, so nothing can be open.
-      this.open = null
+  /** Market-closes one position at the last processed price. */
+  private closePositionById(boxId: string, purpose: string): void {
+    const position = this.positions.get(boxId)
+    if (!position) return
+    if (this.lastClose === null) {
+      // Nothing has been processed yet, so nothing can really be open.
+      this.positions.delete(boxId)
       return
     }
-    this.exitOpenPosition(this.lastClose, this.lastTimeMs, "taker", purpose)
+    this.exitPosition(position, this.lastClose, this.lastTimeMs, "taker", purpose)
   }
 
-  private exitOpenPosition(
+  private exitPosition(
+    position: ManualOpenPosition,
     px: number,
     t: number,
     feeKind: "taker" | "maker",
     purpose: string
   ): void {
-    const open = this.open
-    if (!open) return
-    const direction = open.side === "long" ? 1 : -1
-    const gross = (px - open.entryPx) * open.qty * direction
-    const fee = this.fee(open.qty * px, feeKind)
+    if (!this.positions.delete(position.boxId)) return
+    const direction = position.side === "long" ? 1 : -1
+    const gross = (px - position.entryPx) * position.qty * direction
+    const fee = this.fee(position.qty * px, feeKind)
     this.cash += gross - fee
 
-    const pnl = gross - open.entryFee - fee
+    const pnl = gross - position.entryFee - fee
     this.cumPnl += pnl
-    const notional = open.entryPx * open.qty
+    const notional = position.entryPx * position.qty
     this.trades.push({
       n: this.trades.length + 1,
-      side: open.side,
-      entryTime: open.entryTime,
-      entryPx: open.entryPx,
+      side: position.side,
+      entryTime: position.entryTime,
+      entryPx: position.entryPx,
       exitTime: t,
       exitPx: px,
-      qty: open.qty,
+      qty: position.qty,
       pnl,
       returnPct: notional > 0 ? (pnl / notional) * 100 : 0,
       cumPnl: this.cumPnl,
     })
     this.fills.push({
       t,
-      side: open.side === "long" ? "sell" : "buy",
+      side: position.side === "long" ? "sell" : "buy",
       px,
-      sz: open.qty,
+      sz: position.qty,
       fee,
       closedPnl: gross,
       purpose,
     })
-    this.recordEvent({ t, k: "protect", stopPx: null, tpPx: null })
-    this.consumed.push(open.boxId)
-    this.open = null
+    // The replay tape's protect line follows whichever position remains (or
+    // clears when the last one closes).
+    const remaining = [...this.positions.values()]
+    const nextProtect = remaining[remaining.length - 1]
+    if (nextProtect) this.recordProtect(nextProtect, t)
+    else this.recordEvent({ t, k: "protect", stopPx: null, tpPx: null })
+    this.consumed.push(position.boxId)
   }
 
   private halt(candle: HistoryCandle): void {
     this.halted = true
     this.haltReason = "Wallet depleted — equity reached zero."
-    if (this.open) {
-      this.exitOpenPosition(candle.c, candle.T, "taker", "manual:close")
+    for (const position of [...this.positions.values()]) {
+      this.exitPosition(position, candle.c, candle.T, "taker", "manual:close")
     }
     for (const [boxId, order] of this.orders) {
       this.orders.delete(boxId)
@@ -472,9 +524,12 @@ export class ManualSession {
   }
 
   private unrealized(mark: number): number {
-    if (!this.open) return 0
-    const direction = this.open.side === "long" ? 1 : -1
-    return (mark - this.open.entryPx) * this.open.qty * direction
+    let total = 0
+    for (const position of this.positions.values()) {
+      const direction = position.side === "long" ? 1 : -1
+      total += (mark - position.entryPx) * position.qty * direction
+    }
+    return total
   }
 
   private fee(notional: number, kind: "taker" | "maker"): number {
@@ -501,12 +556,12 @@ export class ManualSession {
     })
   }
 
-  private recordProtect(atMs?: number): void {
+  private recordProtect(position: ManualOpenPosition, atMs?: number): void {
     this.recordEvent({
       t: atMs ?? this.lastTimeMs,
       k: "protect",
-      stopPx: this.open?.stop ?? null,
-      tpPx: this.open?.target ?? null,
+      stopPx: position.stop,
+      tpPx: position.target,
     })
   }
 

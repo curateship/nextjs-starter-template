@@ -36,11 +36,27 @@ order form — **the drawing is the order**.
   capped at 10× equity.
 - While a position is open, dragging the red/green edges moves the live
   stop/take-profit. Deleting the open position's box is the manual market
-  close. One open position at a time; other boxes rest as waiting orders.
+  close. **Every drawn box trades independently** — several waiting orders
+  can trigger and run as concurrent positions, each with its own stop and
+  take-profit; each new fill sizes its risk off the cash that's left.
 - **Time only moves forward** during a session — play, pause, speed, and step,
   but never rewind. That keeps the scorecard honest.
+- **Time holds while you draw**: arming a drawing tool or dragging a box
+  pauses the tape until you release, so the axis can never slide under your
+  cursor mid-gesture and the chart never lurches to catch up afterwards.
+- **Frame-locked drawings**: the drawing overlays commit their new positions
+  in the same rendering pass as any chart movement (follow, pan, zoom,
+  resize), so boxes and trendlines stay welded to their candles at any
+  replay speed. The chart scrolls smoothly during playback, exactly like
+  the live trading chart.
 - The HUD strip shows wallet, open P&L, realized P&L, trades, win rate, max
   drawdown, working orders, and effective leverage in real time.
+- **You always know when you're in a trade**: an open position paints
+  full-width price lines with axis labels — a bold "Long/Short entry" line
+  plus dashed Stop and TP lines — and every waiting order paints an amber
+  "Buy/Sell waiting" line. Your own fills are lettered chips (O = opened,
+  C = closed) in the trade's side color, visually distinct from indicator
+  signal arrows.
 - **Spacebar** starts and pauses playback (ignored while typing, while a
   modal is open, or while focus sits on a button/menu — those keep their own
   Space behavior).

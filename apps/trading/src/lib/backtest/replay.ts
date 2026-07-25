@@ -49,12 +49,12 @@ export function aggregateCandles<
   return buckets
 }
 
-/** Candles revealed at a replay cutoff: everything opening at or before it. */
-export function visibleCandlesUpTo<T extends { t: number }>(
+/** How many candles a replay cutoff reveals: opens at or before it. */
+export function countRevealed<T extends { t: number }>(
   candles: T[],
   cutoffMs: number | null
-): T[] {
-  if (cutoffMs === null) return candles
+): number {
+  if (cutoffMs === null) return candles.length
   let lo = 0
   let hi = candles.length
   while (lo < hi) {
@@ -62,5 +62,14 @@ export function visibleCandlesUpTo<T extends { t: number }>(
     if (candles[mid].t <= cutoffMs) lo = mid + 1
     else hi = mid
   }
-  return candles.slice(0, lo)
+  return lo
+}
+
+/** Candles revealed at a replay cutoff: everything opening at or before it. */
+export function visibleCandlesUpTo<T extends { t: number }>(
+  candles: T[],
+  cutoffMs: number | null
+): T[] {
+  const count = countRevealed(candles, cutoffMs)
+  return count === candles.length ? candles : candles.slice(0, count)
 }

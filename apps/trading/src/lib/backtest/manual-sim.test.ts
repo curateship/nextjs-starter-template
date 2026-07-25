@@ -52,7 +52,9 @@ describe("ManualSession", () => {
     sim.syncBoxes([box({ entry: 100, stop: 90, target: 120 })])
     sim.processBar(bar(0, 105, 106, 99, 105))
     const snap = sim.snapshot()
-    expect(snap.openPosition).toEqual({ side: "long", entryPx: 100, qty: 10 })
+    expect(snap.positions).toEqual([
+      { side: "long", entryPx: 100, qty: 10, stop: 90, target: 120 },
+    ])
     expect(snap.pendingOrders).toBe(0)
   })
 
@@ -74,7 +76,7 @@ describe("ManualSession", () => {
     sim.processBar(bar(0, 100, 101, 99, 100))
     sim.syncBoxes([box({ entry: 95, stop: 85, target: 115 })])
     sim.processBar(bar(1, 90, 91, 88, 89))
-    expect(sim.snapshot().openPosition?.entryPx).toBe(90)
+    expect(sim.snapshot().positions[0]?.entryPx).toBe(90)
   })
 
   it("assumes the stop when entry, stop and target share one candle", () => {
@@ -101,7 +103,7 @@ describe("ManualSession", () => {
     const sim = session()
     sim.syncBoxes([box({ side: "short", entry: 100, stop: 110, target: 80 })])
     sim.processBar(bar(0, 95, 101, 94, 96))
-    expect(sim.snapshot().openPosition?.side).toBe("short")
+    expect(sim.snapshot().positions[0]?.side).toBe("short")
     sim.processBar(bar(1, 96, 97, 79, 82))
     const result = sim.finalize()
     expect(result.trades[0].exitPx).toBe(80)
@@ -124,7 +126,7 @@ describe("ManualSession", () => {
     sim.syncBoxes([box({ entry: 100, stop: 99.9, target: 120 })])
     sim.processBar(bar(0, 100, 101, 99.95, 100))
     // Uncapped: $1,000 risk / $0.10 = 10,000 units ($1M). Cap: 10×$10k / $100.
-    expect(sim.snapshot().openPosition?.qty).toBeCloseTo(1000)
+    expect(sim.snapshot().positions[0]?.qty).toBeCloseTo(1000)
   })
 
   it("treats deleting the open position's box as a market close", () => {
@@ -158,7 +160,7 @@ describe("ManualSession", () => {
     const snap = sim.snapshot()
     expect(snap.halted).toBe(true)
     expect(snap.haltReason).toMatch(/depleted/i)
-    expect(snap.openPosition).toBeNull()
+    expect(snap.positions).toEqual([])
     // New boxes refuse to become orders once halted.
     sim.syncBoxes([box({ id: "b2", entry: 2, stop: 1, target: 3 })])
     expect(sim.snapshot().pendingOrders).toBe(0)
@@ -172,6 +174,27 @@ describe("ManualSession", () => {
     expect(result.openPosition).toBeNull()
     expect(result.trades).toHaveLength(1)
     expect(result.trades[0].exitPx).toBe(108)
+  })
+
+  it("runs several boxes concurrently — a second buy triggers while the first is open", () => {
+    const sim = session()
+    sim.syncBoxes([
+      box({ id: "b1", entry: 100, stop: 90, target: 200 }),
+      box({ id: "b2", entry: 95, stop: 85, target: 190 }),
+    ])
+    // First bar fills b1 at 100; b2 (95) not yet touched.
+    sim.processBar(bar(0, 100, 101, 99, 100))
+    expect(sim.snapshot().positions).toHaveLength(1)
+    // Second bar dips to 94 — b2 must fill even though b1 is still open.
+    sim.processBar(bar(1, 99, 100, 94, 96))
+    const snap = sim.snapshot()
+    expect(snap.positions).toHaveLength(2)
+    expect(snap.pendingOrders).toBe(0)
+    // Both stops hit on a crash bar → two closed trades.
+    sim.processBar(bar(2, 95, 96, 84, 86))
+    const result = sim.finalize()
+    expect(result.trades).toHaveLength(2)
+    expect(result.trades.every((trade) => trade.pnl < 0)).toBe(true)
   })
 
   it("survives a session with zero trades", () => {

@@ -176,3 +176,12 @@ export function PracticeMiniChart({
     </div>
   )
 }
+
+// Dev-only: practice sessions hold live engine and playback state that does
+// not survive hot swapping coherently — stale module generations show up as
+// drawings "skipping". Any edit reaching this module reloads the page.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
+}

@@ -5,8 +5,15 @@ import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { computeIndicatorPaint } from "@/components/chart/indicator-paint"
 import { IndicatorsMenu } from "@/components/chart/indicators-menu"
 import {
+  CHART_DOWN_COLOR,
+  CHART_UP_COLOR,
+} from "@/components/chart/chart-markers"
+import { CHIP_COLORS } from "@/components/chart/trade-chips"
+import {
   PriceChartView,
   type ChartMarker,
+  type ChartPriceLine,
+  type PriceChartHandle,
 } from "@/components/chart/price-chart"
 import { MarketPicker } from "@/components/trading/market-watchlist"
 import { Button } from "@/components/ui/button"
@@ -48,7 +55,7 @@ import {
 } from "@/lib/backtest/manual-types"
 import {
   aggregateCandles,
-  visibleCandlesUpTo,
+  countRevealed,
   type ReplaySpeed,
 } from "@/lib/backtest/replay"
 import {
@@ -100,6 +107,10 @@ const EDGE_BUFFER_MS = 2 * DAY_MS
 
 const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 const EMPTY_CANDLES: HistoryCandle[] = []
+/** Most candles the display chart holds at once — playback speed guard. */
+const DISPLAY_CANDLE_CAP = 6000
+/** Amber for resting entries — the same hue the replay tape uses. */
+const WAITING_ORDER_COLOR = "#f59e0b"
 
 export type PracticeConfig = {
   market: string
@@ -539,6 +550,19 @@ function ActiveSession({
   const lastFillCountRef = React.useRef(0)
   const [drawings, setDrawings] =
     React.useState<ChartDrawings>(EMPTY_CHART_DRAWINGS)
+  // Skip tripwire: the chart's drag handler checks a continuity invariant on
+  // every move event (a drawing may never move further than the pointer did)
+  // and reports violations here, frozen on screen until dismissed.
+  const [skipReport, setSkipReport] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    const onAnomaly = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      const at = new Date().toLocaleTimeString("en-US", { hour12: false })
+      setSkipReport(`Skip detected at ${at} — ${detail}`)
+    }
+    window.addEventListener("practice-drag-anomaly", onAnomaly)
+    return () => window.removeEventListener("practice-drag-anomaly", onAnomaly)
+  }, [])
   // Bumped after every engine mutation so the HUD and markers re-derive.
   const [version, setVersion] = React.useState(0)
   const [saving, setSaving] = React.useState(false)
@@ -648,9 +672,17 @@ function ActiveSession({
   )
 
   // Playback: advance the playhead speed × bars per second, stop at the end.
+  // Time HOLDS while a drawing gesture is in flight — advancing would slide
+  // the axis under the pointer (the drag runs away) or pile up off-screen
+  // bars that lurch the view the moment the gesture ends.
+  const chartApiRef = React.useRef<PriceChartHandle | null>(null)
+  const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
+    chartApiRef.current = api
+  }, [])
   React.useEffect(() => {
     if (!playing) return
     const timer = window.setInterval(() => {
+      if (chartApiRef.current?.drawingGestureActive()) return
       const next =
         playheadRef.current + sessionStepMs * speed * (TICK_MS / 1000)
       if (next >= endMs) setPlaying(false)
@@ -659,8 +691,33 @@ function ActiveSession({
     return () => window.clearInterval(timer)
   }, [playing, speed, sessionStepMs, endMs, advanceTo])
 
+  // A box drawn on a fine display timeframe can be only minutes wide — its
+  // waiting order would expire within a session bar or two, reading as "my
+  // buy never triggers". Every fresh box gets a minimum lifetime of 20
+  // SESSION candles from the current playhead; the drawing widens to match
+  // so the visible right edge always tells the true expiry.
+  const knownBoxIdsRef = React.useRef(new Set<string>())
+  const withMinimumLifetime = React.useCallback(
+    (next: ChartDrawings): ChartDrawings => {
+      const stepSec = sessionStepMs / 1000
+      const floorEndSec =
+        Math.floor(playheadRef.current / 1000) + 20 * stepSec
+      let changed = false
+      const positions = next.positions.map((position) => {
+        if (knownBoxIdsRef.current.has(position.id)) return position
+        knownBoxIdsRef.current.add(position.id)
+        if (position.endTime >= floorEndSec) return position
+        changed = true
+        return { ...position, endTime: floorEndSec }
+      })
+      return changed ? { ...next, positions } : next
+    },
+    [sessionStepMs]
+  )
+
   const handleDrawingsCommit = React.useCallback(
-    (next: ChartDrawings) => {
+    (raw: ChartDrawings) => {
+      const next = withMinimumLifetime(raw)
       // After Done the drawings are annotation only — the engine is frozen.
       if (resultRef.current) {
         setDrawings(next)
@@ -680,7 +737,7 @@ function ActiveSession({
       )
       setVersion((v) => v + 1)
     },
-    [engine]
+    [engine, withMinimumLifetime]
   )
 
   // Timeframes without data yet (the main display, and the mini chart when
@@ -728,6 +785,9 @@ function ActiveSession({
       const loaded = candleStoreRef.current[displayInterval]
       const floor = loaded?.[0]?.t
       if (floor === undefined) return
+      // Once the display cap is reached, older history can't be shown anyway
+      // — backfilling further would fetch in a loop for nothing.
+      if ((loaded?.length ?? 0) >= DISPLAY_CANDLE_CAP) return
       if (fromSec * 1000 > floor + EDGE_BUFFER_MS) return
       if (loadingOlderRef.current) return
       loadingOlderRef.current = true
@@ -758,54 +818,84 @@ function ActiveSession({
     [displayInterval, config.market]
   )
 
-  const visibleCandles = React.useMemo(
-    () => visibleCandlesUpTo(displayCandles, playheadMs),
-    [displayCandles, playheadMs]
-  )
+  // Revealed count first, array second: the playhead advances every 100ms
+  // tick, but a new ARRAY identity must only appear when a bar is actually
+  // revealed — otherwise every tick re-runs the chart's whole indicator and
+  // paint pipeline over the full history and playback stutters.
+  const revealedCount = countRevealed(displayCandles, playheadMs)
+  // Cap what the chart holds to the recent stretch: a month of 1m candles is
+  // ~45k, and repainting + indicator math over all of them on every revealed
+  // bar starves the playback clock (time barely moves — orders look like
+  // they never trigger). 6,000 candles ≈ 4 days of 1m / 20 days of 5m; the
+  // session timeframe and coarser keep their full depth.
+  const visibleCandles = React.useMemo(() => {
+    const revealed = displayCandles.slice(0, revealedCount)
+    return revealed.length > DISPLAY_CANDLE_CAP
+      ? revealed.slice(-DISPLAY_CANDLE_CAP)
+      : revealed
+  }, [displayCandles, revealedCount])
 
   // Mini-chart candles at its own timeframe, honest to the playhead: finer or
   // equal timeframes clip fetched candles; coarser ones aggregate the
   // revealed session candles so the newest bucket forms live.
   const miniStepMs = INTERVAL_MS[miniInterval as BacktestInterval]
   const sessionCandles = candleStore[sessionInterval] ?? EMPTY_CANDLES
+  const miniSource =
+    miniStepMs > sessionStepMs
+      ? sessionCandles
+      : (candleStore[miniInterval] ?? EMPTY_CANDLES)
+  // Same identity discipline as the main chart: recompute only per revealed
+  // bar, never per playback tick.
+  const miniRevealed = miniOpen ? countRevealed(miniSource, playheadMs) : 0
   const miniCandles = React.useMemo(() => {
     if (!miniOpen) return EMPTY_CANDLES
-    if (miniStepMs > sessionStepMs) {
-      return aggregateCandles(
-        visibleCandlesUpTo(sessionCandles, playheadMs),
-        miniStepMs
-      )
-    }
-    return visibleCandlesUpTo(
-      candleStore[miniInterval] ?? EMPTY_CANDLES,
-      playheadMs
-    )
-  }, [
-    miniOpen,
-    miniStepMs,
-    sessionStepMs,
-    sessionCandles,
-    candleStore,
-    miniInterval,
-    playheadMs,
-  ])
+    const revealed = miniSource.slice(0, miniRevealed)
+    const folded =
+      miniStepMs > sessionStepMs
+        ? aggregateCandles(revealed, miniStepMs)
+        : revealed
+    // Same display cap as the main chart — a fine mini timeframe would
+    // otherwise hold a month of 1m candles and drag playback down.
+    return folded.length > DISPLAY_CANDLE_CAP
+      ? folded.slice(-DISPLAY_CANDLE_CAP)
+      : folded
+  }, [miniOpen, miniSource, miniRevealed, miniStepMs, sessionStepMs])
 
+  // Lettered chips (O = opened, C = closed) so the user's own fills can never
+  // be mistaken for indicator signal arrows.
   const fillMarkers = React.useMemo<ChartMarker[]>(
     () =>
-      engine.listFills().map((fill) => ({
-        time: fill.t,
-        side: fill.side,
-        price: fill.px,
-      })),
+      engine.listFills().map((fill) => {
+        const isEntry = /^manual:(b|s):/.test(fill.purpose)
+        const long = isEntry ? fill.side === "buy" : fill.side === "sell"
+        return {
+          time: fill.t,
+          side: fill.side,
+          price: fill.px,
+          letter: isEntry ? ("O" as const) : ("C" as const),
+          color: long ? CHIP_COLORS.long : CHIP_COLORS.short,
+        }
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [engine, version]
   )
 
   // The pinned indicators' derived paint (signal arrows, zones, bar colors),
-  // computed over the revealed candles only — indicators can't see the future.
+  // computed over the revealed candles only — indicators can't see the
+  // future. Capped to the most recent candles: on a 1m display a month is
+  // ~45k candles, and recomputing heavy indicators over all of them on every
+  // revealed bar makes playback crawl (which reads as orders never
+  // triggering — time is barely moving).
+  const paintCandles = React.useMemo(
+    () =>
+      visibleCandles.length > 4000
+        ? visibleCandles.slice(-4000)
+        : visibleCandles,
+    [visibleCandles]
+  )
   const paint = React.useMemo(
-    () => computeIndicatorPaint(pinnedIndicators, visibleCandles, displayStepMs),
-    [pinnedIndicators, visibleCandles, displayStepMs]
+    () => computeIndicatorPaint(pinnedIndicators, paintCandles, displayStepMs),
+    [pinnedIndicators, paintCandles, displayStepMs]
   )
   const markers = React.useMemo(
     () => [...fillMarkers, ...paint.markers],
@@ -829,7 +919,7 @@ function ActiveSession({
     if (previous === null || !pauseOnSignal) return
     if (latest <= previous) return
     const state = engine.snapshot()
-    if (state.pendingOrders > 0 || state.openPosition) return
+    if (state.pendingOrders > 0 || state.positions.length > 0) return
     // Pausing the transport in reaction to freshly derived paint is the whole
     // point here — a one-shot, guarded state write, not a render cascade.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -842,6 +932,51 @@ function ActiveSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [engine, version]
   )
+
+  // Unmissable in-trade presence: full-width price lines for the open
+  // position's entry/stop/TP and each waiting order's entry, with axis
+  // labels — the same language the live terminal speaks.
+  const tradeLines = React.useMemo<ChartPriceLine[]>(() => {
+    const lines: ChartPriceLine[] = []
+    for (const [index, open] of snap.positions.entries()) {
+      const long = open.side === "long"
+      lines.push({
+        id: `live-entry-${index}`,
+        price: open.entryPx,
+        color: long ? CHART_UP_COLOR : CHART_DOWN_COLOR,
+        title: long ? "Long entry" : "Short entry",
+        lineWidth: 2,
+        axisLabelVisible: true,
+      })
+      lines.push({
+        id: `live-stop-${index}`,
+        price: open.stop,
+        color: CHART_DOWN_COLOR,
+        title: "Stop",
+        lineStyle: "dashed",
+        axisLabelVisible: true,
+      })
+      lines.push({
+        id: `live-tp-${index}`,
+        price: open.target,
+        color: CHART_UP_COLOR,
+        title: "TP",
+        lineStyle: "dashed",
+        axisLabelVisible: true,
+      })
+    }
+    for (const [index, order] of snap.pendingEntries.entries()) {
+      lines.push({
+        id: `live-wait-${index}`,
+        price: order.px,
+        color: WAITING_ORDER_COLOR,
+        title: order.side === "long" ? "Buy waiting" : "Sell waiting",
+        lineStyle: "dashed",
+        axisLabelVisible: true,
+      })
+    }
+    return lines
+  }, [snap])
 
   // A session with any processed history is worth a warning before losing it
   // — unless the user explicitly discarded it via Restart / New run.
@@ -991,6 +1126,22 @@ function ActiveSession({
           You reached the end of the window. Press Done to save your scorecard.
         </div>
       ) : null}
+      {skipReport ? (
+        <div
+          role="alert"
+          className="flex items-center gap-3 border-b border-destructive bg-destructive/15 px-4 py-1.5 text-xs font-medium text-destructive"
+        >
+          <span className="min-w-0 flex-1">{skipReport}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => setSkipReport(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
         <WorkspacePanel className="flex h-full flex-col">
           <ChartToolbar
@@ -1025,6 +1176,7 @@ function ActiveSession({
               loading={displayCandles.length === 0}
               dataKey={`practice:${config.market}:${displayInterval}`}
               markers={markers}
+              priceLines={tradeLines}
               indicators={pinnedIndicators}
               overlayLines={paint.overlayLines}
               zones={paint.zones}
@@ -1033,6 +1185,7 @@ function ActiveSession({
               onDrawingsChange={setDrawings}
               onDrawingsCommit={handleDrawingsCommit}
               onVisibleRangeChange={handleVisibleRange}
+              registerApi={registerChartApi}
             />
             {miniOpen ? (
               <PracticeMiniChart
@@ -1246,4 +1399,13 @@ function HudStat({
       </span>
     </span>
   )
+}
+
+// Dev-only: practice sessions hold live engine and playback state that does
+// not survive hot swapping coherently — stale module generations show up as
+// drawings "skipping". Any edit reaching this module reloads the page.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
 }

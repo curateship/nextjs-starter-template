@@ -149,7 +149,13 @@ export function ReplayTransport({
             <ChevronDownIcon className="size-3" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-16">
+        <DropdownMenuContent
+          align="start"
+          className="min-w-16"
+          // Keep focus OFF the trigger after closing: with it focused, the
+          // next Space press reopens this menu instead of toggling playback.
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           {REPLAY_SPEED_OPTIONS.map((option) => (
             <DropdownMenuCheckboxItem
               key={option}
@@ -182,4 +188,13 @@ export function ReplayTransport({
       </span>
     </div>
   )
+}
+
+// Dev-only: practice sessions hold live engine and playback state that does
+// not survive hot swapping coherently — stale module generations show up as
+// drawings "skipping". Any edit reaching this module reloads the page.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
 }

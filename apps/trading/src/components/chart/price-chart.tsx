@@ -1,4 +1,5 @@
 import * as React from "react"
+import { flushSync } from "react-dom"
 import { Trash2Icon, XIcon } from "lucide-react"
 import type {
   CandlestickData,
@@ -155,6 +156,13 @@ export type PriceChartHandle = {
    * a confirm dialog) so the line doesn't linger at the dropped price.
    */
   revertLine: (id: string) => void
+  /**
+   * True while a drawing gesture is in flight (a draw tool armed, or a
+   * position box / trendline drag mid-press). A replay parent holds its
+   * playhead still during gestures so the time axis can't slide under the
+   * pointer — nor pile up bars that would make the view lurch afterwards.
+   */
+  drawingGestureActive: () => boolean
 }
 
 /** A fill pulsed on the chart to locate a focused trade among the markers. */
@@ -377,8 +385,6 @@ export function PriceChartView({
   const firstTimeRef = React.useRef<number>(0)
   const prevLenRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
-  /** Bars the replay follow skipped while a drawing gesture froze the view. */
-  const followCatchupRef = React.useRef(0)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
   // One short line series per base mark — separate series so marks never
   // connect to each other across the gaps between them.
@@ -598,12 +604,20 @@ export function PriceChartView({
     }
   }, [])
 
+  const drawingGestureActive = React.useCallback(
+    () =>
+      activeToolRef.current !== null ||
+      positionDragRef.current !== null ||
+      trendlineDragRef.current !== null,
+    []
+  )
+
   // Hand the imperative API up so a parent can add "Reset View" to its own menu.
   React.useEffect(() => {
     if (!registerApi) return
-    registerApi({ resetView, revertLine })
+    registerApi({ resetView, revertLine, drawingGestureActive })
     return () => registerApi(null)
-  }, [registerApi, resetView, revertLine])
+  }, [registerApi, resetView, revertLine, drawingGestureActive])
 
   React.useEffect(() => {
     const chart = chartRef.current
@@ -957,14 +971,21 @@ export function PriceChartView({
             const point = chartPoint(event)
             if (!point) return
             const interval = barIntervalSec()
+            // Width scales with the current zoom (~8% of the visible span)
+            // so a fresh box reads as a box at any zoom level instead of a
+            // sliver; the fixed bar count only remains as a floor.
+            const range = chart.timeScale().getVisibleLogicalRange()
+            const widthBars = Math.max(
+              DEFAULT_POSITION_BARS,
+              Math.round(range ? (range.to - range.from) * 0.08 : 0)
+            )
             const next = createChartPosition({
               id: `position-${Date.now()}`,
               side: tool,
               entry: point.price,
               startTime: point.time,
               endTime:
-                point.time +
-                (interval > 0 ? interval * DEFAULT_POSITION_BARS : 1),
+                point.time + (interval > 0 ? interval * widthBars : 1),
             })
             const current = drawingsRef.current
             applyDrawings(
@@ -1079,6 +1100,19 @@ export function PriceChartView({
         }
 
         const onMouseMove = (event: MouseEvent) => {
+          // Self-healing drags: if any drag is armed but the primary button
+          // is no longer held (a missed mouseup, a stale handler surviving a
+          // hot reload), end it immediately instead of yanking the drawing
+          // around under a button-less pointer.
+          if (
+            (event.buttons & 1) === 0 &&
+            (positionDragRef.current ||
+              trendlineDragRef.current ||
+              draggingRef.current)
+          ) {
+            endDrag()
+            return
+          }
           if (activeToolRef.current) {
             const draft = trendlineDraftRef.current
             const point = chartPoint(event)
@@ -1116,7 +1150,51 @@ export function PriceChartView({
             const point = chartPoint(event)
             if (point) {
               positionDrag.moved = true
-              writePosition(dragChartPosition(positionDrag, point), false)
+              const next = dragChartPosition(positionDrag, point)
+              // Continuity tripwire: between two consecutive move events the
+              // drawing may never move FURTHER than the pointer moved —
+              // clamps only ever reduce movement. Any excess is the "drawing
+              // skips" bug caught in the act, with the numbers to prove it.
+              const trace = positionDrag as typeof positionDrag & {
+                lastPoint?: TrendlinePoint
+                lastGot?: number
+                lastStart?: number
+              }
+              const got =
+                positionDrag.handle === "stop"
+                  ? next.stop
+                  : positionDrag.handle === "target"
+                    ? next.target
+                    : next.entry
+              if (trace.lastPoint !== undefined && trace.lastGot !== undefined) {
+                const pointerMove = Math.abs(point.price - trace.lastPoint.price)
+                const drawingMove = Math.abs(got - trace.lastGot)
+                const priceTol = Math.max(next.entry * 0.002, 1e-9)
+                const pointerTimeMove = Math.abs(point.time - trace.lastPoint.time)
+                const startMove = Math.abs(next.startTime - (trace.lastStart ?? next.startTime))
+                const timeTol = barIntervalSec() * 2
+                if (
+                  drawingMove > pointerMove + priceTol ||
+                  startMove > pointerTimeMove + timeTol
+                ) {
+                  const message = `Drag anomaly (${positionDrag.handle}): drawing moved ${drawingMove.toFixed(0)} vs pointer ${pointerMove.toFixed(0)} in price, ${Math.round(startMove / Math.max(barIntervalSec(), 1))} vs ${Math.round(pointerTimeMove / Math.max(barIntervalSec(), 1))} bars in time.`
+                  console.error("[practice drag anomaly]", {
+                    message,
+                    point,
+                    lastPoint: trace.lastPoint,
+                    next,
+                    origin: positionDrag.origin,
+                    grab: positionDrag.grab,
+                  })
+                  window.dispatchEvent(
+                    new CustomEvent("practice-drag-anomaly", { detail: message })
+                  )
+                }
+              }
+              trace.lastPoint = point
+              trace.lastGot = got
+              trace.lastStart = next.startTime
+              writePosition(next, false)
             }
             event.preventDefault()
             return
@@ -1286,9 +1364,12 @@ export function PriceChartView({
 
         container.addEventListener("mousedown", onMouseDown, true)
         container.addEventListener("dblclick", onDoubleClick, true)
-        container.addEventListener("mousemove", onMouseMove)
-        container.addEventListener("mouseup", endDrag)
-        container.addEventListener("mouseleave", endDrag)
+        // Move/up live on the DOCUMENT so a drag survives the pointer leaving
+        // the pane or crossing a floating overlay (draw toolbar, mini chart):
+        // ending a drag on mouseleave silently dropped the drawing mid-flight
+        // whenever the cursor grazed an overlay or the chart edge.
+        document.addEventListener("mousemove", onMouseMove)
+        document.addEventListener("mouseup", endDrag)
         container.addEventListener("contextmenu", onContextMenu)
         container.addEventListener("touchstart", onTouchStart)
         container.addEventListener("touchmove", onTouchMove)
@@ -1298,9 +1379,8 @@ export function PriceChartView({
         detachPointerHandlers = () => {
           container.removeEventListener("mousedown", onMouseDown, true)
           container.removeEventListener("dblclick", onDoubleClick, true)
-          container.removeEventListener("mousemove", onMouseMove)
-          container.removeEventListener("mouseup", endDrag)
-          container.removeEventListener("mouseleave", endDrag)
+          document.removeEventListener("mousemove", onMouseMove)
+          document.removeEventListener("mouseup", endDrag)
           container.removeEventListener("contextmenu", onContextMenu)
           container.removeEventListener("touchstart", onTouchStart)
           container.removeEventListener("touchmove", onTouchMove)
@@ -1421,9 +1501,12 @@ export function PriceChartView({
       volumeSeries.update(toVolumeData(last))
     } else if (
       // Replay growth: same series, many candles appended on the right (a
-      // fast-forward or scrub). Repaint the data but leave the user's view
-      // alone — appended bars don't shift existing logical indices, so the
-      // view stays put; if the right edge was in view, follow the new bars.
+      // fast-forward or scrub). Repaint the data, and follow the new bars
+      // when the user was at the live edge — the chart's native auto-scroll
+      // only fires on single-bar update(), so multi-bar growth must shift
+      // here or the view stalls while candles march off-screen. Never shift
+      // mid drawing-gesture: the axis sliding under the pointer makes the
+      // dragged drawing run away.
       dataKeyRef.current === dataKey &&
       firstTimeRef.current > 0 &&
       candles[0].t >= firstTimeRef.current &&
@@ -1432,12 +1515,6 @@ export function PriceChartView({
       const timeScale = chartRef.current?.timeScale()
       const before = timeScale?.getVisibleLogicalRange()
       const wasAtLiveEdge = before ? before.to >= prevLenRef.current - 1 : false
-      // Never follow while a drawing gesture is in flight: scrolling the time
-      // axis under the pointer mid-drag re-maps the pointer to a later time on
-      // every frame, so the dragged drawing would run away with the scroll.
-      // Bars that arrive while frozen are remembered, and the view catches up
-      // to the live edge in one step as soon as the gesture ends — otherwise
-      // the follow would silently die after every drawing.
       const drawingGesture =
         activeToolRef.current !== null ||
         positionDragRef.current !== null ||
@@ -1446,21 +1523,16 @@ export function PriceChartView({
         candles.map((candle) => toCandleData(candle, colorMap))
       )
       volumeSeries.setData(candles.map(toVolumeData))
-      if (before && (wasAtLiveEdge || followCatchupRef.current > 0)) {
+      if (before && wasAtLiveEdge && !drawingGesture) {
         const added = candles.length - prevLenRef.current
-        if (drawingGesture) {
-          followCatchupRef.current += added
-        } else {
-          const shift = added + followCatchupRef.current
-          followCatchupRef.current = 0
+        if (added > 0) {
           timeScale?.setVisibleLogicalRange({
-            from: before.from + shift,
-            to: before.to + shift,
+            from: before.from + added,
+            to: before.to + added,
           })
         }
       }
     } else {
-      followCatchupRef.current = 0
       candleSeries.setData(
         candles.map((candle) => toCandleData(candle, colorMap))
       )
@@ -1525,7 +1597,7 @@ export function PriceChartView({
         ? null
         : timeScale.timeToCoordinate(nearest as UTCTimestamp)
     }
-    const recompute = () => {
+    const recompute = (sync = false) => {
       const next: {
         id: string
         start: PixelPoint
@@ -1558,7 +1630,6 @@ export function PriceChartView({
         })
       }
       trendlinePixelsRef.current = next
-      setTrendlinePixels(next)
 
       const boxes: ChartPositionPixels[] = []
       for (const position of positions) {
@@ -1586,16 +1657,49 @@ export function PriceChartView({
         })
       }
       positionPixelsRef.current = boxes
-      setPositionPixels(boxes)
+      const apply = () => {
+        setTrendlinePixels(next)
+        setPositionPixels(boxes)
+      }
+      // Event-driven recomputes (pan, zoom, replay follow, resize) commit the
+      // overlay DOM in the SAME frame as the canvas move. Without this the
+      // drawings re-place a frame behind every view change — at replay speed
+      // that reads as every drawing shivering or skipping.
+      if (sync) flushSoon(apply)
+      else apply()
     }
-    const recomputeAfterWheel = () => requestAnimationFrame(recompute)
+    // flushSync straight from a chart callback can land inside React's own
+    // commit (the follow shift fires from within the data effect), which
+    // React rejects loudly. A microtask runs after the current commit but
+    // still BEFORE the browser paints — same frame, no complaint. Latest
+    // recompute wins if several arrive in one task.
+    let flushScheduled = false
+    let pendingApply: (() => void) | null = null
+    const flushSoon = (fn: () => void) => {
+      pendingApply = fn
+      if (flushScheduled) return
+      flushScheduled = true
+      queueMicrotask(() => {
+        flushScheduled = false
+        const run = pendingApply
+        pendingApply = null
+        if (!run) return
+        try {
+          flushSync(run)
+        } catch {
+          run()
+        }
+      })
+    }
+    const recomputeSync = () => recompute(true)
+    const recomputeAfterWheel = () => requestAnimationFrame(recomputeSync)
     recompute()
-    timeScale.subscribeVisibleTimeRangeChange(recompute)
-    const observer = new ResizeObserver(recompute)
+    timeScale.subscribeVisibleTimeRangeChange(recomputeSync)
+    const observer = new ResizeObserver(recomputeSync)
     observer.observe(container)
     container.addEventListener("wheel", recomputeAfterWheel)
     return () => {
-      timeScale.unsubscribeVisibleTimeRangeChange(recompute)
+      timeScale.unsubscribeVisibleTimeRangeChange(recomputeSync)
       observer.disconnect()
       container.removeEventListener("wheel", recomputeAfterWheel)
     }
@@ -2982,4 +3086,14 @@ function chartTheme() {
     textColor: isDark ? "#9ca3af" : "#6b7280",
     gridColor: isDark ? "rgba(255, 255, 255, 0.07)" : "rgba(0, 0, 0, 0.07)",
   }
+}
+
+// Dev-only: this module wires imperative document/chart listeners that do NOT
+// survive hot swapping — stale handler generations keep running and fight the
+// new ones over drags, which shows up as drawings "skipping around" until the
+// page is reloaded. Any edit to this file reloads the page outright instead.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
 }
