@@ -103,8 +103,6 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
-/** Pulsing pointer that locates a focused trade's entry/exit on the chart. */
-const FOCUS_COLOR = "#2962ff"
 const TRENDLINE_COLORS = [
   "#2962ff",
   "#089981",
@@ -113,23 +111,9 @@ const TRENDLINE_COLORS = [
   "#8b5cf6",
   "#ec4899",
 ] as const
-/** Stable default so the pointer effect doesn't re-run for unfocused charts. */
+/** Stable default so the focus effects don't re-run for unfocused charts. */
 const EMPTY_FOCUS_POINTS: ChartFocusPoint[] = []
 
-// lightweight-charts sizes fill-arrow markers from bar spacing with these
-// rounding rules; we mirror them so a focus ring centers on the arrow at any
-// zoom. See its series-markers geometry.
-const ceiledOdd = (x: number) => {
-  const c = Math.ceil(x)
-  return c % 2 === 0 ? c - 1 : c
-}
-const ceiledEven = (x: number) => {
-  const c = Math.ceil(x)
-  return c % 2 !== 0 ? c - 1 : c
-}
-/** Half an arrow marker's height for a given bar spacing (its offset off the bar). */
-const halfArrowHeight = (barSpacing: number) =>
-  ceiledEven(ceiledOdd(Math.min(Math.max(barSpacing, 12), 30))) / 2
 // MACD histogram polarity (theme-independent, like volume).
 const MACD_UP = "rgba(8, 153, 129, 0.5)"
 const MACD_DOWN = "rgba(242, 54, 69, 0.5)"
@@ -165,11 +149,8 @@ export type PriceChartHandle = {
 export type ChartFocusPoint = {
   /** Fill time, ms epoch — aligns with the trade's buy/sell marker. */
   time: number
-  /** Matches the arrow at this fill: buys sit below the bar, sells above. */
-  side: "buy" | "sell"
-  label: string
-  /** Exact fill price — centers the ring on the price-pinned chip when set. */
-  price?: number
+  /** Exact fill price. The result box spans entry → exit through these. */
+  price: number
 }
 
 /**
@@ -279,7 +260,6 @@ export function PriceChartView({
   barColors = [],
   visibleStartMs,
   focusPoints = EMPTY_FOCUS_POINTS,
-  focusRings = true,
   focusResult = null,
   onCrosshairOhlc,
   onLineDragEnd,
@@ -312,12 +292,11 @@ export function PriceChartView({
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
   /**
-   * The focused trade's entry and exit. They anchor the result box and pan the
-   * trade into view; `focusRings` decides whether they are also drawn.
+   * The focused trade's entry and exit: they anchor the result box and pan the
+   * trade into view. Nothing is drawn at the points themselves — the fill chips
+   * and arrows already mark them.
    */
   focusPoints?: ChartFocusPoint[]
-  /** Draw a pulsing ring + label on each focus point (default true). */
-  focusRings?: boolean
   /** Result box spanning the focused trade's entry → exit; null hides it. */
   focusResult?: ChartFocusResult | null
   /** Crosshair candle readout; null when the cursor leaves the chart. */
@@ -402,10 +381,10 @@ export function PriceChartView({
   const prevCandlesRef = React.useRef<ChartCandle[] | null>(null)
   const [ready, setReady] = React.useState(false)
   const [focusPixels, setFocusPixels] = React.useState<
-    { x: number; y: number; label: string; placement: "above" | "below" }[]
+    { x: number; y: number }[]
   >([])
   // Pixel positions of price-pinned open/close/flip chips, kept in sync with
-  // pan/zoom/resize the same way the focus ring is.
+  // pan/zoom/resize the same way the focus box is.
   const [markerPixels, setMarkerPixels] = React.useState<
     {
       x: number
@@ -1574,8 +1553,8 @@ export function PriceChartView({
     candleTimes,
   ])
 
-  // Pan (without changing zoom) so a newly focused trade's pulsing pointer is
-  // centered in view — the user's current zoom level is preserved.
+  // Pan (without changing zoom) so a newly focused trade is centered in view —
+  // the user's current zoom level is preserved.
   React.useEffect(() => {
     const chart = chartRef.current
     if (
@@ -1600,8 +1579,8 @@ export function PriceChartView({
     repinOverlaysAfterReflow()
   }, [ready, focusPoints, repinOverlaysAfterReflow])
 
-  // Track the pixel position of each focus point so the pulsing pointer stays
-  // pinned to it as the user pans, zooms, or the pane resizes.
+  // Track the pixel position of each focus point so the result box stays pinned
+  // to the trade as the user pans, zooms, or the pane resizes.
   React.useEffect(() => {
     const chart = chartRef.current
     const series = candleSeriesRef.current
@@ -1611,43 +1590,14 @@ export function PriceChartView({
     }
     const timeScale = chart.timeScale()
     const recompute = () => {
-      // Center the ring on the fill's arrow: buys draw below the bar, sells
-      // above, each offset from the bar extreme by half the arrow height.
-      const halfArrow = halfArrowHeight(timeScale.options().barSpacing)
-      const next: {
-        x: number
-        y: number
-        label: string
-        placement: "above" | "below"
-      }[] = []
+      const next: { x: number; y: number }[] = []
       for (const point of focusPoints) {
         const sec = Math.floor(point.time / 1000)
         const x = timeScale.timeToCoordinate(sec as UTCTimestamp)
-        const candle = candleByTimeRef.current.get(sec)
-        if (x == null || !candle) continue
-        const below = point.side === "buy"
-        // Center on the price-pinned chip when a fill price is known; otherwise
-        // fall back to the bar extreme plus the arrow offset (live orders).
-        let y: number | null
-        if (point.price != null) {
-          y = series.priceToCoordinate(point.price)
-        } else {
-          const anchorPrice = Number(below ? candle.l : candle.h)
-          const anchorY = series.priceToCoordinate(anchorPrice)
-          y =
-            anchorY == null
-              ? null
-              : below
-                ? anchorY + halfArrow
-                : anchorY - halfArrow
-        }
+        if (x == null || !candleByTimeRef.current.has(sec)) continue
+        const y = series.priceToCoordinate(point.price)
         if (y == null) continue
-        next.push({
-          x,
-          y,
-          label: point.label,
-          placement: below ? "below" : "above",
-        })
+        next.push({ x, y })
       }
       setFocusPixels(next)
     }
@@ -2447,37 +2397,6 @@ export function PriceChartView({
           })}
         </div>
       ) : null}
-      {focusRings && focusPixels.length > 0 ? (
-        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
-          {focusPixels.map((point) => (
-            <div
-              key={point.label}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: point.x, top: point.y }}
-            >
-              {/* Hollow pulsing rings encircle the fill's arrow without hiding it. */}
-              <span
-                className="absolute top-1/2 left-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border-2"
-                style={{ borderColor: FOCUS_COLOR }}
-              />
-              <span
-                className="absolute top-1/2 left-1/2 block h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-                style={{ borderColor: FOCUS_COLOR }}
-              />
-              <span
-                className={`absolute left-1/2 -translate-x-1/2 rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-white shadow ${
-                  point.placement === "below"
-                    ? "top-full mt-1"
-                    : "bottom-full mb-1"
-                }`}
-                style={{ backgroundColor: FOCUS_COLOR }}
-              >
-                {point.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
       {focusBox && focusResult ? (
         <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
           <div
@@ -2633,7 +2552,7 @@ export function PriceChart({
   indicators?: IndicatorConfig[]
   /** Full saved config paint (an Automation's connected-indicator lines). */
   automationConfig?: AutomationConfig | null
-  /** Pulse rings the chart pans to (e.g. a selected fill). */
+  /** Entry/exit of a focused trade: the chart pans to them. */
   focusPoints?: ChartFocusPoint[]
   /** Entry → exit result box for a focused round trip. */
   focusResult?: ChartFocusResult | null

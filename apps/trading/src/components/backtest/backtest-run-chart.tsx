@@ -419,25 +419,13 @@ export function BacktestRunChart({
     setCommittedFocus(focusedTrade)
   }, [focusedTrade, runStartMs, runEndMs, barMs, loadOlderTo])
 
-  // The focused trade's entry and exit. Not drawn (the chart is passed
-  // focusRings={false}) — they position the P&L measurement box and pan the
-  // trade into view. Sides match the arrows: a long enters with a buy.
+  // The focused trade's entry and exit: they position the P&L measurement box
+  // and pan the trade into view. Nothing is drawn at the points themselves.
   const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
     if (!committedFocus) return []
-    const long = committedFocus.side === "long"
     return [
-      {
-        time: committedFocus.entryTime,
-        side: long ? "buy" : "sell",
-        label: "Entry",
-        price: committedFocus.entryPx,
-      },
-      {
-        time: committedFocus.exitTime,
-        side: long ? "sell" : "buy",
-        label: "Exit",
-        price: committedFocus.exitPx,
-      },
+      { time: committedFocus.entryTime, price: committedFocus.entryPx },
+      { time: committedFocus.exitTime, price: committedFocus.exitPx },
     ]
   }, [committedFocus])
 
@@ -806,7 +794,6 @@ export function BacktestRunChart({
           // window loads the chart zoomed in. Load at the same default view
           // Reset View gives instead.
           focusPoints={focusPoints}
-          focusRings={false}
           focusResult={focusResult}
           drawings={drawings}
           onDrawingsChange={onDrawingsChange}

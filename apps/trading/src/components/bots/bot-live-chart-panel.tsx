@@ -69,23 +69,18 @@ export function BotLiveChartPanel({
       ? (trips.find((trip) => trip.n === focusedTradeN) ?? null)
       : null
 
+  // Entry and exit of the focused trade: they position the result box and pan
+  // the trade into view. An open trade has only an entry, so no box — the fill
+  // chip already marks it.
   const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
     if (!focusedTrip) return []
-    const long = focusedTrip.side === "long"
     const snap = (ms: number) => Math.floor(ms / intervalMs) * intervalMs
     const points: ChartFocusPoint[] = [
-      {
-        time: snap(focusedTrip.entryTime),
-        side: long ? "buy" : "sell",
-        label: "Entry",
-        price: focusedTrip.entryPx,
-      },
+      { time: snap(focusedTrip.entryTime), price: focusedTrip.entryPx },
     ]
     if (focusedTrip.exitTime != null && focusedTrip.exitPx != null) {
       points.push({
         time: snap(focusedTrip.exitTime),
-        side: long ? "sell" : "buy",
-        label: "Exit",
         price: focusedTrip.exitPx,
       })
     }
