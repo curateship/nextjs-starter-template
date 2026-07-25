@@ -5,6 +5,7 @@ import type { CombinedBacktestSummary } from "@/components/backtest/backtest-com
 import { windowDaysOf } from "@/components/backtest/backtest-format"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestDetail } from "@/lib/api/backtests"
+import { isManualRunParams } from "@/lib/backtest/manual-types"
 import type { AutomationBacktestSettings } from "@/lib/automations/automation"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import {
@@ -61,7 +62,10 @@ export function AutomationBacktestParamsPanel({
         { label: "Maker fee", value: `${selectedRun.costs.makerFeeBps} bps` },
         { label: "Slippage", value: `${selectedRun.costs.slippageBps} bps` },
       ]
-      out.push(...automationInputRows(selectedRun.params))
+      // The editor only ever loads automation runs; the guard is for the type.
+      if (!isManualRunParams(selectedRun.params)) {
+        out.push(...automationInputRows(selectedRun.params))
+      }
       return out
     }
     const out: { label: string; value: string }[] = [

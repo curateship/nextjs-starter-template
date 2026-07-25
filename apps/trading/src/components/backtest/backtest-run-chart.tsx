@@ -32,18 +32,17 @@ import {
   type BacktestTimeline,
   type BacktestTrade,
 } from "@/lib/backtest/types"
+import { isManualRunParams } from "@/lib/backtest/manual-types"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import type { HistoryCandle } from "@/server/backtest/history"
+
 import {
-  ChevronFirstIcon,
-  ChevronLastIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  PauseIcon,
-  PlayIcon,
-} from "lucide-react"
+  visibleCandlesUpTo,
+  type ReplaySpeed,
+} from "@/lib/backtest/replay"
 
 import { formatFocusDays, pct, signedUsd } from "./backtest-format"
+import { ReplayTransport } from "./replay-transport"
 import {
   buildRunFillMarkers,
   buildTrailingStopOverlays,
@@ -70,7 +69,6 @@ const EDGE_BUFFER_MS = 2 * DAY_MS
 
 /** Replay tick; the playhead advances speed × bars each second. */
 const TICK_MS = 100
-const SPEED_OPTIONS = [1, 5, 15, 60] as const
 
 /** Amber for resting entry ladders. */
 const LADDER_COLOR = "#f59e0b"
@@ -253,7 +251,7 @@ export function BacktestRunChart({
   // data reset (the series only grows gracefully), tracked by a nonce.
   const [playheadMs, setPlayheadMs] = React.useState<number | null>(null)
   const [playing, setPlaying] = React.useState(false)
-  const [speed, setSpeed] = React.useState<(typeof SPEED_OPTIONS)[number]>(5)
+  const [speed, setSpeed] = React.useState<ReplaySpeed>(5)
   const [resetNonce, setResetNonce] = React.useState(0)
   const lastPlayheadRef = React.useRef<number | null>(null)
   const [timeline, setTimeline] = React.useState<BacktestTimeline | null>(null)
@@ -515,19 +513,13 @@ export function BacktestRunChart({
   // Everything the chart shows is clipped to the playhead, so the future
   // genuinely isn't visible while replaying.
   const cutoff = playheadMs
-  const visibleCandles = React.useMemo(() => {
-    if (cutoff === null) return candles
-    let lo = 0
-    let hi = candles.length
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (candles[mid].t <= cutoff) lo = mid + 1
-      else hi = mid
-    }
-    return candles.slice(0, lo)
-  }, [candles, cutoff])
+  const visibleCandles = React.useMemo(
+    () => visibleCandlesUpTo(candles, cutoff),
+    [candles, cutoff]
+  )
 
-  const runConfig = run.params
+  // A manual session has no automation config — no indicator paint to rebuild.
+  const runConfig = isManualRunParams(run.params) ? null : run.params
 
   const overlays = React.useMemo(() => {
     if (visibleCandles.length === 0 || !runConfig) return EMPTY_OVERLAYS
@@ -743,22 +735,6 @@ export function BacktestRunChart({
   }, [lastClose, onLastCloseChange])
 
 
-  const playheadLabel =
-    cutoff === null
-      ? null
-      : new Date(cutoff).toLocaleString("en-US", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-
-  const cycleSpeed = () => {
-    const index = SPEED_OPTIONS.indexOf(speed)
-    setSpeed(SPEED_OPTIONS[(index + 1) % SPEED_OPTIONS.length])
-  }
-
   if (!result) return null
 
   return (
@@ -803,96 +779,36 @@ export function BacktestRunChart({
           onResetView={() => setChartInterval(runInterval)}
         />
       </div>
-      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Jump to start"
-          onClick={() => setPlayhead(runStartMs)}
-        >
-          <ChevronFirstIcon className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Step back one bar"
-          onClick={() => setPlayhead((cutoff ?? runEndMs) - barMs)}
-        >
-          <ChevronLeftIcon className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={playing ? "Pause replay" : "Play replay"}
-          onClick={() => {
-            if (playing) {
-              setPlaying(false)
-              return
-            }
-            // Play from the start when parked at the live edge.
-            if (cutoff === null) setPlayhead(runStartMs)
-            setPlaying(true)
-          }}
-        >
-          {playing ? (
-            <PauseIcon className="size-3.5" />
-          ) : (
-            <PlayIcon className="size-3.5" />
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Step forward one bar"
-          disabled={cutoff === null}
-          onClick={() => setPlayhead((cutoff ?? runEndMs) + barMs)}
-        >
-          <ChevronRightIcon className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Jump to end"
-          disabled={cutoff === null}
-          onClick={() => {
+      <ReplayTransport
+        playheadMs={cutoff}
+        playing={playing}
+        speed={speed}
+        startMs={runStartMs}
+        endMs={runEndMs}
+        barMs={barMs}
+        onScrub={(ms) => {
+          setPlaying(false)
+          setPlayhead(ms)
+        }}
+        onTogglePlay={() => {
+          if (playing) {
             setPlaying(false)
-            setPlayhead(null)
-          }}
-        >
-          <ChevronLastIcon className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="w-9 font-mono text-[10px]"
-          aria-label="Replay speed"
-          onClick={cycleSpeed}
-        >
-          {speed}×
-        </Button>
-        <input
-          type="range"
-          aria-label="Replay position"
-          className="min-w-0 flex-1 accent-foreground"
-          min={runStartMs}
-          max={runEndMs}
-          step={barMs}
-          value={cutoff ?? runEndMs}
-          onChange={(event) => {
-            setPlaying(false)
-            setPlayhead(Number(event.target.value))
-          }}
-        />
-        <span className="w-28 text-right font-mono text-[10px] text-muted-foreground">
-          {playheadLabel ?? "Live end"}
-        </span>
-      </div>
+            return
+          }
+          // Play from the start when parked at the live edge.
+          if (cutoff === null) setPlayhead(runStartMs)
+          setPlaying(true)
+        }}
+        onStep={(direction) =>
+          setPlayhead((cutoff ?? runEndMs) + direction * barMs)
+        }
+        onJumpToStart={() => setPlayhead(runStartMs)}
+        onJumpToEnd={() => {
+          setPlaying(false)
+          setPlayhead(null)
+        }}
+        onSpeedChange={setSpeed}
+      />
     </div>
   )
 }

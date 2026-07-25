@@ -40,7 +40,6 @@ import {
 import {
   configOverlays,
   EMPTY_STRATEGY_OVERLAYS,
-  outputToOverlays,
 } from "@/components/chart/indicator-overlays"
 import {
   CHART_DOWN_COLOR as DOWN_COLOR,
@@ -67,7 +66,17 @@ import {
 import { Button } from "@/components/ui/button"
 import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
 import { useChartDrawings } from "@/components/chart/use-chart-drawings"
-import { INDICATORS } from "@/lib/indicators/registry"
+import {
+  basePaint,
+  bollingerPaint,
+  emaCrossPaint,
+  fvgPaint,
+  priceActionPaint,
+  qqePaint,
+  sessionZonesPaint,
+  toNumericCandles,
+  trendlinePaint,
+} from "@/components/chart/indicator-paint"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
 import { loadOlderHlCandles } from "@/lib/api/hl-candles"
@@ -83,18 +92,11 @@ import {
   rsi,
 } from "@/lib/strategies/indicators"
 import {
-  baseChartToModuleParams,
-  bollingerChartToModuleParams,
   emaLines,
-  fairValueGapChartToModuleParams,
   indicatorColor,
   OSCILLATORS,
-  priceActionChartToModuleParams,
-  qqeChartToModuleParams,
-  trendlineChartToModuleParams,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
-import { sessionsInRange } from "@/lib/trading/sessions"
 
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
@@ -113,6 +115,16 @@ const TRENDLINE_COLORS = [
 ] as const
 /** Stable default so the focus effects don't re-run for unfocused charts. */
 const EMPTY_FOCUS_POINTS: ChartFocusPoint[] = []
+// Stable empty defaults: a literal `= []` default re-creates the array every
+// render, and the pixel-projection effects keyed on these arrays would then
+// re-run and setState fresh arrays forever — an infinite update loop for any
+// caller that omits the prop.
+const EMPTY_PRICE_LINES: ChartPriceLine[] = []
+const EMPTY_MARKERS: ChartMarker[] = []
+const EMPTY_INDICATORS: IndicatorConfig[] = []
+const EMPTY_OVERLAY_LINES: ChartOverlayLine[] = []
+// EMPTY_ZONES already exists further down; the zones default reuses it.
+const EMPTY_BAR_COLORS: ChartBarColor[] = []
 
 // MACD histogram polarity (theme-independent, like volume).
 const MACD_UP = "rgba(8, 153, 129, 0.5)"
@@ -252,12 +264,12 @@ export function PriceChartView({
   candles,
   loading = false,
   dataKey = "static",
-  priceLines = [],
-  markers = [],
-  indicators = [],
-  overlayLines = [],
-  zones = [],
-  barColors = [],
+  priceLines = EMPTY_PRICE_LINES,
+  markers = EMPTY_MARKERS,
+  indicators = EMPTY_INDICATORS,
+  overlayLines = EMPTY_OVERLAY_LINES,
+  zones = EMPTY_ZONES,
+  barColors = EMPTY_BAR_COLORS,
   visibleStartMs,
   focusPoints = EMPTY_FOCUS_POINTS,
   focusResult = null,
@@ -365,6 +377,8 @@ export function PriceChartView({
   const firstTimeRef = React.useRef<number>(0)
   const prevLenRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
+  /** Bars the replay follow skipped while a drawing gesture froze the view. */
+  const followCatchupRef = React.useRef(0)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
   // One short line series per base mark — separate series so marks never
   // connect to each other across the gaps between them.
@@ -1405,7 +1419,48 @@ export function PriceChartView({
     } else if (isIncremental) {
       candleSeries.update(toCandleData(last, colorMap))
       volumeSeries.update(toVolumeData(last))
+    } else if (
+      // Replay growth: same series, many candles appended on the right (a
+      // fast-forward or scrub). Repaint the data but leave the user's view
+      // alone — appended bars don't shift existing logical indices, so the
+      // view stays put; if the right edge was in view, follow the new bars.
+      dataKeyRef.current === dataKey &&
+      firstTimeRef.current > 0 &&
+      candles[0].t >= firstTimeRef.current &&
+      last.t > lastTimeRef.current
+    ) {
+      const timeScale = chartRef.current?.timeScale()
+      const before = timeScale?.getVisibleLogicalRange()
+      const wasAtLiveEdge = before ? before.to >= prevLenRef.current - 1 : false
+      // Never follow while a drawing gesture is in flight: scrolling the time
+      // axis under the pointer mid-drag re-maps the pointer to a later time on
+      // every frame, so the dragged drawing would run away with the scroll.
+      // Bars that arrive while frozen are remembered, and the view catches up
+      // to the live edge in one step as soon as the gesture ends — otherwise
+      // the follow would silently die after every drawing.
+      const drawingGesture =
+        activeToolRef.current !== null ||
+        positionDragRef.current !== null ||
+        trendlineDragRef.current !== null
+      candleSeries.setData(
+        candles.map((candle) => toCandleData(candle, colorMap))
+      )
+      volumeSeries.setData(candles.map(toVolumeData))
+      if (before && (wasAtLiveEdge || followCatchupRef.current > 0)) {
+        const added = candles.length - prevLenRef.current
+        if (drawingGesture) {
+          followCatchupRef.current += added
+        } else {
+          const shift = added + followCatchupRef.current
+          followCatchupRef.current = 0
+          timeScale?.setVisibleLogicalRange({
+            from: before.from + shift,
+            to: before.to + shift,
+          })
+        }
+      }
     } else {
+      followCatchupRef.current = 0
       candleSeries.setData(
         candles.map((candle) => toCandleData(candle, colorMap))
       )
@@ -2489,9 +2544,6 @@ export function PriceChartView({
   )
 }
 
-/** Session shading: menu swatches are hex; the zone fill needs translucent rgba. */
-const SESSION_FILL_ALPHA = 0.2
-const SESSION_BORDER_ALPHA = 0.55
 const EMPTY_ZONES: ChartZone[] = []
 
 /**
@@ -2513,13 +2565,6 @@ function useStableBarColors(next: ChartBarColor[]): ChartBarColor[] {
   ref.current = next
   return next
 }
-function hexToRgba(hex: string, alpha: number): string {
-  const match = /^#([0-9a-f]{6})$/i.exec(hex)
-  if (!match) return `rgba(41, 98, 255, ${alpha})`
-  const value = parseInt(match[1], 16)
-  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
-}
-
 /**
  * Live trading chart: the shared view fed by the websocket candle stream.
  */
@@ -2674,201 +2719,85 @@ export function PriceChart({
   // paint pipeline (bar-colors, chop zones, swing pivots) instead of a bespoke
   // series. Its buy/sell signals become native chart arrows whose tips stay
   // anchored to their exact signal price through chart reflow.
-  const qqe = React.useMemo(() => {
-    const cfg = indicators.find((ind) => ind.type === "qqe" && ind.enabled)
-    if (!cfg || candles.length === 0) {
-      return { overlayLines: [], zones: [], barColors: [], markers: [] }
-    }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.qqe.compute(
-      numeric,
-      qqeChartToModuleParams(cfg.params) as never
-    )
-    const overlays = outputToOverlays(out)
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    const markers: ChartMarker[] = out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-    return {
-      overlayLines: overlays.overlayLines,
-      zones: overlays.zones,
-      barColors: overlays.barColors,
-      markers,
-    }
-  }, [indicators, candles])
+  const qqe = React.useMemo(
+    () =>
+      qqePaint(
+        indicators.find((ind) => ind.type === "qqe" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // EMA cross arrows: when the EMA overlay has at least two lines switched
   // on, the two FASTEST fire a long (up) arrow when the faster crosses above
   // the slower and a short (down) arrow on the cross back — the same signal
   // the EMA Cross strategy trades, computed through the same module.
-  const emaCrossMarkers = React.useMemo<ChartMarker[]>(() => {
-    const cfg = indicators.find((ind) => ind.type === "ema" && ind.enabled)
-    if (!cfg || candles.length === 0) return []
-    const periods = emaLines(cfg.params)
-      .map((line) => cfg.params[line.periodKey])
-      .sort((a, b) => a - b)
-    if (periods.length < 2) return []
-    const [fast, slow] = periods
-    if (fast === slow) return []
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.ema_cross.compute(numeric, {
-      fast,
-      slow,
-      third: slow,
-      showFast: true,
-      showSlow: true,
-      showThird: false,
-    } as never)
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    return out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-  }, [indicators, candles])
+  const emaCrossMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      emaCrossPaint(
+        indicators.find((ind) => ind.type === "ema" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Price Action arrows: each detected pattern prints a long (up) or short
   // (down) arrow at its candle — the same detector the Price Action strategy
   // trades, computed through the same module.
-  const priceActionMarkers = React.useMemo<ChartMarker[]>(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "priceAction" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) return []
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.price_action.compute(
-      numeric,
-      priceActionChartToModuleParams(cfg.params) as never
-    )
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    return out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-  }, [indicators, candles])
+  const priceActionMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      priceActionPaint(
+        indicators.find((ind) => ind.type === "priceAction" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Fair Value Gap draws its imbalance boxes through the same zone pipeline as
   // QQE's chop zones. Per the "no signal arrows" rule its buy/sell aren't
   // painted here — the boxes are the visual.
-  const fvg = React.useMemo(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "fairValueGap" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) return { zones: [] as ChartZone[] }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.fair_value_gap.compute(
-      numeric,
-      fairValueGapChartToModuleParams(cfg.params) as never
-    )
-    return { zones: outputToOverlays(out).zones }
-  }, [indicators, candles])
+  const fvg = React.useMemo(
+    () => ({
+      zones: fvgPaint(
+        indicators.find((ind) => ind.type === "fairValueGap" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    }),
+    [indicators, candles]
+  )
 
-  const trendline = React.useMemo(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "trendline" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) {
-      return { overlayLines: [], markers: [] as ChartMarker[] }
-    }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.trendline.compute(
-      numeric,
-      trendlineChartToModuleParams(cfg.params) as never
-    )
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    const markers: ChartMarker[] = out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-    return { overlayLines: outputToOverlays(out).overlayLines, markers }
-  }, [indicators, candles])
+  const trendline = React.useMemo(
+    () =>
+      trendlinePaint(
+        indicators.find((ind) => ind.type === "trendline" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Base arrows: ONE green up arrow per base, on the first candle back at the
   // base level. Base emits only this formed-base long — breaking a base is the
   // DCA ladder's rule and never draws here.
-  const baseMarkers = React.useMemo<ChartMarker[]>(() => {
-    const cfg = indicators.find((ind) => ind.type === "base" && ind.enabled)
-    if (!cfg || candles.length === 0) return []
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.base.compute(
-      numeric,
-      baseChartToModuleParams(cfg.params) as never
-    )
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    return out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-  }, [indicators, candles])
+  const baseMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      basePaint(
+        indicators.find((ind) => ind.type === "base" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Bollinger arrows: the bands themselves render from the chart's own
   // config; the buy/sell arrows come from the module so the chart marks
   // exactly what the Bollinger strategy node (same mode) would trade.
-  const bollingerMarkers = React.useMemo<ChartMarker[]>(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "bollinger" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) return []
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.bollinger.compute(
-      numeric,
-      bollingerChartToModuleParams(cfg.params) as never
-    )
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    return out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-  }, [indicators, candles])
+  const bollingerMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      bollingerPaint(
+        indicators.find((ind) => ind.type === "bollinger" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
@@ -2882,56 +2811,14 @@ export function PriceChart({
   const sessionKey = sessionInd?.session ?? "nyse"
   const sessionZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
   const sessionZones = React.useMemo<ChartZone[]>(() => {
-    if (!sessionEnabled || candles.length === 0) return EMPTY_ZONES
-    const firstMs = candles[0].t
-    const lastMs = candles[candles.length - 1].t
-    // Snap zone edges to candle boundaries: off-grid times would insert extra
-    // slots into the index-based time axis. Coarse intervals can collapse
-    // neighboring sessions together, so overlapping spans merge.
-    const step = candleIntervalMs(interval)
-    const spans: { fromMs: number; toMs: number }[] = []
-    for (const session of sessionsInRange(sessionKey, firstMs, lastMs)) {
-      const fromMs = Math.max(Math.floor(session.openMs / step) * step, firstMs)
-      const toMs = Math.min(Math.ceil(session.closeMs / step) * step, lastMs)
-      const prev = spans[spans.length - 1]
-      if (prev && fromMs <= prev.toMs) prev.toMs = Math.max(prev.toMs, toMs)
-      else spans.push({ fromMs, toMs })
+    if (!sessionEnabled || !sessionInd || candles.length === 0) {
+      return EMPTY_ZONES
     }
-    // One pass for per-session extremes: candles and spans are both sorted.
-    // A candle opening exactly at the close boundary is post-session, except
-    // at the live edge where it's the session's forming bar.
-    const fill = hexToRgba(sessionHex, SESSION_FILL_ALPHA)
-    const border = hexToRgba(sessionHex, SESSION_BORDER_ALPHA)
-    const next: ChartZone[] = []
-    let index = 0
-    for (const span of spans) {
-      if (!(span.toMs > span.fromMs)) continue
-      while (index < candles.length && candles[index].t < span.fromMs)
-        index += 1
-      let high = -Infinity
-      let low = Infinity
-      while (
-        index < candles.length &&
-        (candles[index].t < span.toMs ||
-          (candles[index].t === span.toMs && span.toMs === lastMs))
-      ) {
-        const candleHigh = Number(candles[index].h)
-        const candleLow = Number(candles[index].l)
-        if (candleHigh > high) high = candleHigh
-        if (candleLow < low) low = candleLow
-        index += 1
-      }
-      if (!(high > low)) continue
-      next.push({
-        id: `session-${span.fromMs}`,
-        fromMs: span.fromMs,
-        toMs: span.toMs,
-        top: high,
-        bottom: low,
-        fillColor: fill,
-        borderColor: border,
-      })
-    }
+    const next = sessionZonesPaint(
+      { ...sessionInd, color: sessionHex, session: sessionKey },
+      candles,
+      candleIntervalMs(interval)
+    )
     const prev = sessionZonesRef.current
     const unchanged =
       next.length === prev.length &&
@@ -2949,7 +2836,7 @@ export function PriceChart({
     if (unchanged) return prev
     sessionZonesRef.current = next
     return next
-  }, [sessionEnabled, sessionHex, sessionKey, interval, candles])
+  }, [sessionEnabled, sessionInd, sessionHex, sessionKey, interval, candles])
   const zones = React.useMemo(
     () => [...strategy.zones, ...qqe.zones, ...fvg.zones, ...sessionZones],
     [strategy.zones, qqe.zones, fvg.zones, sessionZones]

@@ -32,6 +32,7 @@ import {
   automationTypeLabel,
   automationTypeOf,
 } from "@/lib/strategies/strategy-config"
+import { isManualRunParams } from "@/lib/backtest/manual-types"
 import type { HistoryCandle } from "@/server/backtest/history"
 
 import { windowDaysOf } from "./backtest-format"
@@ -211,6 +212,17 @@ export function BacktestDashboard({
   }
 
   const runConfig = run?.params ?? null
+  // Manual practice sessions carry their own params shape — every
+  // automation-only helper below is guarded off them.
+  const manualConfig =
+    runConfig && isManualRunParams(runConfig) ? runConfig : null
+  const automationConfig =
+    runConfig && !isManualRunParams(runConfig) ? runConfig : null
+  const strategyLabel = manualConfig
+    ? "Manual"
+    : automationConfig
+      ? automationTypeLabel(automationTypeOf(automationConfig))
+      : null
 
   // Read-only rows for the Inputs rail: what the run executed with. The one
   // home for the run's config — the summary rail shows results only.
@@ -233,9 +245,12 @@ export function BacktestDashboard({
         }),
       })
     }
-    if (runConfig) rows.push(...automationInputRows(runConfig))
+    if (manualConfig) {
+      rows.push({ label: "Risk per trade", value: `${manualConfig.riskPct}%` })
+    }
+    if (automationConfig) rows.push(...automationInputRows(automationConfig))
     return rows
-  }, [run, runConfig])
+  }, [run, manualConfig, automationConfig])
 
   // Mark price for open-position P&L: the run chart's last visible close.
   const markPrice = runMode ? (runLastClose ?? 0) : 0
@@ -257,9 +272,7 @@ export function BacktestDashboard({
         currentRunId={run?.id ?? null}
         automationId={run?.automationId ?? null}
         runName={run?.name ?? null}
-        strategyLabel={
-          runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
-        }
+        strategyLabel={strategyLabel}
         dateRangeText={describeWindow(windowNum)}
         runs={initialRuns}
         onSelectRun={selectRun}
@@ -306,12 +319,7 @@ export function BacktestDashboard({
             {inputsOpen ? (
             <ResizablePanel id="inputs" defaultSize="20%" minSize="13%">
               <WorkspacePanel>
-                <StrategyInputs
-                  title={
-                    runConfig ? automationTypeLabel(automationTypeOf(runConfig)) : null
-                  }
-                  rows={inputRows}
-                />
+                <StrategyInputs title={strategyLabel} rows={inputRows} />
               </WorkspacePanel>
             </ResizablePanel>
             ) : null}

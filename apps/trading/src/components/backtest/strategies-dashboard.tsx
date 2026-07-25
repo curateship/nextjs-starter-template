@@ -17,6 +17,7 @@ import {
   ListIcon,
   Loader2Icon,
   PinIcon,
+  PlayIcon,
   PinOffIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BacktestRunChart } from "./backtest-run-chart"
+import { PracticeSetupDialog } from "./manual-session"
 import { StrategyTester } from "./strategy-tester"
 import {
   DashboardToolbarButton,
@@ -552,6 +554,7 @@ export function RunGroupsDashboard({
   const [pendingDelete, setPendingDelete] = React.useState<GroupRow | null>(
     null
   )
+  const [practiceOpen, setPracticeOpen] = React.useState(false)
   // Which triage buckets are visible; archived is hidden by default.
   const [filter, setFilter] = React.useState<Set<RunFilter>>(
     () => new Set<RunFilter>(["review", "pinned"])
@@ -760,6 +763,10 @@ export function RunGroupsDashboard({
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button type="button" onClick={() => setPracticeOpen(true)}>
+              <PlayIcon className="size-4" />
+              Practice
+            </Button>
           </>
         }
         header={
@@ -977,6 +984,7 @@ export function RunGroupsDashboard({
           }
         }}
       />
+      <PracticeSetupDialog open={practiceOpen} onOpenChange={setPracticeOpen} />
     </div>
   )
 }
