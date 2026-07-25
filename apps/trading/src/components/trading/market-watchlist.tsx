@@ -519,6 +519,7 @@ export function MarketPicker({
   multiple = false,
   onSelectMany,
   maxSelectable,
+  modal = false,
 }: {
   rows: MarketPickerRow[]
   selected: string
@@ -546,6 +547,12 @@ export function MarketPicker({
   onSelectMany?: (coins: string[]) => void
   /** Caps how many can be ticked at once (remaining slots in the parent list). */
   maxSelectable?: number
+  /**
+   * Render the picker's popover in modal mode. Required when the trigger
+   * lives inside a Dialog: the dialog's scroll lock otherwise swallows wheel
+   * events on the portaled list, so it won't scroll.
+   */
+  modal?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [picked, setPicked] = React.useState<ReadonlySet<string>>(
@@ -665,6 +672,7 @@ export function MarketPicker({
 
   return (
     <Popover
+      modal={modal}
       open={open}
       onOpenChange={(next) => {
         setOpen(next)

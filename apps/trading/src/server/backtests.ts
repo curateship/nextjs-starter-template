@@ -6,6 +6,10 @@ import {
   type BacktestResult,
 } from "@/lib/backtest/types"
 import {
+  isManualRunParams,
+  type ManualRunParams,
+} from "@/lib/backtest/manual-types"
+import {
   automationCapabilities,
   LIVE_BOOK_BACKTEST_UNAVAILABLE,
   type AutomationConfig,
@@ -24,8 +28,8 @@ export type CreateBacktestInput = {
   market: string
   network: TradingNetwork
   interval: string
-  /** The strategy's full config snapshot. */
-  params: AutomationConfig
+  /** The strategy's full config snapshot, or a manual session's params. */
+  params: AutomationConfig | ManualRunParams
   costs: BacktestCosts
   startTime: Date
   endTime: Date
@@ -66,6 +70,11 @@ function backtestResultValues(result: BacktestResult) {
 }
 
 function assertBacktestable(input: CreateBacktestInput) {
+  if (isManualRunParams(input.params)) {
+    // Manual sessions run in the browser and save as already-completed rows;
+    // they must never enter the worker queue.
+    throw new Error("Manual sessions cannot be queued as backtests.")
+  }
   if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
     throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
   }
@@ -139,7 +148,9 @@ export async function createCompletedUserBacktest(
   result: BacktestResult,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
-  assertBacktestable(input)
+  // Manual sessions are precisely this path — the browser engine computed the
+  // result — so only automation params go through the queue-eligibility check.
+  if (!isManualRunParams(input.params)) assertBacktestable(input)
   const id = uuid()
   const timestamp = now()
   const [row] = await database

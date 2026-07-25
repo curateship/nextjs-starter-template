@@ -8,6 +8,7 @@ import {
   automationConfigSchema,
   automationWarmupBars,
 } from "@/lib/strategies/strategy-config"
+import { isManualRunParams } from "./manual-types"
 
 export type BacktestEquityPoint = {
   /** Bar close time, ms since epoch. */
@@ -279,6 +280,8 @@ export const SIGNAL_WARMUP_CANDLES = 1500
  * path-dependent) via its module's floor.
  */
 export function warmupBarsFor(params: unknown): number {
+  // Manual practice sessions have no indicators — nothing needs warming up.
+  if (isManualRunParams(params)) return 0
   const parsed = automationConfigSchema.safeParse(params)
   if (!parsed.success) return SIGNAL_WARMUP_CANDLES
   return automationWarmupBars(parsed.data)

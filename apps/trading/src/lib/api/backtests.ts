@@ -5,6 +5,7 @@ import {
   MAX_BACKTEST_BARS,
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
+  MAX_TIMELINE_EVENTS,
   MAX_TOTAL_RUN_BARS,
   PREVIOUS_RUN_NAME_PREFIX,
   maxWindowDays,
@@ -26,6 +27,11 @@ import {
   type AutomationConfig,
   type AutomationTypeId,
 } from "@/lib/strategies/strategy-config"
+import {
+  isManualRunParams,
+  manualRunParamsSchema,
+  type ManualRunParams,
+} from "@/lib/backtest/manual-types"
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -122,7 +128,7 @@ export type BacktestDetail = {
   completedAt: string | null
   progress: number
   progressStage: string | null
-  params: AutomationConfig
+  params: AutomationConfig | ManualRunParams
   costs: BacktestCosts
   result: BacktestResult | null
 }
@@ -658,6 +664,222 @@ const loadChartCandlesFn = createServerFn({ method: "POST" })
     return { candles, simStartMs }
   })
 
+// ---- Manual practice sessions ----------------------------------------------
+
+const practiceCandlesSchema = z.object({
+  market: z.string().min(1).max(20),
+  interval: z.enum(CANDLE_INTERVALS),
+  /** Requested range, ms since epoch; clamped server-side. */
+  fromMs: z.number().int().positive(),
+  toMs: z.number().int().positive(),
+})
+
+/**
+ * Candles for a practice session: an explicit range so the session can load
+ * deep history behind its start (support/resistance context), backfill older
+ * chunks on scroll, and fetch finer display timeframes. One request is
+ * bounded to the chart's bar ceiling.
+ */
+const loadPracticeCandlesFn = createServerFn({ method: "POST" })
+  .inputValidator(practiceCandlesSchema)
+  .handler(async ({ data }): Promise<BacktestCandlesResponse> => {
+    const { fetchCandleHistory } = await import("@/server/backtest/history")
+    await requireUser()
+    const stepMs = INTERVAL_MS[data.interval]
+    const toMs = Math.min(data.toMs, Date.now())
+    const fromMs = Math.max(data.fromMs, toMs - MAX_CHART_BARS * stepMs)
+    if (toMs <= fromMs) return { candles: [], simStartMs: fromMs }
+    const candles = await fetchCandleHistory(
+      data.market,
+      data.interval,
+      fromMs,
+      toMs
+    )
+    return { candles, simStartMs: fromMs }
+  })
+
+export function loadPracticeCandles(
+  input: z.input<typeof practiceCandlesSchema>
+) {
+  return loadPracticeCandlesFn({ data: input })
+}
+
+const manualSideStatsSchema = z.object({
+  netPnl: z.number(),
+  grossProfit: z.number(),
+  grossLoss: z.number(),
+  trades: z.number(),
+  wins: z.number(),
+  losses: z.number(),
+  winRate: z.number(),
+  profitFactor: z.number().nullable(),
+  avgTrade: z.number(),
+  avgWin: z.number(),
+  avgLoss: z.number(),
+  largestWin: z.number(),
+  largestLoss: z.number(),
+  sharpe: z.number(),
+})
+
+const manualTimelineEventSchema = z.union([
+  z.object({
+    t: z.number(),
+    k: z.literal("order"),
+    op: z.enum(["place", "move", "cancel", "fill"]),
+    purpose: z.string().max(40),
+    side: z.enum(["buy", "sell"]),
+    px: z.number(),
+    sz: z.number(),
+  }),
+  z.object({
+    t: z.number(),
+    k: z.literal("protect"),
+    stopPx: z.number().nullable(),
+    tpPx: z.number().nullable(),
+  }),
+])
+
+/**
+ * The browser-built result of a manual session. Manual results are
+ * self-reported practice numbers scoped to the user's own account, but the
+ * shapes and sizes are still validated so a bad client can't bloat the row.
+ */
+const manualResultSchema = z.object({
+  equityCurve: z
+    .array(z.object({ t: z.number(), eq: z.number() }))
+    .max(MAX_BACKTEST_BARS + 10),
+  trades: z
+    .array(
+      z.object({
+        n: z.number(),
+        side: z.enum(["long", "short"]),
+        entryTime: z.number(),
+        entryPx: z.number(),
+        exitTime: z.number(),
+        exitPx: z.number(),
+        qty: z.number(),
+        pnl: z.number(),
+        returnPct: z.number(),
+        cumPnl: z.number(),
+      })
+    )
+    .max(2000),
+  fills: z
+    .array(
+      z.object({
+        t: z.number(),
+        side: z.enum(["buy", "sell"]),
+        px: z.number(),
+        sz: z.number(),
+        fee: z.number(),
+        closedPnl: z.number(),
+        purpose: z.string().max(40),
+      })
+    )
+    .max(5000),
+  openPosition: z.null(),
+  stats: z.object({
+    all: manualSideStatsSchema,
+    long: manualSideStatsSchema,
+    short: manualSideStatsSchema,
+    netPnl: z.number(),
+    netPnlPct: z.number(),
+    maxDrawdownPct: z.number(),
+    maxDrawdownUsd: z.number(),
+    fees: z.number(),
+    buyHoldPct: z.number(),
+    startingEquity: z.number(),
+    endingEquity: z.number(),
+    halt: z.object({
+      // The manual engine only ever halts with kind null; the enum arm keeps
+      // the schema aligned with the shared BacktestHalt type.
+      kind: z.enum(["drawdown_kill", "daily_loss_pause", "grid_stop"]).nullable(),
+      reason: z.string().max(200).nullable(),
+    }),
+  }),
+  timeline: z
+    .object({
+      events: z.array(manualTimelineEventSchema).max(MAX_TIMELINE_EVENTS),
+      truncated: z.boolean().optional(),
+    })
+    .optional(),
+})
+
+const saveManualBacktestSchema = z
+  .object({
+    market: z.string().min(1).max(20),
+    interval: z.enum(CANDLE_INTERVALS),
+    /** Session window, ms since epoch. */
+    startMs: z.number().int().positive(),
+    endMs: z.number().int().positive(),
+    startingEquity: z.number().positive().max(1_000_000_000),
+    params: manualRunParamsSchema,
+    costs: z.object({
+      takerFeeBps: z.number().min(0).max(100),
+      makerFeeBps: z.number().min(0).max(100),
+      slippageBps: z.number().min(0).max(100),
+    }),
+    result: manualResultSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.endMs <= data.startMs) {
+      ctx.addIssue({ code: "custom", message: "Session window is empty." })
+    }
+    const bars = (data.endMs - data.startMs) / INTERVAL_MS[data.interval]
+    if (bars > MAX_BACKTEST_BARS) {
+      ctx.addIssue({ code: "custom", message: "Session window is too long." })
+    }
+  })
+
+/** Saves a finished manual practice session as a completed backtest row. */
+const saveManualBacktestFn = createServerFn({ method: "POST" })
+  .inputValidator(saveManualBacktestSchema)
+  .handler(async ({ data }): Promise<{ backtestId: string }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { createCompletedUserBacktest } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+
+    const start = new Date(data.startMs)
+    const name = `Manual · ${data.market} · ${Math.round(
+      (data.endMs - data.startMs) / 86_400_000
+    )}d ${data.interval} · ${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`
+    const row = await createCompletedUserBacktest(
+      user.id,
+      {
+        name,
+        automationId: null,
+        market: data.market,
+        network: "mainnet",
+        interval: data.interval,
+        params: data.params,
+        costs: data.costs,
+        startTime: start,
+        endTime: new Date(data.endMs),
+        startingEquity: data.startingEquity,
+      },
+      data.result
+    )
+    return { backtestId: row.id }
+  })
+
+/**
+ * Accepts the engine's own BacktestResult (whose timeline/halt types are the
+ * shared wider unions); the schema narrows and validates it server-side.
+ */
+export function saveManualBacktest(
+  input: Omit<z.input<typeof saveManualBacktestSchema>, "result"> & {
+    result: BacktestResult
+  }
+) {
+  return saveManualBacktestFn({
+    data: input as z.input<typeof saveManualBacktestSchema>,
+  })
+}
+
 const deleteBacktestsSchema = z
   .object({
     ids: z.array(z.string().min(1)).max(500).optional(),
@@ -916,9 +1138,12 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     completedAt: row.completedAt?.toISOString() ?? null,
     progress: row.progress,
     progressStage: row.progressStage,
-    // Normalized so `params.kind` is always set (pre-kind rows lack it).
-    params:
-      normalizeAutomationConfig(row.params) ?? (row.params as AutomationConfig),
+    // Manual sessions pass through as-is; automation rows are normalized so
+    // `params.kind` is always set (pre-kind rows lack it).
+    params: isManualRunParams(row.params)
+      ? row.params
+      : (normalizeAutomationConfig(row.params) ??
+        (row.params as AutomationConfig)),
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

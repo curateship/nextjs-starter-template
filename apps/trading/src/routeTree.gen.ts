@@ -29,6 +29,7 @@ import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
 import { Route as AuthenticatedBacktestIndexRouteImport } from './routes/_authenticated/backtest/index'
 import { Route as AuthenticatedBacktestGroupIdRouteImport } from './routes/_authenticated/backtest/$groupId'
+import { Route as AuthenticatedBacktestPracticeRouteImport } from './routes/_authenticated/backtest/practice'
 import { Route as AuthenticatedBotsIndexRouteImport } from './routes/_authenticated/bots/index'
 import { Route as AuthenticatedBotsBotIdRouteImport } from './routes/_authenticated/bots/$botId'
 import { Route as AuthenticatedScannerIndexRouteImport } from './routes/_authenticated/scanner/index'
@@ -152,6 +153,12 @@ const AuthenticatedBacktestGroupIdRoute =
     path: '/backtest/$groupId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedBacktestPracticeRoute =
+  AuthenticatedBacktestPracticeRouteImport.update({
+    id: '/backtest/practice',
+    path: '/backtest/practice',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedBotsIndexRoute = AuthenticatedBotsIndexRouteImport.update({
   id: '/bots/',
   path: '/bots/',
@@ -264,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
+  '/backtest/practice': typeof AuthenticatedBacktestPracticeRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -300,6 +308,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
+  '/backtest/practice': typeof AuthenticatedBacktestPracticeRoute
   '/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/scanner/book': typeof AuthenticatedScannerBookRoute
   '/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -339,6 +348,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
   '/_authenticated/backtest/$groupId': typeof AuthenticatedBacktestGroupIdRoute
+  '/_authenticated/backtest/practice': typeof AuthenticatedBacktestPracticeRoute
   '/_authenticated/bots/$botId': typeof AuthenticatedBotsBotIdRoute
   '/_authenticated/scanner/book': typeof AuthenticatedScannerBookRoute
   '/_authenticated/scanner/crowded': typeof AuthenticatedScannerCrowdedRoute
@@ -378,6 +388,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/automations/$automationId'
     | '/backtest/$groupId'
+    | '/backtest/practice'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -414,6 +425,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/automations/$automationId'
     | '/backtest/$groupId'
+    | '/backtest/practice'
     | '/bots/$botId'
     | '/scanner/book'
     | '/scanner/crowded'
@@ -452,6 +464,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/automations/$automationId'
     | '/_authenticated/backtest/$groupId'
+    | '/_authenticated/backtest/practice'
     | '/_authenticated/bots/$botId'
     | '/_authenticated/scanner/book'
     | '/_authenticated/scanner/crowded'
@@ -618,6 +631,13 @@ declare module '@tanstack/react-router' {
       path: '/backtest/$groupId'
       fullPath: '/backtest/$groupId'
       preLoaderRoute: typeof AuthenticatedBacktestGroupIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/backtest/practice': {
+      id: '/_authenticated/backtest/practice'
+      path: '/backtest/practice'
+      fullPath: '/backtest/practice'
+      preLoaderRoute: typeof AuthenticatedBacktestPracticeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/bots/': {
@@ -798,6 +818,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
   AuthenticatedBacktestGroupIdRoute: typeof AuthenticatedBacktestGroupIdRoute
+  AuthenticatedBacktestPracticeRoute: typeof AuthenticatedBacktestPracticeRoute
   AuthenticatedBotsBotIdRoute: typeof AuthenticatedBotsBotIdRoute
   AuthenticatedScannerBookRoute: typeof AuthenticatedScannerBookRoute
   AuthenticatedScannerCrowdedRoute: typeof AuthenticatedScannerCrowdedRoute
@@ -832,6 +853,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAutomationsAutomationIdRoute:
     AuthenticatedAutomationsAutomationIdRoute,
   AuthenticatedBacktestGroupIdRoute: AuthenticatedBacktestGroupIdRoute,
+  AuthenticatedBacktestPracticeRoute: AuthenticatedBacktestPracticeRoute,
   AuthenticatedBotsBotIdRoute: AuthenticatedBotsBotIdRoute,
   AuthenticatedScannerBookRoute: AuthenticatedScannerBookRoute,
   AuthenticatedScannerCrowdedRoute: AuthenticatedScannerCrowdedRoute,
