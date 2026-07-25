@@ -101,6 +101,21 @@ export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
 }
 
 /**
+ * One static arrow per fill: every DCA ladder buy and every exit sell drawn at
+ * the exact price and time it happened, instead of one blended averaged-down
+ * entry per round trip. These markers carry no letter, so the chart renders
+ * them as its lightweight native green up / red down arrows (no animated chips)
+ * — a long run with a deep ladder stays cheap to draw.
+ */
+export function buildRunFillMarkers(result: BacktestResult): ChartMarker[] {
+  return result.fills.map((fill) => ({
+    time: fill.t,
+    side: fill.side,
+    price: fill.px,
+  }))
+}
+
+/**
  * Dashed red stop-path segments for a run that used a trailing stop — one
  * line per trade so the ratchet is visible bar by bar. Fixed-stop and no-stop
  * runs return nothing. The per-bar levels come from the same shared math the

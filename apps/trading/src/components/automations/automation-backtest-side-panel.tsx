@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   CircleDashedIcon,
   Loader2Icon,
+  ShuffleIcon,
   XCircleIcon,
   XIcon,
 } from "lucide-react"
@@ -117,6 +118,29 @@ export function AutomationBacktestSidePanel({
     [runs, runStats, marketSort.sortColumn, marketSort.sortDirection]
   )
 
+  // The shared-wallet basket runs as one block, so show a single percentage of
+  // the replay rather than a per-market count (they finish together).
+  const replayPct =
+    runs.length > 0
+      ? Math.round(
+          Math.max(
+            0,
+            ...runs.map((run) => (run.status === "done" ? 100 : run.progress))
+          )
+        )
+      : 0
+
+  // Fill the basket with a fresh random draw up to the market cap — a fast way
+  // to grab a broad, unbiased spread instead of hand-picking coins.
+  const randomizeMarkets = () => {
+    const pool = markets.map((row) => row.coin)
+    for (let i = pool.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    setSelectedMarkets(pool.slice(0, MAX_EXTRA_MARKETS + 1))
+  }
+
   const submit = () => {
     const windowDays = Number(days)
     if (
@@ -178,27 +202,31 @@ export function AutomationBacktestSidePanel({
             <>
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <Label>
-                    Markets{" "}
-                    <span className="font-normal text-muted-foreground">
-                      (
-                      {isQfl
-                        ? "one shared QFL portfolio"
-                        : "one run per market"}{" "}
-                      · max {MAX_EXTRA_MARKETS + 1})
-                    </span>
-                  </Label>
-                  {selectedMarkets.length > 0 ? (
+                  <Label>Markets</Label>
+                  <div className="flex items-center gap-1">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      onClick={() => setSelectedMarkets([])}
+                      disabled={markets.length === 0}
+                      onClick={randomizeMarkets}
                     >
-                      Clear all
+                      <ShuffleIcon className="size-3.5" />
+                      Randomize
                     </Button>
-                  ) : null}
+                    {selectedMarkets.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setSelectedMarkets([])}
+                      >
+                        Clear all
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedMarkets.map((coin) => (
@@ -301,17 +329,30 @@ export function AutomationBacktestSidePanel({
                   </Button>
                 ) : null}
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                {isQfl ? "One shared QFL portfolio" : "One run per market"} · max{" "}
+                {MAX_EXTRA_MARKETS + 1} markets.
+              </p>
             </>
           ) : phase === "running" ? (
             <>
-              <p className="text-xs text-muted-foreground">
-                {progress.done} of {progress.total || selectedMarkets.length}{" "}
-                market{(progress.total || selectedMarkets.length) === 1
-                  ? ""
-                  : "s"}{" "}
-                complete.
-                {progress.failed > 0 ? ` ${progress.failed} failed.` : ""}
-              </p>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-500"
+                    style={{ width: `${replayPct}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium tabular-nums">
+                  {replayPct}%
+                </span>
+              </div>
+              {progress.failed > 0 ? (
+                <p className="text-[10px] text-destructive">
+                  {progress.failed} failed.
+                </p>
+              ) : null}
               <div className="grid gap-2">
                 {runs.length === 0 ? (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">

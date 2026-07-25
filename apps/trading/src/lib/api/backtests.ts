@@ -134,6 +134,8 @@ export type BacktestGroupRun = {
   status: "pending" | "running" | "done" | "error"
   /** Why the run failed (queue-recorded), null unless status is "error". */
   error: string | null
+  /** 0–100. For a shared-wallet basket this is the whole run's replay progress. */
+  progress: number
   netPnlPct: number | null
 }
 
@@ -490,6 +492,7 @@ const loadBacktestFn = createServerFn({ method: "POST" })
         market: sibling.market,
         status: sibling.status as BacktestGroupRun["status"],
         error: sibling.error,
+        progress: sibling.progress,
         netPnlPct:
           sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
       })),
@@ -509,6 +512,8 @@ const loadLatestAutomationBacktestFn = createServerFn({ method: "POST" })
     }): Promise<{
       groupId: string
       name: string
+      /** The window that run used, in days back — restores the setup form. */
+      windowDays: number
       runs: BacktestGroupRun[]
     } | null> => {
       const { getLatestAutomationBacktestGroup, listGroupRuns } =
@@ -520,14 +525,22 @@ const loadLatestAutomationBacktestFn = createServerFn({ method: "POST" })
       )
       if (!latest) return null
       const siblings = await listGroupRuns(user.id, latest.groupId)
+      const windowDays = Math.max(
+        1,
+        Math.round(
+          (latest.endTime.getTime() - latest.startTime.getTime()) / 86_400_000
+        )
+      )
       return {
         groupId: latest.groupId,
         name: latest.name,
+        windowDays,
         runs: siblings.map((sibling) => ({
           id: sibling.id,
           market: sibling.market,
           status: sibling.status as BacktestGroupRun["status"],
           error: sibling.error,
+          progress: Number(sibling.progress ?? 0),
           netPnlPct:
             sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
         })),

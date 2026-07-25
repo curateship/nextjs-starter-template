@@ -236,7 +236,10 @@ export async function claimNextPendingBacktest(
       .where(
         and(
           eq(tradingBacktests.status, "pending"),
-          sql<boolean>`((${tradingBacktests.params} -> 'qfl') is null or ${tradingBacktests.id} = ${tradingBacktests.groupId})`
+          // QFL and DCA baskets share one wallet, so only the group leader
+          // (id = groupId) is claimable — it then pulls in its siblings. Every
+          // other strategy is one independent run per market, claimed on its own.
+          sql<boolean>`(((${tradingBacktests.params} -> 'qfl') is null and (${tradingBacktests.params} -> 'dca') is null) or ${tradingBacktests.id} = ${tradingBacktests.groupId})`
         )
       )
       .orderBy(asc(tradingBacktests.createdAt))
@@ -543,6 +546,7 @@ export async function listGroupRuns(
       market: tradingBacktests.market,
       status: tradingBacktests.status,
       error: tradingBacktests.error,
+      progress: tradingBacktests.progress,
       netPnlPct: sql<
         string | null
       >`(${tradingBacktests.result} #>> '{stats,netPnlPct}')`,
@@ -620,11 +624,18 @@ export async function getLatestAutomationBacktestGroup(
   userId: string,
   automationId: string,
   database: CustomShellDb = db
-): Promise<{ groupId: string; name: string } | null> {
+): Promise<{
+  groupId: string
+  name: string
+  startTime: Date
+  endTime: Date
+} | null> {
   const [row] = await database
     .select({
       groupId: tradingBacktests.groupId,
       name: tradingBacktests.name,
+      startTime: tradingBacktests.startTime,
+      endTime: tradingBacktests.endTime,
     })
     .from(tradingBacktests)
     .where(

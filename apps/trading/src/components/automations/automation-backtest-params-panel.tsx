@@ -1,6 +1,7 @@
 import * as React from "react"
 
-import { BacktestKpis } from "@/components/backtest/backtest-kpis"
+import { BacktestGroupKpis, BacktestKpis } from "@/components/backtest/backtest-kpis"
+import type { CombinedBacktestSummary } from "@/components/backtest/backtest-combine"
 import { windowDaysOf } from "@/components/backtest/backtest-format"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestDetail } from "@/lib/api/backtests"
@@ -13,11 +14,19 @@ import {
 
 /**
  * The editor's left panel while backtest mode is on: the run's parameters and
- * the selected market's headline numbers — the one home for each. Before a
- * market is selected the rows show the editor's own (saved) settings.
+ * its headline numbers — the one home for each. When the run has finished
+ * markets the numbers are the whole basket's combined total (P&L, trades, win
+ * rate across every market); the parameters below stay the same for every
+ * market, so they read the same whichever market is selected. Before any market
+ * is selected the rows show the editor's own (saved) settings.
  */
 export function AutomationBacktestParamsPanel({
   selectedRun,
+  combined,
+  combinedDrawdownPct,
+  potAtMaxDdUsd,
+  peakWalletPct,
+  marketsTotal,
   interval,
   days,
   backtestSettings,
@@ -25,6 +34,16 @@ export function AutomationBacktestParamsPanel({
 }: {
   /** The selected market's finished run — the immutable source of truth. */
   selectedRun: BacktestDetail | null
+  /** Combined stats across every finished market; null until one finishes. */
+  combined: CombinedBacktestSummary | null
+  /** The whole pot's peak-to-trough drawdown (all markets blended), ≤ 0. */
+  combinedDrawdownPct: number | null
+  /** Money in the pot at the drawdown trough, in dollars. */
+  potAtMaxDdUsd: number | null
+  /** The most of the shared wallet ever deployed at once, in percent. */
+  peakWalletPct: number | null
+  /** Markets in the run, finished or not, for the "Markets" tile. */
+  marketsTotal: number
   interval: AutomationInterval
   /** Setup-form days, shown until a run is selected. */
   days: string
@@ -61,15 +80,30 @@ export function AutomationBacktestParamsPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-4 py-2.5">
         <h2 className="text-xs font-semibold tracking-wide uppercase">
-          {selectedRun ? `Backtest · ${selectedRun.market}` : "Backtest params"}
+          {combined
+            ? "Backtest · all markets"
+            : selectedRun
+              ? `Backtest · ${selectedRun.market}`
+              : "Backtest params"}
         </h2>
         <span className="text-[10px] text-muted-foreground">Read-only</span>
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <BacktestKpis
-          stats={selectedRun?.result?.stats ?? null}
-          className="p-3"
-        />
+        {combined ? (
+          <BacktestGroupKpis
+            summary={combined}
+            marketsTotal={marketsTotal}
+            combinedDrawdownPct={combinedDrawdownPct}
+            potAtMaxDdUsd={potAtMaxDdUsd}
+            peakWalletPct={peakWalletPct}
+            className="p-3"
+          />
+        ) : (
+          <BacktestKpis
+            stats={selectedRun?.result?.stats ?? null}
+            className="p-3"
+          />
+        )}
         <div className="grid content-start gap-1.5 p-3 pt-0">
           {rows.map((row) => (
             <div

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { BacktestResult } from "@/lib/backtest/types"
 
-import { buildRunMarkers } from "./backtest-overlays"
+import { buildRunFillMarkers, buildRunMarkers } from "./backtest-overlays"
 
 function emptyResult(partial: Partial<BacktestResult> = {}): BacktestResult {
   return {
@@ -67,5 +67,29 @@ describe("buildRunMarkers", () => {
       { time: 10, side: "buy", price: 100, letter: "O", color: "#089981" },
       { time: 20, side: "sell", price: 110, letter: "F", color: "#f5b301", textColor: "#1a1a1a" },
     ])
+  })
+})
+
+describe("buildRunFillMarkers", () => {
+  it("draws one letterless arrow per fill — every ladder buy, not one blended entry", () => {
+    // Two DCA buys at different prices, then a sell to close.
+    const result = emptyResult({
+      fills: [
+        { t: 10, side: "buy", px: 100, sz: 1, fee: 0.1, closedPnl: 0, purpose: "dca:b:0" },
+        { t: 20, side: "buy", px: 95, sz: 2, fee: 0.1, closedPnl: 0, purpose: "dca:b:1" },
+        { t: 30, side: "sell", px: 110, sz: 3, fee: 0.1, closedPnl: 40, purpose: "dca:tp" },
+      ],
+    })
+    // No letter → the chart renders these as its native green/red arrows, and
+    // each individual fill shows (the averaged-down entry is not collapsed).
+    expect(buildRunFillMarkers(result)).toEqual([
+      { time: 10, side: "buy", price: 100 },
+      { time: 20, side: "buy", price: 95 },
+      { time: 30, side: "sell", price: 110 },
+    ])
+  })
+
+  it("is empty when the run made no fills", () => {
+    expect(buildRunFillMarkers(emptyResult())).toEqual([])
   })
 })

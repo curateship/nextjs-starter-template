@@ -32,7 +32,7 @@ import {
   type BacktestTimeline,
   type BacktestTrade,
 } from "@/lib/backtest/types"
-import type { CandleInterval } from "@/lib/hl/ws"
+import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
 import type { HistoryCandle } from "@/server/backtest/history"
 import {
   ChevronFirstIcon,
@@ -45,7 +45,7 @@ import {
 
 import { formatFocusDays, pct, signedUsd } from "./backtest-format"
 import {
-  buildRunMarkers,
+  buildRunFillMarkers,
   buildTrailingStopOverlays,
   type StrategyChartOverlays,
 } from "./backtest-overlays"
@@ -210,7 +210,25 @@ export function BacktestRunChart({
   onTuneDrag?: (change: BacktestTuneDrag) => void
 }) {
   const result = run.result
-  const interval = run.interval as CandleInterval
+  // The display timeframe. Starts at the run's own interval; the toolbar lets
+  // you switch it to zoom in on the rungs, and Reset View snaps it back.
+  const runInterval = run.interval as CandleInterval
+  const [interval, setChartInterval] = React.useState<CandleInterval>(runInterval)
+  // A newly selected run (different market/run) resets it to what that run used.
+  React.useEffect(() => {
+    setChartInterval(run.interval as CandleInterval)
+  }, [run.id, run.interval])
+  // Only the run's own timeframe and FINER ones. You can zoom in to inspect the
+  // rungs, but never coarser than the run: a coarser candle would fold several
+  // run bars into one and pile a buy from one bar and a sell from another onto
+  // the "same" candle — fills that never actually shared a bar.
+  const intervalOptions = React.useMemo(
+    () =>
+      CANDLE_INTERVALS.filter(
+        (iv) => (INTERVAL_MS[iv] ?? 0) <= (INTERVAL_MS[runInterval] ?? 0)
+      ),
+    [runInterval]
+  )
   const runStartMs = React.useMemo(() => Date.parse(run.startTime), [run.startTime])
   const runEndMs = React.useMemo(() => Date.parse(run.endTime), [run.endTime])
   const barMs = INTERVAL_MS[interval] ?? 60_000
@@ -435,6 +453,31 @@ export function BacktestRunChart({
     }
   }, [committedFocus, barMs])
 
+  // A full-width dashed yellow line at the focused trade's BREAKEVEN — the
+  // position's average cost nudged up by the round-trip cost (fees + slippage),
+  // i.e. where price must return for the whole ladder to net zero. Drawn as a
+  // price line so it spans the entire chart, not just the trade's span.
+  const focusBreakevenLine = React.useMemo<ChartPriceLine[]>(() => {
+    if (!committedFocus?.avgPx) return []
+    const costRate =
+      (run.costs.makerFeeBps +
+        run.costs.takerFeeBps +
+        run.costs.slippageBps) /
+      10_000
+    const long = committedFocus.side === "long"
+    const breakeven = committedFocus.avgPx * (long ? 1 + costRate : 1 - costRate)
+    return [
+      {
+        id: "focus-breakeven",
+        price: breakeven,
+        color: "#f5b301",
+        title: "Breakeven",
+        lineStyle: "dashed",
+        axisLabelVisible: true,
+      },
+    ]
+  }, [committedFocus, run.costs])
+
   // Replay playback: advance the playhead speed × bars per second.
   React.useEffect(() => {
     if (!playing) return
@@ -559,7 +602,7 @@ export function BacktestRunChart({
 
   const markers = React.useMemo(() => {
     if (!result) return []
-    const all = buildRunMarkers(result)
+    const all = buildRunFillMarkers(result)
     if (cutoff === null) return all
     return all.filter((marker) => marker.time <= cutoff)
   }, [result, cutoff])
@@ -686,8 +729,13 @@ export function BacktestRunChart({
   )
 
   const priceLines = React.useMemo(
-    () => [...overlays.priceLines, ...tapeLines, ...(extraPriceLines ?? [])],
-    [overlays.priceLines, tapeLines, extraPriceLines]
+    () => [
+      ...overlays.priceLines,
+      ...tapeLines,
+      ...focusBreakevenLine,
+      ...(extraPriceLines ?? []),
+    ],
+    [overlays.priceLines, tapeLines, focusBreakevenLine, extraPriceLines]
   )
 
   const barColors = React.useMemo(() => {
@@ -727,9 +775,9 @@ export function BacktestRunChart({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <ChartToolbar
-        intervals={[interval]}
+        intervals={intervalOptions}
         interval={interval}
-        onIntervalChange={() => {}}
+        onIntervalChange={setChartInterval}
         legend={{ chips: true }}
         legendLines={labeledOverlayLines}
         leading={toolbarLeading}
@@ -764,6 +812,7 @@ export function BacktestRunChart({
           onDrawingsCommit={onDrawingsCommit}
           onVisibleRangeChange={handleVisibleRange}
           onLineDragEnd={handleLineDragEnd}
+          onResetView={() => setChartInterval(runInterval)}
         />
       </div>
       <div className="flex shrink-0 items-center gap-1 border-t px-2 py-1">

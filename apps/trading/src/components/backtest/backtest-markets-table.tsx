@@ -133,8 +133,11 @@ export function useMarketSort(defaultColumn: MarketSort = "net") {
 
 const mean = (values: number[]) =>
   values.length
-    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    ? values.reduce((total, value) => total + value, 0) / values.length
     : null
+
+const sum = (values: number[]) =>
+  values.length ? values.reduce((total, value) => total + value, 0) : null
 
 const nums = (values: (number | null)[]) =>
   values.filter((value): value is number => value !== null)
@@ -162,16 +165,20 @@ export function BacktestMarketsTable({
   const ids = rows.map((row) => row.id)
   const colSpan = selection ? 6 : 5
 
-  // Footer aggregates over finished markets only: averages for P&L / DD / Win,
-  // a running total for trades.
+  // Footer aggregates over finished markets only: P&L and trades are summed
+  // totals across the basket (the whole run's take, not a per-market average);
+  // DD and Win stay averages, since summing a rate is meaningless.
   const doneRows = rows.filter((row) => row.status === "done")
   const summary =
     doneRows.length > 0
       ? {
-          netPnl: mean(nums(doneRows.map((row) => row.netPnl))),
+          netPnl: sum(nums(doneRows.map((row) => row.netPnl))),
           dd: mean(nums(doneRows.map((row) => row.maxDrawdownPct))),
           win: mean(nums(doneRows.map((row) => row.winRate))),
-          trades: doneRows.reduce((sum, row) => sum + (row.tradeCount ?? 0), 0),
+          trades: doneRows.reduce(
+            (total, row) => total + (row.tradeCount ?? 0),
+            0
+          ),
         }
       : null
 
@@ -285,7 +292,7 @@ export function BacktestMarketsTable({
           <TableRow>
             {selection ? <TableCell column="select" /> : null}
             <TableCell column="meta" className="w-full">
-              <span className="text-muted-foreground">Average</span>
+              <span className="text-muted-foreground">Total</span>
             </TableCell>
             <TableCell
               column="meta"
