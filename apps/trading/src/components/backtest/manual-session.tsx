@@ -1,6 +1,8 @@
 import * as React from "react"
 import { useBlocker, useNavigate } from "@tanstack/react-router"
+import { toast } from "sonner"
 
+import { formatPriceDisplay } from "@/components/trading/format"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { computeIndicatorPaint } from "@/components/chart/indicator-paint"
 import { IndicatorsMenu } from "@/components/chart/indicators-menu"
@@ -15,7 +17,10 @@ import {
   type ChartPriceLine,
   type PriceChartHandle,
 } from "@/components/chart/price-chart"
-import { MarketPicker } from "@/components/trading/market-watchlist"
+import {
+  PracticeSetupDialog,
+  type PracticeConfig,
+} from "@/components/backtest/practice-setup-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -32,27 +37,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { FieldLabel } from "@/components/ui/field-label"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { WorkspacePanel } from "@/components/ui/resizable"
 import {
   loadPracticeCandles,
   saveManualBacktest,
 } from "@/lib/api/backtests"
 import { loadIndicators, saveIndicator } from "@/lib/api/indicators"
-import { useBinanceMarketRows } from "@/lib/backtest/binance-markets"
 import { ManualSession } from "@/lib/backtest/manual-sim"
-import {
-  MANUAL_RISK_PCT_MAX,
-  MANUAL_RISK_PCT_MIN,
-} from "@/lib/backtest/manual-types"
 import {
   aggregateCandles,
   countRevealed,
@@ -66,21 +57,20 @@ import {
   BACKTEST_INTERVALS,
   DEFAULT_BACKTEST_COSTS,
   INTERVAL_MS,
-  maxWindowDays,
   type BacktestInterval,
   type BacktestResult,
 } from "@/lib/backtest/types"
 import type { CandleInterval } from "@/lib/hl/ws"
 import type { ChartDrawings } from "@/lib/trading/chart-drawings"
+import type { ChartPosition } from "@/lib/trading/chart-positions"
 import { EMPTY_CHART_DRAWINGS } from "@/lib/trading/chart-drawings"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
-import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { usePersistedState } from "@/lib/use-persisted-state"
 import { cn } from "@/lib/utils"
 import type { HistoryCandle } from "@/server/backtest/history"
 import {
   ArrowLeftIcon,
-  ChevronDownIcon,
+  DollarSignIcon,
   Loader2Icon,
   PictureInPicture2Icon,
 } from "lucide-react"
@@ -133,30 +123,21 @@ const CHUNK_BARS = 2000
  */
 const EDGE_BUFFER_BARS = 300
 
-const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 const EMPTY_CANDLES: HistoryCandle[] = []
 /** Loaded-history ceiling: no point holding more than can ever be shown. */
 const DISPLAY_CANDLE_CAP = REPLAY_KEEP_BARS + REPLAY_TRIM_STEP
 /** Candles the indicator paint pipeline reruns over on every revealed bar. */
 const PAINT_CANDLE_CAP = 1200
 /**
- * Shortest life a freshly drawn waiting order gets, in session candles — a
- * floor for boxes drawn too narrow to survive (e.g. drawn on a much finer
- * display timeframe). Keep it SMALL: the drawing is widened to match, so a big
- * floor stretches a freshly clicked box clear across the chart. A click already
- * makes a box about 8% of the visible span, and this must not fight that.
+ * Empty bars kept ahead of the tape, so there is somewhere to plan. A box is
+ * drawn forward from where it was clicked, so with the chart's usual sliver of
+ * right-hand room a trade planned at the live price landed almost entirely
+ * off-screen and read as a click that never registered.
  */
-const MIN_ORDER_BARS = 20
+const PLAN_ROOM_BARS = 40
+
 /** Amber for resting entries — the same hue the replay tape uses. */
 const WAITING_ORDER_COLOR = "#f59e0b"
-
-export type PracticeConfig = {
-  market: string
-  interval: BacktestInterval
-  days: number
-  equity: number
-  riskPct: number
-}
 
 /** Merge two candle sets, de-duped by open time and sorted ascending. */
 function mergeCandles(a: HistoryCandle[], b: HistoryCandle[]): HistoryCandle[] {
@@ -164,212 +145,6 @@ function mergeCandles(a: HistoryCandle[], b: HistoryCandle[]): HistoryCandle[] {
   for (const candle of a) byTime.set(candle.t, candle)
   for (const candle of b) byTime.set(candle.t, candle)
   return [...byTime.values()].sort((x, y) => x.t - y.t)
-}
-
-/**
- * The "Practice" setup modal on the Backtest dashboard: pick a market,
- * timeframe, window, wallet, and risk — Start opens the session route.
- */
-export function PracticeSetupDialog({
-  open,
-  onOpenChange,
-  initial,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  /** Seeds the form (e.g. "New run" from a session re-opens with its config). */
-  initial?: Partial<PracticeConfig>
-}) {
-  const navigate = useNavigate()
-  const markets = useBinanceMarketRows()
-  const { favorites, toggleFavorite } = useMarketFavorites()
-  const [market, setMarket] = React.useState(initial?.market ?? "BTC")
-  const [interval, setInterval] = React.useState<BacktestInterval>(
-    initial?.interval ?? "15m"
-  )
-  const [windowDays, setWindowDays] = React.useState(
-    String(initial?.days ?? 30)
-  )
-  const [equity, setEquity] = React.useState(String(initial?.equity ?? 10000))
-  const [riskPct, setRiskPct] = React.useState(String(initial?.riskPct ?? 1))
-  const [error, setError] = React.useState<string | null>(null)
-
-  const windowCap = maxWindowDays(interval)
-
-  function start() {
-    const days = Math.round(Number(windowDays))
-    const startingEquity = Number(equity)
-    const risk = Number(riskPct)
-    if (!Number.isFinite(days) || days < 1 || days > windowCap) {
-      setError(
-        `The window must be between 1 and ${windowCap} days at ${interval}.`
-      )
-      return
-    }
-    if (!Number.isFinite(startingEquity) || startingEquity <= 0) {
-      setError("Starting money must be a positive number.")
-      return
-    }
-    if (
-      !Number.isFinite(risk) ||
-      risk < MANUAL_RISK_PCT_MIN ||
-      risk > MANUAL_RISK_PCT_MAX
-    ) {
-      setError(
-        `Risk per trade must be between ${MANUAL_RISK_PCT_MIN}% and ${MANUAL_RISK_PCT_MAX}%.`
-      )
-      return
-    }
-    setError(null)
-    // No onOpenChange(false) here: navigation unmounts (or remounts) the
-    // host screen, and closing first would reset a session's discard flag
-    // and re-arm its leave-warning against this very navigation.
-    void navigate({
-      to: "/backtest/practice",
-      search: {
-        market,
-        interval,
-        days,
-        equity: startingEquity,
-        risk,
-      },
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin" className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Manual practice session</DialogTitle>
-          <DialogDescription>
-            Rewind the past and trade by drawing long/short boxes.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Session</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="practice-market">Market</FieldLabel>
-                  <MarketPicker
-                    rows={markets}
-                    selected={market}
-                    protectedMarkets={EMPTY_MARKETS}
-                    favorites={favorites}
-                    onToggleFavorite={toggleFavorite}
-                    metrics={false}
-                    modal
-                    onSelect={setMarket}
-                    trigger={
-                      <Button
-                        id="practice-market"
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-between sm:w-32"
-                      >
-                        {market}
-                        <ChevronDownIcon className="size-4 text-muted-foreground" />
-                      </Button>
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="practice-interval">Timeframe</FieldLabel>
-                  <Select
-                    value={interval}
-                    onValueChange={(value) =>
-                      setInterval(value as BacktestInterval)
-                    }
-                  >
-                    <SelectTrigger
-                      id="practice-interval"
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BACKTEST_INTERVALS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 sm:flex-1">
-                  <FieldLabel
-                    htmlFor="practice-window"
-                    hint={`How far back the session starts. At ${interval} candles it can cover up to ${windowCap} days.`}
-                  >
-                    Days back
-                  </FieldLabel>
-                  <Input
-                    id="practice-window"
-                    type="number"
-                    min={1}
-                    max={windowCap}
-                    value={windowDays}
-                    onChange={(event) => setWindowDays(event.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="grid gap-2 sm:flex-1">
-                  <FieldLabel htmlFor="practice-equity">
-                    Starting money ($)
-                  </FieldLabel>
-                  <Input
-                    id="practice-equity"
-                    type="number"
-                    min={1}
-                    value={equity}
-                    onChange={(event) => setEquity(event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2 sm:flex-1">
-                  <FieldLabel
-                    htmlFor="practice-risk"
-                    hint="Each trade is sized so that hitting your stop loses exactly this percent of the wallet. A tighter stop means a bigger position, a wider stop a smaller one."
-                  >
-                    Risk per trade (%)
-                  </FieldLabel>
-                  <Input
-                    id="practice-risk"
-                    type="number"
-                    min={MANUAL_RISK_PCT_MIN}
-                    max={MANUAL_RISK_PCT_MAX}
-                    step={0.25}
-                    value={riskPct}
-                    onChange={(event) => setRiskPct(event.target.value)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={start}>
-            Start session
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 /**
@@ -448,7 +223,18 @@ export function ManualSessionScreen({ config }: { config: PracticeConfig }) {
     return () => {
       cancelled = true
     }
-  }, [config])
+    // Deliberately the config's VALUES, not the object. The route rebuilds
+    // `config` on every render, and depending on its identity would reload the
+    // history and hand the live screen a brand-new engine mid-session — one
+    // that has never seen the boxes already on the chart, so nothing the user
+    // had planned would ever fill again.
+  }, [
+    config.market,
+    config.interval,
+    config.days,
+    config.equity,
+    config.riskPct,
+  ])
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
@@ -479,6 +265,9 @@ export function ManualSessionScreen({ config }: { config: PracticeConfig }) {
           endMs={state.endMs}
           engine={state.engine}
           onExit={() => void navigate({ to: "/backtest" })}
+          onLiveTrade={() =>
+            void navigate({ to: "/trade", search: { market: config.market } })
+          }
           onSaved={(backtestId) =>
             void navigate({ to: "/backtest", search: { run: backtestId } })
           }
@@ -508,6 +297,7 @@ function ActiveSession({
   endMs,
   engine,
   onExit,
+  onLiveTrade,
   onSaved,
   onRestart,
 }: {
@@ -520,6 +310,8 @@ function ActiveSession({
   endMs: number
   engine: ManualSession
   onExit: () => void
+  /** Leaves for the live Trade terminal on this session's market. */
+  onLiveTrade: () => void
   onSaved: (backtestId: string) => void
   onRestart: () => void
 }) {
@@ -757,33 +549,57 @@ function ActiveSession({
     return () => cancelAnimationFrame(frame)
   }, [playing, speed, sessionStepMs, endMs, advanceTo])
 
-  // A box drawn on a fine display timeframe can be only minutes wide — its
-  // waiting order would expire within a session bar or two, reading as "my
-  // buy never triggers". Every fresh box gets a minimum lifetime of
-  // MIN_ORDER_BARS SESSION candles from the current playhead; the drawing
-  // widens to match so the visible right edge always tells the true expiry.
-  const knownBoxIdsRef = React.useRef(new Set<string>())
-  const withMinimumLifetime = React.useCallback(
-    (next: ChartDrawings): ChartDrawings => {
-      const stepSec = sessionStepMs / 1000
-      const floorEndSec =
-        Math.floor(playheadRef.current / 1000) + MIN_ORDER_BARS * stepSec
-      let changed = false
-      const positions = next.positions.map((position) => {
-        if (knownBoxIdsRef.current.has(position.id)) return position
-        knownBoxIdsRef.current.add(position.id)
-        if (position.endTime >= floorEndSec) return position
-        changed = true
-        return { ...position, endTime: floorEndSec }
-      })
-      return changed ? { ...next, positions } : next
+  /**
+   * The playhead each box was last placed or dragged against. Time carries a
+   * resting order's box forward from there, so the box both follows the tape
+   * and keeps exactly where it was dropped.
+   *
+   * Re-anchored on every set the chart hands back — including mid-drag — so the
+   * travel offset is always zero while a gesture is in flight. Without that,
+   * each pointer move was re-pinned against a stale anchor and sideways drags
+   * were undone as fast as they were made: the box would only move up and down.
+   */
+  const [boxAnchors, setBoxAnchors] = React.useState<Map<string, number>>(
+    () => new Map()
+  )
+  const anchorBoxes = React.useCallback((next: ChartDrawings) => {
+    const playheadSec = Math.floor(playheadRef.current / 1000)
+    setBoxAnchors(
+      new Map(next.positions.map((position) => [position.id, playheadSec]))
+    )
+  }, [])
+  const handleDrawingsChange = React.useCallback(
+    (next: ChartDrawings) => {
+      setDrawings(next)
+      anchorBoxes(next)
     },
-    [sessionStepMs]
+    [anchorBoxes]
   )
 
+  // Boxes already seen, so a commit can tell a brand-new plan from an edit.
+  const knownBoxIdsRef = React.useRef(new Set<string>())
+  const newlyPlaced = React.useCallback((next: ChartDrawings) => {
+    const placed: ChartPosition[] = []
+    for (const position of next.positions) {
+      if (knownBoxIdsRef.current.has(position.id)) continue
+      knownBoxIdsRef.current.add(position.id)
+      placed.push(position)
+    }
+    return placed
+  }, [])
+
   const handleDrawingsCommit = React.useCallback(
-    (raw: ChartDrawings) => {
-      const next = withMinimumLifetime(raw)
+    (next: ChartDrawings) => {
+      // Say that the order is in. Part of a waiting order's box sits in the
+      // future, off to the right, so "did that click even land?" is a fair
+      // question — and answering it wrong means drawing the trade twice.
+      for (const box of newlyPlaced(next)) {
+        toast.success(
+          `${box.side === "long" ? "Buy" : "Sell"} order waiting at ${formatPriceDisplay(box.entry)} — rests until price reaches it. Delete the box to cancel.`
+        )
+      }
+      // Whatever the user just left on screen is where the box belongs now.
+      anchorBoxes(next)
       // After Done the drawings are annotation only — the engine is frozen.
       if (resultRef.current) {
         setDrawings(next)
@@ -803,7 +619,7 @@ function ActiveSession({
       )
       setVersion((v) => v + 1)
     },
-    [engine, withMinimumLifetime]
+    [anchorBoxes, engine, newlyPlaced]
   )
 
   // Timeframes without data yet (the main display, and the mini chart when
@@ -997,6 +813,53 @@ function ActiveSession({
     [engine, version]
   )
 
+  /**
+   * What the chart actually draws. A box is anchored to the moment it was
+   * drawn, which is fine for an annotation and wrong for a live order: at 60×
+   * the tape carries it off the left edge in about two seconds, where it can be
+   * neither seen nor grabbed — so a resting order looked like it had vanished,
+   * and the fix people reach for is to keep dragging it back.
+   *
+   * A waiting order therefore travels with the tape (nothing has happened yet,
+   * so its position in time means nothing), and an open position keeps its left
+   * edge at the entry while its right edge follows the tape — the trade's own
+   * history, still reachable so its stop and target can be dragged.
+   */
+  const displayDrawings = React.useMemo(() => {
+    // Runs on every step of the tape, so leave early on the common shapes
+    // before building anything: nothing drawn, or nothing live to carry.
+    if (drawings.positions.length === 0) return drawings
+    if (snap.pendingEntries.length === 0 && snap.positions.length === 0) {
+      return drawings
+    }
+    const waiting = new Set(snap.pendingEntries.map((order) => order.boxId))
+    const open = new Set(snap.positions.map((position) => position.boxId))
+    const playheadSec = Math.floor(playheadMs / 1000)
+    let changed = false
+    const positions = drawings.positions.map((position) => {
+      if (waiting.has(position.id)) {
+        // Carry the box forward by however much tape has run since it was last
+        // touched. Mid-gesture that is zero, so a drag — sideways included —
+        // passes straight through.
+        const anchor = boxAnchors.get(position.id) ?? playheadSec
+        const shift = playheadSec - anchor
+        if (shift === 0) return position
+        changed = true
+        return {
+          ...position,
+          startTime: position.startTime + shift,
+          endTime: position.endTime + shift,
+        }
+      }
+      if (open.has(position.id) && position.endTime < playheadSec) {
+        changed = true
+        return { ...position, endTime: playheadSec }
+      }
+      return position
+    })
+    return changed ? { ...drawings, positions } : drawings
+  }, [boxAnchors, drawings, playheadMs, snap])
+
   // Unmissable in-trade presence: full-width price lines for the open
   // position's entry/stop/TP and each waiting order's entry, with axis
   // labels — the same language the live terminal speaks.
@@ -1172,6 +1035,10 @@ function ActiveSession({
           <HudStat label="Leverage" value={`${snap.leverage.toFixed(1)}×`} />
         ) : null}
         <div className="ml-auto flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={onLiveTrade}>
+            <DollarSignIcon className="size-4" />
+            Live Trade
+          </Button>
           <Button type="button" onClick={finishSession}>
             {result ? "Summary" : "Done"}
           </Button>
@@ -1239,14 +1106,19 @@ function ActiveSession({
               candles={visibleCandles}
               loading={displayCandles.length === 0}
               dataKey={`practice:${config.market}:${displayInterval}`}
+              // A trade planned at the live price lives entirely in the
+              // future, so the chart has to keep that much room to the right
+              // or the box lands off-screen — which is why a placed order
+              // looked like a click that never registered.
+              rightOffsetBars={PLAN_ROOM_BARS}
               markers={markers}
               priceLines={tradeLines}
               indicators={pinnedIndicators}
               overlayLines={paint.overlayLines}
               zones={paint.zones}
               barColors={paint.barColors}
-              drawings={drawings}
-              onDrawingsChange={setDrawings}
+              drawings={displayDrawings}
+              onDrawingsChange={handleDrawingsChange}
               onDrawingsCommit={handleDrawingsCommit}
               onVisibleRangeChange={handleVisibleRange}
               registerApi={registerChartApi}

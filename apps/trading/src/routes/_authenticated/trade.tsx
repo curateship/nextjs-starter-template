@@ -7,37 +7,62 @@ import {
   TradingWorkspace,
 } from "@/components/trading/trading-workspace"
 import { loadIndicators } from "@/lib/api/indicators"
-import { loadDashboardWatchlistTabOrder } from "@/lib/api/shell-settings"
+import {
+  loadDashboardWatchlistTabOrder,
+  loadTradeMarket,
+  saveTradeMarket,
+} from "@/lib/api/shell-settings"
 import { loadTradingContext } from "@/lib/api/trading"
 import { useShellRuntime } from "@/components/shell-layout"
 import { resolveSelectedWalletValue } from "@/lib/trading/wallet-selection"
 import { usePersistedState } from "@/lib/use-persisted-state"
 
+// No market in the URL means "reopen the last one I was on"; the saved market
+// comes from the loader, so it is there on the first render — no ETH flash.
+const DEFAULT_MARKET = "ETH"
+
 const tradeSearchSchema = z.object({
-  market: z.string().default("ETH"),
+  market: z.string().optional(),
   wallet: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: tradeSearchSchema,
   loader: async () => {
-    const [context, indicators, watchlistTabOrder] = await Promise.all([
-      loadTradingContext(),
-      loadIndicators(),
-      // Cosmetic tab order must never break the trade page — fall back to the
-      // built-in order if it can't be read.
-      loadDashboardWatchlistTabOrder().catch(() => ({ order: [] as string[] })),
-    ])
-    return { ...context, indicators, watchlistTabOrder: watchlistTabOrder.order }
+    const [context, indicators, watchlistTabOrder, savedMarket] =
+      await Promise.all([
+        loadTradingContext(),
+        loadIndicators(),
+        // Cosmetic tab order must never break the trade page — fall back to the
+        // built-in order if it can't be read.
+        loadDashboardWatchlistTabOrder().catch(() => ({
+          order: [] as string[],
+        })),
+        loadTradeMarket().catch(() => ({ market: "" })),
+      ])
+    return {
+      ...context,
+      indicators,
+      watchlistTabOrder: watchlistTabOrder.order,
+      savedMarket: savedMarket.market,
+    }
   },
   component: TradeRoute,
 })
 
 function TradeRoute() {
   const runtime = useShellRuntime()
-  const { network, wallets, paperWallets, workerOnline, indicators, watchlistTabOrder } =
-    Route.useLoaderData()
-  const { market, wallet } = Route.useSearch()
+  const {
+    network,
+    wallets,
+    paperWallets,
+    workerOnline,
+    indicators,
+    watchlistTabOrder,
+    savedMarket,
+  } = Route.useLoaderData()
+  const { market: marketParam, wallet } = Route.useSearch()
+  const market = marketParam || savedMarket || DEFAULT_MARKET
   const navigate = Route.useNavigate()
   const [savedWallet, setSavedWallet] = usePersistedState<string | null>(
     "trading:selected-wallet",
@@ -63,6 +88,17 @@ function TradeRoute() {
       setSavedWallet(selectedValue)
     }
   }, [savedWallet, selectedValue, setSavedWallet])
+
+  // Remember whichever market is on screen — picked from the list, opened from
+  // an alert link, or auto-corrected after a delisting — so the next visit
+  // reopens it. Ref-tracked so the same market isn't saved twice.
+  const lastSavedMarket = React.useRef(savedMarket)
+  React.useEffect(() => {
+    if (market === lastSavedMarket.current) return
+    lastSavedMarket.current = market
+    // Best-effort: a failed save only loses the memory, not the current view.
+    saveTradeMarket(market).catch(() => {})
+  }, [market])
 
   return (
     <ClientOnly fallback={null}>

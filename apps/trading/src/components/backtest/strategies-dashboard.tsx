@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BacktestRunChart } from "./backtest-run-chart"
-import { PracticeSetupDialog } from "./manual-session"
+import { PracticeSetupDialog } from "./practice-setup-dialog"
 import { StrategyTester } from "./strategy-tester"
 import {
   DashboardToolbarButton,

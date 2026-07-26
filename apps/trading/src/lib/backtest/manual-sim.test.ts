@@ -53,7 +53,7 @@ describe("ManualSession", () => {
     sim.processBar(bar(0, 105, 106, 99, 105))
     const snap = sim.snapshot()
     expect(snap.positions).toEqual([
-      { side: "long", entryPx: 100, qty: 10, stop: 90, target: 120 },
+      { boxId: "b1", side: "long", entryPx: 100, qty: 10, stop: 90, target: 120 },
     ])
     expect(snap.pendingOrders).toBe(0)
   })
@@ -110,14 +110,32 @@ describe("ManualSession", () => {
     expect(result.trades[0].pnl).toBeCloseTo(200)
   })
 
-  it("expires a waiting order when the playhead passes the box's right edge", () => {
+  it("rests a waiting order past the box's right edge until price reaches it", () => {
+    // The box is drawn 2 bars wide; the entry is only touched on bar 40. That
+    // used to cancel the order on bar 3 — the reason planned trades "never
+    // triggered", since a clicked box is a couple of hours wide and the tape
+    // runs 60 candles a second.
     const sim = session()
-    sim.syncBoxes([box({ entry: 50, stop: 45, target: 60 }, 2)])
+    sim.syncBoxes([box({ entry: 50, stop: 45, target: 80 }, 2)])
+    for (let n = 0; n < 40; n += 1) {
+      sim.processBar(bar(n, 100, 101, 99, 100))
+    }
+    expect(sim.drainConsumedBoxes()).toEqual([])
+    expect(sim.snapshot().pendingOrders).toBe(1)
+    sim.processBar(bar(40, 60, 61, 50, 55))
+    expect(sim.snapshot().positions).toHaveLength(1)
+    expect(sim.snapshot().positions[0]?.entryPx).toBe(50)
+  })
+
+  it("cancels a waiting order when its box is deleted", () => {
+    const sim = session()
+    sim.syncBoxes([box({ entry: 50, stop: 45, target: 60 })])
     sim.processBar(bar(0, 100, 101, 99, 100))
-    sim.processBar(bar(1, 100, 101, 99, 100))
-    sim.processBar(bar(2, 100, 101, 99, 100))
-    sim.processBar(bar(3, 100, 101, 60, 60))
-    expect(sim.drainConsumedBoxes()).toEqual(["b1"])
+    expect(sim.snapshot().pendingOrders).toBe(1)
+    sim.syncBoxes([])
+    expect(sim.snapshot().pendingOrders).toBe(0)
+    sim.processBar(bar(1, 100, 101, 50, 55))
+    expect(sim.snapshot().positions).toHaveLength(0)
     expect(sim.finalize().trades).toHaveLength(0)
   })
 

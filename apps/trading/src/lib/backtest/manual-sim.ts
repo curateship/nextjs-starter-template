@@ -2,8 +2,8 @@
  * Client-side execution engine for manual practice sessions: the user draws
  * long/short position boxes on the replay chart, and this engine trades them
  * as history plays forward. The entry line is a waiting order, the far red
- * edge is the stop, the far green edge is the take-profit, and the box's
- * right edge is the order's expiry.
+ * edge is the stop and the far green edge is the take-profit. A waiting order
+ * rests until price reaches it or its box is deleted.
  *
  * Forward-only and conservative: gaps fill at the open (honest slippage) and
  * when a single candle contains both the stop and the target, the stop wins.
@@ -34,8 +34,6 @@ type ManualOrder = {
   entry: number
   stop: number
   target: number
-  /** Waiting-order expiry, ms — the box's right edge. */
-  endMs: number
 }
 
 type ManualOpenPosition = {
@@ -62,14 +60,18 @@ export type ManualSessionSnapshot = {
   pendingOrders: number
   /** Every open position — each drawn box trades independently. */
   positions: {
+    boxId: string
     side: "long" | "short"
     entryPx: number
     qty: number
     stop: number
     target: number
   }[]
-  /** Waiting orders' entry levels, for on-chart "waiting" lines. */
-  pendingEntries: { side: "long" | "short"; px: number }[]
+  /**
+   * Waiting orders, for the on-chart "waiting" lines — and so the session can
+   * tell which boxes are still resting orders rather than filled trades.
+   */
+  pendingEntries: { boxId: string; side: "long" | "short"; px: number }[]
   halted: boolean
   haltReason: string | null
 }
@@ -88,7 +90,7 @@ export class ManualSession {
   private equityCurve: BacktestEquityPoint[] = []
   private events: BacktestTimelineEvent[] = []
   private eventsTruncated = false
-  /** Boxes the engine used up (expired, or closed) — the UI removes them. */
+  /** Boxes the engine used up (a closed position) — the UI removes them. */
   private consumed: string[] = []
   private orderSeq = 0
   private halted = false
@@ -123,8 +125,17 @@ export class ManualSession {
   /**
    * Reconciles the engine with the current drawing set. Called on every
    * drawings commit: new boxes become waiting orders, edits move them (or move
-   * the live stop/TP while their position is open), and deleting the open
-   * position's box is the manual market close.
+   * the live stop/TP while their position is open), and deleting a box either
+   * cancels its waiting order or, if it already filled, closes the position at
+   * market.
+   *
+   * A waiting order rests until price reaches it or its box is deleted. It used
+   * to expire when the tape walked past the box's right edge, which read as a
+   * feature and behaved as a bug: a clicked box is a couple of hours wide, the
+   * tape runs 60 candles a real second by default, and price seldom returns to
+   * an entry inside that window — so orders were cancelled unfilled, in about a
+   * second and a half of watching, over and over. Deleting the box is the
+   * cancel; nothing else takes an order away.
    */
   syncBoxes(boxes: ChartPosition[]): void {
     const seen = new Set<string>()
@@ -145,7 +156,6 @@ export class ManualSession {
         continue
       }
 
-      const endMs = box.endTime * 1000
       const existing = this.orders.get(box.id)
       if (!existing) {
         if (this.halted) continue
@@ -158,7 +168,6 @@ export class ManualSession {
           entry: box.entry,
           stop: box.stop,
           target: box.target,
-          endMs,
         }
         this.orders.set(box.id, order)
         this.recordOrder(order, "place")
@@ -167,13 +176,11 @@ export class ManualSession {
       const moved =
         existing.entry !== box.entry ||
         existing.stop !== box.stop ||
-        existing.target !== box.target ||
-        existing.endMs !== endMs
+        existing.target !== box.target
       if (moved) {
         existing.entry = box.entry
         existing.stop = box.stop
         existing.target = box.target
-        existing.endMs = endMs
         this.recordOrder(existing, "move")
       }
     }
@@ -196,7 +203,6 @@ export class ManualSession {
     this.barsProcessed += 1
     if (this.firstClose === null) this.firstClose = candle.c
 
-    this.expireOrders(candle)
     if (!this.halted) {
       for (const position of [...this.positions.values()]) {
         this.checkExit(position, candle, true)
@@ -258,6 +264,7 @@ export class ManualSession {
       leverage: equity > 0 && notional > 0 ? notional / equity : 0,
       pendingOrders: this.orders.size,
       positions: [...this.positions.values()].map((position) => ({
+        boxId: position.boxId,
         side: position.side,
         entryPx: position.entryPx,
         qty: position.qty,
@@ -265,6 +272,7 @@ export class ManualSession {
         target: position.target,
       })),
       pendingEntries: [...this.orders.values()].map((order) => ({
+        boxId: order.boxId,
         side: order.side,
         px: order.entry,
       })),
@@ -307,16 +315,6 @@ export class ManualSession {
   }
 
   // ---- internals ----
-
-  private expireOrders(candle: HistoryCandle): void {
-    for (const [boxId, order] of this.orders) {
-      if (candle.t > order.endMs) {
-        this.orders.delete(boxId)
-        this.consumed.push(boxId)
-        this.recordOrder(order, "cancel", candle.t)
-      }
-    }
-  }
 
   /**
    * Fills EVERY waiting order the candle triggers — each drawn box trades

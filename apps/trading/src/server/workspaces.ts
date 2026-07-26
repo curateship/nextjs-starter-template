@@ -30,9 +30,12 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   favicon: string
   automationFavoriteNodeKeys: AutomationPaletteKey[]
-  // Order of the market watchlist tabs (Fav/Active/Gainers/Losers) on the
-  // trade dashboard. Empty means "use the built-in order".
+  // Order of the market watchlist tabs (Active/Open/Fav/Watch) on the trade
+  // dashboard. Empty means "use the built-in order".
   dashboardWatchlistTabOrder: string[]
+  // Last market opened on the trade dashboard, so it reopens where it was
+  // left instead of snapping back to the default. Empty means "never set".
+  tradeMarket: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
@@ -378,6 +381,10 @@ function cleanWorkspaceSettings(
           (value): value is string => typeof value === "string"
         )
       : fallback.dashboardWatchlistTabOrder,
+    tradeMarket:
+      typeof settings.tradeMarket === "string"
+        ? settings.tradeMarket
+        : fallback.tradeMarket,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -395,6 +402,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     favicon: "",
     automationFavoriteNodeKeys: [],
     dashboardWatchlistTabOrder: [],
+    tradeMarket: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     styling: normalizeStyling(undefined),
