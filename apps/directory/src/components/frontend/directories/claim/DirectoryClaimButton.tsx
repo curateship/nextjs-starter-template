@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
 import Building2 from "lucide-react/dist/esm/icons/building-2.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
@@ -80,7 +80,7 @@ export function DirectoryClaimButton({
   const redirectPath = pathname || "/"
   const authHref = buildAuthHref(loginPath, redirectPath)
 
-  const handleClaimClick = async () => {
+  const handleClaimClick = useCallback(async () => {
     setError(null)
     setNotice(null)
     setCheckingState(true)
@@ -123,7 +123,18 @@ export function DirectoryClaimButton({
     if (result.status !== "pending_email" && result.status !== "pending_review") {
       setOpen(true)
     }
-  }
+  }, [authHref, directoryId, router])
+
+  // Arriving from a claim-invitation email (…?claim=start) opens the claim flow
+  // straight away — the same path as clicking the button, so it also handles a
+  // stale session (redirect to sign in, then back here) and existing claims.
+  const autoStartedRef = useRef(false)
+  useEffect(() => {
+    if (claimParam === "start" && !autoStartedRef.current) {
+      autoStartedRef.current = true
+      void handleClaimClick()
+    }
+  }, [claimParam, handleClaimClick])
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()

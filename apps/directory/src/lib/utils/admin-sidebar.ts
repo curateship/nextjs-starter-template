@@ -139,10 +139,11 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-directory-saved", "Saved", "/admin/directory/saved", "bookmark"),
             child("child-directory-claims", "Claims", "/admin/directory/claims", "clipboard"),
             child("child-directory-submissions", "Submissions", "/admin/directory/submissions", "clipboard"),
+            child("child-directory-outreach", "Outreach", "/admin/directory/outreach", "send"),
             child("child-directory-monetization", "Monetization", "/admin/directory/monetization", "cart"),
             child("child-directory-custom-blocks", "Custom Blocks", "/admin/directory/custom-blocks", "grid"),
             child("child-directory-templates", "Templates", "/admin/directory/templates", "file"),
-          ], ["/admin/directory/builder", "/admin/directory/claims", "/admin/directory/submissions", "/admin/directory/saved", "/admin/directory/monetization"]),
+          ], ["/admin/directory/builder", "/admin/directory/claims", "/admin/directory/submissions", "/admin/directory/outreach", "/admin/directory/saved", "/admin/directory/monetization"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
             child("child-newsletter-tags", "Tags", "/admin/newsletters/tags", "categories"),
@@ -263,6 +264,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "directory-custom-blocks": "child-directory-custom-blocks",
   "directory-claims": "child-directory-claims",
   "directory-submissions": "child-directory-submissions",
+  "directory-outreach": "child-directory-outreach",
   "directory-monetization": "child-directory-monetization",
   "directory-saved": "child-directory-saved",
   "directory-templates": "child-directory-templates",
@@ -434,7 +436,7 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
 
 // Default children added after sidebar configs were first persisted, keyed by parent item id
 const INJECTED_DEFAULT_CHILDREN: Record<string, string[]> = {
-  "item-directory": ["child-directory-saved", "child-directory-submissions", "child-directory-monetization"],
+  "item-directory": ["child-directory-saved", "child-directory-submissions", "child-directory-outreach", "child-directory-monetization"],
   "item-categories": ["child-category-templates"],
   "item-events": ["child-event-templates", "child-event-submissions"],
 }
