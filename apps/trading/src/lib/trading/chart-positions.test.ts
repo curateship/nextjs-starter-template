@@ -30,8 +30,8 @@ describe("position drawing model", () => {
       endTime: 2_000,
     })
 
-    expect(created.stop).toBeCloseTo(97)
-    expect(created.target).toBeCloseTo(106)
+    expect(created.stop).toBeCloseTo(98.5)
+    expect(created.target).toBeCloseTo(103)
   })
 
   it("mirrors the zones for a short", () => {
@@ -43,8 +43,8 @@ describe("position drawing model", () => {
       endTime: 2_000,
     })
 
-    expect(created.stop).toBeCloseTo(103)
-    expect(created.target).toBeCloseTo(94)
+    expect(created.stop).toBeCloseTo(101.5)
+    expect(created.target).toBeCloseTo(97)
   })
 
   it("turns the price gaps into percent and a risk/reward ratio", () => {

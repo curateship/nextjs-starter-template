@@ -10,9 +10,6 @@ import {
 import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 
 const idSchema = z.object({ id: z.string().uuid() })
-const coinSchema = z.object({
-  coin: z.string().trim().min(1).max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
-})
 const updateSchema = z.object({
   id: z.string().uuid(),
   alert: alertRuleInputSchema,
@@ -57,18 +54,16 @@ const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
   }
 })
 
-const loadChartAlertsFn = createServerFn({ method: "GET" })
-  .inputValidator(coinSchema)
-  .handler(async ({ data }) => {
+// Every alert rule the user owns. The trade dashboard needs both the price
+// lines for the open market and the list of markets that have any alert, so it
+// polls this once and slices it locally instead of asking per market.
+const loadMyAlertRulesFn = createServerFn({ method: "GET" }).handler(
+  async () => {
     const user = await requireUser()
     const { getAlertRules } = await import("@/server/alerts")
-    return (await getAlertRules(user.id)).filter(
-      (rule) =>
-        rule.coin === data.coin &&
-        rule.kind === "price_level" &&
-        rule.status === "active"
-    )
-  })
+    return getAlertRules(user.id)
+  }
+)
 
 const loadAlertLogFn = createServerFn({ method: "GET" })
   .inputValidator(logFiltersSchema)
@@ -165,8 +160,8 @@ export function loadAlertsPage() {
   return loadAlertsPageFn()
 }
 
-export function loadChartAlerts(coin: string) {
-  return loadChartAlertsFn({ data: { coin } })
+export function loadMyAlertRules() {
+  return loadMyAlertRulesFn()
 }
 
 export function loadAlertLog(filters: AlertLogFilters = {}) {

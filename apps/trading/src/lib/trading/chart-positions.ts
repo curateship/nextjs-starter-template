@@ -19,8 +19,12 @@ export type ChartPosition = {
   stop: number
 }
 
-/** How far the stop sits from entry on a freshly placed drawing. */
-const DEFAULT_STOP_RATIO = 0.03
+/**
+ * How far the stop sits from entry on a freshly placed drawing — so a click
+ * drops a 1.5% stop and, at the 2R multiple below, a 3% target. Half the
+ * original 3%/6%, which drew a box tall enough to swamp the chart.
+ */
+const DEFAULT_STOP_RATIO = 0.015
 /** Target distance as a multiple of the stop distance (a 2R plan). */
 const DEFAULT_REWARD_MULTIPLE = 2
 /** Width of a freshly placed drawing, in candles. */

@@ -14,6 +14,7 @@ import {
   MAX_CANDLES_LIMIT,
   MIN_CANDLES,
 } from "@/lib/backtest/types"
+import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 import {
   clampLiquidationAlertThreshold,
   DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
@@ -342,6 +343,59 @@ export function loadDashboardWatchlistTabOrder() {
 
 export function saveDashboardWatchlistTabOrder(order: string[]) {
   return saveDashboardWatchlistTabOrderFn({ data: { order } })
+}
+
+const loadTradeMarketFn = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await requireUser()
+  const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } = await import(
+    "@/server/workspaces"
+  )
+  const workspace = await getOrCreateCurrentWorkspace(user.id)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return { market: settings.tradeMarket }
+})
+
+const saveTradeMarketFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      market: z.string().trim().min(1).max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(customShellWorkspaces)
+      .set({
+        settings: { ...settings, tradeMarket: data.market },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellWorkspaces.id, workspace.id),
+          eq(customShellWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function loadTradeMarket() {
+  return loadTradeMarketFn()
+}
+
+export function saveTradeMarket(market: string) {
+  return saveTradeMarketFn({ data: { market } })
 }
 
 async function requireUser() {

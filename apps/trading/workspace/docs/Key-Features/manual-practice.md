@@ -6,9 +6,13 @@ order form — **the drawing is the order**.
 
 ## How it works
 
-- Start from **Backtest → Practice** — a setup modal asks for a market,
-  timeframe, days back, starting money, and a risk-per-trade percent, then
-  opens the session at `/backtest/practice`.
+- Start from **Backtest → Practice**, or from the **Practice** button beside
+  the wallet dropdown on the Trade page — both open the same setup modal,
+  which asks for a market, timeframe, days back, starting money, and a
+  risk-per-trade percent, then opens the session at `/backtest/practice`.
+  Days back starts at 365. Picking a finer timeframe pulls the window down to
+  what that timeframe can cover (a 50,000-bar ceiling: 520 days at 15m, 173 at
+  5m, 34 at 1m) rather than failing on Start.
 - The chart loads ~1500 candles of history behind the session start, and
   scrolling further left keeps loading older chunks — so support/resistance
   context never runs out. The deep runway also warms up indicators.
@@ -37,13 +41,46 @@ order form — **the drawing is the order**.
   - the **entry line** is a waiting order — it fills when price touches it;
   - the far edge of the **red zone** is the stop-loss;
   - the far edge of the **green zone** is the take-profit;
-  - the **right edge** of the box is the order's expiry — if time walks past it
-    before price reaches the entry, the order is quietly cancelled and the box
-    disappears. A newly drawn box gets a floor of 20 session candles of life,
-    widened on screen to match, so a box drawn on a much finer display
-    timeframe isn't dead on arrival. Keep that floor small — the drawing widens
-    to match it, so a large floor stretches a freshly clicked box across the
-    whole chart.
+  - **A waiting order rests until price reaches it. Deleting the box is the
+    cancel** — nothing else takes an order away. The box's right edge is the
+    plan's width on screen and no longer an expiry.
+
+    This replaced "the right edge is the order's expiry", which read as a
+    feature and behaved as a bug. A clicked box is about 8% of the visible span
+    — a couple of hours on a normal zoom — the tape runs `speed` candles per
+    real second (60 by default), and price seldom returns to an entry inside
+    that window. Measured in a browser: three orders placed at the live price
+    were all cancelled unfilled within three seconds, every attempt. Widening
+    the floor (20 → 96 candles, a day at 15m) did not fix it — orders still
+    died in about a second and a half of watching. With the expiry gone, the
+    same three orders filled. If stale plans ever need clearing again, do it
+    with something the user can see, not a silent cancel.
+  - **A resting order's box travels with the tape**, keeping wherever you last
+    dragged it. A drawing is anchored to the moment it was made, which is right
+    for an annotation and wrong for a live order: at 60× the tape carried a
+    just-placed box off the left edge in about two seconds (measured: x 807 →
+    −183), where it could be neither seen nor grabbed. So the box is carried
+    forward by however much tape has run **since it was last touched**
+    (`displayDrawings` in `manual-session.tsx`, shifting a copy — the stored
+    drawing is not rewritten every frame). An open position instead keeps its
+    left edge at the entry and grows its right edge with the tape, so the
+    trade's own history stays honest and its stop and target stay reachable.
+    The engine's snapshot carries `boxId` on both `pendingEntries` and
+    `positions` so the screen can tell which is which.
+
+    **Re-anchor on every set the chart hands back, mid-drag included**
+    (`onDrawingsChange`, not just `onDrawingsCommit`), so the travel offset is
+    zero while a gesture is in flight. Anchoring only on commit meant each
+    pointer move was re-pinned against a stale anchor and sideways drags were
+    undone as fast as they were made — the box could only be moved up and down.
+  - **The chart keeps 40 empty bars to the right** (`PLAN_ROOM_BARS`, passed to
+    `PriceChartView` as `rightOffsetBars`; every other chart keeps 12). A box is
+    drawn forward from the click, so with the usual sliver of room a trade
+    planned at the live price landed 87% off-screen and looked like a click that
+    never registered — which is how the same trade got drawn twice. Measured:
+    13% of the box visible before, 42% after.
+  - **Placing an order says so**: a toast reads "Buy order waiting at 187.91 —
+    rests until price reaches it. Delete the box to cancel."
 - Position size is automatic: each trade risks the chosen percent of the
   current wallet to its stop. Tighter stop = bigger position. Notional is
   capped at 10× equity.
@@ -57,6 +94,17 @@ order form — **the drawing is the order**.
 - **Time holds while you draw**: arming a drawing tool or dragging a box
   pauses the tape until you release, so the axis can never slide under your
   cursor mid-gesture and the chart never lurches to catch up afterwards.
+- **Drawing does not stop the tape** beyond the gesture itself. Auto-pausing on
+  every new box was tried and reverted: it froze time silently, so a session
+  where you drew a plan and waited looked exactly like one where nothing
+  worked. Pause yourself, or drop the speed, if you want to study a setup.
+- **Chart/data drift self-heals.** The candle sync samples the chart's own
+  series against the array it was handed (every `DRIFT_CHECK_EVERY` renders —
+  asking costs a copy of the whole series, so it can't run per frame). A
+  mismatch means an append happened where a repaint was needed; left alone it
+  lasts the rest of the session and drags every time-pinned drawing out of
+  place. It now repaints on the spot, and still reports the red "Chart data
+  drifted" banner in dev so the underlying cause stays visible.
 - **Frame-locked drawings**: the drawing overlays commit their new positions
   in the same rendering pass as any chart movement (follow, pan, zoom,
   resize), so boxes and trendlines stay welded to their candles at any
@@ -89,6 +137,9 @@ order form — **the drawing is the order**.
   order or open position) → signals no longer pause; instead it pauses when
   a stop-out or take-profit lands, so the result sinks in before time rolls
   on. Manual closes (deleting the box) never pause.
+- **Live Trade**, beside Done in the session header, leaves for the live Trade
+  terminal on the session's market. An unsaved session warns first, the same
+  as any other way out.
 - **Done** freezes the session (open position force-closed at the last price)
   and opens a **summary modal** with the scorecard — net P&L, win rate,
   profit factor, max drawdown, trades, Sharpe, time traded (played span out

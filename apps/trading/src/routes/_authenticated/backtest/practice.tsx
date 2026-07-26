@@ -1,10 +1,8 @@
 import { ClientOnly, createFileRoute, Navigate } from "@tanstack/react-router"
 import { z } from "zod"
 
-import {
-  ManualSessionScreen,
-  type PracticeConfig,
-} from "@/components/backtest/manual-session"
+import { ManualSessionScreen } from "@/components/backtest/manual-session"
+import type { PracticeConfig } from "@/components/backtest/practice-setup-dialog"
 import {
   MANUAL_RISK_PCT_MAX,
   MANUAL_RISK_PCT_MIN,

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, SettingsIcon } from "lucide-react"
+import { Loader2Icon, PlayIcon, SettingsIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -12,6 +12,7 @@ import {
   type WalletOption,
 } from "@/components/trading/account-strip"
 import { AlertDialog } from "@/components/alerts/alert-dialog"
+import { PracticeSetupDialog } from "@/components/backtest/practice-setup-dialog"
 import {
   FillsTable,
   OpenOrdersTable,
@@ -85,7 +86,7 @@ import {
 import {
   createAlert,
   deleteAlert,
-  loadChartAlerts,
+  loadMyAlertRules,
   updateAlert,
 } from "@/lib/api/alerts"
 import {
@@ -266,16 +267,39 @@ export function TradingWorkspace({
     if (paperWalletId) void refreshPaper()
   }, [paperWalletId, refreshPaper])
 
-  const { data: chartAlerts, refresh: refreshChartAlerts } = useIntervalLoader<
+  // One poll for every alert the user owns: the chart needs the live price
+  // levels for the open market, the watchlist's Watch tab needs the markets
+  // that have any alert at all.
+  const { data: alertRules, refresh: refreshAlerts } = useIntervalLoader<
     AlertRuleItem[]
-  >(
-    React.useCallback(() => loadChartAlerts(market), [market]),
-    [],
-    ALERT_POLL_MS
-  )
+  >(loadMyAlertRules, [], ALERT_POLL_MS)
+  // The interval only starts ticking after the first delay, so fetch once on
+  // mount. The list is not market-specific, so switching market needs no refetch.
   React.useEffect(() => {
-    void refreshChartAlerts()
-  }, [market, refreshChartAlerts])
+    void refreshAlerts()
+  }, [refreshAlerts])
+  const chartAlerts = React.useMemo(
+    () =>
+      alertRules.filter(
+        (rule) =>
+          rule.coin === market &&
+          rule.kind === "price_level" &&
+          rule.status === "active"
+      ),
+    [alertRules, market]
+  )
+  // Markets still being watched. An alert that has already fired ("triggered")
+  // is a finished record, not a watch — listing it would keep a market in the
+  // Watch tab long after the alert stopped doing anything.
+  const alertMarkets = React.useMemo(
+    () =>
+      new Set(
+        alertRules
+          .filter((rule) => rule.status !== "triggered")
+          .map((rule) => rule.coin)
+      ),
+    [alertRules]
+  )
 
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
   // A dragged order line that crossed the mark, awaiting the user's OK to fill
@@ -546,7 +570,7 @@ export function TradingWorkspace({
       try {
         await createAlert(quickPriceAlert(market, level))
         setChartMenu(null)
-        await refreshChartAlerts()
+        await refreshAlerts()
         setAlertLineRevision((revision) => revision + 1)
         toast.success(`${market} alert added at ${roundForMarket(level)}.`)
       } catch (cause) {
@@ -555,7 +579,7 @@ export function TradingWorkspace({
         )
       }
     },
-    [market, refreshChartAlerts, roundForMarket]
+    [market, refreshAlerts, roundForMarket]
   )
 
   React.useEffect(() => {
@@ -639,7 +663,7 @@ export function TradingWorkspace({
       if (alert?.kind === "price_level") {
         void updateAlert(alert.id, alertWithPriceLevel(alert, Number(px)))
           .then(async () => {
-            await refreshChartAlerts()
+            await refreshAlerts()
             setAlertLineRevision((revision) => revision + 1)
           })
           .catch((cause: unknown) => {
@@ -708,7 +732,7 @@ export function TradingWorkspace({
       const alertId = id.split(":")[1]
       void deleteAlert(alertId)
         .then(async () => {
-          await refreshChartAlerts()
+          await refreshAlerts()
           notify("Alert deleted.", "ok")
         })
         .catch((cause: unknown) =>
@@ -820,6 +844,7 @@ export function TradingWorkspace({
     [indicators]
   )
   const [panels, setPanels] = usePersistedPanels()
+  const [practiceOpen, setPracticeOpen] = React.useState(false)
 
   const ticketDisabledReason = !marketRow?.liveData
     ? "Loading current market data"
@@ -849,8 +874,23 @@ export function TradingWorkspace({
             onSelect={onMarketChange}
           />
         }
+        beforeWallet={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPracticeOpen(true)}
+          >
+            <PlayIcon className="size-4" />
+            Practice
+          </Button>
+        }
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
+      {/* Mounted only while open: the setup form polls Binance for its market
+          list, which the trade page has no reason to pay for otherwise. */}
+      {practiceOpen ? (
+        <PracticeSetupDialog open onOpenChange={setPracticeOpen} />
+      ) : null}
 
       <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
@@ -881,6 +921,7 @@ export function TradingWorkspace({
                     selected={market}
                     positionMarkets={positionMarkets}
                     openOrderMarkets={openOrderMarkets}
+                    alertMarkets={alertMarkets}
                     favorites={favorites}
                     onToggleFavorite={toggleFavorite}
                     onSelect={onMarketChange}
@@ -1125,7 +1166,7 @@ export function TradingWorkspace({
           }}
           onSaved={async () => {
             setAlertEditor(null)
-            await refreshChartAlerts()
+            await refreshAlerts()
             setAlertLineRevision((revision) => revision + 1)
           }}
         />

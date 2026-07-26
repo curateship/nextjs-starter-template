@@ -12,6 +12,10 @@ exact-price alerts appear as dashed amber chart lines. Clicking a line edits
 it. Dragging a line saves the new price immediately without opening a dialog.
 Use the X on the line to delete the alert directly from the chart.
 
+The Trade market list has a **Watch** tab listing every market that still has
+an alert on it — active or paused. An alert that has already fired drops off
+the tab; restart it from `/alerts` to bring the market back.
+
 Use `/alert-log` for triggered alert history. Opening a row marks it read and
 opens its market on Trade. History is kept for 30 days and remains available
 after its rule is deleted.

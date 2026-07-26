@@ -34,9 +34,11 @@ describe("market watchlist loading", () => {
         selected={loadingMarket.coin}
         positionMarkets={new Set()}
         openOrderMarkets={new Set()}
+        alertMarkets={new Set()}
         favorites={new Set([loadingMarket.coin])}
         onToggleFavorite={vi.fn()}
         onSelect={vi.fn()}
+        initialTabOrder={["favorites"]}
       />
     )
 

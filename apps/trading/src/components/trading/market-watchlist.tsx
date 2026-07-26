@@ -37,13 +37,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   STICKY_SCROLL_OVERRIDES,
@@ -62,8 +55,7 @@ import type { PerpMarketCategory } from "@/lib/hl/perp-markets"
 import { saveDashboardWatchlistTabOrder } from "@/lib/api/shell-settings"
 import { cn } from "@/lib/utils"
 
-type WatchlistTab = "favorites" | "active" | "gainers" | "losers"
-type ActiveTab = "positions" | "orders"
+type WatchlistTab = "active" | "orders" | "favorites" | "watch"
 type SortKey = "vol" | "change"
 type CategoryFilter = "all" | PerpMarketCategory
 type PickerView =
@@ -82,10 +74,10 @@ type PickerSortKey =
   | "openInterest"
 
 const TABS: { value: WatchlistTab; label: string }[] = [
-  { value: "favorites", label: "Fav" },
   { value: "active", label: "Active" },
-  { value: "gainers", label: "Gainers" },
-  { value: "losers", label: "Losers" },
+  { value: "orders", label: "Open" },
+  { value: "favorites", label: "Fav" },
+  { value: "watch", label: "Watch" },
 ]
 
 // Reconcile a saved order against the source `TABS` list: keep known values in
@@ -111,10 +103,16 @@ function orderTabs(order: readonly string[]): typeof TABS {
 }
 
 // Resolve a saved order (possibly empty/partial) into a full list of tab
-// values, falling back to the built-in order.
+// values, falling back to the built-in order. An order saved before the tabs
+// changed (it names a tab that no longer exists) is dropped whole rather than
+// half-kept, so the new set arrives in its intended order.
 function resolveTabOrder(saved: readonly string[] | undefined): WatchlistTab[] {
-  const source = saved && saved.length > 0 ? saved : TABS.map((tab) => tab.value)
-  return orderTabs(source).map((tab) => tab.value)
+  const known = new Set<string>(TABS.map((tab) => tab.value))
+  const usable =
+    saved && saved.length > 0 && saved.every((value) => known.has(value))
+      ? saved
+      : TABS.map((tab) => tab.value)
+  return orderTabs(usable).map((tab) => tab.value)
 }
 
 function SortableTab({
@@ -156,16 +154,6 @@ function SortableTab({
     </button>
   )
 }
-
-const CATEGORIES: Array<{ value: CategoryFilter; label: string }> = [
-  { value: "all", label: "All categories" },
-  { value: "crypto", label: "Crypto" },
-  { value: "stocks", label: "Stocks" },
-  { value: "indices", label: "Indices" },
-  { value: "commodities", label: "Commodities" },
-  { value: "forex", label: "Forex" },
-  { value: "other", label: "Other" },
-]
 
 /**
  * Minimum a row needs to appear in the picker. Live Hyperliquid `MarketRow`s
@@ -237,6 +225,7 @@ export function MarketWatchlist({
   selected,
   positionMarkets,
   openOrderMarkets,
+  alertMarkets,
   favorites,
   onToggleFavorite,
   onSelect,
@@ -247,6 +236,8 @@ export function MarketWatchlist({
   selected: string
   positionMarkets: ReadonlySet<string>
   openOrderMarkets: ReadonlySet<string>
+  /** Markets the user has placed an alert on — the Watch tab. */
+  alertMarkets: ReadonlySet<string>
   favorites: ReadonlySet<string>
   onToggleFavorite: (coin: string) => void
   onSelect: (coin: string) => void
@@ -254,7 +245,8 @@ export function MarketWatchlist({
   // first render, so the correct first tab shows immediately — no flash.
   initialTabOrder?: string[]
   // True while the account snapshot (positions/open orders) is still loading.
-  // Lets the Active tab show a skeleton instead of a premature empty message.
+  // Lets the Active and Open tabs show a skeleton instead of a premature
+  // empty message.
   accountLoading?: boolean
 }) {
   const [query, setQuery] = React.useState("")
@@ -281,8 +273,6 @@ export function MarketWatchlist({
       // Best-effort; the new order still applies for this session.
     })
   }
-  const [category, setCategory] = React.useState<CategoryFilter>("all")
-  const [activeTab, setActiveTab] = React.useState<ActiveTab>("orders")
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>(
     {
       key: "vol",
@@ -296,22 +286,24 @@ export function MarketWatchlist({
       ...favorites,
       ...positionMarkets,
       ...openOrderMarkets,
+      // A market with an alert on it must survive the zero-volume filter, or
+      // the Watch tab would list nothing for it.
+      ...alertMarkets,
     ])
     let list = rows
       .filter((row) => isMarketVisible(row, protectedMarkets))
       .filter((row) => !trimmed || row.coin.toUpperCase().includes(trimmed))
-      .filter((row) => category === "all" || row.category === category)
       .map((row) => ({ row, change: dayChangePct(row.markPx, row.prevDayPx) }))
 
     if (tab === "favorites") {
       list = list.filter((item) => favorites.has(item.row.coin))
     } else if (tab === "active") {
-      list = filterMarketsByCoins(
-        list,
-        activeTab === "positions" ? positionMarkets : openOrderMarkets
-      )
-    } else if (tab === "gainers") list = list.filter((item) => item.change > 0)
-    else if (tab === "losers") list = list.filter((item) => item.change < 0)
+      list = filterMarketsByCoins(list, positionMarkets)
+    } else if (tab === "orders") {
+      list = filterMarketsByCoins(list, openOrderMarkets)
+    } else if (tab === "watch") {
+      list = filterMarketsByCoins(list, alertMarkets)
+    }
 
     const direction = sort.dir === "asc" ? 1 : -1
     list.sort((a, b) =>
@@ -324,11 +316,10 @@ export function MarketWatchlist({
     rows,
     selected,
     query,
-    category,
     tab,
-    activeTab,
     positionMarkets,
     openOrderMarkets,
+    alertMarkets,
     favorites,
     sort,
   ])
@@ -365,39 +356,6 @@ export function MarketWatchlist({
             </div>
           </SortableContext>
         </DndContext>
-        <Select
-          value={category}
-          onValueChange={(value) => setCategory(value as CategoryFilter)}
-        >
-          <SelectTrigger className="h-8 w-full bg-muted text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {tab === "active" ? (
-          <div
-            role="group"
-            aria-label="Active market type"
-            className="grid grid-cols-2 rounded-lg bg-muted p-1"
-          >
-            <ActiveMarketTab
-              active={activeTab === "orders"}
-              label="Open"
-              onClick={() => setActiveTab("orders")}
-            />
-            <ActiveMarketTab
-              active={activeTab === "positions"}
-              label="Active"
-              onClick={() => setActiveTab("positions")}
-            />
-          </div>
-        ) : null}
       </div>
       <div className="flex items-center justify-between border-b px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
         <SortHeader
@@ -482,11 +440,11 @@ export function MarketWatchlist({
           {rows.length === 0 ? (
             <MarketListLoadingSkeleton />
           ) : visible.length === 0 ? (
-            tab === "active" && accountLoading ? (
+            accountLoading && (tab === "active" || tab === "orders") ? (
               <MarketListLoadingSkeleton />
             ) : (
               <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-                {emptyMarketText(tab, activeTab)}
+                {query.trim() ? "No matches." : emptyMarketText(tab)}
               </div>
             )
           ) : null}
@@ -1091,36 +1049,17 @@ function pickerSortValue(
   }
 }
 
-function ActiveMarketTab({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-        active
-          ? "bg-card text-foreground shadow-xs"
-          : "text-muted-foreground hover:text-foreground"
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-function emptyMarketText(tab: WatchlistTab, activeTab: ActiveTab): string {
-  if (tab === "favorites") return "No favorite markets."
-  if (tab !== "active") return "No matches."
-  return activeTab === "positions" ? "No active positions." : "No open orders."
+function emptyMarketText(tab: WatchlistTab): string {
+  switch (tab) {
+    case "active":
+      return "No active positions."
+    case "orders":
+      return "No open orders."
+    case "favorites":
+      return "No favorite markets."
+    case "watch":
+      return "No markets with alerts."
+  }
 }
 
 function SortHeader({

@@ -328,6 +328,9 @@ const TRENDLINE_HIT_PX = 8
 /** Grab radius for a position drawing's stop/entry/target/right-edge handles. */
 const POSITION_HIT_PX = 8
 
+/** Empty bars to the right of the last candle, unless a caller asks for more. */
+const DEFAULT_RIGHT_OFFSET_BARS = 12
+
 /**
  * Data-agnostic chart view shared by the live trading terminal and the
  * backtest workspace: candles + volume, indicator overlays and oscillator
@@ -338,6 +341,7 @@ export function PriceChartView({
   candles,
   loading = false,
   dataKey = "static",
+  rightOffsetBars = DEFAULT_RIGHT_OFFSET_BARS,
   priceLines = EMPTY_PRICE_LINES,
   markers = EMPTY_MARKERS,
   indicators = EMPTY_INDICATORS,
@@ -364,6 +368,13 @@ export function PriceChartView({
   loading?: boolean
   /** Identity of the candle series; a change forces a full data reset. */
   dataKey?: string
+  /**
+   * Empty bars kept to the right of the last candle. The practice session
+   * plans trades into that space — a position box drawn at the live price
+   * lives entirely in the future, so with the default sliver of room it is
+   * placed off-screen and reads as "my click did nothing".
+   */
+  rightOffsetBars?: number
   priceLines?: ChartPriceLine[]
   /** Trade-fill chips and indicator signal arrows. */
   markers?: ChartMarker[]
@@ -551,6 +562,8 @@ export function PriceChartView({
   } | null>(null)
   const measureLockedRef = React.useRef(false)
   const drawingsRef = React.useRef(drawings)
+  // Read once when the chart is built; the chart is never rebuilt for it.
+  const rightOffsetRef = React.useRef(rightOffsetBars)
   const trendlineDraftRef = React.useRef(trendlineDraft)
   const trendlinePixelsRef = React.useRef(trendlinePixels)
   const positionPixelsRef = React.useRef(positionPixels)
@@ -790,7 +803,7 @@ export function PriceChartView({
             borderVisible: false,
             timeVisible: true,
             secondsVisible: false,
-            rightOffset: 12,
+            rightOffset: rightOffsetRef.current,
           },
           crosshair: { mode: 0 },
         })
@@ -1762,16 +1775,27 @@ export function PriceChartView({
     // that per frame would itself get slower the longer a session ran, the
     // exact shape of problem this guard exists to catch. Drift is permanent
     // once it starts, so an occasional look finds it just as surely.
-    if (import.meta.env.DEV) {
-      driftCheckRef.current += 1
-      if (driftCheckRef.current >= DRIFT_CHECK_EVERY) {
-        driftCheckRef.current = 0
-        const held = candleSeries.data().length
-        if (held !== candles.length) {
+    driftCheckRef.current += 1
+    if (driftCheckRef.current >= DRIFT_CHECK_EVERY) {
+      driftCheckRef.current = 0
+      const held = candleSeries.data().length
+      if (held !== candles.length) {
+        if (import.meta.env.DEV) {
           reportDrawingAnomaly(
             `Chart data drifted: chart holds ${held} bars, was given ${candles.length}`
           )
         }
+        // Put it back in step. Drift would otherwise last the rest of the
+        // session, and everything pinned to a time — every drawing, every
+        // planned trade — drifts along with it. A repaint costs one frame;
+        // this is sampled, so it can't cost more than that occasionally.
+        candleSeries.setData(
+          candles.map((candle) => toCandleData(candle, colorMap))
+        )
+        volumeSeries.setData(candles.map(toVolumeData))
+        // A repaint, not an append — say so, or the overlays reconcile against
+        // bars that were never added.
+        appendRef.current = { candles, added: 0 }
       }
     }
     dataKeyRef.current = dataKey
