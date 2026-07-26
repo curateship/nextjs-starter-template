@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { renderTagChips } from "@/lib/utils/directory-tag-chips"
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 
 interface DirectoryRichTextBlockProps {
@@ -29,7 +30,8 @@ export function DirectoryRichTextBlock({ content, children, cardOverlay, cardPro
       return null
     }
 
-    richTextBody = <div dangerouslySetInnerHTML={{ __html: safeBody }} />
+    // Chips are applied after sanitizing, on already-safe markup.
+    richTextBody = <div dangerouslySetInnerHTML={{ __html: renderTagChips(safeBody) }} />
   }
 
   const { className: cardClassName, ...rootProps } = cardProps || {}

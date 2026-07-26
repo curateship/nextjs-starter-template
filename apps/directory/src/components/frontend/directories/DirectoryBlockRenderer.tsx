@@ -236,22 +236,26 @@ export function DirectoryBlockRenderer({
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
         <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
+          // data-site-cards gives every block on this page the public card
+          // chrome (hairline border + rounded corners) — see styles.css.
           <div
+            data-site-cards=""
             className={containerClassName}
             style={outerContainerStyle}
           >
-            {/* grid-cols-1 (minmax(0,1fr)) lets cards shrink below their content's min width on mobile — a bare `grid` track sizes to the widest nowrap content and overflows the viewport */}
-            <CardGroup className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <CardGroup className={cn("grid grid-cols-1 gap-6 lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+            {/* grid-cols-1 (minmax(0,1fr)) lets cards shrink below their content's min width on mobile — a bare `grid` track sizes to the widest nowrap content and overflows the viewport.
+                No gap utility here: CardGroup sets the gap inline from the Settings → Styling content spacing, so a class would be dead. */}
+            <CardGroup className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+              <CardGroup className={cn("grid grid-cols-1 lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </CardGroup>
-              <CardGroup className={cn("grid grid-cols-1 gap-6 lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+              <CardGroup className={cn("grid grid-cols-1 lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
                 {mainBlocks.map((block) => renderDirectoryBlock(block))}
               </CardGroup>
             </CardGroup>
           </div>
         ) : (
-          <CardGroup className={cn(containerClassName, "grid grid-cols-1 gap-6")} style={outerContainerStyle}>
+          <CardGroup data-site-cards="" className={cn(containerClassName, "grid grid-cols-1")} style={outerContainerStyle}>
             {[...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))}
           </CardGroup>
         )}

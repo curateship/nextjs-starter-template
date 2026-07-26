@@ -1,6 +1,7 @@
 import Link from "@/components/app-link"
 import { cn } from "@/lib/utils/tailwind"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
+import { TAG_CHIP_CLASS, TAG_CHIP_SIZE_CLASS } from "@/lib/utils/directory-tag-chips"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import Check from "lucide-react/dist/esm/icons/check.js"
@@ -233,8 +234,8 @@ function TagChips({ tags, small = false }: { tags: string[]; small?: boolean }) 
         <span
           key={`${tag}-${index}`}
           className={cn(
-            "inline-flex items-center rounded-full border bg-muted/50 font-medium text-foreground",
-            small ? "gap-1 px-2 py-0.5 text-xs" : "gap-1.5 px-3 py-1 text-sm"
+            TAG_CHIP_CLASS,
+            small ? "gap-1 px-2 py-0.5 text-xs" : TAG_CHIP_SIZE_CLASS
           )}
         >
           <Check className={small ? "size-3" : "size-3.5"} />
