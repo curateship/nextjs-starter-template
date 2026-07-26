@@ -37,6 +37,8 @@ export function StrategyTester({
   markPrice,
   selectedTradeN = null,
   onSelectTrade,
+  emptyText,
+  toggles,
 }: {
   result: BacktestResult | null
   startingEquity: number
@@ -45,6 +47,14 @@ export function StrategyTester({
   selectedTradeN?: number | null
   /** Row click — null when the selected trade is clicked again. */
   onSelectTrade?: (trade: BacktestTrade | null) => void
+  /** Empty-list copy for callers that are not backtests, e.g. the journal. */
+  emptyText?: string
+  /**
+   * Panel-collapse toggles, pushed right in the tab bar — the Trade terminal's
+   * placement. Keeping them here means they survive this panel collapsing,
+   * which is why a workspace that uses them collapses to exactly this row.
+   */
+  toggles?: React.ReactNode
 }) {
   return (
     <Tabs defaultValue="trades" className="flex h-full min-h-0 flex-col gap-0">
@@ -60,6 +70,7 @@ export function StrategyTester({
             </TabsTrigger>
           ))}
         </TabsList>
+        {toggles ? <div className="ml-auto">{toggles}</div> : null}
       </div>
 
       <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
@@ -69,6 +80,7 @@ export function StrategyTester({
             markPrice={markPrice}
             selectedTradeN={selectedTradeN}
             onSelectTrade={onSelectTrade}
+            emptyText={emptyText}
           />
         </TabsContent>
         <TabsContent value="overview" className="m-0">

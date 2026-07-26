@@ -51,6 +51,65 @@ The default settings, defined by `createDefaultStyling()` in `src/lib/custom-she
 - Pages or workspaces with a context strip above the content (market info, account selector, page-level actions) use a full-width flat bar, not a floating card: `flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-card px-4 py-2`. In Trading, `src/components/trading/account-strip.tsx` is the reference.
 - Keep identity and stats on the left, account or wallet controls and settings on the right (`ml-auto`), with `gap-x-5` between stat groups.
 
+## Three-panel resizable workspaces
+
+A full-screen workspace with a **left rail, a centre chart, a right table and a bottom panel** is
+one single design. In Trading that is the Trade terminal, the backtest run workspace
+(`/backtest/$groupId`), the bot run workspace (`/bots/$botId`) and the trade journal (`/journal`).
+**Copy it exactly; never invent a variant.** When one of these needs a change, change the shared
+primitive so all of them move together.
+
+**Structure.** Outer `ResizablePanelGroup orientation="vertical"` holding a `main` panel
+(`defaultSize="68%" minSize="35%"`) and the bottom panel; inside `main`, a horizontal group of
+summary → chart → markets. Every panel body is a `WorkspacePanel`. The whole group sits in
+`p-[var(--shell-gutter,0.75rem)]`, and the route must be registered in the app's full-bleed
+predicate (`isFullBleedLocation`) or the page will double up on padding.
+
+**Gaps are handles, never flex gaps.** The space between panels is `ResizableHandle` with the
+`gap` prop, carrying a small grey knob so it reads as grabbable.
+
+**Panel sizes** — keep these the same across all four so the pages feel identical:
+
+| Panel | default | min | max | collapsedSize |
+| --- | ---: | ---: | ---: | --- |
+| summary (left) | 21% | 16% | 34% | `0%` |
+| chart (centre) | ~53% | 30% | — | not collapsible |
+| markets (right) | 26% | 18% | 42% | `0%` |
+| bottom | 32% | 15% | — | `BOTTOM_COLLAPSED_HEIGHT` |
+
+**The three toggles live in the bottom panel's tab bar**, pushed right with `ml-auto`, built from
+the shared `PanelToggle` (24px ghost buttons in the normal text colour, `flex items-center gap-1`;
+solid outline = showing, dashed = hidden, double chevron for the bottom one). Never hand-roll
+these buttons, their size, colour or icons, and never put them in the page header — a header row
+is not guaranteed to exist and the toggles must sit with the panel they survive in.
+
+**The bottom panel collapses to its own header, not to nothing.** Use the shared
+`BOTTOM_COLLAPSED_HEIGHT` (`src/components/ui/resizable.tsx`, 58px = the 56px header row plus the
+card's two hairlines). Collapsing to `0%` would take away the very buttons that reopen the panels.
+
+**Therefore the handle above the bottom panel keeps its gap: pass `gap` alone, never
+`collapsed`.** The `collapsed` prop closes the gutter and exists only for a neighbour that
+collapses to nothing — the left and right panels. Passing it to the bottom handle leaves the
+collapsed tab bar sitting flush against the chart with no gap.
+
+**Collapsed state.** A panel that collapses to zero can detect it from its size
+(`onResize={(size) => setX(size.asPercentage < 0.5)}`). A panel that collapses to a fixed height
+cannot — ask the panel instead: `onResize={() => setX(ref.current?.isCollapsed() ?? false)}`.
+
+**Reopening always returns a panel to its default size.** Toggle with the shared `togglePanel`
+helper (`src/lib/panel-collapse.ts`) and pass that default. Left to itself the library restores
+whatever width the panel last had: a useless sliver for a panel that was already closed on load,
+or a stale hand-dragged width that squeezes the chart. Showing a panel is a fresh start, not a
+restore.
+
+**Layout persistence.** Widths *and* collapsed state ride along in the saved layout via
+`usePanelLayout` under a key per workspace (e.g. `journal-workspace-horizontal` / `-vertical`), so
+the workspace reopens the way it was left.
+
+**Header.** Back `IconButton`, `Breadcrumbs`, then `flex-1` and any page-level controls on the
+right. Do not put a record-count badge there — the counts already live in the panels that show
+them, and a second copy in the header only drifts.
+
 ## Sidebar
 
 - A resizable desktop sidebar must support both click-to-collapse and drag-to-resize. Keep its expanded width between 144px and 420px, save it in the current workspace's database settings, and let a focused resize edge move in 8px steps with the arrow keys.

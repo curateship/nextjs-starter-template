@@ -20,12 +20,16 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 
 ## Resizable Workspaces
 
-The Trade terminal, the backtest run workspace, and the bot run workspace are one design. Copy it; do not invent a variant.
+The Trade terminal, the backtest run workspace, the bot run workspace, and the trade journal are one design. Copy it; do not invent a variant. The full cross-app standard — panel sizes, toggle placement, collapse behaviour — is in `.agents/skills/Ui-standards`; this section is the Trading-specific summary and must not drift from it.
 
 - The gap between panels is the drag handle itself (`ResizableHandle` with `gap`), never a flex gap. It carries a small grey knob so it reads as grabbable.
 - Hiding a side panel closes its gap: pass `collapsed` to the handle next to it, so the remaining panels sit flush instead of leaving a stripe of empty canvas.
 - Panels are hidden and shown from one row of three toggles — left panel, right panel, bottom panel — built from the shared `PanelToggle` (`src/components/panel-toggles.tsx`): 24px ghost buttons in the normal text colour, grouped in a `flex items-center gap-1` row. A solid panel outline means showing, a dashed one means hidden; the bottom toggle uses the double chevron. Never hand-roll these buttons, their size, their colour, or their icons.
-- Toggle with the shared `togglePanel` helper (`src/lib/panel-collapse.ts`) and pass the panel's default size, so reopening a panel that was already closed when the page loaded never returns a useless sliver.
+- **The toggles live in the bottom panel's tab bar**, pushed right with `ml-auto` — never in the page header. The bottom panel collapses to exactly that row using the shared `BOTTOM_COLLAPSED_HEIGHT` (`src/components/ui/resizable.tsx`), so the buttons that reopen the panels never disappear with them.
+- Because the bottom panel is still on screen when collapsed, **the handle above it keeps its gap: pass `gap` alone, never `collapsed`.** The `collapsed` prop is only for a neighbour that collapses to nothing (the left and right panels); on the bottom handle it leaves the collapsed tab bar flush against the chart.
+- A panel that collapses to zero reads its collapsed state from its size (`size.asPercentage < 0.5`); one that collapses to a fixed height must ask the panel instead (`ref.current?.isCollapsed()`).
+- Do not put a record-count badge in the workspace header. The counts already live in the panels that show them.
+- Toggle with the shared `togglePanel` helper (`src/lib/panel-collapse.ts`) and pass the panel's default size. Reopening always returns the panel to exactly that size. Left to itself the library restores whatever width the panel last had, which is a useless sliver for a panel that was already closed when the page loaded, and a stale hand-dragged width that squeezes the chart otherwise. Reopening is a fresh start, not a restore.
 - Wherever the toggles live, they must stay reachable when the panel they control is closed. The Trade terminal keeps them in the bottom panel's tab bar, so that panel collapses to exactly its tab bar rather than to nothing.
 - Every bottom panel wears the same header, exported once as `BOTTOM_PANEL_HEADER` from `src/components/ui/resizable.tsx`: a 56px plain card-coloured row with a divider under it, content on the left and the panel's own actions pushed right with `ml-auto`. Tabs, when the panel has them, sit on the left of that row and use the shared `Tabs` `pill` variant — the market watchlist's look, where the active tab is a solid dark pill and the rest are plain muted text on no container. Never a muted or coloured band, and never a local copy of the row's classes — import the constant so the four panels can't drift in height again.
 

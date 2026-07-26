@@ -1,4 +1,20 @@
-import type { BotDetailResponse } from "@/lib/api/bots"
+/**
+ * The minimum a fill must carry to be paired into round trips. Bot fills
+ * (`BotDetailResponse["trades"]`) satisfy it as they are; the trade journal
+ * maps its stored wallet fills into the same shape, so one implementation
+ * serves both instead of a second, drifting copy.
+ */
+export type RoundTripFill = {
+  id: string
+  market: string
+  side: string
+  px: string | number
+  sz: string | number
+  fee: string | number
+  closed_pnl?: string | number | null
+  /** Fill time as an ISO string or ms since epoch. */
+  fill_time: string | number
+}
 
 /**
  * One completed (or still-open) position cycle reconstructed from a bot's
@@ -29,9 +45,22 @@ export type BotRoundTrip = {
   /** Running net P&L across CLOSED trips; NaN for the open trip. */
   cumPnl: number
   open: boolean
+  /**
+   * Signed size still held (positive long, negative short); 0 once closed.
+   * Taken from the same position walk that pairs the trips, so it accounts for
+   * partial scale-outs and for the remnant fills a truncated history skips.
+   * Never re-derive this by summing fill sizes — that double-counts a fill
+   * closing a position we never saw opened.
+   */
+  szi: number
 }
 
 const EPS = 1e-9
+
+/** Bot fills carry an ISO timestamp, journal fills carry epoch milliseconds. */
+export function fillTimeMs(value: string | number): number {
+  return typeof value === "number" ? value : Date.parse(value)
+}
 
 type Draft = {
   id: string
@@ -57,11 +86,11 @@ type Draft = {
  * skipped rather than misread as a fresh entry.
  */
 export function buildBotRoundTrips(
-  trades: BotDetailResponse["trades"],
+  trades: RoundTripFill[],
   markPrice: number
 ): BotRoundTrip[] {
   const fills = [...trades].sort(
-    (a, b) => Date.parse(a.fill_time) - Date.parse(b.fill_time)
+    (a, b) => fillTimeMs(a.fill_time) - fillTimeMs(b.fill_time)
   )
 
   const trips: BotRoundTrip[] = []
@@ -86,6 +115,7 @@ export function buildBotRoundTrips(
       returnPct: draft.entryNotional > EPS ? (pnl / draft.entryNotional) * 100 : 0,
       cumPnl,
       open: false,
+      szi: 0,
     })
     draft = null
   }
@@ -96,7 +126,7 @@ export function buildBotRoundTrips(
     const fee = Number(fill.fee)
     const fillPnl = Number(fill.closed_pnl ?? 0)
     const dir = fill.side === "buy" ? 1 : -1
-    const time = Date.parse(fill.fill_time)
+    const time = fillTimeMs(fill.fill_time)
     if (!(qty > EPS) || !(px > 0)) continue
 
     if (Math.abs(pos) < EPS) {
@@ -178,6 +208,7 @@ export function buildBotRoundTrips(
       returnPct: open.entryNotional > EPS ? (pnl / open.entryNotional) * 100 : 0,
       cumPnl: NaN,
       open: true,
+      szi: pos,
     })
   }
 

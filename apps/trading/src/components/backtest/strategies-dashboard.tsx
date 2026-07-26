@@ -36,6 +36,7 @@ import { IconButton } from "@/components/icon-button"
 import { PanelToggle } from "@/components/panel-toggles"
 import { togglePanel } from "@/lib/panel-collapse"
 import {
+  BOTTOM_COLLAPSED_HEIGHT,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -1154,6 +1155,32 @@ export function RunHistoryDashboard({
   const horizontalLayout = usePanelLayout("group-workspace-horizontal")
   const verticalLayout = usePanelLayout("group-workspace-vertical")
 
+  // Toggles live in the bottom panel's tab bar — see the three-panel workspace
+  // standard in `.agents/skills/Ui-standards`. That panel collapses to exactly
+  // this row, so the buttons that reopen the panels never disappear.
+  const panelToggles = (
+    <div className="flex shrink-0 items-center gap-1">
+      <PanelToggle
+        side="left"
+        collapsed={summaryCollapsed}
+        label={summaryCollapsed ? "Show summary panel" : "Hide summary panel"}
+        onClick={() => togglePanel(summaryPanelRef, "21%")}
+      />
+      <PanelToggle
+        side="right"
+        collapsed={marketsCollapsed}
+        label={marketsCollapsed ? "Show markets panel" : "Hide markets panel"}
+        onClick={() => togglePanel(marketsPanelRef, "28%")}
+      />
+      <PanelToggle
+        side="bottom"
+        collapsed={tradesCollapsed}
+        label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
+        onClick={() => togglePanel(tradesPanelRef, "32%")}
+      />
+    </div>
+  )
+
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
       <div className="flex items-center gap-3 border-b bg-card px-4 py-2">
@@ -1170,33 +1197,6 @@ export function RunHistoryDashboard({
           ]}
         />
         <div className="flex-1" />
-        <Badge variant="secondary" className="font-medium">
-          {marketRuns.length} {marketRuns.length === 1 ? "market" : "markets"}
-        </Badge>
-        <div className="ml-1 flex items-center gap-1">
-          <PanelToggle
-            side="left"
-            collapsed={summaryCollapsed}
-            label={
-              summaryCollapsed ? "Show summary panel" : "Hide summary panel"
-            }
-            onClick={() => togglePanel(summaryPanelRef, "21%")}
-          />
-          <PanelToggle
-            side="right"
-            collapsed={marketsCollapsed}
-            label={
-              marketsCollapsed ? "Show markets panel" : "Hide markets panel"
-            }
-            onClick={() => togglePanel(marketsPanelRef, "28%")}
-          />
-          <PanelToggle
-            side="bottom"
-            collapsed={tradesCollapsed}
-            label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
-            onClick={() => togglePanel(tradesPanelRef, "32%")}
-          />
-        </div>
       </div>
 
       <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
@@ -1503,17 +1503,21 @@ export function RunHistoryDashboard({
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          <ResizableHandle gap collapsed={tradesCollapsed} />
+          {/* The trades panel collapses to its own tab bar, not to nothing,
+              so this gutter always has two visible panels to separate. */}
+          <ResizableHandle gap />
 
           {/* BOTTOM — the selected market's trades. */}
           <ResizablePanel
             id="trades"
             panelRef={tradesPanelRef}
             collapsible
-            collapsedSize="0%"
+            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
             defaultSize="32%"
             minSize="15%"
-            onResize={(size) => setTradesCollapsed(size.asPercentage < 0.5)}
+            onResize={() =>
+              setTradesCollapsed(tradesPanelRef.current?.isCollapsed() ?? false)
+            }
           >
             <WorkspacePanel>
               <StrategyTester
@@ -1522,6 +1526,7 @@ export function RunHistoryDashboard({
                 markPrice={runLastClose ?? 0}
                 selectedTradeN={focusedTrade?.n ?? null}
                 onSelectTrade={setFocusedTrade}
+                toggles={panelToggles}
               />
             </WorkspacePanel>
           </ResizablePanel>

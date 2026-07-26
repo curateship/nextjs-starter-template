@@ -1,11 +1,11 @@
-import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
+import type { BotMarketState } from "@/lib/api/bots"
 import type {
   BacktestResult,
   BacktestTrade,
   SideStats,
 } from "@/lib/backtest/types"
 
-import type { BotRoundTrip } from "./bot-round-trips"
+import { fillTimeMs, type BotRoundTrip, type RoundTripFill } from "./bot-round-trips"
 
 const EPS = 1e-9
 
@@ -52,7 +52,7 @@ function sideStats(trips: BotRoundTrip[]): SideStats {
  */
 export function buildBotResult(
   trips: BotRoundTrip[],
-  fills: BotDetailResponse["trades"],
+  fills: RoundTripFill[],
   state: BotMarketState | null,
   startingEquity: number
 ): BacktestResult {
@@ -109,7 +109,7 @@ export function buildBotResult(
     equityCurve,
     trades,
     fills: fills.map((fill) => ({
-      t: Date.parse(fill.fill_time),
+      t: fillTimeMs(fill.fill_time),
       side: fill.side as "buy" | "sell",
       px: Number(fill.px),
       sz: Number(fill.sz),

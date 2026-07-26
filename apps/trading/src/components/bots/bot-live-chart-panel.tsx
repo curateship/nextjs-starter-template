@@ -6,8 +6,10 @@ import {
   signedUsd,
 } from "@/components/backtest/backtest-format"
 import { buildBotFillMarkers } from "@/components/bots/bot-chart-overlays"
-import type { BotRoundTrip } from "@/components/bots/bot-round-trips"
-import type { BotDetailResponse } from "@/lib/api/bots"
+import type {
+  BotRoundTrip,
+  RoundTripFill,
+} from "@/components/bots/bot-round-trips"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import {
   PriceChart,
@@ -23,16 +25,20 @@ import type { AutomationConfig } from "@/lib/strategies/strategy-config"
 
 /**
  * The live chart of one bot market: real candles, fill chips, trade focus,
- * and any caller-supplied price lines (draggable TP/SL). The interval is
- * dictated by the automation's setting and locked here — the toolbar shows it
- * but cannot change it — so the chart always tracks the saved timeframe.
- * Lifecycle controls arrive via `toolbarActions` and sit where the OHLC
- * readout would.
+ * and any caller-supplied price lines (draggable TP/SL). By default the
+ * interval is dictated by the automation's setting and locked here — the
+ * toolbar shows it but cannot change it — so the chart always tracks the saved
+ * timeframe. Pass `intervals` + `onIntervalChange` to unlock the picker, which
+ * the trade journal does: a real trade has no saved timeframe, so the reviewer
+ * chooses one. Lifecycle controls arrive via `toolbarActions` and sit where
+ * the OHLC readout would.
  */
 export function BotLiveChartPanel({
   network,
   market,
   interval,
+  intervals,
+  onIntervalChange,
   automationConfig,
   fills,
   trips,
@@ -45,10 +51,13 @@ export function BotLiveChartPanel({
   market: string
   /** The automation's saved candle interval; the chart is locked to it. */
   interval: CandleInterval
+  /** Selectable timeframes; omit to lock the chart to `interval`. */
+  intervals?: readonly CandleInterval[]
+  onIntervalChange?: (interval: CandleInterval) => void
   /** Compiled config for the indicator paint (same as the canvas). */
   automationConfig: AutomationConfig | null
   /** Raw fills of this market (chart chips). */
-  fills: BotDetailResponse["trades"]
+  fills: RoundTripFill[]
   trips: BotRoundTrip[]
   /** Trade number selected in the bottom panel — pulses entry/exit rings. */
   focusedTradeN: number | null
@@ -102,9 +111,9 @@ export function BotLiveChartPanel({
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
       <ChartToolbar
-        intervals={[interval]}
+        intervals={intervals ?? [interval]}
         interval={interval}
-        onIntervalChange={() => {}}
+        onIntervalChange={onIntervalChange ?? (() => {})}
         leading={<span className="text-sm font-bold">{market}</span>}
       >
         {toolbarActions}

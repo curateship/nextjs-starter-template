@@ -670,6 +670,56 @@ export const tradingBotTrades = pgTable(
   ]
 )
 
+/**
+ * The trade journal's own copy of every real-money fill. Hyperliquid serves
+ * roughly 365 days and caps a response near 2,000 fills, and hand-placed
+ * trades are persisted nowhere else, so without this the record expires.
+ *
+ * Bot fills are ordinary wallet fills — they land here too, tagged with
+ * `botId` by matching `hlTid` against `bot_trades`. Never a second feed.
+ * Only mainnet wallets are synced; testnet and practice money never reach it.
+ */
+export const tradingWalletFills = pgTable(
+  "wallet_fills",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    walletId: varchar("wallet_id", { length: 36 })
+      .notNull()
+      .references(() => tradingWallets.id, { onDelete: "cascade" }),
+    /** Set when this fill matches a bot_trades row; null means hand-placed. */
+    botId: varchar("bot_id", { length: 36 }).references(() => tradingBots.id, {
+      onDelete: "set null",
+    }),
+    hlTid: bigint("hl_tid", { mode: "number" }).notNull(),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    side: varchar("side", { length: 4 }).notNull(),
+    /** Hyperliquid's own label, e.g. "Close Long" — kept for the trade list. */
+    dir: varchar("dir", { length: 64 }),
+    px: numeric("px").notNull(),
+    sz: numeric("sz").notNull(),
+    fee: numeric("fee").notNull().default("0"),
+    closedPnl: numeric("closed_pnl").notNull().default("0"),
+    oid: bigint("oid", { mode: "number" }),
+    /** Client order id — the only thread back to the order's original intent. */
+    cloid: varchar("cloid", { length: 66 }),
+    fillTime: timestamp("fill_time", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("wallet_fills_side_check", sql`${table.side} in ('buy', 'sell')`),
+    uniqueIndex("ux_wallet_fills_wallet_id_hl_tid").on(
+      table.walletId,
+      table.hlTid
+    ),
+    index("ix_wallet_fills_wallet_id_fill_time").on(
+      table.walletId,
+      table.fillTime
+    ),
+  ]
+)
+
 export const tradingBotEvents = pgTable(
   "bot_events",
   {

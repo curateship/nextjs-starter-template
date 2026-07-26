@@ -16,6 +16,7 @@ import { Route as AuthenticatedAlertLogRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as AuthenticatedIndicatorsRouteImport } from './routes/_authenticated/indicators'
+import { Route as AuthenticatedJournalRouteImport } from './routes/_authenticated/journal'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWalletsRouteImport } from './routes/_authenticated/wallets'
@@ -79,6 +80,11 @@ const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
 const AuthenticatedIndicatorsRoute = AuthenticatedIndicatorsRouteImport.update({
   id: '/indicators',
   path: '/indicators',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedJournalRoute = AuthenticatedJournalRouteImport.update({
+  id: '/journal',
+  path: '/journal',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
+  '/journal': typeof AuthenticatedJournalRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/indicators': typeof AuthenticatedIndicatorsRoute
+  '/journal': typeof AuthenticatedJournalRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/wallets': typeof AuthenticatedWalletsRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/indicators': typeof AuthenticatedIndicatorsRoute
+  '/_authenticated/journal': typeof AuthenticatedJournalRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/wallets': typeof AuthenticatedWalletsRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/audit'
     | '/indicators'
+    | '/journal'
     | '/pnl'
     | '/trade'
     | '/wallets'
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/audit'
     | '/indicators'
+    | '/journal'
     | '/pnl'
     | '/trade'
     | '/wallets'
@@ -452,6 +463,7 @@ export interface FileRouteTypes {
     | '/_authenticated/alerts'
     | '/_authenticated/audit'
     | '/_authenticated/indicators'
+    | '/_authenticated/journal'
     | '/_authenticated/pnl'
     | '/_authenticated/trade'
     | '/_authenticated/wallets'
@@ -540,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/indicators'
       fullPath: '/indicators'
       preLoaderRoute: typeof AuthenticatedIndicatorsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/journal': {
+      id: '/_authenticated/journal'
+      path: '/journal'
+      fullPath: '/journal'
+      preLoaderRoute: typeof AuthenticatedJournalRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/pnl': {
@@ -806,6 +825,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedIndicatorsRoute: typeof AuthenticatedIndicatorsRoute
+  AuthenticatedJournalRoute: typeof AuthenticatedJournalRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWalletsRoute: typeof AuthenticatedWalletsRoute
@@ -839,6 +859,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedIndicatorsRoute: AuthenticatedIndicatorsRoute,
+  AuthenticatedJournalRoute: AuthenticatedJournalRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWalletsRoute: AuthenticatedWalletsRoute,
