@@ -48,6 +48,44 @@ have to repeat myself. Plain English on purpose.
 - **Report the out-of-sample (walk-forward) number, not the tuned number.** The
   number from the data you tuned on is always too rosy.
 
+## Rules of engagement for an optimisation run (NOT optional)
+
+The rules above say what a clean test looks like. These say how to *run* one
+without quietly destroying it. They exist because on 25–26 July 2026 a QFL
+campaign broke every one of them: ~3,000 combinations, ~12 re-runs, the scoring
+rule changed twice mid-campaign, the market basket changed three times, and six
+separate candidates tested against the window that was supposed to stay sealed.
+Every number reported along the way collapsed on the next honest test. Hours were
+spent generating noise and it read like progress the whole time.
+
+1. **Decide these BEFORE the first search, write them down, and do not change
+   them:** the market basket, the walk-forward dates, the scoring rule, the cost
+   assumptions. Changing any of them mid-campaign means the holdout is
+   contaminated — if you must change one, you are starting a NEW campaign and
+   the old results are void.
+2. **One walk-forward. If it fails, that is the answer.** Do not re-run with a
+   different scoring rule, a different basket, or a different split hoping for a
+   better number. "Keep trying until it wins" is the definition of overfitting,
+   and no amount of it produces a real edge.
+3. **Never say a tuned number out loud.** Not in a progress update, not as a
+   leaderboard, not as "the search is at 5%/month so far". A contaminated number
+   is worse than no number, because it reads as progress and gets acted on.
+   Mid-run status is *"N candidates screened, nothing validated yet."*
+4. **Seal the holdout.** Load it once, test ONE candidate — the one the tuning
+   and validation windows already chose — and report whatever it says. Every
+   extra peek is another chance to fool yourself, and they accumulate silently.
+5. **Declare the degrees of freedom with the result.** State how many
+   combinations were tried, how many times the run was restarted, and how many
+   candidates touched the holdout. A result without those numbers cannot be
+   judged. "Best of 6 candidates against a window I'd already looked at" is a
+   different claim from "one shot at sealed data" — say which one it is.
+6. **One clean window is one observation, not a verdict.** A holdout that lands
+   in a crash tells you what happens when nothing works; a holdout in a bull run
+   tells you nothing about a crash. Aim for a clean read in both regimes before
+   claiming a strategy works, and say plainly which one you have.
+7. **A negative result delivered cleanly IS the job.** "This does not clear the
+   bar" is a complete, valuable answer. Say it early and stop.
+
 ## Bet size and wipe-outs
 
 - **Keep each trade about the size of the account — a normal bet.** Making trades

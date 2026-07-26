@@ -9,7 +9,10 @@ import {
   dcaAllocationPcts,
   dcaLevels,
 } from "@/lib/automations/dca"
-import { evaluateAutomation } from "@/lib/automations/evaluate"
+import {
+  automationFiltersAllowBuy,
+  evaluateAutomation,
+} from "@/lib/automations/evaluate"
 import {
   advanceBaseTracker,
   createBaseTracker,
@@ -17,6 +20,7 @@ import {
   type BaseTracker,
 } from "@/lib/automations/dca-ladder"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
+import { INDICATORS } from "@/lib/indicators/registry"
 import { nextTrailState, type TrailState } from "@/lib/strategies/trailing-stop"
 
 import type { DesiredOrder, Strategy, StrategyCtx } from "../strategies/contract"
@@ -63,6 +67,13 @@ type DcaCycle = {
   frozenEquity: number
   rungs: DcaRungState[]
   hadFill: boolean
+  /** Dollars this cycle's buys have actually spent (fill price × fill size).
+   * The "money back" take-profit sells exactly enough to hand this back. Gross of
+   * fees — the strategy never sees fees, so a fee-paying account comes back a
+   * hair short of true flat. */
+  spentUsd: number
+  /** Dollars this cycle's sells have returned so far. */
+  recoveredUsd: number
   /** Price of the cycle's FIRST buy. With the stop anchored to "first", the
    * stop measures from here instead of the average the ladder keeps dragging
    * down — so the configured percent is the real worst case. */
@@ -104,6 +115,10 @@ export type DcaAutomationState = {
    * than the in-progress bar, so a red dip can still fill the rung that two prior
    * green candles unlocked instead of cancelling it. */
   greenUnlocked: boolean
+  /** Latched each close: are ALL the ladder's indicator confirmations bullish?
+   * A rung will not buy while this is false, so the ladder stops averaging into
+   * a fall as soon as its confirmations turn. True when none are configured. */
+  confirmed: boolean
   /** TP/SL close requested by the trade-manager or a close signal. */
   exitRequested: boolean
   trail: TrailState | null
@@ -118,6 +133,7 @@ const initialState = (): DcaAutomationState => ({
   buyNow: false,
   boughtThisBar: false,
   greenUnlocked: false,
+  confirmed: true,
   exitRequested: false,
   trail: null,
 })
@@ -138,6 +154,48 @@ function respectQualifies(
     score.rate !== null &&
     score.rate >= dca.minRespectPct
   )
+}
+
+/**
+ * Trend gate: is the latest close above the average of the last `trendMaBars`
+ * closes? The ladder only ever buys, so left ungated it averages down into a
+ * falling market — it lost 5.07%/month across the Sep-2025 → Jul-2026 crash
+ * while the median coin fell 66%. This keeps it out of one.
+ *
+ * Bars are counted on the bot's OWN timeframe, so 200 means 200 days at 1d and
+ * 200 four-hour bars (about 33 days) at 4h. Needs the full window to judge:
+ * without it, an early bar would compare against a handful of closes and let a
+ * ladder in during exactly the fall this is meant to avoid.
+ */
+function trendVerdict(
+  candles: IndicatorCandle[],
+  dca: AutomationDcaConfig
+): "up" | "down" | "unknown" {
+  if (!dca.trendFilterEnabled) return "up"
+  const bars = dca.trendMaBars
+  if (candles.length < bars) return "unknown"
+  const window = candles.slice(-bars)
+  const average = window.reduce((sum, c) => sum + c.c, 0) / bars
+  return (candles.at(-1)?.c ?? 0) > average ? "up" : "down"
+}
+
+/** Entry side: only a confirmed uptrend may START a ladder, so "unknown" (not
+ * enough candles yet) blocks — the cautious direction. */
+function trendQualifies(
+  candles: IndicatorCandle[],
+  dca: AutomationDcaConfig
+): boolean {
+  return trendVerdict(candles, dca) === "up"
+}
+
+/** Exit side: only a confirmed DOWNtrend may close an open ladder. "unknown"
+ * must NOT close it — treating "I can't tell yet" as "the trend broke" would
+ * dump a live position during warmup or after a gap in the candle feed. */
+function trendBroke(
+  candles: IndicatorCandle[],
+  dca: AutomationDcaConfig
+): boolean {
+  return trendVerdict(candles, dca) === "down"
 }
 
 function numericCandles(candles: CandleWsEvent[]): IndicatorCandle[] {
@@ -214,6 +272,8 @@ function buildCycle(
       entryComplete: false,
     })),
     hadFill: false,
+    spentUsd: 0,
+    recoveredUsd: 0,
     firstEntryPx: null,
     waitingForGreen: false,
     armedIndex: 0,
@@ -274,12 +334,51 @@ export function createDcaAutomationStrategy(
   // deepest buy, so a bounce back to that single level closes everything at once.
   // Either way the average take-profit is replaced by these sells, so only the
   // stop loss still force-closes the position.
+  // "moneyBackThenBase" uses the same bounce level as "nearestRungSellAll" but
+  // sells only enough there to hand back every dollar the ladder spent; whatever
+  // coins are left cost nothing, so they rest just under the base and their sale
+  // is the whole trade's profit. The point is that the bleeding stops on the
+  // first decent bounce instead of waiting for a full recovery.
   const peelRungs = protection.takeProfitMode === "previousRungSellAll"
   const nearestRung = protection.takeProfitMode === "nearestRungSellAll"
-  const rungTakeProfit = peelRungs || nearestRung
+  const moneyBack = protection.takeProfitMode === "moneyBackThenBase"
+  const rungTakeProfit = peelRungs || nearestRung || moneyBack
   const closeProtection = rungTakeProfit
     ? { ...protection, takeProfitPct: undefined }
     : protection
+  // Indicator confirmations wired into the ladder. Empty for every ladder that
+  // doesn't use them, which keeps the hot path exactly as it was.
+  const confirmations = dca.confirmations ?? []
+  // How far back a confirmation may look. `maxAgeBars` (a Look Back wired above
+  // the indicator) makes it explicit: the signal counts for that many candles and
+  // then goes stale. When EVERY confirmation says so, the slice is exact and
+  // cheap — warm-up plus that age.
+  //
+  // With no age set, `automationFiltersAllowBuy` means "the most recent signal
+  // ever, however old", which needs the whole history. That is both slow AND
+  // fragile: the answer silently depended on how long the ladder's window
+  // happened to be, so switching on the trend gate (which lengthens it) changed
+  // what "confirmed" meant. Fall back to the full window so the meaning stays
+  // correct, and prefer to set an age.
+  const confirmationsHaveAges =
+    confirmations.length > 0 &&
+    confirmations.every((filter) => filter.maxAgeBars !== undefined)
+  const confirmWindow =
+    confirmations.length === 0
+      ? 0
+      : confirmationsHaveAges
+        ? Math.max(
+            ...confirmations.map((filter) => {
+              const module = INDICATORS[filter.indicator.type]
+              const params = module.paramsSchema.parse(filter.indicator.params)
+              return (
+                module.warmupBars(params as never) +
+                (filter.maxAgeBars ?? 0) +
+                10
+              )
+            })
+          )
+        : window
   const closeRules = config.rules.filter((rule) => rule.action === "close")
   const closeConfig: AutomationConfig | null =
     closeRules.length > 0
@@ -380,6 +479,12 @@ export function createDcaAutomationStrategy(
         prevTracker === null ||
         settingsChanged ||
         (dca.respectFilterEnabled && ctx.state.active === null) ||
+        // Same short-circuit as the respect scan: the trend gate only feeds the
+        // arm check, which can only fire while idle, so the full window is only
+        // needed then — never on every bar of a live cycle. Without this the arm
+        // check would see a one-bar window and refuse every ladder.
+        (dca.trendFilterEnabled &&
+          (ctx.state.active === null || dca.exitOnTrendBreak)) ||
         closeConfig !== null
       let candles: IndicatorCandle[]
       if (needsWindow) {
@@ -417,6 +522,19 @@ export function createDcaAutomationStrategy(
         // Latch the two-green check at THIS close; desiredOrders reads it next bar
         // so a red dip can still fill what two green candles unlocked.
         greenUnlocked: lastTwoGreen(ctx),
+        // Same latch-at-close discipline as the two-green check: judged on
+        // CLOSED candles so a rung fill mid-bar can't flip the verdict.
+        confirmed:
+          confirmations.length === 0
+            ? true
+            : automationFiltersAllowBuy(
+                numericCandles(
+                  ctx
+                    .candles(config.interval, confirmWindow)
+                    .filter((candle) => candle.T <= ctx.now)
+                ),
+                confirmations
+              ),
         // A new bar has closed: the previous bar's buys are settled, so a rung's
         // exit may fill from here on. (Set again if a buy fills intrabar below.)
         boughtThisBar: false,
@@ -449,6 +567,32 @@ export function createDcaAutomationStrategy(
       if (closeSignal && state.active) {
         ctx.setState({ ...state, exitRequested: true })
         return
+      }
+
+      // GIVING UP. The ladder otherwise has no exit for a position that just
+      // keeps falling — the stop is measured from the first buy and in practice
+      // never fires, so losses accumulate as open bags instead of being
+      // realised. Both of these close the cycle outright.
+      if (state.active && positionOf(ctx).szi > EPSILON) {
+        const brokeTrend =
+          dca.exitOnTrendBreak &&
+          dca.trendFilterEnabled &&
+          trendBroke(candles, dca)
+        const barsOpen =
+          dca.maxCycleBars > 0
+            ? Math.floor((last.t - state.active.startedAt) / intervalMs)
+            : 0
+        const timedOut = dca.maxCycleBars > 0 && barsOpen >= dca.maxCycleBars
+        if (brokeTrend || timedOut) {
+          ctx.setState({ ...state, exitRequested: true })
+          ctx.emit(
+            "dca_give_up",
+            brokeTrend
+              ? "DCA closed the ladder — the trend broke."
+              : `DCA closed the ladder — open ${barsOpen} candles without resolving.`
+          )
+          return
+        }
       }
 
       const positionSz = positionOf(ctx).szi
@@ -495,6 +639,7 @@ export function createDcaAutomationStrategy(
         state.candidateBase === null &&
         positionSz === 0 &&
         baseArmable &&
+        trendQualifies(candles, dca) &&
         respectQualifies(candles, dca, last.t)
       ) {
         state = {
@@ -735,6 +880,9 @@ export function createDcaAutomationStrategy(
         const next = {
           ...active,
           hadFill: true,
+          // Cash actually deployed. The "money back" take-profit sells exactly
+          // enough to hand this back, so it must count real fills, not budgets.
+          spentUsd: active.spentUsd + Number(fill.sz) * fillPx,
           // Step-down mode: this rung filled — point at the next one and re-lock it,
           // so it can't buy until it has its own fresh drop plus two green candles.
           armedIndex:
@@ -767,6 +915,34 @@ export function createDcaAutomationStrategy(
           }),
         }
         ctx.setState({ ...ctx.state, active: next, boughtThisBar: true })
+        return
+      }
+      if (fill.purpose === "dca:s:cash" || fill.purpose === "dca:s:free") {
+        // Money-back / free-ride sells. Bank what came back so the next tick sizes
+        // the remaining cash-back sell against what is still owed; once nothing is
+        // owed the whole remainder rides free to the base.
+        const recovered =
+          active.recoveredUsd + Number(fill.sz) * Number(fill.px)
+        if (positionOf(ctx).szi <= EPSILON) {
+          ctx.emit(
+            "dca_cycle_complete",
+            fill.purpose === "dca:s:free"
+              ? "DCA sold its free coins below the base."
+              : "DCA took its money back and closed flat."
+          )
+          releaseCycle(ctx)
+        } else {
+          if (fill.purpose === "dca:s:cash" && recovered >= active.spentUsd) {
+            ctx.emit(
+              "dca_money_back",
+              "DCA recovered every dollar it spent — the rest rides free."
+            )
+          }
+          ctx.setState({
+            ...ctx.state,
+            active: { ...active, recoveredUsd: recovered },
+          })
+        }
         return
       }
       if (fill.purpose === "dca:s:all") {
@@ -919,6 +1095,7 @@ export function createDcaAutomationStrategy(
           !rung.entrySubmitted &&
           active.stepArmed &&
           state.greenUnlocked &&
+          state.confirmed &&
           midPx > 0 &&
           midPx <= rung.plannedPx &&
           openPx <= rung.plannedPx
@@ -947,7 +1124,7 @@ export function createDcaAutomationStrategy(
         // one resting rung instead of cascading through the ladder. Nothing is
         // pre-reserved — only filled exposure counts, same as market mode.
         const next = active.rungs[active.armedIndex]
-        if (next && !next.entryComplete) {
+        if (next && !next.entryComplete && state.confirmed) {
           const dollars = (active.frozenEquity * next.allocationPct) / 100
           const sz = dollars / next.plannedPx
           if (
@@ -966,7 +1143,7 @@ export function createDcaAutomationStrategy(
             })
           }
         }
-      } else if (state.buyNow && midPx > 0) {
+      } else if (state.buyNow && midPx > 0 && state.confirmed) {
         // MARKET mode: onCandleClose set `buyNow` when this bar's close confirmed
         // a rung (and cleared any fail-safe wait). We buy just ONE rung per bar —
         // the shallowest unbought rung price has reached — sized by its dollar
@@ -1022,6 +1199,77 @@ export function createDcaAutomationStrategy(
             reduceOnly: true,
             sizeIsRemaining: true,
           })
+        }
+      }
+
+      // "Money back, ride the rest free": rest TWO reduce-only sells.
+      //   1. At the nearest rung above the deepest buy — the first level a bounce
+      //      reclaims — sell just enough to return every dollar the ladder spent.
+      //      After that fill nothing is at risk.
+      //   2. The coins that sell left behind cost nothing, so they rest just under
+      //      the base (`sellBelowBasePct`). That sale is the trade's profit.
+      // Both rest at once so a single fast bar that runs through both levels fills
+      // both — the sizes already add up to exactly the position.
+      if (moneyBack && positionSz > EPSILON && !holdExits) {
+        // Deepest rung that has BOUGHT (not "still unsold" as the nearest-rung
+        // mode uses): these sells aren't attributed to a rung, so a partial sale
+        // must not walk the bounce level back up.
+        const deepest = active.rungs.reduce(
+          (max, rung) => (rung.filledSz > EPSILON ? Math.max(max, rung.index) : max),
+          -1
+        )
+        const cashPx =
+          deepest === 0
+            ? active.base
+            : active.rungs.find((rung) => rung.index === deepest - 1)?.plannedPx
+        if (deepest >= 0 && cashPx !== undefined && cashPx > 0) {
+          const outstandingUsd = Math.max(
+            0,
+            active.spentUsd - active.recoveredUsd
+          )
+          // Coins the cash-back sell needs. Capped at the position: if the bounce
+          // level sits at or below the average cost there is nothing left to ride,
+          // so it just closes flat.
+          const cashSz =
+            outstandingUsd > EPSILON
+              ? Math.min(positionSz, outstandingUsd / cashPx)
+              : 0
+          const freeSz = positionSz - cashSz
+          // The runner must never rest BELOW the level that returns the cash — a
+          // "sell below base %" bigger than the first rung's step would otherwise
+          // sell the free coins cheaper than the money-back sell. When that
+          // happens the two collapse into one order at the cash level.
+          const freePx = active.base * (1 - dca.sellBelowBasePct / 100)
+          const restSell = (
+            purpose: string,
+            px: number,
+            sz: number
+          ): DesiredOrder => ({
+            purpose,
+            side: "sell",
+            orderType: "limit",
+            px: String(px),
+            sz: String(sz),
+            tif: "Gtc",
+            reduceOnly: true,
+            sizeIsRemaining: true,
+          })
+          if (freePx <= cashPx + EPSILON) {
+            orders.push(
+              restSell(
+                cashSz > EPSILON ? "dca:s:cash" : "dca:s:free",
+                cashPx,
+                positionSz
+              )
+            )
+          } else {
+            if (cashSz > EPSILON) {
+              orders.push(restSell("dca:s:cash", cashPx, cashSz))
+            }
+            if (freeSz > EPSILON) {
+              orders.push(restSell("dca:s:free", freePx, freeSz))
+            }
+          }
         }
       }
 

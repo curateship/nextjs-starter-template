@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   compileAutomationGraph,
   automationConfigSchema,
+  automationGraphSchema,
   type AutomationEdge,
   type AutomationNode,
   type AutomationTakeProfitNode,
@@ -40,6 +41,11 @@ const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
   respectLookbackMonths: 6,
   minRespectPct: 80,
   recoveryTargetPct: -2,
+  sellBelowBasePct: 2,
+  trendFilterEnabled: false,
+  trendMaBars: 200,
+  exitOnTrendBreak: false,
+  maxCycleBars: 0,
   x: 0,
   y: 0,
 })
@@ -131,6 +137,11 @@ describe("compileAutomationGraph — DCA", () => {
       respectLookbackMonths: 6,
       minRespectPct: 80,
       recoveryTargetPct: -2,
+      sellBelowBasePct: 2,
+      trendFilterEnabled: false,
+      trendMaBars: 200,
+      exitOnTrendBreak: false,
+      maxCycleBars: 0,
     })
     // The exits fold into the long side, measured from the blended average.
     expect(result.config?.protection.long).toEqual({
@@ -162,6 +173,54 @@ describe("compileAutomationGraph — DCA", () => {
       takeProfitPct: 3,
       takeProfitMode: "nearestRungSellAll",
     })
+  })
+
+  it("folds the 'money back then base' mode and its sell-below-base onto the config", () => {
+    const result = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          baseIndicator("base"),
+          { ...dca("dca", 25), sellBelowBasePct: 1.5 } as AutomationNode,
+          takeProfit("tp", 3, "moneyBackThenBase"),
+        ],
+        edges: [
+          edge("e1", "base", "bullish", "dca"),
+          edge("e2", "dca", "tp", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.errors).toEqual([])
+    expect(result.config?.protection.long).toEqual({
+      takeProfitPct: 3,
+      takeProfitMode: "moneyBackThenBase",
+    })
+    // The offset travels on the DCA config, where the engine reads it.
+    expect(result.config?.dca?.sellBelowBasePct).toBe(1.5)
+    expect(automationConfigSchema.safeParse(result.config).success).toBe(true)
+  })
+
+  it("loads a ladder saved before 'sell below base' existed at the default", () => {
+    // A saved graph comes back through the schema, which fills the field in. It
+    // is inert unless the money-back take-profit is chosen, so the old ladder
+    // keeps behaving identically.
+    const { sellBelowBasePct: _dropped, ...old } = dca("dca", 25) as Extract<
+      AutomationNode,
+      { kind: "dca" }
+    >
+    const saved = automationGraphSchema.parse({
+      nodes: [baseIndicator("base"), old, takeProfit("tp")],
+      edges: [
+        edge("e1", "base", "bullish", "dca"),
+        edge("e2", "dca", "tp", "tp"),
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+    const result = compileAutomationGraph({ interval: "1h", graph: saved })
+    expect(result.errors).toEqual([])
+    expect(result.config?.dca?.sellBelowBasePct).toBe(2)
+    expect(result.config?.protection.long?.takeProfitMode).toBeUndefined()
   })
 
   it("loads the removed 'hold first' mode as the plain previous-rung peel", () => {

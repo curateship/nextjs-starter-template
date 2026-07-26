@@ -105,8 +105,22 @@ export function automationInputRows(
     const levels = config.protection[side]
     const value = levels?.[key]
     if (!value) return "off"
+    if (key === "takeProfitPct") {
+      // Rung modes sell against the DCA ladder and IGNORE this percent, so
+      // showing the bare number would misreport what actually ran.
+      switch (levels?.takeProfitMode) {
+        case "previousRungSellAll":
+          return "at the previous rung (percent ignored)"
+        case "nearestRungSellAll":
+          return "everything at the nearest rung (percent ignored)"
+        case "moneyBackThenBase":
+          return `money back at the nearest rung, rest rides free (percent ignored)`
+        default:
+          return `${value}% above the average`
+      }
+    }
     if (key !== "stopLossPct" || levels?.stopLossMode !== "trailing") {
-      return `${value}%`
+      return `${value}%${levels?.stopAnchor === "first" ? " from the first buy" : ""}`
     }
     const activation = levels.trailActivationPct
     return activation
@@ -118,10 +132,56 @@ export function automationInputRows(
     { label: "Actions", value: String(config.rules.length) },
     ...(config.dca
       ? [
-          { label: "DCA buys", value: String(config.dca.rungs.length) },
+          {
+            label: "DCA base",
+            value: `${config.dca.basePeriods} back / ${config.dca.pumpPeriods} hold`,
+          },
+          {
+            label: "DCA crack",
+            value: `${config.dca.crackPct}% below base within ${config.dca.maxCrackBars} candles`,
+          },
+          {
+            label: "DCA buys",
+            value: `${config.dca.rungs.length} at ${config.dca.rungs
+              .map((rung) => `-${rung.deviation}%`)
+              .join(", ")}`,
+          },
           {
             label: "DCA maximum position",
             value: `${config.dca.maxPositionPct}%`,
+          },
+          {
+            label: "DCA size ramp",
+            value:
+              config.dca.sizeMultiplier === 1
+                ? "equal buys"
+                : `${config.dca.sizeMultiplier}x each buy`,
+          },
+          {
+            label: "DCA rung entry",
+            value: `${config.dca.rungEntry}${
+              config.dca.requireTwoGreen ? ", after 2 green candles" : ""
+            }${config.dca.compound ? ", compounding" : ", fixed bet"}`,
+          },
+          {
+            label: "DCA uptrend filter",
+            value: config.dca.trendFilterEnabled
+              ? `above the ${config.dca.trendMaBars}-candle average`
+              : "off",
+          },
+          {
+            label: "DCA confirmations",
+            value:
+              (config.dca.confirmations?.length ?? 0) > 0
+                ? config.dca
+                    .confirmations!.map(
+                      (filter) =>
+                        `${filter.indicator.type}${
+                          filter.maxAgeBars ? ` (${filter.maxAgeBars} candles)` : ""
+                        }`
+                    )
+                    .join(", ")
+                : "none",
           },
           {
             label: "DCA base respect",
@@ -142,13 +202,26 @@ export function automationInputRows(
  * The hard take-profit bound (percent) a winning trade can never beat — the
  * largest take-profit across both sides. Feeds the backtest credibility
  * tripwire; null when no take-profit is set.
+ *
+ * A side running one of the DCA rung take-profit modes has NO such bound: the
+ * engine ignores `takeProfitPct` there and sells against the buy ladder instead,
+ * so a rung sale can legitimately return far more than that percent. Counting it
+ * would flag every honest rung-mode run as untrustworthy, so that side is
+ * excluded — a null result just means the tripwire has nothing to check.
  */
 export function automationTakeProfitPct(
   config: AutomationConfig
 ): number | null {
-  const values = [
-    config.protection.long?.takeProfitPct,
-    config.protection.short?.takeProfitPct,
-  ].filter((value): value is number => value !== undefined)
+  const bounded = (side: "long" | "short") => {
+    const levels = config.protection[side]
+    if (!levels || levels.takeProfitPct === undefined) return undefined
+    const mode = levels.takeProfitMode
+    return mode === undefined || mode === "average"
+      ? levels.takeProfitPct
+      : undefined
+  }
+  const values = [bounded("long"), bounded("short")].filter(
+    (value): value is number => value !== undefined
+  )
   return values.length > 0 ? Math.max(...values) : null
 }

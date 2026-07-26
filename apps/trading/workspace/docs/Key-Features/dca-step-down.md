@@ -27,6 +27,74 @@ Four related changes went in together:
    roughly N times too small (the "$510k deployed" bug). It now uses the one shared
    wallet as the denominator.
 
+## Take-profit style: "Money back at nearest rung, then ride free" (July 25, 2026)
+
+A fourth option in the Take Profit node's **Take profit style** dropdown, next to
+*At the average price*, *Sell at previous rung* and *Sell everything at nearest
+rung*. It exists to stop the walk-down bleed: a ladder that keeps buying into a
+fall and then waits for a full recovery that never comes.
+
+### The problem it solves
+
+The other rung styles all wait for price to climb back to a level it already fell
+through. *Sell at previous rung* needs the whole way back to the base before the
+ladder is fully out. When a market just bleeds, none of that happens, and the
+position sits there getting worse — the −8% over 60 bars that prompted this.
+
+### What it does
+
+Two resting sell orders instead of one.
+
+1. **The cash-back sell** sits at the nearest rung above the deepest buy — the
+   first level a bounce reclaims, the same level *Sell everything at nearest rung*
+   uses. It sells only **enough to hand back every dollar the ladder spent**, not
+   the whole position. After it fills, nothing is at risk.
+2. **The free-ride sell** takes the coins that first sale left behind. They cost
+   nothing, so they wait just under the base — **Sell below base %** on the DCA
+   node, default 2 — and their sale is the trade's entire profit.
+
+Worked example. Base $100, rungs at $95.00, $87.40 and $77.79, $1,000 spent for
+12.12 coins:
+
+| Step | What happens |
+| --- | --- |
+| Bounce to $87.40 | Sell 11.44 coins → the whole $1,000 comes back |
+| Still held | 0.68 coins, cost basis zero |
+| Those rest at $98.00 | base − 2%; when they fill that is **+$66** |
+
+Both orders rest at the same time, and their sizes add up to exactly the position,
+so one fast bar running through both levels fills both.
+
+### Why just *under* the base, not on it
+
+Price that has fallen through a level usually stalls short of fully reclaiming it.
+Resting the runner a little below the base gets it filled on bounces that stop just
+short. The same reasoning is why the cash-back sell uses the nearest rung rather
+than the base: it wants the *first* level a recovery reaches, not the best one.
+
+### Details worth knowing
+
+- **"Money back" is gross of fees.** The strategy never sees fees (the live worker
+  must not), so a fee-paying account comes back a hair short of true flat.
+- **The identity that makes it safe:** the gain booked on the cash-back sale is
+  exactly the cost still carried by the coins held. So if the runner ends up
+  worthless, the cycle closes flat rather than at a loss. There is a test for this.
+- **If the bounce level sits at or below the average cost** there is nothing left
+  to ride, so it simply sells the lot and ends flat. Same if **Sell below base %**
+  is set deeper than the first rung's step — the runner must never rest cheaper
+  than the sale that returns the money, so the two orders collapse into one.
+- **The stop loss is untouched.** As with the other rung styles, the average-price
+  take profit is switched off and only the stop can force-close the position.
+- **Old ladders are unaffected.** `sellBelowBasePct` defaults to 2 and no other
+  take-profit style reads it.
+- Chart labels for the two fills are **Money back** and **Free ride**.
+
+### Not yet verified in a browser
+
+The dropdown entry and the new **Ladder exits** card on the DCA node have unit
+tests and a clean typecheck behind them, but no browser pass — the app's dev
+server was not running. Do that before trusting the UI.
+
 ## Where the ladder's settings live (July 25, 2026)
 
 The DCA node owns every setting its own rule reads, in four cards in the inspector:
@@ -40,6 +108,8 @@ The DCA node owns every setting its own rule reads, in four cards in the inspect
    add/remove rung.
 4. **Sizing and fills** — max position %, size ramp, compound vs fixed, market vs
    limit, and the 2-green step-down toggle.
+5. **Ladder exits** — Sell below base %, read only by the "Money back at nearest
+   rung, then ride free" take-profit style above.
 
 Those first two cards used to sit on the **Base indicator** node, labelled "Base
 break (DCA node)" — a parameter parked on a neighbour, with the owning node's name
