@@ -245,6 +245,41 @@ export function getRootStyleVars(styling: AdminStyling): Record<string, string> 
   return vars
 }
 
+/**
+ * Card styling variables for public site pages: the gap between cards plus the
+ * border width and colour. All three are consumed by the `[data-site-cards]`
+ * rules in styles.css, which map the gutter onto the `--shell-gutter` that
+ * `CardGroup` already reads.
+ *
+ * Public cards default to a 1px hairline in CSS, so nothing is emitted until an
+ * admin has actually saved the Settings → Styling controls — a saved value
+ * (including 0 = no border) then wins on the public site as well as in the admin.
+ */
+export function getSiteCardStyleVars(
+  styling: unknown
+): Record<string, string> | undefined {
+  if (!styling || typeof styling !== "object" || Array.isArray(styling)) return undefined
+
+  const normalized = normalizeStyling(styling)
+  const vars: Record<string, string> = {
+    // Content spacing drives the gap between cards, the same value the admin
+    // canvas uses. Without it CardGroup falls back to its own 12px default and
+    // the public page silently ignores the setting. Emitted under its own name
+    // so it only reaches card groups inside a [data-site-cards] subtree (see
+    // styles.css) rather than every public block that happens to use CardGroup.
+    "--site-content-gutter": `${normalized.gutter}px`,
+    // Content spacing 0 is flat mode: the admin turns card borders off there and
+    // disables the border control, so the public site must not keep drawing them.
+    "--site-card-border-width": String(normalized.gutter === 0 ? 0 : normalized.cardBorderWidth),
+  }
+  const borderColor = resolveBackground(normalized.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+  if (borderColor) vars["--site-card-border-color"] = borderColor
+
+  return vars
+}
+
 /** The full set of root CSS variable names, used to clear stale values. */
 export const ROOT_STYLE_VAR_NAMES = [
   "--shell-gutter",

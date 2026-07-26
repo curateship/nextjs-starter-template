@@ -125,7 +125,18 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-@layer base {
+/*
+ * These element defaults live in `components`, not `base`, on purpose. The dev
+ * server concatenates every CSS module in the route graph, and Tailwind's own
+ * entry (`tailwindcss/index.css`, pulled in by the `@import` above) lands in the
+ * bundle a second time. Its preflight resets `border: 0 solid` inside
+ * `@layer base`, so a copy of these rules in `base` loses to it on source order
+ * and every bordered element paints with `currentColor` — the black outlines
+ * that flashed across the nav, buttons and cards until the client stylesheet
+ * arrived. `components` sorts after `base` and before `utilities`, so preflight
+ * can no longer win while `border-*` utility classes still override normally.
+ */
+@layer components {
   /*
    * html is intentionally left on scroll-behavior: auto. A global smooth-scroll
    * animates the modal's own scroll body (it portals to <body>), and the
@@ -157,8 +168,9 @@ button:not(:disabled):not([data-sidebar="rail"]),
   cursor: pointer;
 }
 
-@layer base {
-  /* Heading font uses primary */
+@layer components {
+  /* Heading font uses primary. In `components` for the reason above: Tailwind's
+     preflight resets headings to inherited size/weight inside `base`. */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-primary);
     font-weight: 600;
@@ -417,6 +429,29 @@ button:not(:disabled):not([data-sidebar="rail"]),
   outline-offset: 0;
 }
 
+
+/*
+ * Public site content cards. A public page has no admin canvas, so its cards had
+ * no border and the card background matched the page background — every block on
+ * a listing page read as loose text rather than a card. Cards inside a
+ * [data-site-cards] subtree get the standard hairline chrome instead. Settings →
+ * Styling ("Card border" width and colour) overrides both once an admin saves
+ * it: RootLayout maps the saved values onto --site-card-*, and the fallbacks
+ * here are the default hairline used until then. Unlayered so it beats the
+ * primitive's own rounded-md utility, matching the admin rule below.
+ */
+[data-site-cards] {
+  /* CardGroup gaps inside this subtree follow the saved content spacing.
+     Scoped here so other public blocks that use CardGroup keep their own gap. */
+  --shell-gutter: var(--site-content-gutter, 1.5rem);
+}
+
+[data-site-cards] [data-slot="card"] {
+  border-width: calc(var(--site-card-border-width, 1) * 1px);
+  border-style: solid;
+  border-color: var(--site-card-border-color, var(--border));
+  border-radius: var(--radius-xl);
+}
 
 /*
  * Runtime admin styling driven by the Settings → Styling tab. See

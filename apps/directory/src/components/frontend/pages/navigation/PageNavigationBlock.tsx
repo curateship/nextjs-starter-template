@@ -36,7 +36,7 @@ import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/actions/auth/client'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'
+import { useSiteAuthResolved, useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -560,6 +560,11 @@ export const NavBlock = memo(function NavBlock({
   const adminHref = site?.id ? `/admin/dashboard/${encodeURIComponent(site.id)}` : '/admin/sites'
 
   const sessionUser = useSiteAuthUser() as SessionUser | null
+  // The session is looked up in the browser, so until it answers "no user" is
+  // not the same as "signed out". Rendering the guest buttons on that first pass
+  // is what made Login/Register flash on every page load before the account
+  // dropdown replaced them. The slot stays empty until the answer is in.
+  const isAuthResolved = useSiteAuthResolved()
   const showAdminLink = sessionUser?.role === 'super_admin'
   const desktopActionItems = useMemo<NavigationActionItem[]>(() => {
     const buttonById = new Map(resolvedButtons.map((button) => [button.id, button]))
@@ -742,6 +747,10 @@ export const NavBlock = memo(function NavBlock({
     }
 
     if (item.kind === 'account-menu') {
+      if (!isAuthResolved) {
+        return null
+      }
+
       if (sessionUser) {
         return (
           <DesktopUserMenu
@@ -793,6 +802,10 @@ export const NavBlock = memo(function NavBlock({
     }
 
     if (item.kind === 'account-menu') {
+      if (!isAuthResolved) {
+        return null
+      }
+
       if (sessionUser) {
         return (
           <DesktopUserMenu

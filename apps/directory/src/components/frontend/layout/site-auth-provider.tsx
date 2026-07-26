@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useMemo, type ReactNode } from "react"
 import { authClient } from "@/lib/actions/auth/client"
 
 export interface SiteAuthUser {
@@ -10,7 +10,19 @@ export interface SiteAuthUser {
   role?: string | null
 }
 
-const SiteAuthContext = createContext<SiteAuthUser | null>(null)
+type SiteAuthState = {
+  user: SiteAuthUser | null
+  /**
+   * False until we actually know whether the visitor is signed in. The session
+   * lookup runs in the browser, so on the server and on the first client render
+   * "no user" only means "not answered yet". Surfaces that would otherwise show
+   * the signed-out state (the nav's Login/Register buttons) wait on this instead
+   * of flashing the wrong state on every page load.
+   */
+  isResolved: boolean
+}
+
+const SiteAuthContext = createContext<SiteAuthState>({ user: null, isResolved: false })
 
 type AuthSessionUser = SiteAuthUser & {
   displayName?: string | null
@@ -35,24 +47,34 @@ export function SiteAuthProvider({
   user?: SiteAuthUser | null
 }) {
   const session = authClient.useSession()
-  const [currentUser, setCurrentUser] = useState(user)
+  // Derived during render, never through an effect. The session store outlives
+  // any one page, so a provider mounted by a client-side navigation can start
+  // with the answer already in hand — and an effect would publish "resolved"
+  // one painted frame before it published the user, which is exactly the
+  // Login/Register flash this is meant to prevent.
+  const sessionUser = session.isPending
+    ? null
+    : ((session.data?.user as AuthSessionUser | null) ?? null)
 
-  useEffect(() => {
-    setCurrentUser(user)
-  }, [user])
+  const value = useMemo<SiteAuthState>(
+    () => ({
+      // A signed-in session wins; a server-supplied user is the fallback.
+      user: toSiteAuthUser(sessionUser) ?? user,
+      // A server-supplied user is already the answer; otherwise wait for the
+      // browser session lookup to stop pending.
+      isResolved: Boolean(user) || !session.isPending,
+    }),
+    [sessionUser, session.isPending, user]
+  )
 
-  useEffect(() => {
-    if (session.isPending) return
-
-    const sessionUser = toSiteAuthUser(session.data?.user as AuthSessionUser | null)
-    if (!sessionUser && user) return
-
-    setCurrentUser(sessionUser)
-  }, [session.data?.user, session.isPending, user])
-
-  return <SiteAuthContext.Provider value={currentUser}>{children}</SiteAuthContext.Provider>
+  return <SiteAuthContext.Provider value={value}>{children}</SiteAuthContext.Provider>
 }
 
 export function useSiteAuthUser() {
-  return useContext(SiteAuthContext)
+  return useContext(SiteAuthContext).user
+}
+
+/** False until the signed-in / signed-out answer is known. See SiteAuthState. */
+export function useSiteAuthResolved() {
+  return useContext(SiteAuthContext).isResolved
 }

@@ -9,6 +9,8 @@ import { headers } from "@/lib/request-headers";
 import { isHubPlatformHost } from "@/lib/utils/platform-host";
 import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-actions";
 import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
+import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions";
+import { getSiteCardStyleVars } from "@/lib/utils/admin-styling";
 
 export async function generateMetadata(): Promise<Metadata> {
   const defaultMetadata: Metadata = { icons: { icon: "/globe.svg" } }
@@ -86,14 +88,25 @@ export default async function RootLayout({
     : 'default'
   const campaigns = success && site?.id ? await getPublicCampaignsForSite(site.id) : []
 
+  // Public content cards read their border from Settings → Styling when it has
+  // been saved; otherwise styles.css applies the default hairline.
+  const adminSettings = await getCachedAdminSettings()
+  const siteCardStyleVars = getSiteCardStyleVars(adminSettings?.settings?.styling)
+  const rootStyle = fonts || siteCardStyleVars
+    ? {
+        ...(fonts ? {
+          ['--font-primary' as string]: fonts.fontPrimary,
+          ['--font-secondary' as string]: fonts.fontSecondary,
+          ['--font-sans' as string]: fonts.fontSecondary
+        } : {}),
+        ...siteCardStyleVars
+      }
+    : undefined
+
   return (
     <div
       className={serverThemeClass}
-      style={fonts ? {
-        ['--font-primary' as string]: fonts.fontPrimary,
-        ['--font-secondary' as string]: fonts.fontSecondary,
-        ['--font-sans' as string]: fonts.fontSecondary
-      } : undefined}
+      style={rootStyle}
     >
         <link
           key="r2-preconnect"
