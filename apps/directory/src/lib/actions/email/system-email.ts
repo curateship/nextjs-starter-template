@@ -14,6 +14,8 @@ export type SystemEmailTemplateKey =
   | 'paid_purchase_delivery'
   | 'pages_hero_email'
   | 'featured_listing_renewal_reminder'
+  | 'event_registration_confirmation'
+  | 'event_reminder'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -63,6 +65,8 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'paid_purchase_delivery',
   'pages_hero_email',
   'featured_listing_renewal_reminder',
+  'event_registration_confirmation',
+  'event_reminder',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -180,6 +184,28 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     }
   }
 
+  if (templateKey === 'event_registration_confirmation') {
+    return {
+      name: 'Event Registration Confirmation',
+      description: 'Sent immediately after someone RSVPs to an event or buys a ticket.',
+      scopeLabel: 'Current Site',
+      subject: "You're registered for {{event_name}}",
+      bodyHtml: '<p>Hi {{attendee_name}}, you are registered for <strong>{{event_name}}</strong>.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+    }
+  }
+
+  if (templateKey === 'event_reminder') {
+    return {
+      name: 'Event Reminder',
+      description: 'Sent to everyone registered for an event shortly before it starts.',
+      scopeLabel: 'Current Site',
+      subject: '{{event_name}} is coming up',
+      bodyHtml: '<p>Hi {{attendee_name}}, a quick reminder that <strong>{{event_name}}</strong> is coming up.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+    }
+  }
+
   return {
     name: 'Paid Purchase Delivery',
     description: 'Sent after a paid product checkout succeeds.',
@@ -269,7 +295,7 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, emailChangeConfirmation, magicLink, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder] = await Promise.all([
+  const templates = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('email_change_confirmation'),
@@ -279,9 +305,11 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
     getSystemEmailTemplate('pages_hero_email', siteId),
     getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
+    getSystemEmailTemplate('event_registration_confirmation', siteId),
+    getSystemEmailTemplate('event_reminder', siteId),
   ])
 
-  return [passwordReset, emailVerification, emailChangeConfirmation, magicLink, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail, featuredRenewalReminder].map((template) => {
+  return templates.map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -379,6 +407,11 @@ export async function buildSystemEmailTokens(params: {
   listingName?: string | null
   planName?: string | null
   expiresAt?: string | null
+  attendeeName?: string | null
+  eventName?: string | null
+  eventWhen?: string | null
+  eventLocation?: string | null
+  eventSlug?: string | null
 }) {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
@@ -402,6 +435,12 @@ export async function buildSystemEmailTokens(params: {
     plan_name: params.planName || '',
     expires_at: params.expiresAt || '',
     renewal_url: '',
+    attendee_name: params.attendeeName || '',
+    event_name: params.eventName || '',
+    event_when: params.eventWhen || '',
+    event_location: params.eventLocation || '',
+    event_url: '',
+    event_calendar_url: '',
   }
 
   if (params.siteId) {
@@ -427,6 +466,10 @@ export async function buildSystemEmailTokens(params: {
       if (!tokens.app_name) tokens.app_name = site.name
       if (params.productSlug) {
         tokens.product_url = `${tokens.site_url}/products/${params.productSlug}`
+      }
+      if (params.eventSlug) {
+        tokens.event_url = `${tokens.site_url}/events/${params.eventSlug}`
+        tokens.event_calendar_url = `${tokens.event_url}/calendar.ics`
       }
     }
   }

@@ -36,6 +36,7 @@ interface EventBlockRendererProps {
 function EventContentStyled({
   block,
   event,
+  siteId,
   siteWidth,
   customWidth,
   eventUrl,
@@ -43,6 +44,7 @@ function EventContentStyled({
 }: {
   block: { id: string; type: string; content: Record<string, any> }
   event: EventWithBlocks
+  siteId: string
   siteWidth?: 'full' | 'custom'
   customWidth?: number
   eventUrl?: string
@@ -71,6 +73,10 @@ function EventContentStyled({
             body: block.content.body,
             eventUrl,
             feedUrl,
+            siteId,
+            eventSlug: event.slug,
+            registrationMode: block.content.registrationMode,
+            ticketPriceLabel: block.content.ticketPriceLabel,
           }}
         />
       </div>
@@ -104,6 +110,7 @@ export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = 
               <EventContentStyled
                 block={{ ...block, content: blockContent }}
                 event={event}
+                siteId={site.id}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
                 eventUrl={eventUrl}

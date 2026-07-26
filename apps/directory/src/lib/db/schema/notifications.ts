@@ -17,7 +17,7 @@ export const hubNotifications = pgTable('hub_notifications', {
   readAt: timestamp('read_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  check('hub_notifications_type_check', sql`${table.type} in ('product_order', 'directory_claim', 'directory_owner_edit', 'directory_featured', 'newsletter_paused', 'directory_featured_expired', 'event_submission', 'directory_submission')`),
+  check('hub_notifications_type_check', sql`${table.type} in ('product_order', 'directory_claim', 'directory_owner_edit', 'directory_featured', 'newsletter_paused', 'directory_featured_expired', 'event_submission', 'directory_submission', 'event_registration')`),
   uniqueIndex('idx_hub_notifications_recipient_type_source').on(table.recipientUserId, table.type, table.sourceId),
   index('idx_hub_notifications_recipient_created').on(table.recipientUserId, table.createdAt.desc(), table.id),
   index('idx_hub_notifications_site_created').on(table.siteId, table.createdAt.desc()),

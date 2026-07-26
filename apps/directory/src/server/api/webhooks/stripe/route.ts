@@ -9,6 +9,10 @@ import {
   activateDirectoryFeaturedEntitlement,
   isDirectoryFeaturedPurchaseMetadata,
 } from '@/lib/actions/directories/directory-featured-activation'
+import {
+  confirmEventTicketRegistration,
+  isEventTicketPurchaseMetadata,
+} from '@/lib/actions/events/event-ticket-activation'
 
 /**
  * Stripe Webhook Handler
@@ -101,6 +105,27 @@ export async function POST(req: NextRequest) {
           break
         }
 
+        if (isEventTicketPurchaseMetadata(session.metadata)) {
+          if (matchedSiteId) {
+            const result = await confirmEventTicketRegistration({
+              siteId: matchedSiteId,
+              metadata: session.metadata,
+              paymentStatus: session.payment_status,
+              stripeSessionId: session.id,
+              stripePaymentIntentId: typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id ?? null,
+              amountTotal: session.amount_total,
+              currency: session.currency,
+            })
+
+            if (result.error) {
+              console.error('Event ticket confirmation failed:', result.error)
+            }
+          }
+          break
+        }
+
         const customerEmail = session.customer_details?.email
         const sessionSiteId = matchedSiteId || session.metadata?.siteId
         const sessionProductId = sessionSiteId
@@ -143,6 +168,13 @@ export async function POST(req: NextRequest) {
         // (or the success-redirect confirmation); the payment intent carries the
         // same metadata so it can be recognized and skipped here.
         if (isDirectoryFeaturedPurchaseMetadata(paymentIntent.metadata)) {
+          break
+        }
+
+        // Event tickets are confirmed from checkout.session.completed (or the
+        // success-redirect confirmation); the payment intent carries the same
+        // metadata so it is recognized and skipped here.
+        if (isEventTicketPurchaseMetadata(paymentIntent.metadata)) {
           break
         }
 

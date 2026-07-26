@@ -17,6 +17,13 @@ export interface EventContentStyleRendererProps {
     eventUrl?: string
     /** Absolute URL of the site-wide events feed, used for one-click subscribe. */
     feedUrl?: string
+    /** Site + slug the registration panel needs to talk to the server. */
+    siteId?: string
+    eventSlug?: string
+    /** 'free' or 'paid' turns on the RSVP / ticket panel. */
+    registrationMode?: string
+    /** Display-only ticket price shown on the buy button. */
+    ticketPriceLabel?: string
   }
   children?: ReactNode
 }
