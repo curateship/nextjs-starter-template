@@ -5,6 +5,7 @@
 // non-block entries from the VALUE side, not the template.
 
 import { sanitizeExternalHttpUrl } from '@/lib/utils/url-validator'
+import { normalizeCapacity, normalizeTicketPriceId } from './event-registration-core'
 import {
   blocksToTemplateValueJson,
   getTemplateNonBlockEntries,
@@ -18,10 +19,23 @@ import {
 export const EVENT_BLANK_TEMPLATE_NAME = 'Blank'
 export const EVENT_CONTENT_BLOCK_TYPE = 'event-content'
 
-// Per-event value keys. The rich text body/format and event date/time are
-// edited per event; the title/featured image are event row fields.
+// Per-event value keys. The rich text body/format, event date/time and the
+// registration settings are edited per event; the title/featured image are event
+// row fields.
 const EVENT_VALUE_KEYS: Record<string, string[]> = {
-  [EVENT_CONTENT_BLOCK_TYPE]: ['body', 'format', 'eventDate', 'eventTime', 'venueName', 'venueAddress', 'externalCtaUrl'],
+  [EVENT_CONTENT_BLOCK_TYPE]: [
+    'body',
+    'format',
+    'eventDate',
+    'eventTime',
+    'venueName',
+    'venueAddress',
+    'externalCtaUrl',
+    'registrationMode',
+    'capacity',
+    'ticketPriceId',
+    'ticketPriceLabel',
+  ],
 }
 
 // Template-owned config keys per block type (everything the template editor sets).
@@ -52,6 +66,30 @@ function transformEventValue({ key, value }: TemplateValueTransformArgs) {
   if (key === 'venueName' || key === 'venueAddress') {
     const trimmedValue = String(value).trim()
     return trimmedValue ? { include: true as const, value: trimmedValue } : { include: false as const }
+  }
+
+  // Registration settings are read back server-side to enforce capacity and to
+  // charge a ticket, so they are normalized on the way in and anything unusable
+  // is dropped rather than stored.
+  if (key === 'registrationMode') {
+    return value === 'free' || value === 'paid'
+      ? { include: true as const, value }
+      : { include: false as const }
+  }
+
+  if (key === 'capacity') {
+    const capacity = normalizeCapacity(value)
+    return capacity === null ? { include: false as const } : { include: true as const, value: capacity }
+  }
+
+  if (key === 'ticketPriceId') {
+    const ticketPriceId = normalizeTicketPriceId(value)
+    return ticketPriceId ? { include: true as const, value: ticketPriceId } : { include: false as const }
+  }
+
+  if (key === 'ticketPriceLabel') {
+    const label = String(value).trim().slice(0, 40)
+    return label ? { include: true as const, value: label } : { include: false as const }
   }
 
   return undefined

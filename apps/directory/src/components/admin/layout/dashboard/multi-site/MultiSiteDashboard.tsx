@@ -13,6 +13,7 @@ import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 import Store from "lucide-react/dist/esm/icons/store.js"
+import Users from "lucide-react/dist/esm/icons/users.js"
 import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
 
@@ -146,6 +147,7 @@ const NOTIFICATION_ICONS: Record<HubNotificationType, typeof Bell> = {
   newsletter_paused: TriangleAlert,
   event_submission: CalendarPlus,
   directory_submission: Store,
+  event_registration: Users,
 }
 
 const TRIGGER_LABELS: Record<string, string> = {

@@ -6,9 +6,10 @@ import ChevronDownIcon from "lucide-react/dist/esm/icons/chevron-down.js"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
@@ -99,6 +100,16 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
       onContentChange('format', 'html')
     }
   }, [content.format, onContentChange])
+
+  // Switching sign-ups off leaves the capacity/price values alone; the save path
+  // drops them once the mode is 'none', so flipping back keeps what was typed.
+  const registrationMode = content.registrationMode === 'free' || content.registrationMode === 'paid'
+    ? content.registrationMode
+    : 'none'
+
+  const handleRegistrationModeChange = useCallback((value: string) => {
+    onContentChange('registrationMode', value)
+  }, [onContentChange])
 
   const handleDateSelect = useCallback((date: Date | undefined) => {
     if (!date) {
@@ -272,6 +283,85 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
           />
         </Field>
       </FieldGroup>
+
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Registration</DashboardModalCardTitle>
+          <CardDescription>
+            Let people sign up on this page. Turning this on replaces the RSVP URL button above with a
+            signup form, and everyone who signs up gets a confirmation email plus a reminder the day before.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {/* Field owns the width here: Field's vertical variant forces its children
+              to fill it, so sizing the trigger alone has no effect (same reason
+              EventScheduleCard sizes its Field, not its button). */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <Field className="sm:w-56 sm:shrink-0">
+              <FieldLabel htmlFor="event-registration-mode">Sign-ups</FieldLabel>
+              <Select value={registrationMode} onValueChange={handleRegistrationModeChange}>
+                <SelectTrigger id="event-registration-mode" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-60">
+                  <SelectItem value="none">Off</SelectItem>
+                  <SelectItem value="free">Free RSVP</SelectItem>
+                  <SelectItem value="paid">Paid ticket</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            {registrationMode !== 'none' && (
+              <Field className="sm:flex-1">
+                <FieldLabel htmlFor="event-capacity">Seats</FieldLabel>
+                <Input
+                  id="event-capacity"
+                  type="number"
+                  min={0}
+                  step={1}
+                  onChange={(event) => onContentChange('capacity', event.target.value)}
+                  placeholder="Leave empty for unlimited"
+                  value={typeof content.capacity === "number" || typeof content.capacity === "string" ? String(content.capacity) : ""}
+                />
+                <FieldDescription>
+                  How many people can sign up. Leave it empty (or 0) for no limit. Once it fills up, the form
+                  says the event is full.
+                </FieldDescription>
+              </Field>
+            )}
+          </div>
+
+          {registrationMode === 'paid' && (
+            <FieldGroup className="grid gap-3 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="event-ticket-price-id">Stripe price ID</FieldLabel>
+                <Input
+                  id="event-ticket-price-id"
+                  onChange={(event) => onContentChange('ticketPriceId', event.target.value)}
+                  placeholder="price_1234..."
+                  value={typeof content.ticketPriceId === "string" ? content.ticketPriceId : ""}
+                />
+                <FieldDescription>
+                  Create the ticket price in Stripe and paste its ID here. Stripe holds the real amount, so
+                  nobody can change what they are charged. Without a valid ID the ticket button stays hidden.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="event-ticket-price-label">Price shown on the button</FieldLabel>
+                <Input
+                  id="event-ticket-price-label"
+                  maxLength={40}
+                  onChange={(event) => onContentChange('ticketPriceLabel', event.target.value)}
+                  placeholder="$25"
+                  value={typeof content.ticketPriceLabel === "string" ? content.ticketPriceLabel : ""}
+                />
+                <FieldDescription>Display only — write it however you want people to read it.</FieldDescription>
+              </Field>
+            </FieldGroup>
+          )}
+        </CardContent>
+      </Card>
     </CardGroup>
   )
 

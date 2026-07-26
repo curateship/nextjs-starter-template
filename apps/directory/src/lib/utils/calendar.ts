@@ -146,6 +146,32 @@ export function htmlToPlainText(html: string) {
     .trim()
 }
 
+// Human-readable "when" for an event's floating date/time, e.g.
+// "Saturday, August 15, 2026 at 6:00 PM". A date with no time prints the date
+// alone; an unusable date prints nothing. Shared by the event page and the
+// registration emails so both read the same.
+export function formatEventWhen(eventDate?: string | null, eventTime?: string | null) {
+  const date = parseDateParts(eventDate || '')
+  if (!date) return ''
+
+  const dateLabel = new Intl.DateTimeFormat('en', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(date.year, date.month - 1, date.day))
+
+  const time = parseTimeParts(eventTime || undefined)
+  if (!time) return dateLabel
+
+  const timeLabel = new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date.year, date.month - 1, date.day, time.hour, time.minute))
+
+  return `${dateLabel} at ${timeLabel}`
+}
+
 export function buildEventLocation(venueName?: string, venueAddress?: string) {
   return [venueName, venueAddress]
     .map((part) => (typeof part === 'string' ? part.trim() : ''))

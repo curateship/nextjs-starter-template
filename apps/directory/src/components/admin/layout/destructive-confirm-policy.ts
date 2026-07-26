@@ -34,6 +34,7 @@ export const DESTRUCTIVE_ACTION_POLICIES = {
   "delete-template": { level: 1, consequence: "The template and its configured blocks are permanently deleted." },
   "delete-theme": { level: 1, consequence: "The theme is permanently deleted." },
   "delete-user": { level: 3, consequence: "The platform account, authentication records, and owned sites and media are permanently deleted." },
+  "remove-event-registration": { level: 1, consequence: "The person is taken off the attendee list and their seat is freed. A paid ticket is not refunded automatically." },
   "remove-saved-listing": { level: 1, consequence: "The listing is removed from this saved folder." },
   "remove-segment-contact": { level: 1, consequence: "The contact is removed from this segment but remains in the audience." },
 } as const satisfies Record<string, DestructiveActionPolicy>

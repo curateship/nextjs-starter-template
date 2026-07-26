@@ -153,6 +153,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
           ], ["/admin/newsletters"]),
           item("item-forms", "Forms", "/admin/forms", "clipboard"),
           item("item-events", "Events", "/admin/events", "events", [
+            child("child-event-registrations", "Registrations", "/admin/events/registrations", "users"),
             child("child-event-templates", "Templates", "/admin/events/templates", "file"),
             child("child-event-submissions", "Submissions", "/admin/events/submissions", "clipboard"),
           ], ["/admin/events/builder"]),
