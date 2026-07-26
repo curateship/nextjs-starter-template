@@ -117,6 +117,44 @@ describe("buildBotRoundTrips", () => {
     expect(trips[0].pnl).toBe(1)
   })
 
+  it("reports the open trip's remaining size, ignoring truncated remnants", () => {
+    const trips = buildBotRoundTrips(
+      [
+        // Closes a position older than the stored history. Summing raw fill
+        // sizes would carry this -1 into the open position; the pairing skips
+        // it, so `szi` must not see it either.
+        fill("sell", 100, 1, "2026-07-01T00:00:00Z", { closed_pnl: "5" }),
+        fill("buy", 100, 3, "2026-07-02T00:00:00Z"),
+        // Partial scale-out: 1 of the 3 closed, 2 still held.
+        fill("sell", 105, 1, "2026-07-03T00:00:00Z", { closed_pnl: "5" }),
+      ],
+      105
+    )
+    expect(trips).toHaveLength(1)
+    expect(trips[0].open).toBe(true)
+    expect(trips[0].szi).toBeCloseTo(2)
+  })
+
+  it("reports zero remaining size on a closed trip", () => {
+    const trips = buildBotRoundTrips(
+      [
+        fill("buy", 100, 1, "2026-07-01T00:00:00Z"),
+        fill("sell", 110, 1, "2026-07-02T00:00:00Z", { closed_pnl: "10" }),
+      ],
+      0
+    )
+    expect(trips[0].szi).toBe(0)
+  })
+
+  it("reports a short's remaining size as negative", () => {
+    const trips = buildBotRoundTrips(
+      [fill("sell", 100, 2, "2026-07-01T00:00:00Z")],
+      100
+    )
+    expect(trips[0].open).toBe(true)
+    expect(trips[0].szi).toBeCloseTo(-2)
+  })
+
   it("accumulates cumPnl across closed trips in time order", () => {
     const trips = buildBotRoundTrips(
       [

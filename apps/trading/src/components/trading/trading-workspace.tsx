@@ -69,6 +69,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  BOTTOM_COLLAPSED_HEIGHT,
   BOTTOM_PANEL_HEADER,
   ResizableHandle,
   ResizablePanel,
@@ -132,10 +133,6 @@ import {
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
-// Collapsing the bottom panel leaves exactly its header on screen (the shared
-// 56px row plus the card's own top and bottom hairlines), so the toggles that
-// reopen it never disappear.
-const BOTTOM_COLLAPSED_HEIGHT = "58px"
 const ALERT_POLL_MS = 10_000
 
 type AlertEditorState = {

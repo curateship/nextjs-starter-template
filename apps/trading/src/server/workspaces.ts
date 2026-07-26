@@ -465,6 +465,16 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/pnl",
           icon: "calendar",
           visible: true,
+          // A child link joins the sticky header's chip group (see
+          // workspace/docs/app-guide.md) — the Journal is the per-trade view
+          // of the same results PnL totals up by day.
+          children: [
+            {
+              id: "item-pnl-journal",
+              label: "Journal",
+              href: "/journal",
+            },
+          ],
         },
         {
           type: "item",

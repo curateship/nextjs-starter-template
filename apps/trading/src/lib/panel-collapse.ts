@@ -7,10 +7,12 @@ export type PanelSide = "left" | "right" | "bottom"
 /**
  * Collapse a resizable panel, or expand it when it is already collapsed.
  *
- * `expandTo` is the panel's default size (e.g. `"16%"`). A panel that was
- * already collapsed when the page loaded has no remembered width, so the
- * library reopens it at its minimum — a useless sliver. Expanding therefore
- * never gives back less than the default.
+ * `expandTo` is the panel's default size (e.g. `"16%"`), and expanding always
+ * returns the panel to exactly that. Left to itself the library restores
+ * whatever width the panel last had — the minimum (a useless sliver) for a
+ * panel that was already collapsed on load, or a stale hand-dragged width that
+ * squeezes the chart the moment you reopen it. Reopening is a fresh start, so
+ * every workspace's panels come back the same predictable size.
  */
 export function togglePanel(
   ref: React.RefObject<PanelImperativeHandle | null>,
@@ -23,7 +25,5 @@ export function togglePanel(
     return
   }
   panel.expand()
-  if (expandTo && panel.getSize().asPercentage < Number.parseFloat(expandTo)) {
-    panel.resize(expandTo)
-  }
+  if (expandTo) panel.resize(expandTo)
 }

@@ -9,7 +9,6 @@ import {
 } from "@/components/backtest/backtest-markets-table"
 import { truncateWords } from "@/components/backtest/backtest-format"
 import { Breadcrumbs } from "@/components/breadcrumbs"
-import { Badge } from "@/components/ui/badge"
 import { StrategyTester } from "@/components/backtest/strategy-tester"
 import { BotLiveChartPanel } from "@/components/bots/bot-live-chart-panel"
 import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
@@ -22,6 +21,7 @@ import { PanelToggle } from "@/components/panel-toggles"
 import { togglePanel } from "@/lib/panel-collapse"
 import { ArrowLeftIcon } from "lucide-react"
 import {
+  BOTTOM_COLLAPSED_HEIGHT,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -102,6 +102,32 @@ export function BotWorkspace({
   const horizontalLayout = usePanelLayout("bot-run-workspace-horizontal")
   const verticalLayout = usePanelLayout("bot-run-workspace-vertical")
 
+  // Toggles live in the bottom panel's tab bar — see the three-panel workspace
+  // standard in `.agents/skills/Ui-standards`. That panel collapses to exactly
+  // this row, so the buttons that reopen the panels never disappear.
+  const panelToggles = (
+    <div className="flex shrink-0 items-center gap-1">
+      <PanelToggle
+        side="left"
+        collapsed={summaryCollapsed}
+        label={summaryCollapsed ? "Show summary panel" : "Hide summary panel"}
+        onClick={() => togglePanel(summaryPanelRef, "21%")}
+      />
+      <PanelToggle
+        side="right"
+        collapsed={marketsCollapsed}
+        label={marketsCollapsed ? "Show markets panel" : "Hide markets panel"}
+        onClick={() => togglePanel(marketsPanelRef, "26%")}
+      />
+      <PanelToggle
+        side="bottom"
+        collapsed={tradesCollapsed}
+        label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
+        onClick={() => togglePanel(tradesPanelRef, "32%")}
+      />
+    </div>
+  )
+
   return (
     <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
       {/* A saved run is a history record — same header anatomy as the
@@ -121,33 +147,6 @@ export function BotWorkspace({
           ]}
         />
         <div className="flex-1" />
-        <Badge variant="secondary" className="font-medium">
-          {bot.markets.length} {bot.markets.length === 1 ? "market" : "markets"}
-        </Badge>
-        <div className="ml-1 flex items-center gap-1">
-          <PanelToggle
-            side="left"
-            collapsed={summaryCollapsed}
-            label={
-              summaryCollapsed ? "Show summary panel" : "Hide summary panel"
-            }
-            onClick={() => togglePanel(summaryPanelRef, "21%")}
-          />
-          <PanelToggle
-            side="right"
-            collapsed={marketsCollapsed}
-            label={
-              marketsCollapsed ? "Show markets panel" : "Hide markets panel"
-            }
-            onClick={() => togglePanel(marketsPanelRef, "26%")}
-          />
-          <PanelToggle
-            side="bottom"
-            collapsed={tradesCollapsed}
-            label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
-            onClick={() => togglePanel(tradesPanelRef, "32%")}
-          />
-        </div>
       </div>
       {!data.workerOnline ? (
         <WorkerOfflineBanner className="border-b px-4 py-1.5 text-xs" />
@@ -244,15 +243,19 @@ export function BotWorkspace({
                 </ResizablePanel>
               </ResizablePanelGroup>
             </ResizablePanel>
-            <ResizableHandle gap collapsed={tradesCollapsed} />
+            {/* The trades panel collapses to its own tab bar, not to nothing,
+                so this gutter always has two visible panels to separate. */}
+            <ResizableHandle gap />
             <ResizablePanel
               id="trades"
               panelRef={tradesPanelRef}
               collapsible
-              collapsedSize="0%"
+              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
               defaultSize="32%"
               minSize="15%"
-              onResize={(size) => setTradesCollapsed(size.asPercentage < 0.5)}
+              onResize={() =>
+                setTradesCollapsed(tradesPanelRef.current?.isCollapsed() ?? false)
+              }
             >
               <WorkspacePanel>
                 <StrategyTester
@@ -261,6 +264,7 @@ export function BotWorkspace({
                   markPrice={live.markPrice}
                   selectedTradeN={focusedTradeN}
                   onSelectTrade={(trade) => setFocusedTradeN(trade?.n ?? null)}
+                  toggles={panelToggles}
                 />
               </WorkspacePanel>
             </ResizablePanel>

@@ -1,6 +1,7 @@
 import type { ChartMarker } from "@/components/chart/price-chart"
 import { CHIP_COLORS } from "@/components/chart/trade-chips"
-import type { BotDetailResponse } from "@/lib/api/bots"
+
+import { fillTimeMs, type RoundTripFill } from "./bot-round-trips"
 
 const EPS = 1e-9
 
@@ -22,11 +23,11 @@ const EPS = 1e-9
  * candles where nothing traded.
  */
 export function buildBotFillMarkers(
-  trades: BotDetailResponse["trades"],
+  trades: RoundTripFill[],
   intervalMs: number
 ): ChartMarker[] {
   const fills = [...trades].sort(
-    (a, b) => Date.parse(a.fill_time) - Date.parse(b.fill_time)
+    (a, b) => fillTimeMs(a.fill_time) - fillTimeMs(b.fill_time)
   )
   const seen = new Set<string>()
   const markers: ChartMarker[] = []
@@ -51,7 +52,7 @@ export function buildBotFillMarkers(
     const fillPnl = Number(fill.closed_pnl ?? 0)
     const dir = fill.side === "buy" ? 1 : -1
     const side = fill.side === "buy" ? ("buy" as const) : ("sell" as const)
-    const fillMs = new Date(fill.fill_time).getTime()
+    const fillMs = fillTimeMs(fill.fill_time)
     const time = Math.floor(fillMs / intervalMs) * intervalMs
     if (!(qty > EPS) || !(px > 0)) continue
 

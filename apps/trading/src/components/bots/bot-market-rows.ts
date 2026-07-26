@@ -1,7 +1,11 @@
 import type { BacktestMarketRow } from "@/components/backtest/backtest-markets-table"
-import type { BotDetailResponse, BotMarketState } from "@/lib/api/bots"
+import type { BotMarketState } from "@/lib/api/bots"
 
-import { buildBotRoundTrips, type BotRoundTrip } from "./bot-round-trips"
+import {
+  buildBotRoundTrips,
+  type BotRoundTrip,
+  type RoundTripFill,
+} from "./bot-round-trips"
 
 /**
  * Max peak-to-trough drop of a market's realized-equity path (starting cash
@@ -28,11 +32,16 @@ function maxDrawdownPct(closed: BotRoundTrip[], startingCash: number): number {
  * derived as current cash minus realized P&L (cash grows by what was realized).
  * When cash is unknown (e.g. a live bot on the real wallet) those two columns
  * report null and render as "—" — honest rather than fabricated.
+ *
+ * `capitalBase` overrides that derivation for callers whose money is not held
+ * per market: the trade journal runs off one real wallet, so every market's
+ * return is measured against that wallet's own starting equity.
  */
 export function buildBotMarketRows(
   markets: string[],
   states: BotMarketState[],
-  trades: BotDetailResponse["trades"]
+  trades: RoundTripFill[],
+  capitalBase?: (market: string, netPnl: number) => number | null
 ): BacktestMarketRow[] {
   return markets.map((market) => {
     const marketTrades = trades.filter((trade) => trade.market === market)
@@ -48,8 +57,9 @@ export function buildBotMarketRows(
 
     const state = states.find((s) => s.market === market) ?? null
     const cash = state?.paper_cash ?? null
-    const startingCash =
-      cash !== null && cash - netPnl > 0 ? cash - netPnl : null
+    const derived = cash !== null && cash - netPnl > 0 ? cash - netPnl : null
+    const override = capitalBase?.(market, netPnl) ?? null
+    const startingCash = capitalBase ? override : derived
     const activePosition = Boolean(
       state?.paper_position && Number(state.paper_position.szi) !== 0
     )

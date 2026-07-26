@@ -66,6 +66,18 @@ function ResizableHandle({
 const BOTTOM_PANEL_HEADER =
   "flex min-h-14 shrink-0 items-center gap-2 border-b px-4"
 
+/**
+ * What a workspace's bottom panel collapses to: exactly its own header (the
+ * 56px row above plus the card's top and bottom hairlines). The panel-collapse
+ * toggles live in that row, so collapsing to nothing would take away the very
+ * buttons that reopen the panels.
+ *
+ * Because the panel is still on screen when collapsed, the handle above it
+ * keeps its gap — pass `gap` alone, never `collapsed`, or the collapsed bar
+ * sits flush against the chart.
+ */
+const BOTTOM_COLLAPSED_HEIGHT = "58px"
+
 function WorkspacePanel({
   className,
   ...props
@@ -83,6 +95,7 @@ function WorkspacePanel({
 }
 
 export {
+  BOTTOM_COLLAPSED_HEIGHT,
   BOTTOM_PANEL_HEADER,
   ResizableHandle,
   ResizablePanel,

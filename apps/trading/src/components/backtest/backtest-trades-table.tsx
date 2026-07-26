@@ -10,6 +10,7 @@ export function BacktestTradesTable({
   selectedTradeN,
   onSelectTrade,
   dimAfterMs,
+  emptyText = "No trades — run a backtest or adjust the strategy.",
 }: {
   result: BacktestResult | null
   markPrice: number
@@ -17,6 +18,8 @@ export function BacktestTradesTable({
   onSelectTrade?: (trade: BacktestTrade | null) => void
   /** Replay playhead — rows whose exit is after this time render dimmed. */
   dimAfterMs?: number | null
+  /** Override for callers that are not backtests, e.g. the trade journal. */
+  emptyText?: string
 }) {
   const trades = result?.trades ?? []
   const rows = React.useMemo<TradeTableRow[]>(
@@ -58,7 +61,7 @@ export function BacktestTradesTable({
   if (!result || (trades.length === 0 && !open)) {
     return (
       <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
-        No trades — run a backtest or adjust the strategy.
+        {emptyText}
       </div>
     )
   }
@@ -72,7 +75,7 @@ export function BacktestTradesTable({
         const trade = id ? trades.find((t) => String(t.n) === id) ?? null : null
         onSelectTrade?.(trade)
       }}
-      emptyText="No trades — run a backtest or adjust the strategy."
+      emptyText={emptyText}
     />
   )
 }
