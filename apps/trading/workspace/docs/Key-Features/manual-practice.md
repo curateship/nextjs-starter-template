@@ -20,9 +20,18 @@ order form — **the drawing is the order**.
   Action, Base, Sessions, Fair Value Gap…), computed only over revealed
   candles so nothing peeks at the future. Edits here persist to the live
   chart too (shared paint pipeline: `src/components/chart/indicator-paint.ts`).
-- Replay speed is a dropdown: 1× / 5× / 15× / 30× / 60×. Playing or scrubbing
-  never resets the chart view — it follows the newest candles when you're at
-  the right edge and stays put when you've panned back.
+- Replay speed is a dropdown: 1× / 5× / 15× / 30× / 60×, and **60× is the
+  default** — practice is about getting to the next setup, and slowing down is
+  one click away. The number is candles per second. Playing or scrubbing never
+  resets the chart view — it follows the newest candles when you're at the
+  right edge and stays put when you've panned back.
+- **The speed you pick is the speed you get.** Time advances by how long the
+  last frame actually took, measured off the real clock, so a heavy frame
+  catches itself up rather than quietly running slow. A frame that took absurdly
+  long (the tab was hidden, the laptop slept) banks at most a quarter second, so
+  coming back never blasts through the session. Nothing is scheduled until the
+  previous frame is finished, so playback work can never stack up behind itself
+  and lock the page.
 - Draw a long or short **position box** (the standard drawing tool) ahead of
   the playhead:
   - the **entry line** is a waiting order — it fills when price touches it;
@@ -30,7 +39,11 @@ order form — **the drawing is the order**.
   - the far edge of the **green zone** is the take-profit;
   - the **right edge** of the box is the order's expiry — if time walks past it
     before price reaches the entry, the order is quietly cancelled and the box
-    disappears.
+    disappears. A newly drawn box gets a floor of 20 session candles of life,
+    widened on screen to match, so a box drawn on a much finer display
+    timeframe isn't dead on arrival. Keep that floor small — the drawing widens
+    to match it, so a large floor stretches a freshly clicked box across the
+    whole chart.
 - Position size is automatic: each trade risks the chosen percent of the
   current wallet to its stop. Tighter stop = bigger position. Notional is
   capped at 10× equity.
@@ -108,3 +121,15 @@ and replays through the recorded tape (order place/move/cancel/fill and
 stop/TP events) in the standard replay player.
 
 Unit tests for every fill rule: `src/lib/backtest/manual-sim.test.ts`.
+
+## Keyboard focus and the spacebar
+
+The chart canvas cannot take keyboard focus, so a toolbar button stays focused
+after it is clicked — through drawing, selecting and deleting. Space then
+re-triggers that button instead of reaching the session's play/pause shortcut,
+which reads as "the drawing tool selected itself and I can't resume".
+
+Chart controls therefore drop focus after a MOUSE click (`event.detail > 0`;
+keyboard activation reports 0 and keeps its focus so tab navigation still
+works). The replay speed menu does the same thing via `onCloseAutoFocus`. Any
+new control added over the chart needs the same treatment.

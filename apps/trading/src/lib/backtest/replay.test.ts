@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { aggregateCandles, visibleCandlesUpTo } from "./replay"
+import {
+  aggregateCandles,
+  REPLAY_KEEP_BARS,
+  REPLAY_TRIM_STEP,
+  trailingWindow,
+  trimToRunway,
+  visibleCandlesUpTo,
+} from "./replay"
 
 const M15 = 900_000
 const H1 = 3_600_000
@@ -58,5 +65,74 @@ describe("visibleCandlesUpTo", () => {
     const candles = [bar(0, 1, 1, 1, 1), bar(1, 1, 1, 1, 1), bar(2, 1, 1, 1, 1)]
     expect(visibleCandlesUpTo(candles, START + M15)).toHaveLength(2)
     expect(visibleCandlesUpTo(candles, null)).toHaveLength(3)
+  })
+})
+
+describe("trailingWindow", () => {
+  const bars = Array.from({ length: 40_000 }, (_, i) => i)
+
+  it("hands back everything until the keep size is passed", () => {
+    expect(trailingWindow(bars, 10)).toHaveLength(10)
+    expect(trailingWindow(bars, REPLAY_KEEP_BARS)).toHaveLength(REPLAY_KEEP_BARS)
+  })
+
+  it("grows to keep+step before trimming, then snaps back to keep", () => {
+    const grown = REPLAY_KEEP_BARS + REPLAY_TRIM_STEP - 1
+    expect(trailingWindow(bars, grown)).toHaveLength(grown)
+    // One more bar crosses the boundary and cuts back to the keep size.
+    expect(trailingWindow(bars, grown + 1)).toHaveLength(REPLAY_KEEP_BARS)
+  })
+
+  it("always ends on the newest revealed bar", () => {
+    for (const revealed of [1, 500, REPLAY_KEEP_BARS + 123, 25_000]) {
+      const window = trailingWindow(bars, revealed)
+      expect(window[window.length - 1]).toBe(revealed - 1)
+    }
+  })
+
+  /**
+   * The invariant the whole design rests on: between trims the first bar must
+   * not move, because that is what lets the chart append instead of being
+   * re-sent wholesale. A window that slid every bar is what corrupted the
+   * chart's copy of history and made drawings jump.
+   */
+  it("holds its first bar steady between trims, and moves it only in steps", () => {
+    let moves = 0
+    let previous = trailingWindow(bars, REPLAY_KEEP_BARS)[0]
+    for (let revealed = REPLAY_KEEP_BARS + 1; revealed <= 30_000; revealed += 1) {
+      const first = trailingWindow(bars, revealed)[0]
+      if (first === previous) continue
+      moves += 1
+      expect(first - previous).toBe(REPLAY_TRIM_STEP)
+      previous = first
+    }
+    // 24,000 bars of replay, trimmed once every REPLAY_TRIM_STEP — not 24,000
+    // times, which is what sliding every bar would do.
+    expect(moves).toBe((30_000 - REPLAY_KEEP_BARS) / REPLAY_TRIM_STEP)
+  })
+
+  it("never exceeds the ceiling the chart is allowed to hold", () => {
+    for (let revealed = 1; revealed <= 30_000; revealed += 37) {
+      expect(trailingWindow(bars, revealed).length).toBeLessThanOrEqual(
+        REPLAY_KEEP_BARS + REPLAY_TRIM_STEP
+      )
+    }
+  })
+})
+
+describe("trimToRunway", () => {
+  const candles = Array.from({ length: 10 }, (_, i) => ({ t: i * M15 }))
+
+  it("drops bars older than the runway", () => {
+    expect(trimToRunway(candles, 4 * M15)).toHaveLength(6)
+  })
+
+  it("leaves a set that already starts inside the runway untouched", () => {
+    expect(trimToRunway(candles, 0)).toBe(candles)
+    expect(trimToRunway(candles, -M15)).toBe(candles)
+  })
+
+  it("handles an empty set", () => {
+    expect(trimToRunway([], 5)).toEqual([])
   })
 })

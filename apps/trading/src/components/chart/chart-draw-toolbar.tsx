@@ -70,7 +70,16 @@ function ToolButton({
           className="text-muted-foreground aria-pressed:text-foreground"
           aria-label={label}
           aria-pressed={active}
-          onClick={onClick}
+          // Drop focus after a mouse click. The chart itself cannot take focus,
+          // so a clicked tool button keeps it through drawing, selecting and
+          // deleting — and the next Space press then re-triggers THIS BUTTON
+          // (re-arming the tool) instead of resuming the replay. A keyboard
+          // activation reports detail 0 and keeps its focus, so tabbing through
+          // the toolbar still works normally.
+          onClick={(event) => {
+            onClick()
+            if (event.detail > 0) event.currentTarget.blur()
+          }}
         >
           {children}
         </Button>
