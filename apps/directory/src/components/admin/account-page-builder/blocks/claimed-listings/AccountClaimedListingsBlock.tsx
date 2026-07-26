@@ -104,6 +104,7 @@ export function AccountClaimedListingsBlock({
                   { key: "title", label: "Title" },
                   { key: "description", label: "Description" },
                   { key: "listingSelector", label: "Listing Selector" },
+                  { key: "analytics", label: "Performance Stats" },
                   { key: "image", label: "Featured Image" },
                   { key: "metaDescription", label: "Meta Description" },
                   { key: "links", label: "Links" },

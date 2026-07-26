@@ -32,6 +32,7 @@ import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/direc
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { ListingPerformancePanel } from "./ListingPerformancePanel"
 // The listing editor blocks are only rendered once an owner opens their listing
 // for editing, but importing them statically put the whole directory-builder —
 // TipTap, the media picker, the icon picker, roughly 400 KB — into the chunk
@@ -488,6 +489,18 @@ export function AccountClaimedListingsBlock({
             ) : null}
           </div>
 
+          {visibility.analytics !== false && selectedItem ? (
+            <ListingPerformancePanel
+              siteId={siteId}
+              directoryId={selectedItem.id}
+              isFeatured={!!featuredState?.featuredUntil}
+              canUpgrade={visibility.upgrade !== false && !!featuredState?.plans.length}
+              onGetFeatured={() =>
+                document.getElementById("featured-upgrade")?.scrollIntoView({ behavior: "smooth", block: "center" })
+              }
+            />
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle>Listing Details</CardTitle>
@@ -572,7 +585,7 @@ export function AccountClaimedListingsBlock({
           </Card>
 
           {visibility.upgrade !== false && (featuredState?.plans.length || featuredState?.featuredUntil || upgradeMessage || upgradeError) ? (
-            <Card>
+            <Card id="featured-upgrade">
               <CardHeader>
                 <CardTitle>Featured Upgrade</CardTitle>
               </CardHeader>
