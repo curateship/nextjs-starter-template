@@ -7,6 +7,7 @@ import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
   DEFAULT_DCA_RUNGS,
+  DEFAULT_DCA_SELL_BELOW_BASE_PCT,
   DEFAULT_DCA_SIZE_MULTIPLIER,
 } from "@/lib/automations/dca"
 import {
@@ -34,6 +35,10 @@ export function orderLabelFor(purpose: string): string {
     return `${kind} ${Number(rung[2]) + 1}`
   }
   if (/^[a-z]+:s:all$/.test(purpose)) return "Sell all"
+  // The "money back, ride the rest free" pair: the sell that returns the cash,
+  // and the sell of the coins it left behind.
+  if (/^[a-z]+:s:cash$/.test(purpose)) return "Money back"
+  if (/^[a-z]+:s:free$/.test(purpose)) return "Free ride"
   return purpose.replace(/^auto:/, "").replace(/-/g, " ")
 }
 
@@ -252,9 +257,12 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     inspector: "lookback",
     outputPorts: [{ id: "trend", label: "Trend" }],
     connectionError: (_sourcePort, target) =>
-      target.kind === "indicator"
+      // A DCA ladder reads its confirmations through a Look Back too: the node
+      // sets how many candles that confirmation's signal stays valid for. Without
+      // this the staleness window could not be expressed on the canvas at all.
+      target.kind === "indicator" || target.kind === "dca"
         ? null
-        : "A Look Back node can only connect to an indicator.",
+        : "A Look Back node can only connect to an indicator or a DCA node.",
   },
   {
     palette: {
@@ -369,6 +377,11 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
       respectLookbackMonths: 6,
       minRespectPct: 80,
       recoveryTargetPct: -2,
+      sellBelowBasePct: DEFAULT_DCA_SELL_BELOW_BASE_PCT,
+      trendFilterEnabled: false,
+      trendMaBars: 200,
+      exitOnTrendBreak: false,
+      maxCycleBars: 0,
       x,
       y,
     }),

@@ -466,7 +466,7 @@ function DcaFields({
     })
   }
   const number = (
-    field: "crackPct" | "maxCrackBars" | "respectLookbackMonths" | "minRespectPct" | "recoveryTargetPct" | "maxPositionPct" | "sizeMultiplier",
+    field: "crackPct" | "maxCrackBars" | "respectLookbackMonths" | "minRespectPct" | "recoveryTargetPct" | "maxPositionPct" | "sizeMultiplier" | "sellBelowBasePct" | "trendMaBars" | "maxCycleBars",
     label: string,
     opts: { min?: number; max?: number; step?: number; info?: string; disabled?: boolean }
   ) => (
@@ -516,6 +516,42 @@ function DcaFields({
               step: 1,
               info: "The drop must be quick: price was still up at the base within this many candles, so a slow slide underneath it is ignored.",
             })}
+          </div>
+      </NodeCard>
+      <NodeCard title="Only buy in an uptrend">
+          <div className="flex items-center gap-1">
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <Checkbox
+                checked={node.trendFilterEnabled}
+                onCheckedChange={(checked) =>
+                  onChange({ ...node, trendFilterEnabled: checked === true })
+                }
+              />
+              Skip the base unless price is above its average
+            </label>
+            <InfoHint text="This ladder only ever buys, so in a falling market it keeps averaging down into the fall. With this on, a new ladder only starts while the latest close is above the average of the last N candles — so it sits out downtrends instead of bleeding through them." />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {number("trendMaBars", "Average length (candles)", {
+              min: 2,
+              max: 1000,
+              step: 1,
+              disabled: !node.trendFilterEnabled,
+              info: "How many candles go into the average, counted on this bot's own timeframe. On a daily bot 200 is the classic 200-day average; on a 4-hour bot 200 candles is about 33 days.",
+            })}
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <Checkbox
+                checked={node.exitOnTrendBreak}
+                disabled={!node.trendFilterEnabled}
+                onCheckedChange={(checked) =>
+                  onChange({ ...node, exitOnTrendBreak: checked === true })
+                }
+              />
+              Also SELL when the trend breaks
+            </label>
+            <InfoHint text="Off, the filter only stops NEW ladders starting — one that is already open rides the whole way down when the trend turns. On, price closing back below the average closes the position too. This is the ladder's only way to give up on a losing cycle apart from the stop." />
           </div>
       </NodeCard>
       <NodeCard title="Past base quality">
@@ -712,6 +748,33 @@ function DcaFields({
               Only buy after 2 green candles
             </label>
             <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
+          </div>
+      </NodeCard>
+      <NodeCard title="Ladder exits">
+          <p className="text-[11px] text-muted-foreground">
+            Only used when the Take Profit hanging off this node is set to{" "}
+            <span className="font-medium">
+              Money back at nearest rung, then ride free
+            </span>
+            . Every other style ignores it.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {number("sellBelowBasePct", "Sell below base (%)", {
+              // Matches the saved range. The UI used to clamp at 0 while the
+              // schema allowed negatives, so a ladder set to ride its free coins
+              // ABOVE the base could not be edited here without silently
+              // clamping the value to 0.
+              min: -500,
+              max: 50,
+              step: 0.1,
+              info: "Where the free coins wait. Once the ladder has taken its money back, whatever coins are left cost nothing — they rest this far under the base and their sale is the whole trade's profit. A little under the base usually fills, because price that fell through a level tends to stall just short of reclaiming it. NEGATIVE rests them ABOVE the base instead, to ride a recovery rather than sell into it.",
+            })}
+            {number("maxCycleBars", "Give up after (candles)", {
+              min: 0,
+              max: 5000,
+              step: 1,
+              info: "A time stop. If a ladder has been open this many candles without resolving, it closes out and takes the loss. 0 means never give up — which is how a ladder ends up holding a bag forever, so the backtest shows a high win rate while the real losses sit in open positions.",
+            })}
           </div>
       </NodeCard>
       <p className="text-[11px] text-muted-foreground">
@@ -1130,7 +1193,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`tp-mode-${node.id}`}
-            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once."
+            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once. Money back, then ride free: at that same nearest rung sell only enough to hand back every dollar the ladder spent — the bleeding stops on the first decent bounce instead of waiting for a full recovery. The coins that sale leaves behind cost you nothing, so they wait just under the base (set by Sell below base % on the DCA node) and their sale is the trade's profit."
           >
             Take profit style
           </FieldLabel>
@@ -1142,7 +1205,8 @@ function ProtectionNodeFields({
                 mode: value as
                   | "average"
                   | "previousRungSellAll"
-                  | "nearestRungSellAll",
+                  | "nearestRungSellAll"
+                  | "moneyBackThenBase",
               })
             }
           >
@@ -1156,6 +1220,9 @@ function ProtectionNodeFields({
               </SelectItem>
               <SelectItem value="nearestRungSellAll">
                 Sell everything at nearest rung
+              </SelectItem>
+              <SelectItem value="moneyBackThenBase">
+                Money back at nearest rung, then ride free
               </SelectItem>
             </SelectContent>
           </Select>

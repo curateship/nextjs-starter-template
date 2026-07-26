@@ -74,6 +74,8 @@ describe("orderLabelFor", () => {
     expect(orderLabelFor("dca:b:2")).toBe("Buy 3")
     expect(orderLabelFor("dca:s:1")).toBe("Sell 2")
     expect(orderLabelFor("dca:s:all")).toBe("Sell all")
+    expect(orderLabelFor("dca:s:cash")).toBe("Money back")
+    expect(orderLabelFor("dca:s:free")).toBe("Free ride")
   })
   it("falls back to the cleaned purpose for anything else", () => {
     expect(orderLabelFor("auto:take-profit")).toBe("take profit")

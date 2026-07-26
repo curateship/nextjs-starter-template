@@ -106,6 +106,11 @@ describe("Automation canvas model", () => {
     respectLookbackMonths: 6,
     minRespectPct: 80,
     recoveryTargetPct: -2,
+    sellBelowBasePct: 2,
+    trendFilterEnabled: false,
+    trendMaBars: 200,
+    exitOnTrendBreak: false,
+    maxCycleBars: 0,
     x: 0,
     y: 0,
   } satisfies AutomationNode

@@ -69,6 +69,11 @@ function dcaConfig(overrides: Partial<AutomationConfig["dca"]> = {}): Automation
       respectLookbackMonths: 6,
       minRespectPct: 80,
       recoveryTargetPct: -2,
+      sellBelowBasePct: 2,
+      trendFilterEnabled: false,
+      trendMaBars: 200,
+      exitOnTrendBreak: false,
+      maxCycleBars: 0,
       ...overrides,
     },
   }
@@ -161,6 +166,120 @@ describe("DCA through the real backtest runner", () => {
     ])
     expect(result.fills.length).toBe(0)
     expect(result.openPosition).toBeNull()
+  })
+
+  it("trend gate: refuses to start a ladder while price is below its average", () => {
+    // The gate averages the last 6 closes. `setup` ends at 87 after a slide from
+    // 101, so the close sits BELOW that average — a falling market, exactly what
+    // the gate exists to sit out. Nothing may buy.
+    const falling = run(
+      dcaConfig({ trendFilterEnabled: true, trendMaBars: 6 }),
+      [
+        ...setup,
+        bar(7, 84, 83, 88, 10, 87),
+        bar(8, 77, 76, 85, 10, 84),
+        bar(9, 200, 79, 210, 10, 82),
+      ]
+    )
+    expect(falling.fills.length).toBe(0)
+    expect(falling.openPosition).toBeNull()
+
+    // Same ladder, gate off: it trades. Proves the gate is what stopped it, not
+    // some other precondition.
+    const ungated = run(dcaConfig(), [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87),
+      bar(8, 77, 76, 85, 10, 84),
+      bar(9, 200, 79, 210, 10, 82),
+    ])
+    expect(ungated.fills.length).toBeGreaterThan(0)
+  })
+
+  it("trend gate: lets the same ladder through when the market has been rising", () => {
+    // Identical base-and-crack to the blocked case, but preceded by a long climb
+    // from 60, so the 10-bar average sits at ~90 while the arming close is 95 —
+    // an uptrend. Same crack, same rungs, opposite verdict.
+    const climb = [
+      bar(0, 60, 59, 61),
+      bar(1, 65, 64, 66),
+      bar(2, 70, 69, 71),
+      bar(3, 75, 74, 76),
+      bar(4, 80, 79, 81),
+      bar(5, 85, 84, 86),
+    ]
+    const shifted = setup.map((candle, index) => {
+      const i = index + climb.length
+      return { ...candle, t: i * STEP, T: (i + 1) * STEP - 1 }
+    })
+    const result = run(
+      dcaConfig({ trendFilterEnabled: true, trendMaBars: 10 }),
+      [
+        ...climb,
+        ...shifted,
+        bar(13, 84, 83, 88, 10, 87),
+        bar(14, 77, 76, 85, 10, 84),
+        bar(15, 200, 79, 210, 10, 82),
+      ]
+    )
+    expect(
+      result.fills.filter((f) => f.purpose.startsWith("dca:b:")).length
+    ).toBeGreaterThan(0)
+  })
+
+  it("gives up: a time stop closes a ladder that never resolves", () => {
+    // The ladder buys and price then bleeds sideways-down forever. Without a time
+    // stop it holds the bag to the end of the data; with one it closes out.
+    const bleed = Array.from({ length: 20 }, (_, i) =>
+      bar(7 + i, 84 - i, 83 - i, 85 - i, 10, 85 - i)
+    )
+    const held = run(dcaConfig(), [...setup, ...bleed])
+    expect(held.openPosition).not.toBeNull()
+
+    const gaveUp = run(dcaConfig({ maxCycleBars: 8 }), [...setup, ...bleed])
+    expect(gaveUp.fills.some((f) => f.purpose === "dca:exit")).toBe(true)
+    expect(gaveUp.openPosition).toBeNull()
+    // And it realised the loss rather than parking it in an open position.
+    expect(gaveUp.trades.length).toBeGreaterThan(0)
+    expect(gaveUp.trades.some((t) => t.pnl < 0)).toBe(true)
+  })
+
+  it("gives up: a broken trend closes an open ladder, not just new ones", () => {
+    // Climb (so the gate lets a ladder open), crack, then collapse below the
+    // average. Entry-only gating would ride it down; exitOnTrendBreak closes.
+    const climb = [
+      bar(0, 60, 59, 61),
+      bar(1, 65, 64, 66),
+      bar(2, 70, 69, 71),
+      bar(3, 75, 74, 76),
+      bar(4, 80, 79, 81),
+      bar(5, 85, 84, 86),
+    ]
+    const shifted = setup.map((candle, index) => {
+      const i = index + climb.length
+      return { ...candle, t: i * STEP, T: (i + 1) * STEP - 1 }
+    })
+    const collapse = Array.from({ length: 10 }, (_, i) =>
+      bar(13 + i, 80 - i * 6, 78 - i * 6, 82 - i * 6, 10, 82 - i * 6)
+    )
+    const candles = [...climb, ...shifted, ...collapse]
+
+    const rideItDown = run(
+      dcaConfig({ trendFilterEnabled: true, trendMaBars: 10 }),
+      candles
+    )
+    const closesOut = run(
+      dcaConfig({
+        trendFilterEnabled: true,
+        trendMaBars: 10,
+        exitOnTrendBreak: true,
+      }),
+      candles
+    )
+    // Entry-only gating leaves a position open through the collapse; the exit
+    // version closes it.
+    expect(closesOut.fills.some((f) => f.purpose === "dca:exit")).toBe(true)
+    expect(closesOut.openPosition).toBeNull()
+    void rideItDown
   })
 
   it("waits out a violent crash, then buys ONE rung at a time from the bounce", () => {
@@ -387,6 +506,120 @@ describe("DCA through the real backtest runner", () => {
     // first rung's LEVEL (base·0.95 = 85.5), not peeled rung by rung.
     expect(sellAll!.px).toBeCloseTo(85.5, 5)
     expect(sellAll!.px).toBeGreaterThan(buy1!.px)
+    expect(result.openPosition).toBeNull()
+  })
+
+  // Both rungs fill at 84 and 77 for $500 each, so the ladder has spent $1,000
+  // and owns 12.446 coins. The nearest rung above the deepest buy is rung 0's
+  // level, 85.5: selling 1000/85.5 = 11.696 coins there returns the whole $1,000
+  // and leaves 0.750 coins that cost nothing. Those wait at 2% under the base
+  // (90 · 0.98 = 88.2).
+  const moneyBackConfig = (sellBelowBasePct = 2): AutomationConfig => ({
+    ...dcaConfig({ sellBelowBasePct }),
+    protection: {
+      long: { takeProfitPct: 3, takeProfitMode: "moneyBackThenBase" },
+    },
+  })
+
+  it("money back then ride free: takes the cash back at the nearest rung and sells the leftover coins under the base", () => {
+    const result = run(moneyBackConfig(), [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87), // orderly: rung 0 fills near 85.5
+      bar(8, 77, 76, 85, 10, 84), // orderly: rung 1 fills near 77
+      bar(9, 86, 79, 87, 10, 79), // bounce to the nearest rung (85.5) — cash back
+      bar(10, 95, 85, 96, 10, 86), // runs on past 88.2 — the free coins sell
+    ])
+
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
+    const free = result.fills.find((f) => f.purpose === "dca:s:free")
+    const spent = buys.reduce((sum, f) => sum + f.px * f.sz, 0)
+
+    expect(buys.length).toBe(2)
+    expect(cash).toBeTruthy()
+    expect(free).toBeTruthy()
+    // The cash sell rests at the nearest rung above the deepest buy — rung 0's
+    // level (base · 0.95), NOT at the average and NOT back at the base.
+    expect(cash!.px).toBeCloseTo(85.5, 5)
+    // It sells exactly enough to hand back every dollar the ladder spent.
+    expect(cash!.px * cash!.sz).toBeCloseTo(spent, 5)
+    // It is NOT the whole position — that is the entire point of the mode.
+    expect(cash!.sz).toBeLessThan(buys.reduce((sum, f) => sum + f.sz, 0))
+    // The coins it left over cost nothing and sell 2% under the base.
+    expect(free!.px).toBeCloseTo(88.2, 5)
+    expect(free!.sz).toBeCloseTo(
+      buys.reduce((sum, f) => sum + f.sz, 0) - cash!.sz,
+      6
+    )
+    // Nothing peels rung by rung in this mode.
+    expect(result.fills.some((f) => /^dca:s:(\d|all)/.test(f.purpose))).toBe(
+      false
+    )
+    expect(result.openPosition).toBeNull()
+    // With no costs the whole gain is the free coins' sale.
+    expect(result.trades.reduce((sum, t) => sum + t.pnl, 0)).toBeCloseTo(
+      free!.px * free!.sz,
+      4
+    )
+  })
+
+  it("money back then ride free: a bounce that dies after the cash sale leaves nothing at risk", () => {
+    const result = run(moneyBackConfig(), [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87), // rung 0 fills near 85.5
+      bar(8, 77, 76, 85, 10, 84), // rung 1 fills near 77
+      bar(9, 86, 79, 87, 10, 79), // bounce to 85.5 — cash back, never reaches 88.2
+      bar(10, 60, 58, 86, 10, 85), // rolls back over and bleeds away
+      bar(11, 50, 48, 61, 10, 60),
+    ])
+
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
+    const spent = buys.reduce((sum, f) => sum + f.px * f.sz, 0)
+
+    expect(cash).toBeTruthy()
+    // Every dollar came back on the bounce...
+    expect(cash!.px * cash!.sz).toBeCloseTo(spent, 5)
+    expect(result.fills.some((f) => f.purpose === "dca:s:free")).toBe(false)
+    // ...and the coins still held are only the free ones.
+    expect(result.openPosition).not.toBeNull()
+    const held = result.openPosition!
+    expect(held.szi).toBeCloseTo(
+      buys.reduce((sum, f) => sum + f.sz, 0) - cash!.sz,
+      6
+    )
+    // The realised gain and the cost still carried by the held coins are the same
+    // number, so even if they go to ZERO the cycle only ends flat — that is what
+    // "nothing at risk" means here. Without this mode the whole ladder would still
+    // be underwater as price bled from 86 to 50.
+    // The gain booked on the cash sale is exactly the cost still carried by the
+    // coins held — so even if they go to ZERO the cycle only ends flat. That
+    // identity is what "nothing at risk" means. Without this mode the ladder
+    // would still be fully underwater as price bled from 86 down to 50.
+    expect(cash!.closedPnl).toBeGreaterThan(0)
+    expect(cash!.closedPnl).toBeCloseTo(held.szi * held.entryPx, 4)
+  })
+
+  it("money back then ride free: a sell-below-base deeper than the first rung collapses to one order", () => {
+    // 10% under a base of 90 is 81 — below the 85.5 cash level. The free coins
+    // must never rest cheaper than the sale that returns the money, so the two
+    // orders become one for the whole position at 85.5.
+    const result = run(moneyBackConfig(10), [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87),
+      bar(8, 77, 76, 85, 10, 84),
+      bar(9, 86, 79, 87, 10, 79),
+    ])
+
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
+    expect(cash).toBeTruthy()
+    expect(cash!.px).toBeCloseTo(85.5, 5)
+    expect(cash!.sz).toBeCloseTo(
+      buys.reduce((sum, f) => sum + f.sz, 0),
+      6
+    )
+    expect(result.fills.some((f) => f.purpose === "dca:s:free")).toBe(false)
     expect(result.openPosition).toBeNull()
   })
 

@@ -31,6 +31,14 @@ export const DEFAULT_DCA_MAX_POSITION_PCT = 25
  */
 export const DEFAULT_DCA_SIZE_MULTIPLIER = 2
 
+/**
+ * How far UNDER the base the "money back, ride the rest free" take-profit rests
+ * its free coins, in percent. Price that has fallen through a level usually
+ * stalls just short of reclaiming it, so the runner sells a little below the
+ * base rather than exactly on it. Only read by that one take-profit mode.
+ */
+export const DEFAULT_DCA_SELL_BELOW_BASE_PCT = 2
+
 // A rung only carries its drop depth. Configs saved with an old per-rung `size`
 // still load — zod drops the now-unknown key.
 export const dcaRungSchema = z.object({

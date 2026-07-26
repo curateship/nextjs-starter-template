@@ -96,6 +96,11 @@ describe("backtest worker claiming", () => {
         respectLookbackMonths: 6,
         minRespectPct: 80,
         recoveryTargetPct: -2,
+        sellBelowBasePct: 2,
+        trendFilterEnabled: false,
+        trendMaBars: 200,
+        exitOnTrendBreak: false,
+        maxCycleBars: 0,
       },
     }
     const endTime = new Date()

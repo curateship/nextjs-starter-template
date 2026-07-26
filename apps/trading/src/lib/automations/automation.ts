@@ -13,6 +13,7 @@ import {
 } from "./node-registry"
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
+  DEFAULT_DCA_SELL_BELOW_BASE_PCT,
   dcaRungsSchema,
   type AutomationDcaRung,
 } from "./dca"
@@ -91,9 +92,15 @@ export type AutomationTakeProfitNode = {
    * first bought, the first at the base). "nearestRungSellAll" instead rests one
    * order for the WHOLE position at the nearest rung above the deepest buy, so a
    * bounce back to that single level closes everything at once (and that level
-   * slides down as deeper rungs fill).
+   * slides down as deeper rungs fill). "moneyBackThenBase" sells at that same
+   * nearest rung but only ENOUGH to hand back every dollar the ladder spent; the
+   * coins left over cost nothing and rest just under the base for the profit.
    */
-  mode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
+  mode?:
+    | "average"
+    | "previousRungSellAll"
+    | "nearestRungSellAll"
+    | "moneyBackThenBase"
   x: number
   y: number
 }
@@ -199,6 +206,36 @@ export type AutomationDcaNode = {
   respectLookbackMonths: number
   minRespectPct: number
   recoveryTargetPct: number
+  /**
+   * "Money back, ride the rest free" take-profit only: where the free coins rest,
+   * as a percent BELOW the base. Negative means ABOVE it — the free coins cost
+   * nothing, so they can be held through a recovery rather than sold back at the
+   * ceiling of the crack (-100 rests them at twice the base). Inert under every
+   * other take-profit style.
+   */
+  sellBelowBasePct: number
+  /**
+   * Trend gate: only start a ladder while the close sits above the average of the
+   * last `trendMaBars` closes. The ladder only ever buys, so in a falling market
+   * it averages down into the fall — measured at −5.07%/month over the Sep-2025 →
+   * Jul-2026 crash. This is the switch that keeps it out of one.
+   */
+  trendFilterEnabled: boolean
+  /** Bars in that average, counted on the bot's own timeframe (200 = 200 days at 1d). */
+  trendMaBars: number
+  /**
+   * Close an OPEN ladder when the trend gate turns bearish, instead of only
+   * blocking new ones. Without this the gate is entry-only: a ladder opened in
+   * an uptrend rides the whole way down after the trend breaks.
+   */
+  exitOnTrendBreak: boolean
+  /**
+   * Time stop: abandon a cycle that has been open this many candles without
+   * resolving. 0 = never. The ladder otherwise has NO way to give up on a
+   * position, which is how every tuned configuration ended up hiding its losses
+   * in open bags and scoring a 95% win rate.
+   */
+  maxCycleBars: number
   x: number
   y: number
 }
@@ -300,9 +337,15 @@ export type ProtectionLevels = {
    * blended average. The rung modes (DCA entries only) sell against the buy
    * ladder instead — "previousRungSellAll" peels each rung off at the rung above
    * it; "nearestRungSellAll" sells the whole position at the nearest rung above
-   * the deepest buy. See {@link AutomationTakeProfitNode}.
+   * the deepest buy; "moneyBackThenBase" sells only enough there to recover the
+   * cash and rides the rest free to just under the base. See
+   * {@link AutomationTakeProfitNode}.
    */
-  takeProfitMode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
+  takeProfitMode?:
+    | "average"
+    | "previousRungSellAll"
+    | "nearestRungSellAll"
+    | "moneyBackThenBase"
   stopLossPct?: number
   /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
   stopLossMode?: "fixed" | "trailing"
@@ -418,6 +461,27 @@ export type AutomationDcaConfig = {
   respectLookbackMonths: number
   minRespectPct: number
   recoveryTargetPct: number
+  /** "Money back, ride the rest free" exit: how far under the base the free
+   * coins rest. Inert under every other take-profit style. */
+  sellBelowBasePct: number
+  /** Trend gate: only start a ladder while price is above its own moving average. */
+  trendFilterEnabled: boolean
+  trendMaBars: number
+  /** Close an open ladder when the trend breaks, not just block new ones. */
+  exitOnTrendBreak: boolean
+  /** Abandon a cycle open this many candles without resolving. 0 = never. */
+  maxCycleBars: number
+  /**
+   * Indicator confirmations wired into the DCA node (anything other than the
+   * Base indicator that supplies the levels). A rung only buys while EVERY one
+   * of these has "buy" as its most recent signal — so the ladder stops averaging
+   * into a fall the moment its confirmations turn bearish.
+   *
+   * Before this existed the compiler read only the Base and Market Scanner wires
+   * and SILENTLY DROPPED every other indicator connected to the node: the canvas
+   * let you wire a confirmation and nothing happened.
+   */
+  confirmations?: AutomationFilter[]
 }
 
 export type AutomationConfig = {
@@ -439,7 +503,14 @@ export function dcaHistoryBars(
   dca: AutomationDcaConfig,
   interval: AutomationInterval
 ): number {
-  const base = dca.basePeriods + dca.pumpPeriods + 50
+  const base =
+    dca.basePeriods +
+    dca.pumpPeriods +
+    50 +
+    // The trend gate averages this many closes, so they have to be loaded.
+    (dca.trendFilterEnabled ? dca.trendMaBars : 0) +
+    // Confirmation indicators need their own warm-up before they say anything.
+    ((dca.confirmations?.length ?? 0) > 0 ? 300 : 0)
   if (!dca.respectFilterEnabled) return base
   const MONTH_MS = 30 * 86_400_000
   return (
@@ -506,7 +577,14 @@ const draftIndicatorSelectionSchema = z.object({
 const takeProfitModeSchema = z.preprocess(
   (value) =>
     value === "previousRungHoldFirst" ? "previousRungSellAll" : value,
-  z.enum(["average", "previousRungSellAll", "nearestRungSellAll"]).optional()
+  z
+    .enum([
+      "average",
+      "previousRungSellAll",
+      "nearestRungSellAll",
+      "moneyBackThenBase",
+    ])
+    .optional()
 )
 
 const automationNodeSchema = z.discriminatedUnion("kind", [
@@ -613,6 +691,22 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     respectLookbackMonths: z.number().int().min(1).max(60).default(6),
     minRespectPct: z.number().min(0).max(100).default(80),
     recoveryTargetPct: z.number().min(-50).max(50).default(-2),
+    // Added with the "money back, ride the rest free" take-profit. Ladders saved
+    // before it load with the default and behave identically, because no other
+    // take-profit style reads this field.
+    sellBelowBasePct: z
+      .number()
+      .min(-500)
+      .max(50)
+      .default(DEFAULT_DCA_SELL_BELOW_BASE_PCT),
+    // Trend gate. Defaults to off so every ladder saved before it behaves
+    // identically.
+    trendFilterEnabled: z.boolean().default(false),
+    trendMaBars: z.number().int().min(2).max(1000).default(200),
+    // Real exits for a losing ladder. Default off, so every ladder saved before
+    // them behaves identically.
+    exitOnTrendBreak: z.boolean().default(false),
+    maxCycleBars: z.number().int().min(0).max(5000).default(0),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -706,6 +800,18 @@ const whaleWallSettingsSchema = z.object({
   confirmationMs: z.number().int().min(100).max(60_000),
 })
 
+const compiledFilterSchema: z.ZodType<AutomationFilter> = z.object({
+  nodeId: idSchema,
+  indicator: indicatorSelectionSchema,
+  maxAgeBars: z
+    .number()
+    .int()
+    .min(1)
+    .max(AUTOMATION_MAX_WINDOW_BARS)
+    .optional(),
+  interval: intervalSchema.optional(),
+})
+
 const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
   z.union([
     z.object({
@@ -713,22 +819,7 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
       nodeId: idSchema,
       indicator: indicatorSelectionSchema,
       side: z.enum(["buy", "sell"]),
-      filters: z
-        .array(
-          z.object({
-            nodeId: idSchema,
-            indicator: indicatorSelectionSchema,
-            maxAgeBars: z
-              .number()
-              .int()
-              .min(1)
-              .max(AUTOMATION_MAX_WINDOW_BARS)
-              .optional(),
-            interval: intervalSchema.optional(),
-          })
-        )
-        .max(100)
-        .optional(),
+      filters: z.array(compiledFilterSchema).max(100).optional(),
     }),
     z.object({
       kind: z.literal("liveWall"),
@@ -788,6 +879,18 @@ const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
   respectLookbackMonths: z.number().int().min(1).max(60),
   minRespectPct: z.number().min(0).max(100),
   recoveryTargetPct: z.number().min(-50).max(50),
+  // Frozen config snapshots taken before this field existed still parse; the
+  // default is inert unless the "money back" take-profit is selected.
+  sellBelowBasePct: z
+    .number()
+    .min(-500)
+    .max(50)
+    .default(DEFAULT_DCA_SELL_BELOW_BASE_PCT),
+  trendFilterEnabled: z.boolean().default(false),
+  trendMaBars: z.number().int().min(2).max(1000).default(200),
+  exitOnTrendBreak: z.boolean().default(false),
+  maxCycleBars: z.number().int().min(0).max(5000).default(0),
+  confirmations: z.array(compiledFilterSchema).max(8).optional(),
 })
 
 function conditionHasLiveWall(condition: AutomationCondition): boolean {
@@ -1330,10 +1433,43 @@ export function compileAutomationGraph(input: {
         ...marketScannerSettingsSchema.parse(scannerNode),
       }
     }
+    // Every indicator wired into the ladder that ISN'T the Base supplying its
+    // levels becomes a buy confirmation: a rung only fires while all of them are
+    // bullish. A Look Back directly upstream sets how long that opinion stays
+    // valid. These wires used to compile to nothing.
+    const confirmations: AutomationFilter[] = []
     const baseEdge = (incoming.get(dcaNode.id) ?? []).find((edge) => {
       const from = nodeById.get(edge.from)
       return from?.kind === "indicator" && from.indicator.type === "base"
     })
+    for (const edge of incoming.get(dcaNode.id) ?? []) {
+      if (edge === baseEdge) continue
+      if (edge.sourcePort !== "bullish" && edge.sourcePort !== "trend") continue
+      let source = nodeById.get(edge.from)
+      // A Look Back on the wire caps how long the confirmation counts for:
+      // `indicator -> Look Back -> DCA`, the same grammar entry filters use.
+      let maxAgeBars: number | undefined
+      if (source?.kind === "lookback") {
+        maxAgeBars = source.bars
+        const upstream = (incoming.get(source.id) ?? [])
+          .map((up) => nodeById.get(up.from))
+          .find((up) => up?.kind === "indicator")
+        source = upstream
+      }
+      if (source?.kind !== "indicator") continue
+      confirmations.push({
+        nodeId: source.id,
+        indicator: source.indicator,
+        ...(maxAgeBars !== undefined ? { maxAgeBars } : {}),
+      })
+    }
+    if (confirmations.length > 8) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: dcaNode.id,
+        message: "A DCA ladder can take at most 8 indicator confirmations.",
+      })
+    }
     const baseNode = baseEdge ? nodeById.get(baseEdge.from) : undefined
     if (!baseNode || baseNode.kind !== "indicator") {
       addError({
@@ -1364,6 +1500,12 @@ export function compileAutomationGraph(input: {
         respectLookbackMonths: dcaNode.respectLookbackMonths,
         minRespectPct: dcaNode.minRespectPct,
         recoveryTargetPct: dcaNode.recoveryTargetPct,
+        sellBelowBasePct: dcaNode.sellBelowBasePct,
+        trendFilterEnabled: dcaNode.trendFilterEnabled,
+        trendMaBars: dcaNode.trendMaBars,
+        exitOnTrendBreak: dcaNode.exitOnTrendBreak,
+        maxCycleBars: dcaNode.maxCycleBars,
+        ...(confirmations.length > 0 ? { confirmations } : {}),
       }
     }
   }
