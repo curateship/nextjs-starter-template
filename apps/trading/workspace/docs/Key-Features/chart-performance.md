@@ -59,6 +59,40 @@ internally and merged in later, but never painted alone. On a cold load the
 chart shows its previous content plus a "Loading … candles" note instead of
 one zoomed-in bar.
 
+### 5. Reconcile the chart, never rebuild it
+
+Every candle the chart is handed triggers a repaint of everything derived from
+it. During a practice replay at 60× that happens sixty times a second, so the
+repaint has to be proportional to *what changed*, not to how much history is
+loaded. Four rules make that true:
+
+- **Candles are appended, not re-sent.** When the new array is the old one
+  plus bars on the right, each new bar is pushed individually instead of
+  re-sending thousands. Falls back to a full repaint whenever that isn't
+  strictly true — older bars changed colour, history was prepended, the
+  timeframe changed.
+- **Indicator lines are appended too.** EMA, Bollinger, RSI and MACD all read
+  only the past, so appending bars can't change an earlier value.
+- **Overlay lines and zones are matched by what they draw**, not by the id the
+  indicator gave them. Indicator ids are bar-index based, so an untouched
+  swing line or chop box would otherwise be handed a brand new id — and a
+  brand new series — every time the window slid by a bar.
+- **Base marks are keyed by their span and price.** A mark that didn't move
+  keeps the series it already has.
+
+Creating and destroying chart series is by far the most expensive thing this
+component can do: each one re-lays-out the whole chart. Tearing them all down
+and rebuilding them each frame is what made a long replay session get slower
+the longer it ran, and made anything pinned to the chart appear to jump.
+
+### 6. Re-offset the view when bars fall off the left
+
+A replay eventually hits the parent's candle ceiling, and from then on every
+bar added on the right drops one off the left. That shifts every bar's index
+down by one, so the visible range has to be re-offset by the same amount or
+the view creeps a bar per frame — which reads as the chart "skipping around"
+the longer a session runs.
+
 ## What is still "slow" (and why that's OK)
 
 The very first chart opened for a coin pays the ~0.5 s exchange round trip —
@@ -89,3 +123,14 @@ delisted markets are picked up by the background refresh.
 - Scroll-back history (panning left) is a separate mechanism in
   price-chart.tsx (`loadOlderHlCandles`), cached per market+interval while
   mounted — it is unaffected by this cache.
+- Don't go back to removing and re-adding chart series on every repaint. It
+  looks harmless at one bar a minute and is ruinous at sixty bars a second.
+- Don't key a chart series off an indicator's own id. Those ids count bars, so
+  they change under you the moment the window slides.
+- Don't ask the time scale to place a bar index that runs past the chart's
+  right margin. It returns 0 rather than refusing, and 0 is a legal coordinate
+  — so the caller can't tell the difference and silently pins that edge to the
+  left of the pane. Drawing anchors in the empty space right of the newest
+  candle are extrapolated by hand from the last two real bars instead
+  (`anchorX` in price-chart.tsx). Getting this wrong makes a position box drawn
+  ahead of the playhead flash out to the full width of the chart.

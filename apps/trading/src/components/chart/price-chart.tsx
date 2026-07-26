@@ -126,6 +126,72 @@ const EMPTY_INDICATORS: IndicatorConfig[] = []
 const EMPTY_OVERLAY_LINES: ChartOverlayLine[] = []
 // EMPTY_ZONES already exists further down; the zones default reuses it.
 const EMPTY_BAR_COLORS: ChartBarColor[] = []
+/**
+ * How far back an append-only repaint re-checks bar colours before trusting
+ * itself. Indicator colouring is computed forward from older bars, so a change
+ * lands on the recent tail; anything further back would mean the whole series
+ * shifted, which shows up in this window too.
+ */
+const COLOR_RECHECK_BARS = 300
+/** Renders between drift checks (dev only) — see where it is used. */
+const DRIFT_CHECK_EVERY = 240
+/**
+ * Bars the indicator maths reruns over while a replay is STREAMING bars in, so
+ * a long session costs the same in its fourth minute as in its first.
+ *
+ * Only applied on those append frames. Any full recomputation — first load, a
+ * timeframe switch, scrolled-in history, a scrub — still runs over everything
+ * the chart holds, so the drawn lines cover the full history and the live
+ * trading chart (which loads several thousand bars and appends about one a
+ * minute) is untouched.
+ */
+const INDICATOR_CANDLE_CAP = 1500
+
+/** A base-mark key's start time. Keys are `start|end|price|colour`. */
+function baseKeyStart(key: string): number {
+  return Number(key.slice(0, key.indexOf("|")))
+}
+
+/**
+ * Reports a drawing the chart could not place — always a defect, since every
+ * drawing is anchored to a bar the chart is supposed to have. Goes to the
+ * console AND to the on-screen banner the practice session already shows for
+ * drag anomalies, so a report can be captured in one screenshot instead of
+ * reproduced blind.
+ *
+ * Development only: this is a tripwire for us, not an error a trader should be
+ * shown mid-session. Rate-limited, because a bad frame usually repeats and one
+ * legible message beats a hundred identical ones.
+ */
+let lastAnomalyAt = 0
+let lastAnomalyText = ""
+function reportDrawingAnomaly(message: string) {
+  if (!import.meta.env.DEV) return
+  const now = performance.now()
+  if (message === lastAnomalyText && now - lastAnomalyAt < 2000) return
+  lastAnomalyText = message
+  lastAnomalyAt = now
+  console.error("[practice drawing anomaly]", message)
+  window.dispatchEvent(
+    new CustomEvent("practice-drag-anomaly", { detail: message })
+  )
+}
+
+/**
+ * How many bars the previous candle array held before `firstTime` — i.e. how
+ * many were dropped off the left this repaint. Binary search; the arrays are
+ * sorted by open time. 0 when the old array didn't reach that far.
+ */
+function droppedFromLeft(previous: ChartCandle[], firstTime: number): number {
+  let lo = 0
+  let hi = previous.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (previous[mid].t < firstTime) lo = mid + 1
+    else hi = mid
+  }
+  return lo < previous.length && previous[lo].t === firstTime ? lo : 0
+}
 
 // MACD histogram polarity (theme-independent, like volume).
 const MACD_UP = "rgba(8, 153, 129, 0.5)"
@@ -387,18 +453,41 @@ export function PriceChartView({
   const dataKeyRef = React.useRef<string | null>(null)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
   // One short line series per base mark — separate series so marks never
-  // connect to each other across the gaps between them.
-  const baseSeriesRef = React.useRef<ISeriesApi<"Line">[]>([])
+  // connect to each other across the gaps between them. Keyed by the mark's
+  // span+price so an unchanged mark is left alone between repaints; adding and
+  // removing series is the single most expensive thing this chart does.
+  const baseSeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(new Map())
   const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
     new Map()
   )
-  // One 2-point baseline series per zone: the baseline fill only spans the
-  // series' data range, so each paints exactly one rectangle.
-  const zoneSeriesRef = React.useRef<ISeriesApi<SeriesType>[]>([])
+  // One 2-point baseline series per zone (plus an optional bottom-edge line):
+  // the baseline fill only spans the series' data range, so each paints exactly
+  // one rectangle. Keyed by zone id with the geometry that produced it, so a
+  // zone that did not move survives the next repaint untouched.
+  const zoneSeriesRef = React.useRef<Map<string, ISeriesApi<SeriesType>[]>>(
+    new Map()
+  )
   // The candle array from the previous data-effect run: lets us tell a real
   // candle tick/backfill (new reference) from a params-only recolor (same
   // candles, different bar colours).
   const prevCandlesRef = React.useRef<ChartCandle[] | null>(null)
+  // Set by the candle-data effect and read by the indicator effect that runs
+  // right after it: how many bars were appended on the right this commit, for
+  // the exact candle array they both saw. `added: 0` means "not a plain
+  // append" — the indicator series must then be re-set in full.
+  const appendRef = React.useRef<{ candles: ChartCandle[]; added: number }>({
+    candles: [],
+    added: 0,
+  })
+  // Line-series keys that already hold a full data set. A key missing here has
+  // never been filled (or was invalidated by a config change), so it must take
+  // a full setData rather than an incremental append.
+  const lineFilledRef = React.useRef<Set<string>>(new Set())
+  const prevIndicatorsRef = React.useRef<IndicatorConfig[] | null>(null)
+  // Bar colours from the previous repaint, so an append-only repaint can prove
+  // it is not leaving a stale colour behind on an already-drawn bar.
+  const prevColorMapRef = React.useRef<Map<number, ChartBarColor> | null>(null)
+  const driftCheckRef = React.useRef(0)
   const [ready, setReady] = React.useState(false)
   const [focusPixels, setFocusPixels] = React.useState<
     { x: number; y: number }[]
@@ -1407,7 +1496,7 @@ export function PriceChartView({
           } of indicatorSeriesRef.current.values()) {
             if (recolor) series.applyOptions({ color: recolor(dark) })
           }
-          for (const series of baseSeriesRef.current) {
+          for (const series of baseSeriesRef.current.values()) {
             series.applyOptions({ color: indicatorColor("base", dark) })
           }
         })
@@ -1421,6 +1510,9 @@ export function PriceChartView({
     const priceLines = priceLineRefs.current
     const indicatorSeries = indicatorSeriesRef.current
     const overlaySeries = overlaySeriesRef.current
+    const baseSeries = baseSeriesRef.current
+    const zoneSeries = zoneSeriesRef.current
+    const filledLines = lineFilledRef.current
     return () => {
       disposed = true
       observer?.disconnect()
@@ -1428,6 +1520,11 @@ export function PriceChartView({
       priceLines.clear()
       indicatorSeries.clear()
       overlaySeries.clear()
+      // The chart itself is destroyed below, so every cached series handle is
+      // dead — clearing the maps stops a remount from reusing stale handles.
+      baseSeries.clear()
+      zoneSeries.clear()
+      filledLines.clear()
       seriesCtorsRef.current = null
       signalMarkersPluginRef.current = null
       candleSeriesRef.current = null
@@ -1446,20 +1543,54 @@ export function PriceChartView({
       return
     }
 
-    const byTime = new Map<number, ChartCandle>()
-    for (const candle of candles)
-      byTime.set(Math.floor(candle.t / 1000), candle)
-    candleByTimeRef.current = byTime
+    // Crosshair lookup, extended in place for the same reason as candleTimes:
+    // rebuilding a map of every loaded bar on every frame of a replay is the
+    // single most expensive thing this effect used to do. Older entries stay
+    // valid as long as the array still starts at the same bar and only grew.
+    const byTime = candleByTimeRef.current
+    const canExtend =
+      dataKeyRef.current === dataKey &&
+      byTime.size > 0 &&
+      candles.length >= prevLenRef.current &&
+      candles[0].t === firstTimeRef.current
+    if (!canExtend) byTime.clear()
+    for (
+      let i = canExtend ? Math.max(0, prevLenRef.current - 1) : 0;
+      i < candles.length;
+      i += 1
+    ) {
+      byTime.set(Math.floor(candles[i].t / 1000), candles[i])
+    }
 
     const colorMap = barColors.length
       ? new Map(barColors.map((bar) => [Math.floor(bar.time / 1000), bar]))
       : undefined
+    /**
+     * True when the bars already on the chart still carry the colours they were
+     * drawn with. `update()` can only touch the newest bar, so an append-only
+     * repaint would silently keep stale colours on older bars — this checks the
+     * recent tail (where a recolour realistically lands) and falls back to a
+     * full repaint when anything moved.
+     */
+    const tailColorsUnchanged = () => {
+      const previous = prevColorMapRef.current
+      if (!previous && !colorMap) return true
+      const start = Math.max(0, prevLenRef.current - COLOR_RECHECK_BARS)
+      for (let i = start; i < prevLenRef.current && i < candles.length; i += 1) {
+        const key = Math.floor(candles[i].t / 1000)
+        if (previous?.get(key)?.color !== colorMap?.get(key)?.color) return false
+      }
+      return true
+    }
     // A real candle tick/backfill hands us a NEW candle array; a params-only
     // recolor keeps the same candles but different bar colours. Only the latter
     // needs a full repaint — a tick (even one that flips the forming bar's
     // colour) updates just the last bar and keeps the user's view.
     const candlesChanged = prevCandlesRef.current !== candles
+    const previousCandles = prevCandlesRef.current
     prevCandlesRef.current = candles
+    // Assume a full repaint; the append-only branch below says otherwise.
+    appendRef.current = { candles, added: 0 }
 
     const last = candles[candles.length - 1]
     const isIncremental =
@@ -1469,6 +1600,17 @@ export function PriceChartView({
       last.t >= lastTimeRef.current &&
       candles.length > 1 &&
       candles[0].t < lastTimeRef.current &&
+      // The oldest bar must be the SAME oldest bar. update() can only add or
+      // replace the newest bar — it has no way to drop one off the front. Once
+      // a replay is long enough that the parent starts sliding its window (a
+      // bar added on the right, one dropped on the left), the length barely
+      // changes, so without this check the code reads a slide as an ordinary
+      // tick: it appends the new bar and leaves the dropped one behind. The
+      // chart's copy of history then drifts away from the data it was given,
+      // one stale bar at a time, and gets stretched over a span far wider than
+      // it has bars to fill — which is the chart "compressing" and the candles
+      // scattering. Everything anchored to it goes with it.
+      candles[0].t === firstTimeRef.current &&
       // A real tick adds at most a bar; a whole snapshot must re-set the data.
       candles.length <= prevLenRef.current + 2
 
@@ -1497,16 +1639,33 @@ export function PriceChartView({
         })
       }
     } else if (isIncremental) {
-      candleSeries.update(toCandleData(last, colorMap))
-      volumeSeries.update(toVolumeData(last))
+      // Push EVERY bar that is new or changed, not just the newest one.
+      //
+      // This branch accepts up to two new bars, and only ever sent the last of
+      // them. The one in between was never given to the chart — a permanent
+      // hole in its copy of the history. Ask the chart where that bar is and it
+      // correctly answers "I don't have it", so any drawing anchored there
+      // cannot be placed and is silently dropped from the render.
+      //
+      // That is the flickering: drag a box and every time its edge crosses one
+      // of these holes the box blinks out, and if you let go on top of one it
+      // disappears entirely while its order stays live. Holes accumulate as a
+      // session runs, which is why it gets worse the longer you play and why it
+      // never lands in the same place twice — it depends on frame timing.
+      //
+      // Starting one bar back also refreshes the last bar in place, which is
+      // what a live tick refining the forming candle needs.
+      for (let i = Math.max(0, prevLenRef.current - 1); i < candles.length; i += 1) {
+        candleSeries.update(toCandleData(candles[i], colorMap))
+        volumeSeries.update(toVolumeData(candles[i]))
+      }
     } else if (
       // Replay growth: same series, many candles appended on the right (a
-      // fast-forward or scrub). Repaint the data, and follow the new bars
-      // when the user was at the live edge — the chart's native auto-scroll
-      // only fires on single-bar update(), so multi-bar growth must shift
-      // here or the view stalls while candles march off-screen. Never shift
-      // mid drawing-gesture: the axis sliding under the pointer makes the
-      // dragged drawing run away.
+      // fast-forward or scrub). Follow the new bars when the user was at the
+      // live edge — the chart's native auto-scroll only fires on single-bar
+      // update(), so multi-bar growth must shift here or the view stalls while
+      // candles march off-screen. Never shift mid drawing-gesture: the axis
+      // sliding under the pointer makes the dragged drawing run away.
       dataKeyRef.current === dataKey &&
       firstTimeRef.current > 0 &&
       candles[0].t >= firstTimeRef.current &&
@@ -1519,16 +1678,58 @@ export function PriceChartView({
         activeToolRef.current !== null ||
         positionDragRef.current !== null ||
         trendlineDragRef.current !== null
-      candleSeries.setData(
-        candles.map((candle) => toCandleData(candle, colorMap))
-      )
-      volumeSeries.setData(candles.map(toVolumeData))
-      if (before && wasAtLiveEdge && !drawingGesture) {
-        const added = candles.length - prevLenRef.current
-        if (added > 0) {
+      // Bars only ever ADDED on the right: push them one by one instead of
+      // re-sending the whole array. At 60× replay this effect runs on every
+      // animation frame, and re-sending thousands of bars each time is what
+      // made fast playback grind to a crawl the longer a session ran.
+      // A long replay eventually hits the parent's candle ceiling, and from
+      // then on each new bar on the right also drops one off the LEFT. Every
+      // logical index shifts down by that many, so the view has to be re-offset
+      // or it creeps a bar per frame — which reads as the chart, and everything
+      // pinned to it, skipping around the longer a session runs.
+      const trimmed =
+        candles[0].t > firstTimeRef.current && previousCandles
+          ? droppedFromLeft(previousCandles, candles[0].t)
+          : 0
+      const appendOnly =
+        trimmed === 0 &&
+        candles[0].t === firstTimeRef.current &&
+        candles.length > prevLenRef.current &&
+        tailColorsUnchanged()
+      const added = candles.length + trimmed - prevLenRef.current
+      if (appendOnly) {
+        for (let i = prevLenRef.current; i < candles.length; i += 1) {
+          candleSeries.update(toCandleData(candles[i], colorMap))
+          volumeSeries.update(toVolumeData(candles[i]))
+        }
+        appendRef.current = { candles, added }
+        // NO manual view shift here, on purpose. update() makes the chart move
+        // itself: it follows the new bars when the user is at the right edge
+        // and leaves the view alone when they've panned back — exactly what the
+        // single-bar tick path above relies on. Shifting by hand as well would
+        // advance the view twice per bar, walking the newest candle off to the
+        // left and opening a widening band of empty space on the right, which
+        // drags every drawing out of position with it.
+        //
+        // The full-repaint branch below is the opposite case: setData() moves
+        // nothing, so there the shift has to be done by hand.
+      } else {
+        candleSeries.setData(
+          candles.map((candle) => toCandleData(candle, colorMap))
+        )
+        volumeSeries.setData(candles.map(toVolumeData))
+        // Only re-offset when we could actually account for the left edge
+        // moving. A big jump (a scrub) can land past everything the previous
+        // array held, leaving `trimmed` unmeasurable — shifting by a made-up
+        // number would throw the view somewhere arbitrary, so leave it alone
+        // and let the chart settle where the new data puts it.
+        const measured =
+          candles[0].t === firstTimeRef.current || trimmed > 0
+        const shift = wasAtLiveEdge ? added - trimmed : -trimmed
+        if (measured && before && !drawingGesture && shift !== 0) {
           timeScale?.setVisibleLogicalRange({
-            from: before.from + added,
-            to: before.to + added,
+            from: before.from + shift,
+            to: before.to + shift,
           })
         }
       }
@@ -1550,10 +1751,34 @@ export function PriceChartView({
         chartRef.current?.timeScale().resetTimeScale()
       }
     }
+    // The chart's own copy must always match the array it was just given. If it
+    // ever doesn't, an append happened where a full repaint was needed, and the
+    // two drift apart for the rest of the session — stale bars pile up, the
+    // time span stretches past the bars available to fill it, and every drawing
+    // pinned to a time lands in the wrong place or nowhere at all.
+    //
+    // Sampled, not run every frame: the only way to ask the chart how much it
+    // holds is `data()`, which hands back a copy of the entire series — running
+    // that per frame would itself get slower the longer a session ran, the
+    // exact shape of problem this guard exists to catch. Drift is permanent
+    // once it starts, so an occasional look finds it just as surely.
+    if (import.meta.env.DEV) {
+      driftCheckRef.current += 1
+      if (driftCheckRef.current >= DRIFT_CHECK_EVERY) {
+        driftCheckRef.current = 0
+        const held = candleSeries.data().length
+        if (held !== candles.length) {
+          reportDrawingAnomaly(
+            `Chart data drifted: chart holds ${held} bars, was given ${candles.length}`
+          )
+        }
+      }
+    }
     dataKeyRef.current = dataKey
     lastTimeRef.current = last.t
     firstTimeRef.current = candles[0].t
     prevLenRef.current = candles.length
+    prevColorMapRef.current = colorMap ?? null
   }, [ready, candles, dataKey, visibleStartMs, barColors])
 
   // Report the visible time range to the parent (for lazy history loading).
@@ -1588,14 +1813,34 @@ export function PriceChartView({
       const last = candleTimes.length - 1
       const lastTime = candleTimes[last]
       const interval = lastTime - candleTimes[last - 1]
-      if (last > 0 && time > lastTime && interval > 0)
-        return timeScale.logicalToCoordinate(
-          (last + (time - lastTime) / interval) as Logical
-        )
+      if (last > 0 && time > lastTime && interval > 0) {
+        // Anchors past the newest candle sit in empty space to the right, so
+        // they are placed by extrapolated bar index rather than snapped back
+        // onto the last candle.
+        //
+        // Extrapolate BY HAND off the last two real bars. Asking the library to
+        // place a bar index that runs past the chart's right margin does not
+        // give a usable answer — it hands back 0, which slams that edge of the
+        // drawing onto the left of the pane and blows the box out to the full
+        // width of the chart. Two in-range indices define the spacing, and the
+        // rest is a straight line, valid however far right the anchor sits.
+        const at = timeScale.logicalToCoordinate(last as Logical)
+        const before = timeScale.logicalToCoordinate((last - 1) as Logical)
+        if (at !== null && before !== null && at !== before) {
+          const barPx = at - before
+          return (at + ((time - lastTime) / interval) * barPx) as typeof at
+        }
+      }
       const nearest = nearestCandleTime(candleTimes, time)
-      return nearest === null
-        ? null
-        : timeScale.timeToCoordinate(nearest as UTCTimestamp)
+      if (nearest === null) return null
+      const x = timeScale.timeToCoordinate(nearest as UTCTimestamp)
+      if (x !== null) return x
+      // The chart doesn't know that candle. It should — but a drawing must
+      // never silently vanish because one bar is missing, so fall back to the
+      // bar's position in the candles we were handed. Slightly off if the two
+      // ever disagree; visible and roughly right beats gone.
+      const index = candleTimes.indexOf(nearest)
+      return index < 0 ? null : timeScale.logicalToCoordinate(index as Logical)
     }
     const recompute = (sync = false) => {
       const next: {
@@ -1644,8 +1889,28 @@ export function PriceChartView({
           entryY === null ||
           stopY === null ||
           targetY === null
-        )
+        ) {
+          // A box the chart cannot place is silently dropped from the render —
+          // it just vanishes off the screen, which is exactly what the
+          // "flickering / my box disappeared" reports look like. Say WHICH of
+          // the five numbers came back empty, with the raw values behind it, so
+          // the cause is named instead of guessed at.
+          reportDrawingAnomaly(
+            `Box not drawable: ${[
+              ["left", left],
+              ["right", right],
+              ["entry", entryY],
+              ["stop", stopY],
+              ["target", targetY],
+            ]
+              .filter(([, value]) => value === null)
+              .map(([name]) => name)
+              .join(", ")} — box t=${position.startTime}→${position.endTime}, ` +
+              `candles ${candleTimes[0]}→${candleTimes[candleTimes.length - 1]}, ` +
+              `prices ${position.stop}/${position.entry}/${position.target}`
+          )
           continue
+        }
         boxes.push({
           id: position.id,
           side: position.side,
@@ -1981,28 +2246,55 @@ export function PriceChartView({
   }, [ready, indicators])
 
   // Generic extra line series (precomputed points, e.g. strategy channels).
+  // Reconciled by id rather than rebuilt: during replay this runs on every
+  // animation frame, and creating/destroying series forces the whole chart to
+  // re-lay-out — the churn that made fast playback stutter and pinned drawings
+  // jump. Only lines that appeared, vanished, or actually moved are touched.
   React.useEffect(() => {
     const chart = chartRef.current
     const ctors = seriesCtorsRef.current
     if (!ready || !chart || !ctors) return
 
+    // Keyed by where the line starts, not by `overlay.id` — indicator overlay
+    // ids are bar-index based, so an unmoved swing line would get a brand new
+    // id (and a brand new series) every time the paint window slides.
+    const keyOf = (overlay: ChartOverlayLine) => {
+      const anchor = overlay.points[0]
+      return anchor
+        ? `${anchor.time}:${anchor.value}:${overlay.color}:${overlay.dashed ? 1 : 0}`
+        : overlay.id
+    }
     const map = overlaySeriesRef.current
-    for (const series of map.values()) chart.removeSeries(series)
-    map.clear()
+    const wanted = new Set(overlayLines.map(keyOf))
+    for (const [key, series] of map) {
+      if (wanted.has(key)) continue
+      chart.removeSeries(series)
+      map.delete(key)
+    }
 
     for (const overlay of overlayLines) {
-      const series = chart.addSeries(
-        ctors.LineSeries,
-        {
+      const key = keyOf(overlay)
+      let series = map.get(key)
+      if (series) {
+        series.applyOptions({
           color: overlay.color,
-          lineWidth: 1,
           lineStyle: overlay.dashed ? 2 : 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        },
-        0
-      )
+        })
+      } else {
+        series = chart.addSeries(
+          ctors.LineSeries,
+          {
+            color: overlay.color,
+            lineWidth: 1,
+            lineStyle: overlay.dashed ? 2 : 0,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          0
+        )
+        map.set(key, series)
+      }
       series.setData(
         overlay.points.map(
           (point): LineData => ({
@@ -2011,7 +2303,6 @@ export function PriceChartView({
           })
         )
       )
-      map.set(overlay.id, series)
     }
   }, [ready, overlayLines])
 
@@ -2022,11 +2313,28 @@ export function PriceChartView({
     const ctors = seriesCtorsRef.current
     if (!ready || !chart || !ctors) return
 
-    for (const series of zoneSeriesRef.current) chart.removeSeries(series)
-    zoneSeriesRef.current = []
+    // Same reconcile-don't-rebuild discipline as the overlay lines: a chop or
+    // fair-value-gap zone that hasn't moved keeps its series across frames.
+    // Keyed by the rectangle it draws, NOT by `zone.id` — indicator zone ids
+    // are bar-index based, so every id shifts by one each time the paint window
+    // slides even though the box on screen has not moved an inch.
+    const zoneMap = zoneSeriesRef.current
+    const drawable = zones.filter(
+      (zone) => zone.top > zone.bottom && zone.toMs > zone.fromMs
+    )
+    const signatureOf = (zone: ChartZone) =>
+      `${zone.fromMs}:${zone.toMs}:${zone.top}:${zone.bottom}:${zone.fillColor}:${zone.borderColor ?? ""}`
+    const wantedZones = new Set(drawable.map(signatureOf))
+    for (const [signature, series] of zoneMap) {
+      if (wantedZones.has(signature)) continue
+      for (const item of series) chart.removeSeries(item)
+      zoneMap.delete(signature)
+    }
 
-    for (const zone of zones) {
-      if (!(zone.top > zone.bottom) || !(zone.toMs > zone.fromMs)) continue
+    for (const zone of drawable) {
+      const signature = signatureOf(zone)
+      if (zoneMap.has(signature)) continue
+      const created: ISeriesApi<SeriesType>[] = []
       const series = chart.addSeries(
         ctors.BaselineSeries,
         {
@@ -2049,7 +2357,7 @@ export function PriceChartView({
         { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.top },
         { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.top },
       ])
-      zoneSeriesRef.current.push(series)
+      created.push(series)
       // The baseline series can only stroke its top edge, so a bordered box
       // gets its bottom edge from a separate 2-point line at `bottom`.
       if (zone.borderColor) {
@@ -2068,25 +2376,57 @@ export function PriceChartView({
           { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.bottom },
           { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.bottom },
         ])
-        zoneSeriesRef.current.push(bottomEdge)
+        created.push(bottomEdge)
       }
+      zoneMap.set(signature, created)
     }
   }, [ready, zones])
 
-  // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
+  // Recompute indicator data on every candle/config change. During replay this
+  // runs on every animation frame, so both halves reconcile rather than
+  // rebuild: line series take only their newly appended points, and base marks
+  // are keyed by the span they cover so untouched marks keep their series.
   React.useEffect(() => {
     const map = indicatorSeriesRef.current
     const chart = chartRef.current
     const ctors = seriesCtorsRef.current
     if (!ready || candles.length === 0 || !chart || !ctors) return
 
-    // Rebuild base marks from scratch each run (candles/config change).
-    for (const series of baseSeriesRef.current) chart.removeSeries(series)
-    baseSeriesRef.current = []
+    // A config change swaps every series out from under us, so nothing cached
+    // for the old set can be reused.
+    if (prevIndicatorsRef.current !== indicators) {
+      prevIndicatorsRef.current = indicators
+      lineFilledRef.current.clear()
+      for (const series of baseSeriesRef.current.values()) {
+        chart.removeSeries(series)
+      }
+      baseSeriesRef.current.clear()
+    }
+    // Bars appended on the right this same commit, for this exact array — the
+    // candle effect above runs first and leaves the count here. Anything else
+    // (a scrub, a timeframe switch, older history) means a full re-set.
+    const appended =
+      appendRef.current.candles === candles ? appendRef.current.added : 0
+
     const isDark = document.documentElement.classList.contains("dark")
 
-    const closes = candles.map((candle) => Number(candle.c))
-    const at = (i: number) => (candles[i].t / 1000) as UTCTimestamp
+    // Indicators are recomputed on every revealed bar, so this must not scale
+    // with how long a replay has been running — a session that has revealed
+    // 50,000 bars would otherwise re-run every indicator over all of them,
+    // sixty times a second, and slow to a crawl exactly as it did before.
+    // So while bars are STREAMING in, compute over a fixed trailing window. The
+    // line series keep every point they were ever given (new points are
+    // appended, never re-set), so the drawn history stays complete even though
+    // the maths does not repeat it. Any full recomputation still covers
+    // everything — see INDICATOR_CANDLE_CAP.
+    const window_ =
+      appended > 0 && candles.length > INDICATOR_CANDLE_CAP
+        ? candles.slice(-INDICATOR_CANDLE_CAP)
+        : candles
+    const windowStartSec = Math.floor(window_[0].t / 1000)
+
+    const closes = window_.map((candle) => Number(candle.c))
+    const at = (i: number) => (window_[i].t / 1000) as UTCTimestamp
     const toLine = (values: number[]): LineData[] => {
       const data: LineData[] = []
       for (let i = 0; i < values.length; i += 1) {
@@ -2097,8 +2437,27 @@ export function PriceChartView({
     }
     const setLine = (key: string, values: number[]) => {
       const entry = map.get(key)
-      if (entry) (entry.series as ISeriesApi<"Line">).setData(toLine(values))
+      if (!entry) return
+      const series = entry.series as ISeriesApi<"Line">
+      // Every one of these indicators reads only the past, so appending bars
+      // leaves the earlier values untouched — pushing just the new points
+      // beats re-sending thousands of them sixty times a second.
+      if (
+        appended > 0 &&
+        appended < values.length &&
+        lineFilledRef.current.has(key)
+      ) {
+        for (let i = values.length - appended; i < values.length; i += 1) {
+          if (!Number.isNaN(values[i])) series.update({ time: at(i), value: values[i] })
+        }
+        return
+      }
+      series.setData(toLine(values))
+      lineFilledRef.current.add(key)
     }
+
+    // Base marks that survive this run; anything left over is removed after.
+    const keptBaseKeys = new Set<string>()
 
     for (const ind of indicators) {
       if (!ind.enabled) continue
@@ -2118,6 +2477,14 @@ export function PriceChartView({
             }
             let j = i
             while (j + 1 < marks.length && marks[j + 1] === marks[i]) j += 1
+            // Keyed by the exact mark it draws, so a mark that did not move
+            // between frames keeps the series it already has.
+            const key = `${at(i)}|${at(j)}|${marks[i]}|${color}`
+            keptBaseKeys.add(key)
+            if (baseSeriesRef.current.has(key)) {
+              i = j + 1
+              continue
+            }
             const series = chart.addSeries(
               ctors.LineSeries,
               {
@@ -2133,7 +2500,7 @@ export function PriceChartView({
               { time: at(i), value: marks[i] },
               { time: at(j), value: marks[i] },
             ])
-            baseSeriesRef.current.push(series)
+            baseSeriesRef.current.set(key, series)
             i = j + 1
           }
         }
@@ -2143,7 +2510,7 @@ export function PriceChartView({
         const showCeilings = (ind.params.formedShowShort ?? 1) !== 0
         if (showBases) {
           const { line } = baseLevels(
-            candles,
+            window_,
             ind.params.basePeriods,
             ind.params.pumpPeriods
           )
@@ -2152,7 +2519,7 @@ export function PriceChartView({
         // Ceilings in the down colour, so "sell here" reads apart from the base.
         if (showCeilings) {
           const ceilings = ceilingLevels(
-            candles,
+            window_,
             ind.params.basePeriods,
             ind.params.pumpPeriods
           )
@@ -2176,19 +2543,44 @@ export function PriceChartView({
         setLine("macd-signal", result.signal)
         const histEntry = map.get("macd-hist")
         if (histEntry) {
-          const data: HistogramData[] = []
-          for (let i = 0; i < result.hist.length; i += 1) {
-            if (!Number.isNaN(result.hist[i])) {
-              data.push({
-                time: at(i),
-                value: result.hist[i],
-                color: result.hist[i] >= 0 ? MACD_UP : MACD_DOWN,
-              })
+          const series = histEntry.series as ISeriesApi<"Histogram">
+          const bar = (i: number): HistogramData => ({
+            time: at(i),
+            value: result.hist[i],
+            color: result.hist[i] >= 0 ? MACD_UP : MACD_DOWN,
+          })
+          if (
+            appended > 0 &&
+            appended < result.hist.length &&
+            lineFilledRef.current.has("macd-hist")
+          ) {
+            for (let i = result.hist.length - appended; i < result.hist.length; i += 1) {
+              if (!Number.isNaN(result.hist[i])) series.update(bar(i))
             }
+          } else {
+            const data: HistogramData[] = []
+            for (let i = 0; i < result.hist.length; i += 1) {
+              if (!Number.isNaN(result.hist[i])) data.push(bar(i))
+            }
+            series.setData(data)
+            lineFilledRef.current.add("macd-hist")
           }
-          ;(histEntry.series as ISeriesApi<"Histogram">).setData(data)
         }
       }
+    }
+
+    // Base marks the current candles no longer produce (the oldest scrolled
+    // out, or a level moved) lose their series here — the only place they are
+    // removed, so an unchanged mark is never destroyed and rebuilt.
+    //
+    // Only marks INSIDE the computed window are eligible: an older mark was
+    // simply not recomputed this pass, and dropping it would make base levels
+    // evaporate behind the playhead as a long replay slid its window along.
+    for (const [key, series] of baseSeriesRef.current) {
+      if (keptBaseKeys.has(key)) continue
+      if (baseKeyStart(key) < windowStartSec) continue
+      chart.removeSeries(series)
+      baseSeriesRef.current.delete(key)
     }
   }, [ready, candles, indicators])
 

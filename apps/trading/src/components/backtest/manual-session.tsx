@@ -56,6 +56,10 @@ import {
 import {
   aggregateCandles,
   countRevealed,
+  REPLAY_KEEP_BARS,
+  REPLAY_TRIM_STEP,
+  trailingWindow,
+  trimToRunway,
   type ReplaySpeed,
 } from "@/lib/backtest/replay"
 import {
@@ -92,23 +96,57 @@ import { BacktestKpis } from "./backtest-kpis"
 import { PracticeMiniChart } from "./practice-mini-chart"
 import { ReplayTransport } from "./replay-transport"
 
-/** Replay tick; the playhead advances speed × bars each second. */
-const TICK_MS = 100
+/**
+ * Longest stretch of real time one playback frame may bank. The playhead moves
+ * by however long the last frame actually took, so a heavy frame catches itself
+ * up instead of quietly running slow — but a frame that took ages (the tab was
+ * hidden, the laptop slept) must not blast through half the session at once.
+ */
+const MAX_FRAME_MS = 250
+/**
+ * Shortest gap between playback steps. Each step re-renders the session and
+ * repaints the chart, so stepping on every animation frame spends most of the
+ * budget redrawing rather than replaying. ~30 steps a second looks identical —
+ * the playhead advances by real elapsed time either way, so the tape runs at
+ * exactly the same speed, just in slightly larger moves.
+ */
+const MIN_STEP_MS = 32
 /**
  * History loaded behind the session start so support/resistance context is
  * visible from the first candle (also the indicator warmup runway).
  */
 const CONTEXT_BARS = 1500
-/** Older-history chunk loaded when the user scrolls near the loaded floor. */
-const CHUNK_DAYS = 30
 const DAY_MS = 86_400_000
-/** Start loading older history when the view's left edge is within this. */
-const EDGE_BUFFER_MS = 2 * DAY_MS
+/**
+ * Older-history chunk loaded when the user scrolls near the loaded floor, in
+ * BARS — not days. A fixed number of days is a wildly different amount of work
+ * depending on the timeframe: 30 days is 120 bars at 4h and 43,200 bars at 1m.
+ * Measured in bars it costs the same everywhere, and a chart carrying 43,000
+ * surplus bars through its per-frame work is what made a long session lag.
+ */
+const CHUNK_BARS = 2000
+/**
+ * Start loading older history when the view's left edge is within this many
+ * bars of the loaded floor. Also in bars, and comfortably smaller than the
+ * chunk above — otherwise every chunk lands still inside the trigger zone and
+ * the chart backfills itself in a loop until it hits the ceiling.
+ */
+const EDGE_BUFFER_BARS = 300
 
 const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 const EMPTY_CANDLES: HistoryCandle[] = []
-/** Most candles the display chart holds at once — playback speed guard. */
-const DISPLAY_CANDLE_CAP = 6000
+/** Loaded-history ceiling: no point holding more than can ever be shown. */
+const DISPLAY_CANDLE_CAP = REPLAY_KEEP_BARS + REPLAY_TRIM_STEP
+/** Candles the indicator paint pipeline reruns over on every revealed bar. */
+const PAINT_CANDLE_CAP = 1200
+/**
+ * Shortest life a freshly drawn waiting order gets, in session candles — a
+ * floor for boxes drawn too narrow to survive (e.g. drawn on a much finer
+ * display timeframe). Keep it SMALL: the drawing is widened to match, so a big
+ * floor stretches a freshly clicked box clear across the chart. A click already
+ * makes a box about 8% of the visible span, and this must not fight that.
+ */
+const MIN_ORDER_BARS = 20
 /** Amber for resting entries — the same hue the replay tape uses. */
 const WAITING_ORDER_COLOR = "#f59e0b"
 
@@ -373,7 +411,9 @@ export function ManualSessionScreen({ config }: { config: PracticeConfig }) {
     })
       .then((data) => {
         if (cancelled) return
-        const simCandles = data.candles.filter((c) => c.t >= simStartMs)
+        const runwayFromMs = simStartMs - CONTEXT_BARS * stepMs
+        const context = trimToRunway(data.candles, runwayFromMs)
+        const simCandles = context.filter((c) => c.t >= simStartMs)
         if (simCandles.length < 2) {
           setState((s) => ({
             ...s,
@@ -387,7 +427,7 @@ export function ManualSessionScreen({ config }: { config: PracticeConfig }) {
           simCandles,
           simStartMs,
           endMs: simCandles[simCandles.length - 1].T,
-          contextCandles: data.candles,
+          contextCandles: context,
           engine: new ManualSession({
             simStartMs,
             startingEquity: config.equity,
@@ -536,7 +576,9 @@ function ActiveSession({
 
   const [playheadMs, setPlayheadMs] = React.useState(simStartMs)
   const [playing, setPlaying] = React.useState(false)
-  const [speed, setSpeed] = React.useState<ReplaySpeed>(5)
+  // Fastest speed by default — practice is about getting to the next setup,
+  // and slowing down is one click away.
+  const [speed, setSpeed] = React.useState<ReplaySpeed>(60)
   // Auto-pause: signal arrows while uninvolved, stop/TP exits while trading.
   const [pauseOnSignal, setPauseOnSignal] = usePersistedState(
     "practice-pause-on-signal",
@@ -675,33 +717,57 @@ function ActiveSession({
   // Time HOLDS while a drawing gesture is in flight — advancing would slide
   // the axis under the pointer (the drag runs away) or pile up off-screen
   // bars that lurch the view the moment the gesture ends.
+  //
+  // Driven by animation frames off the REAL clock, not a fixed timer with a
+  // fixed step. A timer fires again whether or not the last tick finished, so a
+  // heavy frame leaves work queued behind it — the callbacks stack up, the page
+  // stops responding, and because each one moved time by a fixed amount, 60×
+  // silently degrades into something far slower the longer a session runs.
+  // Asking for the next frame only after this one is done can never stack, and
+  // measuring how long the frame really took keeps 60× at 60×.
   const chartApiRef = React.useRef<PriceChartHandle | null>(null)
   const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
     chartApiRef.current = api
   }, [])
   React.useEffect(() => {
     if (!playing) return
-    const timer = window.setInterval(() => {
-      if (chartApiRef.current?.drawingGestureActive()) return
-      const next =
-        playheadRef.current + sessionStepMs * speed * (TICK_MS / 1000)
+    let frame = 0
+    let previousMs = performance.now()
+    const tick = () => {
+      const now = performance.now()
+      frame = requestAnimationFrame(tick)
+      if (chartApiRef.current?.drawingGestureActive()) {
+        previousMs = now
+        return
+      }
+      const elapsed = now - previousMs
+      // Let time accumulate rather than stepping on every single frame. Each
+      // step re-renders the screen and repaints the chart, and doing that sixty
+      // times a second is most of the work a fast replay does — while the tape
+      // looks exactly the same at thirty, because the playhead still moves by
+      // however much real time has passed. Fewer, slightly bigger steps.
+      if (elapsed < MIN_STEP_MS) return
+      previousMs = now
+      const banked = Math.min(elapsed, MAX_FRAME_MS)
+      const next = playheadRef.current + sessionStepMs * speed * (banked / 1000)
       if (next >= endMs) setPlaying(false)
       advanceTo(next)
-    }, TICK_MS)
-    return () => window.clearInterval(timer)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
   }, [playing, speed, sessionStepMs, endMs, advanceTo])
 
   // A box drawn on a fine display timeframe can be only minutes wide — its
   // waiting order would expire within a session bar or two, reading as "my
-  // buy never triggers". Every fresh box gets a minimum lifetime of 20
-  // SESSION candles from the current playhead; the drawing widens to match
-  // so the visible right edge always tells the true expiry.
+  // buy never triggers". Every fresh box gets a minimum lifetime of
+  // MIN_ORDER_BARS SESSION candles from the current playhead; the drawing
+  // widens to match so the visible right edge always tells the true expiry.
   const knownBoxIdsRef = React.useRef(new Set<string>())
   const withMinimumLifetime = React.useCallback(
     (next: ChartDrawings): ChartDrawings => {
       const stepSec = sessionStepMs / 1000
       const floorEndSec =
-        Math.floor(playheadRef.current / 1000) + 20 * stepSec
+        Math.floor(playheadRef.current / 1000) + MIN_ORDER_BARS * stepSec
       let changed = false
       const positions = next.positions.map((position) => {
         if (knownBoxIdsRef.current.has(position.id)) return position
@@ -765,7 +831,10 @@ function ActiveSession({
           if (cancelled) return
           setCandleStore((current) => ({
             ...current,
-            [interval]: data.candles,
+            [interval]: trimToRunway(
+              data.candles,
+              simStartMs - CONTEXT_BARS * INTERVAL_MS[interval as BacktestInterval]
+            ),
           }))
         })
         .catch(() => {
@@ -788,13 +857,14 @@ function ActiveSession({
       // Once the display cap is reached, older history can't be shown anyway
       // — backfilling further would fetch in a loop for nothing.
       if ((loaded?.length ?? 0) >= DISPLAY_CANDLE_CAP) return
-      if (fromSec * 1000 > floor + EDGE_BUFFER_MS) return
+      const stepMs = INTERVAL_MS[displayInterval as BacktestInterval]
+      if (fromSec * 1000 > floor + EDGE_BUFFER_BARS * stepMs) return
       if (loadingOlderRef.current) return
       loadingOlderRef.current = true
       void loadPracticeCandles({
         market: config.market,
         interval: displayInterval as BacktestInterval,
-        fromMs: floor - CHUNK_DAYS * DAY_MS,
+        fromMs: floor - CHUNK_BARS * stepMs,
         toMs: floor,
       })
         .then((data) => {
@@ -823,17 +893,12 @@ function ActiveSession({
   // revealed — otherwise every tick re-runs the chart's whole indicator and
   // paint pipeline over the full history and playback stutters.
   const revealedCount = countRevealed(displayCandles, playheadMs)
-  // Cap what the chart holds to the recent stretch: a month of 1m candles is
-  // ~45k, and repainting + indicator math over all of them on every revealed
-  // bar starves the playback clock (time barely moves — orders look like
-  // they never trigger). 6,000 candles ≈ 4 days of 1m / 20 days of 5m; the
-  // session timeframe and coarser keep their full depth.
-  const visibleCandles = React.useMemo(() => {
-    const revealed = displayCandles.slice(0, revealedCount)
-    return revealed.length > DISPLAY_CANDLE_CAP
-      ? revealed.slice(-DISPLAY_CANDLE_CAP)
-      : revealed
-  }, [displayCandles, revealedCount])
+  // Bounded and trimmed in steps — see REPLAY_KEEP_BARS for why it is stepped
+  // rather than sliding a bar at a time.
+  const visibleCandles = React.useMemo(
+    () => trailingWindow(displayCandles, revealedCount),
+    [displayCandles, revealedCount]
+  )
 
   // Mini-chart candles at its own timeframe, honest to the playhead: finer or
   // equal timeframes clip fetched candles; coarser ones aggregate the
@@ -854,11 +919,9 @@ function ActiveSession({
       miniStepMs > sessionStepMs
         ? aggregateCandles(revealed, miniStepMs)
         : revealed
-    // Same display cap as the main chart — a fine mini timeframe would
+    // Same stepped window as the main chart — a fine mini timeframe would
     // otherwise hold a month of 1m candles and drag playback down.
-    return folded.length > DISPLAY_CANDLE_CAP
-      ? folded.slice(-DISPLAY_CANDLE_CAP)
-      : folded
+    return trailingWindow(folded, folded.length)
   }, [miniOpen, miniSource, miniRevealed, miniStepMs, sessionStepMs])
 
   // Lettered chips (O = opened, C = closed) so the user's own fills can never
@@ -882,14 +945,15 @@ function ActiveSession({
 
   // The pinned indicators' derived paint (signal arrows, zones, bar colors),
   // computed over the revealed candles only — indicators can't see the
-  // future. Capped to the most recent candles: on a 1m display a month is
-  // ~45k candles, and recomputing heavy indicators over all of them on every
-  // revealed bar makes playback crawl (which reads as orders never
-  // triggering — time is barely moving).
+  // future. Held to a FIXED span of recent candles rather than everything
+  // revealed: this recomputes on every revealed bar, so letting it grow with
+  // the session is exactly why an hour into a run the same 60× crawls. A fixed
+  // window means minute one and hour three cost the same. 1,200 candles is
+  // several screens of scroll-back and far past any indicator's warmup.
   const paintCandles = React.useMemo(
     () =>
-      visibleCandles.length > 4000
-        ? visibleCandles.slice(-4000)
+      visibleCandles.length > PAINT_CANDLE_CAP
+        ? visibleCandles.slice(-PAINT_CANDLE_CAP)
         : visibleCandles,
     [visibleCandles]
   )
