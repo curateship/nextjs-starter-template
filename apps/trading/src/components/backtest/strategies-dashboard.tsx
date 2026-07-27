@@ -581,14 +581,12 @@ export function RunGroupsDashboard({
       // Whole-basket risk AND capital base from the combined equity curve
       // (server-computed), not an average of each market's own worst day.
       const metrics = groupMetrics[groupId]
-      // The basket's real capital base. A shared-account group (DCA) runs
-      // every market off ONE wallet, so its denominator is that single wallet —
-      // the server's blend reports it as `startEquity`. Summing each market's
-      // starting equity would count the one shared pot once per market and make
-      // the return read ~N× too small. Independent baskets fall back to the sum.
-      const basketEquity =
-        metrics?.startEquity ??
-        done.reduce((sum, run) => sum + run.startingEquity, 0)
+      // The basket's capital base is the pot: the starting balance, ONCE,
+      // however many markets ran. The server's blend reports it as
+      // `startEquity`; before that loads, one market's own starting balance is
+      // the same number. Summing them would count the one pot once per market
+      // and make the return read ~N× too small.
+      const basketEquity = metrics?.startEquity ?? done[0]?.startingEquity ?? 0
       const netPnl =
         done.length > 0
           ? done.reduce((sum, run) => sum + (run.netPnl as number), 0)
@@ -1041,12 +1039,9 @@ export function RunHistoryDashboard({
   // This run's headline stats, blended across its completed markets.
   const summary = React.useMemo(() => {
     const done = marketRuns.filter((run) => run.status === "done")
-    // One shared wallet for a shared-account basket (server's `startEquity`),
-    // summed capital for independent markets — never the naive per-market sum
-    // of a shared pot. See the group-list summary above for the full rationale.
-    const equity =
-      metrics?.startEquity ??
-      done.reduce((sum, run) => sum + run.startingEquity, 0)
+    // The pot — the starting balance once, never once per market. See the
+    // group-list summary above for the full rationale.
+    const equity = metrics?.startEquity ?? done[0]?.startingEquity ?? 0
     const pnl = done.reduce((sum, run) => sum + (run.netPnl ?? 0), 0)
     return {
       markets: marketRuns.length,

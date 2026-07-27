@@ -59,6 +59,9 @@ export type IndicatorParamField = {
   kind?: "number" | "select" | "boolean"
   step?: number
   options?: string[]
+  /** Display text per option, when the stored values aren't readable on their
+   * own (session keys). Positional; falls back to the option itself. */
+  optionLabels?: string[]
   /** One plain sentence shown in an info tooltip beside the field's label. */
   info?: string
 }

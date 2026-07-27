@@ -14,7 +14,6 @@ import { tradingBacktests } from "@/server/schema"
 type MarketCurve = {
   start: number
   curve: BacktestEquityPoint[]
-  sharedAccount?: boolean
 }
 
 /** One point on the summed basket curve: bar time and total basket equity. */
@@ -22,30 +21,34 @@ type CombinedPoint = { t: number; total: number }
 type BlendedCurve = { totalStart: number; series: CombinedPoint[] }
 
 /**
- * Blends every market's equity curve into one combined basket curve. Equal-
- * weight, no rebalancing: each market compounds from its own starting capital
- * and we sum them at each bar. A market's capital sits idle (flat at its start)
- * before its history begins, so markets with shorter histories don't distort
- * the early basket. Returns the total starting capital plus the summed curve.
+ * Blends every market's equity curve into one combined basket curve.
+ *
+ * THE POT IS THE STARTING BALANCE, ONCE. Every market in a group runs the same
+ * starting balance, and that one balance is the basket's capital — testing
+ * four markets does not mean four accounts existed. So the curve starts at that
+ * single number and each market adds its PROFIT to it, rather than each market
+ * contributing a whole account to a summed total. Summing the accounts was
+ * tried and reported a real loss at roughly a quarter of its size (July 26,
+ * 2026), and it put this drawdown on a different denominator from the Net P&L
+ * beside it.
+ *
+ * A market's profit is 0 (flat at its start) before its history begins, so
+ * markets with shorter histories don't distort the early basket. Returns the
+ * pot plus the combined curve.
  */
 export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
   const ms = markets
     .filter((m) => Array.isArray(m.curve) && m.curve.length > 0)
     .map((m) => ({
       start: m.start,
-      sharedAccount: m.sharedAccount === true,
       pts: [...m.curve].sort((a, b) => a.t - b.t),
     }))
   if (ms.length === 0) return null
-  // A group is homogeneous by construction — every market in it is DCA, or every
-  // one shared-wallet basket, or every one an independent single-market run.
-  // So `every` and `some` agree here; a mixed group can't occur. If one ever
-  // could, the shared branch (one wallet) and the summed branch would BOTH
-  // mis-denominate it, so the invariant matters more than the choice of reducer.
-  const sharedAccount = ms.every((market) => market.sharedAccount)
-  const totalStart = sharedAccount
-    ? ms[0].start
-    : ms.reduce((sum, m) => sum + m.start, 0)
+  // Every market in a group runs the same starting balance, so this is just
+  // "the pot" — taken as the largest rather than the first so a group that
+  // somehow holds mixed balances still answers the same way whatever order the
+  // rows come back in.
+  const totalStart = Math.max(...ms.map((market) => market.start))
   if (totalStart <= 0) return null
 
   // Union of every bar time across all markets, in order.
@@ -66,9 +69,9 @@ export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
         idx[i]++
       }
     }
-    let total = sharedAccount ? totalStart : 0
+    let total = totalStart
     for (let index = 0; index < cur.length; index += 1) {
-      total += sharedAccount ? cur[index] - ms[index].start : cur[index]
+      total += cur[index] - ms[index].start
     }
     series.push({ t, total })
   }
@@ -235,9 +238,6 @@ export async function loadGroupPortfolioMetrics(
         curve: sql<
           BacktestEquityPoint[] | null
         >`${tradingBacktests.result} -> 'equityCurve'`,
-        sharedAccount: sql<
-          string | null
-        >`${tradingBacktests.result} #>> '{portfolio,sharedAccount}'`,
       })
       .from(tradingBacktests)
       .where(
@@ -251,11 +251,7 @@ export async function loadGroupPortfolioMetrics(
     for (const row of rows) {
       if (!row.curve) continue
       const list = byGroup.get(row.groupId) ?? []
-      list.push({
-        start: Number(row.startingEquity),
-        curve: row.curve,
-        sharedAccount: row.sharedAccount === "true",
-      })
+      list.push({ start: Number(row.startingEquity), curve: row.curve })
       byGroup.set(row.groupId, list)
     }
     for (const groupId of toLoad) {
@@ -286,9 +282,6 @@ export async function loadGroupPortfolioSummary(
       curve: sql<
         BacktestEquityPoint[] | null
       >`${tradingBacktests.result} -> 'equityCurve'`,
-      sharedAccount: sql<
-        string | null
-      >`${tradingBacktests.result} #>> '{portfolio,sharedAccount}'`,
     })
     .from(tradingBacktests)
     .where(
@@ -300,13 +293,7 @@ export async function loadGroupPortfolioSummary(
     )
   const markets = rows.flatMap((row) =>
     row.curve && row.curve.length > 0
-      ? [
-          {
-            start: Number(row.startingEquity),
-            curve: row.curve,
-            sharedAccount: row.sharedAccount === "true",
-          },
-        ]
+      ? [{ start: Number(row.startingEquity), curve: row.curve }]
       : []
   )
   const blended = blendCurves(markets)

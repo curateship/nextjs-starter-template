@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select"
 import {
   automationIntervalRatio,
+  MAX_RR_RATIO,
   type AutomationInterval,
   type AutomationNode,
   type AutomationValidationError,
@@ -966,9 +967,9 @@ function IndicatorField({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {field.options.map((option) => (
+            {field.options.map((option, index) => (
               <SelectItem key={option} value={option}>
-                {option}
+                {field.optionLabels?.[index] ?? option}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1118,12 +1119,48 @@ function ProtectionNodeFields({
   const isTp = node.kind === "takeProfit"
   const max = isTp ? 1000 : 100
   const trailing = node.kind === "stopLoss" && node.mode === "trailing"
+  const atSessionOpen = node.kind === "stopLoss" && node.level === "sessionOpen"
+  const rrRatio = node.kind === "takeProfit" ? node.rrRatio : undefined
   const tpMode =
     node.kind === "takeProfit" ? (node.mode ?? "average") : "average"
   const previousRung = tpMode !== "average"
   return (
     <div className="grid gap-3">
       {node.kind === "stopLoss" ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`stop-level-${node.id}`}
+            info="Percent from entry: the stop sits that far from where you got in. Session open: the stop sits at the price the session opened at — below your entry on a long, above it on a short. Wire a Sessions node into this one to say which session; the percent below is then only used for a trade opened outside those hours."
+          >
+            Stop sits at
+          </FieldLabel>
+          <Select
+            value={node.level ?? "percent"}
+            onValueChange={(level) =>
+              onChange({
+                ...node,
+                level: level === "sessionOpen" ? "sessionOpen" : "percent",
+                // The session open is one price; it cannot also trail.
+                ...(level === "sessionOpen" ? { mode: "fixed" as const } : {}),
+              })
+            }
+          >
+            <SelectTrigger
+              id={`stop-level-${node.id}`}
+              className="h-8 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percent">A percent from the entry</SelectItem>
+              <SelectItem value="sessionOpen">
+                The session open — wire a Sessions node in
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {node.kind === "stopLoss" && !atSessionOpen ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`protection-mode-${node.id}`}
@@ -1228,19 +1265,83 @@ function ProtectionNodeFields({
           </Select>
         </div>
       ) : null}
-      {isTp && previousRung ? null : (
+      {node.kind === "takeProfit" && !previousRung ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`tp-basis-${node.id}`}
+            info="A percent is a fixed distance from your entry. A risk-reward ratio measures against the stop instead: at 1:1 a 2% stop takes profit at 2%, at 2:1 it takes profit at 4%. It follows whatever the stop does, so it works with every kind of stop and every entry node."
+          >
+            Take profit measured as
+          </FieldLabel>
+          <Select
+            value={rrRatio === undefined ? "percent" : "riskReward"}
+            onValueChange={(value) =>
+              onChange({
+                ...node,
+                rrRatio: value === "riskReward" ? (rrRatio ?? 1) : undefined,
+              })
+            }
+          >
+            <SelectTrigger id={`tp-basis-${node.id}`} className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percent">A percent from the entry</SelectItem>
+              <SelectItem value="riskReward">
+                R&amp;R ratio — a multiple of the stop
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {node.kind === "takeProfit" && rrRatio !== undefined && !previousRung ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`tp-rr-${node.id}`}
+            info={`Reward per unit of risk. 1 means 1:1 — the profit target is the same distance as the stop. 2 means 2:1 — twice the stop's distance. Up to ${MAX_RR_RATIO}.`}
+          >
+            R&amp;R ratio (reward : risk)
+          </FieldLabel>
+          <Input
+            id={`tp-rr-${node.id}`}
+            type="number"
+            min={0.1}
+            max={MAX_RR_RATIO}
+            step={0.1}
+            value={rrRatio}
+            className="h-8 text-xs"
+            onChange={(event) =>
+              onChange({ ...node, rrRatio: Number(event.target.value) })
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {rrRatio}:1 — the target sits {rrRatio === 1 ? "the same distance" : `${rrRatio}x as far`} from
+            your entry as the stop does. This entry needs a Stop Loss for it to
+            measure against.
+          </p>
+        </div>
+      ) : null}
+      {isTp && (previousRung || rrRatio !== undefined) ? null : (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`protection-${node.id}`}
             info={
               isTp
                 ? "How far above the entry to take profit."
-                : trailing
-                  ? "How far below the best price the trailing stop sits."
-                  : "How far below the entry to cut the loss."
+                : atSessionOpen
+                  ? "The fallback for a trade opened outside the session's hours, where there is no session-open price to sit at."
+                  : trailing
+                    ? "How far below the best price the trailing stop sits."
+                    : "How far below the entry to cut the loss."
             }
           >
-            {isTp ? "Take profit %" : trailing ? "Trail distance %" : "Stop loss %"}
+            {isTp
+              ? "Take profit %"
+              : atSessionOpen
+                ? "Stop loss % (outside the session)"
+                : trailing
+                  ? "Trail distance %"
+                  : "Stop loss %"}
           </FieldLabel>
           <Input
             id={`protection-${node.id}`}
@@ -1257,13 +1358,15 @@ function ProtectionNodeFields({
           <p className="text-[11px] text-muted-foreground">
             {isTp
               ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
-              : trailing
-                ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
-                : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
+              : atSessionOpen
+                ? "Used only when a trade opens outside the session, where there is no session-open price to sit at. There is always a stop."
+                : trailing
+                  ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
+                  : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
           </p>
         </div>
       )}
-      {trailing ? (
+      {trailing && !atSessionOpen ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`protection-activation-${node.id}`}

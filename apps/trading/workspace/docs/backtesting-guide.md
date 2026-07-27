@@ -99,6 +99,17 @@ spent generating noise and it read like progress the whole time.
 ## What counts as a real result
 
 - **Use percentages, not dollar amounts.** The dollar size is arbitrary.
+- **The pot is the starting balance, once.** Every basket percent — Net P&L,
+  combined drawdown, bucket low, the combined equity curve — divides by that
+  single number, however many markets the run covered. Testing 20 markets does
+  not mean 20 accounts existed. Until 26 July 2026 non-DCA baskets divided by
+  the starting balance × the market count, so **any basket percentage copied out
+  of the app before that date is roughly 1/N of its true size** — profit and
+  loss alike. DCA runs already used one wallet and are unaffected.
+  This assumes each market sizes its bets off a share of the pot (the usual
+  `targetEquityPct` setup). If every market were instead sized as though it had
+  the whole balance to itself, the run would be over-committed and no
+  denominator would make it realistic.
 - **Track how many coins are green.** A real edge works on the majority of the
   basket, not a lucky few.
 - **Use portfolio drawdown** (all coins combined), not just one coin's.

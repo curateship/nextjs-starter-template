@@ -214,12 +214,17 @@ function indicatorDefinition(id: IndicatorId): AutomationNodeDefinition {
     ],
     connectionError: (sourcePort, target) => {
       if (sourcePort === "trend") {
+        // Sessions also feeds a Stop Loss: the wire is what tells the stop
+        // which session's opening price to sit at.
+        if (id === "session" && target.kind === "stopLoss") return null
         return target.kind === "indicator" ||
           target.kind === "lookback" ||
           target.kind === "timeframe" ||
           target.kind === "dca"
           ? null
-          : "The Trend output can only connect to an indicator, Look Back, Timeframe, or DCA node."
+          : id === "session"
+            ? "The Trend output can only connect to an indicator, Look Back, Timeframe, DCA, or Stop Loss node."
+            : "The Trend output can only connect to an indicator, Look Back, Timeframe, or DCA node."
       }
       return target.kind === "action" || target.kind === "dca"
         ? null
@@ -548,10 +553,16 @@ function protectionDefinition(
     name: () => name,
     description: (node) => {
       if (node.kind !== kind) return ""
-      if (kind === "takeProfit") {
-        return `Banks profit ${node.pct}% from the entry on the side it's attached to.`
+      if (node.kind === "takeProfit") {
+        return node.rrRatio !== undefined
+          ? `Banks profit ${node.rrRatio}x the stop's distance on the side it's attached to.`
+          : `Banks profit ${node.pct}% from the entry on the side it's attached to.`
       }
-      return node.kind === "stopLoss" && node.mode === "trailing"
+      if (node.kind !== "stopLoss") return ""
+      if (node.level === "sessionOpen") {
+        return "Sits at the opening price of the session wired into it."
+      }
+      return node.mode === "trailing"
         ? `Trails the best price by ${node.pct}%, locking in gains on the side it's attached to.`
         : `Caps the loss ${node.pct}% from the entry on the side it's attached to.`
     },

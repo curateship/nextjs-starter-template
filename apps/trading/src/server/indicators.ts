@@ -195,6 +195,17 @@ export async function upsertUserIndicator(
       }
     }
   }
+  if (def.type === "session") {
+    // Mirrors the Sessions module's paramsSchema, so a value saved from the
+    // chart card is always one the indicator can actually run with.
+    const ratio = input.params.wickBodyRatio
+    if (
+      ratio !== undefined &&
+      (!Number.isFinite(ratio) || ratio < 0.5 || ratio > 10)
+    ) {
+      throw new Error("Invalid Sessions parameter: wickBodyRatio")
+    }
+  }
   if (def.type === "trendline") {
     const lookback = input.params.swingLookback
     if (

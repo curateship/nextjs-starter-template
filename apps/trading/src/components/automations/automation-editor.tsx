@@ -522,11 +522,9 @@ export function AutomationEditor({
 
   // The whole basket's combined numbers for the left params panel — summed P&L,
   // trades and a weighted win rate across every finished market, so the panel
-  // describes the entire run rather than only the market on the chart. A DCA
-  // ladder runs every market off one shared wallet, so the percent is measured
-  // against that single starting equity; any other strategy runs one account PER
-  // market, so the denominator scales with the market count (handled in combine).
-  const sharedAccount = Boolean(compiled.config?.dca)
+  // describes the entire run rather than only the market on the chart. The
+  // percent is measured against the pot: the starting balance, once, however
+  // many markets the run covered.
   const combinedBacktest = React.useMemo(() => {
     if (!backtest.open) return null
     const stats = backtest.runs
@@ -540,14 +538,12 @@ export function AutomationEditor({
       }))
     return combineMarketStats(stats, {
       startingEquity: backtestSettings.startingEquity,
-      sharedAccount,
     })
   }, [
     backtest.open,
     backtest.runs,
     backtest.runStats,
     backtestSettings.startingEquity,
-    sharedAccount,
   ])
 
   // A dropped tune line rewrites the matching node's setting — the rule, not
