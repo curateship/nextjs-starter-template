@@ -124,8 +124,6 @@ export type JournalSummary = {
   maxDrawdownPct: number | null
   /** Realised-equity path across all markets, oldest first. */
   curve: { t: number; eq: number }[]
-  firstTradeAt: number | null
-  lastTradeAt: number | null
 }
 
 /**
@@ -200,8 +198,6 @@ export function buildJournalSummary(
     fees,
     maxDrawdownPct,
     curve,
-    firstTradeAt: fills.length ? fills[0].fillTime : null,
-    lastTradeAt: fills.length ? fills[fills.length - 1].fillTime : null,
   }
 }
 

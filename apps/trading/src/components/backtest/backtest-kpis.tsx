@@ -1,9 +1,21 @@
 import { Kpi } from "@/components/kpi"
-import type { BacktestStats } from "@/lib/backtest/types"
+import type {
+  BacktestPortfolioUsage,
+  BacktestStats,
+  GroupOpenPositions,
+} from "@/lib/backtest/types"
 import { cn } from "@/lib/utils"
 
 import type { CombinedBacktestSummary } from "./backtest-combine"
-import { num, pct, profitFactor, signedUsd, usd } from "./backtest-format"
+import {
+  formatFocusDays,
+  num,
+  pct,
+  profitFactor,
+  signedUsd,
+  usd,
+  usdWhole,
+} from "./backtest-format"
 
 /** The one home for a run's headline numbers — summary rail + editor backtest mode. */
 export function BacktestKpis({
@@ -52,17 +64,53 @@ export function BacktestKpis({
 }
 
 /**
+ * Why the wallet tiles are blank on most runs: only a DCA basket makes its
+ * markets take turns on one pot. Everything else gives each market its own
+ * account, so there is no single wallet to measure.
+ */
+const NO_SHARED_WALLET = "no shared wallet"
+
+/**
+ * Sub-line for a figure a run is too old to carry — the engine was not
+ * measuring it yet when the run finished, and results are never rewritten after
+ * the fact. Left empty on purpose: the caption's job is to say what the number
+ * above it means, so with no number there is nothing for it to say.
+ */
+const NOT_MEASURED = ""
+
+/** "2 markets open" / "1 market open" — a plain-English count for a sub-line. */
+function marketsOpenLabel(count: number) {
+  return `${count} market${count === 1 ? "" : "s"} open`
+}
+
+/**
+ * How long the wallet stayed up at its high-water mark, as real time rather
+ * than a share of the run — "held 6d" answers the question on its own, where a
+ * percentage sends the reader off to find how long the run was. Zero means the
+ * peak did not survive to a single bar's close, which is worth saying outright.
+ */
+function heldPeakLabel(milliseconds: number) {
+  if (milliseconds <= 0) return "under one candle"
+  return `held ${formatFocusDays(milliseconds / 86_400_000)}`
+}
+
+/**
  * The same headline grid, but for a whole run's basket instead of one market:
  * summed P&L and trades, a trade-weighted win rate, the worst single-market
  * drawdown, and how many markets finished green. Shown in the editor's backtest
  * panel so the numbers describe the entire run, not just the selected market.
+ *
+ * The last three tiles describe the money rather than the trades: how hard the
+ * one shared pot was worked at its heaviest and how long it stayed there, what
+ * it typically ran at, and what was still open when the window closed.
  */
 export function BacktestGroupKpis({
   summary,
   marketsTotal,
   combinedDrawdownPct,
   potAtMaxDdUsd,
-  peakWalletPct,
+  wallet,
+  openPositions,
   className,
 }: {
   summary: CombinedBacktestSummary
@@ -72,8 +120,15 @@ export function BacktestGroupKpis({
   combinedDrawdownPct?: number | null
   /** Money in the pot at the drawdown trough, in dollars; null until loaded. */
   potAtMaxDdUsd?: number | null
-  /** The most of the shared wallet ever deployed at once, in percent. */
-  peakWalletPct?: number | null
+  /**
+   * The run's shared-wallet measurements. `null` means the run is loaded and
+   * has no shared wallet — only a DCA basket does. `undefined` means it has not
+   * loaded yet, which must stay a separate state: saying "no shared wallet"
+   * about a run nobody has read is a claim, not a blank.
+   */
+  wallet?: BacktestPortfolioUsage | null
+  /** Money still open across the basket when the window closed. */
+  openPositions?: GroupOpenPositions | null
   className?: string
 }) {
   return (
@@ -117,8 +172,48 @@ export function BacktestGroupKpis({
       />
       <Kpi
         label="Peak Wallet"
-        value={peakWalletPct != null ? `${peakWalletPct.toFixed(0)}%` : "—"}
-        sub="max deployed"
+        value={
+          wallet?.peakExposurePct != null
+            ? `${wallet.peakExposurePct.toFixed(0)}%`
+            : "—"
+        }
+        sub={
+          wallet === undefined
+            ? NOT_MEASURED
+            : !wallet
+              ? NO_SHARED_WALLET
+              : wallet.timeAtPeakMs != null
+                ? heldPeakLabel(wallet.timeAtPeakMs)
+                : NOT_MEASURED
+        }
+      />
+      <Kpi
+        label="Avg Wallet"
+        value={
+          wallet?.avgExposurePct != null
+            ? `${wallet.avgExposurePct.toFixed(0)}%`
+            : "—"
+        }
+        sub={
+          wallet === undefined
+            ? NOT_MEASURED
+            : !wallet
+              ? NO_SHARED_WALLET
+              : wallet.avgExposurePct != null
+                ? "typically in use"
+                : NOT_MEASURED
+        }
+      />
+      <Kpi
+        label="In Markets"
+        value={openPositions ? usdWhole(openPositions.usd) : "—"}
+        sub={
+          !openPositions
+            ? NOT_MEASURED
+            : openPositions.markets > 0
+              ? marketsOpenLabel(openPositions.markets)
+              : "everything closed"
+        }
       />
     </div>
   )

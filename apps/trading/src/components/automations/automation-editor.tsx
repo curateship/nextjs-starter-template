@@ -805,9 +805,8 @@ export function AutomationEditor({
       combined={combinedBacktest}
       combinedDrawdownPct={backtest.combinedDrawdownPct}
       potAtMaxDdUsd={backtest.potAtMaxDdUsd}
-      peakWalletPct={
-        selectedBacktestResult?.portfolio?.peakExposurePct ?? null
-      }
+      groupCurve={backtest.groupCurve}
+      openPositions={backtest.openPositions}
       marketsTotal={backtest.runs.length}
       interval={interval}
       days={backtest.days}

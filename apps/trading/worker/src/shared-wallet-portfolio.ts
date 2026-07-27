@@ -21,6 +21,15 @@ function compareCandidates(
   return left.market.localeCompare(right.market)
 }
 
+/**
+ * How close to the high-water mark still counts as "at the peak", as a share of
+ * it. The wallet's deployment drifts continuously with price, so it touches its
+ * exact top on one bar and only one — a tight band would answer "no time at all"
+ * on every run. Nine tenths of the peak is the band that answers the question
+ * actually being asked: how long was the wallet up at its heaviest?
+ */
+const PEAK_BAND_FRACTION = 0.9
+
 /** One synchronous reservation bank shared by every market runner of a bot. */
 export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
   private readonly candidates = new Map<
@@ -34,6 +43,16 @@ export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
   private readonly equityDeltas = new Map<string, number>()
   private startingEquity: number | null = null
   private peakReserved = 0
+  private samples = 0
+  private reservedTotal = 0
+  /**
+   * Sampled deployment rounded to whole percent → how many bars sat there.
+   * The peak is only known once the run ends, so the bars can't be counted
+   * against it as they go; keeping the shape of the whole run (a hundred-odd
+   * entries) lets the tally happen at the end, against the real high-water
+   * mark, instead of against whatever the peak happened to be at the time.
+   */
+  private readonly reservedBars = new Map<number, number>()
   private readonly maximumPct: number
 
   // Explicit field assignment (not a constructor parameter property) so the
@@ -138,6 +157,40 @@ export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
   /** The most of the wallet ever committed at once, across the whole run. */
   peakReservedPct() {
     return this.peakReserved
+  }
+
+  /**
+   * Records how much of the wallet is committed right now. The replay calls
+   * this once per bar, so the two readings below are weighted by TIME rather
+   * than by event: a reservation held for 300 bars counts 300 times, not once.
+   */
+  sample() {
+    const total = this.reservedPct()
+    this.samples += 1
+    this.reservedTotal += total
+    const bar = Math.round(total)
+    this.reservedBars.set(bar, (this.reservedBars.get(bar) ?? 0) + 1)
+  }
+
+  /** Average share of the wallet deployed across the sampled bars, percent. */
+  avgReservedPct() {
+    return this.samples > 0 ? this.reservedTotal / this.samples : 0
+  }
+
+  /**
+   * How many sampled bars the wallet spent up at its high-water mark (within
+   * PEAK_BAND_FRACTION of it) — how long the peak lasted, rather than merely
+   * that it happened. Zero when the wallet was never deployed, or when the peak
+   * came and went inside a single bar. The caller turns bars into real time.
+   */
+  barsAtPeak() {
+    if (this.samples === 0 || this.peakReserved <= 0) return 0
+    const floor = this.peakReserved * PEAK_BAND_FRACTION
+    let atPeak = 0
+    for (const [bar, count] of this.reservedBars) {
+      if (bar >= floor) atPeak += count
+    }
+    return atPeak
   }
 
   // DCA reserves only the exposure that has actually filled — growing as the

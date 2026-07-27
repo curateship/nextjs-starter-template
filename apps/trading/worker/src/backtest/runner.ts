@@ -419,6 +419,11 @@ class BacktestRunner {
       trades: this.trades,
       fills: this.fills,
       openPosition,
+      // Money still tied up when the window closed, priced at the last close
+      // rather than at entry — what the market was worth, not what it cost.
+      openNotionalUsd: openPosition
+        ? round(Math.abs(openPosition.szi) * lastClose)
+        : 0,
       stats,
       timeline: {
         events: this.timeline,
@@ -791,6 +796,21 @@ export function runBacktest(cfg: RunBacktestConfig): BacktestResult {
 const DCA_PORTFOLIO_MAX_PCT = 100
 
 /**
+ * How long one bar of a replay covers, in ms — the MEDIAN gap between
+ * consecutive bar times, not the average. A basket whose history has a hole in
+ * it (a market listed late, an outage) leaves a single huge gap in the series;
+ * averaging would spread that hole across every bar and overstate how long
+ * anything was held, while the median ignores it and returns the real interval.
+ */
+function barSpacingOf(times: number[]): number {
+  if (times.length < 2) return 0
+  const gaps: number[] = []
+  for (let i = 1; i < times.length; i += 1) gaps.push(times[i] - times[i - 1])
+  gaps.sort((a, b) => a - b)
+  return gaps[Math.floor(gaps.length / 2)]
+}
+
+/**
  * Called every ~1% of the way through a portfolio replay with the fraction done
  * (0..1). The runner awaits it, so a handler can flush a progress write to the
  * DB — the replay is one long synchronous block otherwise, so without this the
@@ -858,12 +878,19 @@ async function runPortfolioBacktests(
       if (!dueMarkets.has(config.market)) portfolio.observe(config.market, time)
     }
     for (const item of due) item.runner.processBarCloseOrders(item.index)
+    // Once every market has settled this bar, read the wallet — one sample per
+    // bar is what makes the average and the time at the peak time-weighted.
+    portfolio.sample()
     if (onProgress && ti % reportEvery === 0) {
       await onProgress((ti + 1) / times.length)
     }
   }
 
   const peakExposurePct = round(portfolio.peakReservedPct())
+  // Bars at the peak turned into real time, so the panel can say "held 6d"
+  // instead of a share of a run whose length the reader has to go look up.
+  const timeAtPeakMs = Math.round(portfolio.barsAtPeak() * barSpacingOf(times))
+  const avgExposurePct = round(portfolio.avgReservedPct())
   return new Map(
     runners.map((runner, index) => {
       const result = runner.result()
@@ -875,6 +902,8 @@ async function runPortfolioBacktests(
             sharedAccount: true as const,
             marketCount: runners.length,
             peakExposurePct,
+            timeAtPeakMs,
+            avgExposurePct,
           },
         },
       ]

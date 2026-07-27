@@ -113,6 +113,19 @@ spent generating noise and it read like progress the whole time.
 - **Track how many coins are green.** A real edge works on the majority of the
   basket, not a lucky few.
 - **Use portfolio drawdown** (all coins combined), not just one coin's.
+- **Check "In Markets" before you believe the P&L.** A test window stops on a
+  fixed date, usually in the middle of some trades. That tile is the money still
+  sitting in open positions at that moment — it is an unfinished bet, not a
+  booked result. A big number there means much of the P&L could still swing.
+- **Read the wallet tiles on a DCA basket.** Peak Wallet is the most of the one
+  shared pot ever committed at once, with how long it stayed up there
+  underneath ("held 6d"). Avg Wallet is how much of the pot was typically in
+  use, weighted by time. Read them together: a 104% peak held for 6 days out of
+  a 200-day run, against a 25% average, means the money mostly sat idle and
+  there was room for more coins. A peak held for a large slice of the run means
+  coins were being turned away, so a bigger basket would not have helped. Both
+  are blank on every non-DCA run, which gives each market its own account
+  instead of sharing one wallet.
 - **Be honest about the ceiling.** Some targets (e.g. 80% of coins green *and*
   5–10%/month) may simply not be possible for a given strategy. Say so instead of
   forcing it.

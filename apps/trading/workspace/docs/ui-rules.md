@@ -35,6 +35,7 @@ The Trade terminal, the backtest run workspace, the bot run workspace, and the t
 
 ## Charts
 
+- **The equity/P&L curve is one component**, `PnlCurveCard` (`src/components/backtest/pnl-curve-card.tsx`): the "P&L curve" heading, its date range, the area chart (green above the starting balance, red below), the dashed starting-balance line, and the "not enough data" state. It is used by the backtest run workspace, the automation editor's backtest rail, and the trade journal. Never paste a second copy of this chart into a page — change the card and all three move together.
 - Every chart keeps one flat bar above it (`ChartToolbar`) for timeframes, the indicator menu, the legend, and page actions. Drawing tools do not go there.
 - Drawing tools live in the floating toolbar that sits on top of the chart itself (`src/components/chart/chart-draw-toolbar.tsx`): a `bg-card rounded-lg ring-1 ring-foreground/10` bar with a grip on the left and 28px icon buttons. It is rendered once inside `PriceChartView`, so every chart that can save what you draw gets the same tools; do not add a second copy per page.
 - The bar can be dragged anywhere inside the chart by its grip (arrow keys nudge it 8px), is clamped to stay inside the chart on resize, and remembers its spot in this browser under `trading:chart-draw-toolbar`. It starts top-right, inset by the chart's measured price-axis width so it never covers the price labels (they get wider on bigger prices).
