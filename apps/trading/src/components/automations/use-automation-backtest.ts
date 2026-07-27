@@ -14,6 +14,8 @@ import {
 import {
   PREVIOUS_RUN_NAME_PREFIX,
   type BacktestTrade,
+  type GroupCombinedCurve,
+  type GroupOpenPositions,
 } from "@/lib/backtest/types"
 
 import {
@@ -61,6 +63,13 @@ export function useAutomationBacktest(automationId: string) {
   >(null)
   /** Money in the pot (combined equity) at the moment of that worst drawdown. */
   const [potAtMaxDdUsd, setPotAtMaxDdUsd] = React.useState<number | null>(null)
+  /** Every market's equity blended into one curve, for the rail's P&L chart. */
+  const [groupCurve, setGroupCurve] = React.useState<GroupCombinedCurve | null>(
+    null
+  )
+  /** Money the basket was still holding when its test window closed. */
+  const [openPositions, setOpenPositions] =
+    React.useState<GroupOpenPositions | null>(null)
   // Read groupId inside the hydration effect without making it a dep — else
   // the setGroupId the fetch performs would re-run the effect and its cleanup
   // would spuriously cancel the still-pending win-rate fetch nested inside.
@@ -220,6 +229,8 @@ export function useAutomationBacktest(automationId: string) {
         if (cancelled) return
         const metrics = response.groupMetrics[groupId]
         setCombinedDrawdownPct(metrics?.combinedDrawdownPct ?? null)
+        setGroupCurve(response.groupCurve)
+        setOpenPositions(response.groupOpenPositions)
         // The combined equity at the drawdown trough — how much was in the pot
         // when it was at its worst. Walk the curve to the trough's bar time.
         const at = metrics?.drawdownAt ?? null
@@ -337,6 +348,8 @@ export function useAutomationBacktest(automationId: string) {
     groupName,
     combinedDrawdownPct,
     potAtMaxDdUsd,
+    groupCurve,
+    openPositions,
     replaceable,
     keep,
     enter,

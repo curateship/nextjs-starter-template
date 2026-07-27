@@ -11,6 +11,11 @@ export function usd(value: number): string {
   return `${value < 0 ? "-" : ""}$${num(Math.abs(value))}`
 }
 
+/** Whole dollars, no cents — for headline tiles too narrow to fit them. */
+export function usdWhole(value: number): string {
+  return `${value < 0 ? "-" : ""}$${num(Math.abs(value), 0)}`
+}
+
 export function signedUsd(value: number): string {
   return `${value >= 0 ? "+" : "-"}$${num(Math.abs(value))}`
 }

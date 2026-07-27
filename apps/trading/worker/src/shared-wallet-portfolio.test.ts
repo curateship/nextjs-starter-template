@@ -59,3 +59,75 @@ describe("shared wallet exposure", () => {
     expect(portfolio.reserve("HIGH", 100, 25)).toBe(true)
   })
 })
+
+describe("shared wallet usage over time", () => {
+  it("weights the average by bars, not by events", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    // One bar flat, then three bars with the whole wallet committed.
+    portfolio.sample()
+    portfolio.setExposure("A", 100)
+    portfolio.sample()
+    portfolio.sample()
+    portfolio.sample()
+
+    expect(portfolio.peakReservedPct()).toBe(100)
+    expect(portfolio.avgReservedPct()).toBe(75)
+  })
+
+  it("reads zero before any bar has been sampled", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    expect(portfolio.avgReservedPct()).toBe(0)
+    expect(portfolio.barsAtPeak()).toBe(0)
+  })
+
+  it("counts time at the peak against the run's final high-water mark", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    // Two bars at 40 look like the peak while they happen, but a later bar at
+    // 80 takes that title — so only the 80 bar counts as time at the peak.
+    portfolio.setExposure("A", 40)
+    portfolio.sample()
+    portfolio.sample()
+    portfolio.setExposure("A", 80)
+    portfolio.sample()
+    portfolio.setExposure("A", 10)
+    portfolio.sample()
+
+    expect(portfolio.peakReservedPct()).toBe(80)
+    expect(portfolio.barsAtPeak()).toBe(1)
+  })
+
+  it("counts a bar near the peak, but not one well below it", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    portfolio.setExposure("A", 100)
+    portfolio.sample()
+    // 95 is inside the band around 100; 85 is not.
+    portfolio.setExposure("A", 95)
+    portfolio.sample()
+    portfolio.setExposure("A", 85)
+    portfolio.sample()
+    portfolio.setExposure("A", 5)
+    portfolio.sample()
+
+    expect(portfolio.barsAtPeak()).toBe(2)
+  })
+
+  it("reports no time at the peak on a wallet that never deployed", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    portfolio.sample()
+    portfolio.sample()
+
+    expect(portfolio.peakReservedPct()).toBe(0)
+    expect(portfolio.barsAtPeak()).toBe(0)
+  })
+
+  it("reports no time at a peak that came and went inside one bar", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    // The wallet touches 90 and is released before the bar is ever sampled.
+    portfolio.setExposure("A", 90)
+    portfolio.setExposure("A", 10)
+    portfolio.sample()
+
+    expect(portfolio.peakReservedPct()).toBe(90)
+    expect(portfolio.barsAtPeak()).toBe(0)
+  })
+})

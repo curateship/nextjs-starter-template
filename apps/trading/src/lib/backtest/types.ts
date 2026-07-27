@@ -106,19 +106,39 @@ export type BacktestStats = {
   warnings?: string[]
 }
 
+/**
+ * How hard the one shared wallet was worked over a run, measured bar by bar on
+ * the reservation bank itself rather than inferred from the trade list. Only a
+ * DCA basket shares a wallet; every market of such a run carries the same copy,
+ * because these are whole-basket numbers. The measurements are optional: runs
+ * stored before they existed simply don't have them, and their tiles read "—".
+ */
+export type BacktestPortfolioUsage = {
+  sharedAccount: true
+  marketCount: number
+  /** The most of the shared wallet ever deployed at once, in percent. */
+  peakExposurePct?: number
+  /** How long the wallet stayed up at that peak, in milliseconds. */
+  timeAtPeakMs?: number
+  /** Time-weighted average of the wallet deployed, in percent. */
+  avgExposurePct?: number
+}
+
 export type BacktestResult = {
   equityCurve: BacktestEquityPoint[]
   trades: BacktestTrade[]
   fills: BacktestFill[]
   openPosition: BacktestOpenPosition
   stats: BacktestStats
+  /**
+   * Dollar value this market was still holding at its last bar, priced at that
+   * bar's close — 0 when it finished flat. A backtest window ends mid-trade, so
+   * this is the slice of the result that is still an open bet, not a booked
+   * one. Absent on runs stored before it was recorded.
+   */
+  openNotionalUsd?: number
   /** Present when sibling rows are contributions to one shared account. */
-  portfolio?: {
-    sharedAccount: true
-    marketCount: number
-    /** The most of the shared wallet ever deployed at once, in percent. */
-    peakExposurePct?: number
-  }
+  portfolio?: BacktestPortfolioUsage
   /**
    * Replay tape. Stripped into its own DB column at save time and loaded
    * lazily by the replay chart — never part of the always-loaded blob.
@@ -189,6 +209,19 @@ export type GroupPortfolioMetrics = {
   bucketLowPct: number
   /** Bar time (ms) of the basket's lowest combined equity. */
   bucketLowAt: number | null
+}
+
+/**
+ * Money a run group never got back out: what its markets were still holding
+ * when the test window closed. Summed across every completed market, so it
+ * answers "of the result on screen, how much is still an open bet?" — and it
+ * works whether the markets shared one wallet (DCA) or ran on their own.
+ */
+export type GroupOpenPositions = {
+  /** Combined value of every still-open position, in dollars. */
+  usd: number
+  /** Markets still holding something when their window ended. */
+  markets: number
 }
 
 /**

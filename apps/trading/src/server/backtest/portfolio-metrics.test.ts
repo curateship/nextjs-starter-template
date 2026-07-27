@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { blendCurves } from "./portfolio-metrics"
+import { blendCurves, tallyOpenPositions } from "./portfolio-metrics"
 
 describe("backtest portfolio curve", () => {
   it("counts the pot once and adds each market's profit to it", () => {
@@ -67,5 +67,37 @@ describe("backtest portfolio curve", () => {
     // At t=0 only the first market has run: the pot is 100, not 200.
     expect(blended?.series[0]).toEqual({ t: 0, total: 100 })
     expect(blended?.series[1]).toEqual({ t: 2, total: 110 })
+  })
+})
+
+describe("money still open in a run group", () => {
+  it("sums the markets still holding, and counts only those", () => {
+    expect(
+      tallyOpenPositions([
+        { openNotionalUsd: 1200 },
+        { openNotionalUsd: 0 },
+        { openNotionalUsd: 300.5 },
+      ])
+    ).toEqual({ usd: 1500.5, markets: 2 })
+  })
+
+  it("answers a real zero when every market finished flat", () => {
+    expect(
+      tallyOpenPositions([{ openNotionalUsd: 0 }, { openNotionalUsd: 0 }])
+    ).toEqual({ usd: 0, markets: 0 })
+  })
+
+  it("answers unknown — not $0 — for a run finished before this was measured", () => {
+    // "$0, everything closed" would be a claim about what the markets did.
+    // A run with no measurement cannot support it.
+    expect(
+      tallyOpenPositions([{ openNotionalUsd: null }, { openNotionalUsd: null }])
+    ).toBeNull()
+  })
+
+  it("uses what a partly-measured group does carry", () => {
+    expect(
+      tallyOpenPositions([{ openNotionalUsd: null }, { openNotionalUsd: 700 }])
+    ).toEqual({ usd: 700, markets: 1 })
   })
 })

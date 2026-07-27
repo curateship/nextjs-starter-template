@@ -2,14 +2,6 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts"
-import {
   ArrowLeftIcon,
   ChevronDownIcon,
   HistoryIcon,
@@ -25,11 +17,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { Button } from "@/components/ui/button"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import { IconButton } from "@/components/icon-button"
@@ -44,6 +31,7 @@ import {
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BacktestRunChart } from "./backtest-run-chart"
+import { PnlCurveCard } from "./pnl-curve-card"
 import { PracticeSetupDialog } from "./practice-setup-dialog"
 import { StrategyTester } from "./strategy-tester"
 import {
@@ -992,10 +980,6 @@ export function RunGroupsDashboard({
 // /backtest/$groupId — one result row per market of a run group.
 // ---------------------------------------------------------------------------
 
-/** Trading polarity pair, consistent with the price + equity charts. */
-const CHART_UP = "#089981"
-const CHART_DOWN = "#f23645"
-
 export function RunHistoryDashboard({
   runs: initialRuns,
   groupId,
@@ -1084,17 +1068,8 @@ export function RunHistoryDashboard({
     },
   ]
 
-  // Combined equity curve for the P&L chart (points already downsampled server-
-  // side). Green when it ended above where it started, red otherwise.
+  // Combined equity curve for the P&L chart, already downsampled server-side.
   const chartData = groupCurve?.points ?? []
-  const positiveCurve =
-    chartData.length > 1
-      ? chartData[chartData.length - 1].eq >= chartData[0].eq
-      : true
-  const rangeLabel =
-    chartData.length > 1
-      ? `${compactDateFormatter.format(chartData[0].t)} – ${compactDateFormatter.format(chartData[chartData.length - 1].t)}`
-      : null
 
   // The market whose chart + trades fill the workspace, defaulting to the
   // group's main market (else the first finished one). Clicking a market row
@@ -1295,115 +1270,10 @@ export function RunHistoryDashboard({
                         </div>
                       </div>
 
-                      <div className="flex min-w-0 flex-col gap-1.5">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs font-bold">P&L curve</span>
-                          {rangeLabel ? (
-                            <span className="text-[11px] text-muted-foreground">
-                              {rangeLabel}
-                            </span>
-                          ) : null}
-                        </div>
-                        {chartData.length < 2 ? (
-                          <div className="flex h-[184px] items-center justify-center rounded-lg border bg-muted/30 text-xs text-muted-foreground">
-                            Not enough data to plot the P&L curve
-                          </div>
-                        ) : (
-                          <ChartContainer
-                            config={{ eq: { label: "Equity" } }}
-                            className="aspect-auto h-[184px] w-full min-w-0"
-                          >
-                            <AreaChart
-                              data={chartData}
-                              margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
-                            >
-                              <defs>
-                                <linearGradient
-                                  id="group-pnl-fill"
-                                  x1="0"
-                                  y1="0"
-                                  x2="0"
-                                  y2="1"
-                                >
-                                  <stop
-                                    offset="0%"
-                                    stopColor={
-                                      positiveCurve ? CHART_UP : CHART_DOWN
-                                    }
-                                    stopOpacity={0.2}
-                                  />
-                                  <stop
-                                    offset="100%"
-                                    stopColor={
-                                      positiveCurve ? CHART_UP : CHART_DOWN
-                                    }
-                                    stopOpacity={0}
-                                  />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid
-                                vertical={false}
-                                strokeOpacity={0.3}
-                              />
-                              <XAxis
-                                dataKey="t"
-                                tickLine={false}
-                                axisLine={false}
-                                minTickGap={40}
-                                tickFormatter={(value: number) =>
-                                  new Date(value).toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                  })
-                                }
-                              />
-                              <YAxis
-                                width={54}
-                                tickLine={false}
-                                axisLine={false}
-                                domain={["auto", "auto"]}
-                                tickFormatter={(value: number) =>
-                                  `$${Math.round(value).toLocaleString()}`
-                                }
-                              />
-                              {groupCurve ? (
-                                <ReferenceLine
-                                  y={groupCurve.startEquity}
-                                  strokeDasharray="5 4"
-                                  stroke="currentColor"
-                                  strokeOpacity={0.4}
-                                />
-                              ) : null}
-                              <ChartTooltip
-                                content={
-                                  <ChartTooltipContent
-                                    labelFormatter={(_, payload) =>
-                                      payload?.[0]
-                                        ? new Date(
-                                            payload[0].payload.t as number
-                                          ).toLocaleDateString("en-US", {
-                                            month: "short",
-                                            day: "numeric",
-                                            year: "numeric",
-                                          })
-                                        : ""
-                                    }
-                                  />
-                                }
-                              />
-                              <Area
-                                dataKey="eq"
-                                type="monotone"
-                                stroke={positiveCurve ? CHART_UP : CHART_DOWN}
-                                strokeWidth={2}
-                                fill="url(#group-pnl-fill)"
-                                dot={false}
-                                isAnimationActive={false}
-                              />
-                            </AreaChart>
-                          </ChartContainer>
-                        )}
-                      </div>
+                      <PnlCurveCard
+                        points={chartData}
+                        baseline={groupCurve?.startEquity ?? null}
+                      />
                     </div>
                   </ScrollArea>
                 </WorkspacePanel>

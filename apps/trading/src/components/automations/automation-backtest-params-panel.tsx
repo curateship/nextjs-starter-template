@@ -3,8 +3,13 @@ import * as React from "react"
 import { BacktestGroupKpis, BacktestKpis } from "@/components/backtest/backtest-kpis"
 import type { CombinedBacktestSummary } from "@/components/backtest/backtest-combine"
 import { windowDaysOf } from "@/components/backtest/backtest-format"
+import { PnlCurveCard } from "@/components/backtest/pnl-curve-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestDetail } from "@/lib/api/backtests"
+import type {
+  GroupCombinedCurve,
+  GroupOpenPositions,
+} from "@/lib/backtest/types"
 import { isManualRunParams } from "@/lib/backtest/manual-types"
 import type { AutomationBacktestSettings } from "@/lib/automations/automation"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
@@ -14,19 +19,21 @@ import {
 } from "@/lib/strategies/strategy-config"
 
 /**
- * The editor's left panel while backtest mode is on: the run's parameters and
- * its headline numbers — the one home for each. When the run has finished
- * markets the numbers are the whole basket's combined total (P&L, trades, win
- * rate across every market); the parameters below stay the same for every
- * market, so they read the same whichever market is selected. Before any market
- * is selected the rows show the editor's own (saved) settings.
+ * The editor's left panel while backtest mode is on: the run's headline
+ * numbers, the whole basket's P&L curve, and the run's parameters — the one
+ * home for each. When the run has finished markets the numbers are the whole
+ * basket's combined total (P&L, trades, win rate across every market); the
+ * parameters below stay the same for every market, so they read the same
+ * whichever market is selected. Before any market is selected the rows show the
+ * editor's own (saved) settings.
  */
 export function AutomationBacktestParamsPanel({
   selectedRun,
   combined,
   combinedDrawdownPct,
   potAtMaxDdUsd,
-  peakWalletPct,
+  groupCurve,
+  openPositions,
   marketsTotal,
   interval,
   days,
@@ -41,8 +48,10 @@ export function AutomationBacktestParamsPanel({
   combinedDrawdownPct: number | null
   /** Money in the pot at the drawdown trough, in dollars. */
   potAtMaxDdUsd: number | null
-  /** The most of the shared wallet ever deployed at once, in percent. */
-  peakWalletPct: number | null
+  /** Every market's equity blended into one curve; null until results load. */
+  groupCurve: GroupCombinedCurve | null
+  /** Money the basket was still holding when its window closed. */
+  openPositions: GroupOpenPositions | null
   /** Markets in the run, finished or not, for the "Markets" tile. */
   marketsTotal: number
   interval: AutomationInterval
@@ -99,7 +108,11 @@ export function AutomationBacktestParamsPanel({
             marketsTotal={marketsTotal}
             combinedDrawdownPct={combinedDrawdownPct}
             potAtMaxDdUsd={potAtMaxDdUsd}
-            peakWalletPct={peakWalletPct}
+            // undefined until the selected market's run has loaded, so the
+            // tiles stay quiet instead of announcing "no shared wallet" for the
+            // moment between the basket totals arriving and the run behind them.
+            wallet={selectedRun ? (selectedRun.result?.portfolio ?? null) : undefined}
+            openPositions={openPositions}
             className="p-3"
           />
         ) : (
@@ -108,6 +121,14 @@ export function AutomationBacktestParamsPanel({
             className="p-3"
           />
         )}
+        {combined ? (
+          <PnlCurveCard
+            points={groupCurve?.points ?? []}
+            baseline={groupCurve?.startEquity ?? null}
+            emptyMessage="The P&L curve appears once the run's markets finish."
+            className="p-3 pt-0"
+          />
+        ) : null}
         <div className="grid content-start gap-1.5 p-3 pt-0">
           {rows.map((row) => (
             <div

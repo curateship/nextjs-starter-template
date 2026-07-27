@@ -645,6 +645,61 @@ describe("DCA through the real backtest runner", () => {
     expect(bbb?.fills.length ?? 0).toBeGreaterThan(0)
   })
 
+  it("reports the whole basket's wallet usage and what each coin still holds", async () => {
+    const config = dcaConfig({ maxPositionPct: 60 })
+    // Both coins buy the dip and are still holding when the window ends.
+    const candles = [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87),
+      bar(8, 77, 76, 85, 10, 84),
+      bar(9, 78, 76, 80, 10, 77),
+    ]
+    const results = await runDcaPortfolioBacktests([
+      portfolioConfig("AAA", config, candles),
+      portfolioConfig("BBB", config, candles),
+    ])
+    const usage = results.get("AAA")?.portfolio
+    // The same whole-basket wallet numbers ride on every market of the run.
+    expect(results.get("BBB")?.portfolio).toEqual(usage)
+    expect(usage?.avgExposurePct).toBeGreaterThan(0)
+    expect(usage?.avgExposurePct).toBeLessThanOrEqual(usage?.peakExposurePct ?? 0)
+    // Time at the peak is real time: bars up there × the replay's bar spacing.
+    expect(usage?.timeAtPeakMs).toBeGreaterThan(0)
+    // Real time, not a bar count: 3 bars at the peak over 15m bars is 45m,
+    // and the answer must not drift when the run's history has a hole in it.
+    expect(usage?.timeAtPeakMs).toBeGreaterThanOrEqual(15 * 60_000)
+    expect(usage?.timeAtPeakMs).toBeLessThanOrEqual(
+      candles.length * 15 * 60_000
+    )
+    // Open money is each market's own — the position priced at the window's
+    // last close (78), not at what it was bought for.
+    for (const market of ["AAA", "BBB"]) {
+      const result = results.get(market)
+      expect(result?.openPosition).toBeTruthy()
+      expect(result?.openNotionalUsd).toBeCloseTo(
+        Math.abs(result!.openPosition!.szi) * 78,
+        4
+      )
+    }
+  })
+
+  it("reports no money left in a market that finished flat", async () => {
+    const config = dcaConfig({ maxPositionPct: 60 })
+    // Bar 9 spikes to 200, closing both ladders out before the window ends.
+    const candles = [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87),
+      bar(8, 77, 76, 85, 10, 84),
+      bar(9, 200, 79, 210, 10, 82),
+    ]
+    const results = await runDcaPortfolioBacktests([
+      portfolioConfig("AAA", config, candles),
+      portfolioConfig("BBB", config, candles),
+    ])
+    expect(results.get("AAA")?.openPosition).toBeNull()
+    expect(results.get("AAA")?.openNotionalUsd).toBe(0)
+  })
+
   it("reserves only filled exposure and frees it when flat (shared-wallet room math)", () => {
     const p = new SharedWalletPortfolio(100, ["A", "B", "C"])
     p.setExposure("A", 40)

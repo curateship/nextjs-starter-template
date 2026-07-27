@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm"
 import type {
   BacktestEquityPoint,
   GroupCombinedCurve,
+  GroupOpenPositions,
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { db, type CustomShellDb } from "@/server/db"
@@ -122,6 +123,32 @@ function computeCombinedFromBlend(
     bucketLowPct: Math.min(0, (minTotal / totalStart - 1) * 100),
     bucketLowAt: minTotalAt,
   }
+}
+
+/**
+ * Money a group's markets were still holding when their windows closed, summed
+ * across the completed rows.
+ *
+ * Returns null when NO row carries the measurement — runs that finished before
+ * the engine recorded it, which are never rewritten after the fact. That case
+ * has to stay distinct from a real zero: "$0, everything closed" is a claim
+ * about what the markets did, and an unmeasured run cannot support it.
+ */
+export function tallyOpenPositions(
+  rows: { openNotionalUsd: number | null }[]
+): GroupOpenPositions | null {
+  let measured = 0
+  const total: GroupOpenPositions = { usd: 0, markets: 0 }
+  for (const row of rows) {
+    if (row.openNotionalUsd === null) continue
+    const value = Number(row.openNotionalUsd)
+    if (!Number.isFinite(value)) continue
+    measured += 1
+    if (value <= 0) continue
+    total.usd += value
+    total.markets += 1
+  }
+  return measured > 0 ? total : null
 }
 
 /** UI point ceiling for the results-page P&L chart. */
@@ -275,6 +302,7 @@ export async function loadGroupPortfolioSummary(
 ): Promise<{
   metrics: GroupPortfolioMetrics | null
   curve: GroupCombinedCurve | null
+  openPositions: GroupOpenPositions | null
 }> {
   const rows = await database
     .select({
@@ -282,6 +310,9 @@ export async function loadGroupPortfolioSummary(
       curve: sql<
         BacktestEquityPoint[] | null
       >`${tradingBacktests.result} -> 'equityCurve'`,
+      openNotionalUsd: sql<
+        number | null
+      >`(${tradingBacktests.result} ->> 'openNotionalUsd')::double precision`,
     })
     .from(tradingBacktests)
     .where(
@@ -291,18 +322,20 @@ export async function loadGroupPortfolioSummary(
         eq(tradingBacktests.status, "done")
       )
     )
+  const openTotals = tallyOpenPositions(rows)
   const markets = rows.flatMap((row) =>
     row.curve && row.curve.length > 0
       ? [{ start: Number(row.startingEquity), curve: row.curve }]
       : []
   )
   const blended = blendCurves(markets)
-  if (!blended) return { metrics: null, curve: null }
+  if (!blended) return { metrics: null, curve: null, openPositions: openTotals }
   return {
     metrics: computeCombinedFromBlend(blended, markets.length),
     curve: {
       startEquity: blended.totalStart,
       points: downsample(blended.series),
     },
+    openPositions: openTotals,
   }
 }

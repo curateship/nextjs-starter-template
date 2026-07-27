@@ -16,6 +16,7 @@ import {
   type BacktestResult,
   type BacktestTimeline,
   type GroupCombinedCurve,
+  type GroupOpenPositions,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import {
@@ -408,6 +409,7 @@ const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
       BacktestListResponse & {
         groupMetrics: Record<string, GroupPortfolioMetrics>
         groupCurve: GroupCombinedCurve | null
+        groupOpenPositions: GroupOpenPositions | null
       }
     > => {
       const { listUserBacktests } = await import("@/server/backtests")
@@ -424,6 +426,7 @@ const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
           ? { [data.groupId]: portfolio.metrics }
           : {},
         groupCurve: portfolio.curve,
+        groupOpenPositions: portfolio.openPositions,
       }
     }
   )
