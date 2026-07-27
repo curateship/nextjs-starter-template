@@ -1,4 +1,7 @@
-import type { ProtectionSettings } from "@/lib/strategies/settings"
+import {
+  resolveProtection,
+  type ProtectionSettings,
+} from "@/lib/strategies/settings"
 import { effectiveStopPx, type TrailState } from "@/lib/strategies/trailing-stop"
 
 /**
@@ -24,6 +27,23 @@ type ExitState = {
    * where the position started. Take profit still measures off the average.
    */
   stopAnchorPx?: number | null
+  /**
+   * The price the session opened at, looked up once when the position opened,
+   * for a stop anchored to a session open. 0 means "looked and there was no
+   * session" — the trade opened outside its hours — so the configured percent
+   * stands. Absent while flat.
+   */
+  sessionOpenPx?: number | null
+}
+
+/** The percentages in force right now: an anchored stop and a risk-reward
+ * take profit become plain percents here, before any level math runs. */
+function inForce(
+  settings: ProtectionSettings,
+  position: { szi: number; entryPx: number },
+  state: ExitState
+): ProtectionSettings {
+  return resolveProtection(settings, position, state.sessionOpenPx)
 }
 
 /** The position the stop measures against — the anchor when one is set. */
@@ -43,13 +63,14 @@ function stopBasis(
  * this after every pause sees the freshly ratcheted stop.
  */
 export function exitLevels(
-  settings: ProtectionSettings,
+  config: ProtectionSettings,
   position: Position,
   state: ExitState
 ): number[] {
   if (!position || position.szi === 0 || state.exitRequested) return []
   const entry = position.entryPx
   if (!(entry > 0)) return []
+  const settings = inForce(config, position, state)
   const sign = position.szi > 0 ? 1 : -1
   const levels: number[] = []
   if (settings.takeProfitPct) {
@@ -62,7 +83,7 @@ export function exitLevels(
 
 /** Which exit (if any) the current price triggers. Same math as exitLevels. */
 export function tickExit(
-  settings: ProtectionSettings,
+  config: ProtectionSettings,
   position: Position,
   state: ExitState,
   mid: number
@@ -70,6 +91,7 @@ export function tickExit(
   if (!position || position.szi === 0 || state.exitRequested) return null
   const entry = position.entryPx
   if (!(entry > 0) || !(mid > 0)) return null
+  const settings = inForce(config, position, state)
   const long = position.szi > 0
 
   if (settings.takeProfitPct) {

@@ -131,6 +131,53 @@ describe("Automation through the real backtest runner", () => {
     ).toBeUndefined()
   })
 
+  it("a stop at the session open exits at that exact price, and its target follows", () => {
+    // The Crypto London block runs 08:00–16:00 UTC, so a tape starting at
+    // 08:00 opens the session at 9 — the price the stop must sit at.
+    const OPEN = Date.parse("2026-07-06T08:00:00Z")
+    const sessionConfig: AutomationConfig = {
+      ...config,
+      protection: {
+        long: {
+          // Deliberately far from the level: 50% of 13 is 6.5, so an exit at 9
+          // can only have come from the session open, never the fallback.
+          stopLossPct: 50,
+          stopLossLevel: { kind: "sessionOpen", session: "utcLondon" },
+          takeProfitRr: 1,
+          takeProfitPct: 50,
+        },
+      },
+    }
+    const history: HistoryCandle[] = [
+      ...candles.map((candle) => ({
+        ...candle,
+        t: OPEN + candle.t,
+        T: OPEN + candle.T,
+      })),
+      {
+        t: OPEN + STEP * 5,
+        T: OPEN + STEP * 6 - 1,
+        o: 13,
+        h: 13,
+        l: 8,
+        c: 8.5,
+        v: 1,
+        n: 1,
+      },
+    ]
+    const result = run(sessionConfig, history)
+    const entry = result.fills.find(
+      (fill) => fill.purpose === "auto:target-entry"
+    )
+    const exit = result.fills.find((fill) => fill.purpose === "auto:close")
+    expect(entry).toBeDefined()
+    expect(exit).toBeDefined()
+    expect(exit!.px).toBeCloseTo(9, 8)
+    // 1:1 against a stop that turned out to be 4 wide puts the target at 17,
+    // which this tape never reaches — so the stop is what fired.
+    expect(exit!.px).toBeLessThan(entry!.px)
+  })
+
   it("gates entries with a higher-timeframe filter, without lookahead", () => {
     const H1 = 3_600_000
     const htfConfig: AutomationConfig = {

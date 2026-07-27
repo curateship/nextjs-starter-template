@@ -121,7 +121,9 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "session",
     enabled: false,
     pinned: false,
-    params: {},
+    // Which session is picked lives on `session`, not here — the chart has had
+    // its own dropdown for it since before the signal existed.
+    params: { wickBodyRatio: 2 },
     session: "nyse",
   },
   {
@@ -257,6 +259,17 @@ export function baseChartToModuleParams(
     formedMinBars: params.formedMinBars ?? 20,
     formedShowLong: (params.formedShowLong ?? 1) !== 0,
     formedShowShort: (params.formedShowShort ?? 1) !== 0,
+  }
+}
+
+/** Chart Sessions card → the Sessions module's typed params. The picked
+ * session rides on `config.session` (its own dropdown), not in `params`. */
+export function sessionChartToModuleParams(
+  config: Pick<IndicatorConfig, "params" | "session">
+): Record<string, number | string> {
+  return {
+    session: config.session ?? "nyse",
+    wickBodyRatio: config.params.wickBodyRatio ?? 2,
   }
 }
 
@@ -403,7 +416,16 @@ export const INDICATOR_PARAM_FIELDS: Record<
         "Arrows can never appear closer together than this many candles, so they stop bunching up. An arrow also only prints on a floor above the last one marked; after price sets a lower floor the indicator measures from there.",
     },
   ],
-  session: [],
+  // The session itself is picked in its own dropdown further down the dialog.
+  session: [
+    {
+      key: "wickBodyRatio",
+      label: "Wick/body ratio",
+      step: 0.5,
+      description:
+        "How many times longer than its body a wick makes the last candle a rejection — an inverted hammer going long, a hanging man going short — which cancels the signal.",
+    },
+  ],
   priceAction: [
     {
       key: "wickBodyRatio",

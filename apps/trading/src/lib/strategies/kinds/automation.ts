@@ -3,9 +3,11 @@ import {
   automationHtfInterval,
   automationIntervalRatio,
   dcaHistoryBars,
+  SESSION_STOP_WINDOW_BARS,
   type AutomationCondition,
   type AutomationConfig,
 } from "@/lib/automations/automation"
+import { sessionLabel } from "@/lib/trading/sessions"
 import { INDICATORS, type IndicatorSelection } from "@/lib/indicators/registry"
 
 function triggersOf(
@@ -20,8 +22,14 @@ export function automationWarmupBars(config: AutomationConfig) {
   const triggers = config.rules.flatMap((rule) => triggersOf(rule.condition))
   const bars = (selection: IndicatorSelection, extra = 0) =>
     INDICATORS[selection.type].warmupBars(selection.params as never) + extra + 5
+  const sessionStop =
+    config.protection.long?.stopLossLevel ||
+    config.protection.short?.stopLossLevel
   return Math.max(
     5,
+    // A stop sitting at the session open has to reach back to that session's
+    // first candle, whether or not any indicator asked for that much history.
+    ...(sessionStop ? [SESSION_STOP_WINDOW_BARS] : []),
     ...(config.dca ? [dcaHistoryBars(config.dca, config.interval)] : []),
     ...triggers.flatMap((trigger) => [
       bars(trigger.indicator),
@@ -82,10 +90,15 @@ export function automationSummary(config: AutomationConfig): string {
   for (const side of ["long", "short"] as const) {
     const levels = config.protection[side]
     const tag = side === "long" ? "Long" : "Short"
-    if (levels?.takeProfitPct) parts.push(`${tag} TP ${levels.takeProfitPct}%`)
+    if (levels?.takeProfitRr) {
+      parts.push(`${tag} TP ${levels.takeProfitRr}:1`)
+    } else if (levels?.takeProfitPct) {
+      parts.push(`${tag} TP ${levels.takeProfitPct}%`)
+    }
     if (levels?.stopLossPct) {
-      const sl =
-        levels.stopLossMode === "trailing"
+      const sl = levels.stopLossLevel
+        ? "SL at the session open"
+        : levels.stopLossMode === "trailing"
           ? `trailing SL ${levels.stopLossPct}%`
           : `SL ${levels.stopLossPct}%`
       parts.push(`${tag} ${sl}`)
@@ -105,6 +118,14 @@ export function automationInputRows(
     const levels = config.protection[side]
     const value = levels?.[key]
     if (!value) return "off"
+    if (key === "takeProfitPct" && levels?.takeProfitRr) {
+      // The ratio is measured against the stop the trade actually got, so the
+      // percent beside it is only what an outside-session trade would use.
+      return `${levels.takeProfitRr}:1 against the stop (${value}% outside the session)`
+    }
+    if (key === "stopLossPct" && levels?.stopLossLevel) {
+      return `at the ${sessionLabel(levels.stopLossLevel.session)} open (${value}% outside it)`
+    }
     if (key === "takeProfitPct") {
       // Rung modes sell against the DCA ladder and IGNORE this percent, so
       // showing the bare number would misreport what actually ran.
@@ -215,6 +236,9 @@ export function automationTakeProfitPct(
   const bounded = (side: "long" | "short") => {
     const levels = config.protection[side]
     if (!levels || levels.takeProfitPct === undefined) return undefined
+    // A risk-reward target is measured against the stop each trade actually
+    // got, so there is no one percent for the tripwire to check.
+    if (levels.takeProfitRr !== undefined) return undefined
     const mode = levels.takeProfitMode
     return mode === undefined || mode === "average"
       ? levels.takeProfitPct

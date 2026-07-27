@@ -74,6 +74,7 @@ import {
   fvgPaint,
   priceActionPaint,
   qqePaint,
+  sessionSignalsPaint,
   sessionZonesPaint,
   toNumericCandles,
   trendlinePaint,
@@ -3329,6 +3330,17 @@ export function PriceChart({
   const sessionEnabled = Boolean(sessionInd?.enabled)
   const sessionHex = sessionInd?.color ?? "#2962ff"
   const sessionKey = sessionInd?.session ?? "nyse"
+  // ...and its signal: the first run of three same-coloured candles after the
+  // session opens prints one arrow, at most one per session — the same rule
+  // the Sessions strategy node trades, through the same module.
+  const sessionMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      sessionSignalsPaint(
+        sessionEnabled ? sessionInd : undefined,
+        toNumericCandles(candles)
+      ),
+    [sessionEnabled, sessionInd, candles]
+  )
   const sessionZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
   const sessionZones = React.useMemo<ChartZone[]>(() => {
     if (!sessionEnabled || !sessionInd || candles.length === 0) {
@@ -3395,6 +3407,7 @@ export function PriceChart({
         ...priceActionMarkers,
         ...bollingerMarkers,
         ...baseMarkers,
+        ...sessionMarkers,
         ...trendline.markers,
       ]}
       indicators={[...indicators, ...strategy.indicators]}

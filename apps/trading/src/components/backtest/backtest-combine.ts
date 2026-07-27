@@ -14,7 +14,7 @@ export type CombinedBacktestSummary = {
   greenMarkets: number
   /** Summed net P&L across every finished market, in dollars. */
   netPnl: number
-  /** Net P&L as a percent of the capital actually deployed. */
+  /** Net P&L as a percent of the pot — the starting balance, once. */
   netPnlPct: number | null
   /** Summed closed-trade count across the basket. */
   trades: number
@@ -28,19 +28,17 @@ export type CombinedBacktestSummary = {
  * stats. P&L and trades are honest sums; win rate is weighted by each market's
  * trade count. Returns null when nothing has finished yet.
  *
- * The percent divides summed profit by the capital ACTUALLY deployed:
- * - A shared-account basket (DCA) runs every market off ONE wallet, so its
- *   denominator is that single `startingEquity`.
- * - Independent markets each run on their own full `startingEquity`, so the
- *   denominator is `startingEquity × markets`. Dividing those by one account's
- *   capital would overstate the return by roughly the market count.
+ * THE POT IS THE STARTING BALANCE, ONCE. Summed profit divides by that one
+ * number however many markets the run covered — testing four markets does not
+ * mean four accounts existed. Multiplying the denominator by the market count
+ * was tried and reported a real loss at roughly a quarter of its size (July 26,
+ * 2026); it is the same money either way, so the return is measured against it
+ * once. `blendCurves` builds the combined equity curve on the same basis, so
+ * the drawdown beside this percent shares its denominator.
  */
 export function combineMarketStats(
   stats: MarketStat[],
-  {
-    startingEquity,
-    sharedAccount,
-  }: { startingEquity: number; sharedAccount: boolean }
+  { startingEquity }: { startingEquity: number }
 ): CombinedBacktestSummary | null {
   if (stats.length === 0) return null
   let netPnl = 0
@@ -55,14 +53,11 @@ export function combineMarketStats(
     trades += count
     if (stat.winRate !== null) wins += Math.round(stat.winRate * count)
   }
-  const deployedEquity = sharedAccount
-    ? startingEquity
-    : startingEquity * stats.length
   return {
     markets: stats.length,
     greenMarkets,
     netPnl,
-    netPnlPct: deployedEquity > 0 ? (netPnl / deployedEquity) * 100 : null,
+    netPnlPct: startingEquity > 0 ? (netPnl / startingEquity) * 100 : null,
     trades,
     winRate: trades > 0 ? wins / trades : null,
   }

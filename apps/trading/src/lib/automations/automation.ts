@@ -7,6 +7,7 @@ import {
   indicatorSelectionSchema,
 } from "@/lib/indicators/registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import { SESSION_KEYS, type SessionKey } from "@/lib/trading/sessions"
 import {
   automationNodeConnectionError,
   automationNodeSourcePortIsValid,
@@ -101,6 +102,13 @@ export type AutomationTakeProfitNode = {
     | "previousRungSellAll"
     | "nearestRungSellAll"
     | "moneyBackThenBase"
+  /**
+   * Risk-reward take profit: the profit target is the STOP's distance times
+   * this ratio (1 = 1:1, so a 2% stop banks at 2%; 2 = 2:1, so it banks at
+   * 4%). When set, `pct` is ignored and the entry needs a Stop Loss on the
+   * same side to measure against. Absent: `pct` is the distance, as before.
+   */
+  rrRatio?: number
   x: number
   y: number
 }
@@ -124,6 +132,15 @@ export type AutomationStopLossNode = {
    * `pct` means exactly that from where the position started.
    */
   anchor?: "average" | "first"
+  /**
+   * Where the stop sits. Absent/"percent": `pct` from entry, as before.
+   * "sessionOpen": at the opening price of the session wired in from a
+   * Sessions node — which is below the entry on a long and above it on a
+   * short, because that is simply where the level lies. `pct` stays the
+   * fallback for a trade opened outside those hours, where there is no
+   * session-open price to use.
+   */
+  level?: "percent" | "sessionOpen"
   x: number
   y: number
 }
@@ -259,6 +276,17 @@ export type AutomationNode =
  */
 export const AUTOMATION_MAX_WINDOW_BARS = 1400
 
+/** Largest reward-to-risk multiple a Take Profit node may ask for. */
+export const MAX_RR_RATIO = 20
+
+/**
+ * Candles the engine must hold for a stop anchored to a session open: enough
+ * to reach back to the session's first candle on the timeframes this is for
+ * (15m and below). Matches the Sessions indicator's own warmup, so a graph
+ * that only uses Sessions for its stop still loads the same history.
+ */
+export const SESSION_STOP_WINDOW_BARS = 300
+
 /** Milliseconds per automation interval — the one shared conversion table. */
 export const AUTOMATION_INTERVAL_MS: Record<AutomationInterval, number> = {
   "1m": 60_000,
@@ -359,6 +387,20 @@ export type ProtectionLevels = {
    * measures from the average.
    */
   stopAnchor?: "average" | "first"
+  /**
+   * Where the stop sits when it is not a plain percent. Absent: `stopLossPct`
+   * from entry. `{ kind: "sessionOpen" }`: at that session's opening price,
+   * worked out per trade when the position opens, with `stopLossPct` as the
+   * fallback for a trade opened outside the session's hours.
+   */
+  stopLossLevel?: { kind: "sessionOpen"; session: SessionKey }
+  /**
+   * Take profit as a multiple of the stop's REALISED distance (1 = 1:1). Only
+   * written when the stop is dynamic, so the percent cannot be known until the
+   * trade opens; against a plain percent stop the ratio is folded into
+   * `takeProfitPct` at compile time and this stays absent.
+   */
+  takeProfitRr?: number
 }
 
 /**
@@ -629,6 +671,7 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     kind: z.literal("takeProfit"),
     pct: z.number().finite(),
     mode: takeProfitModeSchema,
+    rrRatio: z.number().finite().optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -639,6 +682,7 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     mode: z.enum(["fixed", "trailing"]).optional(),
     activationPct: z.number().finite().optional(),
     anchor: z.enum(["average", "first"]).optional(),
+    level: z.enum(["percent", "sessionOpen"]).optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -719,6 +763,13 @@ const protectionLevelsSchema = z.object({
   stopLossMode: z.enum(["fixed", "trailing"]).optional(),
   trailActivationPct: z.number().min(0).max(1000).optional(),
   stopAnchor: z.enum(["average", "first"]).optional(),
+  stopLossLevel: z
+    .object({
+      kind: z.literal("sessionOpen"),
+      session: z.enum(SESSION_KEYS),
+    })
+    .optional(),
+  takeProfitRr: z.number().positive().max(MAX_RR_RATIO).optional(),
 })
 
 /**
@@ -1131,6 +1182,26 @@ export function compileAutomationGraph(input: {
       message: "An Automation can contain only one DCA node.",
     })
   }
+  /**
+   * The session a Sessions node wired into this node is set to, or null. This
+   * is how a Stop Loss learns which session's open to sit at: the session is
+   * picked once, on the Sessions node, and the wire carries it — so the signal
+   * and the stop can never drift onto different sessions.
+   */
+  const sessionWiredInto = (nodeId: string): SessionKey | null => {
+    for (const edge of incoming.get(nodeId) ?? []) {
+      const parent = nodeById.get(edge.from)
+      if (parent?.kind !== "indicator" || parent.indicator.type !== "session") {
+        continue
+      }
+      const parsed = INDICATORS.session.paramsSchema.safeParse(
+        parent.indicator.params
+      )
+      if (!parsed.success) continue
+      return (parsed.data as { session: SessionKey }).session
+    }
+    return null
+  }
   for (const node of nodes) {
     const count = incoming.get(node.id)?.length ?? 0
     if (node.kind === "logic") {
@@ -1212,6 +1283,46 @@ export function compileAutomationGraph(input: {
           nodeId: node.id,
           message: `${label} must be greater than 0% and no more than ${maxPct}%.`,
         })
+      }
+      if (
+        node.kind === "takeProfit" &&
+        node.rrRatio !== undefined &&
+        !(node.rrRatio > 0 && node.rrRatio <= MAX_RR_RATIO)
+      ) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message: `The risk-reward ratio must be greater than 0 and no more than ${MAX_RR_RATIO}.`,
+        })
+      }
+      if (node.kind === "stopLoss" && node.level === "sessionOpen") {
+        if (node.mode === "trailing") {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A stop at the session open cannot also trail — the session open is a fixed price, so pick one or the other.",
+          })
+        }
+        if (!sessionWiredInto(node.id)) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "Stop Loss is set to the session open — wire a Sessions node into it so it knows which session to use.",
+          })
+        }
+        const onDca = (incoming.get(node.id) ?? []).some(
+          (edge) => nodeById.get(edge.from)?.kind === "dca"
+        )
+        if (onDca) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A DCA ladder buys down through levels, so its stop cannot sit at the session open. Use a percent stop here.",
+          })
+        }
       }
       if (
         node.kind === "stopLoss" &&
@@ -1305,7 +1416,11 @@ export function compileAutomationGraph(input: {
       const from = nodeById.get(edge.from)?.kind
       return from === "action" || from === "dca"
     })
-    if (attached) connected.add(node.id)
+    if (!attached) continue
+    connected.add(node.id)
+    // ...and anything wired INTO it (a Sessions node feeding a stop) rides
+    // along, or it would read as a dangling node.
+    markAncestors(node.id)
   }
   for (const node of nodes) {
     if (!connected.has(node.id)) {
@@ -1557,6 +1672,54 @@ export function compileAutomationGraph(input: {
   // A take-profit's "previous rung" mode only applies when a DCA node feeds it
   // (it references the buy ladder). Collected here and folded in after.
   let longTpMode: ProtectionLevels["takeProfitMode"]
+  // A stop anchored to a session open, and a take-profit measured as a
+  // multiple of the stop, both need the OTHER exit before they can be resolved
+  // — so they are collected per side here and folded in after the loop.
+  const stopLevel: Partial<Record<"long" | "short", SessionKey | "percent">> =
+    {}
+  const tpRatio: Partial<
+    Record<"long" | "short", { ratio: number; nodeId: string }>
+  > = {}
+  const setStopLevel = (
+    side: "long" | "short",
+    node: AutomationStopLossNode
+  ) => {
+    // "percent" is recorded too, so two stops on one entry that disagree about
+    // WHERE the stop sits are caught the same way disagreeing percentages and
+    // fixed-vs-trailing are — silently upgrading a percent stop to a session
+    // one would move a level the user set deliberately.
+    const level =
+      node.level === "sessionOpen"
+        ? (sessionWiredInto(node.id) ?? "percent")
+        : "percent"
+    const existing = stopLevel[side]
+    if (existing !== undefined && existing !== level) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different levels (a percent and a session open, or two different sessions).`,
+      })
+      return
+    }
+    stopLevel[side] = level
+  }
+  const setTpRatio = (
+    side: "long" | "short",
+    node: AutomationTakeProfitNode
+  ) => {
+    const ratio = node.rrRatio
+    if (ratio === undefined) return
+    const existing = tpRatio[side]
+    if (existing !== undefined && existing.ratio !== ratio) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} take-profit is set twice with different risk-reward ratios.`,
+      })
+      return
+    }
+    tpRatio[side] = { ratio, nodeId: node.id }
+  }
   const setStopBehavior = (
     side: "long" | "short",
     node: AutomationStopLossNode
@@ -1587,12 +1750,24 @@ export function compileAutomationGraph(input: {
   for (const node of nodes) {
     if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
     const key = node.kind === "takeProfit" ? "takeProfitPct" : "stopLossPct"
+    const fold = (side: "long" | "short") => {
+      // A take-profit measured as a risk-reward multiple has no percent of its
+      // own; it is worked out from the stop once both sides are collected.
+      if (node.kind === "takeProfit" && node.rrRatio !== undefined) {
+        setTpRatio(side, node)
+      } else {
+        setLevel(side, key, node.pct, node.id)
+      }
+      if (node.kind === "stopLoss") {
+        setStopBehavior(side, node)
+        setStopLevel(side, node)
+      }
+    }
     for (const edge of incoming.get(node.id) ?? []) {
       const parent = nodeById.get(edge.from)
       // A DCA node is a long entry — its exits fold into the long side.
       if (parent?.kind === "dca") {
-        setLevel("long", key, node.pct, node.id)
-        if (node.kind === "stopLoss") setStopBehavior("long", node)
+        fold("long")
         if (
           node.kind === "takeProfit" &&
           node.mode &&
@@ -1603,13 +1778,8 @@ export function compileAutomationGraph(input: {
         continue
       }
       if (parent?.kind !== "action") continue
-      if (parent.action === "buy") {
-        setLevel("long", key, node.pct, node.id)
-        if (node.kind === "stopLoss") setStopBehavior("long", node)
-      } else if (parent.action === "short") {
-        setLevel("short", key, node.pct, node.id)
-        if (node.kind === "stopLoss") setStopBehavior("short", node)
-      }
+      if (parent.action === "buy") fold("long")
+      else if (parent.action === "short") fold("short")
     }
   }
   for (const side of ["long", "short"] as const) {
@@ -1628,6 +1798,56 @@ export function compileAutomationGraph(input: {
     }
     if (behavior.anchor === "first") {
       protection[side] = { ...protection[side], stopAnchor: "first" }
+    }
+  }
+  // A session-anchored stop rides on the side it guards. The percent stays
+  // beside it as the fallback for a trade opened outside the session's hours.
+  for (const side of ["long", "short"] as const) {
+    const session = stopLevel[side]
+    if (
+      !session ||
+      session === "percent" ||
+      protection[side]?.stopLossPct === undefined
+    ) {
+      continue
+    }
+    protection[side] = {
+      ...protection[side],
+      stopLossLevel: { kind: "sessionOpen", session },
+    }
+  }
+  // Risk-reward take profits. Against a plain percent stop the target is known
+  // right here (stop distance × ratio), so every engine — live, backtest, DCA
+  // — sees an ordinary percent and nothing else has to change. Against a
+  // session-open stop the distance only exists once the trade opens, so the
+  // ratio rides along for the engine to apply and the percent it would have
+  // been stays as the outside-session fallback.
+  for (const side of ["long", "short"] as const) {
+    const entry = tpRatio[side]
+    if (!entry) continue
+    const levels = protection[side]
+    const stopPct = levels?.stopLossPct
+    if (stopPct === undefined) {
+      addError({
+        code: "invalid_protection",
+        nodeId: entry.nodeId,
+        message: `A risk-reward take profit measures against the stop, so the ${side === "long" ? "long" : "short"} entry needs a Stop Loss too.`,
+      })
+      continue
+    }
+    const pct = Math.round(stopPct * entry.ratio * 10_000) / 10_000
+    if (!(pct > 0 && pct <= 1000)) {
+      addError({
+        code: "invalid_protection",
+        nodeId: entry.nodeId,
+        message: `A ${entry.ratio}:1 target on a ${stopPct}% stop works out at ${pct}%, past the 1000% take-profit cap.`,
+      })
+      continue
+    }
+    protection[side] = {
+      ...levels,
+      takeProfitPct: pct,
+      ...(levels?.stopLossLevel ? { takeProfitRr: entry.ratio } : {}),
     }
   }
   // Fold the DCA "previous rung" take-profit mode onto the long side (DCA is

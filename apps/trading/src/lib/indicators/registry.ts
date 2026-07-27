@@ -10,6 +10,7 @@ import { macdCrossIndicator } from "./defs/macd-cross"
 import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
+import { sessionIndicator } from "./defs/session"
 import { trendlineIndicator } from "./defs/trendline"
 
 export const INDICATOR_IDS = [
@@ -23,6 +24,7 @@ export const INDICATOR_IDS = [
   "fair_value_gap",
   "trendline",
   "base",
+  "session",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -48,6 +50,7 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   fair_value_gap: erase(fairValueGapIndicator),
   trendline: erase(trendlineIndicator),
   base: erase(baseIndicator),
+  session: erase(sessionIndicator),
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

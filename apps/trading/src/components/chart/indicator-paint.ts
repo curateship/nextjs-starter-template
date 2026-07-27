@@ -24,10 +24,11 @@ import {
   fairValueGapChartToModuleParams,
   priceActionChartToModuleParams,
   qqeChartToModuleParams,
+  sessionChartToModuleParams,
   trendlineChartToModuleParams,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
-import { sessionsInRange } from "@/lib/trading/sessions"
+import { sessionBoxes } from "@/lib/trading/sessions"
 
 type NumericCandle = {
   t: number
@@ -191,6 +192,23 @@ export function bollingerPaint(
   return signalMarkers(out.signals, numeric)
 }
 
+/**
+ * Session run arrows: the first three same-coloured candles after a session
+ * opens, one signal per session — the same rule the Sessions strategy node
+ * trades.
+ */
+export function sessionSignalsPaint(
+  cfg: IndicatorConfig | undefined,
+  numeric: NumericCandle[]
+): ChartMarker[] {
+  if (!cfg?.enabled || numeric.length === 0) return []
+  const out = INDICATORS.session.compute(
+    numeric,
+    sessionChartToModuleParams(cfg) as never
+  )
+  return signalMarkers(out.signals, numeric)
+}
+
 const SESSION_FILL_ALPHA = 0.2
 const SESSION_BORDER_ALPHA = 0.55
 
@@ -203,7 +221,9 @@ function hexToRgba(hex: string, alpha: number): string {
 
 /**
  * Session shading: each picked session paints a translucent box from open to
- * close bounded by that session's high/low, snapped to candle boundaries.
+ * close bounded by that session's high/low, snapped to candle boundaries. The
+ * boxes themselves come from the shared session geometry, so the overlay and
+ * the Sessions indicator module always shade the same hours.
  */
 export function sessionZonesPaint(
   cfg: IndicatorConfig | undefined,
@@ -212,55 +232,17 @@ export function sessionZonesPaint(
 ): ChartZone[] {
   if (!cfg?.enabled || candles.length === 0) return []
   const sessionHex = cfg.color ?? "#2962ff"
-  const sessionKey = cfg.session ?? "nyse"
-  const firstMs = candles[0].t
-  const lastMs = candles[candles.length - 1].t
-  const spans: { fromMs: number; toMs: number }[] = []
-  for (const session of sessionsInRange(sessionKey, firstMs, lastMs)) {
-    const fromMs = Math.max(
-      Math.floor(session.openMs / intervalMs) * intervalMs,
-      firstMs
-    )
-    const toMs = Math.min(
-      Math.ceil(session.closeMs / intervalMs) * intervalMs,
-      lastMs
-    )
-    const prev = spans[spans.length - 1]
-    if (prev && fromMs <= prev.toMs) prev.toMs = Math.max(prev.toMs, toMs)
-    else spans.push({ fromMs, toMs })
-  }
   const fill = hexToRgba(sessionHex, SESSION_FILL_ALPHA)
   const border = hexToRgba(sessionHex, SESSION_BORDER_ALPHA)
-  const zones: ChartZone[] = []
-  let index = 0
-  for (const span of spans) {
-    if (!(span.toMs > span.fromMs)) continue
-    while (index < candles.length && candles[index].t < span.fromMs) index += 1
-    let high = -Infinity
-    let low = Infinity
-    while (
-      index < candles.length &&
-      (candles[index].t < span.toMs ||
-        (candles[index].t === span.toMs && span.toMs === lastMs))
-    ) {
-      const candleHigh = Number(candles[index].h)
-      const candleLow = Number(candles[index].l)
-      if (candleHigh > high) high = candleHigh
-      if (candleLow < low) low = candleLow
-      index += 1
-    }
-    if (!(high > low)) continue
-    zones.push({
-      id: `session-${span.fromMs}`,
-      fromMs: span.fromMs,
-      toMs: span.toMs,
-      top: high,
-      bottom: low,
-      fillColor: fill,
-      borderColor: border,
-    })
-  }
-  return zones
+  return sessionBoxes(cfg.session ?? "nyse", candles, intervalMs).map((box) => ({
+    id: box.id,
+    fromMs: box.fromMs,
+    toMs: box.toMs,
+    top: box.high,
+    bottom: box.low,
+    fillColor: fill,
+    borderColor: border,
+  }))
 }
 
 /**
@@ -288,6 +270,7 @@ export function computeIndicatorPaint(
       ...priceActionPaint(byType("priceAction"), numeric),
       ...bollingerPaint(byType("bollinger"), numeric),
       ...basePaint(byType("base"), numeric),
+      ...sessionSignalsPaint(byType("session"), numeric),
       ...trendline.markers,
     ],
     overlayLines: [...qqe.overlayLines, ...trendline.overlayLines],

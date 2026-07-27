@@ -48,8 +48,10 @@ same settings. Never add a capability to only one side.
   request), and Base — a long at each confirmed base and a short at each confirmed
   ceiling, either side switchable (added July 24–25, 2026 by request; the chart card
   carries the same settings the strategy node has). Fair
-  Value Gap deliberately stays arrow-less — its boxes are the visual. One signal
-  is still not a trade.
+  Value Gap deliberately stays arrow-less — its boxes are the visual, and
+  Sessions — the first run of three same-coloured candles after a session opens,
+  one arrow per session (added July 26, 2026 by request; see
+  sessions-indicator.md). One signal is still not a trade.
 
 ### Base marks levels. It does NOT break them, and it has NO edge.
 

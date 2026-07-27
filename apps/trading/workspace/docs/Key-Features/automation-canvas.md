@@ -84,6 +84,31 @@ canvas files.
   each trade's stop path the same way. If the worker is down, the trail stops
   moving: the stop stays protective at its last level but goes stale until
   the worker returns.
+
+  A second setting, **Stop sits at**, chooses what the stop measures against:
+  **A percent from the entry** (default, everything above) or **The session
+  open**. The session one puts the stop at the price the picked session opened
+  at — below the entry on a long, above it on a short, because that is where
+  the level lies. It learns *which* session from a **Sessions node wired into
+  it** (Trend output → the stop's hook), so the signal and the stop can never
+  drift onto different sessions, and compile refuses it without that wire. It
+  cannot also trail (one fixed price is not a moving one) and cannot hang off a
+  QFL/DCA ladder, whose whole premise is buying down through levels. The
+  percent stays beside it as the fallback for a trade opened outside the
+  session's hours — there is always a stop. The price is read once when the
+  position opens and held until it closes, so the stop never wanders onto the
+  next session mid-trade.
+
+  The Take Profit node has the matching setting, **Take profit measured as**:
+  **A percent from the entry** (default) or an **R&R ratio** — a multiple of
+  whatever the stop turned out to be. At 1:1 a 2% stop banks at 2%; at 2:1 it
+  banks at 4%. It works with every entry node and every kind of stop, because
+  it measures the stop rather than caring how the stop was set. Against a plain
+  percent stop the target is worked out when the automation compiles, so every
+  engine just sees an ordinary percent; against a session-open stop the
+  distance only exists once the trade opens, so the ratio is applied then. A
+  ratio needs a Stop Loss on the same entry, and compile says so if it is
+  missing.
 - **AND/OR (legacy)** — removed. Old drafts still load but must delete the
   node; running bots keep their frozen snapshots working.
 
@@ -128,7 +153,9 @@ canvas files.
 
 ## Rules the compiler enforces
 
-- Trend → indicator, Look Back, Timeframe, or QFL. Look Back → indicator or
+- Trend → indicator, Look Back, Timeframe, or QFL. The Sessions node's Trend
+  may also reach a **Stop Loss**, which is how a session-anchored stop learns
+  its session; no other indicator can. Look Back → indicator or
   QFL. Timeframe → indicator only, needs a Trend input, and must be strictly
   higher than the automation's timeframe.
 - Market Scanner Markets → QFL only. QFL accepts at most one Market Scanner.

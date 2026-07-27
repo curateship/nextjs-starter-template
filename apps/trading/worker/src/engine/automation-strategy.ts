@@ -14,6 +14,7 @@ import {
   automationWarmupBars,
 } from "@/lib/strategies/kinds/automation"
 import { onePriceStep } from "@/server/hyperliquid/rounding"
+import { sessionOpenPrice } from "@/lib/trading/sessions"
 
 import type {
   DesiredOrder,
@@ -78,6 +79,14 @@ export type AutomationState = {
   lastEvaluatedCandleTime: number | null
   /** Trailing-stop extreme for the open position; null while flat. */
   trail?: TrailState | null
+  /**
+   * The price the session opened at, for a stop anchored to a session open.
+   * Read ONCE when the position appears and held until it closes, so the stop
+   * cannot wander onto the next session mid-trade. 0 records "no session was
+   * running when this trade opened", which leaves the configured percent in
+   * charge. Null/absent while flat.
+   */
+  sessionOpenPx?: number | null
   wall?: WallRuntime
 }
 
@@ -249,6 +258,36 @@ export function createAutomationStrategy(
   // the short levels. The trade-manager math itself stays side-agnostic.
   const protectionFor = (szi: number) =>
     (szi > 0 ? config.protection.long : config.protection.short) ?? {}
+  const anchorsToSession = Boolean(
+    config.protection.long?.stopLossLevel ||
+      config.protection.short?.stopLossLevel
+  )
+  /**
+   * The session's opening price for the open position: looked up the first
+   * time we see the position and kept from then on (0 = the trade opened
+   * outside the session, so its percent stop stands). Returns the stored value
+   * unchanged in every other case, so callers can compare by identity.
+   *
+   * A worker restarted mid-trade has no stored value and reads it again from
+   * the session running NOW: the same answer while the trade is still inside
+   * its own session (the case this is built for), and 0 — the percent stop —
+   * once that session has closed. Deterministic either way, and never a level
+   * borrowed from a session the trade was not opened in.
+   */
+  const sessionOpenPxFor = (
+    ctx: StrategyCtx<AutomationState>,
+    pos: { szi: number; entryPx: number }
+  ): number | null => {
+    const stored = ctx.state.sessionOpenPx ?? null
+    if (pos.szi === 0) return null
+    const level = protectionFor(pos.szi).stopLossLevel
+    if (!level) return stored
+    if (stored !== null) return stored
+    const candles = ctx
+      .candles(config.interval, window)
+      .map((candle) => ({ t: candle.t, o: Number(candle.o) }))
+    return sessionOpenPrice(level.session, candles, ctx.now) ?? 0
+  }
   const emitWallFillEvidence = (
     ctx: StrategyCtx<AutomationState>,
     previous: ActiveWall,
@@ -318,11 +357,13 @@ export function createAutomationStrategy(
   return {
     type: "automation",
     warmup: () => ({
-      candleIntervals: config.rules.some((rule) =>
-        hasCandleCondition(rule.condition)
-      )
-        ? [config.interval, ...(htfInterval ? [htfInterval] : [])]
-        : [],
+      candleIntervals:
+        // A session-anchored stop needs the candles too, even in a graph whose
+        // entries come from the order book rather than a candle rule.
+        config.rules.some((rule) => hasCandleCondition(rule.condition)) ||
+        anchorsToSession
+          ? [config.interval, ...(htfInterval ? [htfInterval] : [])]
+          : [],
       requiresLiveBook: capabilities.requiresLiveBook,
     }),
     init: initialState,
@@ -571,8 +612,14 @@ export function createAutomationStrategy(
       const pos = position(ctx)
       const prevTrail = ctx.state.trail ?? null
       const trail = nextTrailState(prevTrail, pos, Number(ctx.mid))
+      // The session-anchored stop is read here for the same reason: the exit
+      // checks below and any exitTriggers read after this tick must see it.
+      const prevSessionOpenPx = ctx.state.sessionOpenPx ?? null
+      const sessionOpenPx = sessionOpenPxFor(ctx, pos)
       const state: AutomationState =
-        trail === prevTrail ? ctx.state : { ...ctx.state, trail }
+        trail === prevTrail && sessionOpenPx === prevSessionOpenPx
+          ? ctx.state
+          : { ...ctx.state, trail, sessionOpenPx }
       if (state !== ctx.state) ctx.setState(state)
       const wall = state.wall
       if (
@@ -678,6 +725,7 @@ export function createAutomationStrategy(
           pendingAction: null,
           exitRequested: false,
           trail: null,
+          sessionOpenPx: null,
           ...(next.wall
             ? {
                 wall: {
