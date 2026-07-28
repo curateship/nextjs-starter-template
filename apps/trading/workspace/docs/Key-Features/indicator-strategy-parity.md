@@ -67,12 +67,13 @@ DCA ladder's rule and lives in `worker/src/engine/dca-automation.ts` with helper
 crack/break trigger back in: both events are *buys*, so on a chart they draw two
 identical green up arrows with no way to tell them apart (July 24, 2026).
 
-The crack settings (Crack below base %, Maximum fall, the past-base-quality filter)
-live on the **DCA node** — moved off this indicator on July 25, 2026, since a node
-should own the settings it consumes. The Base node hands the DCA node `basePeriods` /
-`pumpPeriods` and nothing else. When adding a setting, put it on the node whose rule
-reads it; a parameter parked on a neighbour is how "Base break (DCA node)" ended up
-labelled with the name of the node it belonged to.
+The crack settings (Crack below base %, Maximum fall) live on the **DCA node** —
+moved off this indicator on July 25, 2026, since a node should own the settings it
+consumes. The past-base-quality filter that sat beside them was deleted outright on
+July 28, 2026 at the user's request (see dca-step-down.md). The Base node hands the
+DCA node `basePeriods` / `pumpPeriods` and nothing else. When adding a setting, put
+it on the node whose rule reads it; a parameter parked on a neighbour is how "Base
+break (DCA node)" ended up labelled with the name of the node it belonged to.
 
 **The two filters, exactly as shipped** — get these the right way round:
 
@@ -83,6 +84,15 @@ labelled with the name of the node it belonged to.
   as a switch.
 - `formedMinBars` (default 20): two arrows on the same side can never be closer than
   that many candles.
+
+**Where those switches appear (July 28, 2026, by request).** These two plus
+`formedShowLong` / `formedShowShort` are marked `chartOnly` on the module, so they
+render ONLY in the chart's indicator settings — never on the automation Base node.
+They describe what gets DRAWN, and a canvas node draws nothing. The parameters
+themselves are untouched (same schema, same defaults, same effect on the module's
+signals), so nothing saved changes behaviour. If a future setting genuinely changes
+what a strategy TRADES, it must NOT be `chartOnly`: hiding one of those would break
+the parity rule at the top of this file.
 
 Seven filter designs that were WRONG, all caught on the chart July 24, 2026 — do not
 reintroduce any of them. Note especially the third and fourth: they are the two ways

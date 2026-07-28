@@ -1,9 +1,6 @@
 import { z } from "zod"
 
 import type { IndicatorCandle } from "@/lib/indicators/contract"
-import { baseLevels } from "@/lib/strategies/indicators"
-
-const MONTH_MS = 30 * 86_400_000
 
 /** Bounds history retained across every market in one live shared-wallet bot. */
 export const MAX_SHARED_WALLET_HISTORY_BARS = 1_000_000
@@ -22,13 +19,6 @@ export const marketScannerSettingsFieldsSchema = z.object({
 
 export const marketScannerSettingsSchema = marketScannerSettingsFieldsSchema
 export type MarketScannerSettings = z.infer<typeof marketScannerSettingsSchema>
-
-export type BaseRespectScore = {
-  respected: number
-  total: number
-  rate: number | null
-  hasFullHistory: boolean
-}
 
 export type BaseTracker = {
   processedTime: number | null
@@ -80,61 +70,5 @@ export function advanceBaseTracker(
     currentBase,
     previousBase,
     lows,
-  }
-}
-
-/** The base/crack/recovery fields the respect scan reads. A DCA node's config
- * carries all five, so it can be scored directly. */
-export type BaseRespectSettings = {
-  basePeriods: number
-  pumpPeriods: number
-  crackPct: number
-  recoveryTargetPct: number
-  respectLookbackMonths: number
-}
-
-export function baseRespectScore(
-  candles: IndicatorCandle[],
-  settings: BaseRespectSettings,
-  now: number = candles.at(-1)?.t ?? 0
-): BaseRespectScore {
-  const visible = candles.filter((candle) => candle.t <= now)
-  const cutoff = now - settings.respectLookbackMonths * MONTH_MS
-  const hasFullHistory = (visible[0]?.t ?? Number.POSITIVE_INFINITY) <= cutoff
-  const bases = baseLevels(visible, settings.basePeriods, settings.pumpPeriods).raw
-  let active: { base: number; startedAt: number } | null = null
-  let respected = 0
-  let total = 0
-
-  for (let index = 1; index < visible.length; index += 1) {
-    const candle = visible[index]
-    if (active) {
-      const recovery = active.base * (1 + settings.recoveryTargetPct / 100)
-      if (candle.h >= recovery) {
-        if (active.startedAt >= cutoff) {
-          total += 1
-          respected += 1
-        }
-        active = null
-      }
-      continue
-    }
-
-    const base = bases[index]
-    const previousBase = bases[index - 1]
-    if (!Number.isFinite(base) || !Number.isFinite(previousBase)) continue
-    const threshold = base * (1 - settings.crackPct / 100)
-    const previousThreshold = previousBase * (1 - settings.crackPct / 100)
-    if (visible[index - 1].c >= previousThreshold && candle.c < threshold) {
-      active = { base, startedAt: candle.t }
-    }
-  }
-
-  if (active && active.startedAt >= cutoff) total += 1
-  return {
-    respected,
-    total,
-    rate: total > 0 ? (respected / total) * 100 : null,
-    hasFullHistory,
   }
 }

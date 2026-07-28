@@ -83,7 +83,7 @@ describe("exitLevels / tickExit — the one TP/SL implementation", () => {
 
     it("stops AT the session-open price, and targets twice that distance", () => {
       // Long in at 100 with the session open at 98: 2% of risk, 4% of reward.
-      const state = { exitRequested: false, sessionOpenPx: 98 }
+      const state = { exitRequested: false, stopLevelPx: 98 }
       const levels = exitLevels(s, position(1), state)
       expect(levels[0]).toBeCloseTo(104, 10)
       expect(levels[1]).toBeCloseTo(98, 10)
@@ -93,7 +93,7 @@ describe("exitLevels / tickExit — the one TP/SL implementation", () => {
     })
 
     it("mirrors for a short — the level sits above the entry", () => {
-      const state = { exitRequested: false, sessionOpenPx: 102 }
+      const state = { exitRequested: false, stopLevelPx: 102 }
       const levels = exitLevels(s, position(-1), state)
       expect(levels[1]).toBeCloseTo(102, 10)
       expect(levels[0]).toBeCloseTo(96, 10)
@@ -102,7 +102,7 @@ describe("exitLevels / tickExit — the one TP/SL implementation", () => {
 
     it("uses the configured percent for a trade opened outside the session", () => {
       // 0 is the engine's record of "looked, and no session was running".
-      const state = { exitRequested: false, sessionOpenPx: 0 }
+      const state = { exitRequested: false, stopLevelPx: 0 }
       const levels = exitLevels(s, position(1), state)
       expect(levels[0]).toBeCloseTo(110, 10)
       expect(levels[1]).toBeCloseTo(95, 10)

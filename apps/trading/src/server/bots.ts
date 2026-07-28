@@ -37,12 +37,7 @@ export type CreateBotInput = {
 }
 
 export type BotCommandName =
-  | "start"
-  | "stop"
-  | "pause"
-  | "resume"
-  | "flatten"
-  | "update_params"
+  "start" | "stop" | "pause" | "resume" | "flatten" | "update_params"
 
 const MANUAL_PREFIX = "ffffffff"
 const RUNNABLE_BOT_TYPES = new Set(["automation"])
@@ -77,8 +72,7 @@ function validateSharedWalletSize(
   marketCount: number
 ) {
   if (!params.dca) return
-  const historyBars =
-    Math.max(0, marketCount) * dcaHistoryBars(params.dca, params.interval)
+  const historyBars = Math.max(0, marketCount) * dcaHistoryBars(params.dca)
   if (historyBars > MAX_SHARED_WALLET_HISTORY_BARS) {
     throw new Error(
       `This bot needs about ${historyBars.toLocaleString()} history candles across its markets. Use fewer markets, less history, or a coarser timeframe.`

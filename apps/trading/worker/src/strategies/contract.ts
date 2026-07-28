@@ -51,7 +51,6 @@ export type SharedWalletCandidate = {
   market: string
   candleTime: number
   exposurePct: number
-  respectRate: number | null
   volumeMultiple: number
   dailyVolumeUsd: number
 }

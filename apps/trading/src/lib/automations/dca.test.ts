@@ -22,7 +22,7 @@ const baseIndicator = (id: string): AutomationNode => ({
   y: 0,
   indicator: {
     type: "base",
-    params: { basePeriods: 36, pumpPeriods: 8, crackPct: 2.5 },
+    params: { basePeriods: 36, pumpPeriods: 8 },
   },
 })
 
@@ -35,17 +35,9 @@ const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
   compound: true,
   rungEntry: "market",
   requireTwoGreen: false,
-  crackPct: 2.5,
-  maxCrackBars: 4,
-  respectFilterEnabled: false,
-  respectLookbackMonths: 6,
-  minRespectPct: 80,
-  recoveryTargetPct: -2,
-  sellBelowBasePct: 2,
   trendFilterEnabled: false,
   trendMaBars: 200,
   exitOnTrendBreak: false,
-  maxCycleBars: 0,
   x: 0,
   y: 0,
 })
@@ -130,18 +122,9 @@ describe("compileAutomationGraph — DCA", () => {
       requireTwoGreen: false,
       basePeriods: 36,
       pumpPeriods: 8,
-      crackPct: 2.5,
-      maxCrackBars: 4,
-      // Past base quality defaults flow from the Base indicator.
-      respectFilterEnabled: false,
-      respectLookbackMonths: 6,
-      minRespectPct: 80,
-      recoveryTargetPct: -2,
-      sellBelowBasePct: 2,
       trendFilterEnabled: false,
       trendMaBars: 200,
       exitOnTrendBreak: false,
-      maxCycleBars: 0,
     })
     // The exits fold into the long side, measured from the blended average.
     expect(result.config?.protection.long).toEqual({
@@ -175,52 +158,36 @@ describe("compileAutomationGraph — DCA", () => {
     })
   })
 
-  it("folds the 'money back then base' mode and its sell-below-base onto the config", () => {
-    const result = compileAutomationGraph({
+  it("loads the removed 'money back' mode as the nearest-rung sell", () => {
+    // Backward compatibility: automations saved with the deleted
+    // "moneyBackThenBase" mode must still parse. It rested its first sell at
+    // exactly the nearest rung, so that surviving style is what it becomes.
+    const compiled = compileAutomationGraph({
       interval: "1h",
       graph: {
-        nodes: [
-          baseIndicator("base"),
-          { ...dca("dca", 25), sellBelowBasePct: 1.5 } as AutomationNode,
-          takeProfit("tp", 3, "moneyBackThenBase"),
-        ],
+        nodes: [baseIndicator("base"), dca("dca", 25), takeProfit("tp", 3)],
         edges: [
           edge("e1", "base", "bullish", "dca"),
           edge("e2", "dca", "tp", "tp"),
         ],
         viewport: { x: 0, y: 0, zoom: 1 },
       },
-    })
-    expect(result.errors).toEqual([])
-    expect(result.config?.protection.long).toEqual({
-      takeProfitPct: 3,
-      takeProfitMode: "moneyBackThenBase",
-    })
-    // The offset travels on the DCA config, where the engine reads it.
-    expect(result.config?.dca?.sellBelowBasePct).toBe(1.5)
-    expect(automationConfigSchema.safeParse(result.config).success).toBe(true)
-  })
-
-  it("loads a ladder saved before 'sell below base' existed at the default", () => {
-    // A saved graph comes back through the schema, which fills the field in. It
-    // is inert unless the money-back take-profit is chosen, so the old ladder
-    // keeps behaving identically.
-    const { sellBelowBasePct: _dropped, ...old } = dca("dca", 25) as Extract<
-      AutomationNode,
-      { kind: "dca" }
-    >
-    const saved = automationGraphSchema.parse({
-      nodes: [baseIndicator("base"), old, takeProfit("tp")],
-      edges: [
-        edge("e1", "base", "bullish", "dca"),
-        edge("e2", "dca", "tp", "tp"),
-      ],
-      viewport: { x: 0, y: 0, zoom: 1 },
-    })
-    const result = compileAutomationGraph({ interval: "1h", graph: saved })
-    expect(result.errors).toEqual([])
-    expect(result.config?.dca?.sellBelowBasePct).toBe(2)
-    expect(result.config?.protection.long?.takeProfitMode).toBeUndefined()
+    }).config
+    const stored = {
+      ...compiled,
+      protection: {
+        ...compiled?.protection,
+        long: {
+          ...compiled?.protection.long,
+          takeProfitMode: "moneyBackThenBase",
+        },
+      },
+    }
+    const parsed = automationConfigSchema.safeParse(stored)
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.protection.long?.takeProfitMode).toBe(
+      "nearestRungSellAll"
+    )
   })
 
   it("loads the removed 'hold first' mode as the plain previous-rung peel", () => {

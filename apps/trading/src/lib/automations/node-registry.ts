@@ -7,12 +7,9 @@ import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
   DEFAULT_DCA_RUNGS,
-  DEFAULT_DCA_SELL_BELOW_BASE_PCT,
   DEFAULT_DCA_SIZE_MULTIPLIER,
 } from "@/lib/automations/dca"
-import {
-  DEFAULT_MARKET_SCANNER_SETTINGS,
-} from "@/lib/automations/dca-ladder"
+import { DEFAULT_MARKET_SCANNER_SETTINGS } from "@/lib/automations/dca-ladder"
 import {
   INDICATORS,
   INDICATOR_IDS,
@@ -35,10 +32,6 @@ export function orderLabelFor(purpose: string): string {
     return `${kind} ${Number(rung[2]) + 1}`
   }
   if (/^[a-z]+:s:all$/.test(purpose)) return "Sell all"
-  // The "money back, ride the rest free" pair: the sell that returns the cash,
-  // and the sell of the coins it left behind.
-  if (/^[a-z]+:s:cash$/.test(purpose)) return "Money back"
-  if (/^[a-z]+:s:free$/.test(purpose)) return "Free ride"
   return purpose.replace(/^auto:/, "").replace(/-/g, " ")
 }
 
@@ -82,7 +75,10 @@ export function nodeTuneUpdate(
   side: "long" | "short"
 ): AutomationNode | null {
   if (!(price > 0)) return null
-  return definitionForNode(node).applyTuneDrag?.(node, target, price, ref, side) ?? null
+  return (
+    definitionForNode(node).applyTuneDrag?.(node, target, price, ref, side) ??
+    null
+  )
 }
 
 export type AutomationPaletteKey =
@@ -125,12 +121,7 @@ export type AutomationNodeInspectorKind =
   | "whaleWall"
 
 export type AutomationPaletteGroup =
-  | "Indicators"
-  | "Scanners"
-  | "Strategies"
-  | "Filters"
-  | "Actions"
-  | "Exits"
+  "Indicators" | "Scanners" | "Strategies" | "Filters" | "Actions" | "Exits"
 
 export type AutomationNodePort = {
   id: AutomationSourcePort
@@ -214,15 +205,16 @@ function indicatorDefinition(id: IndicatorId): AutomationNodeDefinition {
     ],
     connectionError: (sourcePort, target) => {
       if (sourcePort === "trend") {
-        // Sessions also feeds a Stop Loss: the wire is what tells the stop
-        // which session's opening price to sit at.
-        if (id === "session" && target.kind === "stopLoss") return null
+        // Sessions and Base also feed a Stop Loss: the wire is what tells the
+        // stop which price to sit at — that session's open, or that base.
+        const feedsStop = id === "session" || id === "base"
+        if (feedsStop && target.kind === "stopLoss") return null
         return target.kind === "indicator" ||
           target.kind === "lookback" ||
           target.kind === "timeframe" ||
           target.kind === "dca"
           ? null
-          : id === "session"
+          : feedsStop
             ? "The Trend output can only connect to an indicator, Look Back, Timeframe, DCA, or Stop Loss node."
             : "The Trend output can only connect to an indicator, Look Back, Timeframe, or DCA node."
       }
@@ -364,7 +356,8 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
     palette: {
       key: "strategy-dca",
       group: "Strategies",
-      description: "Average into a position with a ladder of buys below the base",
+      description:
+        "Average into a position with a ladder of buys below the base",
     },
     matches: (node) => node.kind === "dca",
     create: ({ id, x, y }) => ({
@@ -376,17 +369,9 @@ const fixedDefinitions: AutomationNodeDefinition[] = [
       compound: true,
       rungEntry: "market",
       requireTwoGreen: false,
-      crackPct: 2.5,
-      maxCrackBars: 4,
-      respectFilterEnabled: false,
-      respectLookbackMonths: 6,
-      minRespectPct: 80,
-      recoveryTargetPct: -2,
-      sellBelowBasePct: DEFAULT_DCA_SELL_BELOW_BASE_PCT,
       trendFilterEnabled: false,
       trendMaBars: 200,
       exitOnTrendBreak: false,
-      maxCycleBars: 0,
       x,
       y,
     }),
@@ -562,6 +547,9 @@ function protectionDefinition(
       if (node.level === "sessionOpen") {
         return "Sits at the opening price of the session wired into it."
       }
+      if (node.level === "confirmedBase") {
+        return "Sits on the confirmed base drawn by the Base node wired into it."
+      }
       return node.mode === "trailing"
         ? `Trails the best price by ${node.pct}%, locking in gains on the side it's attached to.`
         : `Caps the loss ${node.pct}% from the entry on the side it's attached to.`
@@ -586,8 +574,10 @@ function protectionDefinition(
   }
 }
 
-const AUTOMATION_NODE_DEFINITIONS: readonly AutomationNodeDefinition[] =
-  [...INDICATOR_IDS.map(indicatorDefinition), ...fixedDefinitions]
+const AUTOMATION_NODE_DEFINITIONS: readonly AutomationNodeDefinition[] = [
+  ...INDICATOR_IDS.map(indicatorDefinition),
+  ...fixedDefinitions,
+]
 
 export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
   "Indicators",
@@ -657,7 +647,9 @@ export function automationPaletteKeyForRegisteredNode(
  * The chart and the paint pipeline call THIS instead of hardcoding a strategy —
  * a new node just declares its own `overlays` and gets drawn for free.
  */
-export function configNodeOverlays(config: AutomationConfig): IndicatorConfig[] {
+export function configNodeOverlays(
+  config: AutomationConfig
+): IndicatorConfig[] {
   return AUTOMATION_NODE_DEFINITIONS.flatMap(
     (definition) => definition.overlays?.(config) ?? []
   )

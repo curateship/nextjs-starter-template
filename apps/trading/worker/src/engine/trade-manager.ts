@@ -28,12 +28,12 @@ type ExitState = {
    */
   stopAnchorPx?: number | null
   /**
-   * The price the session opened at, looked up once when the position opened,
-   * for a stop anchored to a session open. 0 means "looked and there was no
-   * session" — the trade opened outside its hours — so the configured percent
-   * stands. Absent while flat.
+   * The price a level-anchored stop sits at — the session's open, or the
+   * confirmed base — looked up once when the position opened. 0 means "looked
+   * and there was nothing there" (the trade opened outside its session, or no
+   * base had confirmed), so the configured percent stands. Absent while flat.
    */
-  sessionOpenPx?: number | null
+  stopLevelPx?: number | null
 }
 
 /** The percentages in force right now: an anchored stop and a risk-reward
@@ -43,7 +43,7 @@ function inForce(
   position: { szi: number; entryPx: number },
   state: ExitState
 ): ProtectionSettings {
-  return resolveProtection(settings, position, state.sessionOpenPx)
+  return resolveProtection(settings, position, state.stopLevelPx)
 }
 
 /** The position the stop measures against — the anchor when one is set. */

@@ -178,6 +178,77 @@ describe("Automation through the real backtest runner", () => {
     expect(exit!.px).toBeLessThan(entry!.px)
   })
 
+  it("a stop at the confirmed base exits at that exact price", () => {
+    // The Base indicator (4/1) confirms a base of 90 on bar 5 and carries it.
+    // The breakout buys the bar-6 close at 109, so the stop sits on 90 — the
+    // teal dash itself, not a percent from the entry.
+    const baseConfig: AutomationConfig = {
+      ...config,
+      protection: {
+        long: {
+          // Deliberately far from the level: 50% of 109 is 54.5, so an exit at
+          // 90 can only have come from the base, never the fallback.
+          stopLossPct: 50,
+          stopLossLevel: {
+            kind: "confirmedBase",
+            basePeriods: 4,
+            pumpPeriods: 1,
+          },
+          takeProfitPct: 50,
+        },
+      },
+    }
+    const bar = (
+      index: number,
+      o: number,
+      h: number,
+      l: number,
+      c: number
+    ): HistoryCandle => ({
+      t: index * STEP,
+      T: (index + 1) * STEP - 1,
+      o,
+      h,
+      l,
+      c,
+      v: 1,
+      n: 1,
+    })
+    const history: HistoryCandle[] = [
+      bar(0, 101, 102, 100, 101),
+      bar(1, 101, 102, 100, 101),
+      bar(2, 101, 102, 100, 101),
+      bar(3, 101, 102, 100, 101),
+      bar(4, 101, 101, 90, 92),
+      bar(5, 92, 96, 91, 95),
+      bar(6, 95, 110, 92, 109),
+      bar(7, 109, 109, 85, 86),
+    ]
+
+    const result = run(baseConfig, history)
+    const entry = result.fills.find(
+      (fill) => fill.purpose === "auto:target-entry"
+    )
+    const exit = result.fills.find((fill) => fill.purpose === "auto:close")
+    expect(entry).toBeDefined()
+    expect(entry!.px).toBeCloseTo(109, 8)
+    expect(exit).toBeDefined()
+    expect(exit!.px).toBeCloseTo(90, 8)
+
+    // Same tape with a plain percent stop: 50% below 109 is 54.5, which this
+    // tape never reaches, so nothing stops out. That is what the level changes.
+    const plain = run(
+      {
+        ...config,
+        protection: { long: { stopLossPct: 50, takeProfitPct: 50 } },
+      },
+      history
+    )
+    expect(plain.fills.some((fill) => fill.purpose === "auto:close")).toBe(
+      false
+    )
+  })
+
   it("gates entries with a higher-timeframe filter, without lookahead", () => {
     const H1 = 3_600_000
     const htfConfig: AutomationConfig = {
@@ -343,7 +414,11 @@ describe("Automation through the real backtest runner", () => {
         emit: () => {},
         now,
       }
-      strategy.onCandleClose(ctx as never, htfConfig as never, undefined as never)
+      strategy.onCandleClose(
+        ctx as never,
+        htfConfig as never,
+        undefined as never
+      )
       if ((state as { pendingAction: unknown }).pendingAction) {
         actionBars.push(barIndex)
         break
@@ -360,7 +435,8 @@ describe("Automation through the real backtest runner", () => {
       protection: { long: { stopLossPct: 5, stopLossMode: "trailing" } },
     }
     const strategy = resolveStrategy(trailingConfig)
-    if (!strategy?.onTick) throw new Error("Automation strategy did not resolve")
+    if (!strategy?.onTick)
+      throw new Error("Automation strategy did not resolve")
 
     let state = strategy.init()
     const exits: number[] = []

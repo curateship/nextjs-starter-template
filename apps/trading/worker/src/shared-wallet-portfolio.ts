@@ -4,7 +4,6 @@ import type {
 } from "./strategies/contract"
 
 const score = (candidate: SharedWalletCandidate) => [
-  candidate.respectRate ?? -1,
   candidate.volumeMultiple,
   candidate.dailyVolumeUsd,
 ]

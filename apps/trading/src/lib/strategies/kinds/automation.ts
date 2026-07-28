@@ -30,7 +30,7 @@ export function automationWarmupBars(config: AutomationConfig) {
     // A stop sitting at the session open has to reach back to that session's
     // first candle, whether or not any indicator asked for that much history.
     ...(sessionStop ? [SESSION_STOP_WINDOW_BARS] : []),
-    ...(config.dca ? [dcaHistoryBars(config.dca, config.interval)] : []),
+    ...(config.dca ? [dcaHistoryBars(config.dca)] : []),
     ...triggers.flatMap((trigger) => [
       bars(trigger.indicator),
       // A Look Back filter must SEE a signal up to maxAgeBars old, so its
@@ -134,8 +134,6 @@ export function automationInputRows(
           return "at the previous rung (percent ignored)"
         case "nearestRungSellAll":
           return "everything at the nearest rung (percent ignored)"
-        case "moneyBackThenBase":
-          return `money back at the nearest rung, rest rides free (percent ignored)`
         default:
           return `${value}% above the average`
       }
@@ -156,10 +154,6 @@ export function automationInputRows(
           {
             label: "DCA base",
             value: `${config.dca.basePeriods} back / ${config.dca.pumpPeriods} hold`,
-          },
-          {
-            label: "DCA crack",
-            value: `${config.dca.crackPct}% below base within ${config.dca.maxCrackBars} candles`,
           },
           {
             label: "DCA buys",
@@ -203,12 +197,6 @@ export function automationInputRows(
                     )
                     .join(", ")
                 : "none",
-          },
-          {
-            label: "DCA base respect",
-            value: config.dca.respectFilterEnabled
-              ? `${config.dca.minRespectPct}% over ${config.dca.respectLookbackMonths} months`
-              : "off",
           },
         ]
       : []),

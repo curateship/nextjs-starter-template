@@ -46,7 +46,9 @@ const setup = [
   bar(6, 87, 86, 96, 30, 95),
 ]
 
-function dcaConfig(overrides: Partial<AutomationConfig["dca"]> = {}): AutomationConfig {
+function dcaConfig(
+  overrides: Partial<AutomationConfig["dca"]> = {}
+): AutomationConfig {
   return {
     v: 2,
     kind: "automation",
@@ -63,17 +65,9 @@ function dcaConfig(overrides: Partial<AutomationConfig["dca"]> = {}): Automation
       requireTwoGreen: false,
       basePeriods: 4,
       pumpPeriods: 1,
-      crackPct: 2.5,
-      maxCrackBars: 4,
-      respectFilterEnabled: false,
-      respectLookbackMonths: 6,
-      minRespectPct: 80,
-      recoveryTargetPct: -2,
-      sellBelowBasePct: 2,
       trendFilterEnabled: false,
       trendMaBars: 200,
       exitOnTrendBreak: false,
-      maxCycleBars: 0,
       ...overrides,
     },
   }
@@ -129,7 +123,9 @@ describe("DCA through the real backtest runner", () => {
       bar(9, 200, 79, 210, 10, 82),
     ])
 
-    const buys = result.fills.filter((fill) => fill.purpose.startsWith("dca:b:"))
+    const buys = result.fills.filter((fill) =>
+      fill.purpose.startsWith("dca:b:")
+    )
     const exit = result.fills.find((fill) => fill.purpose === "dca:exit")
 
     // Both rungs filled, each on its own bar as price stepped down (not bunched).
@@ -138,9 +134,9 @@ describe("DCA through the real backtest runner", () => {
     expect(buys.some((b) => Math.abs(b.px - 77) < 1e-6)).toBe(true)
     // Each rung deployed its dollar budget (5% of $10k), so the pot is exactly
     // the 10% cap regardless of the fill price.
-    expect(
-      buys.reduce((sum, fill) => sum + fill.px * fill.sz, 0)
-    ).toBeCloseTo(1_000)
+    expect(buys.reduce((sum, fill) => sum + fill.px * fill.sz, 0)).toBeCloseTo(
+      1_000
+    )
     // Take profit closed the averaged position; nothing left open.
     expect(exit).toBeTruthy()
     expect(result.openPosition).toBeNull()
@@ -153,19 +149,6 @@ describe("DCA through the real backtest runner", () => {
         buyPrices.some((buy) => Math.abs(buy - trade.entryPx) < 1e-6)
       ).toBe(true)
     }
-  })
-
-  it("skips the base when Past base quality has no history to judge", () => {
-    // The filter is on but the data is only a few bars — no months of history
-    // to score, so no ladder is armed and nothing buys.
-    const result = run(dcaConfig({ respectFilterEnabled: true }), [
-      ...setup,
-      bar(7, 84, 83, 88, 10, 87),
-      bar(8, 77, 76, 85, 10, 84),
-      bar(9, 200, 79, 210, 10, 82),
-    ])
-    expect(result.fills.length).toBe(0)
-    expect(result.openPosition).toBeNull()
   })
 
   it("trend gate: refuses to start a ladder while price is below its average", () => {
@@ -226,21 +209,292 @@ describe("DCA through the real backtest runner", () => {
     ).toBeGreaterThan(0)
   })
 
-  it("gives up: a time stop closes a ladder that never resolves", () => {
-    // The ladder buys and price then bleeds sideways-down forever. Without a time
-    // stop it holds the bag to the end of the data; with one it closes out.
-    const bleed = Array.from({ length: 20 }, (_, i) =>
-      bar(7 + i, 84 - i, 83 - i, 85 - i, 10, 85 - i)
-    )
-    const held = run(dcaConfig(), [...setup, ...bleed])
-    expect(held.openPosition).not.toBeNull()
+  it("stop at the confirmed base: rung 1 stops out, rung 2 is still next", () => {
+    // Base 90 confirms (bar 5) and rung 0 buys the bar-6 close at 84. Price then
+    // shelves at 82, so a NEW base of 82 confirms (bar 8) — now BELOW the entry,
+    // which is what makes it a stop at all. Bar 11 breaks it: the stop fires at
+    // 82 and sells the lot, but the ladder is not finished — rung 1 sits at
+    // 84 x 0.92 = 77.28 and the bar closes at 71, so it buys.
+    const candles = [
+      bar(0, 101, 100, 102),
+      bar(1, 101, 100, 102),
+      bar(2, 101, 100, 102),
+      bar(3, 101, 100, 102),
+      bar(4, 92, 90, 101, 10, 101),
+      bar(5, 95, 91, 96, 10, 92),
+      bar(6, 84, 83, 96, 10, 95),
+      bar(7, 83, 82, 85, 10, 84),
+      bar(8, 83, 82, 84, 10, 83),
+      bar(9, 83, 82, 84, 10, 83),
+      bar(10, 83, 82, 84, 10, 83),
+      bar(11, 71, 70, 83, 10, 83),
+      bar(12, 71, 70, 72, 10, 71),
+    ]
+    const baseStop: AutomationConfig = {
+      ...dcaConfig(),
+      protection: {
+        long: {
+          takeProfitPct: 50,
+          // 50% below 84 is 42 — this tape never gets there, so an exit at 82
+          // can only have come from the base.
+          stopLossPct: 50,
+          stopLossLevel: {
+            kind: "confirmedBase",
+            basePeriods: 4,
+            pumpPeriods: 1,
+          },
+        },
+      },
+    }
+    const result = run(baseStop, candles)
 
-    const gaveUp = run(dcaConfig({ maxCycleBars: 8 }), [...setup, ...bleed])
-    expect(gaveUp.fills.some((f) => f.purpose === "dca:exit")).toBe(true)
-    expect(gaveUp.openPosition).toBeNull()
-    // And it realised the loss rather than parking it in an open position.
-    expect(gaveUp.trades.length).toBeGreaterThan(0)
-    expect(gaveUp.trades.some((t) => t.pnl < 0)).toBe(true)
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    const exits = result.fills.filter((f) => f.purpose === "dca:exit")
+    // The stop fired ON the base, not at the percent.
+    expect(exits.length).toBeGreaterThanOrEqual(1)
+    expect(exits[0].px).toBeCloseTo(82, 6)
+    // ...and the ladder carried on: rung 1 bought after rung 0 was stopped out.
+    expect(buys.length).toBe(2)
+    expect(buys[0].purpose).toBe("dca:b:0")
+    expect(buys[1].purpose).toBe("dca:b:1")
+    expect(buys[0].px).toBeCloseTo(84, 6)
+
+    // Same tape, plain percent stop: the ladder keeps its old behaviour, so the
+    // 50% stop never fires and both rungs fill into ONE averaged position.
+    const percent = run(
+      {
+        ...dcaConfig(),
+        protection: { long: { takeProfitPct: 50, stopLossPct: 50 } },
+      },
+      candles
+    )
+    expect(percent.fills.some((f) => f.purpose === "dca:exit")).toBe(false)
+  })
+
+  it("reclaim: buys back after price holds above the base it was stopped at", () => {
+    // Base 90 confirms (bar 5), rung 0 buys the bar-6 close at 84, a shelf at 82
+    // confirms a new base BELOW the entry (bar 8), and bar 9 breaks it — the
+    // stop fires at 82. Price then reclaims 82 and holds above it.
+    const leadIn = [
+      bar(0, 101, 100, 102),
+      bar(1, 101, 100, 102),
+      bar(2, 101, 100, 102),
+      bar(3, 101, 100, 102),
+      bar(4, 92, 90, 101, 10, 101),
+      bar(5, 95, 91, 96, 10, 92),
+      bar(6, 84, 83, 96, 10, 95),
+      bar(7, 83, 82, 85, 10, 84),
+      bar(8, 83, 82, 84, 10, 83),
+      bar(9, 79, 78, 84, 10, 83),
+    ]
+    // Back above 82 and staying there. At 15m bars, 96 of them is one day.
+    const held = Array.from({ length: 120 }, (_, i) =>
+      bar(10 + i, 85, 84, 86, 10, 84)
+    )
+    const candles = [...leadIn, ...held]
+
+    const withReclaim = (reclaimDays?: number): AutomationConfig => ({
+      ...dcaConfig(),
+      protection: {
+        long: {
+          takeProfitPct: 50,
+          stopLossPct: 50,
+          stopLossLevel: {
+            kind: "confirmedBase",
+            basePeriods: 4,
+            pumpPeriods: 1,
+            ...(reclaimDays === undefined ? {} : { reclaimDays }),
+          },
+        },
+      },
+    })
+
+    const on = run(withReclaim(1), candles)
+    const buys = on.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    // Stopped out at the base...
+    expect(on.fills.find((f) => f.purpose === "dca:exit")?.px).toBeCloseTo(
+      82,
+      6
+    )
+    // ...then bought back once price had held above 82 for a day. The buy-back
+    // is the SAME rung (0), not the next one down, and puts back the same MONEY
+    // — not the same coin count, which would spend more the further price has
+    // run since the stop.
+    expect(buys.length).toBe(2)
+    expect(buys[1].purpose).toBe("dca:b:0")
+    expect(buys[1].px * buys[1].sz).toBeCloseTo(buys[0].px * buys[0].sz, 6)
+    expect(buys[1].sz).toBeLessThan(buys[0].sz)
+    // And it is above the level it was stopped at — that is the cost of proof.
+    expect(buys[1].px).toBeGreaterThan(82)
+    expect(on.openPosition).not.toBeNull()
+
+    // Off: the same tape stops out and never buys back.
+    const off = run(withReclaim(), candles)
+    expect(off.fills.find((f) => f.purpose === "dca:exit")?.px).toBeCloseTo(
+      82,
+      6
+    )
+    expect(off.fills.filter((f) => f.purpose.startsWith("dca:b:")).length).toBe(
+      1
+    )
+  })
+
+  it("reclaim: a close back under the base restarts the wait", () => {
+    const leadIn = [
+      bar(0, 101, 100, 102),
+      bar(1, 101, 100, 102),
+      bar(2, 101, 100, 102),
+      bar(3, 101, 100, 102),
+      bar(4, 92, 90, 101, 10, 101),
+      bar(5, 95, 91, 96, 10, 92),
+      bar(6, 84, 83, 96, 10, 95),
+      bar(7, 83, 82, 85, 10, 84),
+      bar(8, 83, 82, 84, 10, 83),
+      bar(9, 79, 78, 84, 10, 83),
+    ]
+    // Almost a full day back above 82, then ONE close under it, then a stretch
+    // above again that is shorter than a day. The wait restarted, so no buy.
+    const chop = [
+      ...Array.from({ length: 90 }, (_, i) => bar(10 + i, 85, 84, 86, 10, 84)),
+      bar(100, 81, 80, 85, 10, 84),
+      ...Array.from({ length: 50 }, (_, i) => bar(101 + i, 85, 84, 86, 10, 81)),
+    ]
+    const result = run(
+      {
+        ...dcaConfig(),
+        protection: {
+          long: {
+            takeProfitPct: 50,
+            stopLossPct: 50,
+            stopLossLevel: {
+              kind: "confirmedBase",
+              basePeriods: 4,
+              pumpPeriods: 1,
+              reclaimDays: 1,
+            },
+          },
+        },
+      },
+      [...leadIn, ...chop]
+    )
+    expect(
+      result.fills.filter((f) => f.purpose.startsWith("dca:b:")).length
+    ).toBe(1)
+  })
+
+  it("reclaim: repeated stop-and-reclaim never grows the position", () => {
+    // Stop, reclaim, stop, reclaim... each round must put back the SAME money,
+    // never more. The bug this guards: a step-down left each rung's filled size
+    // in place, so every reclaim added to it and the next one bought double —
+    // SOLV compounded to $76,750 against a $25,000 pot (July 28, 2026).
+    const leadIn = [
+      bar(0, 101, 100, 102),
+      bar(1, 101, 100, 102),
+      bar(2, 101, 100, 102),
+      bar(3, 101, 100, 102),
+      bar(4, 92, 90, 101, 10, 101),
+      bar(5, 95, 91, 96, 10, 92),
+      bar(6, 84, 83, 96, 10, 95),
+      bar(7, 83, 82, 85, 10, 84),
+      bar(8, 83, 82, 84, 10, 83),
+    ]
+    // Four rounds of: break 82, then hold back above it for a day (96 bars).
+    const round = (start: number) => [
+      bar(start, 79, 78, 84, 10, 83),
+      ...Array.from({ length: 110 }, (_, i) =>
+        bar(start + 1 + i, 85, 84, 86, 10, 84)
+      ),
+    ]
+    const candles = [
+      ...leadIn,
+      ...round(9),
+      ...round(120),
+      ...round(231),
+      ...round(342),
+    ]
+
+    const result = run(
+      {
+        ...dcaConfig(),
+        protection: {
+          long: {
+            takeProfitPct: 500,
+            stopLossPct: 100,
+            stopLossLevel: {
+              kind: "confirmedBase",
+              basePeriods: 4,
+              pumpPeriods: 1,
+              reclaimDays: 1,
+            },
+          },
+        },
+      },
+      candles
+    )
+
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    expect(buys.length).toBeGreaterThan(1)
+    // Every buy is budgeted off the same frozen equity, so no buy may cost
+    // meaningfully more than the first. Doubling would blow straight past this.
+    const notional = buys.map((f) => f.px * f.sz)
+    const first = notional[0]
+    for (const value of notional) {
+      expect(value).toBeLessThanOrEqual(first * 1.5)
+    }
+    // And the whole ladder never holds more than its pot (10% of 10,000).
+    let pos = 0
+    let peak = 0
+    for (const f of [...result.fills].sort((a, b) => a.t - b.t)) {
+      pos += f.side === "buy" ? f.sz : -f.sz
+      peak = Math.max(peak, pos * f.px)
+    }
+    expect(peak).toBeLessThanOrEqual(1_000 * 1.05)
+  })
+
+  it("reclaim: the last rung stopping out ends the cycle for good", () => {
+    // Both rungs bought (84 and 77, average about 80), then a base of 75
+    // confirms BELOW that average and price breaks it. With no rung left there
+    // is nothing to wait for, so the cycle is finished — no reclaim, no re-buy,
+    // however long price then holds back above the base.
+    const candles = [
+      bar(0, 101, 100, 102),
+      bar(1, 101, 100, 102),
+      bar(2, 101, 100, 102),
+      bar(3, 101, 100, 102),
+      bar(4, 92, 90, 101, 10, 101),
+      bar(5, 95, 91, 96, 10, 92),
+      bar(6, 84, 83, 96, 10, 95),
+      bar(7, 77, 76, 85, 10, 84),
+      bar(8, 78, 75, 79, 10, 77),
+      bar(9, 78, 75, 79, 10, 78),
+      bar(10, 71, 70, 79, 10, 78),
+      ...Array.from({ length: 200 }, (_, i) => bar(11 + i, 80, 79, 81, 10, 79)),
+    ]
+    const result = run(
+      {
+        ...dcaConfig(),
+        protection: {
+          long: {
+            takeProfitPct: 500,
+            stopLossPct: 100,
+            stopLossLevel: {
+              kind: "confirmedBase",
+              basePeriods: 4,
+              pumpPeriods: 1,
+              reclaimDays: 1,
+            },
+          },
+        },
+      },
+      candles
+    )
+    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
+    const exits = result.fills.filter((f) => f.purpose === "dca:exit")
+    expect(buys.length).toBe(2)
+    expect(exits.length).toBe(1)
+    // Nothing bought after the stop that used the last rung.
+    expect(buys.every((f) => f.t < exits[0].t)).toBe(true)
+    expect(result.openPosition).toBeNull()
   })
 
   it("gives up: a broken trend closes an open ladder, not just new ones", () => {
@@ -396,15 +650,21 @@ describe("DCA through the real backtest runner", () => {
     // Rung 1 needs its OWN fresh drop (≥3% below rung 0's fill) plus its own two
     // green candles, on a candle that both opens AND closes below that step level —
     // so the rungs are genuinely at least a step apart, not a shallow bounce.
-    const result = run(dcaConfig({ requireTwoGreen: true, rungs: [{ deviation: 3 }, { deviation: 3 }] }), [
-      ...setup,
-      bar(7, 86, 85, 88, 10, 88), // falls ≥3% below the base (~90); low 85 arms rung 0
-      bar(8, 86.5, 85, 87, 10, 85), // green, still below the level
-      bar(9, 86.8, 86, 87, 10, 86), // green → BUY rung 0 at 86.8 (≥3% below base)
-      bar(10, 83, 82, 87, 10, 86.8), // low 82 falls ≥3% below the 86.8 fill → arms rung 1
-      bar(11, 83.5, 82, 84, 10, 82), // green, below rung 1's level
-      bar(12, 83.8, 83, 84, 10, 83), // green, opens 83 & closes 83.8 below → BUY rung 1
-    ])
+    const result = run(
+      dcaConfig({
+        requireTwoGreen: true,
+        rungs: [{ deviation: 3 }, { deviation: 3 }],
+      }),
+      [
+        ...setup,
+        bar(7, 86, 85, 88, 10, 88), // falls ≥3% below the base (~90); low 85 arms rung 0
+        bar(8, 86.5, 85, 87, 10, 85), // green, still below the level
+        bar(9, 86.8, 86, 87, 10, 86), // green → BUY rung 0 at 86.8 (≥3% below base)
+        bar(10, 83, 82, 87, 10, 86.8), // low 82 falls ≥3% below the 86.8 fill → arms rung 1
+        bar(11, 83.5, 82, 84, 10, 82), // green, below rung 1's level
+        bar(12, 83.8, 83, 84, 10, 83), // green, opens 83 & closes 83.8 below → BUY rung 1
+      ]
+    )
     const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
     expect(buys.map((b) => b.purpose)).toEqual(["dca:b:0", "dca:b:1"])
     const gap = (Number(buys[0].px) - Number(buys[1].px)) / Number(buys[0].px)
@@ -414,15 +674,21 @@ describe("DCA through the real backtest runner", () => {
   it("require two green: a confirmation candle that opens back above the step doesn't buy", () => {
     // Same drop, but rung 1's green candle OPENS above its 3% level (already bounced
     // back up) — so it can't buy there; the rung must sit a full step down.
-    const result = run(dcaConfig({ requireTwoGreen: true, rungs: [{ deviation: 3 }, { deviation: 3 }] }), [
-      ...setup,
-      bar(7, 86, 85, 88, 10, 88),
-      bar(8, 86.5, 85, 87, 10, 85),
-      bar(9, 86.8, 86, 87, 10, 86), // BUY rung 0
-      bar(10, 83, 82, 87, 10, 86.8), // arms rung 1
-      bar(11, 83.5, 82, 84, 10, 82), // green
-      bar(12, 83.8, 83, 85, 10, 85), // OPENS at 85, above rung 1's level → no buy
-    ])
+    const result = run(
+      dcaConfig({
+        requireTwoGreen: true,
+        rungs: [{ deviation: 3 }, { deviation: 3 }],
+      }),
+      [
+        ...setup,
+        bar(7, 86, 85, 88, 10, 88),
+        bar(8, 86.5, 85, 87, 10, 85),
+        bar(9, 86.8, 86, 87, 10, 86), // BUY rung 0
+        bar(10, 83, 82, 87, 10, 86.8), // arms rung 1
+        bar(11, 83.5, 82, 84, 10, 82), // green
+        bar(12, 83.8, 83, 85, 10, 85), // OPENS at 85, above rung 1's level → no buy
+      ]
+    )
     const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
     expect(buys.map((b) => b.purpose)).toEqual(["dca:b:0"])
   })
@@ -514,114 +780,6 @@ describe("DCA through the real backtest runner", () => {
   // level, 85.5: selling 1000/85.5 = 11.696 coins there returns the whole $1,000
   // and leaves 0.750 coins that cost nothing. Those wait at 2% under the base
   // (90 · 0.98 = 88.2).
-  const moneyBackConfig = (sellBelowBasePct = 2): AutomationConfig => ({
-    ...dcaConfig({ sellBelowBasePct }),
-    protection: {
-      long: { takeProfitPct: 3, takeProfitMode: "moneyBackThenBase" },
-    },
-  })
-
-  it("money back then ride free: takes the cash back at the nearest rung and sells the leftover coins under the base", () => {
-    const result = run(moneyBackConfig(), [
-      ...setup,
-      bar(7, 84, 83, 88, 10, 87), // orderly: rung 0 fills near 85.5
-      bar(8, 77, 76, 85, 10, 84), // orderly: rung 1 fills near 77
-      bar(9, 86, 79, 87, 10, 79), // bounce to the nearest rung (85.5) — cash back
-      bar(10, 95, 85, 96, 10, 86), // runs on past 88.2 — the free coins sell
-    ])
-
-    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
-    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
-    const free = result.fills.find((f) => f.purpose === "dca:s:free")
-    const spent = buys.reduce((sum, f) => sum + f.px * f.sz, 0)
-
-    expect(buys.length).toBe(2)
-    expect(cash).toBeTruthy()
-    expect(free).toBeTruthy()
-    // The cash sell rests at the nearest rung above the deepest buy — rung 0's
-    // level (base · 0.95), NOT at the average and NOT back at the base.
-    expect(cash!.px).toBeCloseTo(85.5, 5)
-    // It sells exactly enough to hand back every dollar the ladder spent.
-    expect(cash!.px * cash!.sz).toBeCloseTo(spent, 5)
-    // It is NOT the whole position — that is the entire point of the mode.
-    expect(cash!.sz).toBeLessThan(buys.reduce((sum, f) => sum + f.sz, 0))
-    // The coins it left over cost nothing and sell 2% under the base.
-    expect(free!.px).toBeCloseTo(88.2, 5)
-    expect(free!.sz).toBeCloseTo(
-      buys.reduce((sum, f) => sum + f.sz, 0) - cash!.sz,
-      6
-    )
-    // Nothing peels rung by rung in this mode.
-    expect(result.fills.some((f) => /^dca:s:(\d|all)/.test(f.purpose))).toBe(
-      false
-    )
-    expect(result.openPosition).toBeNull()
-    // With no costs the whole gain is the free coins' sale.
-    expect(result.trades.reduce((sum, t) => sum + t.pnl, 0)).toBeCloseTo(
-      free!.px * free!.sz,
-      4
-    )
-  })
-
-  it("money back then ride free: a bounce that dies after the cash sale leaves nothing at risk", () => {
-    const result = run(moneyBackConfig(), [
-      ...setup,
-      bar(7, 84, 83, 88, 10, 87), // rung 0 fills near 85.5
-      bar(8, 77, 76, 85, 10, 84), // rung 1 fills near 77
-      bar(9, 86, 79, 87, 10, 79), // bounce to 85.5 — cash back, never reaches 88.2
-      bar(10, 60, 58, 86, 10, 85), // rolls back over and bleeds away
-      bar(11, 50, 48, 61, 10, 60),
-    ])
-
-    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
-    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
-    const spent = buys.reduce((sum, f) => sum + f.px * f.sz, 0)
-
-    expect(cash).toBeTruthy()
-    // Every dollar came back on the bounce...
-    expect(cash!.px * cash!.sz).toBeCloseTo(spent, 5)
-    expect(result.fills.some((f) => f.purpose === "dca:s:free")).toBe(false)
-    // ...and the coins still held are only the free ones.
-    expect(result.openPosition).not.toBeNull()
-    const held = result.openPosition!
-    expect(held.szi).toBeCloseTo(
-      buys.reduce((sum, f) => sum + f.sz, 0) - cash!.sz,
-      6
-    )
-    // The realised gain and the cost still carried by the held coins are the same
-    // number, so even if they go to ZERO the cycle only ends flat — that is what
-    // "nothing at risk" means here. Without this mode the whole ladder would still
-    // be underwater as price bled from 86 to 50.
-    // The gain booked on the cash sale is exactly the cost still carried by the
-    // coins held — so even if they go to ZERO the cycle only ends flat. That
-    // identity is what "nothing at risk" means. Without this mode the ladder
-    // would still be fully underwater as price bled from 86 down to 50.
-    expect(cash!.closedPnl).toBeGreaterThan(0)
-    expect(cash!.closedPnl).toBeCloseTo(held.szi * held.entryPx, 4)
-  })
-
-  it("money back then ride free: a sell-below-base deeper than the first rung collapses to one order", () => {
-    // 10% under a base of 90 is 81 — below the 85.5 cash level. The free coins
-    // must never rest cheaper than the sale that returns the money, so the two
-    // orders become one for the whole position at 85.5.
-    const result = run(moneyBackConfig(10), [
-      ...setup,
-      bar(7, 84, 83, 88, 10, 87),
-      bar(8, 77, 76, 85, 10, 84),
-      bar(9, 86, 79, 87, 10, 79),
-    ])
-
-    const buys = result.fills.filter((f) => f.purpose.startsWith("dca:b:"))
-    const cash = result.fills.find((f) => f.purpose === "dca:s:cash")
-    expect(cash).toBeTruthy()
-    expect(cash!.px).toBeCloseTo(85.5, 5)
-    expect(cash!.sz).toBeCloseTo(
-      buys.reduce((sum, f) => sum + f.sz, 0),
-      6
-    )
-    expect(result.fills.some((f) => f.purpose === "dca:s:free")).toBe(false)
-    expect(result.openPosition).toBeNull()
-  })
 
   it("shares one wallet but reserves only what fills — one coin doesn't block another", async () => {
     // Both coins dip together with a 60% pot each. A coin reserves only what it
@@ -662,7 +820,9 @@ describe("DCA through the real backtest runner", () => {
     // The same whole-basket wallet numbers ride on every market of the run.
     expect(results.get("BBB")?.portfolio).toEqual(usage)
     expect(usage?.avgExposurePct).toBeGreaterThan(0)
-    expect(usage?.avgExposurePct).toBeLessThanOrEqual(usage?.peakExposurePct ?? 0)
+    expect(usage?.avgExposurePct).toBeLessThanOrEqual(
+      usage?.peakExposurePct ?? 0
+    )
     // Time at the peak is real time: bars up there × the replay's bar spacing.
     expect(usage?.timeAtPeakMs).toBeGreaterThan(0)
     // Real time, not a bar count: 3 bars at the peak over 15m bars is 45m,
@@ -732,7 +892,10 @@ describe("DCA through the real backtest runner", () => {
     expect(buys.length).toBe(1) // only the first rung, at the bounce
     expect(result.trades.length).toBeGreaterThan(0)
     const totalPnl = result.trades.reduce((sum, t) => sum + t.pnl, 0)
-    const totalCost = result.trades.reduce((sum, t) => sum + t.entryPx * t.qty, 0)
+    const totalCost = result.trades.reduce(
+      (sum, t) => sum + t.entryPx * t.qty,
+      0
+    )
     const aggReturn = (totalPnl / totalCost) * 100
     expect(aggReturn).toBeGreaterThan(-11)
     expect(aggReturn).toBeLessThan(-9)

@@ -103,7 +103,6 @@ const compactDateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 })
-const BACKTEST_PROGRESS_BATCH_SIZE = 100
 
 /**
  * Persist a resizable layout in localStorage, matching the automation editor:
@@ -144,17 +143,8 @@ function useLiveBacktestRuns(
       }
       running = true
       try {
-        const batches: string[][] = []
-        for (
-          let start = 0;
-          start < ids.length;
-          start += BACKTEST_PROGRESS_BATCH_SIZE
-        ) {
-          batches.push(ids.slice(start, start + BACKTEST_PROGRESS_BATCH_SIZE))
-        }
-        const updates = (
-          await Promise.all(batches.map((batch) => pollBacktestProgress(batch)))
-        ).flat()
+        // `pollBacktestProgress` splits the basket into request-sized batches.
+        const updates = await pollBacktestProgress(ids)
         if (cancelled) return
         const byId = new Map(updates.map((update) => [update.id, update]))
         setRuns((current) =>
@@ -1350,7 +1340,9 @@ export function RunHistoryDashboard({
                         aria-label="Filter markets"
                         placeholder="Filter markets..."
                         value={state.search}
-                        onChange={(event) => state.setSearch(event.target.value)}
+                        onChange={(event) =>
+                          state.setSearch(event.target.value)
+                        }
                       />
                     </div>
                   </div>

@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -84,9 +84,8 @@ export function TradingSettings({
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
-            <Input
+            <NumberInput
               id="liquidation-alert-threshold"
-              type="number"
               min={0}
               max={MAX_LIQUIDATION_ALERT_THRESHOLD_PCT}
               step={0.5}
@@ -94,12 +93,11 @@ export function TradingSettings({
               disabled={isSaving}
               className="h-8 w-28"
               aria-label="Liquidation warning threshold percent"
-              onChange={(event) =>
+              onValueChange={(next) =>
                 onConfigChange({
                   ...config,
-                  liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
-                    Number(event.target.value)
-                  ),
+                  liquidationAlertThresholdPct:
+                    clampLiquidationAlertThreshold(next),
                 })
               }
               onBlur={() => void onSaveConfig(config)}
@@ -128,9 +126,8 @@ export function TradingSettings({
             <div className="grid gap-2">
               <Label htmlFor="default-leverage">Leverage</Label>
               <div className="flex items-center gap-2">
-                <Input
+                <NumberInput
                   id="default-leverage"
-                  type="number"
                   inputMode="numeric"
                   min={MIN_DEFAULT_LEVERAGE}
                   max={MAX_DEFAULT_LEVERAGE}
@@ -138,12 +135,12 @@ export function TradingSettings({
                   value={config.orderDefaults.leverage}
                   disabled={isSaving}
                   className="w-24"
-                  onChange={(event) =>
+                  onValueChange={(next) =>
                     onConfigChange({
                       ...config,
                       orderDefaults: {
                         ...config.orderDefaults,
-                        leverage: clampDefaultLeverage(event.target.value),
+                        leverage: clampDefaultLeverage(next),
                       },
                     })
                   }

@@ -82,6 +82,9 @@ const SAFE_ERROR_MESSAGES = new Set([
   "Automation name already exists",
   "Could not create a unique Automation copy",
   "Missing Custom Shell session",
+  // Says WHY opening one specific automation failed instead of the generic
+  // fallback. It leaks nothing — the row is already the caller's own.
+  "Automation draft could not be read",
 ])
 const FALLBACK_ERROR = "Automation request failed."
 
@@ -99,21 +102,35 @@ const listAutomationsFn = createServerFn({ method: "GET" }).handler(
       const rows = await listUserAutomations(user.id)
       return {
         automations: rows.map((row) => {
-          const inspected = inspectAutomation(row)
-          const isValid =
-            inspected.compiledConfig !== null && inspected.errors.length === 0
-          return {
+          const base = {
             id: row.id,
             name: row.name,
             type: row.type,
             interval: row.interval,
+            updated_at: row.updatedAt.toISOString(),
+          }
+          // One unreadable row must never take the whole list down with it.
+          // `inspectAutomation` throws on a draft the schema can't parse — a
+          // node kind that no longer exists, say — and this list inspects every
+          // row, so without this the list page fails outright and there is no
+          // way in to even delete the offender. It lists as "Needs attention",
+          // which is what any other invalid automation shows.
+          let inspected: ReturnType<typeof inspectAutomation>
+          try {
+            inspected = inspectAutomation(row)
+          } catch {
+            return { ...base, summary: "Needs attention", isValid: false }
+          }
+          const isValid =
+            inspected.compiledConfig !== null && inspected.errors.length === 0
+          return {
+            ...base,
             summary: isValid
               ? automationSummary(inspected.compiledConfig!)
               : row.graph.nodes.length === 0
                 ? "Empty draft"
                 : "Needs attention",
             isValid,
-            updated_at: row.updatedAt.toISOString(),
           }
         }),
       }
@@ -122,71 +139,66 @@ const listAutomationsFn = createServerFn({ method: "GET" }).handler(
 
 const getAutomationFn = createServerFn({ method: "GET" })
   .inputValidator(automationIdSchema)
-  .handler(
-    async ({ data }): Promise<AutomationDetail> =>
-      safeRequest(async () => {
-        const user = await requireUser()
-        const { getUserAutomation } = await import("@/server/automations")
-        const row = await getUserAutomation(user.id, data.automationId)
-        if (!row) throw new Error("Automation not found")
-        return serializeDetail(row)
-      })
+  .handler(async ({ data }): Promise<AutomationDetail> =>
+    safeRequest(async () => {
+      const user = await requireUser()
+      const { getUserAutomation } = await import("@/server/automations")
+      const row = await getUserAutomation(user.id, data.automationId)
+      if (!row) throw new Error("Automation not found")
+      return serializeDetail(row)
+    })
   )
 
 const createAutomationFn = createServerFn({ method: "POST" })
   .inputValidator(createSchema)
-  .handler(
-    async ({ data }): Promise<AutomationDetail> =>
-      safeRequest(async () => {
-        const { requireAppOrigin } = await import("@/server/origin")
-        requireAppOrigin()
-        const user = await requireUser()
-        const { createUserAutomation } = await import("@/server/automations")
-        return serializeDetail(await createUserAutomation(user.id, data))
-      })
+  .handler(async ({ data }): Promise<AutomationDetail> =>
+    safeRequest(async () => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      requireAppOrigin()
+      const user = await requireUser()
+      const { createUserAutomation } = await import("@/server/automations")
+      return serializeDetail(await createUserAutomation(user.id, data))
+    })
   )
 
 const saveAutomationFn = createServerFn({ method: "POST" })
   .inputValidator(saveSchema)
-  .handler(
-    async ({ data }): Promise<AutomationDetail> =>
-      safeRequest(async () => {
-        const { requireAppOrigin } = await import("@/server/origin")
-        requireAppOrigin()
-        const user = await requireUser()
-        const { saveUserAutomation } = await import("@/server/automations")
-        const row = await saveUserAutomation(user.id, data.automationId, data)
-        if (!row) throw new Error("Automation not found")
-        return serializeDetail(row)
-      })
+  .handler(async ({ data }): Promise<AutomationDetail> =>
+    safeRequest(async () => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      requireAppOrigin()
+      const user = await requireUser()
+      const { saveUserAutomation } = await import("@/server/automations")
+      const row = await saveUserAutomation(user.id, data.automationId, data)
+      if (!row) throw new Error("Automation not found")
+      return serializeDetail(row)
+    })
   )
 
 const duplicateAutomationFn = createServerFn({ method: "POST" })
   .inputValidator(automationIdSchema)
-  .handler(
-    async ({ data }): Promise<AutomationDetail> =>
-      safeRequest(async () => {
-        const { requireAppOrigin } = await import("@/server/origin")
-        requireAppOrigin()
-        const user = await requireUser()
-        const { duplicateUserAutomation } = await import("@/server/automations")
-        const row = await duplicateUserAutomation(user.id, data.automationId)
-        if (!row) throw new Error("Automation not found")
-        return serializeDetail(row)
-      })
+  .handler(async ({ data }): Promise<AutomationDetail> =>
+    safeRequest(async () => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      requireAppOrigin()
+      const user = await requireUser()
+      const { duplicateUserAutomation } = await import("@/server/automations")
+      const row = await duplicateUserAutomation(user.id, data.automationId)
+      if (!row) throw new Error("Automation not found")
+      return serializeDetail(row)
+    })
   )
 
 const deleteAutomationFn = createServerFn({ method: "POST" })
   .inputValidator(automationIdSchema)
-  .handler(
-    async ({ data }): Promise<{ ok: boolean }> =>
-      safeRequest(async () => {
-        const { requireAppOrigin } = await import("@/server/origin")
-        requireAppOrigin()
-        const user = await requireUser()
-        const { deleteUserAutomation } = await import("@/server/automations")
-        return { ok: await deleteUserAutomation(user.id, data.automationId) }
-      })
+  .handler(async ({ data }): Promise<{ ok: boolean }> =>
+    safeRequest(async () => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      requireAppOrigin()
+      const user = await requireUser()
+      const { deleteUserAutomation } = await import("@/server/automations")
+      return { ok: await deleteUserAutomation(user.id, data.automationId) }
+    })
   )
 
 const loadAutomationFavoritesFn = createServerFn({ method: "GET" }).handler(

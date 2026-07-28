@@ -176,6 +176,40 @@ export function AutomationBacktestSidePanel({
     changeMarkets(pool.slice(0, marketCap))
   }
 
+  // Liquidity baskets, split by daily traded value. The bands come from
+  // splitting a 200-coin run by volume: the $1m-$10m tier produced the profit,
+  // $10m-$50m lost money, and the biggest coins produced almost none of it.
+  // Picking one deliberately is how you find out whether that holds on your own
+  // runs instead of averaging the tiers together.
+  //
+  // Under $1m/day is left out of every band on purpose: those coins contributed
+  // nothing measurable and are where a backtest's fill assumptions are least
+  // believable.
+  //
+  // NOTE: this is TODAY's 24h volume from the ticker, not what the coin traded
+  // during the window being tested. A coin can be liquid now and have been thin
+  // then, so treat the split as a rough sort, not a guarantee.
+  const CAP_BANDS = [
+    { key: "low", label: "Low cap", low: 1_000_000, high: 10_000_000 },
+    { key: "mid", label: "Mid cap", low: 10_000_000, high: 50_000_000 },
+    {
+      key: "high",
+      label: "High cap",
+      low: 50_000_000,
+      high: Number.POSITIVE_INFINITY,
+    },
+  ] as const
+  const bands = CAP_BANDS.map((band) => ({
+    ...band,
+    coins: markets
+      .filter(
+        (row) => row.dayVolumeUsd >= band.low && row.dayVolumeUsd < band.high
+      )
+      .map((row) => row.coin),
+  }))
+  const money = (value: number) =>
+    value >= 1e9 ? `$${value / 1e9}b` : `$${value / 1e6}m`
+
   const submit = () => {
     const windowDays = Number(days)
     if (
@@ -256,7 +290,7 @@ export function AutomationBacktestSidePanel({
                       {selectedMarkets.length}/{marketCap}
                     </span>
                   </Label>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-end gap-1">
                     <Button
                       type="button"
                       variant="ghost"
@@ -268,6 +302,26 @@ export function AutomationBacktestSidePanel({
                       <ShuffleIcon className="size-3.5" />
                       Randomize
                     </Button>
+                    {bands.map((band) => (
+                      <Button
+                        key={band.key}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        disabled={band.coins.length === 0}
+                        title={`Coins trading ${money(band.low)}${
+                          Number.isFinite(band.high)
+                            ? `-${money(band.high)}`
+                            : "+"
+                        } a day — ${band.coins.length} right now, capped at the ${marketCap} this run fits.`}
+                        onClick={() =>
+                          changeMarkets(band.coins.slice(0, marketCap))
+                        }
+                      >
+                        {band.label}
+                      </Button>
+                    ))}
                     {selectedMarkets.length > 0 ? (
                       <Button
                         type="button"
@@ -525,14 +579,14 @@ export function AutomationBacktestSidePanel({
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Unnamed runs are replaced by your next backtest. Named runs
-                stay in history forever.
+                Unnamed runs are replaced by your next backtest. Named runs stay
+                in history forever.
               </p>
             </div>
           ) : (
             <p className="text-[10px] text-muted-foreground">
-              Kept as “{backtest.groupName}” — your next backtest won't
-              replace it.
+              Kept as “{backtest.groupName}” — your next backtest won't replace
+              it.
             </p>
           )}
         </div>

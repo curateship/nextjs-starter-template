@@ -3,23 +3,21 @@ import { describe, expect, it } from "vitest"
 import { SharedWalletPortfolio } from "./shared-wallet-portfolio"
 
 describe("shared wallet exposure", () => {
-  it("reserves the best respected simultaneous market and releases capacity", () => {
+  it("reserves the strongest simultaneous market and releases capacity", () => {
     const portfolio = new SharedWalletPortfolio(25)
     portfolio.submit({
       market: "LOW",
       candleTime: 100,
       exposurePct: 25,
-      respectRate: 60,
-      volumeMultiple: 5,
-      dailyVolumeUsd: 50_000_000,
+      volumeMultiple: 2,
+      dailyVolumeUsd: 10_000_000,
     })
     portfolio.submit({
       market: "HIGH",
       candleTime: 100,
       exposurePct: 25,
-      respectRate: 80,
-      volumeMultiple: 2,
-      dailyVolumeUsd: 10_000_000,
+      volumeMultiple: 5,
+      dailyVolumeUsd: 50_000_000,
     })
 
     expect(portfolio.reserve("LOW", 100, 25)).toBe(false)
@@ -35,9 +33,8 @@ describe("shared wallet exposure", () => {
       market: "LOW",
       candleTime: 100,
       exposurePct: 25,
-      respectRate: 60,
-      volumeMultiple: 5,
-      dailyVolumeUsd: 50_000_000,
+      volumeMultiple: 2,
+      dailyVolumeUsd: 10_000_000,
     })
     portfolio.observe("LOW", 100)
 
@@ -48,9 +45,8 @@ describe("shared wallet exposure", () => {
       market: "HIGH",
       candleTime: 100,
       exposurePct: 25,
-      respectRate: 80,
-      volumeMultiple: 2,
-      dailyVolumeUsd: 10_000_000,
+      volumeMultiple: 5,
+      dailyVolumeUsd: 50_000_000,
     })
     portfolio.observe("HIGH", 100)
 
