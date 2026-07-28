@@ -109,19 +109,31 @@ describe('automation graph validation', () => {
   })
 
   it('accepts an AI Image node between the AI Agent and the Post', () => {
-    const graph = imageGraph('A clean editorial header image.', 'gpt-image-1')
+    const graph = imageGraph('A clean editorial header image.')
     assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
   })
 
-  it('requires an AI Image model and prompt', () => {
-    const graph = imageGraph('', '')
+  it('requires an AI Image prompt', () => {
+    const graph = imageGraph('')
     const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
-    assert.ok(codes.includes('image-model'))
     assert.ok(codes.includes('image-prompt'))
   })
 
+  it('keeps a chosen reference image and defaults it to none on older graphs', () => {
+    const withReference = imageGraph('Header image.', 'https://cdn.example.com/media/logo.png')
+    const parsed = parseAutomationGraph(withReference).nodes.find((node) => node.kind === 'image')
+    assert.equal(parsed?.kind === 'image' ? parsed.config.referenceImage : null, 'https://cdn.example.com/media/logo.png')
+
+    const older = imageGraph('Header image.')
+    const olderImage = older.nodes.find((node) => node.id === imageId)
+    if (!olderImage) assert.fail('Missing image fixture')
+    delete (olderImage.config as { referenceImage?: string }).referenceImage
+    const olderParsed = parseAutomationGraph(older).nodes.find((node) => node.kind === 'image')
+    assert.equal(olderParsed?.kind === 'image' ? olderParsed.config.referenceImage : null, '')
+  })
+
   it('rejects an AI Image node connected to a Listing', () => {
-    const graph = imageGraph('Header image.', 'gpt-image-1')
+    const graph = imageGraph('Header image.')
     const post = graph.nodes.find((node) => node.id === ids.newsPost)
     if (!post) assert.fail('Missing post fixture')
     post.kind = 'listing'
@@ -133,14 +145,14 @@ describe('automation graph validation', () => {
 
 const imageId = '99999999-9999-4999-8999-999999999999'
 
-function imageGraph(prompt: string, model: string): AutomationGraph {
+function imageGraph(prompt: string, referenceImage = ''): AutomationGraph {
   return {
     viewport: { x: 0, y: 0, zoom: 1 },
     nodes: [
       { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '09:00', timezone: 'UTC' } } },
       { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/news'] } },
       { id: ids.newsAgent, kind: 'agent', name: 'Writer', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write an article.' } },
-      { id: imageId, kind: 'image', name: 'AI Image', x: 900, y: 0, config: { provider: 'openai', model, prompt, size: 'landscape' } },
+      { id: imageId, kind: 'image', name: 'AI Image', x: 900, y: 0, config: { provider: 'openai', prompt, size: 'landscape', referenceImage } },
       { id: ids.newsPost, kind: 'post', name: 'Post', x: 1200, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
     ],
     edges: [

@@ -9,13 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type {
-  AutomationEditorData,
   AutomationEdge,
   AutomationNode,
   AutomationValidationError,
 } from "@/features/automations/domain/types";
 import { cn } from "@/lib/utils/tailwind";
-import { Field, getNodeUI } from "./node-ui";
+import { Field, getNodeUI, type NodePanelData } from "./node-ui";
 
 export function AutomationInspector({
   node,
@@ -31,10 +30,7 @@ export function AutomationInspector({
 }: {
   node: AutomationNode | null;
   edge: AutomationEdge | null;
-  data: Pick<
-    AutomationEditorData,
-    "templates" | "listingTemplates" | "categories" | "providers"
-  >;
+  data: NodePanelData;
   errors: AutomationValidationError[];
   favorite?: boolean;
   onToggleFavorite?: () => void;

@@ -1,4 +1,4 @@
-import { AI_IMAGE_PROVIDER_DEFAULT_MODELS, isAIImageProvider } from '@/lib/utils/ai-models'
+import { isAIImageProvider } from '@/lib/utils/ai-models'
 import { boundedString } from '../parse-utils'
 import { defineNode } from '../node-descriptor'
 import type { ImageAutomationNode } from '../types'
@@ -12,9 +12,9 @@ export const imageNode = defineNode({
   providerRequirement: 'optional',
   createConfig: () => ({
     provider: 'openai',
-    model: AI_IMAGE_PROVIDER_DEFAULT_MODELS.openai,
     prompt: 'A clean, professional editorial header image that represents the article. Do not include any text or words in the image.',
     size: 'landscape',
+    referenceImage: '',
   }),
   ports: () => [{ id: 'article', label: 'Article' }],
   parseConfig: (config) => {
@@ -22,13 +22,13 @@ export const imageNode = defineNode({
     if (typeof config.size !== 'string' || !IMAGE_SIZES.has(config.size)) throw new Error('AI Image size is invalid')
     return {
       provider: config.provider,
-      model: boundedString(config.model, 'AI Image model', 120),
       prompt: boundedString(config.prompt, 'AI Image prompt', 4000),
       size: config.size as ImageAutomationNode['config']['size'],
+      // Older graphs predate the reference image, so a missing value is normal.
+      referenceImage: boundedString(config.referenceImage ?? '', 'AI Image reference image', 2000),
     }
   },
   validate: (node, push) => {
-    if (!node.config.model.trim()) push('image-model', 'Choose an AI Image model.')
     if (!node.config.prompt.trim()) push('image-prompt', 'Add an image prompt.')
   },
   allowedTargets: (port) => (port === 'article' ? ['post'] : []),

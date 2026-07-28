@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { MediaPicker } from "./MediaPicker"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
@@ -64,7 +64,7 @@ export function MediaInput({
 
   return (
     <div className="space-y-3">
-      <Label>{label}</Label>
+      <FieldLabel hint={description}>{label}</FieldLabel>
 
       {/* Current Media Preview */}
       {shouldShowPreview(value) && (
@@ -170,10 +170,6 @@ export function MediaInput({
             ) : null}
           </div>
         </div>
-      )}
-
-      {description && (
-        <p className="text-xs text-muted-foreground">{description}</p>
       )}
 
       {/* Media Picker Dialog */}

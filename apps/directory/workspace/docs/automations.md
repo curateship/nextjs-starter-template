@@ -30,9 +30,21 @@ library (a normal `media` row backed by an R2 object), and sets it as the post's
 `featured_image`. Image generation is best-effort: if the image provider has no key
 or the provider call fails, the node records a clear reason on its step, marks that
 step failed, and still passes the article through so the post is created without an
-image (the run is then `partial`). Only OpenAI (`gpt-image-1`) is wired today; the
-node's provider key comes from the same per-site AI integration config as the text
-nodes.
+image (the run is then `partial`). Only OpenAI is wired today; the node's provider key
+comes from the same per-site AI integration config as the text nodes. There is no model
+field — one image model per provider (`AI_IMAGE_PROVIDER_MODELS`), so choosing the
+provider chooses the model.
+
+The node takes an optional **reference image** picked from the site's own media library.
+With one set, the request goes to OpenAI's `images/edits` endpoint with that picture
+attached, so the generated header follows its style and subject; without one it goes to
+`images/generations` from the prompt alone. The reference's bytes are read out of object
+storage through its `media` row (matched on public URL **and** the automation's site), not
+by fetching the stored URL — so the picture is always one this site owns and a run never
+makes an outbound request to an address the saved config could point at. The lookup is
+restricted to `file_type = 'image'` and the stored `file_size` is checked before anything
+is downloaded. If the row is gone, is not an image, is oversized, or cannot be read, the
+node reports that reason and the post is still created without an image.
 
 AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
 
