@@ -5,6 +5,7 @@ import { ImageUpload } from "@/components/image-upload"
 import { CardGroup } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -157,22 +158,17 @@ export function GeneralSettings({
 
         <div className="grid gap-2">
           <Label htmlFor="max-candles">Max chart candles</Label>
-          <Input
+          <NumberInput
             id="max-candles"
-            type="number"
             inputMode="numeric"
             min={MIN_CANDLES}
             max={MAX_CANDLES_LIMIT}
             className="w-32"
             value={config.maxCandles}
             disabled={isSaving}
-            onChange={(event) => {
-              const next = Number(event.target.value)
-              onConfigChange({
-                ...config,
-                maxCandles: Number.isFinite(next) ? next : config.maxCandles,
-              })
-            }}
+            onValueChange={(next) =>
+              onConfigChange({ ...config, maxCandles: next })
+            }
           />
           <p className="text-xs text-muted-foreground">
             Candles loaded per trading chart, and the per-timeframe ceiling for

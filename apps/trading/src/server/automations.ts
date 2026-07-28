@@ -50,6 +50,8 @@ export type InspectedAutomation = {
 export function inspectAutomation(row: TradingAutomation): InspectedAutomation {
   const parsedDraft = storedDraftSchema.safeParse(row.graph)
   if (!parsedDraft.success) {
+    // Callers that inspect MANY rows must catch this — one unreadable draft
+    // must not take a whole list down. See the list handler in lib/api.
     throw new Error("Automation draft could not be read")
   }
   const { backtest, ...graph } = parsedDraft.data

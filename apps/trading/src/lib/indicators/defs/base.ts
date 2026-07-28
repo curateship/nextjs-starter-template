@@ -164,27 +164,34 @@ export const baseIndicator: IndicatorModule<BaseParams> = {
       label: "Confirmation bars",
       info: "How many candles the new low must hold before the base counts as confirmed.",
     },
+    // The four below are about what the CHART draws, so they stay on the chart's
+    // indicator settings and are hidden on the automation node — which draws no
+    // arrows and only reads where the levels are.
     {
       key: "formedRequireHigherBase",
       label: "Only levels with the trend",
       kind: "boolean",
+      chartOnly: true,
       info: "On: going long, only mark a base above the base before it (a higher low); going short, only mark a ceiling below the ceiling before it (a lower high). Off: mark every level. This is usually why a level has a dash but no arrow.",
     },
     {
       key: "formedShowLong",
       label: "Show long arrows (bases)",
       kind: "boolean",
+      chartOnly: true,
       info: "Green up arrow and a teal dash at each confirmed base — support.",
     },
     {
       key: "formedShowShort",
       label: "Show short arrows (ceilings)",
       kind: "boolean",
+      chartOnly: true,
       info: "Red down arrow and a red dash at each confirmed ceiling — resistance.",
     },
     {
       key: "formedMinBars",
       label: "Minimum candles between arrows",
+      chartOnly: true,
       info: "Arrows can never appear closer together than this many candles, so they stop bunching up. Separately and with no setting: an arrow only prints on a floor above the last one marked, and after price sets a lower floor the indicator measures from there.",
     },
   ],

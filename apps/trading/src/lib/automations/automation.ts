@@ -14,7 +14,6 @@ import {
 } from "./node-registry"
 import {
   DEFAULT_DCA_MAX_POSITION_PCT,
-  DEFAULT_DCA_SELL_BELOW_BASE_PCT,
   dcaRungsSchema,
   type AutomationDcaRung,
 } from "./dca"
@@ -93,15 +92,9 @@ export type AutomationTakeProfitNode = {
    * first bought, the first at the base). "nearestRungSellAll" instead rests one
    * order for the WHOLE position at the nearest rung above the deepest buy, so a
    * bounce back to that single level closes everything at once (and that level
-   * slides down as deeper rungs fill). "moneyBackThenBase" sells at that same
-   * nearest rung but only ENOUGH to hand back every dollar the ladder spent; the
-   * coins left over cost nothing and rest just under the base for the profit.
+   * slides down as deeper rungs fill).
    */
-  mode?:
-    | "average"
-    | "previousRungSellAll"
-    | "nearestRungSellAll"
-    | "moneyBackThenBase"
+  mode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
   /**
    * Risk-reward take profit: the profit target is the STOP's distance times
    * this ratio (1 = 1:1, so a 2% stop banks at 2%; 2 = 2:1, so it banks at
@@ -139,8 +132,22 @@ export type AutomationStopLossNode = {
    * short, because that is simply where the level lies. `pct` stays the
    * fallback for a trade opened outside those hours, where there is no
    * session-open price to use.
+   * "confirmedBase": at the price of the confirmed base drawn by the Base node
+   * wired into this stop — the level the trade is betting holds. If price loses
+   * the base, the reason for the trade is gone. `pct` stays the fallback for a
+   * trade opened with no confirmed base to sit under.
    */
-  level?: "percent" | "sessionOpen"
+  level?: "percent" | "sessionOpen" | "confirmedBase"
+  /**
+   * "Confirmed base" only. Days price must spend back ABOVE the base this stop
+   * was cut at before the trade is re-entered. A level that gets reclaimed and
+   * then HELD is the fakeout case — the break took the stops out and price
+   * carried on up. Measured on closes: a wick under the base does not reset it,
+   * a close under it starts the wait again from zero.
+   *
+   * 0 or absent: no re-entry, which is how every ladder behaved before.
+   */
+  baseReclaimDays?: number
   x: number
   y: number
 }
@@ -207,31 +214,6 @@ export type AutomationDcaNode = {
    */
   requireTwoGreen: boolean
   /**
-   * The crack that starts the ladder: how far below the base a candle must close,
-   * and how fast the fall must be (price was still at/above the base within this
-   * many candles). These live HERE, not on the Base indicator feeding this node —
-   * the indicator only finds levels; breaking one is this ladder's rule.
-   */
-  crackPct: number
-  maxCrackBars: number
-  /**
-   * Past base quality: only trade markets whose recent cracks tended to recover.
-   * Scores the last `respectLookbackMonths` and skips a crack unless at least
-   * `minRespectPct` of past cracks recovered to `recoveryTargetPct` of the base.
-   */
-  respectFilterEnabled: boolean
-  respectLookbackMonths: number
-  minRespectPct: number
-  recoveryTargetPct: number
-  /**
-   * "Money back, ride the rest free" take-profit only: where the free coins rest,
-   * as a percent BELOW the base. Negative means ABOVE it — the free coins cost
-   * nothing, so they can be held through a recovery rather than sold back at the
-   * ceiling of the crack (-100 rests them at twice the base). Inert under every
-   * other take-profit style.
-   */
-  sellBelowBasePct: number
-  /**
    * Trend gate: only start a ladder while the close sits above the average of the
    * last `trendMaBars` closes. The ladder only ever buys, so in a falling market
    * it averages down into the fall — measured at −5.07%/month over the Sep-2025 →
@@ -246,13 +228,6 @@ export type AutomationDcaNode = {
    * an uptrend rides the whole way down after the trend breaks.
    */
   exitOnTrendBreak: boolean
-  /**
-   * Time stop: abandon a cycle that has been open this many candles without
-   * resolving. 0 = never. The ladder otherwise has NO way to give up on a
-   * position, which is how every tuned configuration ended up hiding its losses
-   * in open bags and scoring a 95% win rate.
-   */
-  maxCycleBars: number
   x: number
   y: number
 }
@@ -365,15 +340,9 @@ export type ProtectionLevels = {
    * blended average. The rung modes (DCA entries only) sell against the buy
    * ladder instead — "previousRungSellAll" peels each rung off at the rung above
    * it; "nearestRungSellAll" sells the whole position at the nearest rung above
-   * the deepest buy; "moneyBackThenBase" sells only enough there to recover the
-   * cash and rides the rest free to just under the base. See
-   * {@link AutomationTakeProfitNode}.
+   * the deepest buy. See {@link AutomationTakeProfitNode}.
    */
-  takeProfitMode?:
-    | "average"
-    | "previousRungSellAll"
-    | "nearestRungSellAll"
-    | "moneyBackThenBase"
+  takeProfitMode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
   stopLossPct?: number
   /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
   stopLossMode?: "fixed" | "trailing"
@@ -392,8 +361,21 @@ export type ProtectionLevels = {
    * from entry. `{ kind: "sessionOpen" }`: at that session's opening price,
    * worked out per trade when the position opens, with `stopLossPct` as the
    * fallback for a trade opened outside the session's hours.
+   * `{ kind: "confirmedBase" }`: at the price of the confirmed base the wired-in
+   * Base node draws, found per trade when the position opens, with `stopLossPct`
+   * as the fallback when there is no confirmed base to sit under. The base
+   * detection settings ride along so the engine finds the SAME level the chart
+   * paints.
    */
-  stopLossLevel?: { kind: "sessionOpen"; session: SessionKey }
+  stopLossLevel?:
+    | { kind: "sessionOpen"; session: SessionKey }
+    | {
+        kind: "confirmedBase"
+        basePeriods: number
+        pumpPeriods: number
+        /** Days price must hold back above a broken base to re-enter. 0/absent: never. */
+        reclaimDays?: number
+      }
   /**
    * Take profit as a multiple of the stop's REALISED distance (1 = 1:1). Only
    * written when the stop is dynamic, so the percent cannot be known until the
@@ -495,24 +477,11 @@ export type AutomationDcaConfig = {
   requireTwoGreen: boolean
   basePeriods: number
   pumpPeriods: number
-  crackPct: number
-  /** Fast-fall gate: only count a crack that fell within this many candles. */
-  maxCrackBars: number
-  /** Past base quality: skip a crack unless the market's history earns it. */
-  respectFilterEnabled: boolean
-  respectLookbackMonths: number
-  minRespectPct: number
-  recoveryTargetPct: number
-  /** "Money back, ride the rest free" exit: how far under the base the free
-   * coins rest. Inert under every other take-profit style. */
-  sellBelowBasePct: number
   /** Trend gate: only start a ladder while price is above its own moving average. */
   trendFilterEnabled: boolean
   trendMaBars: number
   /** Close an open ladder when the trend breaks, not just block new ones. */
   exitOnTrendBreak: boolean
-  /** Abandon a cycle open this many candles without resolving. 0 = never. */
-  maxCycleBars: number
   /**
    * Indicator confirmations wired into the DCA node (anything other than the
    * Base indicator that supplies the levels). A rung only buys while EVERY one
@@ -538,14 +507,11 @@ export type AutomationConfig = {
 
 /**
  * Candles a DCA ladder must keep loaded: enough for the base tracker, plus the
- * months the Past-base-quality check scans when it is on. One source of truth
- * for both the engine window sizing and the runner's candle fetch.
+ * trend average and any confirmations. One source of truth for both the engine
+ * window sizing and the runner's candle fetch.
  */
-export function dcaHistoryBars(
-  dca: AutomationDcaConfig,
-  interval: AutomationInterval
-): number {
-  const base =
+export function dcaHistoryBars(dca: AutomationDcaConfig): number {
+  return (
     dca.basePeriods +
     dca.pumpPeriods +
     50 +
@@ -553,12 +519,6 @@ export function dcaHistoryBars(
     (dca.trendFilterEnabled ? dca.trendMaBars : 0) +
     // Confirmation indicators need their own warm-up before they say anything.
     ((dca.confirmations?.length ?? 0) > 0 ? 300 : 0)
-  if (!dca.respectFilterEnabled) return base
-  const MONTH_MS = 30 * 86_400_000
-  return (
-    Math.ceil(
-      (dca.respectLookbackMonths * MONTH_MS) / AUTOMATION_INTERVAL_MS[interval]
-    ) + base
   )
 }
 
@@ -612,21 +572,35 @@ const draftIndicatorSelectionSchema = z.object({
     ),
 })
 
-
-// A DCA-fed take-profit's style. The removed "previousRungHoldFirst" mode (a
-// redundant variant of the peel) loads as the plain peel, so older saved
-// automations and stored run configs keep parsing.
+// A DCA-fed take-profit's style. Two removed modes still load, so older saved
+// automations and stored run configs keep parsing: "previousRungHoldFirst" (a
+// redundant variant of the peel) becomes the plain peel, and "moneyBackThenBase"
+// becomes "nearestRungSellAll" — it rested its first sell at exactly that level,
+// so the surviving style is the closest thing to what was saved.
 const takeProfitModeSchema = z.preprocess(
+  (value) => {
+    if (value === "previousRungHoldFirst") return "previousRungSellAll"
+    if (value === "moneyBackThenBase") return "nearestRungSellAll"
+    return value
+  },
+  z.enum(["average", "previousRungSellAll", "nearestRungSellAll"]).optional()
+)
+
+// Where a stop sits. A level that no longer exists loads as the plain percent
+// rather than failing to parse — a saved automation must never become
+// unopenable because an option was retired. "belowRung" was a short-lived July
+// 2026 experiment (a percent under the DCA ladder's current rung) that reached a
+// running dev server before being replaced by "confirmedBase"; anything saved
+// with it comes back as a percent stop, which is what it measured from anyway.
+const stopLossLevelSchema = z.preprocess(
   (value) =>
-    value === "previousRungHoldFirst" ? "previousRungSellAll" : value,
-  z
-    .enum([
-      "average",
-      "previousRungSellAll",
-      "nearestRungSellAll",
-      "moneyBackThenBase",
-    ])
-    .optional()
+    value === undefined ||
+    value === "percent" ||
+    value === "sessionOpen" ||
+    value === "confirmedBase"
+      ? value
+      : "percent",
+  z.enum(["percent", "sessionOpen", "confirmedBase"]).optional()
 )
 
 const automationNodeSchema = z.discriminatedUnion("kind", [
@@ -682,7 +656,8 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     mode: z.enum(["fixed", "trailing"]).optional(),
     activationPct: z.number().finite().optional(),
     anchor: z.enum(["average", "first"]).optional(),
-    level: z.enum(["percent", "sessionOpen"]).optional(),
+    level: stopLossLevelSchema,
+    baseReclaimDays: z.number().min(0).max(3650).optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -725,24 +700,6 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     // Defaults to false so ladders saved before this field keep buying on every
     // confirmed rung; when on, a rung only buys after two green candles in a row.
     requireTwoGreen: z.boolean().default(false),
-    // Moved off the Base indicator on July 25, 2026: the indicator finds levels,
-    // this ladder decides what breaking one means. Defaults match the values the
-    // Base node used to carry, so a graph saved before the move still runs the
-    // same ladder.
-    crackPct: z.number().positive().max(50).default(2.5),
-    maxCrackBars: z.number().int().min(1).max(500).default(4),
-    respectFilterEnabled: z.boolean().default(false),
-    respectLookbackMonths: z.number().int().min(1).max(60).default(6),
-    minRespectPct: z.number().min(0).max(100).default(80),
-    recoveryTargetPct: z.number().min(-50).max(50).default(-2),
-    // Added with the "money back, ride the rest free" take-profit. Ladders saved
-    // before it load with the default and behave identically, because no other
-    // take-profit style reads this field.
-    sellBelowBasePct: z
-      .number()
-      .min(-500)
-      .max(50)
-      .default(DEFAULT_DCA_SELL_BELOW_BASE_PCT),
     // Trend gate. Defaults to off so every ladder saved before it behaves
     // identically.
     trendFilterEnabled: z.boolean().default(false),
@@ -750,7 +707,6 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     // Real exits for a losing ladder. Default off, so every ladder saved before
     // them behaves identically.
     exitOnTrendBreak: z.boolean().default(false),
-    maxCycleBars: z.number().int().min(0).max(5000).default(0),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -763,12 +719,25 @@ const protectionLevelsSchema = z.object({
   stopLossMode: z.enum(["fixed", "trailing"]).optional(),
   trailActivationPct: z.number().min(0).max(1000).optional(),
   stopAnchor: z.enum(["average", "first"]).optional(),
+  // A stored level whose kind no longer exists falls back to "no level", i.e.
+  // the plain percent stop beside it — a frozen bot/backtest config must never
+  // become unreadable because an option was retired. Same reasoning as
+  // `stopLossLevelSchema` on the node.
   stopLossLevel: z
-    .object({
-      kind: z.literal("sessionOpen"),
-      session: z.enum(SESSION_KEYS),
-    })
-    .optional(),
+    .union([
+      z.object({
+        kind: z.literal("sessionOpen"),
+        session: z.enum(SESSION_KEYS),
+      }),
+      z.object({
+        kind: z.literal("confirmedBase"),
+        basePeriods: z.number().int().min(4).max(500),
+        pumpPeriods: z.number().int().min(1).max(499),
+        reclaimDays: z.number().min(0).max(3650).optional(),
+      }),
+    ])
+    .optional()
+    .catch(undefined),
   takeProfitRr: z.number().positive().max(MAX_RR_RATIO).optional(),
 })
 
@@ -924,23 +893,9 @@ const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
   requireTwoGreen: z.boolean().default(false),
   basePeriods: z.number().int().min(4).max(500),
   pumpPeriods: z.number().int().min(1).max(499),
-  crackPct: z.number().positive().max(50),
-  maxCrackBars: z.number().int().min(1).max(500),
-  respectFilterEnabled: z.boolean(),
-  respectLookbackMonths: z.number().int().min(1).max(60),
-  minRespectPct: z.number().min(0).max(100),
-  recoveryTargetPct: z.number().min(-50).max(50),
-  // Frozen config snapshots taken before this field existed still parse; the
-  // default is inert unless the "money back" take-profit is selected.
-  sellBelowBasePct: z
-    .number()
-    .min(-500)
-    .max(50)
-    .default(DEFAULT_DCA_SELL_BELOW_BASE_PCT),
   trendFilterEnabled: z.boolean().default(false),
   trendMaBars: z.number().int().min(2).max(1000).default(200),
   exitOnTrendBreak: z.boolean().default(false),
-  maxCycleBars: z.number().int().min(0).max(5000).default(0),
   confirmations: z.array(compiledFilterSchema).max(8).optional(),
 })
 
@@ -1202,6 +1157,49 @@ export function compileAutomationGraph(input: {
     }
     return null
   }
+  const baseParamsOf = (
+    nodeId: string
+  ): { basePeriods: number; pumpPeriods: number } | null => {
+    const node = nodeById.get(nodeId)
+    if (node?.kind !== "indicator" || node.indicator.type !== "base")
+      return null
+    const parsed = INDICATORS.base.paramsSchema.safeParse(node.indicator.params)
+    if (!parsed.success) return null
+    const params = parsed.data as { basePeriods: number; pumpPeriods: number }
+    return {
+      basePeriods: params.basePeriods,
+      pumpPeriods: params.pumpPeriods,
+    }
+  }
+  /**
+   * The base-detection settings the Base node feeding `nodeId` uses, or null.
+   * The stop sits on the SAME level the indicator paints, so it must use the
+   * indicator's own numbers rather than any of its own.
+   *
+   * A Stop Loss hangs off its ENTRY, and that entry is what the Base is already
+   * wired into — so look through it. Requiring a second wire straight from the
+   * Base to the stop would be pure ceremony on the ordinary
+   * Base → DCA → Stop Loss graph, where the ladder already knows its base.
+   */
+  const baseWiredInto = (
+    nodeId: string
+  ): { basePeriods: number; pumpPeriods: number } | null => {
+    const parents = (incoming.get(nodeId) ?? []).map((edge) => edge.from)
+    for (const parent of parents) {
+      const direct = baseParamsOf(parent)
+      if (direct) return direct
+    }
+    // One hop through the entry the stop guards (a DCA ladder or a Long/Short).
+    for (const parent of parents) {
+      const entry = nodeById.get(parent)
+      if (entry?.kind !== "dca" && entry?.kind !== "action") continue
+      for (const edge of incoming.get(parent) ?? []) {
+        const viaEntry = baseParamsOf(edge.from)
+        if (viaEntry) return viaEntry
+      }
+    }
+    return null
+  }
   for (const node of nodes) {
     const count = incoming.get(node.id)?.length ?? 0
     if (node.kind === "logic") {
@@ -1220,13 +1218,11 @@ export function compileAutomationGraph(input: {
       })
     }
     if (node.kind === "lookback") {
-      if (
-        !(
-          Number.isInteger(node.bars) &&
-          node.bars >= 1 &&
-          node.bars <= AUTOMATION_MAX_WINDOW_BARS
-        )
-      ) {
+      if (!(
+        Number.isInteger(node.bars) &&
+        node.bars >= 1 &&
+        node.bars <= AUTOMATION_MAX_WINDOW_BARS
+      )) {
         addError({
           code: "invalid_lookback",
           nodeId: node.id,
@@ -1321,6 +1317,26 @@ export function compileAutomationGraph(input: {
             nodeId: node.id,
             message:
               "A DCA ladder buys down through levels, so its stop cannot sit at the session open. Use a percent stop here.",
+          })
+        }
+      }
+      // The confirmed base is one fixed price, and it comes from a Base node —
+      // without one wired in there is no level to sit at.
+      if (node.kind === "stopLoss" && node.level === "confirmedBase") {
+        if (node.mode === "trailing") {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A stop at the confirmed base cannot also trail — the base is a fixed price, so pick one or the other.",
+          })
+        }
+        if (!baseWiredInto(node.id)) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "Stop Loss is set at the confirmed base — wire a Base node into this stop or into the entry it guards, so it knows which base to sit at.",
           })
         }
       }
@@ -1609,17 +1625,9 @@ export function compileAutomationGraph(input: {
         requireTwoGreen: dcaNode.requireTwoGreen,
         basePeriods: baseParams.basePeriods,
         pumpPeriods: baseParams.pumpPeriods,
-        crackPct: dcaNode.crackPct,
-        maxCrackBars: dcaNode.maxCrackBars,
-        respectFilterEnabled: dcaNode.respectFilterEnabled,
-        respectLookbackMonths: dcaNode.respectLookbackMonths,
-        minRespectPct: dcaNode.minRespectPct,
-        recoveryTargetPct: dcaNode.recoveryTargetPct,
-        sellBelowBasePct: dcaNode.sellBelowBasePct,
         trendFilterEnabled: dcaNode.trendFilterEnabled,
         trendMaBars: dcaNode.trendMaBars,
         exitOnTrendBreak: dcaNode.exitOnTrendBreak,
-        maxCycleBars: dcaNode.maxCycleBars,
         ...(confirmations.length > 0 ? { confirmations } : {}),
       }
     }
@@ -1666,7 +1674,11 @@ export function compileAutomationGraph(input: {
   const stopBehavior: Partial<
     Record<
       "long" | "short",
-      { trailing: boolean; activationPct?: number; anchor?: "average" | "first" }
+      {
+        trailing: boolean
+        activationPct?: number
+        anchor?: "average" | "first"
+      }
     >
   > = {}
   // A take-profit's "previous rung" mode only applies when a DCA node feeds it
@@ -1675,8 +1687,17 @@ export function compileAutomationGraph(input: {
   // A stop anchored to a session open, and a take-profit measured as a
   // multiple of the stop, both need the OTHER exit before they can be resolved
   // — so they are collected per side here and folded in after the loop.
-  const stopLevel: Partial<Record<"long" | "short", SessionKey | "percent">> =
-    {}
+  const stopLevel: Partial<
+    Record<"long" | "short", SessionKey | "percent" | "confirmedBase">
+  > = {}
+  // The wired-in Base node's detection settings, kept beside the discriminator
+  // so the compiled level carries the exact numbers the chart paints with.
+  const stopBaseParams: Partial<
+    Record<
+      "long" | "short",
+      { basePeriods: number; pumpPeriods: number; reclaimDays?: number }
+    >
+  > = {}
   const tpRatio: Partial<
     Record<"long" | "short", { ratio: number; nodeId: string }>
   > = {}
@@ -1691,17 +1712,30 @@ export function compileAutomationGraph(input: {
     const level =
       node.level === "sessionOpen"
         ? (sessionWiredInto(node.id) ?? "percent")
-        : "percent"
+        : node.level === "confirmedBase" && baseWiredInto(node.id)
+          ? ("confirmedBase" as const)
+          : "percent"
     const existing = stopLevel[side]
     if (existing !== undefined && existing !== level) {
       addError({
         code: "invalid_protection",
         nodeId: node.id,
-        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different levels (a percent and a session open, or two different sessions).`,
+        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different levels (a percent, a session open, the confirmed base, or two different sessions).`,
       })
       return
     }
     stopLevel[side] = level
+    if (level === "confirmedBase") {
+      const params = baseWiredInto(node.id)
+      if (params) {
+        stopBaseParams[side] = {
+          ...params,
+          ...(node.baseReclaimDays && node.baseReclaimDays > 0
+            ? { reclaimDays: node.baseReclaimDays }
+            : {}),
+        }
+      }
+    }
   }
   const setTpRatio = (
     side: "long" | "short",
@@ -1800,20 +1834,24 @@ export function compileAutomationGraph(input: {
       protection[side] = { ...protection[side], stopAnchor: "first" }
     }
   }
-  // A session-anchored stop rides on the side it guards. The percent stays
-  // beside it as the fallback for a trade opened outside the session's hours.
+  // A non-percent stop rides on the side it guards. The percent stays beside it:
+  // for a session stop it is the fallback outside the session's hours, and for a
+  // below-the-rung stop it IS the distance under the rung.
   for (const side of ["long", "short"] as const) {
-    const session = stopLevel[side]
+    const level = stopLevel[side]
     if (
-      !session ||
-      session === "percent" ||
+      !level ||
+      level === "percent" ||
       protection[side]?.stopLossPct === undefined
     ) {
       continue
     }
     protection[side] = {
       ...protection[side],
-      stopLossLevel: { kind: "sessionOpen", session },
+      stopLossLevel:
+        level === "confirmedBase"
+          ? { kind: "confirmedBase", ...stopBaseParams[side]! }
+          : { kind: "sessionOpen", session: level },
     }
   }
   // Risk-reward take profits. Against a plain percent stop the target is known

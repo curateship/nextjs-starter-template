@@ -5,6 +5,7 @@ import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
 import { sessionOpenPrice } from "@/lib/trading/sessions"
 
 import {
+  automationGraphSchema,
   compileAutomationGraph,
   SESSION_STOP_WINDOW_BARS,
   type AutomationEdge,
@@ -30,10 +31,7 @@ const sessions = (id: string, session = "utcLondon"): AutomationNode => ({
   indicator: { type: "session", params: { session, wickBodyRatio: 2 } },
 })
 
-const action = (
-  id: string,
-  actionType: "buy" | "short"
-): AutomationNode => ({
+const action = (id: string, actionType: "buy" | "short"): AutomationNode => ({
   id,
   kind: "action",
   action: actionType,
@@ -45,7 +43,14 @@ const action = (
 const stopLoss = (
   id: string,
   overrides: Partial<Extract<AutomationNode, { kind: "stopLoss" }>> = {}
-): AutomationNode => ({ id, kind: "stopLoss", pct: 1, x: 0, y: 0, ...overrides })
+): AutomationNode => ({
+  id,
+  kind: "stopLoss",
+  pct: 1,
+  x: 0,
+  y: 0,
+  ...overrides,
+})
 
 const takeProfit = (
   id: string,
@@ -99,6 +104,172 @@ describe("wiring a session into a stop", () => {
     expect(
       automationNodeConnectionError(sessions("sess"), "trend", takeProfit("tp"))
     ).toContain("can only connect to")
+  })
+})
+
+const baseNode = (
+  id: string,
+  basePeriods = 36,
+  pumpPeriods = 8
+): AutomationNode => ({
+  id,
+  kind: "indicator",
+  x: 0,
+  y: 0,
+  indicator: { type: "base", params: { basePeriods, pumpPeriods } },
+})
+
+describe("stop loss at the confirmed base", () => {
+  it("carries the wired Base node's detection settings onto the side it guards", () => {
+    // The stop has to find the SAME level the chart paints, so the base's own
+    // settings ride along rather than being guessed at runtime.
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          baseNode("base", 24, 5),
+          action("long", "buy"),
+          stopLoss("sl", { level: "confirmedBase" }),
+        ],
+        edges: [
+          edge("entry", "base", "bullish", "long"),
+          edge("hook", "long", "sl", "sl"),
+          edge("wire", "base", "trend", "sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.errors).toEqual([])
+    expect(result.config?.protection.long).toEqual({
+      stopLossPct: 1,
+      stopLossLevel: { kind: "confirmedBase", basePeriods: 24, pumpPeriods: 5 },
+    })
+  })
+
+  it("loads a retired stop level as a plain percent, not a parse failure", () => {
+    // "belowRung" reached a running dev server before being replaced. A saved
+    // automation carrying it must still OPEN — an unknown level degrades to the
+    // percent stop rather than making the whole automation unloadable.
+    const saved = automationGraphSchema.parse({
+      nodes: [action("long", "buy"), { ...stopLoss("sl"), level: "belowRung" }],
+      edges: [edge("hook", "long", "sl", "sl")],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+    const stop = saved.nodes.find((node) => node.kind === "stopLoss")
+    expect(stop?.kind === "stopLoss" && stop.level).toBe("percent")
+  })
+
+  it("finds the Base through the entry the stop guards — no second wire", () => {
+    // The ordinary ladder graph: Base -> DCA -> Stop Loss. The Base is already
+    // wired into the ladder, so the stop must not demand its own wire to it.
+    const result = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          baseNode("base", 30, 6),
+          {
+            id: "dca",
+            kind: "dca",
+            rungs: [{ deviation: 5 }],
+            maxPositionPct: 25,
+            sizeMultiplier: 1,
+            compound: true,
+            rungEntry: "market",
+            requireTwoGreen: false,
+            trendFilterEnabled: false,
+            trendMaBars: 200,
+            exitOnTrendBreak: false,
+            x: 0,
+            y: 0,
+          },
+          stopLoss("sl", { level: "confirmedBase" }),
+        ],
+        edges: [
+          edge("entry", "base", "bullish", "dca"),
+          edge("hook", "dca", "sl", "sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.errors).toEqual([])
+    expect(result.config?.protection.long?.stopLossLevel).toEqual({
+      kind: "confirmedBase",
+      basePeriods: 30,
+      pumpPeriods: 6,
+    })
+  })
+
+  it("needs a Base node wired in", () => {
+    const result = compile(
+      [stopLoss("sl", { level: "confirmedBase" })],
+      [edge("hook", "long", "sl", "sl")]
+    )
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.message)).toContain(
+      "Stop Loss is set at the confirmed base — wire a Base node into this stop or into the entry it guards, so it knows which base to sit at."
+    )
+  })
+
+  it("cannot also trail — the base is one fixed price", () => {
+    const result = compileAutomationGraph({
+      interval: "15m",
+      graph: {
+        nodes: [
+          baseNode("base"),
+          action("long", "buy"),
+          stopLoss("sl", { level: "confirmedBase", mode: "trailing" }),
+        ],
+        edges: [
+          edge("entry", "base", "bullish", "long"),
+          edge("hook", "long", "sl", "sl"),
+          edge("wire", "base", "trend", "sl"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_protection"
+    )
+  })
+
+  it("lets a Base node reach a Stop Loss", () => {
+    expect(
+      automationNodeConnectionError(baseNode("base"), "trend", stopLoss("sl"))
+    ).toBeNull()
+  })
+
+  it("turns the base price into the stop's percent, both sides", () => {
+    const level = {
+      kind: "confirmedBase" as const,
+      basePeriods: 36,
+      pumpPeriods: 8,
+    }
+    // Long entered at 100 with the base at 95: the stop is 5% away, not the 1%
+    // fallback. The fallback only stands when there is no base to sit on.
+    expect(
+      resolveProtection(
+        { stopLossPct: 1, stopLossLevel: level },
+        { szi: 1, entryPx: 100 },
+        95
+      ).stopLossPct
+    ).toBeCloseTo(5, 6)
+    // Short entered at 100 with the ceiling at 104: the level sits ABOVE.
+    expect(
+      resolveProtection(
+        { stopLossPct: 1, stopLossLevel: level },
+        { szi: -1, entryPx: 100 },
+        104
+      ).stopLossPct
+    ).toBeCloseTo(4, 6)
+    // No base confirmed yet -> the configured percent stands. There is always a stop.
+    expect(
+      resolveProtection(
+        { stopLossPct: 1, stopLossLevel: level },
+        { szi: 1, entryPx: 100 },
+        0
+      ).stopLossPct
+    ).toBe(1)
   })
 })
 
@@ -178,10 +349,7 @@ describe("stop loss at the session open", () => {
     // Same percent, different level: silently upgrading the percent stop to a
     // session one would move a level the user set deliberately.
     const result = compile(
-      [
-        stopLoss("slPct"),
-        stopLoss("slSession", { level: "sessionOpen" }),
-      ],
+      [stopLoss("slPct"), stopLoss("slSession", { level: "sessionOpen" })],
       [
         edge("hookA", "long", "sl", "slPct"),
         edge("hookB", "long", "sl", "slSession"),
@@ -190,15 +358,12 @@ describe("stop loss at the session open", () => {
     )
     expect(result.config).toBeNull()
     expect(result.errors.map((error) => error.message)).toContain(
-      "Long stop-loss is set twice with different levels (a percent and a session open, or two different sessions)."
+      "Long stop-loss is set twice with different levels (a percent, a session open, the confirmed base, or two different sessions)."
     )
   })
 
   it("stays out of the config when the stop is a plain percent", () => {
-    const result = compile(
-      [stopLoss("sl")],
-      [edge("hook", "long", "sl", "sl")]
-    )
+    const result = compile([stopLoss("sl")], [edge("hook", "long", "sl", "sl")])
     expect(result.config?.protection.long).toEqual({ stopLossPct: 1 })
   })
 })
@@ -363,9 +528,9 @@ describe("sessionOpenPrice", () => {
   it("reads the open of the session's first candle", () => {
     // Candles start two hours before the 08:00 open, so the session's first
     // candle is index 2 — opening at 102.
-    expect(
-      sessionOpenPrice("utcLondon", candles, OPEN_MS + 3 * HOUR_MS)
-    ).toBe(102)
+    expect(sessionOpenPrice("utcLondon", candles, OPEN_MS + 3 * HOUR_MS)).toBe(
+      102
+    )
   })
 
   it("is null outside the session's hours", () => {

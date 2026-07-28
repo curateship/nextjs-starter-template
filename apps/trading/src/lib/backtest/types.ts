@@ -291,11 +291,18 @@ export const PREVIOUS_RUN_NAME_PREFIX = "Previous run"
 export const MAX_BACKTEST_BARS = 50_000
 
 /**
- * Most additional markets a single config may replay across. This bounds a run
- * group's total history and engine cost. Shared by the run/config validators
- * and the market-picker UI.
+ * Runaway backstop on how many additional markets one config may replay across.
+ * Deliberately far above any real basket: what actually bounds a run is
+ * MAX_TOTAL_RUN_BARS, and that already scales the right way — a market costs its
+ * window of candles, so a shorter window or coarser candles buys more markets.
+ *
+ * This used to be 50, which meant every run was pinned to 51 markets no matter
+ * what: halving the window bought nothing, and "Randomize markets" filled the
+ * same 51 slots. Sized past the ~500 Binance USDT perps so the bar budget is
+ * what binds in practice, and the server still rejects a basket that overruns it
+ * with a message naming the real number.
  */
-export const MAX_EXTRA_MARKETS = 50
+export const MAX_EXTRA_MARKETS = 500
 
 /**
  * Candles the runner pre-loads before simStart so signals are warmed up.

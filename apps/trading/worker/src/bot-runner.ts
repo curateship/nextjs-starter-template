@@ -638,8 +638,8 @@ export class BotRunner {
     const live = this.hub.getCandles(this.botNetwork, this.market, interval, n)
     if (!history?.length) return live
     // Only the newest n items from either sorted source can survive the final
-    // slice. This keeps ordinary ladder checks small even when six months of
-    // respect history is cached for the rare candidate-scoring pass.
+    // slice. This keeps ordinary ladder checks small even when a long trend
+    // average has a big window of history cached behind it.
     const historyTail =
       history.length <= n ? history : history.slice(history.length - n)
     const byTime = new Map(historyTail.map((candle) => [candle.t, candle]))
@@ -693,7 +693,7 @@ export class BotRunner {
     if (!dca) return
     await this.loadHistoryBars(
       this.params.interval,
-      dcaHistoryBars(dca, this.params.interval),
+      dcaHistoryBars(dca),
       "dca_history_warmup",
       "DCA is waiting for enough history"
     )

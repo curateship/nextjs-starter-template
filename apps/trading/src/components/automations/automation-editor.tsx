@@ -30,7 +30,10 @@ import { buildBotResult } from "@/components/bots/bot-result"
 import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
 import { useBotLive } from "@/components/bots/use-bot-live"
 import type { BotCommand } from "@/components/bots/bot-lifecycle-controls"
-import { CHART_DOWN_COLOR, CHART_UP_COLOR } from "@/components/chart/chart-markers"
+import {
+  CHART_DOWN_COLOR,
+  CHART_UP_COLOR,
+} from "@/components/chart/chart-markers"
 import type { ChartPriceLine } from "@/components/chart/price-chart"
 import { getBotErrorMessage, sendCommand } from "@/lib/api/bots"
 import { maxWindowDays } from "@/lib/backtest/types"
@@ -274,6 +277,35 @@ export function AutomationEditor({
     () => graph.nodes.some((node) => node.kind === "dca"),
     [graph.nodes]
   )
+  // The stop's non-percent levels each need the node that supplies them — a
+  // Sessions node to say WHICH session, a Base node to say which base — so each
+  // option only appears once its node is wired in. Offering one otherwise put a
+  // choice in the list that could only ever produce a validation error.
+  const parentsOf = (nodeId: string) =>
+    graph.edges
+      .filter((edge) => edge.to === nodeId)
+      .map((edge) => graph.nodes.find((node) => node.id === edge.from))
+  const isIndicator = (
+    node: (typeof graph.nodes)[number] | undefined,
+    type: string
+  ) => node?.kind === "indicator" && node.indicator.type === type
+  const stopFeedFrom = (type: "session" | "base") => {
+    if (selectedNode?.kind !== "stopLoss") return false
+    const parents = parentsOf(selectedNode.id)
+    if (parents.some((parent) => isIndicator(parent, type))) return true
+    // Mirrors the compiler: the indicator feeding the ENTRY this stop guards
+    // counts too, so an ordinary Base → DCA → Stop Loss graph needs no second
+    // wire from the Base straight to the stop.
+    return parents.some(
+      (parent) =>
+        (parent?.kind === "dca" || parent?.kind === "action") &&
+        parentsOf(parent.id).some((grandparent) =>
+          isIndicator(grandparent, type)
+        )
+    )
+  }
+  const selectedStopFeedsSession = stopFeedFrom("session")
+  const selectedStopFeedsBase = stopFeedFrom("base")
   const selectedPaletteKey = selectedNode
     ? automationPaletteKeyForNode(selectedNode)
     : null
@@ -600,7 +632,8 @@ export function AutomationEditor({
     .filter((trip) => !trip.open)
     .reduce((sum, trip) => sum + trip.pnl, 0)
   const botStartingEquity =
-    botLive.state?.paper_cash != null && botLive.state.paper_cash - botClosedPnl > 0
+    botLive.state?.paper_cash != null &&
+    botLive.state.paper_cash - botClosedPnl > 0
       ? botLive.state.paper_cash - botClosedPnl
       : (bot.detail?.bot.paper_starting_equity ?? 10_000)
   const botResult = React.useMemo(
@@ -613,7 +646,13 @@ export function AutomationEditor({
             botStartingEquity
           )
         : null,
-    [botShowsDashboard, botLive.trips, botLive.marketTrades, botLive.state, botStartingEquity]
+    [
+      botShowsDashboard,
+      botLive.trips,
+      botLive.marketTrades,
+      botLive.state,
+      botStartingEquity,
+    ]
   )
 
   // Live TP/SL lines come from the CANVAS nodes (the bot's config is the
@@ -679,7 +718,9 @@ export function AutomationEditor({
       })
       if (!next) return
       updateNode(next)
-      record("Adjusted a setting by dragging on the live chart — Save applies it to the bot.")
+      record(
+        "Adjusted a setting by dragging on the live chart — Save applies it to the bot."
+      )
     },
     [botTuneAnchor, botTuneSide, record, updateNode]
   )
@@ -704,6 +745,8 @@ export function AutomationEditor({
       errors={compiled.errors}
       interval={interval}
       feedsFromDca={selectedTpFeedsDca}
+      feedsFromSession={selectedStopFeedsSession}
+      feedsFromBase={selectedStopFeedsBase}
       graphHasDca={graphHasDca}
       referenceEquity={backtestSettings.startingEquity}
       favorite={
@@ -752,32 +795,34 @@ export function AutomationEditor({
         focusedTrade={backtest.focusedTrade}
         onLastCloseChange={setRunLastClose}
         toolbarLeading={
-          <span className="text-sm font-bold">{selectedBacktestRun.market}</span>
+          <span className="text-sm font-bold">
+            {selectedBacktestRun.market}
+          </span>
         }
         onTuneDrag={handleTuneDrag}
       />
     ) : (
-    <div className="relative flex min-h-0 min-w-0 flex-1">
-      <AutomationFlowCanvas
-        graph={graph}
-        errors={compiled.errors}
-        selectedNodeId={selectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        onGraphChange={handleCanvasGraphChange}
-        onSelectNode={selectCanvasNode}
-        onSelectEdge={setSelectedEdgeId}
-        onSizeChange={setCanvasSize}
-        onDropNode={
-          draggedNodeKey
-            ? (position) => {
-                addNode(draggedNodeKey, position)
-                setDraggedNodeKey(null)
-              }
-            : undefined
-        }
-      />
-    </div>
-  )
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        <AutomationFlowCanvas
+          graph={graph}
+          errors={compiled.errors}
+          selectedNodeId={selectedNodeId}
+          selectedEdgeId={selectedEdgeId}
+          onGraphChange={handleCanvasGraphChange}
+          onSelectNode={selectCanvasNode}
+          onSelectEdge={setSelectedEdgeId}
+          onSizeChange={setCanvasSize}
+          onDropNode={
+            draggedNodeKey
+              ? (position) => {
+                  addNode(draggedNodeKey, position)
+                  setDraggedNodeKey(null)
+                }
+              : undefined
+          }
+        />
+      </div>
+    )
 
   const palette = (
     <AutomationPalette

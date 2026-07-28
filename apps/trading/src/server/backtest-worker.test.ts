@@ -90,17 +90,9 @@ describe("backtest worker claiming", () => {
         requireTwoGreen: false,
         basePeriods: 36,
         pumpPeriods: 8,
-        crackPct: 2.5,
-        maxCrackBars: 4,
-        respectFilterEnabled: false,
-        respectLookbackMonths: 6,
-        minRespectPct: 80,
-        recoveryTargetPct: -2,
-        sellBelowBasePct: 2,
         trendFilterEnabled: false,
         trendMaBars: 200,
         exitOnTrendBreak: false,
-        maxCycleBars: 0,
       },
     }
     const endTime = new Date()

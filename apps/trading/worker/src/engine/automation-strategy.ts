@@ -14,6 +14,7 @@ import {
   automationWarmupBars,
 } from "@/lib/strategies/kinds/automation"
 import { onePriceStep } from "@/server/hyperliquid/rounding"
+import { baseLevels, ceilingLevels } from "@/lib/strategies/indicators"
 import { sessionOpenPrice } from "@/lib/trading/sessions"
 
 import type {
@@ -86,7 +87,7 @@ export type AutomationState = {
    * running when this trade opened", which leaves the configured percent in
    * charge. Null/absent while flat.
    */
-  sessionOpenPx?: number | null
+  stopLevelPx?: number | null
   wall?: WallRuntime
 }
 
@@ -258,9 +259,9 @@ export function createAutomationStrategy(
   // the short levels. The trade-manager math itself stays side-agnostic.
   const protectionFor = (szi: number) =>
     (szi > 0 ? config.protection.long : config.protection.short) ?? {}
-  const anchorsToSession = Boolean(
+  const anchorsToLevel = Boolean(
     config.protection.long?.stopLossLevel ||
-      config.protection.short?.stopLossLevel
+    config.protection.short?.stopLossLevel
   )
   /**
    * The session's opening price for the open position: looked up the first
@@ -274,19 +275,42 @@ export function createAutomationStrategy(
    * once that session has closed. Deterministic either way, and never a level
    * borrowed from a session the trade was not opened in.
    */
-  const sessionOpenPxFor = (
+  const stopLevelPxFor = (
     ctx: StrategyCtx<AutomationState>,
     pos: { szi: number; entryPx: number }
   ): number | null => {
-    const stored = ctx.state.sessionOpenPx ?? null
+    const stored = ctx.state.stopLevelPx ?? null
     if (pos.szi === 0) return null
     const level = protectionFor(pos.szi).stopLossLevel
     if (!level) return stored
     if (stored !== null) return stored
+    if (level.kind === "sessionOpen") {
+      const candles = ctx
+        .candles(config.interval, window)
+        .map((candle) => ({ t: candle.t, o: Number(candle.o) }))
+      return sessionOpenPrice(level.session, candles, ctx.now) ?? 0
+    }
+    // The confirmed base in force right now — the same dash the chart paints,
+    // because it comes from the same detection settings the wired-in Base node
+    // carries. A long sits at the base under it; a short sits at the ceiling
+    // above it, which is that side's mirror of the level.
     const candles = ctx
       .candles(config.interval, window)
-      .map((candle) => ({ t: candle.t, o: Number(candle.o) }))
-    return sessionOpenPrice(level.session, candles, ctx.now) ?? 0
+      .filter((candle) => candle.T <= ctx.now)
+      .map((candle) => ({
+        t: candle.t,
+        o: Number(candle.o),
+        h: Number(candle.h),
+        l: Number(candle.l),
+        c: Number(candle.c),
+        v: Number(candle.v),
+      }))
+    const levels =
+      pos.szi > 0
+        ? baseLevels(candles, level.basePeriods, level.pumpPeriods)
+        : ceilingLevels(candles, level.basePeriods, level.pumpPeriods)
+    const current = levels.raw.at(-1)
+    return current !== undefined && Number.isFinite(current) ? current : 0
   }
   const emitWallFillEvidence = (
     ctx: StrategyCtx<AutomationState>,
@@ -361,7 +385,7 @@ export function createAutomationStrategy(
         // A session-anchored stop needs the candles too, even in a graph whose
         // entries come from the order book rather than a candle rule.
         config.rules.some((rule) => hasCandleCondition(rule.condition)) ||
-        anchorsToSession
+        anchorsToLevel
           ? [config.interval, ...(htfInterval ? [htfInterval] : [])]
           : [],
       requiresLiveBook: capabilities.requiresLiveBook,
@@ -612,14 +636,14 @@ export function createAutomationStrategy(
       const pos = position(ctx)
       const prevTrail = ctx.state.trail ?? null
       const trail = nextTrailState(prevTrail, pos, Number(ctx.mid))
-      // The session-anchored stop is read here for the same reason: the exit
-      // checks below and any exitTriggers read after this tick must see it.
-      const prevSessionOpenPx = ctx.state.sessionOpenPx ?? null
-      const sessionOpenPx = sessionOpenPxFor(ctx, pos)
+      // The level-anchored stop's price is read here for the same reason: the
+      // exit checks below and any exitTriggers read after this tick must see it.
+      const prevStopLevelPx = ctx.state.stopLevelPx ?? null
+      const stopLevelPx = stopLevelPxFor(ctx, pos)
       const state: AutomationState =
-        trail === prevTrail && sessionOpenPx === prevSessionOpenPx
+        trail === prevTrail && stopLevelPx === prevStopLevelPx
           ? ctx.state
-          : { ...ctx.state, trail, sessionOpenPx }
+          : { ...ctx.state, trail, stopLevelPx }
       if (state !== ctx.state) ctx.setState(state)
       const wall = state.wall
       if (
@@ -725,7 +749,7 @@ export function createAutomationStrategy(
           pendingAction: null,
           exitRequested: false,
           trail: null,
-          sessionOpenPx: null,
+          stopLevelPx: null,
           ...(next.wall
             ? {
                 wall: {

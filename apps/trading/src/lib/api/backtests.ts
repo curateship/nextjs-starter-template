@@ -431,8 +431,12 @@ const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
     }
   )
 
+/** Ids one progress request may ask about. `pollBacktestProgress` splits a
+ * larger basket across several requests, so callers never have to. */
+export const BACKTEST_PROGRESS_BATCH = 100
+
 const backtestProgressSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(100),
+  ids: z.array(z.string().uuid()).min(1).max(BACKTEST_PROGRESS_BATCH),
 })
 
 const pollBacktestProgressFn = createServerFn({ method: "GET" })
@@ -796,7 +800,9 @@ const manualResultSchema = z.object({
     halt: z.object({
       // The manual engine only ever halts with kind null; the enum arm keeps
       // the schema aligned with the shared BacktestHalt type.
-      kind: z.enum(["drawdown_kill", "daily_loss_pause", "grid_stop"]).nullable(),
+      kind: z
+        .enum(["drawdown_kill", "daily_loss_pause", "grid_stop"])
+        .nullable(),
       reason: z.string().max(200).nullable(),
     }),
   }),
@@ -957,8 +963,27 @@ export function loadBacktestGroupSummary(groupId: string) {
   return loadBacktestGroupSummaryFn({ data: { groupId } })
 }
 
-export function pollBacktestProgress(ids: string[]) {
-  return pollBacktestProgressFn({ data: { ids } })
+/**
+ * Progress + stats for a basket of runs, in batches the request schema accepts.
+ *
+ * A run group can now be far larger than one request allows — the market cap
+ * scales with the window, so 4h over 500 days fits 222 markets. Asking for them
+ * all at once failed validation outright, which left the results table with no
+ * stats and every row showing a dash. Splitting here means no caller has to
+ * remember the limit.
+ */
+export async function pollBacktestProgress(
+  ids: string[]
+): Promise<BacktestProgressItem[]> {
+  if (ids.length === 0) return []
+  const batches: string[][] = []
+  for (let i = 0; i < ids.length; i += BACKTEST_PROGRESS_BATCH) {
+    batches.push(ids.slice(i, i + BACKTEST_PROGRESS_BATCH))
+  }
+  const results = await Promise.all(
+    batches.map((batch) => pollBacktestProgressFn({ data: { ids: batch } }))
+  )
+  return results.flat()
 }
 
 export function loadBacktest(backtestId: string) {

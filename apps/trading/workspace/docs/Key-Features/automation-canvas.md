@@ -86,8 +86,26 @@ canvas files.
   the worker returns.
 
   A second setting, **Stop sits at**, chooses what the stop measures against:
-  **A percent from the entry** (default, everything above) or **The session
-  open**. The session one puts the stop at the price the picked session opened
+  **A percent from the entry** (default, everything above), **The session
+  open**, or **The confirmed base**. Each non-percent option only appears once
+  the node that supplies its price is wired into the stop (July 28, 2026;
+  before that the session option showed always, and could only ever fail
+  validation).
+
+  **The confirmed base** puts the stop on the base itself — the teal dash the
+  **Base node** draws — because that level holding is the whole reason for the
+  trade. The Base can feed the stop directly OR feed the entry the stop guards
+  (`Base → DCA → Stop Loss` needs no extra wire). A short mirrors it onto the
+  confirmed ceiling above the entry. **Buy back after (days above the base)**
+  sits beside it: after the stop cuts you, price reclaiming that base and
+  holding above it that long puts the same rung back on at market, on the
+  reasoning that the break was a sweep rather than a real failure.
+  The base's own detection settings ride along, so the stop sits on exactly the
+  level the chart paints. Like the session one it cannot trail, is read once
+  when the trade opens, and keeps the percent as the fallback for a trade opened
+  before any base has confirmed. Full write-up: dca-step-down.md.
+
+  The session one puts the stop at the price the picked session opened
   at — below the entry on a long, above it on a short, because that is where
   the level lies. It learns *which* session from a **Sessions node wired into
   it** (Trend output → the stop's hook), so the signal and the stop can never
@@ -246,8 +264,8 @@ in `bots.md` ("The run model"). Deep links: `?view=backtest` / `?view=bot`.
   bots remain available.
 - Multi-market QFL bots reserve the entire planned ladder before buying. The
   shared QFL exposure limit applies across every market runner. If simultaneous
-  signals do not all fit, QFL ranks them by past base recovery, crack-volume
-  strength, daily volume, then market name for a stable tie-break.
+  signals do not all fit, QFL ranks them by crack-volume strength, daily
+  volume, then market name for a stable tie-break.
 
 ## QFL sizing, recovery, and exits
 
@@ -259,18 +277,15 @@ in `bots.md` ("The run model"). Deep links: `?view=backtest` / `?view=bot`.
 - Each filled buy takes profit at its own fill price plus the saved profit
   percentage, never above the saved ceiling below the broken base. Optional
   stop and time exits close the whole remaining position.
-- Base respect starts with the first cracked confirmed base in a decline.
-  Lower bases before recovery remain part of that same test. A signed recovery
-  target below, at, or above the first base decides whether the test passed.
-  Unresolved tests fail, and zero historical tests cannot pass the optional
-  filter.
-- The saved respect window is loaded for candidate ranking even when the strict
-  filter is off. Markets without the full window remain eligible but rank below
-  markets with a complete score.
-- QFL loads and caches the required long history before using the optional
-  recovery-quality filter or Market Scanner history check. If history is
-  unavailable or incomplete, the check stays blocked instead of treating
-  missing data as proof.
+- The "Past base quality" recovery filter was REMOVED on July 28, 2026 at the
+  user's request, along with its history window, minimum-respected share and
+  recovery target. Nothing scores a market's past cracks any more: every
+  confirmed base is eligible, and the trend gate plus the Market Scanner are
+  the only entry filters left. Saved graphs and frozen run configs still load —
+  the deleted keys are simply ignored.
+- QFL loads and caches the required long history before the Market Scanner
+  history check. If history is unavailable or incomplete, the check stays
+  blocked instead of treating missing data as proof.
 - Bot creation rejects market, timeframe, and history combinations that would
   retain more than one million QFL history candles in one worker. Use fewer
   markets, less history, or a coarser timeframe when that limit is reached.

@@ -5,10 +5,7 @@ import {
   type AutomationConfig,
   type AutomationDcaConfig,
 } from "@/lib/automations/automation"
-import {
-  dcaAllocationPcts,
-  dcaLevels,
-} from "@/lib/automations/dca"
+import { dcaAllocationPcts, dcaLevels } from "@/lib/automations/dca"
 import {
   automationFiltersAllowBuy,
   evaluateAutomation,
@@ -16,14 +13,17 @@ import {
 import {
   advanceBaseTracker,
   createBaseTracker,
-  baseRespectScore,
   type BaseTracker,
 } from "@/lib/automations/dca-ladder"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { INDICATORS } from "@/lib/indicators/registry"
 import { nextTrailState, type TrailState } from "@/lib/strategies/trailing-stop"
 
-import type { DesiredOrder, Strategy, StrategyCtx } from "../strategies/contract"
+import type {
+  DesiredOrder,
+  Strategy,
+  StrategyCtx,
+} from "../strategies/contract"
 import { exitLevels, tickExit } from "./trade-manager"
 
 const EXIT_RETRY_MS = 1_000
@@ -67,13 +67,6 @@ type DcaCycle = {
   frozenEquity: number
   rungs: DcaRungState[]
   hadFill: boolean
-  /** Dollars this cycle's buys have actually spent (fill price × fill size).
-   * The "money back" take-profit sells exactly enough to hand this back. Gross of
-   * fees — the strategy never sees fees, so a fee-paying account comes back a
-   * hair short of true flat. */
-  spentUsd: number
-  /** Dollars this cycle's sells have returned so far. */
-  recoveredUsd: number
   /** Price of the cycle's FIRST buy. With the stop anchored to "first", the
    * stop measures from here instead of the average the ladder keeps dragging
    * down — so the configured percent is the real worst case. */
@@ -91,6 +84,22 @@ type DcaCycle = {
    * bounce. Cleared each time a rung fills, so the NEXT rung needs its own fresh
    * drop — never more than one rung from a single fall. */
   stepArmed: boolean
+  /** The base price the stop was sitting on when it fired, captured at that
+   * moment so the reclaim watch below is against the level that actually cut
+   * us — not wherever the tracker has moved to by the time the fill lands. */
+  stoppedAtPx: number | null
+  /**
+   * Armed by a base stop when re-entry is switched on. `base` is the level that
+   * was lost, `sz` the size that stop sold, `index` the rung to put back, and
+   * `since` when price FIRST closed back above the base (null while it is still
+   * under it). A close back below clears `since`, so the wait restarts.
+   */
+  reclaim: {
+    base: number
+    sz: number
+    index: number
+    since: number | null
+  } | null
   lastExitAttemptAt: number | null
 }
 
@@ -119,8 +128,14 @@ export type DcaAutomationState = {
    * A rung will not buy while this is false, so the ladder stops averaging into
    * a fall as soon as its confirmations turn. True when none are configured. */
   confirmed: boolean
+  /** One-shot: the reclaim wait completed at this candle's close, so
+   * desiredOrders buys the stopped rung back. Cleared once it does. */
+  reclaimNow: boolean
   /** TP/SL close requested by the trade-manager or a close signal. */
   exitRequested: boolean
+  /** What asked for that close. Only the stop loss ("sl") can leave the ladder
+   * standing for its next rung; everything else ends the cycle. */
+  exitReason: "tp" | "sl" | "other" | null
   trail: TrailState | null
 }
 
@@ -134,27 +149,11 @@ const initialState = (): DcaAutomationState => ({
   boughtThisBar: false,
   greenUnlocked: false,
   confirmed: true,
+  reclaimNow: false,
   exitRequested: false,
+  exitReason: null,
   trail: null,
 })
-
-/**
- * Past base quality: with the filter on, only a crack in a market whose recent
- * cracks mostly recovered qualifies. Same scoring the ladder entry uses.
- */
-function respectQualifies(
-  candles: IndicatorCandle[],
-  dca: AutomationDcaConfig,
-  now: number
-): boolean {
-  if (!dca.respectFilterEnabled) return true
-  const score = baseRespectScore(candles, dca, now)
-  return (
-    score.hasFullHistory &&
-    score.rate !== null &&
-    score.rate >= dca.minRespectPct
-  )
-}
 
 /**
  * Trend gate: is the latest close above the average of the last `trendMaBars`
@@ -272,12 +271,12 @@ function buildCycle(
       entryComplete: false,
     })),
     hadFill: false,
-    spentUsd: 0,
-    recoveredUsd: 0,
     firstEntryPx: null,
     waitingForGreen: false,
     armedIndex: 0,
     stepArmed: false,
+    stoppedAtPx: null,
+    reclaim: null,
     lastExitAttemptAt: null,
   }
 }
@@ -325,7 +324,7 @@ export function createDcaAutomationStrategy(
 ): Strategy<never, DcaAutomationState> {
   const dca = config.dca
   if (!dca) throw new Error("DCA configuration is required.")
-  const window = dcaHistoryBars(dca, config.interval)
+  const window = dcaHistoryBars(dca)
   const protection = config.protection.long ?? {}
   // Rung take-profit modes, both DCA-only. "previousRungSellAll" peels the
   // ladder: as price recovers, each averaged-in buy is rested for sale at the
@@ -334,15 +333,9 @@ export function createDcaAutomationStrategy(
   // deepest buy, so a bounce back to that single level closes everything at once.
   // Either way the average take-profit is replaced by these sells, so only the
   // stop loss still force-closes the position.
-  // "moneyBackThenBase" uses the same bounce level as "nearestRungSellAll" but
-  // sells only enough there to hand back every dollar the ladder spent; whatever
-  // coins are left cost nothing, so they rest just under the base and their sale
-  // is the whole trade's profit. The point is that the bleeding stops on the
-  // first decent bounce instead of waiting for a full recovery.
   const peelRungs = protection.takeProfitMode === "previousRungSellAll"
   const nearestRung = protection.takeProfitMode === "nearestRungSellAll"
-  const moneyBack = protection.takeProfitMode === "moneyBackThenBase"
-  const rungTakeProfit = peelRungs || nearestRung || moneyBack
+  const rungTakeProfit = peelRungs || nearestRung
   const closeProtection = rungTakeProfit
     ? { ...protection, takeProfitPct: undefined }
     : protection
@@ -404,6 +397,19 @@ export function createDcaAutomationStrategy(
   // What the trade manager measures exits against. With the stop anchored to
   // "first", it uses the cycle's first buy so the configured percent is the real
   // worst case, instead of the average the ladder keeps dragging down.
+  // A stop set to the confirmed base sits at the level the base tracker is
+  // carrying — the same dash the chart paints, from the same detection settings.
+  // `resolveProtection` keeps the configured percent whenever the level is not
+  // below the entry (it isn't a stop above it).
+  const baseLevelConfig =
+    closeProtection.stopLossLevel?.kind === "confirmedBase"
+      ? closeProtection.stopLossLevel
+      : null
+  const stopAtBase = baseLevelConfig !== null
+  // Re-entry: days price must spend back above a base this stop was cut at
+  // before the trade goes back on. 0 = off, which is how it behaved before.
+  const reclaimMs = (baseLevelConfig?.reclaimDays ?? 0) * 86_400_000
+
   const exitStateFor = (state: DcaAutomationState) => ({
     exitRequested: state.exitRequested,
     trail: state.trail,
@@ -411,6 +417,7 @@ export function createDcaAutomationStrategy(
       closeProtection.stopAnchor === "first"
         ? (state.active?.firstEntryPx ?? null)
         : null,
+    stopLevelPx: stopAtBase ? (state.baseTracker?.currentBase ?? 0) : null,
   })
 
   const barClosedDown = (ctx: StrategyCtx<DcaAutomationState>): boolean => {
@@ -431,6 +438,91 @@ export function createDcaAutomationStrategy(
     return Number(prev.c) > Number(prev.o) && Number(cur.c) > Number(cur.o)
   }
 
+  /**
+   * The stop just took the ladder flat. With the stop sitting on the confirmed
+   * base, that is one rung's attempt failing — NOT the whole idea failing — so
+   * if the ladder still has an unbought rung the CYCLE SURVIVES: same base, same
+   * rung levels, nothing held and no stop resting while flat, waiting for the
+   * next rung's level to buy again. Only when the rungs run out is there nothing
+   * left to wait for, so the cycle ends and a fresh base has to confirm.
+   *
+   * Deliberately tied to the confirmed-base stop, which is opt-in. A ladder on a
+   * plain percent stop keeps its old behaviour — the stop ends the cycle — so no
+   * saved automation or frozen backtest changes underneath anyone.
+   *
+   * Returns true when it stepped down, meaning the caller must NOT release.
+   */
+  /**
+   * What the reclaim watch should be, given the cycle a stop just closed. Null
+   * when re-entry is off, or when nothing had actually filled (there is no
+   * position to put back). The rung it names is the deepest one that bought —
+   * the one the stop took out — so re-entering restores the ladder to exactly
+   * where it stood, rather than skipping ahead to the next rung down.
+   */
+  const reclaimArmedBy = (
+    cycle: DcaCycle,
+    stoppedAtPx: number | null
+  ): DcaCycle["reclaim"] => {
+    if (reclaimMs <= 0 || !stoppedAtPx || stoppedAtPx <= 0) return null
+    let index = -1
+    let sz = 0
+    for (const rung of cycle.rungs) {
+      if (rung.filledSz <= EPSILON) continue
+      sz += rung.filledSz
+      if (rung.index > index) index = rung.index
+    }
+    if (index < 0 || sz <= EPSILON) return null
+    return { base: stoppedAtPx, sz, index, since: null }
+  }
+
+  const stepDownAfterStop = (ctx: StrategyCtx<DcaAutomationState>): boolean => {
+    const active = ctx.state.active
+    if (!stopAtBase || ctx.state.exitReason !== "sl" || !active) return false
+    // The level the stop sat at — the base price that was lost. Read before the
+    // tracker moves on, so the watch below is against the level that cut us.
+    const stoppedAtPx = active.stoppedAtPx
+    const remaining = active.rungs.some(
+      (rung) => !rung.entryComplete && !rung.entrySubmitted
+    )
+    if (!remaining) return false
+    // Nothing is held, so this market's room goes back to the shared wallet even
+    // though the ladder is still armed — it re-reserves when the next rung fills.
+    ctx.sharedWalletPortfolio?.setExposure?.(ctx.market, 0)
+    ctx.setState({
+      ...ctx.state,
+      exitRequested: false,
+      exitReason: null,
+      trail: null,
+      active: {
+        ...active,
+        lastExitAttemptAt: null,
+        // Watch the level that just cut us. If price reclaims it and HOLDS,
+        // the break was a fakeout and the rung goes back on (below). Read from
+        // `active` — the PRE-reset rungs — so it captures what was actually sold.
+        reclaim: reclaimArmedBy(active, stoppedAtPx),
+        // The stop sold everything, so the ladder holds nothing: every rung's
+        // filled size goes back to zero. `entryComplete` stays, which is what
+        // stops them buying again, and a peel/nearest-rung take profit can no
+        // longer rest sells for coins that are gone.
+        //
+        // Zeroing `filledSz` is what keeps a repeated stop → reclaim → stop from
+        // running away. It used to be left alone, so each reclaim's buy ADDED to
+        // it, the next reclaim summed the inflated figure, and the position
+        // doubled every round — SOLV reached $76,750 against a $25,000 pot.
+        rungs: active.rungs.map((rung) => ({
+          ...rung,
+          filledSz: 0,
+          soldSz: 0,
+        })),
+      },
+    })
+    ctx.emit(
+      "dca_rung_stopped",
+      "DCA stopped out of its rung — the ladder is waiting for the next one."
+    )
+    return true
+  }
+
   const releaseCycle = (ctx: StrategyCtx<DcaAutomationState>) => {
     // Hand this market's room back to the shared wallet (no-op when running a
     // single market or a live bot, which have no shared portfolio).
@@ -441,6 +533,7 @@ export function createDcaAutomationStrategy(
       candidateBase: null,
       candidateTime: null,
       exitRequested: false,
+      exitReason: null,
       trail: null,
     })
   }
@@ -471,18 +564,14 @@ export function createDcaAutomationStrategy(
       // the NEW bar — re-converting the whole ~100-bar window every candle was the
       // dominant cost at fine timeframes. Fall back to the full window only when
       // something genuinely needs it: the first bar (warmup), a settings change,
-      // close rules, a gap in the feed, or the (rarely-on) respect filter — and
-      // the respect filter only feeds the arm check, which can only fire while
-      // idle (no active cycle), so we force the window for it ONLY then, not on
-      // every held-position bar.
+      // close rules, a gap in the feed, or the trend gate.
       const needsWindow =
         prevTracker === null ||
         settingsChanged ||
-        (dca.respectFilterEnabled && ctx.state.active === null) ||
-        // Same short-circuit as the respect scan: the trend gate only feeds the
-        // arm check, which can only fire while idle, so the full window is only
-        // needed then — never on every bar of a live cycle. Without this the arm
-        // check would see a one-bar window and refuse every ladder.
+        // The trend gate only feeds the arm check, which can only fire while
+        // idle, so the full window is only needed then — never on every bar of a
+        // live cycle. Without this the arm check would see a one-bar window and
+        // refuse every ladder.
         (dca.trendFilterEnabled &&
           (ctx.state.active === null || dca.exitOnTrendBreak)) ||
         closeConfig !== null
@@ -552,11 +641,6 @@ export function createDcaAutomationStrategy(
       // crash in progress, or the instant after a stop-out on this same base —
       // resting a ladder would mean market-buying every rung at once at the
       // bottom; instead we wait for a fresh, lower base to form.
-      // The cheap arm precondition. The pricey respect-quality scan is deferred
-      // to the arm block itself (below), so it runs ONLY on the rare idle bar
-      // where a fresh ladder can actually arm — never on every bar of a live
-      // cycle. Computing it here every bar made the respect filter O(bars ×
-      // window); this restores the short-circuit the old crack gate gave it.
       const baseArmable = currentBase !== null && last.c >= currentBase
 
       const closeSignal =
@@ -565,32 +649,22 @@ export function createDcaAutomationStrategy(
           (action) => action.time === last.t && action.action === "close"
         )
       if (closeSignal && state.active) {
-        ctx.setState({ ...state, exitRequested: true })
+        ctx.setState({ ...state, exitRequested: true, exitReason: "other" })
         return
       }
 
       // GIVING UP. The ladder otherwise has no exit for a position that just
       // keeps falling — the stop is measured from the first buy and in practice
-      // never fires, so losses accumulate as open bags instead of being
-      // realised. Both of these close the cycle outright.
+      // never fires, so losses accumulate as open bags instead of being realised.
+      // This closes the cycle outright.
       if (state.active && positionOf(ctx).szi > EPSILON) {
         const brokeTrend =
           dca.exitOnTrendBreak &&
           dca.trendFilterEnabled &&
           trendBroke(candles, dca)
-        const barsOpen =
-          dca.maxCycleBars > 0
-            ? Math.floor((last.t - state.active.startedAt) / intervalMs)
-            : 0
-        const timedOut = dca.maxCycleBars > 0 && barsOpen >= dca.maxCycleBars
-        if (brokeTrend || timedOut) {
-          ctx.setState({ ...state, exitRequested: true })
-          ctx.emit(
-            "dca_give_up",
-            brokeTrend
-              ? "DCA closed the ladder — the trend broke."
-              : `DCA closed the ladder — open ${barsOpen} candles without resolving.`
-          )
+        if (brokeTrend) {
+          ctx.setState({ ...state, exitRequested: true, exitReason: "other" })
+          ctx.emit("dca_give_up", "DCA closed the ladder — the trend broke.")
           return
         }
       }
@@ -632,15 +706,42 @@ export function createDcaAutomationStrategy(
         }
       }
 
-      // Arm: a confirmed base with price at/above it earmarks a fresh ladder. The
-      // respect scan runs LAST, only once the cheap idle preconditions all hold.
+      // RECLAIM. A base stop is armed with the level it was cut at. If price
+      // closes back above that level and KEEPS closing above it for the
+      // configured span, the break was a fakeout — the drop took the stops out
+      // and price carried on — so the rung goes back on at the next order pass.
+      //
+      // Closes, not wicks, on purpose: a wick under the base is exactly the
+      // noise this is meant to sit through, while a close under it means the
+      // level genuinely failed again, so the wait restarts from zero.
+      let reclaimNow = false
+      if (state.active?.reclaim && positionSz === 0) {
+        const watch = state.active.reclaim
+        if (last.c > watch.base) {
+          const since = watch.since ?? last.t
+          if (last.t - since >= reclaimMs) {
+            reclaimNow = true
+          } else if (watch.since === null) {
+            state = {
+              ...state,
+              active: { ...state.active, reclaim: { ...watch, since } },
+            }
+          }
+        } else if (watch.since !== null) {
+          state = {
+            ...state,
+            active: { ...state.active, reclaim: { ...watch, since: null } },
+          }
+        }
+      }
+
+      // Arm: a confirmed base with price at/above it earmarks a fresh ladder.
       if (
         !state.active &&
         state.candidateBase === null &&
         positionSz === 0 &&
         baseArmable &&
-        trendQualifies(candles, dca) &&
-        respectQualifies(candles, dca, last.t)
+        trendQualifies(candles, dca)
       ) {
         state = {
           ...state,
@@ -675,7 +776,8 @@ export function createDcaAutomationStrategy(
           )[0]
           if (
             ctx.sharedWalletPortfolio?.remaining &&
-            ctx.sharedWalletPortfolio.remaining(ctx.market) + 1e-9 < firstRungPct
+            ctx.sharedWalletPortfolio.remaining(ctx.market) + 1e-9 <
+              firstRungPct
           ) {
             ctx.emit(
               "dca_exposure_skipped",
@@ -741,7 +843,9 @@ export function createDcaAutomationStrategy(
         const close = last.c
         const pending = active.rungs.filter(
           (rung) =>
-            !rung.entryComplete && !rung.entrySubmitted && rung.plannedPx >= close
+            !rung.entryComplete &&
+            !rung.entrySubmitted &&
+            rung.plannedPx >= close
         )
         if (pending.length === 0) {
           // Nothing confirmed — a recovery above the rungs ends any wait.
@@ -764,7 +868,10 @@ export function createDcaAutomationStrategy(
             // Waiting out a crash: buy the bounce only once a bar closes green.
             buyNow = green
             if (green) {
-              state = { ...state, active: { ...active, waitingForGreen: false } }
+              state = {
+                ...state,
+                active: { ...active, waitingForGreen: false },
+              }
             }
           } else if (violent) {
             state = { ...state, active: { ...active, waitingForGreen: true } }
@@ -825,17 +932,21 @@ export function createDcaAutomationStrategy(
         }
       }
 
-      ctx.setState({ ...state, buyNow })
+      ctx.setState({ ...state, buyNow, reclaimNow })
     },
     onTick: (ctx) => {
       const pos = positionOf(ctx)
       const prevTrail = ctx.state.trail ?? null
       const trail = nextTrailState(prevTrail, pos, Number(ctx.mid))
-      const state =
-        trail === prevTrail ? ctx.state : { ...ctx.state, trail }
+      const state = trail === prevTrail ? ctx.state : { ...ctx.state, trail }
       if (state !== ctx.state) ctx.setState(state)
       if (state.exitRequested || pos.szi <= 0) return
-      const hit = tickExit(closeProtection, pos, exitStateFor(state), Number(ctx.mid))
+      const hit = tickExit(
+        closeProtection,
+        pos,
+        exitStateFor(state),
+        Number(ctx.mid)
+      )
       if (!hit) return
       // Limit mode: on the bar a rung bought, only allow a profitable take-profit
       // to fill same-bar if the bar closed UP (a real recovery — the dip came
@@ -849,7 +960,18 @@ export function createDcaAutomationStrategy(
       ) {
         return
       }
-      ctx.setState({ ...state, exitRequested: true })
+      ctx.setState({
+        ...state,
+        exitRequested: true,
+        exitReason: hit,
+        active:
+          hit === "sl" && state.active
+            ? {
+                ...state.active,
+                stoppedAtPx: state.baseTracker?.currentBase ?? null,
+              }
+            : state.active,
+      })
       ctx.emit("dca_exit", `DCA ${hit === "tp" ? "take profit" : "stop"} hit.`)
     },
     onFlatten: (ctx) => releaseCycle(ctx),
@@ -880,18 +1002,13 @@ export function createDcaAutomationStrategy(
         const next = {
           ...active,
           hadFill: true,
-          // Cash actually deployed. The "money back" take-profit sells exactly
-          // enough to hand this back, so it must count real fills, not budgets.
-          spentUsd: active.spentUsd + Number(fill.sz) * fillPx,
           // Step-down mode: this rung filled — point at the next one and re-lock it,
           // so it can't buy until it has its own fresh drop plus two green candles.
           armedIndex:
             dca.requireTwoGreen && complete ? buyIndex + 1 : active.armedIndex,
-          stepArmed:
-            dca.requireTwoGreen && complete ? false : active.stepArmed,
+          stepArmed: dca.requireTwoGreen && complete ? false : active.stepArmed,
           // The first buy of the cycle anchors the stop when that option is on.
-          firstEntryPx:
-            active.firstEntryPx ?? (fillPx > 0 ? fillPx : null),
+          firstEntryPx: active.firstEntryPx ?? (fillPx > 0 ? fillPx : null),
           rungs: active.rungs.map((rung) => {
             if (rung.index === buyIndex) {
               return {
@@ -915,34 +1032,6 @@ export function createDcaAutomationStrategy(
           }),
         }
         ctx.setState({ ...ctx.state, active: next, boughtThisBar: true })
-        return
-      }
-      if (fill.purpose === "dca:s:cash" || fill.purpose === "dca:s:free") {
-        // Money-back / free-ride sells. Bank what came back so the next tick sizes
-        // the remaining cash-back sell against what is still owed; once nothing is
-        // owed the whole remainder rides free to the base.
-        const recovered =
-          active.recoveredUsd + Number(fill.sz) * Number(fill.px)
-        if (positionOf(ctx).szi <= EPSILON) {
-          ctx.emit(
-            "dca_cycle_complete",
-            fill.purpose === "dca:s:free"
-              ? "DCA sold its free coins below the base."
-              : "DCA took its money back and closed flat."
-          )
-          releaseCycle(ctx)
-        } else {
-          if (fill.purpose === "dca:s:cash" && recovered >= active.spentUsd) {
-            ctx.emit(
-              "dca_money_back",
-              "DCA recovered every dollar it spent — the rest rides free."
-            )
-          }
-          ctx.setState({
-            ...ctx.state,
-            active: { ...active, recoveredUsd: recovered },
-          })
-        }
         return
       }
       if (fill.purpose === "dca:s:all") {
@@ -976,6 +1065,7 @@ export function createDcaAutomationStrategy(
         return
       }
       if (fill.purpose === "dca:exit" && positionOf(ctx).szi <= EPSILON) {
+        if (stepDownAfterStop(ctx)) return
         ctx.emit("dca_cycle_complete", "DCA closed its position.")
         releaseCycle(ctx)
       }
@@ -1017,7 +1107,9 @@ export function createDcaAutomationStrategy(
       const pos = positionOf(ctx)
       // The peel-off / nearest-rung sells are resting limit orders that fill on
       // the intrabar path, so only the stop loss needs a trigger level here.
-      return pos.szi > 0 ? exitLevels(closeProtection, pos, exitStateFor(ctx.state)) : []
+      return pos.szi > 0
+        ? exitLevels(closeProtection, pos, exitStateFor(ctx.state))
+        : []
     },
     desiredOrders: (ctx) => {
       const state = ctx.state
@@ -1027,6 +1119,7 @@ export function createDcaAutomationStrategy(
 
       if (state.exitRequested) {
         if (positionSz <= EPSILON) {
+          if (stepDownAfterStop({ ...ctx, state })) return []
           releaseCycle({ ...ctx, state })
           return []
         }
@@ -1047,10 +1140,19 @@ export function createDcaAutomationStrategy(
       const midPx = Number(ctx.mid)
       const exposurePct = (px: number, sz: number) =>
         walletEquity > 0 ? ((px * sz) / walletEquity) * 100 : 0
-      const filledExposurePct = exposurePct(midPx, Math.abs(positionSz))
-      // Reserve only this market's live FILLED exposure — nothing is committed
-      // until a rung actually fills, in either mode. Lets the room math below see
-      // everyone else's real commitments.
+      // Reserve what this market has SPENT — its cost basis — not what the
+      // position is worth now. Marking it to market frees room that does not
+      // exist in cash: spend $50k, watch it halve, and the ledger reads 50%
+      // committed, so another market spends the "free" half. Measured across a
+      // 592-coin basket that let one $50,000 wallet deploy $120,713 of cash
+      // (241%); even a 137-coin basket reached 110%. The broker's blended entry
+      // price times the held size IS the cash committed, so this bounds the
+      // wallet the way a real account is bounded. Nothing is committed until a
+      // rung actually fills, in either entry mode.
+      const filledExposurePct = exposurePct(
+        positionOf(ctx).entryPx,
+        Math.abs(positionSz)
+      )
       ctx.sharedWalletPortfolio?.setExposure?.(ctx.market, filledExposurePct)
       const roomPct = ctx.sharedWalletPortfolio?.remaining
         ? ctx.sharedWalletPortfolio.remaining(ctx.market)
@@ -1065,6 +1167,53 @@ export function createDcaAutomationStrategy(
       // the real same-bar win goes through. (Stops fire through exitTriggers.)
       const holdExits =
         dca.rungEntry === "limit" && state.boughtThisBar && barClosedDown(ctx)
+
+      // RECLAIM BUY. Price held back above the base this ladder was stopped at
+      // for the configured span, so the rung the stop took out goes straight
+      // back on — at market, same size, right here rather than waiting for
+      // price to fall to a rung level again (it is above the base now, so it
+      // never would). The stop that follows sits under whatever base is in
+      // force by then, which is the ordinary behaviour from that point on.
+      if (state.reclaimNow && state.active?.reclaim && positionSz === 0) {
+        const watch = state.active.reclaim
+        // Capped in DOLLARS, not coins. Buying back the same coin count would
+        // spend more the further price has run since the stop — SUI reclaimed
+        // 266 days later at 3.4x the stop price — so it is held to the budget of
+        // the rung it is putting back, like every other buy in the ladder.
+        const rung = state.active.rungs.find((r) => r.index === watch.index)
+        const budget = rung
+          ? (state.active.frozenEquity * rung.allocationPct) / 100
+          : null
+        const sz =
+          budget !== null && midPx > 0
+            ? Math.min(watch.sz, budget / midPx)
+            : watch.sz
+        if (
+          midPx > 0 &&
+          sz > EPSILON &&
+          filledExposurePct + exposurePct(midPx, sz) <= roomPct + 1e-9
+        ) {
+          ctx.setState({
+            ...state,
+            reclaimNow: false,
+            active: { ...state.active, reclaim: null, stoppedAtPx: null },
+          })
+          ctx.emit(
+            "dca_reclaim",
+            "DCA is buying back in — price reclaimed the base it was stopped at and held it."
+          )
+          return [
+            {
+              purpose: `dca:b:${watch.index}`,
+              side: "buy",
+              orderType: "market",
+              sz: String(sz),
+              tif: "Ioc",
+              reduceOnly: false,
+            },
+          ]
+        }
+      }
 
       if (dca.requireTwoGreen) {
         // STEP-DOWN CONFIRMED entry: market-buy ONE rung once (a) price has fallen
@@ -1129,7 +1278,8 @@ export function createDcaAutomationStrategy(
           const sz = dollars / next.plannedPx
           if (
             sz > EPSILON &&
-            filledExposurePct + exposurePct(next.plannedPx, sz) <= roomPct + 1e-9
+            filledExposurePct + exposurePct(next.plannedPx, sz) <=
+              roomPct + 1e-9
           ) {
             orders.push({
               purpose: `dca:b:${next.index}`,
@@ -1199,77 +1349,6 @@ export function createDcaAutomationStrategy(
             reduceOnly: true,
             sizeIsRemaining: true,
           })
-        }
-      }
-
-      // "Money back, ride the rest free": rest TWO reduce-only sells.
-      //   1. At the nearest rung above the deepest buy — the first level a bounce
-      //      reclaims — sell just enough to return every dollar the ladder spent.
-      //      After that fill nothing is at risk.
-      //   2. The coins that sell left behind cost nothing, so they rest just under
-      //      the base (`sellBelowBasePct`). That sale is the trade's profit.
-      // Both rest at once so a single fast bar that runs through both levels fills
-      // both — the sizes already add up to exactly the position.
-      if (moneyBack && positionSz > EPSILON && !holdExits) {
-        // Deepest rung that has BOUGHT (not "still unsold" as the nearest-rung
-        // mode uses): these sells aren't attributed to a rung, so a partial sale
-        // must not walk the bounce level back up.
-        const deepest = active.rungs.reduce(
-          (max, rung) => (rung.filledSz > EPSILON ? Math.max(max, rung.index) : max),
-          -1
-        )
-        const cashPx =
-          deepest === 0
-            ? active.base
-            : active.rungs.find((rung) => rung.index === deepest - 1)?.plannedPx
-        if (deepest >= 0 && cashPx !== undefined && cashPx > 0) {
-          const outstandingUsd = Math.max(
-            0,
-            active.spentUsd - active.recoveredUsd
-          )
-          // Coins the cash-back sell needs. Capped at the position: if the bounce
-          // level sits at or below the average cost there is nothing left to ride,
-          // so it just closes flat.
-          const cashSz =
-            outstandingUsd > EPSILON
-              ? Math.min(positionSz, outstandingUsd / cashPx)
-              : 0
-          const freeSz = positionSz - cashSz
-          // The runner must never rest BELOW the level that returns the cash — a
-          // "sell below base %" bigger than the first rung's step would otherwise
-          // sell the free coins cheaper than the money-back sell. When that
-          // happens the two collapse into one order at the cash level.
-          const freePx = active.base * (1 - dca.sellBelowBasePct / 100)
-          const restSell = (
-            purpose: string,
-            px: number,
-            sz: number
-          ): DesiredOrder => ({
-            purpose,
-            side: "sell",
-            orderType: "limit",
-            px: String(px),
-            sz: String(sz),
-            tif: "Gtc",
-            reduceOnly: true,
-            sizeIsRemaining: true,
-          })
-          if (freePx <= cashPx + EPSILON) {
-            orders.push(
-              restSell(
-                cashSz > EPSILON ? "dca:s:cash" : "dca:s:free",
-                cashPx,
-                positionSz
-              )
-            )
-          } else {
-            if (cashSz > EPSILON) {
-              orders.push(restSell("dca:s:cash", cashPx, cashSz))
-            }
-            if (freeSz > EPSILON) {
-              orders.push(restSell("dca:s:free", freePx, freeSz))
-            }
-          }
         }
       }
 

@@ -81,17 +81,9 @@ const SHARED_WALLET_CONFIG: AutomationConfig = {
     requireTwoGreen: false,
     basePeriods: 36,
     pumpPeriods: 8,
-    crackPct: 2.5,
-    maxCrackBars: 4,
-    respectFilterEnabled: false,
-    respectLookbackMonths: 6,
-    minRespectPct: 80,
-    recoveryTargetPct: -2,
-    sellBelowBasePct: 2,
     trendFilterEnabled: false,
     trendMaBars: 200,
     exitOnTrendBreak: false,
-    maxCycleBars: 0,
   },
 }
 
@@ -251,29 +243,24 @@ describe("Automation bot creation", () => {
     ])
   })
 
-  it("rejects a shared-wallet market basket whose required history would exhaust the worker", async () => {
+  it("takes a one-minute shared-wallet basket without a wall of history", async () => {
+    // The ladder's history need is the base window, the trend average and any
+    // confirmations — hundreds of candles, not months. The worker's history
+    // ceiling is a backstop it no longer comes near on ordinary settings.
     const userId = await createUser()
     const walletId = await createWallet(userId)
     const automationId = await createAutomation(
       userId,
-      {
-        ...SHARED_WALLET_CONFIG,
-        interval: "1m",
-        dca: {
-          ...SHARED_WALLET_CONFIG.dca!,
-          respectFilterEnabled: true,
-          respectLookbackMonths: 60,
-        },
-      },
-      "Large shared-wallet ladder"
+      { ...SHARED_WALLET_CONFIG, interval: "1m" },
+      "One-minute shared-wallet ladder"
     )
 
-    await expect(
-      createUserBot(userId, {
-        ...botInput(walletId, automationId),
-        markets: ["BTC", "ETH", "SOL"],
-      })
-    ).rejects.toThrow("history candles")
+    const bot = await createUserBot(userId, {
+      ...botInput(walletId, automationId),
+      markets: ["BTC", "ETH", "SOL"],
+    })
+
+    expect(bot.markets).toEqual(["BTC", "ETH", "SOL"])
   })
 
   it("does not reveal or use another user's Automation", async () => {

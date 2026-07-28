@@ -129,11 +129,16 @@ describe("AutomationInspector", () => {
     ...overrides,
   })
 
-  const inspect = (node: AutomationNode) =>
+  const inspect = (
+    node: AutomationNode,
+    feeds: { session?: boolean; base?: boolean } = {}
+  ) =>
     renderToStaticMarkup(
       <AutomationInspector
         selectedNode={node}
         errors={[]}
+        feedsFromSession={feeds.session}
+        feedsFromBase={feeds.base}
         onNodeChange={vi.fn()}
         onDeleteNode={vi.fn()}
       />
@@ -141,12 +146,29 @@ describe("AutomationInspector", () => {
 
   // A Select's options only exist once its menu opens, so these assert the
   // controls and their labels rather than the option text.
-  it("offers the stop a level control alongside the percent one", () => {
-    const markup = inspect(stopNode())
+  it("hides the stop's level control until a node supplying a level is wired in", () => {
+    // Nothing connected: every other choice needs a node that isn't there, so
+    // the whole dropdown stays away.
+    const alone = inspect(stopNode())
+    expect(alone).not.toContain("Stop sits at")
+    expect(alone).toContain("Stop behavior")
+    expect(alone).toContain("Stop loss %")
+
+    // Either node makes the choice real, so the control appears.
+    expect(inspect(stopNode(), { session: true })).toContain("Stop sits at")
+    const base = inspect(stopNode(), { base: true })
+    expect(base).toContain("Stop sits at")
+    expect(base).toContain('id="stop-level-sl-1"')
+  })
+
+  it("a base stop drops the trailing controls and relabels the percent", () => {
+    const markup = inspect(stopNode({ level: "confirmedBase" }))
+    // The base is one fixed price, so trailing is meaningless against it.
+    expect(markup).not.toContain("Stop behavior")
+    expect(markup).toContain("Stop loss % (no base yet)")
+    // Reachable with no Base node wired in, or there is no way back to a percent.
     expect(markup).toContain("Stop sits at")
-    expect(markup).toContain('id="stop-level-sl-1"')
-    expect(markup).toContain("Stop behavior")
-    expect(markup).toContain("Stop loss %")
+    expect(markup).toContain("Sits on the confirmed base drawn by the Base node")
   })
 
   it("a session-open stop drops the trailing controls and relabels the percent", () => {
@@ -154,7 +176,9 @@ describe("AutomationInspector", () => {
     // Trailing is meaningless against one fixed price, so its control goes.
     expect(markup).not.toContain("Stop behavior")
     expect(markup).toContain("Stop loss % (outside the session)")
-    expect(markup).toContain("Wire a Sessions node into this one")
+    // Already set to the session open, so the control stays reachable even with
+    // no Sessions node wired in — otherwise there is no way back to a percent.
+    expect(markup).toContain("Stop sits at")
     expect(markup).toContain("Sits at the opening price of the session wired")
   })
 

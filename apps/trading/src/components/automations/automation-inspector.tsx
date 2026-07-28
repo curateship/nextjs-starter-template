@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NumberInput } from "@/components/ui/number-input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
@@ -51,6 +52,8 @@ export function AutomationInspector({
   savingFavorite,
   interval,
   feedsFromDca,
+  feedsFromSession,
+  feedsFromBase,
   graphHasDca,
   referenceEquity,
   onNodeChange,
@@ -67,6 +70,10 @@ export function AutomationInspector({
   interval?: AutomationInterval
   /** True when the selected Take Profit node is fed by a DCA node. */
   feedsFromDca?: boolean
+  /** True when the selected Stop Loss node is fed by a Sessions node. */
+  feedsFromSession?: boolean
+  /** True when the selected Stop Loss node is fed by a Base node. */
+  feedsFromBase?: boolean
   /** True when the automation contains a DCA ladder anywhere in the graph. */
   graphHasDca?: boolean
   /** Account size for previewing a DCA ladder in dollars (the test capital). */
@@ -142,6 +149,8 @@ export function AutomationInspector({
               node={selectedNode}
               interval={interval}
               feedsFromDca={feedsFromDca}
+              feedsFromSession={feedsFromSession}
+              feedsFromBase={feedsFromBase}
               graphHasDca={graphHasDca}
               referenceEquity={referenceEquity}
               onChange={onNodeChange}
@@ -214,6 +223,8 @@ function NodeFields(props: {
   node: AutomationNode
   interval?: AutomationInterval
   feedsFromDca?: boolean
+  feedsFromSession?: boolean
+  feedsFromBase?: boolean
   /** True when the automation contains a DCA ladder anywhere in the graph. */
   graphHasDca?: boolean
   referenceEquity?: number
@@ -234,6 +245,8 @@ function NodeFieldsInner({
   node,
   interval,
   feedsFromDca,
+  feedsFromSession,
+  feedsFromBase,
   graphHasDca,
   referenceEquity,
   onChange,
@@ -241,6 +254,8 @@ function NodeFieldsInner({
   node: AutomationNode
   interval?: AutomationInterval
   feedsFromDca?: boolean
+  feedsFromSession?: boolean
+  feedsFromBase?: boolean
   graphHasDca?: boolean
   referenceEquity?: number
   onChange: (node: AutomationNode) => void
@@ -283,6 +298,8 @@ function NodeFieldsInner({
       <ProtectionNodeFields
         node={node}
         feedsFromDca={feedsFromDca}
+        feedsFromSession={feedsFromSession}
+        feedsFromBase={feedsFromBase}
         graphHasDca={graphHasDca}
         onChange={onChange}
       />
@@ -367,15 +384,14 @@ function NumberField<K extends string>({
       <FieldLabel htmlFor={id} info={info}>
         {label}
       </FieldLabel>
-      <Input
+      <NumberInput
         id={id}
-        type="number"
         value={value}
         min={min}
         max={max}
         step={step}
         disabled={disabled}
-        onChange={(event) => onChange(field, Number(event.target.value))}
+        onValueChange={(next) => onChange(field, next)}
       />
     </div>
   )
@@ -467,9 +483,18 @@ function DcaFields({
     })
   }
   const number = (
-    field: "crackPct" | "maxCrackBars" | "respectLookbackMonths" | "minRespectPct" | "recoveryTargetPct" | "maxPositionPct" | "sizeMultiplier" | "sellBelowBasePct" | "trendMaBars" | "maxCycleBars",
+    field:
+      | "maxPositionPct"
+      | "sizeMultiplier"
+      | "trendMaBars",
     label: string,
-    opts: { min?: number; max?: number; step?: number; info?: string; disabled?: boolean }
+    opts: {
+      min?: number
+      max?: number
+      step?: number
+      info?: string
+      disabled?: boolean
+    }
   ) => (
     <NumberField
       id={`dca-${node.id}-${field}`}
@@ -500,283 +525,195 @@ function DcaFields({
 
   return (
     <div className="grid gap-4">
-      <NodeCard title="Base break">
-          <p className="text-[11px] text-muted-foreground">
-            What starts the ladder. The Base indicator wired into this node says
-            where the base is; these two say what breaking it means.
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {number("crackPct", "Crack below base (%)", {
-              min: 0.01,
-              max: 50,
-              step: 0.1,
-              info: "How far below the base a candle must close to count as a crack. That crack is the first buy.",
-            })}
-            {number("maxCrackBars", "Maximum fall (candles)", {
-              min: 1,
-              step: 1,
-              info: "The drop must be quick: price was still up at the base within this many candles, so a slow slide underneath it is ignored.",
-            })}
-          </div>
-      </NodeCard>
       <NodeCard title="Only buy in an uptrend">
-          <div className="flex items-center gap-1">
-            <label className="flex cursor-pointer items-center gap-2 text-xs">
-              <Checkbox
-                checked={node.trendFilterEnabled}
-                onCheckedChange={(checked) =>
-                  onChange({ ...node, trendFilterEnabled: checked === true })
-                }
-              />
-              Skip the base unless price is above its average
-            </label>
-            <InfoHint text="This ladder only ever buys, so in a falling market it keeps averaging down into the fall. With this on, a new ladder only starts while the latest close is above the average of the last N candles — so it sits out downtrends instead of bleeding through them." />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {number("trendMaBars", "Average length (candles)", {
-              min: 2,
-              max: 1000,
-              step: 1,
-              disabled: !node.trendFilterEnabled,
-              info: "How many candles go into the average, counted on this bot's own timeframe. On a daily bot 200 is the classic 200-day average; on a 4-hour bot 200 candles is about 33 days.",
-            })}
-          </div>
-          <div className="flex items-center gap-1">
-            <label className="flex cursor-pointer items-center gap-2 text-xs">
-              <Checkbox
-                checked={node.exitOnTrendBreak}
-                disabled={!node.trendFilterEnabled}
-                onCheckedChange={(checked) =>
-                  onChange({ ...node, exitOnTrendBreak: checked === true })
-                }
-              />
-              Also SELL when the trend breaks
-            </label>
-            <InfoHint text="Off, the filter only stops NEW ladders starting — one that is already open rides the whole way down when the trend turns. On, price closing back below the average closes the position too. This is the ladder's only way to give up on a losing cycle apart from the stop." />
-          </div>
-      </NodeCard>
-      <NodeCard title="Past base quality">
-          <div className="flex items-center gap-1">
-            <label className="flex cursor-pointer items-center gap-2 text-xs">
-              <Checkbox
-                checked={node.respectFilterEnabled}
-                onCheckedChange={(checked) =>
-                  onChange({ ...node, respectFilterEnabled: checked === true })
-                }
-              />
-              Only trade markets whose cracks recovered
-            </label>
-            <InfoHint text="Scores the market's past cracks over the history below and skips this one unless enough of them bounced back. Off means every crack qualifies." />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {number("respectLookbackMonths", "History (months)", {
-              min: 1,
-              max: 60,
-              step: 1,
-              disabled: !node.respectFilterEnabled,
-              info: "How many months of history to judge the market's past cracks over.",
-            })}
-            {number("minRespectPct", "Minimum respected (%)", {
-              min: 0,
-              max: 100,
-              step: 1,
-              disabled: !node.respectFilterEnabled,
-              info: "The smallest share of past cracks that must have recovered before a trade is allowed.",
-            })}
-            {number("recoveryTargetPct", "Recovery vs base (%)", {
-              min: -50,
-              max: 50,
-              step: 0.1,
-              disabled: !node.respectFilterEnabled,
-              info: "How far above the base price counts as a recovery. Negative means below the base.",
-            })}
-          </div>
+        <div className="flex items-center gap-1">
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox
+              checked={node.trendFilterEnabled}
+              onCheckedChange={(checked) =>
+                onChange({ ...node, trendFilterEnabled: checked === true })
+              }
+            />
+            Skip the base unless price is above its average
+          </label>
+          <InfoHint text="This ladder only ever buys, so in a falling market it keeps averaging down into the fall. With this on, a new ladder only starts while the latest close is above the average of the last N candles — so it sits out downtrends instead of bleeding through them." />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {number("trendMaBars", "Average length (candles)", {
+            min: 2,
+            max: 1000,
+            step: 1,
+            disabled: !node.trendFilterEnabled,
+            info: "How many candles go into the average, counted on this bot's own timeframe. On a daily bot 200 is the classic 200-day average; on a 4-hour bot 200 candles is about 33 days.",
+          })}
+        </div>
+        <div className="flex items-center gap-1">
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox
+              checked={node.exitOnTrendBreak}
+              disabled={!node.trendFilterEnabled}
+              onCheckedChange={(checked) =>
+                onChange({ ...node, exitOnTrendBreak: checked === true })
+              }
+            />
+            Also SELL when the trend breaks
+          </label>
+          <InfoHint text="Off, the filter only stops NEW ladders starting — one that is already open rides the whole way down when the trend turns. On, price closing back below the average closes the position too. This is the ladder's only way to give up on a losing cycle apart from the stop." />
+        </div>
       </NodeCard>
       <NodeCard title="Ladder">
-          <div className="rounded-md border bg-background/60 px-2.5 py-2 text-[11px]">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Money in the pot</span>
-              <span className="font-medium tabular-nums">{money(potUsd)}</span>
-            </div>
-            <p className="mt-0.5 text-muted-foreground">
-              {node.maxPositionPct}% of a {money(equity)} account.{" "}
-              {node.compound
-                ? "The amounts below scale with whatever account actually runs it."
-                : "Fixed sizing — the amounts below stay the same however the account grows."}
-            </p>
+        <div className="rounded-md border bg-background/60 px-2.5 py-2 text-[11px]">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Money in the pot</span>
+            <span className="font-medium tabular-nums">{money(potUsd)}</span>
           </div>
-          <div className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2 text-[11px] text-muted-foreground">
-            <span>#</span>
-            <span className="flex items-center gap-1">
-              Deviation %
-              <InfoHint text="How far below the PREVIOUS buy this rung rests, in percent. The first rung is measured from the base; each rung after it drops a further this-much below the one above." />
-            </span>
-            <span className="flex items-center gap-1">
-              Buy size
-              <InfoHint text="How much this buy spends — set automatically by the Size ramp, bigger the deeper it drops. Shown for the account size above; it scales with the real account." />
-            </span>
-            <span />
-          </div>
-          {node.rungs.map((rung, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2"
-            >
-              <span className="text-xs text-muted-foreground">{index + 1}</span>
-              <Input
-                type="number"
-                aria-label={`Rung ${index + 1} deviation percent`}
-                value={rung.deviation}
-                min={0.1}
-                max={99}
-                step={0.1}
-                onChange={(event) =>
-                  setDeviation(index, Number(event.target.value))
-                }
-              />
-              <div
-                className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs tabular-nums text-muted-foreground"
-                aria-label={`Rung ${index + 1} buy amount`}
-              >
-                {money((equity * (allocations[index] ?? 0)) / 100)}
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                disabled={node.rungs.length <= 1}
-                aria-label={`Remove rung ${index + 1}`}
-                onClick={() => removeRung(index)}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="justify-start"
-            disabled={node.rungs.length >= 20}
-            onClick={addRung}
+          <p className="mt-0.5 text-muted-foreground">
+            {node.maxPositionPct}% of a {money(equity)} account.{" "}
+            {node.compound
+              ? "The amounts below scale with whatever account actually runs it."
+              : "Fixed sizing — the amounts below stay the same however the account grows."}
+          </p>
+        </div>
+        <div className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2 text-[11px] text-muted-foreground">
+          <span>#</span>
+          <span className="flex items-center gap-1">
+            Deviation %
+            <InfoHint text="How far below the PREVIOUS buy this rung rests, in percent. The first rung is measured from the base; each rung after it drops a further this-much below the one above." />
+          </span>
+          <span className="flex items-center gap-1">
+            Buy size
+            <InfoHint text="How much this buy spends — set automatically by the Size ramp, bigger the deeper it drops. Shown for the account size above; it scales with the real account." />
+          </span>
+          <span />
+        </div>
+        {node.rungs.map((rung, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-[1.25rem_1fr_1fr_1.75rem] items-center gap-2"
           >
-            <PlusIcon className="size-4" />
-            Add rung
-          </Button>
+            <span className="text-xs text-muted-foreground">{index + 1}</span>
+            <NumberInput
+              aria-label={`Rung ${index + 1} deviation percent`}
+              value={rung.deviation}
+              min={0.1}
+              max={99}
+              step={0.1}
+              onValueChange={(next) => setDeviation(index, next)}
+            />
+            <div
+              className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs text-muted-foreground tabular-nums"
+              aria-label={`Rung ${index + 1} buy amount`}
+            >
+              {money((equity * (allocations[index] ?? 0)) / 100)}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground"
+              disabled={node.rungs.length <= 1}
+              aria-label={`Remove rung ${index + 1}`}
+              onClick={() => removeRung(index)}
+            >
+              <Trash2Icon className="size-4" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="justify-start"
+          disabled={node.rungs.length >= 20}
+          onClick={addRung}
+        >
+          <PlusIcon className="size-4" />
+          Add rung
+        </Button>
       </NodeCard>
       <NodeCard title="Sizing and fills">
-          <div className="grid grid-cols-2 gap-2">
-            {number("maxPositionPct", "Max position (% of account)", {
-              min: 1,
-              max: 100,
-              step: 1,
-              info: "The most of your account the whole ladder can ever spend. It's split across the buys automatically by the Size ramp.",
-            })}
-            {number("sizeMultiplier", "Size ramp (× each buy)", {
-              min: 1,
-              max: 10,
-              step: 0.1,
-              info: "How much bigger each buy is than the one above it. 1 = every buy the same size; 2 = each buy is double the last, so you buy far more the deeper price drops.",
-            })}
-          </div>
-          <div className="grid gap-1.5">
-            <FieldLabel
-              htmlFor={`dca-${node.id}-compound`}
-              info="Compound: each buy is sized off your CURRENT balance, so profits grow your bets and losses shrink them. Fixed: each buy is the same dollar size based on your starting balance, no matter how the account grows."
+        <div className="grid grid-cols-2 gap-2">
+          {number("maxPositionPct", "Max position (% of account)", {
+            min: 1,
+            max: 100,
+            step: 1,
+            info: "The most of your account the whole ladder can ever spend. It's split across the buys automatically by the Size ramp.",
+          })}
+          {number("sizeMultiplier", "Size ramp (× each buy)", {
+            min: 1,
+            max: 10,
+            step: 0.1,
+            info: "How much bigger each buy is than the one above it. 1 = every buy the same size; 2 = each buy is double the last, so you buy far more the deeper price drops.",
+          })}
+        </div>
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`dca-${node.id}-compound`}
+            info="Compound: each buy is sized off your CURRENT balance, so profits grow your bets and losses shrink them. Fixed: each buy is the same dollar size based on your starting balance, no matter how the account grows."
+          >
+            Bet sizing
+          </FieldLabel>
+          <Select
+            value={node.compound ? "compound" : "fixed"}
+            onValueChange={(value) =>
+              onChange({ ...node, compound: value === "compound" })
+            }
+          >
+            <SelectTrigger
+              id={`dca-${node.id}-compound`}
+              className="h-8 text-xs"
             >
-              Bet sizing
-            </FieldLabel>
-            <Select
-              value={node.compound ? "compound" : "fixed"}
-              onValueChange={(value) =>
-                onChange({ ...node, compound: value === "compound" })
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="compound">
+                Compound — grow bets with the account
+              </SelectItem>
+              <SelectItem value="fixed">Fixed — same bet every time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`dca-${node.id}-rungEntry`}
+            info="Market: the buy fires the moment price reaches a rung, so the fill lands a little past the exact price (that's slippage), and a violent crash makes it wait for the first green candle then take just one rung at the bounce. Limit: sets a single limit order at the rung's exact price, so you fill at exactly that level with no slippage. Neither ties up money until a buy actually fills."
+          >
+            When a rung is hit
+          </FieldLabel>
+          <Select
+            value={node.rungEntry}
+            onValueChange={(value) =>
+              onChange({ ...node, rungEntry: value as "market" | "limit" })
+            }
+          >
+            <SelectTrigger
+              id={`dca-${node.id}-rungEntry`}
+              className="h-8 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="market">
+                Market — buy on confirmation (a bit of slippage)
+              </SelectItem>
+              <SelectItem value="limit">
+                Limit — exact price at each rung, no slippage
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-1">
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox
+              checked={node.requireTwoGreen}
+              onCheckedChange={(checked) =>
+                onChange({ ...node, requireTwoGreen: checked === true })
               }
-            >
-              <SelectTrigger
-                id={`dca-${node.id}-compound`}
-                className="h-8 text-xs"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="compound">
-                  Compound — grow bets with the account
-                </SelectItem>
-                <SelectItem value="fixed">
-                  Fixed — same bet every time
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <FieldLabel
-              htmlFor={`dca-${node.id}-rungEntry`}
-              info="Market: the buy fires the moment price reaches a rung, so the fill lands a little past the exact price (that's slippage), and a violent crash makes it wait for the first green candle then take just one rung at the bounce. Limit: sets a single limit order at the rung's exact price, so you fill at exactly that level with no slippage. Neither ties up money until a buy actually fills."
-            >
-              When a rung is hit
-            </FieldLabel>
-            <Select
-              value={node.rungEntry}
-              onValueChange={(value) =>
-                onChange({ ...node, rungEntry: value as "market" | "limit" })
-              }
-            >
-              <SelectTrigger
-                id={`dca-${node.id}-rungEntry`}
-                className="h-8 text-xs"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="market">
-                  Market — buy on confirmation (a bit of slippage)
-                </SelectItem>
-                <SelectItem value="limit">
-                  Limit — exact price at each rung, no slippage
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-1">
-            <label className="flex cursor-pointer items-center gap-2 text-xs">
-              <Checkbox
-                checked={node.requireTwoGreen}
-                onCheckedChange={(checked) =>
-                  onChange({ ...node, requireTwoGreen: checked === true })
-                }
-              />
-              Only buy after 2 green candles
-            </label>
-            <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
-          </div>
-      </NodeCard>
-      <NodeCard title="Ladder exits">
-          <p className="text-[11px] text-muted-foreground">
-            Only used when the Take Profit hanging off this node is set to{" "}
-            <span className="font-medium">
-              Money back at nearest rung, then ride free
-            </span>
-            . Every other style ignores it.
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {number("sellBelowBasePct", "Sell below base (%)", {
-              // Matches the saved range. The UI used to clamp at 0 while the
-              // schema allowed negatives, so a ladder set to ride its free coins
-              // ABOVE the base could not be edited here without silently
-              // clamping the value to 0.
-              min: -500,
-              max: 50,
-              step: 0.1,
-              info: "Where the free coins wait. Once the ladder has taken its money back, whatever coins are left cost nothing — they rest this far under the base and their sale is the whole trade's profit. A little under the base usually fills, because price that fell through a level tends to stall just short of reclaiming it. NEGATIVE rests them ABOVE the base instead, to ride a recovery rather than sell into it.",
-            })}
-            {number("maxCycleBars", "Give up after (candles)", {
-              min: 0,
-              max: 5000,
-              step: 1,
-              info: "A time stop. If a ladder has been open this many candles without resolving, it closes out and takes the loss. 0 means never give up — which is how a ladder ends up holding a bag forever, so the backtest shows a high win rate while the real losses sit in open positions.",
-            })}
-          </div>
+            />
+            Only buy after 2 green candles
+          </label>
+          <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
+        </div>
       </NodeCard>
       <p className="text-[11px] text-muted-foreground">
         Take Profit and Stop Loss hang on this node.
@@ -784,7 +721,6 @@ function DcaFields({
     </div>
   )
 }
-
 
 function WhaleWallFields({
   node,
@@ -836,25 +772,26 @@ function WhaleWallFields({
     <div className="grid gap-4">
       {fields.map((field) => (
         <div key={field.key} className="grid gap-1.5">
-          <FieldLabel htmlFor={`whale-wall-${node.id}-${field.key}`} info={field.info}>
+          <FieldLabel
+            htmlFor={`whale-wall-${node.id}-${field.key}`}
+            info={field.info}
+          >
             {field.label}
           </FieldLabel>
-          <Input
+          <NumberInput
             id={`whale-wall-${node.id}-${field.key}`}
-            type="number"
             min={field.min}
             max={field.max}
             step={field.step}
             value={field.value}
             className="h-8 text-xs"
-            onChange={(event) => {
-              const value = Number(event.target.value)
+            onValueChange={(next) =>
               onChange({
                 ...node,
                 [field.key]:
-                  field.key === "confirmationMs" ? value * 1_000 : value,
+                  field.key === "confirmationMs" ? next * 1_000 : next,
               })
-            }}
+            }
           />
         </div>
       ))}
@@ -897,6 +834,9 @@ function IndicatorFields({
       onChange={(value) => setParam(item.key, value)}
     />
   )
+  // Drawing settings (which arrows to paint, how far apart) belong to the chart's
+  // indicator card. A node on the canvas has no chart, so it never shows them.
+  const editableFields = module.paramFields.filter((item) => !item.chartOnly)
 
   if (module.paramGroups?.length) {
     const groupedKeys = new Set(
@@ -906,13 +846,13 @@ function IndicatorFields({
       ...module.paramGroups.map((group) => ({
         title: group.title,
         fields: group.keys.flatMap((key) => {
-          const match = module.paramFields.find((item) => item.key === key)
+          const match = editableFields.find((item) => item.key === key)
           return match ? [match] : []
         }),
       })),
       {
         title: "Other settings",
-        fields: module.paramFields.filter((item) => !groupedKeys.has(item.key)),
+        fields: editableFields.filter((item) => !groupedKeys.has(item.key)),
       },
     ].filter((group) => group.fields.length > 0)
 
@@ -927,7 +867,7 @@ function IndicatorFields({
     )
   }
 
-  return <NodeCard title="Settings">{module.paramFields.map(field)}</NodeCard>
+  return <NodeCard title="Settings">{editableFields.map(field)}</NodeCard>
 }
 
 function IndicatorField({
@@ -983,13 +923,12 @@ function IndicatorField({
       <FieldLabel htmlFor={inputId} info={field.info}>
         {field.label}
       </FieldLabel>
-      <Input
+      <NumberInput
         id={inputId}
-        type="number"
         step={field.step}
         value={typeof value === "number" ? value : Number(value ?? 0)}
         className="h-8 text-xs"
-        onChange={(event) => onChange(Number(event.target.value))}
+        onValueChange={onChange}
       />
     </div>
   )
@@ -1010,17 +949,14 @@ function LookbackFields({
       >
         Valid for (candles)
       </FieldLabel>
-      <Input
+      <NumberInput
         id={`lookback-${node.id}`}
-        type="number"
         min={1}
         max={1400}
         step={1}
         value={node.bars}
         className="h-8 text-xs"
-        onChange={(event) =>
-          onChange({ ...node, bars: Number(event.target.value) })
-        }
+        onValueChange={(next) => onChange({ ...node, bars: next })}
       />
       <p className="text-[11px] text-muted-foreground">
         The incoming signal counts for this many candles after it fires, then
@@ -1107,12 +1043,18 @@ function TimeframeFields({
 function ProtectionNodeFields({
   node,
   feedsFromDca,
+  feedsFromSession,
+  feedsFromBase,
   graphHasDca,
   onChange,
 }: {
   node: Extract<AutomationNode, { kind: "takeProfit" | "stopLoss" }>
   /** True for a Take Profit fed by a DCA node — unlocks the "previous rung" styles. */
   feedsFromDca?: boolean
+  /** True for a Stop Loss fed by a Sessions node — unlocks the session-open level. */
+  feedsFromSession?: boolean
+  /** True for a Stop Loss fed by a Base node — unlocks the confirmed-base level. */
+  feedsFromBase?: boolean
   graphHasDca?: boolean
   onChange: (node: AutomationNode) => void
 }) {
@@ -1120,17 +1062,29 @@ function ProtectionNodeFields({
   const max = isTp ? 1000 : 100
   const trailing = node.kind === "stopLoss" && node.mode === "trailing"
   const atSessionOpen = node.kind === "stopLoss" && node.level === "sessionOpen"
+  const atBase = node.kind === "stopLoss" && node.level === "confirmedBase"
+  // Each extra level needs the node that supplies it: a Sessions node to say WHICH
+  // session, a Base node to say which base. With neither wired in there is only one
+  // real choice, so the dropdown is hidden entirely. It reappears for a stop already
+  // SET to one of them — otherwise unwiring that node would strand it with no way
+  // back to a percent.
+  const showStopLevel =
+    node.kind === "stopLoss" &&
+    (Boolean(feedsFromSession) ||
+      Boolean(feedsFromBase) ||
+      atSessionOpen ||
+      atBase)
   const rrRatio = node.kind === "takeProfit" ? node.rrRatio : undefined
   const tpMode =
     node.kind === "takeProfit" ? (node.mode ?? "average") : "average"
   const previousRung = tpMode !== "average"
   return (
     <div className="grid gap-3">
-      {node.kind === "stopLoss" ? (
+      {showStopLevel ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`stop-level-${node.id}`}
-            info="Percent from entry: the stop sits that far from where you got in. Session open: the stop sits at the price the session opened at — below your entry on a long, above it on a short. Wire a Sessions node into this one to say which session; the percent below is then only used for a trade opened outside those hours."
+            info="Percent from entry: the stop sits that far from where you got in. Session open: the stop sits at the price the session opened at. The confirmed base: the stop sits on the base itself — the teal dash the Base node draws — because that level holding is the whole reason for the trade; if price loses it, the trade is wrong. Wire the node that supplies the level into this one. Either way the percent below is the fallback for a trade opened when there is no level to sit at."
           >
             Stop sits at
           </FieldLabel>
@@ -1139,28 +1093,61 @@ function ProtectionNodeFields({
             onValueChange={(level) =>
               onChange({
                 ...node,
-                level: level === "sessionOpen" ? "sessionOpen" : "percent",
-                // The session open is one price; it cannot also trail.
-                ...(level === "sessionOpen" ? { mode: "fixed" as const } : {}),
+                level:
+                  level === "sessionOpen"
+                    ? "sessionOpen"
+                    : level === "confirmedBase"
+                      ? "confirmedBase"
+                      : "percent",
+                // Both are one fixed price; neither can also trail.
+                ...(level === "percent" ? {} : { mode: "fixed" as const }),
               })
             }
           >
-            <SelectTrigger
-              id={`stop-level-${node.id}`}
-              className="h-8 text-xs"
-            >
+            <SelectTrigger id={`stop-level-${node.id}`} className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="percent">A percent from the entry</SelectItem>
-              <SelectItem value="sessionOpen">
-                The session open — wire a Sessions node in
-              </SelectItem>
+              {feedsFromSession || atSessionOpen ? (
+                <SelectItem value="sessionOpen">The session open</SelectItem>
+              ) : null}
+              {feedsFromBase || atBase ? (
+                <SelectItem value="confirmedBase">
+                  The confirmed base
+                </SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
         </div>
       ) : null}
-      {node.kind === "stopLoss" && !atSessionOpen ? (
+      {atBase && node.kind === "stopLoss" ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`stop-base-reclaim-${node.id}`}
+            info="After this stop cuts you at a base, watch that same base. If price closes back above it and KEEPS closing above it for this many days, the break was a fakeout — the drop took the stops out and price carried on — so the trade goes back on at market, same size, with a fresh stop under whatever base is in force by then. A wick under the base does not reset the wait; a close under it starts it again from zero. 0 means never buy back."
+          >
+            Buy back after (days above the base)
+          </FieldLabel>
+          <NumberInput
+            id={`stop-base-reclaim-${node.id}`}
+            min={0}
+            max={3650}
+            step={1}
+            value={node.baseReclaimDays ?? 0}
+            className="h-8 text-xs"
+            onValueChange={(next) =>
+              onChange({ ...node, baseReclaimDays: next })
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {node.baseReclaimDays
+              ? `Reclaim the base and hold it ${node.baseReclaimDays} days and the trade goes back on. You buy higher than you were stopped at — that is the price of waiting for proof.`
+              : "Once stopped out, the ladder moves on to its next rung and never buys that level back."}
+          </p>
+        </div>
+      ) : null}
+      {node.kind === "stopLoss" && !atSessionOpen && !atBase ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`protection-mode-${node.id}`}
@@ -1230,7 +1217,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`tp-mode-${node.id}`}
-            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once. Money back, then ride free: at that same nearest rung sell only enough to hand back every dollar the ladder spent — the bleeding stops on the first decent bounce instead of waiting for a full recovery. The coins that sale leaves behind cost you nothing, so they wait just under the base (set by Sell below base % on the DCA node) and their sale is the trade's profit."
+            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once."
           >
             Take profit style
           </FieldLabel>
@@ -1240,10 +1227,7 @@ function ProtectionNodeFields({
               onChange({
                 ...node,
                 mode: value as
-                  | "average"
-                  | "previousRungSellAll"
-                  | "nearestRungSellAll"
-                  | "moneyBackThenBase",
+                  "average" | "previousRungSellAll" | "nearestRungSellAll",
               })
             }
           >
@@ -1257,9 +1241,6 @@ function ProtectionNodeFields({
               </SelectItem>
               <SelectItem value="nearestRungSellAll">
                 Sell everything at nearest rung
-              </SelectItem>
-              <SelectItem value="moneyBackThenBase">
-                Money back at nearest rung, then ride free
               </SelectItem>
             </SelectContent>
           </Select>
@@ -1302,20 +1283,18 @@ function ProtectionNodeFields({
           >
             R&amp;R ratio (reward : risk)
           </FieldLabel>
-          <Input
+          <NumberInput
             id={`tp-rr-${node.id}`}
-            type="number"
             min={0.1}
             max={MAX_RR_RATIO}
             step={0.1}
             value={rrRatio}
             className="h-8 text-xs"
-            onChange={(event) =>
-              onChange({ ...node, rrRatio: Number(event.target.value) })
-            }
+            onValueChange={(next) => onChange({ ...node, rrRatio: next })}
           />
           <p className="text-[11px] text-muted-foreground">
-            {rrRatio}:1 — the target sits {rrRatio === 1 ? "the same distance" : `${rrRatio}x as far`} from
+            {rrRatio}:1 — the target sits{" "}
+            {rrRatio === 1 ? "the same distance" : `${rrRatio}x as far`} from
             your entry as the stop does. This entry needs a Stop Loss for it to
             measure against.
           </p>
@@ -1330,43 +1309,46 @@ function ProtectionNodeFields({
                 ? "How far above the entry to take profit."
                 : atSessionOpen
                   ? "The fallback for a trade opened outside the session's hours, where there is no session-open price to sit at."
-                  : trailing
-                    ? "How far below the best price the trailing stop sits."
-                    : "How far below the entry to cut the loss."
+                  : atBase
+                    ? "The fallback for a trade opened before any base has confirmed, where there is no base to sit on."
+                    : trailing
+                      ? "How far below the best price the trailing stop sits."
+                      : "How far below the entry to cut the loss."
             }
           >
             {isTp
               ? "Take profit %"
               : atSessionOpen
                 ? "Stop loss % (outside the session)"
-                : trailing
-                  ? "Trail distance %"
-                  : "Stop loss %"}
+                : atBase
+                  ? "Stop loss % (no base yet)"
+                  : trailing
+                    ? "Trail distance %"
+                    : "Stop loss %"}
           </FieldLabel>
-          <Input
+          <NumberInput
             id={`protection-${node.id}`}
-            type="number"
             min={0}
             max={max}
             step={0.1}
             value={node.pct}
             className="h-8 text-xs"
-            onChange={(event) =>
-              onChange({ ...node, pct: Number(event.target.value) })
-            }
+            onValueChange={(next) => onChange({ ...node, pct: next })}
           />
           <p className="text-[11px] text-muted-foreground">
             {isTp
               ? "Exits with profit this far from the entry. Attach it to a Long or Short entry — it only guards that side."
               : atSessionOpen
                 ? "Used only when a trade opens outside the session, where there is no session-open price to sit at. There is always a stop."
-                : trailing
-                  ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
-                  : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
+                : atBase
+                  ? "Used only when a trade opens with no confirmed base to sit on. There is always a stop."
+                  : trailing
+                    ? "The stop follows the best price since entry at this distance. It only ever moves in your favor — a pullback this big from the best price exits."
+                    : "Exits at a loss this far from the entry. Attach it to a Long or Short entry — it only guards that side."}
           </p>
         </div>
       )}
-      {trailing && !atSessionOpen ? (
+      {trailing && !atSessionOpen && !atBase ? (
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`protection-activation-${node.id}`}
@@ -1428,17 +1410,14 @@ function ActionFields({
         >
           Target account equity %
         </FieldLabel>
-        <Input
+        <NumberInput
           id={`target-${node.id}`}
-          type="number"
           min={1}
           max={100}
           step={1}
           value={node.targetEquityPct ?? 10}
           className="h-8 text-xs"
-          onChange={(event) =>
-            onChange({ ...node, targetEquityPct: Number(event.target.value) })
-          }
+          onValueChange={(next) => onChange({ ...node, targetEquityPct: next })}
         />
         <p className="text-[11px] text-muted-foreground">
           {node.action === "reverse"

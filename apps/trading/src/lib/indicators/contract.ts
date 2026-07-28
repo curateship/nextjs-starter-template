@@ -64,6 +64,13 @@ export type IndicatorParamField = {
   optionLabels?: string[]
   /** One plain sentence shown in an info tooltip beside the field's label. */
   info?: string
+  /**
+   * Only render this field on the chart's indicator settings — it governs what
+   * the chart DRAWS (which arrows, how far apart), which an automation node has
+   * no picture to draw. The parameter itself is unchanged and still parses, so
+   * a graph saved with it keeps running exactly as before.
+   */
+  chartOnly?: boolean
 }
 
 export type IndicatorModule<P = Record<string, unknown>> = {
