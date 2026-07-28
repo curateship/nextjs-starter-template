@@ -1,4 +1,4 @@
-import type { AIProvider } from '@/lib/utils/ai-models'
+import type { AIImageProvider, AIProvider } from '@/lib/utils/ai-models'
 
 export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'success' | 'partial' | 'failed' | 'noop'
@@ -64,10 +64,12 @@ export interface AgentAutomationNode extends AutomationNodeBase {
 export interface ImageAutomationNode extends AutomationNodeBase {
   kind: 'image'
   config: {
-    provider: AIProvider
-    model: string
+    provider: AIImageProvider
     prompt: string
     size: AutomationImageSize
+    // Public URL of a media-library image the generated picture should follow
+    // for style/subject. Empty means generate from the prompt alone.
+    referenceImage: string
   }
 }
 

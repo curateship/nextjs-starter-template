@@ -20,12 +20,17 @@ export function isAIProvider(provider: unknown): provider is AIProvider {
 
 // Providers that can generate images. Anthropic has no image model, so it is
 // excluded here even though it is a valid text provider.
-export const AI_IMAGE_PROVIDERS: AIProvider[] = ['openai']
+export type AIImageProvider = Extract<AIProvider, 'openai'>
 
-export const AI_IMAGE_PROVIDER_DEFAULT_MODELS: Record<'openai', string> = {
+export const AI_IMAGE_PROVIDERS: AIImageProvider[] = ['openai']
+
+// The image model each provider uses. Unlike the text nodes this is not
+// user-editable — there is one image model per provider, so picking the
+// provider picks the model.
+export const AI_IMAGE_PROVIDER_MODELS: Record<AIImageProvider, string> = {
   openai: 'gpt-image-1',
 }
 
-export function isAIImageProvider(provider: unknown): provider is 'openai' {
-  return AI_IMAGE_PROVIDERS.includes(provider as AIProvider)
+export function isAIImageProvider(provider: unknown): provider is AIImageProvider {
+  return AI_IMAGE_PROVIDERS.includes(provider as AIImageProvider)
 }

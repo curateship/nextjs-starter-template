@@ -16,6 +16,7 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FieldLabel } from "@/components/ui/field-label";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,15 +38,12 @@ import {
   formatRunAtForTimezoneInput,
   runAtFromTimezoneInput,
 } from "@/features/automations/domain/schedule";
-import {
-  AI_IMAGE_PROVIDERS,
-  AI_IMAGE_PROVIDER_DEFAULT_MODELS,
-  AI_PROVIDER_LABELS,
-} from "@/lib/utils/ai-models";
+import { AI_IMAGE_PROVIDERS, AI_PROVIDER_LABELS } from "@/lib/utils/ai-models";
+import { MediaInput } from "@/components/admin/media-library/MediaInput";
 
 export type NodePanelData = Pick<
   AutomationEditorData,
-  "templates" | "listingTemplates" | "categories" | "providers"
+  "automation" | "templates" | "listingTemplates" | "categories" | "providers"
 >;
 
 export interface NodePanelProps {
@@ -110,7 +108,11 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
   image: {
     icon: ImageIcon,
     describe: (node) =>
-      node.kind === "image" ? `Featured image · ${node.config.model}` : "",
+      node.kind === "image"
+        ? node.config.referenceImage
+          ? "Featured image · with reference"
+          : "Featured image"
+        : "",
     Panel: ImagePanel,
   },
   post: {
@@ -168,11 +170,10 @@ export function Field({
 }) {
   return (
     <div className="grid gap-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <FieldLabel htmlFor={htmlFor} hint={description}>
+        {label}
+      </FieldLabel>
       {children}
-      {description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
     </div>
   );
 }
@@ -655,25 +656,23 @@ function AiProviderFields({
 function ImagePanel({ node, data, onChange }: NodePanelProps) {
   if (node.kind !== "image") return null;
   const setConfig = (config: typeof node.config) => onChange({ ...node, config });
-  const configured = data.providers.some(
-    (item) => item.provider === node.config.provider,
-  );
+  const isConfigured = (provider: (typeof AI_IMAGE_PROVIDERS)[number]) =>
+    data.providers.some((item) => item.provider === provider);
   return (
     <>
-      <Field label="AI provider" htmlFor={`${node.id}-image-provider`}>
+      <Field
+        label="AI provider"
+        htmlFor={`${node.id}-image-provider`}
+        description="Without a key for this provider, runs still create the post — they just skip the image."
+      >
         <Select
           value={node.config.provider}
           onValueChange={(value) => {
             if (!AI_IMAGE_PROVIDERS.includes(value as typeof node.config.provider))
               return;
-            const provider = value as (typeof AI_IMAGE_PROVIDERS)[number];
             setConfig({
               ...node.config,
-              provider,
-              model:
-                AI_IMAGE_PROVIDER_DEFAULT_MODELS[
-                  provider as keyof typeof AI_IMAGE_PROVIDER_DEFAULT_MODELS
-                ],
+              provider: value as (typeof AI_IMAGE_PROVIDERS)[number],
             });
           }}
         >
@@ -684,27 +683,11 @@ function ImagePanel({ node, data, onChange }: NodePanelProps) {
             {AI_IMAGE_PROVIDERS.map((provider) => (
               <SelectItem key={provider} value={provider}>
                 {AI_PROVIDER_LABELS[provider]}
+                {isConfigured(provider) ? "" : " (not configured)"}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {!configured ? (
-          <p className="text-xs text-muted-foreground">
-            {AI_PROVIDER_LABELS[node.config.provider]} is not configured. Runs still
-            create the post, but skip the image until you add a key.
-          </p>
-        ) : null}
-      </Field>
-      <Field label="Model" htmlFor={`${node.id}-image-model`}>
-        <Input
-          id={`${node.id}-image-model`}
-          className="rounded-xl font-semibold"
-          value={node.config.model}
-          maxLength={120}
-          onChange={(event) =>
-            setConfig({ ...node.config, model: event.target.value })
-          }
-        />
       </Field>
       <Field label="Image shape" htmlFor={`${node.id}-image-size`}>
         <Select
@@ -740,6 +723,15 @@ function ImagePanel({ node, data, onChange }: NodePanelProps) {
           }
         />
       </Field>
+      <MediaInput
+        label="Reference image"
+        value={node.config.referenceImage}
+        onChange={(referenceImage) => setConfig({ ...node.config, referenceImage })}
+        description="Optional. The generated image follows this picture's style and subject."
+        siteId={data.automation.siteId}
+        acceptVideo={false}
+        hideUrlInput
+      />
     </>
   );
 }

@@ -32,6 +32,9 @@ export interface AutomationImageInput {
   prompt: string
   // OpenAI gpt-image-1 pixel sizes for each supported orientation.
   size: '1024x1024' | '1536x1024' | '1024x1536'
+  // Optional media-library image the result should follow. When present the
+  // request goes to the edits endpoint, which accepts reference images.
+  reference?: { bytes: Buffer; mimeType: string; filename: string }
 }
 
 export interface AutomationImageResult {
@@ -45,16 +48,22 @@ export async function generateAutomationImage(input: AutomationImageInput): Prom
 }
 
 async function generateOpenAIImage(input: AutomationImageInput): Promise<AutomationImageResult> {
-  const response = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: input.model,
-      prompt: input.prompt,
-      n: 1,
-      size: input.size,
-    }),
-  })
+  const response = input.reference
+    ? await fetchWithTimeout('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${input.apiKey}` },
+        body: openAIImageEditForm(input, input.reference),
+      })
+    : await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: input.model,
+          prompt: input.prompt,
+          n: 1,
+          size: input.size,
+        }),
+      })
   const json = await readProviderJson(response)
   assertProviderResponse(response, json, 'OpenAI image request failed')
   const b64 = Array.isArray(json.data) && isRecord(json.data[0]) && typeof json.data[0].b64_json === 'string'
@@ -62,6 +71,23 @@ async function generateOpenAIImage(input: AutomationImageInput): Promise<Automat
     : ''
   if (!b64) throw new Error('OpenAI image response did not contain image data')
   return { bytes: Buffer.from(b64, 'base64'), mimeType: 'image/png' }
+}
+
+// The edits endpoint is multipart, so the reference image rides along as a file
+// part. fetch sets the multipart boundary itself — do not add a Content-Type.
+// The bytes are re-wrapped in a plain Uint8Array because Blob does not accept a
+// Node Buffer, whose backing store may be a SharedArrayBuffer.
+function openAIImageEditForm(
+  input: AutomationImageInput,
+  reference: NonNullable<AutomationImageInput['reference']>
+) {
+  const form = new FormData()
+  form.append('model', input.model)
+  form.append('prompt', input.prompt)
+  form.append('n', '1')
+  form.append('size', input.size)
+  form.append('image', new Blob([new Uint8Array(reference.bytes)], { type: reference.mimeType }), reference.filename)
+  return form
 }
 
 async function generateOpenAIText(input: AutomationTextInput) {
