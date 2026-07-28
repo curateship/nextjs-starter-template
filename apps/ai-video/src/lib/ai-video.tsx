@@ -4,7 +4,11 @@ import {
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
 
-import { DEFAULT_TEXT_FONT_ID, type TextFontId } from "@/lib/text-fonts"
+import {
+  DEFAULT_TEXT_FONT_ID,
+  TEXT_FONT_IDS,
+  type TextFontId,
+} from "@/lib/text-fonts"
 import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
@@ -688,6 +692,150 @@ export function createDefaultBrandKitConfig(): BrandKitConfig {
     },
     ctaPhrases: [],
     exportNamingPattern: "{project}-{date}",
+  }
+}
+
+const BRAND_KIT_HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+function normalizeHexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && BRAND_KIT_HEX_COLOR.test(value)
+    ? value
+    : fallback
+}
+
+function normalizeFontId(value: unknown, fallback: TextFontId): TextFontId {
+  return TEXT_FONT_IDS.includes(value as TextFontId)
+    ? (value as TextFontId)
+    : fallback
+}
+
+function normalizeText(value: unknown, maxLength: number, fallback: string) {
+  return typeof value === "string" ? value.slice(0, maxLength) : fallback
+}
+
+/**
+ * Fill a saved brand kit field by field, same as {@link normalizeStyling}.
+ *
+ * A row saved before a brand-kit field existed keeps everything it does have;
+ * only the missing field falls back. Bounds match `brandKitConfigSchema`, so
+ * the result still passes the strict check the save path applies to form input.
+ */
+export function normalizeBrandKit(value: unknown): BrandKitConfig {
+  const fallback = createDefaultBrandKitConfig()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback
+  }
+  const brandKit = value as Partial<BrandKitConfig>
+  const colors = Array.isArray(brandKit.colors)
+    ? brandKit.colors
+        .filter(
+          (color): color is BrandKitColor =>
+            !!color &&
+            typeof color === "object" &&
+            typeof (color as BrandKitColor).name === "string" &&
+            (color as BrandKitColor).name.trim().length > 0 &&
+            BRAND_KIT_HEX_COLOR.test(String((color as BrandKitColor).value))
+        )
+        .slice(0, 20)
+        .map((color) => ({ name: color.name.slice(0, 40), value: color.value }))
+    : fallback.colors
+
+  return {
+    colors,
+    fonts: {
+      heading: normalizeFontId(brandKit.fonts?.heading, fallback.fonts.heading),
+      body: normalizeFontId(brandKit.fonts?.body, fallback.fonts.body),
+      caption: normalizeFontId(brandKit.fonts?.caption, fallback.fonts.caption),
+    },
+    captionStyle: {
+      fontId: normalizeFontId(
+        brandKit.captionStyle?.fontId,
+        fallback.captionStyle.fontId
+      ),
+      fontSize: clampInt(
+        brandKit.captionStyle?.fontSize,
+        8,
+        240,
+        fallback.captionStyle.fontSize
+      ),
+      color: normalizeHexColor(
+        brandKit.captionStyle?.color,
+        fallback.captionStyle.color
+      ),
+      highlightColor:
+        brandKit.captionStyle?.highlightColor === null
+          ? null
+          : normalizeHexColor(
+              brandKit.captionStyle?.highlightColor,
+              fallback.captionStyle.highlightColor ?? "#000000"
+            ),
+    },
+    logo: {
+      mediaId:
+        typeof brandKit.logo?.mediaId === "string" && brandKit.logo.mediaId
+          ? brandKit.logo.mediaId.slice(0, 36)
+          : null,
+      previewUrl: normalizeText(
+        brandKit.logo?.previewUrl,
+        2048,
+        fallback.logo.previewUrl
+      ),
+    },
+    watermark: {
+      enabled:
+        typeof brandKit.watermark?.enabled === "boolean"
+          ? brandKit.watermark.enabled
+          : fallback.watermark.enabled,
+      position: BRAND_KIT_WATERMARK_POSITIONS.includes(
+        brandKit.watermark?.position as BrandKitWatermarkPosition
+      )
+        ? (brandKit.watermark?.position as BrandKitWatermarkPosition)
+        : fallback.watermark.position,
+      widthPercent: clampInt(
+        brandKit.watermark?.widthPercent,
+        1,
+        100,
+        fallback.watermark.widthPercent
+      ),
+      opacity: clampInt(
+        brandKit.watermark?.opacity,
+        0,
+        100,
+        fallback.watermark.opacity
+      ),
+    },
+    endCard: {
+      enabled:
+        typeof brandKit.endCard?.enabled === "boolean"
+          ? brandKit.endCard.enabled
+          : fallback.endCard.enabled,
+      durationSeconds: clampInt(
+        brandKit.endCard?.durationSeconds,
+        2,
+        5,
+        fallback.endCard.durationSeconds
+      ),
+      backgroundColor: normalizeHexColor(
+        brandKit.endCard?.backgroundColor,
+        fallback.endCard.backgroundColor
+      ),
+      ctaText: normalizeText(
+        brandKit.endCard?.ctaText,
+        180,
+        fallback.endCard.ctaText
+      ),
+    },
+    ctaPhrases: Array.isArray(brandKit.ctaPhrases)
+      ? brandKit.ctaPhrases
+          .filter((phrase): phrase is string => typeof phrase === "string")
+          .slice(0, 20)
+          .map((phrase) => phrase.slice(0, 180))
+      : fallback.ctaPhrases,
+    exportNamingPattern:
+      typeof brandKit.exportNamingPattern === "string" &&
+      brandKit.exportNamingPattern.trim()
+        ? brandKit.exportNamingPattern.slice(0, 120)
+        : fallback.exportNamingPattern,
   }
 }
 
