@@ -42,6 +42,16 @@ import {
   waveformDataUrl,
 } from "@/pages/video-editor/timeline-utils"
 import {
+  metricsCovered,
+  padWindow,
+  scrollToRevealClip,
+  visibleClips,
+  visibleTickSeconds,
+  visibleTimeRange,
+  type ScrollMetrics,
+  type TimelineWindow,
+} from "@/pages/video-editor/timeline-virtualization"
+import {
   filmstripFrameStyle,
   getVideoFilmstrip,
   type FilmstripFrame,
@@ -211,6 +221,8 @@ export function StudioTimeline() {
   }
 
   const contentWidth = GUTTER + msToPx(Math.max(durationMs, 1000), pps) + 48
+  // Only the clips and ticks inside this time range are mounted.
+  const range = useTimelineWindow(scrollRef, pps)
 
   return (
     <section
@@ -267,7 +279,7 @@ export function StudioTimeline() {
               onLostPointerCapture={seekCancel}
               style={{ position: "relative", flex: 1, cursor: "pointer" }}
             >
-              <RulerTicks pps={pps} durationMs={durationMs} />
+              <RulerTicks pps={pps} durationMs={durationMs} range={range} />
             </div>
           </div>
 
@@ -276,6 +288,7 @@ export function StudioTimeline() {
               key={track.id}
               track={track}
               index={index}
+              range={range}
               seekDown={seekDown}
               seekMove={seekMove}
               seekUp={seekUp}
@@ -286,50 +299,181 @@ export function StudioTimeline() {
           <ClockPlayhead clock={clock} pps={pps} />
         </div>
       </div>
+
+      <ClipReveal scrollRef={scrollRef} />
     </section>
   )
 }
 
-function RulerTicks({ pps, durationMs }: { pps: number; durationMs: number }) {
-  const labelStep = pps >= 60 ? 1 : pps >= 34 ? 2 : 3
-  const seconds = Math.ceil(Math.max(durationMs, 1000) / 1000)
-  const ticks: React.ReactNode[] = []
-  for (let s = 0; s <= seconds; s++) {
-    if (s % labelStep !== 0) continue
-    const left = msToPx(s * 1000, pps)
-    ticks.push(
-      <React.Fragment key={s}>
-        <div
-          style={{
-            position: "absolute",
-            bottom: 5,
-            left,
-            width: 1,
-            height: 4,
-            background: "var(--line2)",
-          }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            top: 5,
-            left: left + 5,
-            fontSize: 9.5,
-            color: "var(--mut)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {s}s
-        </span>
-      </React.Fragment>
+// Measures the horizontal scroll window and turns it into the time range the
+// lanes draw. Scroll and resize are coalesced through requestAnimationFrame,
+// and a new measurement is only committed once the viewport reaches the edge of
+// what is already drawn, so scrolling inside the overscan costs no re-render.
+// What is stored is the scroll offset and width, not the time range: a zoom
+// leaves both untouched, so the range recomputes from them in the same render
+// rather than a frame later, when a zoom out would already have painted lanes
+// too narrow for the new scale.
+function useTimelineWindow(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  pps: number
+) {
+  // The scroll box cannot be measured before the first paint, and it always
+  // starts at the left edge — assume a generous viewport so the first frame is
+  // never blank, then correct it from the real measurement.
+  const [metrics, setMetrics] = React.useState<ScrollMetrics>({
+    scrollLeft: 0,
+    viewportPx: 2000,
+  })
+  const metricsRef = React.useRef(metrics)
+  const frameRef = React.useRef(0)
+
+  React.useEffect(() => {
+    const scroll = scrollRef.current
+    if (!scroll) return
+    function measure(force: boolean) {
+      const next = {
+        scrollLeft: scroll.scrollLeft,
+        viewportPx: scroll.clientWidth,
+      }
+      if (!force && metricsCovered(metricsRef.current, next)) return
+      metricsRef.current = next
+      setMetrics(next)
+    }
+    // Replace the pre-paint guess with the real box straight away.
+    measure(true)
+    function schedule() {
+      if (frameRef.current) return
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = 0
+        measure(false)
+      })
+    }
+    scroll.addEventListener("scroll", schedule, { passive: true })
+    const observer = new ResizeObserver(schedule)
+    observer.observe(scroll)
+    return () => {
+      scroll.removeEventListener("scroll", schedule)
+      observer.disconnect()
+      if (frameRef.current) cancelAnimationFrame(frameRef.current)
+      frameRef.current = 0
+    }
+  }, [scrollRef])
+
+  return React.useMemo(
+    () =>
+      padWindow(
+        visibleTimeRange({ ...metrics, gutterPx: GUTTER, pxPerSecond: pps }),
+        pps
+      ),
+    [metrics, pps]
+  )
+}
+
+// Adding a clip auto-selects it, so a selected clip that was not in the
+// previous snapshot was just inserted — scroll it into view. Virtualization
+// means it may not be mounted anywhere, so the offsets are computed from its
+// timeline position rather than from an element. Renders nothing: keeping the
+// selection subscription out of the timeline body stops a plain click from
+// re-rendering every lane. The zoom is read from the store at reveal time
+// rather than taken as a prop, so dragging the zoom slider does not re-walk
+// every clip in the project on each tick.
+function ClipReveal({
+  scrollRef,
+}: {
+  scrollRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const { store } = useEditorRuntime()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const selectedClipId = useEditorSelector((state) => state.selectedClipId)
+  const knownClipIds = React.useRef<Set<string> | null>(null)
+
+  React.useEffect(() => {
+    const ids = new Set<string>()
+    let selectedClip: EditorClip | null = null
+    let selectedTrackIndex = -1
+    for (let trackIndex = 0; trackIndex < tracks.length; trackIndex += 1) {
+      for (const clip of tracks[trackIndex].clips) {
+        ids.add(clip.id)
+        if (clip.id === selectedClipId) {
+          selectedClip = clip
+          selectedTrackIndex = trackIndex
+        }
+      }
+    }
+    const known = knownClipIds.current
+    knownClipIds.current = ids
+    // The first pass has no previous snapshot, so nothing counts as new.
+    if (!known || !selectedClipId || known.has(selectedClipId)) return
+    const scroll = scrollRef.current
+    if (!scroll || !selectedClip) return
+    scroll.scrollTo(
+      scrollToRevealClip({
+        clip: selectedClip,
+        trackIndex: selectedTrackIndex,
+        pxPerSecond: store.getSnapshot().state.pxPerSecond,
+        scrollLeft: scroll.scrollLeft,
+        scrollTop: scroll.scrollTop,
+        viewportWidth: scroll.clientWidth,
+        viewportHeight: scroll.clientHeight,
+        gutterPx: GUTTER,
+        rulerPx: RULER_H,
+        rowHeightPx: ROW_H,
+      })
     )
-  }
-  return <>{ticks}</>
+  }, [scrollRef, selectedClipId, store, tracks])
+
+  return null
+}
+
+function RulerTicks({
+  pps,
+  durationMs,
+  range,
+}: {
+  pps: number
+  durationMs: number
+  range: TimelineWindow
+}) {
+  const labelStep = pps >= 60 ? 1 : pps >= 34 ? 2 : 3
+  return (
+    <>
+      {visibleTickSeconds(range, durationMs, labelStep).map((s) => {
+        const left = msToPx(s * 1000, pps)
+        return (
+          <React.Fragment key={s}>
+            <div
+              style={{
+                position: "absolute",
+                bottom: 5,
+                left,
+                width: 1,
+                height: 4,
+                background: "var(--line2)",
+              }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                top: 5,
+                left: left + 5,
+                fontSize: 9.5,
+                color: "var(--mut)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {s}s
+            </span>
+          </React.Fragment>
+        )
+      })}
+    </>
+  )
 }
 
 function TimelineRow({
   track,
   index,
+  range,
   seekDown,
   seekMove,
   seekUp,
@@ -337,6 +481,7 @@ function TimelineRow({
 }: {
   track: EditorTrack
   index: number
+  range: TimelineWindow
   seekDown: (e: React.PointerEvent) => void
   seekMove: (e: React.PointerEvent) => void
   seekUp: (e: React.PointerEvent) => void
@@ -466,7 +611,10 @@ function TimelineRow({
         onLostPointerCapture={seekCancel}
         style={{ position: "relative", flex: 1, background: "transparent" }}
       >
-        {track.clips.map((clip, i) => {
+        {/* Only the clips near the scroll window are mounted; the seam
+            transition still reads the preceding clip from the full track, which
+            may itself be off-screen. */}
+        {visibleClips(track.clips, range).map(({ clip, index: i }) => {
           const transition = resolveIncomingTransition(
             clip,
             i > 0 ? track.clips[i - 1] : null
@@ -505,7 +653,9 @@ const gutterCell: React.CSSProperties = {
   flex: "none",
 }
 
-function ClipChip({
+// Memoized: a scroll that widens the rendered range re-renders every lane, and
+// only the chips entering the window have anything new to draw.
+const ClipChip = React.memo(function ClipChip({
   clip,
   trackIndex,
   accent,
@@ -540,17 +690,6 @@ function ClipChip({
       controller.abort()
     }
   }, [clip.kind, clip.mediaId, clip.trimStartMs, clip.durationMs])
-
-  // Reveal a freshly added clip. Adds auto-select the new clip, so a clip that
-  // mounts already selected was just inserted — scroll its track into view so a
-  // new bottom track (e.g. a music bed) is never hidden below the timeline fold.
-  // Mount-only: clicking to re-select an existing clip must not yank the view.
-  React.useEffect(() => {
-    if (selected) {
-      ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const drag = React.useRef<null | {
     mode: "move" | "trim-start" | "trim-end"
@@ -689,9 +828,14 @@ function ClipChip({
     } catch {
       /* noop */
     }
-    // reset imperative styles; the store re-render positions the clip.
+    // Reset the imperative styles the drag wrote. A dispatch that changes the
+    // clip re-renders over these; one the store rejects (a move with no room,
+    // a trim clamped to the same length) renders nothing at all, and without
+    // this the chip would sit at the dragged position for good.
     el.style.transform = ""
     el.style.zIndex = ""
+    el.style.left = `${left}px`
+    el.style.width = `${width}px`
     if (!d.moved) return
     const dms = pxToMs(e.clientX - d.startX, pps)
     if (d.mode === "move") {
@@ -864,7 +1008,7 @@ function ClipChip({
       </div>
     </div>
   )
-}
+})
 
 // A small diamond straddling the seam between two clips, marking a transition.
 // Clicking it selects the incoming clip so its inspector shows the blend
