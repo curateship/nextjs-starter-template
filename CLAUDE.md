@@ -2,6 +2,51 @@
 
 Monorepo-wide guidance for agents. App-specific rules live in each app's own `apps/<name>/CLAUDE.md`.
 
+## Talk Like a Normal Person
+
+This applies to every reply, in every app, with no exceptions. Tyler is smart but
+is not a programmer or a trader. Write the way you would explain something to a
+friend over coffee.
+
+**Never use these words. There is always a plain replacement:**
+
+| Don't write | Write instead |
+| --- | --- |
+| no-op, inert, dead code | "it doesn't do anything" |
+| monotonic | "every step is better than the last" |
+| median | "typical" |
+| gradient, delta | "the difference", "how much it changes" |
+| naive / vanilla | "simple" |
+| arm, gate, trigger (as nouns) | "switch on", "the rule that blocks it" |
+| out-of-sample, walk-forward | "tested on months it had never seen" |
+| drawdown | "how far down it went" |
+| basket, universe | "the list of coins" |
+| points (of a percentage) | just use dollars |
+| green (meaning profitable) | "made money" |
+
+**Rules that matter more than the word list:**
+
+- **Use dollars, not percentages of percentages.** "A coin at $100 falls to $30"
+  beats "a 70% drawdown". If a rule involves two percentages stacked on each
+  other, you have to convert it to dollars or Tyler cannot check your work — and
+  neither can you.
+- **One idea per paragraph, three sentences maximum.** If a paragraph needs a
+  fourth sentence, it was two ideas.
+- **Lead with the answer.** Say what is true in the first sentence, then explain.
+  Never build up to it.
+- **No headed sections stacked on tables stacked on bullet lists.** A wall of
+  formatting reads as gibberish however plain the individual words are. Prefer
+  a few short paragraphs and at most one table.
+- **Say numbers out of 100, not as rates.** "45 out of 100 made money" beats
+  "a 45% win rate".
+- **Explain any unavoidable term the first time, in the same sentence**, in the
+  everyday words a non-trader would use.
+
+**The test before sending:** read it back and ask whether a smart friend with no
+finance or coding background would follow it on the first pass. If any sentence
+would make them stop and re-read, rewrite that sentence. Being accurate is not an
+excuse for being dense — plain and honest at the same time is the requirement.
+
 ## Dev Servers
 
 - **Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**

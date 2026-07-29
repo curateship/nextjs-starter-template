@@ -44,13 +44,19 @@ export function AutomationBotSidePanel({
   isDca,
   runnable,
   disabledReason,
+  onBeforeDeploy,
 }: {
   bot: AutomationBotState
   /** True when a DCA ladder runs the whole basket off one shared wallet. */
   isDca: boolean
-  /** Compiled + saved — deploying mid-edit is blocked, like backtest runs. */
+  /** Compiles cleanly — a broken automation can't be deployed. */
   runnable: boolean
   disabledReason?: string
+  /**
+   * A deployed run reads the SAVED automation, so this flushes the editor's
+   * pending auto-save first and reports whether the saved copy is runnable.
+   */
+  onBeforeDeploy?: () => Promise<boolean>
 }) {
   const {
     selectedMarkets,
@@ -85,16 +91,38 @@ export function AutomationBotSidePanel({
   )
   const maxMarkets = isDca ? MAX_SHARED_WALLET_MARKETS : Infinity
 
+  // The deployed run picks its config up from the database, so any edit still
+  // sitting in the auto-save debounce has to land before deploying. `deploying`
+  // only goes true once the deploy request is out, so it does not cover that
+  // flush — without `preparing`, a second click during it deploys twice.
+  const [preparing, setPreparing] = React.useState(false)
+  const busy = deploying || preparing
+
+  const deploy = async () => {
+    if (preparing) return
+    if (onBeforeDeploy) {
+      setPreparing(true)
+      let saved = false
+      try {
+        saved = await onBeforeDeploy()
+      } finally {
+        setPreparing(false)
+      }
+      if (!saved) return
+    }
+    await bot.deploy()
+  }
+
   const deployButton = (
     <DisabledReasonTooltip reason={runnable ? undefined : disabledReason}>
       <Button
         type="button"
         size="sm"
         className="h-8 w-full"
-        disabled={!runnable || deploying}
-        onClick={() => void bot.deploy()}
+        disabled={!runnable || busy}
+        onClick={() => void deploy()}
       >
-        {deploying ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
         Deploy {mode} run
       </Button>
     </DisabledReasonTooltip>

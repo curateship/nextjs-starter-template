@@ -22,6 +22,10 @@ Use this app's local code, config, and workspace docs as source of truth for Tra
 
 ## Communication Style
 
+**Read the "Talk Like a Normal Person" section in the root `CLAUDE.md` first — it
+has the banned-word list and the formatting limits. It is not optional, and this
+app is where it gets broken most often.**
+
 - **ALWAYS answer in plain English. This applies to EVERYTHING, every response, no exceptions.**
 - Write for a smart person who is NOT a programmer or a trader. Assume no technical background.
 - Avoid jargon. If a technical term is unavoidable, explain it in everyday words the first time.

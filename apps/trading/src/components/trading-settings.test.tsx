@@ -9,9 +9,7 @@ describe("trading settings", () => {
     const markup = renderToStaticMarkup(
       <TradingSettings
         config={createDefaultShellConfig()}
-        isSaving={false}
         onConfigChange={() => {}}
-        onSaveConfig={async () => true}
       />
     )
 
