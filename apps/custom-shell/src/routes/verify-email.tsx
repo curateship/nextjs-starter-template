@@ -1,13 +1,19 @@
 import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
-import { getAuthErrorMessage, verifyEmail } from "@/lib/api/auth"
+import { getAuthErrorMessage, loadCurrentUser, verifyEmail } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),
+  loader: async () => {
+    const user = await loadCurrentUser()
+    if (user) {
+      throw redirect({ to: "/" })
+    }
+  },
   component: VerifyEmailRoute,
 })
 

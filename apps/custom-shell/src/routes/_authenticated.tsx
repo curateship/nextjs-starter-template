@@ -15,10 +15,11 @@ export const Route = createFileRoute("/_authenticated")({
   validateSearch: (search: Record<string, unknown>) => {
     return isAccountTab(search.account) ? { account: search.account } : {}
   },
-  loader: async () => {
+  loader: async ({ location }) => {
     const { user, ...shell } = await loadShellBootstrap()
     if (!user) {
-      throw redirect({ to: "/login" })
+      // Remember where they were headed so login can send them back.
+      throw redirect({ to: "/login", search: { redirect: location.href } })
     }
 
     return { user, ...shell }

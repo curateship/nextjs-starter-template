@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/register")({
@@ -81,17 +82,18 @@ function RegisterRoute() {
         </p>
       }
     >
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
           autoComplete="name"
+          autoFocus
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
         />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -102,13 +104,12 @@ function RegisterRoute() {
           required
         />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <FieldLabel htmlFor="password" hint="At least 8 characters.">
           Password
         </FieldLabel>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           value={password}

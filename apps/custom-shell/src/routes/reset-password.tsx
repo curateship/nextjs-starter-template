@@ -1,17 +1,26 @@
 import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
-import { Label } from "@/components/ui/label"
-import { getAuthErrorMessage, resetPassword } from "@/lib/api/auth"
+import { PasswordInput } from "@/components/ui/password-input"
+import {
+  getAuthErrorMessage,
+  loadCurrentUser,
+  resetPassword,
+} from "@/lib/api/auth"
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: z.object({ token: z.string().optional() }),
+  loader: async () => {
+    const user = await loadCurrentUser()
+    if (user) {
+      throw redirect({ to: "/" })
+    }
+  },
   component: ResetPasswordRoute,
 })
 
@@ -19,9 +28,18 @@ function ResetPasswordRoute() {
   const { token } = Route.useSearch()
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
+  const [confirmTouched, setConfirmTouched] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
+
+  // Only flag a mismatch once the confirm field has content and has been
+  // visited, so the hint appears as the user types the second password rather
+  // than the instant they enter the first character.
+  const mismatch =
+    confirmTouched &&
+    confirmPassword.length > 0 &&
+    confirmPassword !== password
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -29,7 +47,9 @@ function ResetPasswordRoute() {
       setError(null)
 
       if (password !== confirmPassword) {
-        setError("Those passwords do not match.")
+        // Surface the mismatch inline on the confirm field rather than as a
+        // generic top-of-form alert.
+        setConfirmTouched(true)
         return
       }
       if (!token) {
@@ -83,31 +103,47 @@ function ResetPasswordRoute() {
         </p>
       }
     >
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <FieldLabel htmlFor="password" hint="At least 8 characters.">
           New password
         </FieldLabel>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
+          autoFocus
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="confirm-password">Confirm new password</Label>
-        <Input
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="confirm-password"
+          hint="Type the same password again."
+        >
+          Confirm new password
+        </FieldLabel>
+        <PasswordInput
           id="confirm-password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
+          onBlur={() => setConfirmTouched(true)}
+          aria-invalid={mismatch || undefined}
+          aria-describedby={mismatch ? "confirm-password-error" : undefined}
           required
         />
+        {mismatch ? (
+          <p
+            id="confirm-password-error"
+            role="alert"
+            className="text-sm text-destructive"
+          >
+            Those passwords do not match.
+          </p>
+        ) : null}
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (

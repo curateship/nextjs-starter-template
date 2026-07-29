@@ -1,6 +1,8 @@
 import * as React from "react"
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react"
 
+import { PublicPageFrame } from "@/components/public-page-frame"
+
 /** Shared frame for every signed-out page: sign in, register, verify, reset. */
 export function AuthShell({
   title,
@@ -38,7 +40,11 @@ export function AuthShell({
           </p>
         ) : null}
         {notice ? (
-          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+          <p
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-2 text-sm text-muted-foreground"
+          >
             <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{notice}</span>
           </p>
@@ -54,7 +60,7 @@ export function AuthShell({
   )
 
   return (
-    <main className="grid min-h-screen place-items-center bg-muted/60 px-4 py-10">
+    <PublicPageFrame>
       {onSubmit ? (
         <form
           onSubmit={onSubmit}
@@ -67,7 +73,7 @@ export function AuthShell({
           {body}
         </div>
       )}
-    </main>
+    </PublicPageFrame>
   )
 }
 

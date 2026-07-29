@@ -1,14 +1,24 @@
 import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getAuthErrorMessage, requestPasswordReset } from "@/lib/api/auth"
+import {
+  getAuthErrorMessage,
+  loadCurrentUser,
+  requestPasswordReset,
+} from "@/lib/api/auth"
 
 export const Route = createFileRoute("/forgot-password")({
+  loader: async () => {
+    const user = await loadCurrentUser()
+    if (user) {
+      throw redirect({ to: "/" })
+    }
+  },
   component: ForgotPasswordRoute,
 })
 
@@ -55,12 +65,13 @@ function ForgotPasswordRoute() {
         </p>
       }
     >
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
           type="email"
           autoComplete="email"
+          autoFocus
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
