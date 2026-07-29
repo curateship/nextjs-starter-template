@@ -107,6 +107,8 @@ export function PageBlockEditorDialog({
                     onImageHeightChange={(value) => onContentChange("imageHeight", value)}
                     onSaveIconOpacityChange={(value) => onContentChange("saveIconOpacity", value)}
                     onCategoryChipParentIdsChange={(value) => onContentChange("categoryChipParentIds", value)}
+                    onEnableNearMeChange={(value) => onContentChange("enableNearMe", value)}
+                    onNearMeRadiusKmChange={(value) => onContentChange("nearMeRadiusKm", value)}
                     onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                     onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
                     onMobileColumnsChange={(value) => onContentChange("mobileColumns", value)}
