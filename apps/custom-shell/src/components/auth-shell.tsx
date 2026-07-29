@@ -38,7 +38,11 @@ export function AuthShell({
           </p>
         ) : null}
         {notice ? (
-          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+          <p
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-2 text-sm text-muted-foreground"
+          >
             <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{notice}</span>
           </p>

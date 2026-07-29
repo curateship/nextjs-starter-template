@@ -95,18 +95,19 @@ function LoginRoute() {
         </>
       }
     >
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
           type="email"
           autoComplete="email"
+          autoFocus
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
         />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="password">Password</Label>
         <PasswordInput
           id="password"

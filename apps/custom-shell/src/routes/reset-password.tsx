@@ -103,20 +103,21 @@ function ResetPasswordRoute() {
         </p>
       }
     >
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <FieldLabel htmlFor="password" hint="At least 8 characters.">
           New password
         </FieldLabel>
         <PasswordInput
           id="password"
           autoComplete="new-password"
+          autoFocus
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
         />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <FieldLabel
           htmlFor="confirm-password"
           hint="Type the same password again."
