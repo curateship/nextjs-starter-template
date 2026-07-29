@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -14,10 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  updateScannerWallet,
-  type ScannerWalletInfo,
-} from "@/lib/api/scanner"
+import { updateScannerWallet, type ScannerWalletInfo } from "@/lib/api/scanner"
 import { shortAddress } from "./format"
 
 /**
@@ -82,52 +80,61 @@ export function WalletDialog({
           <DialogDescription className="font-mono">{address}</DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="scanner-wallet-label">Label</Label>
-              <Input
-                id="scanner-wallet-label"
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                placeholder="e.g. BTC mega whale"
-              />
-            </div>
-            <label className="flex items-center gap-3">
-              <Checkbox
-                checked={tracked}
-                onCheckedChange={(checked) => setTracked(checked === true)}
-              />
-              <span className="text-sm">
-                Track this wallet
-                <span className="block text-xs text-muted-foreground">
-                  Tracked wallets get priority stats refreshes and the
-                  tracked-only feed filter.
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Label and tracking</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="scanner-wallet-label">Label</Label>
+                <Input
+                  id="scanner-wallet-label"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  placeholder="e.g. BTC mega whale"
+                />
+              </div>
+              <label className="flex items-center gap-3">
+                <Checkbox
+                  checked={tracked}
+                  onCheckedChange={(checked) => setTracked(checked === true)}
+                />
+                <span className="text-sm">
+                  Track this wallet
+                  <span className="block text-xs text-muted-foreground">
+                    Tracked wallets get priority stats refreshes and the
+                    tracked-only feed filter.
+                  </span>
                 </span>
-              </span>
-            </label>
-            <label className="flex items-center gap-3">
-              <Checkbox
-                checked={ignored}
-                onCheckedChange={(checked) => setIgnored(checked === true)}
-              />
-              <span className="text-sm">
-                Ignore this wallet
-                <span className="block text-xs text-muted-foreground">
-                  Ignored wallets (e.g. market makers) are hidden from feeds
-                  and never trigger alerts.
+              </label>
+              <label className="flex items-center gap-3">
+                <Checkbox
+                  checked={ignored}
+                  onCheckedChange={(checked) => setIgnored(checked === true)}
+                />
+                <span className="text-sm">
+                  Ignore this wallet
+                  <span className="block text-xs text-muted-foreground">
+                    Ignored wallets (e.g. market makers) are hidden from feeds
+                    and never trigger alerts.
+                  </span>
                 </span>
-              </span>
-            </label>
-            <Link
-              to="/scanner/whales/$address"
-              params={{ address }}
-              className="inline-block text-sm text-primary hover:underline"
-              onClick={() => onOpenChange(false)}
-            >
-              View wallet detail →
-            </Link>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </div>
+              </label>
+              <Link
+                to="/scanner/whales/$address"
+                params={{ address }}
+                className="inline-block text-sm text-primary hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                View wallet detail →
+              </Link>
+            </CardContent>
+          </Card>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <Button type="button" disabled={saving} onClick={() => void save()}>
