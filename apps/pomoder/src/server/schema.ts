@@ -40,12 +40,18 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
+    // Points at the user's profile picture in media_assets. The foreign key
+    // (on delete set null) lives in migration 0015 rather than here because
+    // users and media_assets reference each other, and Drizzle cannot express
+    // that cycle in one module. Deleting the asset — including from the admin
+    // media tools — therefore clears the pointer and the initials come back.
     avatarMediaId: uuid("avatar_media_id"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("users_email_lower_unique").on(sql`lower(${table.email})`),
     check("users_role_check", sql`${table.role} in ('user', 'admin')`),
+    index("users_avatar_media_idx").on(table.avatarMediaId),
   ]
 )
 

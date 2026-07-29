@@ -34,6 +34,8 @@ PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus 
 - `GET /api/rooms/:slug/events` — authenticated SSE snapshot stream.
 - `POST /api/media` — authenticated Pro multipart upload.
 - `GET /api/media/:id/file` — authenticated private range delivery.
+- `POST /api/avatar` / `DELETE /api/avatar` — authenticated profile-picture upload and removal, free on every plan.
+- `GET /api/avatars/:id/file` — public profile-picture delivery, restricted to ids that are somebody's current avatar.
 - `POST /api/webhooks/stripe` — signature-verified raw Stripe webhook.
 - `GET /api/health/live` — process liveness.
 - `GET /api/health/ready` — database and worker readiness.

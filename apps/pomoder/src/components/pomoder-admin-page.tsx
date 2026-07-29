@@ -36,6 +36,7 @@ import {
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
+import { avatarImageUrl } from "@/lib/avatar"
 import {
   loadAdminData,
   runAdminAction,
@@ -433,14 +434,26 @@ function AdminTable({
         count={data.pagination.total}
         headers={["Asset", "Owner", "Status", "Access", "Actions"]}
       >
-        {data.media.map(({ media, ownerEmail }) => (
+        {data.media.map(({ media, ownerEmail, isAvatar }) => (
           <TableRow key={media.id}>
             {selectCell(media.id)}
             <TableCell column="main">
-              <PrimaryCell
-                title={media.name}
-                detail={`${media.kind} · ${media.source}`}
-              />
+              <div className="flex items-center gap-2">
+                {/* Profile pictures are readable by anyone who can see the
+                    owner's name, so a moderator can review one right here and
+                    delete it with the row's own delete button. */}
+                {isAvatar ? (
+                  <img
+                    src={avatarImageUrl(media.id)}
+                    alt={`Profile picture of ${ownerEmail || "a member"}`}
+                    className="size-8 shrink-0 rounded-full object-cover"
+                  />
+                ) : null}
+                <PrimaryCell
+                  title={media.name}
+                  detail={`${media.kind} · ${isAvatar ? "profile picture" : media.source}`}
+                />
+              </div>
             </TableCell>
             <TableCell column="meta">{ownerEmail || "Curated"}</TableCell>
             <TableCell column="meta">{media.status}</TableCell>
