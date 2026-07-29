@@ -4,11 +4,15 @@ import {
   alertRuleInputSchema,
   alertTradeTarget,
   alertWithPriceLevel,
+  alertWithTrendlineTouch,
   evaluateWindowAlert,
+  nextLineTouchState,
   nextPriceLevelState,
   nextThresholdState,
   quickPriceAlert,
+  quickTrendlineAlert,
   type AlertRuleItem,
+  type LineTouchState,
   type MarketBar,
 } from "@/lib/alerts"
 
@@ -80,6 +84,18 @@ describe("alertRuleInputSchema", () => {
         triggerMode: "once",
       }).kind
     ).toBe("volume_spike")
+
+    expect(
+      alertRuleInputSchema.parse({
+        name: "BTC drawn line",
+        coin: "BTC",
+        kind: "trendline",
+        network: "mainnet",
+        trendlineId: "trendline-1721000000000",
+        touch: "wick",
+        triggerMode: "once",
+      }).kind
+    ).toBe("trendline")
   })
 
   it("allows cooldown only for repeating alerts", () => {
@@ -315,6 +331,128 @@ describe("alertWithPriceLevel", () => {
       operator: "crossing_up",
       triggerMode: "repeat",
       cooldown: "5m",
+    })
+  })
+})
+
+describe("nextLineTouchState", () => {
+  const once = { triggerMode: "once" as const, cooldownMs: 0, exactTouchFires: true }
+  const repeat = {
+    triggerMode: "repeat" as const,
+    cooldownMs: 5_000,
+    exactTouchFires: true,
+  }
+
+  it("arms without firing, even when price is already past the line", () => {
+    const state = nextLineTouchState(undefined, 120, 100, 1_000, once)
+    expect(state.shouldAlert).toBe(false)
+    expect(state.aboveLine).toBe(true)
+  })
+
+  it("fires when price crosses to the other side of the line", () => {
+    const armed = nextLineTouchState(undefined, 120, 100, 1_000, once)
+    const fired = nextLineTouchState(armed, 99, 100, 2_000, once)
+    expect(fired.shouldAlert).toBe(true)
+    expect(fired.stopped).toBe(true)
+  })
+
+  it("fires when a sloped line catches up to a quiet price", () => {
+    // Price never moves; the line's price rises from below it to above it.
+    const armed = nextLineTouchState(undefined, 100, 90, 1_000, once)
+    const fired = nextLineTouchState(armed, 100, 101, 2_000, once)
+    expect(fired.shouldAlert).toBe(true)
+  })
+
+  it("counts an exact touch only when the mode says so", () => {
+    const wickArmed = nextLineTouchState(undefined, 120, 100, 1_000, once)
+    expect(nextLineTouchState(wickArmed, 100, 100, 2_000, once).shouldAlert).toBe(
+      true
+    )
+
+    const closeMode = { ...once, exactTouchFires: false }
+    const closeArmed = nextLineTouchState(undefined, 120, 100, 1_000, closeMode)
+    expect(
+      nextLineTouchState(closeArmed, 100, 100, 2_000, closeMode).shouldAlert
+    ).toBe(false)
+  })
+
+  it("stays silent after a once-mode alert has fired", () => {
+    const armed = nextLineTouchState(undefined, 120, 100, 1_000, once)
+    const fired = nextLineTouchState(armed, 99, 100, 2_000, once)
+    const after = nextLineTouchState(fired, 120, 100, 3_000, once)
+    expect(after.shouldAlert).toBe(false)
+    expect(after.stopped).toBe(true)
+  })
+
+  it("honors the cooldown in repeat mode", () => {
+    let state: LineTouchState = nextLineTouchState(
+      undefined,
+      120,
+      100,
+      1_000,
+      repeat
+    )
+    state = nextLineTouchState(state, 99, 100, 2_000, repeat)
+    expect((state as ReturnType<typeof nextLineTouchState>).stopped).toBe(false)
+    // Crossing back within the cooldown stays quiet...
+    const tooSoon = nextLineTouchState(state, 101, 100, 3_000, repeat)
+    expect(tooSoon.shouldAlert).toBe(false)
+    // ...but the same cross after the cooldown fires again.
+    const later = nextLineTouchState(state, 101, 100, 8_000, repeat)
+    expect(later.shouldAlert).toBe(true)
+  })
+
+  it("respects a previous trigger time carried across a worker restart", () => {
+    const armed = nextLineTouchState(undefined, 120, 100, 6_000, repeat, 4_000)
+    const tooSoon = nextLineTouchState(armed, 99, 100, 7_000, repeat, 4_000)
+    expect(tooSoon.shouldAlert).toBe(false)
+    const rearmed = nextLineTouchState(undefined, 120, 100, 8_000, repeat, 4_000)
+    const later = nextLineTouchState(rearmed, 99, 100, 9_500, repeat, 4_000)
+    expect(later.shouldAlert).toBe(true)
+  })
+})
+
+describe("quickTrendlineAlert", () => {
+  it("builds a valid one-shot drawn-line alert", () => {
+    const input = quickTrendlineAlert("BTC", "mainnet", "trendline-1", "wick")
+    expect(alertRuleInputSchema.parse(input)).toEqual({
+      name: "BTC drawn line",
+      coin: "BTC",
+      kind: "trendline",
+      network: "mainnet",
+      trendlineId: "trendline-1",
+      touch: "wick",
+      triggerMode: "once",
+    })
+  })
+})
+
+describe("alertWithTrendlineTouch", () => {
+  it("changes only the touch definition", () => {
+    const rule: AlertRuleItem = {
+      id: "rule-1",
+      userId: "user-1",
+      name: "BTC drawn line",
+      coin: "BTC",
+      kind: "trendline",
+      network: "mainnet",
+      trendlineId: "trendline-1",
+      touch: "wick",
+      triggerMode: "once",
+      status: "active",
+      lastEvaluatedAt: null,
+      lastTriggeredAt: null,
+      createdAt: "2026-07-14T12:00:00.000Z",
+      updatedAt: "2026-07-14T12:00:00.000Z",
+    }
+    expect(alertWithTrendlineTouch(rule, "close")).toEqual({
+      name: "BTC drawn line",
+      coin: "BTC",
+      kind: "trendline",
+      network: "mainnet",
+      trendlineId: "trendline-1",
+      touch: "close",
+      triggerMode: "once",
     })
   })
 })

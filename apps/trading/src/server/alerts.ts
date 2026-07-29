@@ -20,9 +20,16 @@ import type {
   AlertRuleInput,
   AlertRuleItem,
 } from "@/lib/alerts"
+import type { Trendline } from "@/lib/trading/trendlines"
 import { db, type CustomShellDb } from "@/server/db"
-import { alertEvents, alertRules } from "@/server/schema"
+import {
+  alertEvents,
+  alertRules,
+  tradingChartDrawings,
+} from "@/server/schema"
 import { now, uuid } from "@/server/util"
+
+export type TrendlineAlertRule = Extract<AlertRuleItem, { kind: "trendline" }>
 
 export async function getAlertRules(
   userId: string,
@@ -244,6 +251,66 @@ export async function markAlertRulesEvaluated(
     )
 }
 
+/**
+ * The saved drawing each drawn-line rule points at. A rule whose line was
+ * deleted (or whose chart row is gone) maps to null — the caller retires it.
+ */
+export async function resolveTrendlineRuleLines(
+  rules: TrendlineAlertRule[],
+  database: CustomShellDb = db
+): Promise<Map<string, Trendline | null>> {
+  const lines = new Map<string, Trendline | null>()
+  if (rules.length === 0) return lines
+
+  const scopes = new Map<string, TrendlineAlertRule>()
+  for (const rule of rules) {
+    scopes.set(`${rule.userId}:${rule.network}:${rule.coin}`, rule)
+  }
+  const rows = await database
+    .select({
+      userId: tradingChartDrawings.userId,
+      network: tradingChartDrawings.network,
+      market: tradingChartDrawings.market,
+      trendlines: tradingChartDrawings.trendlines,
+    })
+    .from(tradingChartDrawings)
+    .where(
+      or(
+        ...[...scopes.values()].map((rule) =>
+          and(
+            eq(tradingChartDrawings.userId, rule.userId),
+            eq(tradingChartDrawings.network, rule.network),
+            eq(tradingChartDrawings.market, rule.coin)
+          )
+        )
+      )
+    )
+  const byScope = new Map(
+    rows.map((row) => [
+      `${row.userId}:${row.network}:${row.market}`,
+      row.trendlines,
+    ])
+  )
+  for (const rule of rules) {
+    const saved =
+      byScope.get(`${rule.userId}:${rule.network}:${rule.coin}`) ?? []
+    lines.set(
+      rule.id,
+      saved.find((line) => line.id === rule.trendlineId) ?? null
+    )
+  }
+  return lines
+}
+
+/** Worker cleanup for drawn-line rules whose line no longer exists. */
+export async function deleteAlertRulesById(
+  ruleIds: string[],
+  database: CustomShellDb = db
+) {
+  if (ruleIds.length === 0) return
+  await database.delete(alertRules).where(inArray(alertRules.id, ruleIds))
+}
+
 export async function listAlertRuleTriggerTimes(database: CustomShellDb = db) {
   const rows = await database
     .select({
@@ -267,6 +334,8 @@ export async function recordAlertEvent(
     observed: number
     occurredAt: Date
     eventKey: string
+    /** Drawn-line rules only: the line's price at the moment of the touch. */
+    linePrice?: number
   },
   database: CustomShellDb = db
 ) {
@@ -288,6 +357,18 @@ export async function recordAlertEvent(
       return null
 
     const { title, body } = eventText(input.rule, input.observed)
+    // Events don't keep the drawing linkage columns — only the condition.
+    const condition = conditionValues(input.rule)
+    const eventCondition = {
+      kind: condition.kind,
+      operator: condition.operator,
+      direction: condition.direction,
+      level: condition.level,
+      percent: condition.percent,
+      multiplier: condition.multiplier,
+      window: condition.window,
+      touch: condition.touch,
+    }
     const [created] = await transaction
       .insert(alertEvents)
       .values({
@@ -298,7 +379,11 @@ export async function recordAlertEvent(
         alertName: input.rule.name,
         message: input.rule.message ?? null,
         coin: input.rule.coin,
-        ...conditionValues(input.rule),
+        ...eventCondition,
+        // The log shows where the moving trigger actually was when it fired.
+        ...(input.rule.kind === "trendline" && input.linePrice !== undefined
+          ? { level: String(input.linePrice) }
+          : {}),
         triggerMode: input.rule.triggerMode,
         cooldown:
           input.rule.triggerMode === "repeat" ? input.rule.cooldown : null,
@@ -407,7 +492,13 @@ function conditionValues(input: AlertRuleInput | AlertRuleItem) {
     level: input.kind === "price_level" ? String(input.level) : null,
     percent: input.kind === "price_move" ? String(input.percent) : null,
     multiplier: input.kind === "volume_spike" ? String(input.multiplier) : null,
-    window: input.kind === "price_level" ? null : input.window,
+    window:
+      input.kind === "price_move" || input.kind === "volume_spike"
+        ? input.window
+        : null,
+    network: input.kind === "trendline" ? input.network : null,
+    trendlineId: input.kind === "trendline" ? input.trendlineId : null,
+    touch: input.kind === "trendline" ? input.touch : null,
   }
 }
 
@@ -459,6 +550,19 @@ function serializeRule(row: typeof alertRules.$inferSelect): AlertRuleItem {
       >["window"],
     }
   }
+  if (row.kind === "trendline") {
+    return {
+      ...shared,
+      ...trigger,
+      kind: "trendline",
+      network: row.network as "testnet" | "mainnet",
+      trendlineId: row.trendlineId ?? "",
+      touch: row.touch as Extract<
+        AlertRuleInput,
+        { kind: "trendline" }
+      >["touch"],
+    }
+  }
   return {
     ...shared,
     ...trigger,
@@ -485,6 +589,7 @@ function serializeEvent(row: typeof alertEvents.$inferSelect): AlertEventItem {
     percent: row.percent === null ? null : Number(row.percent),
     multiplier: row.multiplier === null ? null : Number(row.multiplier),
     window: row.window as AlertEventItem["window"],
+    touch: row.touch as AlertEventItem["touch"],
     triggerMode: row.triggerMode as AlertEventItem["triggerMode"],
     cooldown: row.cooldown as AlertEventItem["cooldown"],
     observed: Number(row.observed),
@@ -514,6 +619,15 @@ function eventText(rule: AlertRuleItem, observed: number) {
       body:
         rule.message ??
         `${rule.name} fires after a ${rule.percent}% move ${rule.direction}.`,
+    }
+  }
+  if (rule.kind === "trendline") {
+    return {
+      title:
+        rule.touch === "close"
+          ? `${rule.coin} closed across your drawn line at ${observed}`
+          : `${rule.coin} touched your drawn line at ${observed}`,
+      body: rule.message ?? `${rule.name} fired at ${observed}.`,
     }
   }
   return {
