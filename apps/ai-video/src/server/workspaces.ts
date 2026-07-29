@@ -19,6 +19,7 @@ import {
   DUCK_DB_MAX,
   DUCK_DB_MIN,
 } from "@/lib/audio-ducking"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/audio-loudness"
 import {
   shellSectionSchema,
   shellTopRightNavigationItemSchema,
@@ -48,6 +49,9 @@ export type WorkspaceSettings = {
   // How far a ducked ("music") track drops under voice on export, in dB
   // (negative; 0 = off). Applied by the renderer.
   duckingDb: number
+  // Level every export to the standard loudness target. Applied by the
+  // renderer; the export modal's toggle writes this default.
+  normalizeLoudness: boolean
   // Saved ElevenLabs voiceover defaults; null until the user saves one.
   voiceDefaults: VoiceDefaults | null
 }
@@ -117,12 +121,17 @@ export async function getCurrentWorkspaceBrandKit(
   return parseWorkspaceSettings(workspace.settings).brandKit
 }
 
-export async function getCurrentWorkspaceDuckingDb(
+// The two audio settings the export renderer needs, read in one workspace load.
+export async function getCurrentWorkspaceExportAudio(
   userId: string,
   database: AiVideoDb = db
 ) {
   const workspace = await getOrCreateCurrentWorkspace(userId, database)
-  return parseWorkspaceSettings(workspace.settings).duckingDb
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return {
+    duckingDb: settings.duckingDb,
+    normalizeLoudness: settings.normalizeLoudness,
+  }
 }
 
 export async function createUserWorkspace(
@@ -399,6 +408,10 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       Number.isFinite(settings.duckingDb)
         ? Math.min(DUCK_DB_MAX, Math.max(DUCK_DB_MIN, settings.duckingDb))
         : fallback.duckingDb,
+    normalizeLoudness:
+      typeof settings.normalizeLoudness === "boolean"
+        ? settings.normalizeLoudness
+        : fallback.normalizeLoudness,
     voiceDefaults: voiceDefaults.success
       ? voiceDefaults.data
       : fallback.voiceDefaults,
@@ -415,6 +428,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     styling: createDefaultStyling(),
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     duckingDb: DEFAULT_DUCK_DB,
+    normalizeLoudness: DEFAULT_NORMALIZE_LOUDNESS,
     voiceDefaults: null,
   }
 }
