@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm"
 
-import { aiVideoMedia } from "./schema.ts"
+import { aiVideoMedia, aiVideoMediaCollectionItems } from "./schema.ts"
 
 export type MediaFileType = "image" | "video" | "audio"
 export type MediaSource = "upload" | "generated" | "template" | "viral"
@@ -34,6 +34,7 @@ function mediaSearchPattern(search?: string) {
 
 export function buildMediaListWhere({
   userId,
+  collectionId,
   fileTypes,
   mimeType,
   projectId,
@@ -42,6 +43,7 @@ export function buildMediaListWhere({
   source,
 }: {
   userId: string
+  collectionId?: string | null
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
@@ -54,6 +56,7 @@ export function buildMediaListWhere({
 
   return and(
     eq(aiVideoMedia.userId, userId),
+    mediaCollectionFilter(collectionId),
     normalizedFileTypes
       ? inArray(aiVideoMedia.fileType, normalizedFileTypes)
       : undefined,
@@ -69,6 +72,23 @@ function mediaProjectFilter(projectId?: string | null) {
   if (projectId === null) return isNull(aiVideoMedia.projectId)
   if (projectId) return eq(aiVideoMedia.projectId, projectId)
   return undefined
+}
+
+// Membership is a join table, so both "in this collection" and "in no
+// collection at all" are EXISTS checks against it rather than a column test.
+// `collectionId` is bound as a parameter, and the caller has already proved it
+// owns that collection.
+function mediaCollectionFilter(collectionId?: string | null) {
+  if (collectionId === undefined) return undefined
+
+  if (collectionId === null) {
+    return sql`not exists (select 1 from ${aiVideoMediaCollectionItems}
+      where ${aiVideoMediaCollectionItems.mediaId} = ${aiVideoMedia.id})`
+  }
+
+  return sql`exists (select 1 from ${aiVideoMediaCollectionItems}
+    where ${aiVideoMediaCollectionItems.mediaId} = ${aiVideoMedia.id}
+      and ${aiVideoMediaCollectionItems.collectionId} = ${collectionId})`
 }
 
 function mediaSearchFilter(pattern?: string) {
