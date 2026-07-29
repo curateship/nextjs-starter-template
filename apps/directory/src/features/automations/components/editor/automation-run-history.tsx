@@ -157,6 +157,7 @@ function StepSummary({ output, error }: { output: Record<string, unknown>; error
   if (output.awaitingApproval) return <div className="text-muted-foreground">Waiting for your approval</div>
   if (typeof output.url === "string" && typeof output.title === "string") return <a href={output.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-primary hover:underline"><span className="truncate">{output.title}</span><ExternalLink className="size-3 shrink-0" /></a>
   if (typeof output.title === "string") return <div className="truncate" title={output.title}>{output.title}</div>
+  if (typeof output.createdCount === "number") return <div>{output.createdCount} drafted{typeof output.skippedCount === "number" && output.skippedCount > 0 ? ` · ${output.skippedCount} skipped` : ""}</div>
   if (typeof output.changedCount === "number") return <div>{output.changedCount} changed page{output.changedCount === 1 ? "" : "s"}{typeof output.unchangedCount === "number" ? ` · ${output.unchangedCount} unchanged` : ""}</div>
   if (output.routeCounts && typeof output.routeCounts === "object") return <div className="truncate text-muted-foreground">{Object.entries(output.routeCounts as Record<string, unknown>).map(([route, count]) => `${route.replace(/^route:/, "")}: ${count}`).join(" · ")}</div>
   if (output.fired) return <div className="text-muted-foreground">Schedule started</div>

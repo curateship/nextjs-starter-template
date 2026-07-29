@@ -499,14 +499,20 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
     listings: output.listing.listings.map((listing) => ({ title: listing.title, slug: listing.slug, url: listing.url })),
     skipped: output.listing.skipped,
   }
+  if (output.type === 'event') return {
+    createdCount: output.event.createdCount,
+    skippedCount: output.event.skippedCount,
+    events: output.event.events.map((event) => ({ title: event.title, slug: event.slug, url: event.url })),
+    skipped: output.event.skipped,
+  }
   return output.post
 }
 
 /**
  * Whether a finished step actually put something on the site. Reads the summary
  * `summarizeOutput` above wrote, so the two must stay in step: Post always records
- * the created post's ID, Listing records how many listings it drafted (which can
- * be zero when every business was already there).
+ * the created post's ID, Listing and Event record how many rows they drafted
+ * (which can be zero when everything on the page was already there).
  *
  * This is what makes a run's final status derivable from the database alone, which
  * a run that pauses for approval and finishes in a later process needs.
@@ -514,7 +520,9 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
 function stepCreatedContent(nodeKind: string, outputSummary: unknown) {
   if (!isRecord(outputSummary)) return false
   if (nodeKind === 'post') return typeof outputSummary.postId === 'string'
-  if (nodeKind === 'listing') return typeof outputSummary.createdCount === 'number' && outputSummary.createdCount > 0
+  if (nodeKind === 'listing' || nodeKind === 'event') {
+    return typeof outputSummary.createdCount === 'number' && outputSummary.createdCount > 0
+  }
   return false
 }
 

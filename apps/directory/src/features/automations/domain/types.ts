@@ -6,7 +6,7 @@ export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'waiting' | 'success' | 'partial' | 'failed' | 'noop' | 'rejected' | 'expired'
 export type AutomationStepStatus = 'pending' | 'running' | 'waiting' | 'success' | 'failed' | 'skipped' | 'rejected' | 'expired'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'approval' | 'post' | 'listing'
+export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'approval' | 'post' | 'listing' | 'event'
 export type AutomationApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
 export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
@@ -103,6 +103,17 @@ export interface ListingAutomationNode extends AutomationNodeBase {
   }
 }
 
+export interface EventAutomationNode extends AutomationNodeBase {
+  kind: 'event'
+  config: {
+    provider: AIProvider
+    model: string
+    templateId: string
+    categoryId: string | null
+    instructions: string
+  }
+}
+
 export type AutomationNode =
   | TimeAutomationNode
   | ScraperAutomationNode
@@ -113,6 +124,7 @@ export type AutomationNode =
   | ApprovalAutomationNode
   | PostAutomationNode
   | ListingAutomationNode
+  | EventAutomationNode
 
 export type AutomationSourcePort = 'then' | 'documents' | 'article' | 'approved' | 'else' | `route:${string}`
 
@@ -206,6 +218,7 @@ export interface AutomationEditorData {
   runs: AutomationRunItem[]
   templates: Array<{ id: string; name: string; isDefault: boolean }>
   listingTemplates: Array<{ id: string; name: string; isDefault: boolean }>
+  eventTemplates: Array<{ id: string; name: string; isDefault: boolean }>
   categories: Array<{ id: string; title: string }>
   providers: Array<{ provider: AIProvider; label: string; defaultModel: string }>
   validationErrors: AutomationValidationError[]

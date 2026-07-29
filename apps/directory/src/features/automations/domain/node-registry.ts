@@ -1,6 +1,7 @@
 import type { AnyNodeDescriptor, NodeGroup, NodeOutputPort } from './node-descriptor'
 import { agentNode } from './nodes/agent'
 import { approvalNode } from './nodes/approval'
+import { eventNode } from './nodes/event'
 import { feedNode } from './nodes/feed'
 import { imageNode } from './nodes/image'
 import { listingNode } from './nodes/listing'
@@ -22,6 +23,7 @@ export const AUTOMATION_NODES: AnyNodeDescriptor[] = [
   approvalNode,
   postNode,
   listingNode,
+  eventNode,
 ]
 
 const NODE_BY_KIND = new Map<AutomationNodeKind, AnyNodeDescriptor>(

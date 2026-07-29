@@ -41,7 +41,7 @@ export const routerNode = defineNode({
       if (!route.name.trim() || !route.description.trim()) push('router-route', 'Each AI Router route needs a name and description.')
     }
   },
-  allowedTargets: (port) => (port === 'else' || port.startsWith('route:') ? ['agent', 'listing'] : []),
+  allowedTargets: (port) => (port === 'else' || port.startsWith('route:') ? ['agent', 'listing', 'event'] : []),
   validateConnections: (node, { outgoing }, push) => {
     for (const route of node.config.routes) {
       if (!outgoing.some((edge) => edge.sourcePort === `route:${route.id}`)) {

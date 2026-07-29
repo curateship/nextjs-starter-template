@@ -3,6 +3,7 @@ import type {
   ApprovalAutomationNode,
   AutomationNode,
   AutomationTriggerType,
+  EventAutomationNode,
   FeedAutomationNode,
   ImageAutomationNode,
   ListingAutomationNode,
@@ -11,6 +12,7 @@ import type {
   ScraperAutomationNode,
 } from '@/features/automations/domain/types'
 import { runAgentNode } from './nodes/agent'
+import { runEventNode } from './nodes/event'
 import { runFeedNode } from './nodes/feed'
 import { runImageNode } from './nodes/image'
 import { runListingNode } from './nodes/listing'
@@ -108,6 +110,13 @@ const NODE_EXECUTORS: Record<ExecutableAutomationNode['kind'], NodeExecutor> = {
         automationId: ctx.automationId,
       })
       return { type: 'listing', listing }
+    },
+  },
+  event: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const event = await runEventNode(ctx.siteId, node as EventAutomationNode, documentsFrom(payloads))
+      return { type: 'event', event }
     },
   },
 }

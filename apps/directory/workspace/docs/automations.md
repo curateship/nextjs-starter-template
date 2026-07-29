@@ -13,7 +13,7 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 
 ## Graph Contract
 
-Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, or Listing. Allowed paths are:
+Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post), a Listing (directory listing), or an Event (calendar event). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, Listing, or Event. Allowed paths are:
 
 ```text
 Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post
@@ -22,6 +22,8 @@ Time -> Scraper  -------------> AI Agent -> [AI Image ->] [Approval ->] Post
 Time ------------------------->  AI Agent -> [AI Image ->] [Approval ->] Post
 Time -> RSS Feed -> AI Router ------------> Listing
 Time -> Scraper  -------------------------> Listing
+Time -> RSS Feed -> AI Router ------------> Event
+Time -> Scraper  -------------------------> Event
 ```
 
 The optional AI Image node sits between the AI Agent and the Post. It generates one
@@ -69,7 +71,37 @@ fails to fetch or is not valid RSS/Atom fails that node's step with a clear mess
 branches continue. Full-article text is out of scope — chain a Scraper after it to fetch
 the page behind a feed link.
 
-The Listing node reads scraped pages directly (like AI Agent), extracts real business/place listings with its own structured AI call, and drafts one directory listing per business onto the chosen directory template. Listings are **always** drafts — the node cannot publish, in any configuration. Each is stamped `sourceType='automation'` plus a stable per-business `sourceId`, so re-runs skip businesses that already exist (matched by that source key or an existing listing title); extracted addresses are geocoded through the normal directory save path. Skipped businesses are recorded in the run step. A configured default category, when set, is applied as the listing's primary category.
+The Listing node reads scraped pages directly (like AI Agent), extracts real business/place listings with its own structured AI call, and drafts one directory listing per business onto the chosen directory template. Listings are **always** drafts — the node cannot publish, in any configuration. Each is stamped `sourceType='automation'` plus a stable per-business `sourceId`, so re-runs skip businesses that already exist (matched by that source key or an existing listing title); extracted addresses are geocoded through the normal directory save path. Skipped businesses are recorded in the run step. A configured default category, when set, is applied as the listing's primary category. A run drafts at most 25 listings, capped after the duplicate check — see the Event node below for why that ordering matters.
+
+The Event node is the Listing node's sibling for calendars. It reads scraped pages
+directly, extracts events with its own structured AI call, and drafts one event per
+extracted event onto the chosen event template. Events are **always** drafts
+(`is_published = false`) — the node cannot publish, in any configuration. Title, date,
+time, venue name, venue address, and a sanitized description all land on the template's
+Core (`event-content`) block; a template without one fails the node before an AI call is
+spent. A configured default category, when set, is applied as the event's primary
+category. A run drafts at most 25 events. The cap is applied **after** the duplicate
+check, so it only ever counts new events and the overflow is drafted by the next run
+that reads the page — note that with a Scraper source that means the next run where the
+page has *changed*, since an unchanged page reaches the node with no input at all.
+Capping the extraction instead would strand the overflow permanently: every later run
+would re-read the same leading events, skip them all as duplicates, and never reach the
+rest.
+
+**Dates are never guessed.** An event row stores a wall-clock date and time with no
+timezone at all, so the node accepts only an exact `YYYY-MM-DD` date and an optional
+24-hour `HH:MM` time from the AI, and validates the date is a real day. Anything vaguer —
+"every Friday", "next week", `03/04`, `2026-02-30` — is skipped with that reason on the
+run step rather than turned into an invented date. Times are taken as written; no
+timezone conversion happens anywhere.
+
+**Duplicates** are decided by normalized title (lowercased, whitespace collapsed) plus
+exact date. The same title on another date is a different event, so a monthly series is
+not blocked; the same title on the same date is the same event, so a busy night is not
+blocked either. Together with the Scraper's content hashes — which mean an unchanged page
+emits nothing downstream at all — a re-run creates nothing and a changed page drafts only
+the events that are new. Every skip (undated, duplicate, per-run cap, insert failure)
+is listed on the run step with its reason.
 
 ## Execution
 
@@ -81,8 +113,8 @@ The Listing node reads scraped pages directly (like AI Agent), extracts real bus
 - Content hashes skip unchanged Scraper pages, and per-entry state skips already-seen RSS Feed entries; either way an unchanged source yields no downstream work.
 - Scraper and AI network failures receive at most two retries. Validation and malformed output do not retry.
 - Independent branches continue after another branch fails. Mixed post and failure outcomes are `partial`; no changed input is `noop`.
-- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing links plus skipped-listing counts. Full scraped text and generated bodies are not stored in run logs.
-- Post and Listing HTML is sanitized before storage and slugs remain unique. Listing runs that create nothing (all duplicates) are `noop`.
+- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing/Event links plus skipped counts. Full scraped text and generated bodies are not stored in run logs.
+- Post, Listing, and Event HTML is sanitized before storage and slugs remain unique. Listing and Event runs that create nothing (all duplicates) are `noop`.
 
 ## Approval Gates
 

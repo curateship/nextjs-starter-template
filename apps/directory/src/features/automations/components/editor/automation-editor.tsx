@@ -196,6 +196,15 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
             model: provider.defaultModel,
           },
         };
+      if (node.kind === "event" && provider)
+        node = {
+          ...node,
+          config: {
+            ...node.config,
+            provider: provider.provider,
+            model: provider.defaultModel,
+          },
+        };
       const defaultTemplate =
         data.templates.find((template) => template.isDefault) ??
         data.templates[0];
@@ -211,6 +220,14 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         node = {
           ...node,
           config: { ...node.config, templateId: defaultListingTemplate.id },
+        };
+      const defaultEventTemplate =
+        data.eventTemplates.find((template) => template.isDefault) ??
+        data.eventTemplates[0];
+      if (node.kind === "event" && defaultEventTemplate)
+        node = {
+          ...node,
+          config: { ...node.config, templateId: defaultEventTemplate.id },
         };
       return node;
     },
@@ -763,12 +780,14 @@ function clientResourceErrors(
   const providers = new Set(data.providers.map((item) => item.provider));
   const templates = new Set(data.templates.map((item) => item.id));
   const listingTemplates = new Set(data.listingTemplates.map((item) => item.id));
+  const eventTemplates = new Set(data.eventTemplates.map((item) => item.id));
   const categories = new Set(data.categories.map((item) => item.id));
   for (const node of graph.nodes) {
     if (
       (node.kind === "agent" ||
         node.kind === "router" ||
-        node.kind === "listing") &&
+        node.kind === "listing" ||
+        node.kind === "event") &&
       !providers.has(node.config.provider)
     )
       errors.push({
@@ -794,6 +813,26 @@ function clientResourceErrors(
       errors.push({
         code: "listing-category-missing",
         message: "The selected Listing category is unavailable.",
+        nodeId: node.id,
+      });
+    if (
+      node.kind === "event" &&
+      node.config.templateId &&
+      !eventTemplates.has(node.config.templateId)
+    )
+      errors.push({
+        code: "event-template-missing",
+        message: "The selected Event template is unavailable.",
+        nodeId: node.id,
+      });
+    if (
+      node.kind === "event" &&
+      node.config.categoryId &&
+      !categories.has(node.config.categoryId)
+    )
+      errors.push({
+        code: "event-category-missing",
+        message: "The selected Event category is unavailable.",
         nodeId: node.id,
       });
     if (
