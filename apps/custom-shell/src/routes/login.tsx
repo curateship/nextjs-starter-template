@@ -15,7 +15,23 @@ import {
   resendVerification,
 } from "@/lib/api/auth"
 
+/**
+ * Only same-origin, root-relative paths are honored after login. A
+ * protocol-relative ("//evil.com") or absolute ("https://evil.com") value would
+ * be an open redirect, so anything that is not a plain "/path" is dropped.
+ */
+function safeRedirectPath(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  if (!value.startsWith("/")) return undefined
+  if (value.startsWith("//") || value.startsWith("/\\")) return undefined
+  return value
+}
+
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => {
+    const redirectTo = safeRedirectPath(search.redirect)
+    return redirectTo ? { redirect: redirectTo } : {}
+  },
   loader: async () => {
     const user = await loadCurrentUser()
     if (user) {
@@ -27,6 +43,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginRoute() {
   const navigate = useNavigate()
+  const { redirect: redirectTo } = Route.useSearch()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
@@ -45,7 +62,9 @@ function LoginRoute() {
 
       try {
         await login(email, password)
-        await navigate({ to: "/" })
+        // Re-check at the navigation itself so an unsafe value can never be
+        // followed, regardless of how it reached the search param.
+        await navigate({ to: safeRedirectPath(redirectTo) ?? "/" })
       } catch (loginError) {
         const message =
           loginError instanceof Error ? loginError.message : ""
@@ -55,7 +74,7 @@ function LoginRoute() {
         setLoading(false)
       }
     },
-    [email, navigate, password]
+    [email, navigate, password, redirectTo]
   )
 
   const handleResend = React.useCallback(async () => {
