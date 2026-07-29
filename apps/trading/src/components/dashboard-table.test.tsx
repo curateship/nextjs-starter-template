@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/table"
 
 describe("DashboardTable", () => {
-  it("renders skeleton rows while data is loading", () => {
+  // Loading renders an empty body on purpose — no skeleton placeholders
+  // (ui-rules: no first-load skeletons) and no premature empty-state text.
+  it("renders no rows and no empty state while data is loading", () => {
     const markup = renderToStaticMarkup(
       <DashboardTable
         title="Results"
@@ -31,8 +33,8 @@ describe("DashboardTable", () => {
       </DashboardTable>
     )
 
-    expect(markup).toContain('aria-busy="true"')
-    expect(markup.match(/data-slot="skeleton"/g)).toHaveLength(6)
+    expect(markup.match(/data-slot="skeleton"/g)).toBeNull()
     expect(markup).not.toContain("No results.")
+    expect(markup).toContain("<tbody")
   })
 })

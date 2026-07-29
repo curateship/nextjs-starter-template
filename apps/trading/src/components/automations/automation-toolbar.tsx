@@ -35,6 +35,7 @@ export function AutomationToolbar({
   onNameChange,
   onOpenSettings,
   onSave,
+  onSaveRun,
   onOpenPalette,
   onOpenInspector,
 }: {
@@ -48,6 +49,8 @@ export function AutomationToolbar({
   onNameChange: (name: string) => void
   onOpenSettings: () => void
   onSave: () => void
+  /** Backtest results only: opens the name-and-save-this-run modal. */
+  onSaveRun?: () => void
   onOpenPalette: () => void
   onOpenInspector: () => void
 }) {
@@ -139,6 +142,17 @@ export function AutomationToolbar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {onSaveRun ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={onSaveRun}
+        >
+          Save run
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="outline"

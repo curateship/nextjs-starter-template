@@ -101,8 +101,8 @@ export async function listUserBots(
 
 /**
  * Per-market runtime rows for every bot the user owns, aggregated into the
- * run list. Positions are only persisted for paper brokers (live brokers read
- * theirs from the exchange and store null).
+ * run list. Both modes persist positions: paper brokers via their account
+ * snapshot, live brokers via their exchange-refreshed position state.
  */
 export async function listUserBotStates(
   userId: string,
@@ -119,6 +119,32 @@ export async function listUserBotStates(
     .from(tradingBotState)
     .innerJoin(tradingBots, eq(tradingBotState.botId, tradingBots.id))
     .where(eq(tradingBots.userId, userId))
+}
+
+/**
+ * Newest events across every bot the user owns, joined to the bot's name —
+ * the /bots activity feed.
+ */
+export async function listUserBotEvents(
+  userId: string,
+  database: CustomShellDb = db,
+  limit = 100
+) {
+  return database
+    .select({
+      id: tradingBotEvents.id,
+      botId: tradingBotEvents.botId,
+      botName: tradingBots.name,
+      level: tradingBotEvents.level,
+      type: tradingBotEvents.type,
+      message: tradingBotEvents.message,
+      createdAt: tradingBotEvents.createdAt,
+    })
+    .from(tradingBotEvents)
+    .innerJoin(tradingBots, eq(tradingBotEvents.botId, tradingBots.id))
+    .where(eq(tradingBots.userId, userId))
+    .orderBy(desc(tradingBotEvents.createdAt))
+    .limit(limit)
 }
 
 /**
@@ -526,6 +552,65 @@ export async function renameUserBot(
   if (!settled) {
     await sendBotCommand(userId, botId, "flatten", database)
     await sendBotCommand(userId, botId, "stop", database)
+  }
+}
+
+/**
+ * Edits which markets a run trades. The list is validated like a deploy
+ * (network + count caps), saved, and the worker converges through the
+ * normal update_params path: runners for removed markets flatten ("Market
+ * removed from bot") and stop; added markets get fresh runners. State rows
+ * for removed markets are kept — the flatten clears their positions, and
+ * re-adding the market later resumes from its saved state.
+ */
+export async function updateBotMarkets(
+  userId: string,
+  botId: string,
+  requested: string[],
+  database: CustomShellDb = db
+) {
+  const bot = await getUserBot(userId, botId, database)
+  if (!bot) throw new Error("Bot not found")
+  if (!isRunnableBotType(bot.strategyType)) {
+    throw new Error(
+      "This bot uses a retired strategy and is archived. Its markets can't be changed."
+    )
+  }
+  const wallet = await findUserWallet(userId, bot.walletId, database)
+  if (!wallet) throw new Error("Wallet not found")
+
+  const markets = [
+    ...new Set(requested.map((market) => market.trim()).filter(Boolean)),
+  ]
+  if (markets.length === 0) throw new Error("Pick at least one market.")
+  const compiled = automationConfigSchema.safeParse(bot.params)
+  if (compiled.success) validateBotMarketCount(compiled.data, markets.length)
+  await validateMarkets(wallet.network as TradingNetwork, markets)
+
+  await database
+    .update(tradingBots)
+    .set({ markets, updatedAt: now() })
+    .where(eq(tradingBots.id, botId))
+
+  const added = markets.filter((market) => !bot.markets.includes(market))
+  if (added.length > 0) {
+    await database
+      .insert(tradingBotState)
+      .values(
+        added.map((market) => ({
+          botId,
+          market,
+          strategyState: {},
+          updatedAt: now(),
+        }))
+      )
+      .onConflictDoNothing()
+  }
+
+  // Stopped bots pick the new list up on their next start; anything else
+  // needs the worker to restart its runners against the fresh list.
+  if (bot.desiredState !== "stopped") {
+    await enqueueCommand(database, botId, "update_params", userId)
   }
 }
 

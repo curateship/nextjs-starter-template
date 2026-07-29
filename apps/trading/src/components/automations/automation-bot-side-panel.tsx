@@ -3,23 +3,8 @@ import { ChevronDownIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { MarketPicker } from "@/components/trading/market-watchlist"
 import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
-import {
-  BacktestMarketsTable,
-  sortMarketRows,
-  useMarketSort,
-} from "@/components/backtest/backtest-markets-table"
-import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -49,10 +34,10 @@ const MAX_SHARED_WALLET_MARKETS = 200
 const EMPTY_MARKETS: ReadonlySet<string> = new Set()
 
 /**
- * The editor's right panel while Bot mode is on: market selector + Deploy for
- * a new run, then the live per-market results table with the same
- * "name this run to keep it" lifecycle as the backtest. No re-run buttons —
- * deploying again from setup replaces an unnamed run.
+ * The editor's right panel while Bot mode is on: the market selector +
+ * Deploy form for a NEW run. A deployed run lives on its own page
+ * (/bots/$botId) — entering Bot mode with a current run navigates there, so
+ * this panel only ever shows the setup form.
  */
 export function AutomationBotSidePanel({
   bot,
@@ -61,7 +46,6 @@ export function AutomationBotSidePanel({
   disabledReason,
 }: {
   bot: AutomationBotState
-  /** A DCA ladder runs one shared wallet over many markets; others take one. */
   /** True when a DCA ladder runs the whole basket off one shared wallet. */
   isDca: boolean
   /** Compiled + saved — deploying mid-edit is blocked, like backtest runs. */
@@ -69,7 +53,6 @@ export function AutomationBotSidePanel({
   disabledReason?: string
 }) {
   const {
-    phase,
     selectedMarkets,
     setSelectedMarkets,
     walletId,
@@ -81,12 +64,7 @@ export function AutomationBotSidePanel({
     wallets,
     error,
     deploying,
-    detail,
-    selectedMarket,
   } = bot
-  const [keepName, setKeepName] = React.useState("")
-  const [confirmKeep, setConfirmKeep] = React.useState(false)
-  const marketSort = useMarketSort("net")
 
   const selectedWallet = wallets.find((wallet) => wallet.id === walletId)
   const network = (
@@ -106,32 +84,6 @@ export function AutomationBotSidePanel({
     [marketRows, selectedSet]
   )
   const maxMarkets = isDca ? MAX_SHARED_WALLET_MARKETS : Infinity
-
-  // Keeping finishes the run; when it still holds a position, that means
-  // closing it — a money action, so it goes through a confirmation.
-  const hasOpenPosition =
-    detail !== null &&
-    detail.states.some(
-      (state) =>
-        state.paper_position && Number(state.paper_position.szi) !== 0
-    )
-  const submitKeep = () => {
-    void bot.keep(keepName)
-    setKeepName("")
-    setConfirmKeep(false)
-  }
-
-  const liveRows = React.useMemo(
-    () =>
-      detail
-        ? sortMarketRows(
-            buildBotMarketRows(detail.bot.markets, detail.states, detail.trades),
-            marketSort.sortColumn,
-            marketSort.sortDirection
-          )
-        : [],
-    [detail, marketSort.sortColumn, marketSort.sortDirection]
-  )
 
   const deployButton = (
     <DisabledReasonTooltip reason={runnable ? undefined : disabledReason}>
@@ -153,26 +105,20 @@ export function AutomationBotSidePanel({
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-b px-4 py-2.5">
         <h2 className="text-xs font-semibold tracking-wide uppercase">Bot</h2>
         <span className="text-[10px] text-muted-foreground">
-          {bot.hydrating ? "" : phase === "setup" ? "New run" : "Live"}
+          {bot.hydrating ? "" : "New run"}
         </span>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div
-          className={
-            phase === "live"
-              ? "flex flex-col gap-4"
-              : "flex flex-col gap-4 p-3"
-          }
-        >
+        <div className="flex flex-col gap-4 p-3">
           {bot.hydrating ? (
             // Looking up the automation's latest run — rendering the setup
-            // form here would flash form → dashboard when a run exists.
+            // form here would flash form → navigation when a run exists.
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2Icon className="size-4 animate-spin" />
               Loading…
             </div>
-          ) : phase === "setup" ? (
+          ) : (
             <>
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
@@ -312,96 +258,9 @@ export function AutomationBotSidePanel({
 
               {deployButton}
             </>
-          ) : detail === null ? (
-            <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" />
-              Starting the run…
-            </div>
-          ) : (
-            <div className="grid gap-1">
-              <BacktestMarketsTable
-                rows={liveRows}
-                state={marketSort}
-                selectedId={selectedMarket}
-                onSelect={(row) => bot.setSelectedMarket(row.id)}
-                emptyLabel="Waiting for the first data from the worker…"
-              />
-            </div>
           )}
         </div>
       </ScrollArea>
-
-      {phase === "live" && detail !== null ? (
-        <div className="grid shrink-0 gap-3 border-t p-3">
-          {error ? (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-            >
-              {error}
-            </div>
-          ) : null}
-          <div className="grid gap-2 rounded-md border bg-muted/40 p-2.5">
-            <div className="flex items-center gap-2">
-              <Input
-                value={keepName}
-                onChange={(event) => setKeepName(event.target.value)}
-                placeholder="Name this run to keep it"
-                aria-label="Run name"
-                className="h-8 text-xs"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8"
-                disabled={!keepName.trim()}
-                onClick={() => {
-                  if (hasOpenPosition) setConfirmKeep(true)
-                  else submitKeep()
-                }}
-              >
-                Keep
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Unnamed runs are replaced by your next deploy. Naming finishes
-              this run — closes its position, stops it, files the result —
-              and opens the selector for the next one.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Finishing a run that still holds a position closes it — confirm. */}
-      <Dialog open={confirmKeep} onOpenChange={setConfirmKeep}>
-        <DialogContent variant="admin" className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Keep this run?</DialogTitle>
-            <DialogDescription>
-              Keeping finishes the run and files its result.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This run still holds an open position. Keeping it closes the
-              position at market and stops the run.
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmKeep(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" variant="destructive" onClick={submitKeep}>
-              Close position &amp; keep
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -29,11 +29,25 @@ export type BotListItem = {
   realized_pnl: number
   /** Realized P&L for the current UTC day, summed across the bot's markets. */
   daily_realized_pnl: number
-  /** Open per-market positions; persisted for paper brokers only. */
+  /**
+   * Open per-market positions, both modes. A live bot's figure is its
+   * wallet's position on that market — manual trades on the same wallet
+   * and market are included.
+   */
   positions: BotListPosition[]
   trade_count: number
   created_at: string
   updated_at: string
+}
+
+export type FleetEvent = {
+  id: string
+  bot_id: string
+  bot_name: string
+  level: string
+  type: string
+  message: string
+  created_at: string
 }
 
 export type BotListResponse = {
@@ -41,6 +55,8 @@ export type BotListResponse = {
   workerOnline: boolean
   /** Account-level kill-switch state, shown as the bots-page banner. */
   guardian: GuardianStatus
+  /** Newest events across the fleet (last 100), for the activity feed. */
+  events: FleetEvent[]
 }
 
 export type BotMarketState = {
@@ -241,6 +257,23 @@ const deployBotFn = createServerFn({ method: "POST" })
     return deployAutomationBot(user.id, data)
   })
 
+const updateMarketsSchema = z.object({
+  botId: z.string().min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+})
+
+/** Edits a run's market list; the worker restarts its runners to match. */
+const updateBotMarketsFn = createServerFn({ method: "POST" })
+  .inputValidator(updateMarketsSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { updateBotMarkets } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await updateBotMarkets(user.id, data.botId, data.markets)
+    return { ok: true }
+  })
+
 const renameBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().trim().min(1).max(255),
@@ -312,6 +345,10 @@ export function renameBot(botId: string, name: string) {
   return renameBotFn({ data: { botId, name } })
 }
 
+export function updateBotMarkets(botId: string, markets: string[]) {
+  return updateBotMarketsFn({ data: { botId, markets } })
+}
+
 export function sendCommand(
   botId: string,
   command: z.infer<typeof botCommandSchema>["command"]
@@ -338,7 +375,7 @@ async function requireUser() {
 
 /**
  * Folds a bot's per-market state rows into what the fleet list needs: open
- * positions (paper brokers only — live brokers persist null) and realized
+ * positions (persisted for both paper and live brokers) and realized
  * P&L for the current UTC day (the worker keys dailyPnlDate to UTC).
  */
 function aggregateBotStates(
@@ -387,15 +424,19 @@ async function botWorkerOnline(): Promise<boolean> {
 }
 
 async function botListForUser(userId: string): Promise<BotListResponse> {
-  const { listUserBots, listUserBotStates } = await import("@/server/bots")
+  const { listUserBots, listUserBotStates, listUserBotEvents } = await import(
+    "@/server/bots"
+  )
   const { getGuardianStatus } = await import("@/server/guardian")
 
-  const [rows, stateRows, workerOnline, guardian] = await Promise.all([
-    listUserBots(userId),
-    listUserBotStates(userId),
-    botWorkerOnline(),
-    getGuardianStatus(userId),
-  ])
+  const [rows, stateRows, workerOnline, guardian, eventRows] =
+    await Promise.all([
+      listUserBots(userId),
+      listUserBotStates(userId),
+      botWorkerOnline(),
+      getGuardianStatus(userId),
+      listUserBotEvents(userId),
+    ])
 
   const statesByBot = new Map<string, typeof stateRows>()
   for (const state of stateRows) {
@@ -413,6 +454,15 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
     })),
     workerOnline,
     guardian,
+    events: eventRows.map((row) => ({
+      id: row.id,
+      bot_id: row.botId,
+      bot_name: row.botName,
+      level: row.level,
+      type: row.type,
+      message: row.message,
+      created_at: row.createdAt.toISOString(),
+    })),
   }
 }
 
