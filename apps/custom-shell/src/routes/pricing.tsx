@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { authLinkClassName } from "@/components/auth-shell"
+import { PublicPageFrame } from "@/components/public-page-frame"
 import { PricingTable, type BillingInterval } from "@/components/pricing-table"
 import { Button } from "@/components/ui/button"
 import { loadCurrentUser, type AuthUser } from "@/lib/api/auth"
@@ -60,7 +61,7 @@ function PricingRoute() {
   )
 
   return (
-    <main className="min-h-screen bg-muted/60 px-4 py-10">
+    <PublicPageFrame>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 md:gap-3">
         <header className="flex flex-col gap-2 text-center">
           <h1 className="text-2xl font-semibold">Plans</h1>
@@ -88,7 +89,7 @@ function PricingRoute() {
 
         <PricingFooter user={user} />
       </div>
-    </main>
+    </PublicPageFrame>
   )
 }
 
