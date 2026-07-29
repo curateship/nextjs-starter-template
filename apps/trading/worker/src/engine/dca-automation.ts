@@ -515,6 +515,15 @@ export function createDcaAutomationStrategy(
       active: {
         ...active,
         lastExitAttemptAt: null,
+        // The stop sold everything, so the price the stop measures FROM has to
+        // let go too. With `stopAnchor: "first"` the stop is measured from this
+        // cycle's first buy; left standing after a stop it keeps pointing at a
+        // position that no longer exists, while the next rung buys lower. The
+        // stop then lands ABOVE what is actually held and fires the moment a
+        // base confirms — the ladder is cut with the base perfectly intact,
+        // over and over. Cleared here, it re-anchors to the next rung that
+        // actually fills.
+        firstEntryPx: null,
         // Watch the level that just cut us. If price reclaims it and HOLDS,
         // the break was a fakeout and the rung goes back on (below). Read from
         // `active` — the PRE-reset rungs — so it captures what was actually sold.

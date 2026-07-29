@@ -115,6 +115,23 @@ function buyRungIndex(purpose: string): number | null {
 }
 
 /**
+ * Names the ladder steps an exit closed — "Rung 2", "Rungs 1-3", "Rungs 1, 3".
+ *
+ * Deliberately the step NUMBERS, not a tally. An earlier version said "all 1
+ * rung", which reads as rung #1 rather than "one rung", and threw away the one
+ * thing worth knowing: WHICH step just got closed.
+ */
+function rungNames(indexes: number[]): string {
+  const steps = [...new Set(indexes)].sort((a, b) => a - b).map((i) => i + 1)
+  if (steps.length === 0) return ""
+  if (steps.length === 1) return `Rung ${steps[0]}`
+  const contiguous = steps.every((n, i) => i === 0 || n === steps[i - 1] + 1)
+  return contiguous
+    ? `Rungs ${steps[0]}-${steps[steps.length - 1]}`
+    : `Rungs ${steps.join(", ")}`
+}
+
+/**
  * One static arrow per fill: every DCA ladder buy and every exit sell drawn at
  * the exact price and time it happened, instead of one blended averaged-down
  * entry per round trip. These markers carry no letter, so the chart renders
@@ -155,17 +172,13 @@ export function buildRunFillMarkers(result: BacktestResult): ChartMarker[] {
         )[0]
       // Both exit paths close the WHOLE position — the ladder's own sell rests
       // for everything it holds, and the forced exit is a reduce-only market
-      // order sized to the full position. So the useful thing to say is how
-      // many rungs just got closed, not merely that something was sold.
-      // Counted as DISTINCT rungs: one rung can fill in several pieces, and
-      // counting fills would claim more steps than the ladder actually took.
-      const held = new Set(openBuys.map((buy) => buy.rung)).size
-      const rungs = `${held} rung${held === 1 ? "" : "s"}`
+      // order sized to the full position. So name the steps that just closed.
+      const closed = rungNames(openBuys.map((buy) => buy.rung))
       const at = soldAt ? ` at Rung ${soldAt.rung + 1}` : ""
       if (/:exit$/.test(fill.purpose)) {
-        label = held > 0 ? `Exit all ${rungs}` : "Exit"
+        label = closed ? `Exit ${closed}` : "Exit"
       } else if (/:s:all$/.test(fill.purpose)) {
-        label = held > 0 ? `Sell all ${rungs}${at}` : `Sell all${at}`
+        label = closed ? `Sell ${closed}${at}` : `Sell all${at}`
       } else {
         label = `${orderLabelFor(fill.purpose)}${at}`
       }

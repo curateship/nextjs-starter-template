@@ -87,7 +87,7 @@ describe("buildRunFillMarkers", () => {
     expect(buildRunFillMarkers(result)).toEqual([
       { time: 10, side: "buy", price: 100, label: "Rung 1", value: 100 },
       { time: 20, side: "buy", price: 95, label: "Rung 2", value: 190 },
-      { time: 30, side: "sell", price: 110, label: "Sell all 2 rungs", value: 330 },
+      { time: 30, side: "sell", price: 110, label: "Sell Rungs 1-2", value: 330 },
     ])
   })
 
@@ -111,7 +111,7 @@ describe("buildRunFillMarkers", () => {
         { t: 40, side: "sell", px: 73.4, sz: 7, fee: 0, closedPnl: -60, purpose: "dca:exit" },
       ],
     })
-    expect(buildRunFillMarkers(result)[3].label).toBe("Exit all 3 rungs")
+    expect(buildRunFillMarkers(result)[3].label).toBe("Exit Rungs 1-3")
   })
 
   it("counts rungs, not fills, when one rung fills in pieces", () => {
@@ -124,7 +124,7 @@ describe("buildRunFillMarkers", () => {
         { t: 30, side: "sell", px: 73.4, sz: 4, fee: 0, closedPnl: -50, purpose: "dca:exit" },
       ],
     })
-    expect(buildRunFillMarkers(result)[3].label).toBe("Exit all 2 rungs")
+    expect(buildRunFillMarkers(result)[3].label).toBe("Exit Rungs 1-2")
   })
 
   it("says which rung an exit sold at, when it sold at one", () => {
@@ -139,7 +139,7 @@ describe("buildRunFillMarkers", () => {
       ],
     })
     expect(buildRunFillMarkers(result)[3].label).toBe(
-      "Sell all 3 rungs at Rung 2"
+      "Sell Rungs 1-3 at Rung 2"
     )
   })
 
@@ -153,7 +153,7 @@ describe("buildRunFillMarkers", () => {
       ],
     })
     const label = buildRunFillMarkers(result)[1].label
-    expect(label).toBe("Exit all 1 rung")
+    expect(label).toBe("Exit Rung 1")
     expect(label).not.toContain("at Rung")
   })
 
