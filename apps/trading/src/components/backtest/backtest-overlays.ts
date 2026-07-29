@@ -6,6 +6,7 @@ import type {
   ChartZone,
 } from "@/components/chart/price-chart"
 import { CHIP_COLORS } from "@/components/chart/trade-chips"
+import { orderLabelFor } from "@/lib/automations/node-registry"
 import type { BacktestResult } from "@/lib/backtest/types"
 import type { AutomationProtection } from "@/lib/automations/automation"
 import { trailingStopPath } from "@/lib/strategies/trailing-stop"
@@ -100,19 +101,88 @@ export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
   return markers
 }
 
+/** A sell whose price lands this close to a rung's buy counts as that rung. */
+const RUNG_MATCH_TOLERANCE = 0.001
+
+/**
+ * Which ladder step a buy was: `dca:b:0` is the first rung, so it reads
+ * "Rung 1". Exits carry no rung in their purpose, so they are matched by price
+ * below instead.
+ */
+function buyRungIndex(purpose: string): number | null {
+  const match = purpose.match(/:b:(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
 /**
  * One static arrow per fill: every DCA ladder buy and every exit sell drawn at
  * the exact price and time it happened, instead of one blended averaged-down
  * entry per round trip. These markers carry no letter, so the chart renders
  * them as its lightweight native green up / red down arrows (no animated chips)
- * — a long run with a deep ladder stays cheap to draw.
+ * — a long run with a deep ladder stays cheap to draw. Each carries the words
+ * and the dollar value the chart shows when you hover it.
  */
 export function buildRunFillMarkers(result: BacktestResult): ChartMarker[] {
-  return result.fills.map((fill) => ({
-    time: fill.t,
-    side: fill.side,
-    price: fill.px,
-  }))
+  // Buys of the cycle currently open, so a sell can say which rung it sold at.
+  // The engine's exit purposes (`dca:s:all`, `dca:exit`) carry no rung number —
+  // the ladder rests ONE order for the whole position at the step above its
+  // deepest buy, so the rung is recoverable from the price and only from the
+  // price. Cleared on every sell, since that closes the position.
+  let openBuys: { rung: number; px: number }[] = []
+
+  return result.fills.map((fill) => {
+    const rung = buyRungIndex(fill.purpose)
+    let label: string
+
+    if (fill.side === "buy") {
+      if (rung !== null) openBuys.push({ rung, px: fill.px })
+      label = rung !== null ? `Rung ${rung + 1}` : orderLabelFor(fill.purpose)
+    } else {
+      // Only claim a rung when the prices genuinely agree — a stop-out or a
+      // bounce fill lands nowhere near a rung, and inventing a number for it
+      // would be worse than saying nothing.
+      const soldAt = openBuys
+        .filter(
+          (buy) =>
+            buy.px > 0 &&
+            Math.abs(fill.px / buy.px - 1) <= RUNG_MATCH_TOLERANCE
+        )
+        // Nearest, not first: a reclaim can re-arm a rung at an unusual price,
+        // and naming the wrong step would be worse than naming none.
+        .sort(
+          (a, b) =>
+            Math.abs(fill.px / a.px - 1) - Math.abs(fill.px / b.px - 1)
+        )[0]
+      // Both exit paths close the WHOLE position — the ladder's own sell rests
+      // for everything it holds, and the forced exit is a reduce-only market
+      // order sized to the full position. So the useful thing to say is how
+      // many rungs just got closed, not merely that something was sold.
+      // Counted as DISTINCT rungs: one rung can fill in several pieces, and
+      // counting fills would claim more steps than the ladder actually took.
+      const held = new Set(openBuys.map((buy) => buy.rung)).size
+      const rungs = `${held} rung${held === 1 ? "" : "s"}`
+      const at = soldAt ? ` at Rung ${soldAt.rung + 1}` : ""
+      if (/:exit$/.test(fill.purpose)) {
+        label = held > 0 ? `Exit all ${rungs}` : "Exit"
+      } else if (/:s:all$/.test(fill.purpose)) {
+        label = held > 0 ? `Sell all ${rungs}${at}` : `Sell all${at}`
+      } else {
+        label = `${orderLabelFor(fill.purpose)}${at}`
+      }
+      openBuys = []
+    }
+
+    return {
+      time: fill.t,
+      side: fill.side,
+      price: fill.px,
+      // What this arrow is and what it cost. Size is recorded in coins; the
+      // dollars are what compare across a basket, so the chart reads
+      // "Rung 3 · $219" instead of leaving a bare arrow among identical ones.
+      label,
+      value: fill.px * fill.sz,
+    }
+  })
 }
 
 /**
