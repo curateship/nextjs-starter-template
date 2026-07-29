@@ -504,6 +504,25 @@ export function PriceChartView({
   const [focusPixels, setFocusPixels] = React.useState<
     { x: number; y: number }[]
   >([])
+  // Orders on the candle holding the arrow nearest the cursor, anchored to that
+  // arrow rather than to the pointer. A DCA ladder can drop several buys and a
+  // sell on one bar, so all of that bar's fills are listed together.
+  const [hoveredOrders, setHoveredOrders] = React.useState<{
+    /** The arrow's own position, not the cursor's. */
+    x: number
+    y: number
+    /** Near the right/bottom edge the panel flips to the other side of its
+     * anchor. Decided where the pane's size is known — in the crosshair handler
+     * — because measuring the container during render is both a lint error and
+     * stale the moment the pane resizes. */
+    flipX: boolean
+    flipY: boolean
+    items: {
+      label: string
+      side: "buy" | "sell"
+      value?: number
+    }[]
+  } | null>(null)
   // Pixel positions of price-pinned open/close/flip chips, kept in sync with
   // pan/zoom/resize the same way the focus box is.
   const [markerPixels, setMarkerPixels] = React.useState<
@@ -588,6 +607,10 @@ export function PriceChartView({
   const lineClickRef = React.useRef(onLineClick)
   const contextMenuRef = React.useRef(onChartContextMenu)
   const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
+  // Read inside the crosshair handler, which is subscribed once at chart
+  // creation — a ref keeps it seeing the current run's fills without tearing
+  // the whole chart down every time the markers change.
+  const markersRef = React.useRef(markers)
   const drawingsChangeRef = React.useRef(onDrawingsChange)
   const drawingsCommitRef = React.useRef(onDrawingsCommit)
   const visibleRangeRef = React.useRef(onVisibleRangeChange)
@@ -596,6 +619,7 @@ export function PriceChartView({
     lineClickRef.current = onLineClick
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
+    markersRef.current = markers
     drawingsChangeRef.current = onDrawingsChange
     drawingsCommitRef.current = onDrawingsCommit
     visibleRangeRef.current = onVisibleRangeChange
@@ -604,6 +628,7 @@ export function PriceChartView({
     onLineClick,
     onChartContextMenu,
     onCrosshairOhlc,
+    markers,
     onDrawingsChange,
     onDrawingsCommit,
     onVisibleRangeChange,
@@ -837,13 +862,74 @@ export function PriceChartView({
         setReady(true)
 
         chart.subscribeCrosshairMove((param) => {
-          if (!crosshairOhlcRef.current) return
           const time = param.time as number | undefined
-          crosshairOhlcRef.current(
+          crosshairOhlcRef.current?.(
             time !== undefined
               ? (candleByTimeRef.current.get(time) ?? null)
               : null
           )
+
+          // Every labelled order on the hovered candle. Only backtest fills
+          // carry labels, so live charts and bare indicator signals produce
+          // nothing here and the tooltip never appears.
+          const point = param.point
+          if (time === undefined || !point) {
+            setHoveredOrders(null)
+            return
+          }
+          // Pick the arrow NEAREST the cursor, then show that one candle's
+          // orders. A plain time-window match let a neighbouring candle's fills
+          // bleed in, and anchoring to the cursor made the panel drift about
+          // instead of sitting on the thing it describes.
+          const scale = chart.timeScale()
+          const from = scale.coordinateToTime(point.x - HOVER_SEARCH_PX)
+          const to = scale.coordinateToTime(point.x + HOVER_SEARCH_PX)
+          const fromSec = (from as number | null) ?? time
+          const toSec = (to as number | null) ?? time
+          let bestSec: number | null = null
+          let bestX = 0
+          let bestDx = Number.POSITIVE_INFINITY
+          for (const marker of markersRef.current) {
+            if (!marker.label) continue
+            const sec = Math.floor(marker.time / 1000)
+            if (sec < fromSec || sec > toSec) continue
+            const mx = scale.timeToCoordinate(sec as UTCTimestamp)
+            if (mx == null) continue
+            const dx = Math.abs(mx - point.x)
+            if (dx < bestDx) {
+              bestDx = dx
+              bestSec = sec
+              bestX = mx
+            }
+          }
+          if (bestSec === null || bestDx > HOVER_RADIUS_PX) {
+            setHoveredOrders(null)
+            return
+          }
+          // Everything that filled on that candle — a ladder can take several
+          // rungs and an exit inside one bar, which is the case worth reading.
+          const onBar = markersRef.current.filter(
+            (marker) =>
+              marker.label && Math.floor(marker.time / 1000) === bestSec
+          )
+          // Anchor to the highest arrow in the group so the panel sits beside
+          // the cluster rather than under the cursor.
+          const topPrice = Math.max(...onBar.map((marker) => marker.price))
+          const anchorY = candleSeries.priceToCoordinate(topPrice) ?? point.y
+          const items = onBar.map((marker) => ({
+            label: marker.label as string,
+            side: marker.side,
+            value: marker.value,
+          }))
+          setHoveredOrders({
+            x: bestX,
+            y: anchorY,
+            flipX: bestX > container.clientWidth - TOOLTIP_W,
+            flipY:
+              anchorY >
+              container.clientHeight - TOOLTIP_ROW_H * items.length - 24,
+            items,
+          })
         })
 
         // --- order-line dragging + right-click order menu -----------------
@@ -2913,6 +2999,43 @@ export function PriceChartView({
           </>
         ) : null}
       </Popover>
+      {hoveredOrders ? (
+        // Pinned beside the arrow it describes, flipping to the other side near
+        // the right/bottom edge so it never spills out of the pane.
+        // pointer-events-none so it can't eat the drag/draw handlers underneath.
+        <div
+          className="pointer-events-none absolute z-30 rounded-md border bg-popover/95 px-2 py-1.5 shadow-md backdrop-blur-sm"
+          style={{
+            left: hoveredOrders.x + 14,
+            top: hoveredOrders.y + 14,
+            transform: `translate(${hoveredOrders.flipX ? "-100%" : "0"}, ${
+              hoveredOrders.flipY ? "-100%" : "0"
+            })`,
+          }}
+        >
+          <div className="grid gap-1">
+            {hoveredOrders.items.map((item, i) => (
+              <div
+                key={`${item.label}-${i}`}
+                className="flex items-baseline gap-2 text-[11px] whitespace-nowrap"
+              >
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: item.side === "buy" ? UP_COLOR : DOWN_COLOR,
+                  }}
+                />
+                <span className="font-medium">{item.label}</span>
+                {item.value !== undefined ? (
+                  <span className="font-mono text-muted-foreground">
+                    {formatMoney(item.value)}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {markerPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
           {markerPixels.map((m, i) => {
@@ -3439,6 +3562,28 @@ export function PriceChart({
       onDrawingsCommit={onDrawingsCommit}
     />
   )
+}
+
+/** Rough hover-panel size, used only to decide which side of the cursor it sits on. */
+const TOOLTIP_W = 210
+const TOOLTIP_ROW_H = 18
+/** How close the cursor must be to an arrow for it to count as hovered. */
+const HOVER_RADIUS_PX = 8
+/** Pre-filter width before measuring exact distances; never the hit area itself. */
+const HOVER_SEARCH_PX = 60
+
+/**
+ * What a fill cost, for the hover readout. Whole dollars past $100 — the cents
+ * on a $1,843 rung are noise, and the point of the number is comparing rung
+ * sizes at a glance.
+ */
+function formatMoney(value: number): string {
+  if (!Number.isFinite(value)) return "—"
+  const abs = Math.abs(value)
+  return `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: abs >= 100 ? 0 : 2,
+  })}`
 }
 
 /** First index in a time-sorted marker list with `time >= targetMs`. */

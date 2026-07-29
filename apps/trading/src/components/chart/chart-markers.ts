@@ -15,6 +15,20 @@ export type ChartMarker = {
   price: number
   /** O/C/F renders a fill chip; no letter renders a native signal arrow. */
   letter?: "O" | "C" | "F"
+  /**
+   * Which order this was, in words — "Rung 3", "Sell all 3 rungs at Rung 2",
+   * "Exit all 3 rungs". Present on backtest fills, absent on plain indicator
+   * signals and on live charts. Its presence is what makes an arrow explain
+   * itself on hover, and what gates the hover panel: a ladder drops several
+   * arrows on one candle and they are otherwise indistinguishable.
+   */
+  label?: string
+  /**
+   * Money that moved on this fill, in dollars (price × size). Coin units are
+   * meaningless across a basket where one market trades at 0.00001 and another
+   * at 64,000 — what a rung actually cost is the comparable number.
+   */
+  value?: number
 }
 
 export function toNativeSignalMarkers(
