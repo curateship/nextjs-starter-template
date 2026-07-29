@@ -3,27 +3,36 @@ import { RefreshCwIcon, ShieldCheckIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import { SortHeaderRow, type SortDir } from "@/components/scanner/sort-head"
 import { Badge } from "@/components/ui/badge"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import {
   loadAuditPage,
   type AuditItem,
   type AuditPageResponse,
+  type AuditSortBy,
 } from "@/lib/api/audit"
+
+const COLUMNS = [
+  { key: "action", label: "Action", main: true },
+  { key: "actor", label: "Actor" },
+  { key: "wallet", label: "Wallet" },
+  { key: "market", label: "Market" },
+  { key: "status", label: "Status" },
+  { key: "time", label: "Time" },
+] as const
 
 export function AuditDashboard({ initial }: { initial: AuditPageResponse }) {
   const [data, setData] = React.useState<AuditPageResponse>(initial)
+  const [sort, setSort] = React.useState<{ sortBy: AuditSortBy; dir: SortDir }>(
+    { sortBy: "time", dir: "desc" }
+  )
   const [loading, setLoading] = React.useState(false)
 
-  async function fetchPage(page: number, pageSize: number) {
+  async function fetchPage(page: number, pageSize: number, nextSort = sort) {
     setLoading(true)
     try {
-      setData(await loadAuditPage(page, pageSize))
+      setData(await loadAuditPage(page, pageSize, nextSort.sortBy, nextSort.dir))
     } finally {
       setLoading(false)
     }
@@ -47,17 +56,17 @@ export function AuditDashboard({ initial }: { initial: AuditPageResponse }) {
             Refresh
           </DashboardToolbarButton>
         }
+        loading={loading}
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="main">Action</TableHead>
-              <TableHead column="meta">Actor</TableHead>
-              <TableHead column="meta">Wallet</TableHead>
-              <TableHead column="meta">Market</TableHead>
-              <TableHead column="meta">Status</TableHead>
-              <TableHead column="meta">Time</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortHeaderRow
+            columns={COLUMNS}
+            activeKey={sort.sortBy}
+            dir={sort.dir}
+            onSort={(next) => {
+              setSort(next)
+              void fetchPage(1, data.pageSize, next)
+            }}
+          />
         }
         isEmpty={data.items.length === 0}
         emptyText="No signed actions yet. Every order, cancel, and leverage change lands here."
