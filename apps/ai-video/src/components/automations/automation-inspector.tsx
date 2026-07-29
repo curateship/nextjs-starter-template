@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/select"
 import type { AutomationCreatorOption } from "@/lib/api/automations"
 import {
+  MAX_APPROVAL_TIMEOUT_DAYS,
   MAX_VIDEOS_PER_NODE,
+  MIN_APPROVAL_TIMEOUT_DAYS,
   type AutomationNode,
   type AutomationScheduleUnit,
   type AutomationValidationError,
@@ -264,6 +266,39 @@ function NodeFields({
           value={node.namePrefix}
           onChange={(namePrefix) => onNodeChange({ ...node, namePrefix })}
         />
+      )
+    case "waitForApproval":
+      return (
+        <div className="grid gap-1">
+          <Label htmlFor="automation-approval-timeout">
+            Auto-reject after (days)
+          </Label>
+          <Input
+            id="automation-approval-timeout"
+            type="number"
+            min={MIN_APPROVAL_TIMEOUT_DAYS}
+            max={MAX_APPROVAL_TIMEOUT_DAYS}
+            value={node.timeoutDays}
+            onChange={(event) => {
+              const parsed = Number.parseInt(event.target.value, 10)
+              onNodeChange({
+                ...node,
+                timeoutDays: Number.isFinite(parsed)
+                  ? Math.min(
+                      MAX_APPROVAL_TIMEOUT_DAYS,
+                      Math.max(MIN_APPROVAL_TIMEOUT_DAYS, parsed)
+                    )
+                  : MIN_APPROVAL_TIMEOUT_DAYS,
+              })
+            }}
+            className="h-8 w-24"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            The run waits here and you get a bell notice. If nobody answers in
+            this many days the run is rejected and nothing after this step
+            happens.
+          </p>
+        </div>
       )
   }
 }

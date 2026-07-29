@@ -278,6 +278,14 @@ export const aiVideoNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     creatorNewVideoCount: integer("creator_new_video_count"),
+    // Automation run parked at (or auto-rejected by) an approval checkpoint.
+    automationRunId: varchar("automation_run_id", { length: 36 }).references(
+      () => aiVideoAutomationRuns.id,
+      { onDelete: "cascade" }
+    ),
+    automationApprovalState: varchar("automation_approval_state", {
+      length: 20,
+    }),
     apiUsageLevel: varchar("api_usage_level", { length: 20 }),
     apiUsagePeriodStart: timestamp("api_usage_period_start", {
       withTimezone: true,
@@ -290,7 +298,11 @@ export const aiVideoNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch', 'api_usage_alert')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch', 'api_usage_alert', 'automation_approval')`
+    ),
+    check(
+      "notifications_automation_approval_state_check",
+      sql`${table.automationApprovalState} is null or ${table.automationApprovalState} in ('pending', 'timed_out')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -300,6 +312,7 @@ export const aiVideoNotifications = pgTable(
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
     index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_creator_id").on(table.creatorId),
+    index("ix_notifications_automation_run_id").on(table.automationRunId),
   ]
 )
 
@@ -898,16 +911,17 @@ export const aiVideoAutomationRuns = pgTable(
   (table) => [
     check(
       "automation_runs_status_check",
-      sql`${table.status} in ('queued', 'running', 'completed', 'failed', 'canceled')`
+      sql`${table.status} in ('queued', 'running', 'waiting_approval', 'completed', 'failed', 'canceled')`
     ),
     check(
       "automation_runs_trigger_type_check",
       sql`${table.triggerType} in ('manual', 'schedule', 'creator_posted')`
     ),
-    // One active run per automation — duplicate enqueues become no-op conflicts.
+    // One active run per automation — duplicate enqueues become no-op
+    // conflicts. A run parked at an approval checkpoint still counts as active.
     uniqueIndex("ux_automation_runs_automation_active")
       .on(table.automationId)
-      .where(sql`${table.status} in ('queued', 'running')`),
+      .where(sql`${table.status} in ('queued', 'running', 'waiting_approval')`),
     index("ix_automation_runs_status_created").on(
       table.status,
       table.createdAt
@@ -939,6 +953,13 @@ export const aiVideoAutomationRunSteps = pgTable(
     // Executor result, e.g. { videoIds: [...], summary: "..." }.
     output: jsonb("output"),
     error: text("error"),
+    // Approval checkpoint bookkeeping, only set on waitForApproval steps: when
+    // the auto-reject fires and what the decision ended up being.
+    approvalDeadlineAt: timestamp("approval_deadline_at", {
+      withTimezone: true,
+    }),
+    approvalDecision: varchar("approval_decision", { length: 20 }),
+    approvalDecidedAt: timestamp("approval_decided_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -947,13 +968,20 @@ export const aiVideoAutomationRunSteps = pgTable(
   (table) => [
     check(
       "automation_run_steps_status_check",
-      sql`${table.status} in ('pending', 'running', 'completed', 'failed', 'skipped')`
+      sql`${table.status} in ('pending', 'running', 'waiting_approval', 'completed', 'failed', 'skipped')`
+    ),
+    check(
+      "automation_run_steps_approval_decision_check",
+      sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
     ),
     unique("automation_run_steps_run_node_unique").on(
       table.runId,
       table.nodeId
     ),
     index("ix_automation_run_steps_run_status").on(table.runId, table.status),
+    index("ix_automation_run_steps_approval_deadline")
+      .on(table.approvalDeadlineAt)
+      .where(sql`${table.status} = 'waiting_approval'`),
   ]
 )
 

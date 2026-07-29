@@ -7,6 +7,7 @@ import {
   ClapperboardIcon,
   GaugeIcon,
   MessageSquareIcon,
+  ShieldCheckIcon,
   ThumbsUpIcon,
 } from "lucide-react"
 import { useNavigate } from "@tanstack/react-router"
@@ -64,28 +65,46 @@ function getCreatorHandle(item: NotificationItem) {
     : getCreatorName(item)
 }
 
+function getAutomationName(item: NotificationItem) {
+  return item.automation_name || "An automation"
+}
+
 function NotificationAvatar({ item }: { item: NotificationItem }) {
   const isVote = item.type === "feedback_vote"
   const isUsage = item.type === "api_usage_alert"
+  const isApproval = item.type === "automation_approval"
 
   return (
     <Avatar size="lg">
       <AvatarFallback
         className={
-          isUsage
+          isUsage || isApproval
             ? "bg-amber-100 text-amber-800"
             : isVote
               ? "bg-green-100 text-green-800"
               : "bg-blue-100 text-blue-800"
         }
       >
-        {isUsage ? "!" : getInitial(item.actor_name)}
+        {isUsage ? "!" : isApproval ? "?" : getInitial(item.actor_name)}
       </AvatarFallback>
     </Avatar>
   )
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out" ? (
+      <>
+        <strong>{getAutomationName(item)}</strong> was rejected — nobody
+        approved in time
+      </>
+    ) : (
+      <>
+        <strong>{getAutomationName(item)}</strong> is waiting for your approval
+      </>
+    )
+  }
+
   if (item.type === "api_usage_alert") {
     return item.api_usage_level === "blocked" ? (
       <>
@@ -124,6 +143,10 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return <ShieldCheckIcon className="h-3.5 w-3.5" />
+  }
+
   if (item.type === "api_usage_alert") {
     return <GaugeIcon className="h-3.5 w-3.5" />
   }
@@ -140,6 +163,14 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
 }
 
 function NotificationPreview({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out" ? (
+      <>Approval timed out</>
+    ) : (
+      <>Open the runs panel to approve or reject</>
+    )
+  }
+
   if (item.type === "api_usage_alert") {
     return (
       <>
@@ -372,6 +403,14 @@ export function NotificationCenter({
     }
 
     setOpen(false)
+    if (item.type === "automation_approval" && item.automation_id) {
+      void navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: item.automation_id },
+      })
+      return
+    }
+
     if (item.type === "creator_watch" && item.creator_id) {
       void navigate({
         to: "/admin/creators/$creatorId",

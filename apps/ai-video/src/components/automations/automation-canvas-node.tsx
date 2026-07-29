@@ -4,9 +4,11 @@ import {
   CheckIcon,
   Loader2Icon,
   MinusIcon,
+  ShieldCheckIcon,
   XIcon,
 } from "lucide-react"
 
+import type { AutomationStepStatus } from "@/lib/api/automations"
 import type {
   AutomationNode,
   AutomationSourcePort,
@@ -28,15 +30,30 @@ import {
 } from "./canvas-model"
 
 // Step status of the run currently shown in the runs panel, badged on the node.
-export type AutomationNodeRunStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "skipped"
+export type AutomationNodeRunStatus = AutomationStepStatus
+
+const RUN_STATUS_LABELS: Record<AutomationNodeRunStatus, string> = {
+  pending: "waiting for earlier steps",
+  running: "running",
+  waiting_approval: "waiting for your approval",
+  completed: "completed",
+  failed: "failed",
+  skipped: "skipped",
+}
 
 function RunStatusBadge({ status }: { status: AutomationNodeRunStatus }) {
-  const label = `Run step ${status}`
+  const label = `Run step ${RUN_STATUS_LABELS[status]}`
+  if (status === "waiting_approval") {
+    return (
+      <span
+        aria-label={label}
+        title={label}
+        className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border border-amber-500/40 bg-card text-amber-600 shadow-sm dark:text-amber-400"
+      >
+        <ShieldCheckIcon className="size-3" />
+      </span>
+    )
+  }
   if (status === "running") {
     return (
       <span

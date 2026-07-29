@@ -1,5 +1,7 @@
 import {
   automationConnectionError,
+  DEFAULT_APPROVAL_TIMEOUT_DAYS,
+  type AutomationGraph,
   type AutomationNode,
   type AutomationSourcePort,
 } from "@/lib/automations/automation"
@@ -16,6 +18,7 @@ export type AutomationPaletteKey =
   | "pipeline-ingest-videos"
   | "pipeline-create-template"
   | "pipeline-create-project"
+  | "control-wait-for-approval"
 
 export type AutomationNodeIconName =
   | "play"
@@ -25,8 +28,9 @@ export type AutomationNodeIconName =
   | "download"
   | "layoutTemplate"
   | "clapperboard"
+  | "shieldCheck"
 
-export type AutomationPaletteGroup = "Triggers" | "Pipeline"
+export type AutomationPaletteGroup = "Triggers" | "Pipeline" | "Control"
 
 export type AutomationNodePort = {
   id: AutomationSourcePort
@@ -201,11 +205,34 @@ const AUTOMATION_NODE_DEFINITIONS: readonly AutomationNodeDefinition[] = [
     outputPorts: [],
     inputMode: "flow",
   },
+  {
+    key: "control-wait-for-approval",
+    kind: "waitForApproval",
+    group: "Control",
+    paletteDescription:
+      "Pauses the run and asks you to approve before the next step spends anything",
+    create: ({ id, x, y }) => ({
+      id,
+      kind: "waitForApproval",
+      timeoutDays: DEFAULT_APPROVAL_TIMEOUT_DAYS,
+      x,
+      y,
+    }),
+    name: "Wait for Approval",
+    description: (node) =>
+      node.kind === "waitForApproval"
+        ? `Pauses the run until you approve it, and rejects it automatically after ${node.timeoutDays} ${node.timeoutDays === 1 ? "day" : "days"}.`
+        : "",
+    icon: "shieldCheck",
+    outputPorts: OUT_PORT,
+    inputMode: "flow",
+  },
 ]
 
 export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
   "Triggers",
   "Pipeline",
+  "Control",
 ]
 
 export const AUTOMATION_PALETTE_ITEMS = AUTOMATION_NODE_DEFINITIONS.map(
@@ -288,22 +315,24 @@ export function automationNodeSourcePortIsValid(
 export function automationNodeConnectionError(
   source: AutomationNode,
   sourcePort: AutomationSourcePort,
-  target: AutomationNode
+  target: AutomationNode,
+  graph?: Pick<AutomationGraph, "nodes" | "edges">
 ): string | null {
   if (!automationNodeSourcePortIsValid(source, sourcePort)) {
     return "Connection uses an invalid output."
   }
-  return automationConnectionError(source, sourcePort, target)
+  return automationConnectionError(source, sourcePort, target, graph)
 }
 
 export function canConnectAutomationNodes(
   source: AutomationNode,
   sourcePort: AutomationSourcePort,
-  target: AutomationNode
+  target: AutomationNode,
+  graph?: Pick<AutomationGraph, "nodes" | "edges">
 ): boolean {
   return (
     source.id !== target.id &&
-    automationNodeConnectionError(source, sourcePort, target) === null &&
+    automationNodeConnectionError(source, sourcePort, target, graph) === null &&
     automationNodeInputMode(target) === "flow"
   )
 }

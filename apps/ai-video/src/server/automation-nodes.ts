@@ -310,5 +310,9 @@ export async function executeAutomationNode(
       return executeCreateTemplate(context, node)
     case "createProject":
       return executeCreateProject(context, node)
+    case "waitForApproval":
+      // The engine parks the run before it ever gets here (see
+      // parkRunForApproval); reaching this means the graph outran the engine.
+      throw new Error("Approval checkpoints are handled by the run engine")
   }
 }

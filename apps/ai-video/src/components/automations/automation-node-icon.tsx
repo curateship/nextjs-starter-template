@@ -4,6 +4,7 @@ import {
   LayoutTemplateIcon,
   PlayIcon,
   ScanSearchIcon,
+  ShieldCheckIcon,
   TimerIcon,
   UserPlusIcon,
 } from "lucide-react"
@@ -16,6 +17,7 @@ const icons = {
   layoutTemplate: LayoutTemplateIcon,
   play: PlayIcon,
   scanSearch: ScanSearchIcon,
+  shieldCheck: ShieldCheckIcon,
   timer: TimerIcon,
   userPlus: UserPlusIcon,
 } satisfies Record<AutomationNodeIconName, typeof PlayIcon>

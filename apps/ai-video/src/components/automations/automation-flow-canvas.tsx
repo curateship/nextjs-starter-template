@@ -238,7 +238,9 @@ export function AutomationFlowCanvas({
     const source = current.nodes.find((node) => node.id === draft.from)
     const target = current.nodes.find((node) => node.id === targetId)
     const allowed =
-      source && target && canConnectNodes(source, draft.sourcePort, target)
+      source &&
+      target &&
+      canConnectNodes(source, draft.sourcePort, target, current)
     if (!allowed) {
       setConnect(null)
       return

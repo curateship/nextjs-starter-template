@@ -19,6 +19,7 @@ describe("notification preferences", () => {
       "feedback_comment",
       "creator_watch",
       "api_usage_alert",
+      "automation_approval",
     ].sort()
     assert.deepEqual([...NOTIFICATION_PREFERENCE_TYPE_LIST].sort(), expected)
     assert.equal(

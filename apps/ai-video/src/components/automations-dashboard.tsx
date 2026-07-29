@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Loader2Icon,
   PlusIcon,
+  ShieldCheckIcon,
   Trash2Icon,
   WorkflowIcon,
 } from "lucide-react"
@@ -68,6 +69,7 @@ type AutomationSortColumn =
 const RUN_STATUS_LABELS: Record<AutomationRunStatus, string> = {
   queued: "Queued",
   running: "Running",
+  waiting_approval: "Needs approval",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
@@ -85,11 +87,15 @@ function RunStatusBadge({ status }: { status: AutomationRunStatus | null }) {
           ? "border-destructive/40 text-destructive"
           : status === "completed"
             ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-            : undefined
+            : status === "waiting_approval"
+              ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
+              : undefined
       }
     >
       {status === "running" ? (
         <Loader2Icon className="size-3 animate-spin" />
+      ) : status === "waiting_approval" ? (
+        <ShieldCheckIcon className="size-3" />
       ) : null}
       {RUN_STATUS_LABELS[status]}
     </Badge>
