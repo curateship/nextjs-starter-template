@@ -720,6 +720,49 @@ export const tradingWalletFills = pgTable(
   ]
 )
 
+/**
+ * Our own permanent copy of every funding payment — the small hourly amount a
+ * perpetual position pays or receives for staying open. Hyperliquid serves a
+ * limited window (responses cap at 500 entries) and funding appears in no fill,
+ * so without this table it is silently missing from every profit number.
+ *
+ * Sign convention, verified against live payments: `usdc` is the signed amount
+ * credited to the wallet — positive = received, negative = paid.
+ */
+export const tradingWalletFunding = pgTable(
+  "wallet_funding",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    walletId: varchar("wallet_id", { length: 36 })
+      .notNull()
+      .references(() => tradingWallets.id, { onDelete: "cascade" }),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    /** Signed USDC credited to the wallet: positive = received, negative = paid. */
+    usdc: numeric("usdc").notNull(),
+    /** Signed position size the payment applied to — kept to audit the sign. */
+    szi: numeric("szi"),
+    /** The funding rate the exchange applied for this tick. */
+    fundingRate: numeric("funding_rate"),
+    fundingTime: timestamp("funding_time", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // The exchange's tx hash is all zeros for funding, so wallet + market +
+    // tick time is the row's identity; re-syncing an overlap is a no-op.
+    uniqueIndex("ux_wallet_funding_wallet_market_time").on(
+      table.walletId,
+      table.market,
+      table.fundingTime
+    ),
+    index("ix_wallet_funding_wallet_id_funding_time").on(
+      table.walletId,
+      table.fundingTime
+    ),
+  ]
+)
+
 export const tradingBotEvents = pgTable(
   "bot_events",
   {
