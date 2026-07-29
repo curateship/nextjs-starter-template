@@ -31,6 +31,10 @@ import {
 } from "@/pages/video-editor/editor-store"
 import type { PlaybackSeekMode } from "@/pages/video-editor/playback-clock"
 import { DESIGN_HEIGHT } from "@/pages/video-editor/timeline-utils"
+import {
+  snapStageCenter,
+  stageSnapThreshold,
+} from "@/pages/video-editor/timeline-snapping"
 
 // How far media elements may drift from the clock before being re-seeked.
 const PLAYING_DRIFT_S = 0.25
@@ -218,6 +222,14 @@ export function EditorPreview() {
     startY: number
     moved: boolean
   } | null>(null)
+  // The two centre lines a dragged text overlay locks onto. Shown and hidden
+  // imperatively for the same reason the drag itself is imperative — state
+  // here would re-render the preview (and reload its <video> elements) on
+  // every pointer move.
+  const centerGuideRefs = React.useRef<{
+    x: HTMLDivElement | null
+    y: HTMLDivElement | null
+  }>({ x: null, y: null })
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
 
   // Track the available panel space; the stage is sized in JS because CSS
@@ -735,6 +747,30 @@ export function EditorPreview() {
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
+  // Where the text would land for this pointer position, centre snapping
+  // included. Alt zeroes the threshold, which is how the bypass works: nothing
+  // is ever within zero of a centre line.
+  function resolveTextDrag(
+    drag: { offsetX: number; offsetY: number },
+    e: React.PointerEvent,
+    rect: DOMRect
+  ) {
+    const x = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
+    const y = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    return snapStageCenter({
+      x,
+      y,
+      thresholdX: e.altKey ? 0 : stageSnapThreshold(rect.width),
+      thresholdY: e.altKey ? 0 : stageSnapThreshold(rect.height),
+    })
+  }
+
+  function paintCenterGuides(showX: boolean, showY: boolean) {
+    const { x, y } = centerGuideRefs.current
+    if (x) x.style.display = showX ? "block" : "none"
+    if (y) y.style.display = showY ? "block" : "none"
+  }
+
   function handleTextMove(e: React.PointerEvent) {
     const drag = textDragRef.current
     const stage = stageRef.current
@@ -747,16 +783,15 @@ export function EditorPreview() {
       return
     }
     drag.moved = true
-    const rect = stage.getBoundingClientRect()
-    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
-    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    const snapped = resolveTextDrag(drag, e, stage.getBoundingClientRect())
     const el = textRefs.current.get(drag.clipId)
     if (el) {
       // Imperative during the drag — avoids re-rendering the whole preview
       // (and reloading <video> elements) on every pointer move.
-      el.style.left = `${nx * 100}%`
-      el.style.top = `${ny * 100}%`
+      el.style.left = `${snapped.x * 100}%`
+      el.style.top = `${snapped.y * 100}%`
     }
+    paintCenterGuides(snapped.snappedX, snapped.snappedY)
   }
 
   function handleTextUp(e: React.PointerEvent) {
@@ -765,12 +800,15 @@ export function EditorPreview() {
     const stage = stageRef.current
     if (!drag) return
     ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    paintCenterGuides(false, false)
     if (!drag.moved || !stage) return
     // Commit the final position once, as a single undo step.
-    const rect = stage.getBoundingClientRect()
-    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
-    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
-    dispatch({ type: "UPDATE_CLIP", clipId: drag.clipId, patch: { x: nx, y: ny } })
+    const snapped = resolveTextDrag(drag, e, stage.getBoundingClientRect())
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: drag.clipId,
+      patch: { x: snapped.x, y: snapped.y },
+    })
   }
 
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
@@ -923,6 +961,28 @@ export function EditorPreview() {
           </div>
           )
         })}
+
+        {/* Centre alignment guides. Only visible while a dragged text overlay
+            is locked onto that line, so they never sit over the frame during
+            normal playback. */}
+        <div
+          ref={(el) => {
+            centerGuideRefs.current.x = el
+          }}
+          data-snap-guide="stage-x"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/80"
+          style={{ display: "none", zIndex: 95 }}
+        />
+        <div
+          ref={(el) => {
+            centerGuideRefs.current.y = el
+          }}
+          data-snap-guide="stage-y"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/80"
+          style={{ display: "none", zIndex: 95 }}
+        />
 
         {/* Dip-to-black overlay: opacity driven by the sync loop, on top of
             every clip so the frame truly dips through black. */}
