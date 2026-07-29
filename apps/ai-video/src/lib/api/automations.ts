@@ -24,6 +24,7 @@ export type {
   AutomationCreatorOption,
   AutomationRunStatus,
   AutomationStepItem,
+  AutomationStepStatus,
 } from "@/server/automations"
 
 const automationIdSchema = z.object({
@@ -37,6 +38,7 @@ const automationSafeErrorMessages = new Set([
   "Automation name is required.",
   "Automation graph is invalid.",
   "Fix the automation's validation errors before running.",
+  "This run is not waiting for approval.",
   "Run not found",
   "Creator not found",
   "Missing AI Video session",
@@ -133,6 +135,15 @@ const cancelAutomationRunFn = createServerFn({ method: "POST" })
     return cancelAutomationRunForCurrentUser(data.runId)
   })
 
+const decideAutomationRunApprovalFn = createServerFn({ method: "POST" })
+  .inputValidator(runIdSchema.extend({ approved: z.boolean() }))
+  .handler(async ({ data }): Promise<AutomationRunDetail> => {
+    const { decideAutomationRunApprovalForCurrentUser } = await import(
+      "@/server/automations"
+    )
+    return decideAutomationRunApprovalForCurrentUser(data.runId, data.approved)
+  })
+
 const listAutomationRunsFn = createServerFn({ method: "GET" })
   .inputValidator(automationIdSchema)
   .handler(async ({ data }): Promise<{ runs: AutomationRunSummary[] }> => {
@@ -186,6 +197,10 @@ export function runAutomation(automationId: string) {
 
 export function cancelAutomationRun(runId: string) {
   return cancelAutomationRunFn({ data: { runId } })
+}
+
+export function decideAutomationRunApproval(runId: string, approved: boolean) {
+  return decideAutomationRunApprovalFn({ data: { runId, approved } })
 }
 
 export function listAutomationRuns(automationId: string) {

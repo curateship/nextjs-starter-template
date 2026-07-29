@@ -1,10 +1,13 @@
-import { and, eq, inArray, lte, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notification-events"
+import { shouldDeliverNotification } from "@/server/notification-preferences"
 import {
   aiVideoAutomationRuns,
   aiVideoAutomationRunSteps,
   aiVideoAutomations,
+  aiVideoNotifications,
   type AiVideoAutomation,
   type AiVideoAutomationRunStep,
 } from "@/server/schema"
@@ -16,6 +19,7 @@ import {
   type AutomationTriggerPayload,
 } from "@/server/automation-nodes"
 import {
+  approvalDeadline,
   automationGraphSchema,
   automationScheduleTrigger,
   reachableNodeIds,
@@ -51,7 +55,27 @@ const MAX_RUN_ITERATIONS = 500
 
 const INTERRUPTED_MESSAGE = "Run was interrupted"
 
+// Statuses that make a run this automation's one active run. A run parked at
+// an approval checkpoint counts: it holds no lease, but a second run must not
+// start behind it. Matches ux_automation_runs_automation_active's predicate.
+export const ACTIVE_RUN_STATUSES = [
+  "queued",
+  "running",
+  "waiting_approval",
+] as const
+
+const REJECTED_MESSAGE = "Rejected at the approval checkpoint"
+const TIMED_OUT_MESSAGE = "Approval timed out"
+
+const DECISION_SUMMARIES = {
+  approved: "You approved this run.",
+  rejected: "You rejected this run.",
+  timed_out: "Nobody approved in time, so the run was rejected.",
+} as const
+
 export type AutomationTriggerType = "manual" | "schedule" | "creator_posted"
+
+type AutomationApprovalDecision = "approved" | "rejected" | "timed_out"
 
 export type EnqueueResult =
   | { outcome: "queued"; runId: string }
@@ -137,7 +161,7 @@ export async function enqueueAutomationRun(
         .onConflictDoNothing({
           target: [aiVideoAutomationRuns.automationId],
           // Matches ux_automation_runs_automation_active's predicate.
-          where: sql`status in ('queued', 'running')`,
+          where: sql`status in ('queued', 'running', 'waiting_approval')`,
         })
         .returning({ id: aiVideoAutomationRuns.id })
       if (!run) return false
@@ -169,7 +193,7 @@ export async function enqueueAutomationRun(
       .where(
         and(
           eq(aiVideoAutomationRuns.automationId, automation.id),
-          inArray(aiVideoAutomationRuns.status, ["queued", "running"])
+          inArray(aiVideoAutomationRuns.status, [...ACTIVE_RUN_STATUSES])
         )
       )
       .limit(1)
@@ -256,6 +280,12 @@ function kickAutomationWorker() {
 async function tick() {
   await reclaimStaleRuns().catch((error) => {
     console.error("Automation run reclaim failed", error)
+  })
+  // The approval timeout sweep lives on the always-on worker tick, not the
+  // opt-in scheduler: a checkpoint that never auto-rejects would strand the
+  // automation, and manual runs work without the scheduler being enabled.
+  await sweepExpiredApprovals().catch((error) => {
+    console.error("Automation approval sweep failed", error)
   })
   await pumpAutomationQueue().catch((error) => {
     console.error("Automation queue pump failed", error)
@@ -416,6 +446,14 @@ async function executeRun(run: ClaimedRun) {
         continue
       }
 
+      // A checkpoint parks the run instead of executing: the lease is handed
+      // back so a run can wait for days without occupying a worker slot, and
+      // approve/reject requeues it to resume after the completed steps.
+      if (node.kind === "waitForApproval") {
+        await parkRunForApproval(run, node, actionable.step, actionable.inputs)
+        return
+      }
+
       await executeStep(run, node, actionable.step, actionable.inputs)
     }
 
@@ -521,6 +559,265 @@ async function executeStep(
         updatedAt: now(),
       })
       .where(eq(aiVideoAutomationRunSteps.id, claimed.id))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Approval checkpoints
+
+// A checkpoint is a pass-through: downstream steps must still see the upstream
+// videos/templates, so the parked step's output carries the inputs forward.
+function approvalStepOutput(
+  inputs: AutomationStepOutput,
+  timeoutDays: number
+): AutomationStepOutput {
+  return {
+    ...inputs,
+    summary: `Waiting for your approval. Auto-rejects after ${timeoutDays} ${timeoutDays === 1 ? "day" : "days"}.`,
+  }
+}
+
+// Hands the lease back and parks the run at this step. The run row moves first
+// and is guarded by the lease token, so a run reclaimed elsewhere can't be
+// parked by this (zombie) process.
+async function parkRunForApproval(
+  run: ClaimedRun,
+  node: Extract<AutomationNode, { kind: "waitForApproval" }>,
+  step: AiVideoAutomationRunStep,
+  inputs: AutomationStepOutput
+) {
+  const timestamp = now()
+  const parked = await db.transaction(async (tx) => {
+    const [updatedRun] = await tx
+      .update(aiVideoAutomationRuns)
+      .set({
+        status: "waiting_approval",
+        leaseToken: null,
+        leaseExpiresAt: null,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          eq(aiVideoAutomationRuns.id, run.id),
+          eq(aiVideoAutomationRuns.leaseToken, run.lease_token),
+          eq(aiVideoAutomationRuns.status, "running")
+        )
+      )
+      .returning({ id: aiVideoAutomationRuns.id })
+    if (!updatedRun) return false
+
+    const [parkedStep] = await tx
+      .update(aiVideoAutomationRunSteps)
+      .set({
+        status: "waiting_approval",
+        attempts: step.attempts + 1,
+        output: approvalStepOutput(inputs, node.timeoutDays),
+        error: null,
+        approvalDeadlineAt: approvalDeadline(node, timestamp),
+        approvalDecision: null,
+        approvalDecidedAt: null,
+        startedAt: step.startedAt ?? timestamp,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          eq(aiVideoAutomationRunSteps.id, step.id),
+          eq(aiVideoAutomationRunSteps.status, "pending")
+        )
+      )
+      .returning({ id: aiVideoAutomationRunSteps.id })
+    // A parked run with no waiting step would be unreachable: no approval card,
+    // no deadline to sweep, only Cancel left. Throw so the transaction rolls
+    // back and the run stays claimed for the lease to reclaim and retry.
+    if (!parkedStep) {
+      throw new Error(`Approval step ${step.id} was not pending`)
+    }
+    return true
+  })
+
+  if (parked) {
+    await notifyApproval(run.user_id, run.id, "pending")
+  }
+}
+
+// Bell notice for "decide on this run" and for the auto-reject that fires when
+// nobody did. Never fatal: the run state is already committed, and the runs
+// panel shows the same thing without it.
+async function notifyApproval(
+  userId: string,
+  runId: string,
+  state: "pending" | "timed_out"
+) {
+  try {
+    if (
+      !(await shouldDeliverNotification({
+        recipientUserId: userId,
+        type: "automation_approval",
+      }))
+    ) {
+      return
+    }
+    await db.insert(aiVideoNotifications).values({
+      id: uuid(),
+      recipientUserId: userId,
+      actorUserId: userId,
+      type: "automation_approval",
+      automationRunId: runId,
+      automationApprovalState: state,
+      createdAt: now(),
+    })
+    await publishNotificationCreated(userId)
+  } catch (error) {
+    console.error("Automation approval notification failed", runId, error)
+  }
+}
+
+// The one place a parked run leaves 'waiting_approval', shared by the approve
+// and reject endpoints and by the timeout sweep. Pass `userId` to require
+// ownership (API callers); the sweep passes null. Returns false when the run
+// already moved on, which makes a concurrent second caller a no-op.
+export async function decideAutomationApproval({
+  runId,
+  userId,
+  decision,
+}: {
+  runId: string
+  userId: string | null
+  decision: AutomationApprovalDecision
+}): Promise<boolean> {
+  const timestamp = now()
+  const approved = decision === "approved"
+  const error =
+    decision === "timed_out"
+      ? TIMED_OUT_MESSAGE
+      : approved
+        ? null
+        : REJECTED_MESSAGE
+
+  const runConditions = [
+    eq(aiVideoAutomationRuns.id, runId),
+    eq(aiVideoAutomationRuns.status, "waiting_approval"),
+  ]
+  if (userId) {
+    runConditions.push(eq(aiVideoAutomationRuns.userId, userId))
+  }
+
+  const decided = await db.transaction(async (tx) => {
+    // Read before writing: a decision must move the run and its checkpoint
+    // together or not at all, and bailing after the run update would commit
+    // half of it.
+    const [waiting] = await tx
+      .select()
+      .from(aiVideoAutomationRunSteps)
+      .where(
+        and(
+          eq(aiVideoAutomationRunSteps.runId, runId),
+          eq(aiVideoAutomationRunSteps.status, "waiting_approval")
+        )
+      )
+      .limit(1)
+    if (!waiting) return false
+
+    const [updatedRun] = await tx
+      .update(aiVideoAutomationRuns)
+      .set(
+        approved
+          ? {
+              status: "queued",
+              // The wait is not an interrupted attempt; the resumed leg starts
+              // its own attempt budget so a later crash still gets its retry.
+              attempts: 0,
+              error: null,
+              leaseToken: null,
+              leaseExpiresAt: null,
+              updatedAt: timestamp,
+            }
+          : {
+              status: "failed",
+              error,
+              leaseToken: null,
+              leaseExpiresAt: null,
+              finishedAt: timestamp,
+              updatedAt: timestamp,
+            }
+      )
+      .where(and(...runConditions))
+      .returning({ id: aiVideoAutomationRuns.id })
+    if (!updatedRun) return false
+
+    // Keep the pass-through payload: downstream steps read it on resume, and
+    // the panel keeps showing what the decision was about either way.
+    const output = (waiting.output ?? {}) as AutomationStepOutput
+    await tx
+      .update(aiVideoAutomationRunSteps)
+      .set({
+        status: approved ? "completed" : "failed",
+        output: { ...output, summary: DECISION_SUMMARIES[decision] },
+        error,
+        approvalDecision: decision,
+        approvalDecidedAt: timestamp,
+        finishedAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .where(eq(aiVideoAutomationRunSteps.id, waiting.id))
+
+    if (!approved) {
+      // Nothing downstream ever runs, so close those steps here — a failed run
+      // has no worker to cascade the skip for it.
+      await tx
+        .update(aiVideoAutomationRunSteps)
+        .set({ status: "skipped", finishedAt: timestamp, updatedAt: timestamp })
+        .where(
+          and(
+            eq(aiVideoAutomationRunSteps.runId, runId),
+            inArray(aiVideoAutomationRunSteps.status, ["pending", "running"])
+          )
+        )
+    }
+    return true
+  })
+
+  if (!decided) return false
+  if (approved) kickAutomationWorker()
+  return true
+}
+
+// Auto-rejects checkpoints nobody answered before their deadline.
+async function sweepExpiredApprovals() {
+  const expired = await db
+    .select({
+      runId: aiVideoAutomationRunSteps.runId,
+      userId: aiVideoAutomationRunSteps.userId,
+    })
+    .from(aiVideoAutomationRunSteps)
+    // Joining the run keeps the query to rows a decision can actually move; a
+    // step left waiting under a run that already finished would otherwise be
+    // re-picked every tick forever and silently do nothing.
+    .innerJoin(
+      aiVideoAutomationRuns,
+      eq(aiVideoAutomationRuns.id, aiVideoAutomationRunSteps.runId)
+    )
+    .where(
+      and(
+        eq(aiVideoAutomationRunSteps.status, "waiting_approval"),
+        eq(aiVideoAutomationRuns.status, "waiting_approval"),
+        isNotNull(aiVideoAutomationRunSteps.approvalDeadlineAt),
+        lte(aiVideoAutomationRunSteps.approvalDeadlineAt, now())
+      )
+    )
+
+  for (const step of expired) {
+    const decided = await decideAutomationApproval({
+      runId: step.runId,
+      userId: null,
+      decision: "timed_out",
+    }).catch((error) => {
+      console.error("Automation approval timeout failed", step.runId, error)
+      return false
+    })
+    // Only the process that actually moved the run notifies, so two instances
+    // sweeping the same deadline can't double-send.
+    if (decided) await notifyApproval(step.userId, step.runId, "timed_out")
   }
 }
 

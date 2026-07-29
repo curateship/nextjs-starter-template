@@ -13,7 +13,9 @@ import {
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 import {
+  ACTIVE_RUN_STATUSES,
   computeNextRunAt,
+  decideAutomationApproval,
   enqueueAutomationRun,
 } from "@/server/automation-engine"
 import type { AutomationStepOutput } from "@/server/automation-nodes"
@@ -34,19 +36,31 @@ import {
 export type AutomationRunStatus =
   | "queued"
   | "running"
+  | "waiting_approval"
   | "completed"
   | "failed"
   | "canceled"
+
+export type AutomationStepStatus =
+  | "pending"
+  | "running"
+  | "waiting_approval"
+  | "completed"
+  | "failed"
+  | "skipped"
 
 export type AutomationStepItem = {
   id: string
   node_id: string
   node_kind: string
   node_name: string
-  status: "pending" | "running" | "completed" | "failed" | "skipped"
+  status: AutomationStepStatus
   attempts: number
   output: AutomationStepOutput | null
   error: string | null
+  // Only set on Wait for Approval steps.
+  approval_deadline_at: string | null
+  approval_decision: "approved" | "rejected" | "timed_out" | null
   started_at: string | null
   finished_at: string | null
 }
@@ -150,10 +164,13 @@ function serializeStep(step: AiVideoAutomationRunStep): AutomationStepItem {
     node_id: step.nodeId,
     node_kind: step.nodeKind,
     node_name: automationNodeKindName(step.nodeKind),
-    status: step.status as AutomationStepItem["status"],
+    status: step.status as AutomationStepStatus,
     attempts: step.attempts,
     output: (step.output as AutomationStepOutput | null) ?? null,
     error: step.error,
+    approval_deadline_at: toIso(step.approvalDeadlineAt),
+    approval_decision:
+      step.approvalDecision as AutomationStepItem["approval_decision"],
     started_at: toIso(step.startedAt),
     finished_at: toIso(step.finishedAt),
   }
@@ -397,9 +414,9 @@ export async function cancelAutomationRunForCurrentUser(
   requireAppOrigin()
   const user = await requireUser()
 
-  // The running worker notices the cancel between steps and stops; queued
-  // runs are done right here. The lease is cleared too — a canceled run is
-  // terminal, so nothing should look leased.
+  // The running worker notices the cancel between steps and stops; queued and
+  // approval-parked runs are done right here. The lease is cleared too — a
+  // canceled run is terminal, so nothing should look leased.
   await db
     .update(aiVideoAutomationRuns)
     .set({
@@ -413,10 +430,10 @@ export async function cancelAutomationRunForCurrentUser(
       and(
         eq(aiVideoAutomationRuns.id, runId),
         eq(aiVideoAutomationRuns.userId, user.id),
-        inArray(aiVideoAutomationRuns.status, ["queued", "running"])
+        inArray(aiVideoAutomationRuns.status, [...ACTIVE_RUN_STATUSES])
       )
     )
-  // Queued runs have no worker to skip their steps.
+  // Queued and parked runs have no worker to skip their steps.
   await db
     .update(aiVideoAutomationRunSteps)
     .set({ status: "skipped", finishedAt: now(), updatedAt: now() })
@@ -424,9 +441,36 @@ export async function cancelAutomationRunForCurrentUser(
       and(
         eq(aiVideoAutomationRunSteps.runId, runId),
         eq(aiVideoAutomationRunSteps.userId, user.id),
-        eq(aiVideoAutomationRunSteps.status, "pending")
+        inArray(aiVideoAutomationRunSteps.status, [
+          "pending",
+          "waiting_approval",
+        ])
       )
     )
+  return getAutomationRunDetail(user.id, runId)
+}
+
+const NOT_WAITING_ERROR = "This run is not waiting for approval."
+
+// Approve resumes the run from the checkpoint with every earlier step's output
+// intact; reject fails it and skips everything downstream.
+export async function decideAutomationRunApprovalForCurrentUser(
+  runId: string,
+  approved: boolean
+): Promise<AutomationRunDetail> {
+  requireAppOrigin()
+  const user = await requireUser()
+
+  const decided = await decideAutomationApproval({
+    runId,
+    userId: user.id,
+    decision: approved ? "approved" : "rejected",
+  })
+  if (!decided) {
+    // Either someone else decided first, the deadline swept it, or the run id
+    // is not this user's — all the same to the caller: nothing to decide.
+    throw new Error(NOT_WAITING_ERROR)
+  }
   return getAutomationRunDetail(user.id, runId)
 }
 

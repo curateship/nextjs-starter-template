@@ -6,6 +6,7 @@ import {
   ClapperboardIcon,
   GaugeIcon,
   MessageSquareIcon,
+  ShieldCheckIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -74,6 +75,11 @@ const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_comment: "Comment",
   creator_watch: "Creator watch",
   api_usage_alert: "API usage",
+  automation_approval: "Automation approval",
+}
+
+function getAutomationName(item: NotificationItem) {
+  return item.automation_name || "Deleted automation"
 }
 
 function getCreatorName(item: NotificationItem) {
@@ -91,12 +97,22 @@ function getNotificationActivity(item: NotificationItem) {
     return "API credits"
   }
 
+  if (item.type === "automation_approval") {
+    return `${getAutomationName(item)} approval`
+  }
+
   return item.type === "creator_watch"
     ? `${getCreatorHandle(item)} new reels`
     : item.actor_name
 }
 
 function getNotificationTarget(item: NotificationItem) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out"
+      ? `${getAutomationName(item)}, approval timed out`
+      : `${getAutomationName(item)}, waiting for approval`
+  }
+
   if (item.type === "api_usage_alert") {
     const level = item.api_usage_level === "blocked" ? "limit reached" : "near limit"
     return `${item.api_usage_used_credits ?? 0} of ${item.api_usage_limit_credits ?? 0} credits, ${level}`
@@ -305,6 +321,14 @@ export function NotificationsPage({
   }
 
   function openNotification(item: NotificationItem) {
+    if (item.type === "automation_approval" && item.automation_id) {
+      void navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: item.automation_id },
+      })
+      return
+    }
+
     if (item.type === "creator_watch" && item.creator_id) {
       void navigate({
         to: "/admin/creators/$creatorId",
@@ -381,6 +405,7 @@ export function NotificationsPage({
                   "Comments",
                   "Creator watch",
                   "API usage",
+                  "Automation approval",
                 ]}
               >
                 <SelectValue />
@@ -391,6 +416,9 @@ export function NotificationsPage({
                 <SelectItem value="feedback_comment">Comments</SelectItem>
                 <SelectItem value="creator_watch">Creator watch</SelectItem>
                 <SelectItem value="api_usage_alert">API usage</SelectItem>
+                <SelectItem value="automation_approval">
+                  Automation approval
+                </SelectItem>
               </SelectContent>
             </Select>
             <DashboardToolbarButton
@@ -526,6 +554,8 @@ export function NotificationsPage({
                   <ClapperboardIcon className="size-4 text-muted-foreground" />
                 ) : item.type === "api_usage_alert" ? (
                   <GaugeIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "automation_approval" ? (
+                  <ShieldCheckIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <MessageSquareIcon className="size-4 text-muted-foreground" />
                 )}
@@ -540,7 +570,9 @@ export function NotificationsPage({
                         ? item.api_usage_level === "blocked"
                           ? "Limit reached"
                           : "Near limit"
-                      : item.actor_name}
+                        : item.type === "automation_approval"
+                          ? getAutomationName(item)
+                          : item.actor_name}
                   </p>
                 </div>
               </div>
