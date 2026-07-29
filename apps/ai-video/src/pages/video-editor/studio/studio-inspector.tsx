@@ -805,12 +805,22 @@ function Timing({ clip }: { clip: EditorClip }) {
   )
 }
 
-export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function Toggle({
+  on,
+  onToggle,
+  label,
+}: {
+  on: boolean
+  onToggle: () => void
+  // Names the switch for screen readers; the visible text sits in a sibling.
+  label?: string
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={label}
       onClick={onToggle}
       style={{
         width: 40,
