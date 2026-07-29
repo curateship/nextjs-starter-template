@@ -76,6 +76,11 @@ export type ProtectionSettings = {
  * configured percent stands, which is what makes an anchored stop safe: there
  * is always a stop, it is just wider or narrower than the level would have
  * been.
+ *
+ * `position` must carry the entry price the percent will be measured back
+ * FROM — the stop's anchor, which is the position's average only when no
+ * anchor is set. Hand it a different entry and the stop lands on neither the
+ * level nor the percent.
  */
 export function resolveProtection(
   settings: ProtectionSettings,

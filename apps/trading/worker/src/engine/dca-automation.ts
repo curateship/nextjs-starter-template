@@ -400,7 +400,10 @@ export function createDcaAutomationStrategy(
   // A stop set to the confirmed base sits at the level the base tracker is
   // carrying — the same dash the chart paints, from the same detection settings.
   // `resolveProtection` keeps the configured percent whenever the level is not
-  // below the entry (it isn't a stop above it).
+  // below the price the stop measures from (it isn't a stop above it). For a
+  // ladder that price is the FIRST buy, which already sits below the base it
+  // armed on — so the base stop stays dormant until a fresh, LOWER base
+  // confirms underneath the ladder, and then rests exactly on it.
   const baseLevelConfig =
     closeProtection.stopLossLevel?.kind === "confirmedBase"
       ? closeProtection.stopLossLevel
