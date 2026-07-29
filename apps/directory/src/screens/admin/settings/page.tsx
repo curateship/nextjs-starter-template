@@ -790,6 +790,7 @@ export default function SiteEditPage() {
               {activeTab === "general" && (
                 <form onSubmit={handleSubmit}>
                   <SiteDashboard
+                    siteId={siteId}
                     siteName={siteName}
                     subdomain={subdomain}
                     customDomain={customDomain}

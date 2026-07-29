@@ -11,6 +11,7 @@ import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Copy from "lucide-react/dist/esm/icons/copy.js"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
+import { SearchIndexSettingsCard } from "@/components/admin/layout/settings/SearchIndexSettingsCard"
 import { ListingWidgetsSettingsCard } from "@/components/admin/layout/settings/ListingWidgetsSettingsCard"
 import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
@@ -24,6 +25,8 @@ interface SiteDashboardProps {
   trackingScripts?: string
   customAnalyticsEnabled?: boolean
   listingWidgetsEnabled?: boolean
+  /** Only set in edit mode, where the maintenance cards need a site to act on. */
+  siteId?: string
   isEditMode?: boolean
   maintenanceEnabled?: boolean
   loading?: boolean
@@ -48,6 +51,7 @@ export function SiteDashboard({
   trackingScripts = "",
   customAnalyticsEnabled = false,
   listingWidgetsEnabled = true,
+  siteId = "",
   isEditMode = false,
   maintenanceEnabled = false,
   loading = false,
@@ -378,7 +382,8 @@ export function SiteDashboard({
         />
       )}
 
-      {/* Cache Settings Card - Only show in edit mode */}
+      {/* Maintenance cards - Only show in edit mode */}
+      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} />}
       {isEditMode && <CacheSettingsCard />}
     </CardGroup>
   )
