@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "@/lib/navigation-client"
+import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import Image from "@/components/app-image"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
@@ -15,7 +15,14 @@ import {
   DIRECTORY_MAP_LISTING_LIMIT,
   isDirectoryMapBlock
 } from "@/lib/actions/directories/directory-map-core"
+import {
+  formatDistanceKm,
+  formatNearParam,
+  normalizeRadiusKm,
+  parseNearParam
+} from "@/lib/actions/directories/directory-near-me-core"
 import { getDirectoryMapConfigAction } from "@/lib/actions/directories/directory-map-actions"
+import { NearMeControls, type NearMeSelection } from "./NearMeControls"
 import { ListingMapView, getMappableListings } from "./ListingMapView"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -25,6 +32,7 @@ import ArrowRight from "lucide-react/dist/esm/icons/arrow-right.js"
 import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
+import Navigation from "lucide-react/dist/esm/icons/navigation.js"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 import { Rating } from "@/components/shadcnblocks/rating"
 
@@ -57,6 +65,8 @@ interface ListingViewsBlockProps {
     imageHeight?: number
     saveIconOpacity?: number
     categoryChipParentIds?: string[]
+    enableNearMe?: boolean
+    nearMeRadiusKm?: number
     displayMode?: "grid" | "list" | "map"
     itemsToShow?: number
     mobileColumns?: number
@@ -96,6 +106,8 @@ export function ListingViewsBlock({
   customWidth
 }: ListingViewsBlockProps) {
   const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
 
   // Get current page from URL params
   const parsedPage = parseInt(searchParams.get("page") || "1", 10)
@@ -114,6 +126,8 @@ export function ListingViewsBlock({
     imageHeight,
     saveIconOpacity = 70,
     categoryChipParentIds: rawCategoryChipParentIds = [],
+    enableNearMe = false,
+    nearMeRadiusKm,
     displayMode = "grid",
     itemsToShow = 6,
     mobileColumns = 1,
@@ -128,9 +142,26 @@ export function ListingViewsBlock({
   } = content
   // Map mode plots the whole (capped) filtered result set; pagination is ignored.
   const isMapMode = isDirectoryMapBlock({ displayMode, contentType })
+  // "Near me" lives in the URL so a filtered view can be shared and survives paging.
+  const nearMeEnabled = contentType === "directory" && enableNearMe === true
+  const nearParam = nearMeEnabled ? searchParams.get("near") : null
+  const nearPoint = useMemo(() => parseNearParam(nearParam), [nearParam])
+  const nearRadiusKm = normalizeRadiusKm(searchParams.get("radius"), nearMeRadiusKm)
+  const nearPlaceLabel = (searchParams.get("place") || "").trim().slice(0, 120) || "your location"
+  const nearSelection: NearMeSelection | null = nearPoint ? { ...nearPoint, label: nearPlaceLabel } : null
+  // One stable value for the effect below: changing the radius before picking a
+  // location leaves this null, so it doesn't trigger a pointless refetch.
+  const nearFilter = useMemo(
+    () => (nearPoint ? { ...nearPoint, radiusKm: nearRadiusKm } : null),
+    [nearPoint, nearRadiusKm]
+  )
   const preloadedListingData = preloadedData as ListingViewsData | null | undefined
+  // The server preload never carries a visitor's distance filter, so an active
+  // one always goes back to the server.
   const preloadedMatchesPage = Boolean(
-    preloadedListingData && (isMapMode || !isPaginated || preloadedListingData.currentPage === currentPage)
+    preloadedListingData
+      && !nearPoint
+      && (isMapMode || !isPaginated || preloadedListingData.currentPage === currentPage)
   )
   const [data, setData] = useState<ListingViewsData | null>(() => preloadedMatchesPage ? preloadedListingData! : null)
   const [loading, setLoading] = useState(!preloadedMatchesPage)
@@ -201,12 +232,55 @@ export function ListingViewsBlock({
     if (!isMapMode) return []
     return getMappableListings(displayedData?.items || displayedData?.directories || [])
   }, [isMapMode, displayedData])
-  const emptyMessage =
-    contentType === "posts"
+  const emptyMessage = nearPoint
+    ? `No listings within ${nearRadiusKm} km of ${nearPlaceLabel}. Try a wider distance or a different location.`
+    : contentType === "posts"
       ? "No posts available at the moment."
       : contentType === "directory"
         ? "No directory listings available at the moment."
         : "No products available at the moment."
+
+  /** Rebuild the current URL, always dropping the page so a new filter starts at page 1. */
+  const replaceParams = (mutate: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams.toString())
+    mutate(params)
+    params.delete("page")
+    const queryString = params.toString()
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
+  const applyNearSelection = (selection: NearMeSelection) => {
+    replaceParams((params) => {
+      params.set("near", formatNearParam(selection))
+      params.set("place", selection.label)
+      params.set("radius", String(nearRadiusKm))
+    })
+  }
+
+  const changeNearRadius = (radiusKm: number) => {
+    replaceParams((params) => params.set("radius", String(normalizeRadiusKm(radiusKm, nearMeRadiusKm))))
+  }
+
+  const clearNearSelection = () => {
+    replaceParams((params) => {
+      params.delete("near")
+      params.delete("place")
+      params.delete("radius")
+    })
+  }
+
+  const nearMeControls = nearMeEnabled ? (
+    <div className="mb-6 md:mb-8">
+      <NearMeControls
+        siteId={siteId}
+        selection={nearSelection}
+        radiusKm={nearRadiusKm}
+        onApply={applyNearSelection}
+        onRadiusChange={changeNearRadius}
+        onClear={clearNearSelection}
+      />
+    </div>
+  ) : null
 
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.[contentType] || contentType
@@ -230,11 +304,14 @@ export function ListingViewsBlock({
         site_id: siteId,
         contentType,
         categoryIds: categoryIdsKey ? categoryIdsKey.split("|") : [],
-        sortBy,
+        // A chosen location means "show me the closest", so it overrides the
+        // block's configured sort for as long as the filter is on.
+        sortBy: nearFilter ? "distance" : sortBy,
         sortOrder,
         limit,
         offset,
-        includeCategories: contentType === "directory" && categoryChipParentIdsKey.length > 0
+        includeCategories: contentType === "directory" && categoryChipParentIdsKey.length > 0,
+        near: nearFilter ?? undefined
       })
 
       if (result.success && result.data) {
@@ -257,6 +334,7 @@ export function ListingViewsBlock({
     isPaginated,
     isMapMode,
     currentPage,
+    nearFilter,
     preloadedListingData,
     preloadedMatchesPage
   ])
@@ -332,6 +410,7 @@ export function ListingViewsBlock({
     // First image in grid is likely LCP element - prioritize it aggressively
     const isLCP = index === 0
     const href = `/${urlPrefix ? `${urlPrefix}/` : ""}${item.slug}`
+    const distanceLabel = nearPoint ? formatDistanceKm(item.distanceKm) : ""
     const itemLabel = item.title || (contentType === "posts" ? "post" : contentType === "directory" ? "directory listing" : "product")
     const imageAlt = item.title || `${contentType === "posts" ? "Post" : contentType === "directory" ? "Directory listing" : "Product"} image`
     const saveButton = showSaveButton ? (
@@ -411,6 +490,12 @@ export function ListingViewsBlock({
                 <div className={isCompactMobileCard ? "flex items-start gap-1 text-xs text-muted-foreground md:gap-1.5 md:text-sm" : "flex items-start gap-1.5 text-sm text-muted-foreground"}>
                   <MapPin className={isCompactMobileCard ? "mt-0.5 size-3.5 shrink-0 text-foreground md:size-4" : "mt-0.5 size-4 shrink-0 text-foreground"} />
                   <span className="min-w-0">{address}</span>
+                </div>
+              )}
+              {distanceLabel && (
+                <div className={isCompactMobileCard ? "flex items-start gap-1 text-xs text-muted-foreground md:gap-1.5 md:text-sm" : "flex items-start gap-1.5 text-sm text-muted-foreground"}>
+                  <Navigation className={isCompactMobileCard ? "mt-0.5 size-3.5 shrink-0 text-foreground md:size-4" : "mt-0.5 size-4 shrink-0 text-foreground"} />
+                  <span className="min-w-0">{distanceLabel}</span>
                 </div>
               )}
               {categoryChips.length > 0 && (
@@ -494,6 +579,12 @@ export function ListingViewsBlock({
         <Link href={href} className="flex flex-col gap-2 hover:opacity-75 transition-opacity">
           {contentType === "directory" && item.featured && <FeaturedBadge className="mt-3" />}
           {showTitleElement && <h3 className="pt-3 text-base tracking-tight md:text-xl">{item.title}</h3>}
+          {distanceLabel && (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Navigation className="size-4 shrink-0 text-foreground" />
+              {distanceLabel}
+            </span>
+          )}
           {showDescriptionElement && item.richText && (
             <p className="text-muted-foreground text-base py-2">{getItemSummary(item)}</p>
           )}
@@ -511,13 +602,23 @@ export function ListingViewsBlock({
     )
   }
 
+  // Page links carry the rest of the query string so an active distance filter
+  // (or anything else a page puts there) survives paging.
+  const getPageHref = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (page > 1) params.set("page", String(page))
+    else params.delete("page")
+    const queryString = params.toString()
+    return queryString ? `${pathname}?${queryString}` : pathname
+  }
+
   const renderPagination = () => {
     if (isMapMode || !isPaginated || !displayedData) return null
 
     return (
       <div className="flex items-center justify-center gap-2 mt-8">
         <Button variant="outline" size="sm" disabled={currentPage === 1} asChild>
-          <Link href={`?page=${currentPage - 1}`}>
+          <Link href={getPageHref(currentPage - 1)}>
             <ChevronLeft className="w-4 h-4 mr-1" />
             Previous
           </Link>
@@ -538,14 +639,14 @@ export function ListingViewsBlock({
 
             return (
               <Button key={pageNum} variant={pageNum === currentPage ? "default" : "outline"} size="sm" asChild>
-                <Link href={`?page=${pageNum}`}>{pageNum}</Link>
+                <Link href={getPageHref(pageNum)}>{pageNum}</Link>
               </Button>
             )
           })}
         </div>
 
         <Button variant="outline" size="sm" disabled={currentPage === displayedData.totalPages} asChild>
-          <Link href={`?page=${currentPage + 1}`}>
+          <Link href={getPageHref(currentPage + 1)}>
             Next
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
@@ -554,10 +655,13 @@ export function ListingViewsBlock({
     )
   }
 
+  // The controls stay on screen while results load and when the radius matches
+  // nothing — otherwise the visitor loses the very control that would widen it.
   if (loading || (isMapMode && mapConfig === null) || (!displayedData && data && !dataMatchesPage)) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-        {renderHeader("mb-6 md:mb-12")}
+        {renderHeader(nearMeControls ? "mb-6" : "mb-6 md:mb-12")}
+        {nearMeControls}
       </BlockContainer>
     )
   }
@@ -565,7 +669,8 @@ export function ListingViewsBlock({
   if (!displayedData || listingItems.length === 0) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-        {renderHeader("mb-6 md:mb-12")}
+        {renderHeader(nearMeControls ? "mb-6" : "mb-6 md:mb-12")}
+        {nearMeControls}
 
         <p className="text-muted-foreground text-center py-8">{emptyMessage}</p>
       </BlockContainer>
@@ -577,7 +682,8 @@ export function ListingViewsBlock({
 
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-      {renderHeader()}
+      {renderHeader(nearMeControls ? "mb-6" : undefined)}
+      {nearMeControls}
 
       {showMap ? (
         <div className="space-y-3">

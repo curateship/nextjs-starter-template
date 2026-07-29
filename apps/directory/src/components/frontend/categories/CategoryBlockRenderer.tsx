@@ -29,6 +29,7 @@ const TEMPLATE_PREVIEW_LISTING_ITEMS: ListingViewsItem[] = [1, 2, 3].map((index)
   address: "123 Main Street",
   latitude: null,
   longitude: null,
+  distanceKm: null,
   categories: [
     { id: "preview-category", title: "Sample Category", slug: "sample-category", parent_id: null },
   ],

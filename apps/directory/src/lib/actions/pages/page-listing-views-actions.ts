@@ -4,9 +4,22 @@ import { sql } from 'drizzle-orm'
 import { unstable_cache } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { getDirectoryFeaturedJoin } from '@/lib/actions/directories/directory-featured-activation'
+import {
+  EARTH_RADIUS_KM,
+  getBoundingBox,
+  isValidCoordinate,
+  normalizeRadiusKm,
+  snapPoint,
+  type NearMePoint,
+} from '@/lib/actions/directories/directory-near-me-core'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
 export type ListingViewsContentType = 'products' | 'posts' | 'directory'
+
+/** A visitor's "near me" filter: everything within `radiusKm` of a point. */
+export interface ListingViewsNearFilter extends NearMePoint {
+  radiusKm: number
+}
 
 interface ListingViewsCategory {
   id: string
@@ -31,6 +44,8 @@ export interface ListingViewsItem {
   address: string | null
   latitude: number | null
   longitude: number | null
+  /** Kilometres from the visitor's point; only set when a near filter is applied. */
+  distanceKm: number | null
   categories: ListingViewsCategory[]
   featured: boolean
 }
@@ -62,6 +77,7 @@ interface ListingViewsRow extends Record<string, unknown> {
   country?: string | null
   latitude?: number | string | null
   longitude?: number | string | null
+  distance_km?: number | string | null
   categories?: unknown
   featured_priority?: number | null
 }
@@ -85,6 +101,47 @@ function getOrderByClause(sortBy: string, sortOrder: string) {
   if (sortBy === 'title') return sql`title ${direction}`
   if (sortBy === 'display_order') return sql`display_order ${direction}`
   return sql`created_at ${direction}`
+}
+
+/**
+ * Haversine distance in kilometres from the visitor's point, or null with no
+ * filter. Same formula as `haversineKm`, sharing its Earth radius so the
+ * bounding box below always contains everything this expression measures.
+ */
+function getDistanceSelect(near: ListingViewsNearFilter | null) {
+  if (!near) return sql`null::double precision`
+
+  return sql`(${EARTH_RADIUS_KM} * 2 * asin(least(1, sqrt(
+    power(sin(radians(d.latitude - ${near.latitude}) / 2), 2)
+    + cos(radians(${near.latitude})) * cos(radians(d.latitude))
+    * power(sin(radians(d.longitude - ${near.longitude}) / 2), 2)
+  ))))`
+}
+
+/**
+ * Bounding-box prefilter. Cheap, index-friendly and a superset of the circle;
+ * the exact radius test happens on the computed distance afterwards. Listings
+ * without coordinates drop out here — and only here, so an unfiltered view
+ * still shows them.
+ */
+function getNearBoundsClause(near: ListingViewsNearFilter | null) {
+  if (!near) return sql``
+
+  const box = getBoundingBox(near, near.radiusKm)
+  const longitudeClause = box.wrapsAntimeridian
+    ? sql`(d.longitude >= ${box.minLongitude} or d.longitude <= ${box.maxLongitude})`
+    : sql`d.longitude between ${box.minLongitude} and ${box.maxLongitude}`
+
+  return sql`
+    and d.latitude is not null
+    and d.longitude is not null
+    and d.latitude between ${box.minLatitude} and ${box.maxLatitude}
+    and ${longitudeClause}
+  `
+}
+
+function getNearRadiusClause(near: ListingViewsNearFilter | null) {
+  return near ? sql`where distance_km <= ${near.radiusKm}` : sql``
 }
 
 function getCategoryJoin(categoryIds: string[], contentType: 'product' | 'post' | 'directory', contentId: ReturnType<typeof sql>) {
@@ -164,6 +221,7 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       address: formatDirectoryAddress(row.address, row.country) || null,
       latitude: toFiniteNumber(row.latitude),
       longitude: toFiniteNumber(row.longitude),
+      distanceKm: toFiniteNumber(row.distance_km),
       categories: mapListingCategories(row.categories),
       featured: row.featured_priority != null,
     }))
@@ -273,7 +331,13 @@ function getDirectoryCategoriesSelect(includeCategories: boolean) {
   ), '[]'::jsonb)`
 }
 
-async function getDirectoryListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[], includeCategories: boolean) {
+async function getDirectoryListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[], includeCategories: boolean, near: ListingViewsNearFilter | null) {
+  // Nearest-first is what the visitor asked for, so it wins outright; featured
+  // listings keep their usual lift under every other sort.
+  const orderBy = near && sortBy === 'distance'
+    ? sql`distance_km asc`
+    : sql`(featured_priority is not null) desc, featured_priority desc nulls last, ${getOrderByClause(sortBy, sortOrder)}`
+
   const rows = await db.execute<ListingViewsRow>(sql`
     with filtered as (
       select
@@ -295,6 +359,7 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         null as country,
         d.latitude,
         d.longitude,
+        ${getDistanceSelect(near)} as distance_km,
         ${getDirectoryCategoriesSelect(includeCategories)} as categories,
         featured.priority as featured_priority
       from directory d
@@ -310,13 +375,17 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
       ${getCategoryJoin(categoryIds, 'directory', sql`d.id`)}
       where d.site_id = ${site_id}
         and d.status = 'published'
+        ${getNearBoundsClause(near)}
+    ),
+    matched as (
+      select * from filtered ${getNearRadiusClause(near)}
     ),
     total as (
-      select count(*)::int as total_count from filtered
+      select count(*)::int as total_count from matched
     ),
     paged as (
-      select * from filtered
-      order by (featured_priority is not null) desc, featured_priority desc nulls last, ${getOrderByClause(sortBy, sortOrder)}
+      select * from matched
+      order by ${orderBy}
       limit ${limit}
       offset ${offset}
     )
@@ -337,17 +406,30 @@ const getCachedListingData = unstable_cache(
     }
 
     if (contentType === 'directory') {
-      return getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds, includeCategories)
+      return getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds, includeCategories, null)
     }
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v14'],
+  ['listing-data-v15'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']
   }
 )
+
+/**
+ * Validate a visitor-supplied near filter. Returns null for anything that is
+ * not a usable point, which simply means "no distance filter".
+ */
+function normalizeNearFilter(near: unknown): ListingViewsNearFilter | null {
+  if (!near || typeof near !== 'object') return null
+  const { latitude, longitude, radiusKm } = near as Record<string, unknown>
+  if (!isValidCoordinate(latitude, longitude)) return null
+
+  const point = snapPoint({ latitude: Number(latitude), longitude: Number(longitude) })
+  return { ...point, radiusKm: normalizeRadiusKm(radiusKm) }
+}
 
 /**
  * Get data for listing views block
@@ -356,11 +438,13 @@ export async function getListingViewsData(params: {
   site_id: string
   contentType: ListingViewsContentType
   categoryIds?: string[]
-  sortBy: 'date' | 'title' | 'display_order'
+  sortBy: 'date' | 'title' | 'display_order' | 'distance'
   sortOrder: 'asc' | 'desc'
   limit?: number
   offset?: number
   includeCategories?: boolean
+  /** Directory only: keep listings within `radiusKm` of this point. */
+  near?: { latitude: number; longitude: number; radiusKm: number }
 }): Promise<{
   success: boolean
   data?: ListingViewsData
@@ -370,10 +454,16 @@ export async function getListingViewsData(params: {
     const { site_id, contentType } = params
     const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 6
     const offset = Number.isFinite(params.offset) ? Math.min(100_000, Math.max(0, Math.floor(params.offset!))) : 0
-    const sortBy = params.sortBy === 'title' || params.sortBy === 'display_order' ? params.sortBy : 'date'
     const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc'
     const categoryIds = normalizeCategoryIds(params.categoryIds)
     const includeCategories = contentType === 'directory' && params.includeCategories === true
+    // Distance is a directory-only concept and meaningless without a point.
+    const near = contentType === 'directory' ? normalizeNearFilter(params.near) : null
+    const sortBy = params.sortBy === 'title' || params.sortBy === 'display_order'
+      ? params.sortBy
+      : params.sortBy === 'distance' && near
+        ? 'distance'
+        : 'date'
 
     if (!UUID_REGEX.test(site_id)) {
       return { success: false, error: 'Valid site ID is required' }
@@ -383,8 +473,12 @@ export async function getListingViewsData(params: {
       return { success: false, error: 'Unsupported content type' }
     }
 
-    // Get cached listing data
-    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset, categoryIds, includeCategories)
+    // Near-me results deliberately skip the cache: every visitor point is a
+    // different key, so caching them would evict the shared page payloads the
+    // 500-entry store exists for, and buy nothing (each key is used once).
+    const data = near
+      ? await getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds, includeCategories, near)
+      : await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset, categoryIds, includeCategories)
 
     return {
       success: true,

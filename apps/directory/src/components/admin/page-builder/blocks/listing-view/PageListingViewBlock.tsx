@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { FieldLabel } from "@/components/ui/field-label"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
@@ -13,6 +14,7 @@ import {
   getDirectoryCoordinateStatsAction,
   type DirectoryCoordinateStats,
 } from "@/lib/actions/directories/directory-map-actions"
+import { NEAR_ME_RADII_KM, normalizeRadiusKm } from "@/lib/actions/directories/directory-near-me-core"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
@@ -201,6 +203,8 @@ interface SharedListingViewsBlockProps {
   contentType?: ListingContentType
   categoryIds?: string[]
   categoryChipParentIds?: string[]
+  enableNearMe?: boolean
+  nearMeRadiusKm?: number
   listingStyle?: ListingStyle
   imageFit?: ImageFit
   imageHeight?: number
@@ -224,6 +228,8 @@ interface SharedListingViewsBlockProps {
   onContentTypeChange: (value: ListingContentType) => void
   onCategoryIdsChange: (value: string[]) => void
   onCategoryChipParentIdsChange: (value: string[]) => void
+  onEnableNearMeChange: (value: boolean) => void
+  onNearMeRadiusKmChange: (value: number) => void
   onListingStyleChange: (value: ListingStyle) => void
   onImageFitChange: (value: ImageFit) => void
   onImageHeightChange: (value: number | undefined) => void
@@ -250,6 +256,8 @@ export function PageListingViewBlock({
   contentType = 'products',
   categoryIds = [],
   categoryChipParentIds = [],
+  enableNearMe = false,
+  nearMeRadiusKm,
   listingStyle = 'default',
   imageFit = 'crop',
   imageHeight,
@@ -273,6 +281,8 @@ export function PageListingViewBlock({
   onContentTypeChange,
   onCategoryIdsChange,
   onCategoryChipParentIdsChange,
+  onEnableNearMeChange,
+  onNearMeRadiusKmChange,
   onListingStyleChange,
   onImageFitChange,
   onImageHeightChange,
@@ -441,6 +451,46 @@ export function PageListingViewBlock({
                   selectedIds={selectedCategoryChipParentIds}
                   onChange={onCategoryChipParentIdsChange}
                 />
+              </div>
+            )}
+
+            {contentType === 'directory' && (
+              <div className="flex flex-wrap items-start gap-6">
+                <div className="grid gap-2">
+                  <FieldLabel hint="Adds a location box and a distance dropdown above the listings. Visitors can share their location or type a town, city or postcode, and results are filtered to that distance and ordered nearest first. Listings without a map location are left out while the filter is on.">
+                    Near Me Search
+                  </FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="enableNearMe"
+                      checked={enableNearMe}
+                      onCheckedChange={(checked) => onEnableNearMeChange(!!checked)}
+                    />
+                    <Label htmlFor="enableNearMe" className="cursor-pointer text-sm">
+                      Let visitors search by distance
+                    </Label>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="nearMeRadiusKm" hint="The distance the dropdown starts on. Visitors can change it themselves.">
+                    Default Distance
+                  </FieldLabel>
+                  <Select
+                    value={String(normalizeRadiusKm(nearMeRadiusKm))}
+                    onValueChange={(value) => onNearMeRadiusKmChange(Number(value))}
+                    disabled={!enableNearMe}
+                  >
+                    <SelectTrigger id="nearMeRadiusKm" size="button">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NEAR_ME_RADII_KM.map((option) => (
+                        <SelectItem key={option} value={String(option)}>{option} km</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 

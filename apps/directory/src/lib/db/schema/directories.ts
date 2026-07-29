@@ -36,6 +36,11 @@ export const directories = pgTable('directory', {
   index('idx_directories_template').on(table.templateId),
   index('idx_directories_site_updated').on(table.siteId, table.updatedAt.desc(), table.id),
   index('idx_directories_site_title_lower').on(table.siteId, sql`lower(${table.title})`, table.id),
+  // Bounding-box prefilter for "near me" distance search. Partial so it only
+  // carries the geocoded listings a radius query can ever match.
+  index('idx_directories_site_coordinates')
+    .on(table.siteId, table.latitude, table.longitude)
+    .where(sql`${table.latitude} is not null and ${table.longitude} is not null`),
 ])
 
 export const directoriesRelations = relations(directories, ({ one }) => ({
