@@ -5,9 +5,9 @@ import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import { getAuthErrorMessage, resetPassword } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/reset-password")({
@@ -87,9 +87,8 @@ function ResetPasswordRoute() {
         <FieldLabel htmlFor="password" hint="At least 8 characters.">
           New password
         </FieldLabel>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           value={password}
@@ -99,9 +98,8 @@ function ResetPasswordRoute() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirm-password">Confirm new password</Label>
-        <Input
+        <PasswordInput
           id="confirm-password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           value={confirmPassword}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/register")({
@@ -106,9 +107,8 @@ function RegisterRoute() {
         <FieldLabel htmlFor="password" hint="At least 8 characters.">
           Password
         </FieldLabel>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           value={password}
