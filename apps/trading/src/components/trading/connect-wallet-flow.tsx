@@ -3,6 +3,7 @@ import { CheckCircle2Icon, Loader2Icon } from "lucide-react"
 
 import { shortAddress } from "@/components/scanner/format"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DialogBody, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -246,7 +247,7 @@ export function ConnectWalletFlow({
 
   return (
     <>
-      <DialogBody className="grid gap-4">
+      <DialogBody>
         {!walletAvailable ? (
           <Message>
             No browser wallet found. Install MetaMask (or another wallet
@@ -254,67 +255,77 @@ export function ConnectWalletFlow({
             key instead.
           </Message>
         ) : null}
-        {existing ? (
-          <p className="text-sm text-muted-foreground">
-            Re-approve <span className="font-medium text-foreground">{existing.label}</span>{" "}
-            with the account {shortAddress(existing.account_address)}. The
-            existing trading key is kept, so bots using this wallet keep
-            running.
-          </p>
-        ) : (
-          <>
-            <div className="grid gap-2">
-              <Label htmlFor="connect-label">Label</Label>
-              <Input
-                id="connect-label"
-                value={label}
-                placeholder="Main account"
-                disabled={busy}
-                onChange={(event) => setLabel(event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="connect-network">Network</Label>
-              <Select
-                value={network}
-                disabled={busy}
-                onValueChange={(value) =>
-                  setNetwork(value as "testnet" | "mainnet")
-                }
-              >
-                <SelectTrigger id="connect-network" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="testnet">Testnet</SelectItem>
-                  <SelectItem value="mainnet" disabled={!mainnetEnabled}>
-                    Mainnet{mainnetEnabled ? "" : " (disabled)"}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {!mainnetEnabled ? (
-                <p className="text-xs text-muted-foreground">
-                  Mainnet is switched off until TRADING_ENABLE_MAINNET is set —
-                  run the testnet checklist first.
-                </p>
-              ) : null}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="connect-vault">
-                Vault / subaccount address (optional)
-              </Label>
-              <Input
-                id="connect-vault"
-                value={vaultAddress}
-                placeholder="0x…"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={busy}
-                onChange={(event) => setVaultAddress(event.target.value)}
-              />
-            </div>
-          </>
-        )}
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Wallet details</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {existing ? (
+              <p className="text-sm text-muted-foreground">
+                Re-approve{" "}
+                <span className="font-medium text-foreground">
+                  {existing.label}
+                </span>{" "}
+                with the account {shortAddress(existing.account_address)}. The
+                existing trading key is kept, so bots using this wallet keep
+                running.
+              </p>
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="connect-label">Label</Label>
+                  <Input
+                    id="connect-label"
+                    value={label}
+                    placeholder="Main account"
+                    disabled={busy}
+                    onChange={(event) => setLabel(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="connect-network">Network</Label>
+                  <Select
+                    value={network}
+                    disabled={busy}
+                    onValueChange={(value) =>
+                      setNetwork(value as "testnet" | "mainnet")
+                    }
+                  >
+                    <SelectTrigger id="connect-network" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="testnet">Testnet</SelectItem>
+                      <SelectItem value="mainnet" disabled={!mainnetEnabled}>
+                        Mainnet{mainnetEnabled ? "" : " (disabled)"}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!mainnetEnabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Mainnet is switched off until TRADING_ENABLE_MAINNET is
+                      set — run the testnet checklist first.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="connect-vault">
+                    Vault / subaccount address (optional)
+                  </Label>
+                  <Input
+                    id="connect-vault"
+                    value={vaultAddress}
+                    placeholder="0x…"
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={busy}
+                    onChange={(event) => setVaultAddress(event.target.value)}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
         {error ? <Message>{error}</Message> : null}
       </DialogBody>
       <DialogFooter variant="plain">

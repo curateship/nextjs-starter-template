@@ -1,12 +1,8 @@
 import * as React from "react"
-import {
-  CheckIcon,
-  ImageIcon,
-  PlusIcon,
-  SearchIcon,
-} from "lucide-react"
+import { CheckIcon, ImageIcon, PlusIcon, SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -109,7 +105,11 @@ export function ShellIconPicker({
         aria-label={`Choose icon, current icon ${currentLabel}`}
         title={currentLabel}
       >
-        {value ? renderShellIcon(value, "h-4 w-4") : <ImageIcon className="h-4 w-4" />}
+        {value ? (
+          renderShellIcon(value, "h-4 w-4")
+        ) : (
+          <ImageIcon className="h-4 w-4" />
+        )}
         {!compact ? <span className="truncate">{currentLabel}</span> : null}
       </Button>
 
@@ -121,74 +121,91 @@ export function ShellIconPicker({
             </div>
           </DialogHeader>
 
-          <DialogBody className="gap-4 pt-7">
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="pl-9"
-                  placeholder="Search icons"
-                />
-              </div>
-              <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Add Lucide icon"
-                    title="Add Lucide icon"
-                  >
-                    <PlusIcon className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80">
-                  <PopoverHeader>
-                    <PopoverTitle>Add Lucide Icon</PopoverTitle>
-                  </PopoverHeader>
-                  <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>All icons</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      autoFocus
-                      value={customIconName}
-                      onChange={(event) => setCustomIconName(event.target.value)}
-                      placeholder="octagon-x"
+                      type="search"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      className="pl-9"
+                      placeholder="Search icons"
                     />
-                    {customIconError ? (
-                      <p className="text-xs text-destructive">{customIconError}</p>
-                    ) : customLucideIcon ? (
-                      <p className="text-xs text-muted-foreground">
-                        Found {getShellIconLabel(customLucideIcon)}.
-                      </p>
-                    ) : null}
-                    <div className="flex justify-end gap-2">
+                  </div>
+                  <Popover
+                    open={customIconOpen}
+                    onOpenChange={setCustomIconOpen}
+                  >
+                    <PopoverTrigger asChild>
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setCustomIconOpen(false)}
+                        size="icon"
+                        aria-label="Add Lucide icon"
+                        title="Add Lucide icon"
                       >
-                        Cancel
+                        <PlusIcon className="size-4" />
                       </Button>
-                      <Button type="submit" disabled={!customLucideIcon}>
-                        Use Icon
-                      </Button>
-                    </div>
-                  </form>
-                </PopoverContent>
-              </Popover>
-            </div>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-80">
+                      <PopoverHeader>
+                        <PopoverTitle>Add Lucide Icon</PopoverTitle>
+                      </PopoverHeader>
+                      <form
+                        className="space-y-3"
+                        onSubmit={handleCustomIconSubmit}
+                      >
+                        <Input
+                          autoFocus
+                          value={customIconName}
+                          onChange={(event) =>
+                            setCustomIconName(event.target.value)
+                          }
+                          placeholder="octagon-x"
+                        />
+                        {customIconError ? (
+                          <p className="text-xs text-destructive">
+                            {customIconError}
+                          </p>
+                        ) : customLucideIcon ? (
+                          <p className="text-xs text-muted-foreground">
+                            Found {getShellIconLabel(customLucideIcon)}.
+                          </p>
+                        ) : null}
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setCustomIconOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={!customLucideIcon}>
+                            Use Icon
+                          </Button>
+                        </div>
+                      </form>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-            <LucideIconGrid
-              value={value}
-              icons={filteredIcons}
-              allowEmpty={allowEmpty}
-              onSelect={(icon) => {
-                onValueChange(icon)
-                closePicker()
-              }}
-            />
+                <LucideIconGrid
+                  value={value}
+                  icons={filteredIcons}
+                  allowEmpty={allowEmpty}
+                  onSelect={(icon) => {
+                    onValueChange(icon)
+                    closePicker()
+                  }}
+                />
+              </CardContent>
+            </Card>
           </DialogBody>
 
           <DialogFooter variant="plain">
@@ -226,7 +243,11 @@ function LucideIconGrid({
   onSelect: (icon: ShellIcon | undefined) => void
 }) {
   if (!icons.length && !allowEmpty) {
-    return <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
+    return (
+      <div className="py-10 text-center text-sm text-muted-foreground">
+        No icons match that search.
+      </div>
+    )
   }
 
   return (
@@ -262,7 +283,9 @@ function LucideIconGrid({
             >
               {isSelected ? <SelectedMark /> : null}
               {renderShellIcon(option.value, "h-5 w-5")}
-              <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
+              <span className="line-clamp-2 text-[11px] leading-tight">
+                {option.label}
+              </span>
             </button>
           )
         })}

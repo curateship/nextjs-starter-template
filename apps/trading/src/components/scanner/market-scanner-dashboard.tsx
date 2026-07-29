@@ -13,6 +13,12 @@ import { ConfirmDeleteDialog } from "@/components/feedback-shared"
 import { SortHeaderRow, type SortDir } from "@/components/scanner/sort-head"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -445,49 +451,71 @@ function RuleDialog({ open, rule, markets, onOpenChange, onSaved, onError }: {
           <DialogDescription>Watch Hyperliquid mainnet and alert when this condition crosses its threshold.</DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="grid gap-2">
-            <Label htmlFor="scanner-rule-name">Name</Label>
-            <Input id="scanner-rule-name" autoFocus maxLength={100} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Identity</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              <Label htmlFor="scanner-rule-name">Name</Label>
+              <Input id="scanner-rule-name" autoFocus maxLength={100} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+            </CardContent>
+          </Card>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SelectField label="Condition" value={draft.kind} onValueChange={(kind) => setDraft({ ...draft, kind: kind as RuleDraft["kind"] })} options={[{ value: "price_move", label: "Price move" }, { value: "volume_spike", label: "Volume spike" }]} />
-            {draft.kind === "price_move" ? (
-              <SelectField label="Direction" value={draft.direction} onValueChange={(direction) => setDraft({ ...draft, direction: direction as RuleDraft["direction"] })} options={[{ value: "up", label: "Up" }, { value: "down", label: "Down" }]} />
-            ) : <div />}
-            <div className="grid gap-2">
-              <Label htmlFor="scanner-rule-threshold">{draft.kind === "volume_spike" ? "Times normal volume" : "Move percent"}</Label>
-              <Input id="scanner-rule-threshold" type="number" min={draft.kind === "volume_spike" ? 1.1 : 0.1} max={100} step={0.1} value={draft.threshold} onChange={(event) => setDraft({ ...draft, threshold: event.target.value })} />
-            </div>
-            <SelectField label="Time window" value={draft.window} onValueChange={(window) => setDraft({ ...draft, window: window as MarketScannerWindow })} options={MARKET_SCANNER_WINDOWS.map((value) => ({ value, label: value }))} />
-            <SelectField label="Cooldown" value={draft.cooldown} onValueChange={(cooldown) => setDraft({ ...draft, cooldown: cooldown as MarketScannerCooldown })} options={MARKET_SCANNER_COOLDOWNS.map((value) => ({ value, label: value }))} />
-            <SelectField label="Markets" value={draft.marketScope} onValueChange={(marketScope) => setDraft({ ...draft, marketScope: marketScope as RuleDraft["marketScope"] })} options={[{ value: "all", label: "All markets" }, { value: "selected", label: "Selected markets" }]} />
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Condition</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <SelectField label="Condition" value={draft.kind} onValueChange={(kind) => setDraft({ ...draft, kind: kind as RuleDraft["kind"] })} options={[{ value: "price_move", label: "Price move" }, { value: "volume_spike", label: "Volume spike" }]} />
+              {draft.kind === "price_move" ? (
+                <SelectField label="Direction" value={draft.direction} onValueChange={(direction) => setDraft({ ...draft, direction: direction as RuleDraft["direction"] })} options={[{ value: "up", label: "Up" }, { value: "down", label: "Down" }]} />
+              ) : <div />}
+              <div className="grid gap-2">
+                <Label htmlFor="scanner-rule-threshold">{draft.kind === "volume_spike" ? "Times normal volume" : "Move percent"}</Label>
+                <Input id="scanner-rule-threshold" type="number" min={draft.kind === "volume_spike" ? 1.1 : 0.1} max={100} step={0.1} value={draft.threshold} onChange={(event) => setDraft({ ...draft, threshold: event.target.value })} />
+              </div>
+              <SelectField label="Time window" value={draft.window} onValueChange={(window) => setDraft({ ...draft, window: window as MarketScannerWindow })} options={MARKET_SCANNER_WINDOWS.map((value) => ({ value, label: value }))} />
+              <SelectField label="Cooldown" value={draft.cooldown} onValueChange={(cooldown) => setDraft({ ...draft, cooldown: cooldown as MarketScannerCooldown })} options={MARKET_SCANNER_COOLDOWNS.map((value) => ({ value, label: value }))} />
+              <SelectField label="Markets" value={draft.marketScope} onValueChange={(marketScope) => setDraft({ ...draft, marketScope: marketScope as RuleDraft["marketScope"] })} options={[{ value: "all", label: "All markets" }, { value: "selected", label: "Selected markets" }]} />
+            </CardContent>
+          </Card>
 
           {draft.marketScope === "selected" ? (
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="scanner-market-search">Choose markets</Label>
-                <span className="text-xs text-muted-foreground">{draft.markets.length} selected</span>
-              </div>
-              <Input id="scanner-market-search" placeholder="Search markets" value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} />
-              <ScrollArea className="h-48 rounded-lg border bg-card">
-                <div className="grid grid-cols-2 gap-1 p-3 sm:grid-cols-4">
-                  {visibleMarkets.map((market) => (
-                    <label key={market} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                      <Checkbox checked={draft.markets.includes(market)} onCheckedChange={(checked) => setDraft({ ...draft, markets: checked ? [...draft.markets, market] : draft.markets.filter((item) => item !== market) })} />
-                      {market}
-                    </label>
-                  ))}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Choose markets</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="scanner-market-search">Search</Label>
+                  <span className="text-xs text-muted-foreground">{draft.markets.length} selected</span>
                 </div>
-              </ScrollArea>
-            </div>
+                <Input id="scanner-market-search" placeholder="Search markets" value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} />
+                <ScrollArea className="h-48 rounded-lg border bg-card">
+                  <div className="grid grid-cols-2 gap-1 p-3 sm:grid-cols-4">
+                    {visibleMarkets.map((market) => (
+                      <label key={market} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                        <Checkbox checked={draft.markets.includes(market)} onCheckedChange={(checked) => setDraft({ ...draft, markets: checked ? [...draft.markets, market] : draft.markets.filter((item) => item !== market) })} />
+                        {market}
+                      </label>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           ) : null}
 
-          <label className="flex cursor-pointer items-center gap-2">
-            <Checkbox checked={draft.enabled} onCheckedChange={(enabled) => setDraft({ ...draft, enabled: enabled === true })} />
-            <span className="text-sm font-medium">Rule enabled</span>
-          </label>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <label className="flex cursor-pointer items-center gap-2">
+                <Checkbox checked={draft.enabled} onCheckedChange={(enabled) => setDraft({ ...draft, enabled: enabled === true })} />
+                <span className="text-sm font-medium">Rule enabled</span>
+              </label>
+            </CardContent>
+          </Card>
         </DialogBody>
         <DialogFooter className="justify-between">
           <div>{rule ? <Button type="button" variant="destructive" disabled={saving} onClick={() => void remove()}>Delete</Button> : null}</div>
