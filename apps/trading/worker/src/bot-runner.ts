@@ -23,7 +23,11 @@ import { now, uuid } from "@/server/util"
 
 import { LiveBroker } from "./brokers/live"
 import { PaperBroker } from "./brokers/paper"
-import type { BotBroker, BrokerOrderUpdate } from "./brokers/types"
+import {
+  livePositionSnapshot,
+  type BotBroker,
+  type BrokerOrderUpdate,
+} from "./brokers/types"
 import { marketHub, type MarketHub } from "./market-hub"
 import { diffOrders, type ExistingOrder } from "./order-differ"
 import { resolveStrategy } from "./strategies/registry"
@@ -782,11 +786,16 @@ export class BotRunner {
     this.lastPersistAt = nowMs
 
     const snapshot = this.broker?.snapshot?.()
+    // Live brokers have no snapshot(); persist their exchange-refreshed
+    // position so the fleet pages can show what the bot holds.
+    const position = snapshot
+      ? (snapshot.position ?? null)
+      : livePositionSnapshot(this.broker?.positionState() ?? null)
     await db
       .update(tradingBotState)
       .set({
         strategyState: this.strategyState as Record<string, unknown>,
-        paperPosition: snapshot?.position ?? null,
+        paperPosition: position,
         paperCash: snapshot ? String(snapshot.cash) : null,
         dailyRealizedPnl: String(this.runtime.dailyRealizedPnl),
         dailyPnlDate: this.runtime.dailyPnlDate,

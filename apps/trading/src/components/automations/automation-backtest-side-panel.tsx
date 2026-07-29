@@ -65,7 +65,6 @@ export function AutomationBacktestSidePanel({
 }) {
   const markets = useBinanceMarketRows()
   const { favorites, toggleFavorite } = useMarketFavorites()
-  const [keepName, setKeepName] = React.useState("")
   const {
     phase,
     selectedMarkets,
@@ -239,34 +238,95 @@ export function AutomationBacktestSidePanel({
     void backtest.start(windowDays)
   }
 
-  const runButton = (label: string) => (
-    <DisabledReasonTooltip reason={runnable ? undefined : disabledReason}>
-      <Button
-        type="button"
-        size="sm"
-        className="h-8 w-full"
-        disabled={!runnable || starting}
-        onClick={submit}
-      >
-        {starting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-        {label}
-      </Button>
-    </DisabledReasonTooltip>
-  )
-
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-b px-4 py-2.5">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2.5">
         <h2 className="text-xs font-semibold tracking-wide uppercase">
           Backtest
         </h2>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[10px] whitespace-nowrap text-muted-foreground">
           {phase === "setup"
             ? `${interval} candles`
             : phase === "running"
               ? "Running"
               : "Results"}
         </span>
+        {/* Run actions live in the title row — the bot panel's pattern. */}
+        {phase === "setup" ? (
+          <div className="ml-auto flex items-center gap-1.5">
+            <DisabledReasonTooltip
+              reason={runnable ? undefined : disabledReason}
+            >
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                disabled={!runnable || starting}
+                onClick={submit}
+              >
+                {starting ? (
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                ) : null}
+                Backtest
+              </Button>
+            </DisabledReasonTooltip>
+            {groupId ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={backtest.backToResults}
+              >
+                Back to results
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {phase === "results" ? (
+          <div className="ml-auto flex items-center gap-1.5">
+            {canSaveAndRerun && onSaveAndRerun ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                disabled={starting}
+                onClick={onSaveAndRerun}
+              >
+                {starting ? (
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                ) : null}
+                Save &amp; re-run
+              </Button>
+            ) : (
+              <DisabledReasonTooltip
+                reason={runnable ? undefined : disabledReason}
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={!runnable || starting}
+                  onClick={submit}
+                >
+                  {starting ? (
+                    <Loader2Icon className="size-3.5 animate-spin" />
+                  ) : null}
+                  Re-run
+                </Button>
+              </DisabledReasonTooltip>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={backtest.newRun}
+            >
+              New run
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
@@ -280,60 +340,57 @@ export function AutomationBacktestSidePanel({
           {phase === "setup" ? (
             <>
               <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  {/* Chosen / allowed. Kept to two numbers because this row
-                      also carries two buttons in a narrow panel; the line under
-                      the form spells out what the limit depends on. */}
-                  <Label className="whitespace-nowrap">
-                    Markets{" "}
-                    <span className="font-normal text-muted-foreground">
-                      {selectedMarkets.length}/{marketCap}
-                    </span>
-                  </Label>
-                  <div className="flex flex-wrap items-center justify-end gap-1">
+                <Label className="whitespace-nowrap">
+                  Markets{" "}
+                  <span className="font-normal text-muted-foreground">
+                    {selectedMarkets.length}/{marketCap}
+                  </span>
+                </Label>
+                {/* Quick picks on their own row so they never crowd the
+                    label in this narrow panel. */}
+                <div className="flex flex-wrap items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    disabled={markets.length === 0}
+                    onClick={randomizeMarkets}
+                  >
+                    <ShuffleIcon className="size-3.5" />
+                    Randomize
+                  </Button>
+                  {bands.map((band) => (
+                    <Button
+                      key={band.key}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      disabled={band.coins.length === 0}
+                      title={`Coins trading ${money(band.low)}${
+                        Number.isFinite(band.high)
+                          ? `-${money(band.high)}`
+                          : "+"
+                      } a day — ${band.coins.length} right now, capped at the ${marketCap} this run fits.`}
+                      onClick={() =>
+                        changeMarkets(band.coins.slice(0, marketCap))
+                      }
+                    >
+                      {band.label}
+                    </Button>
+                  ))}
+                  {selectedMarkets.length > 0 ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      disabled={markets.length === 0}
-                      onClick={randomizeMarkets}
+                      onClick={() => changeMarkets([])}
                     >
-                      <ShuffleIcon className="size-3.5" />
-                      Randomize
+                      Clear all
                     </Button>
-                    {bands.map((band) => (
-                      <Button
-                        key={band.key}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground"
-                        disabled={band.coins.length === 0}
-                        title={`Coins trading ${money(band.low)}${
-                          Number.isFinite(band.high)
-                            ? `-${money(band.high)}`
-                            : "+"
-                        } a day — ${band.coins.length} right now, capped at the ${marketCap} this run fits.`}
-                        onClick={() =>
-                          changeMarkets(band.coins.slice(0, marketCap))
-                        }
-                      >
-                        {band.label}
-                      </Button>
-                    ))}
-                    {selectedMarkets.length > 0 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground"
-                        onClick={() => changeMarkets([])}
-                      >
-                        Clear all
-                      </Button>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedMarkets.map((coin) => (
@@ -423,21 +480,6 @@ export function AutomationBacktestSidePanel({
                 </div>
               ) : null}
 
-              <div className="grid gap-2">
-                {runButton("Backtest")}
-                {groupId ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-full"
-                    onClick={backtest.backToResults}
-                  >
-                    Back to results
-                  </Button>
-                ) : null}
-              </div>
-
               <p className="text-[11px] text-muted-foreground">
                 {isDca ? "One shared DCA wallet" : "One run per market"} · max{" "}
                 {marketCap} markets for a {windowDaysForCap}-day window at{" "}
@@ -513,7 +555,7 @@ export function AutomationBacktestSidePanel({
         </div>
       </ScrollArea>
 
-      {phase === "results" ? (
+      {phase === "results" && (error || !backtest.replaceable) ? (
         <div className="grid shrink-0 gap-3 border-t p-3">
           {error ? (
             <div
@@ -523,72 +565,12 @@ export function AutomationBacktestSidePanel({
               {error}
             </div>
           ) : null}
-          <div className="flex items-stretch gap-2">
-            <div className="flex-1">
-              {canSaveAndRerun && onSaveAndRerun ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 w-full"
-                  disabled={starting}
-                  onClick={onSaveAndRerun}
-                >
-                  {starting ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : null}
-                  Save &amp; re-run
-                </Button>
-              ) : (
-                runButton("Re-run")
-              )}
-            </div>
-            <div className="flex-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 w-full"
-                onClick={backtest.newRun}
-              >
-                New run
-              </Button>
-            </div>
-          </div>
-          {backtest.replaceable ? (
-            <div className="grid gap-2 rounded-md border bg-muted/40 p-2.5">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={keepName}
-                  onChange={(event) => setKeepName(event.target.value)}
-                  placeholder="Name this run to keep it"
-                  aria-label="Run name"
-                  className="h-8 text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  disabled={!keepName.trim()}
-                  onClick={() => {
-                    void backtest.keep(keepName)
-                    setKeepName("")
-                  }}
-                >
-                  Keep
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                Unnamed runs are replaced by your next backtest. Named runs stay
-                in history forever.
-              </p>
-            </div>
-          ) : (
+          {!backtest.replaceable ? (
             <p className="text-[10px] text-muted-foreground">
-              Kept as “{backtest.groupName}” — your next backtest won't replace
-              it.
+              Saved as “{backtest.groupName}” — your next backtest won't
+              replace it.
             </p>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

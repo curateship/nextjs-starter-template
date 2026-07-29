@@ -11,13 +11,14 @@ config to the automation's non-stopped bots and enqueues `update_params`
 `saveUserAutomation`; a save that doesn't change the compiled config is a
 no-op). Stopped runs keep their snapshot — they are history.
 
-**Where you run it:** the automation editor's third tab. The Canvas ·
-Backtest · **Bot** switcher swaps the editor in place; Bot mode shows a
-market selector (markets + wallet + mode + paper equity) for a new run, then
-the live dashboard: summary rail (left), live chart (center, lifecycle
-Pause/Resume/Flatten controls in the chart toolbar), per-market results table
-(right), and the StrategyTester trades panel (bottom). State machine:
-`src/components/automations/use-automation-bot.ts`; setup/results panel:
+**Where you run it:** the automation editor's third tab — but only for
+**deploying**. The Canvas · Backtest · **Bot** switcher's Bot mode is the
+setup form (markets + wallet + mode + paper equity) with a live preview
+chart in the center. When the automation already has a current (unnamed)
+run, clicking Bot **navigates to that run's page** (`/bots/$botId`) instead
+of swapping the editor — and a successful deploy navigates there too. The
+live dashboard no longer renders inside the editor. State machine (setup
+only): `src/components/automations/use-automation-bot.ts`; setup panel:
 `automation-bot-side-panel.tsx`. Deploying is gated by the editor's save
 gate, exactly like running a backtest.
 
@@ -26,23 +27,65 @@ run `Previous run · {automation} · {markets}` and the **next deploy replaces
 it** — the prior unnamed run is flattened, stopped, and deleted
 (`deployAutomationBot` → `retireReplaceableAutomationBots`; a still-winding-
 down run is deleted by a later deploy, never out from under its runners).
-Typing a name into "Name this run to keep it" (`renameUserBot`) makes it a
-keeper; keepers are never auto-replaced, and "Deploy a new run" then starts
-the next one alongside.
+Saving happens on the run page: the header's **Save run** button (next to
+Settings, only on the unnamed run) opens a naming modal (`renameUserBot`) —
+finishing the run (closing any open position at market and stopping it,
+which the modal's button says outright) and filing it under its name. Saved
+runs are never auto-replaced; the editor's Bot tab then offers the setup
+form for the next run. The backtest panel mirrors this: its **Save run**
+button sits in the title row with Re-run/New run and opens the same style
+of naming modal.
 
-**SL/TP editing:** dragging the TP/SL lines on the live chart rewrites the
-matching canvas node (same math as backtest tune-drags), marks the graph
-dirty, and Save pushes it to the bot. There is no bot settings dialog and no
-separate order form — the canvas is the config.
+**SL/TP editing:** the setup preview chart draws the canvas's TP/SL levels
+around the current mark price; dragging a line rewrites the matching canvas
+node (same math as backtest tune-drags) and marks the graph dirty. For a
+running bot, the canvas is still the config — editing nodes and saving
+pushes the fresh compiled config to the bot (`syncAutomationBots`); the
+drag-on-the-live-chart affordance for an open position went away with the
+in-editor live view. There is no bot settings dialog and no separate order
+form — the canvas is the config.
 
-**Standalone surfaces:** `/bots` is the run history (one row per run, like
-`/backtest`); clicking a run opens `/bots/$botId`, the same four-panel
-dashboard as a pure history-record viewer (`bot-workspace.tsx`) — the same
-header anatomy as `/backtest/$groupId` (back · breadcrumbs · markets badge ·
-panel toggles), with lifecycle Pause/Flatten in the chart toolbar since a
-kept run still trades. It carries **no** Canvas/Backtest/Bot switcher —
-strategy editing happens only on the automation's canvas. There is no fleet
-page, create-bot dialog, or edit-bot sheet anymore.
+**Standalone surfaces:** `/bots` is the fleet control room
+(`bot-runs-dashboard.tsx`): the worker offline and guardian-tripped banners
+when real, and the run table — one row per run with sortable columns,
+search, mode/status filters, a Position column, per-row
+Pause/Resume/Start/Flatten/Stop/Delete actions, global Pause-all/Flatten-all
+behind confirm dialogs, and the quiet "Guardian armed" toolbar chip
+(`guardianTableStatus`). (A fleet totals strip above the table was built and
+then removed at Tyler's request — no summary card.) Below the table sits the
+**Activity feed** — the newest 100 `bot_events` across the fleet
+(`listUserBotEvents`), each row opening its bot. Clicking a run opens
+`/bots/$botId`, the four-panel run viewer (`bot-workspace.tsx`). Its header
+carries the same centered **Canvas · Backtest · Bot** pills as the editor
+(`ViewSwitcher` — Bot is this page; the other two navigate to the
+automation's editor, with an "Open automation" fallback button below `xl`)
+and a **Settings** button that opens the markets dialog. The right panel
+follows the backtest side panel's anatomy: a "Bot · N markets" title row
+with lifecycle **Pause/Resume/Flatten right-aligned inside it** (a kept run
+still trades) and the per-market results table beneath. Run saving lives in
+the header — the **Save run** button beside Settings (see Run lifecycle).
+The bottom panel has an **Events** tab showing that run's own log. **Settings → markets** (`bot-markets-dialog.tsx`): adding a market
+spawns a fresh runner with the run's current settings; removing one makes
+the worker close that market's position at market and stop its runner
+(`updateBotMarkets` → the supervisor's `update_params` path, which already
+flattens removed markets) — the dialog warns loudly before removals that
+close a position, and a stopped run just picks the new list up on its next
+start. For DCA runs the live chart draws the ladder's pending buys as
+**yellow dashed "waiting" lines labeled with the DOLLARS each rung will
+buy** ("Waiting for rung 1 · $70" = a $70 buy waiting at that line's
+level): an armed cycle uses its exact frozen-equity budgets, a confirmed
+base that hasn't armed yet shows estimates ("~$70") or percent shares
+(`bot-rung-lines.ts`, unit-tested; state read defensively from
+`bot_state.strategy_state`). The page also remembers each run's last-viewed
+market (`bot-run-market:{botId}` in localStorage, the panel-layout pattern)
+so returning reopens the chart you were on. Strategy editing happens only on
+the automation's canvas. There is still no create-bot dialog or edit-bot
+sheet; deploying stays in the editor's Bot tab.
+
+**Live positions** persist via the worker (`livePositionSnapshot` in
+`worker/src/brokers/types.ts`, written by `persistState` in
+`worker/src/bot-runner.ts`), so the Position column is real for live bots
+too — with the caveats under Known limits.
 
 ## Command feedback (honest buttons)
 
@@ -105,10 +148,15 @@ positions open.
 
 ## Known limits
 
-- **Live bots show no exposure.** Only the paper broker persists positions to
-  `bot_state.paper_position`; the live broker reads its position from the
-  exchange and stores null. If live-position persistence is ever added, the
-  dashboards pick it up with no changes.
+- **A live bot's position is its wallet's position on that market.** The
+  worker persists the exchange-refreshed position the bot manages (flatten
+  closes exactly this), so manual trades on the same wallet and market blend
+  into the shown figure, and two live bots sharing a wallet and market each
+  report the same position. The run table's Position tooltip carries this
+  note for live bots.
+- **A paused live bot's stored position freezes** until it resumes — the
+  evaluate loop that persists it isn't running. Pause/flatten/stop each force
+  one final persist, so the freeze starts from an accurate snapshot.
 - The run dashboard's equity curve and per-market drawdown derive from
   realized round-trip P&L (the bot stores no equity history), so intratrip
   drawdown is invisible.

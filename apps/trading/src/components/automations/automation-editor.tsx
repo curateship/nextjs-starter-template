@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useBlocker } from "@tanstack/react-router"
+import { useBlocker, useNavigate } from "@tanstack/react-router"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
@@ -23,23 +23,18 @@ import {
   BacktestRunChart,
   type BacktestTuneDrag,
 } from "@/components/backtest/backtest-run-chart"
-import { StrategyTester } from "@/components/backtest/strategy-tester"
-import { BotLifecycleControls } from "@/components/bots/bot-lifecycle-controls"
 import { BotLiveChartPanel } from "@/components/bots/bot-live-chart-panel"
-import { buildBotResult } from "@/components/bots/bot-result"
-import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
 import { useBotLive } from "@/components/bots/use-bot-live"
-import type { BotCommand } from "@/components/bots/bot-lifecycle-controls"
 import {
   CHART_DOWN_COLOR,
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
 import type { ChartPriceLine } from "@/components/chart/price-chart"
-import { getBotErrorMessage, sendCommand } from "@/lib/api/bots"
 import { maxWindowDays } from "@/lib/backtest/types"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogBody,
@@ -140,7 +135,12 @@ export function AutomationEditor({
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
   const backtest = useAutomationBacktest(initial.id)
-  const bot = useAutomationBot(initial.id)
+  const navigate = useNavigate()
+  // A deployed run lives on its own page — Bot mode here is only the setup
+  // form. An existing current run (or a fresh deploy) navigates to it.
+  const bot = useAutomationBot(initial.id, (botId) =>
+    void navigate({ to: "/bots/$botId", params: { botId } })
+  )
   // Land straight in a mode when a run dashboard deep-links here.
   const enteredInitialView = React.useRef(false)
   React.useEffect(() => {
@@ -153,11 +153,10 @@ export function AutomationEditor({
     }
   }, [initialView, backtest, bot])
   const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
-  /** Trade selected in the bot bottom panel — pulses rings on the live chart. */
-  const [botFocusedTradeN, setBotFocusedTradeN] = React.useState<number | null>(
-    null
-  )
-  const [botCommandBusy, setBotCommandBusy] = React.useState(false)
+  // "Save run" (toolbar, backtest results): names the group so the next
+  // backtest won't replace it.
+  const [saveRunOpen, setSaveRunOpen] = React.useState(false)
+  const [saveRunName, setSaveRunName] = React.useState("")
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -608,66 +607,24 @@ export function AutomationEditor({
     if (selectedBacktestRunId) setLogOpen(true)
   }, [selectedBacktestRunId])
 
-  // ── Bot mode: the automation running live ───────────────────────────────
-  // Bot mode's center is ALWAYS a live chart, never the node canvas: the
-  // current run's market when one is loaded, else the market picked in the
-  // setup form (a preview of what's about to be deployed).
-  const botChartMarket = bot.detail
-    ? bot.selectedMarket
-    : (bot.selectedMarkets[0] ?? "BTC")
+  // ── Bot mode: the deploy setup form ─────────────────────────────────────
+  // Bot mode's center is a live chart of the market picked in the setup
+  // form — a preview of what's about to be deployed. A deployed run lives
+  // on its own page (/bots/$botId).
+  const botChartMarket = bot.selectedMarkets[0] ?? "BTC"
   const botSetupNetwork: TradingNetwork =
     bot.wallets.find((wallet) => wallet.id === bot.walletId)?.network ===
     "mainnet"
       ? "mainnet"
       : "testnet"
-  const botLive = useBotLive(bot.detail, botChartMarket, botSetupNetwork)
-  const botShowsDashboard = bot.open && bot.detail !== null
-  React.useEffect(() => {
-    if (botShowsDashboard) setLogOpen(true)
-  }, [botShowsDashboard])
+  const botLive = useBotLive(null, botChartMarket, botSetupNetwork)
 
-  // Per-market equity base: cash minus what this market realized, falling
-  // back to the bot's paper stake, then the paper default.
-  const botClosedPnl = botLive.trips
-    .filter((trip) => !trip.open)
-    .reduce((sum, trip) => sum + trip.pnl, 0)
-  const botStartingEquity =
-    botLive.state?.paper_cash != null &&
-    botLive.state.paper_cash - botClosedPnl > 0
-      ? botLive.state.paper_cash - botClosedPnl
-      : (bot.detail?.bot.paper_starting_equity ?? 10_000)
-  const botResult = React.useMemo(
-    () =>
-      botShowsDashboard
-        ? buildBotResult(
-            botLive.trips,
-            botLive.marketTrades,
-            botLive.state,
-            botStartingEquity
-          )
-        : null,
-    [
-      botShowsDashboard,
-      botLive.trips,
-      botLive.marketTrades,
-      botLive.state,
-      botStartingEquity,
-    ]
-  )
-
-  // Live TP/SL lines come from the CANVAS nodes (the bot's config is the
-  // canvas): anchored at the open position's entry, else the mark price.
-  // Dragging rewrites the node — dirty — and Save pushes it to the bot.
-  const botPosition = botLive.state?.paper_position ?? null
-  const botPositionSzi = botPosition ? Number(botPosition.szi) : 0
-  const botTuneSide: "long" | "short" = botPositionSzi < 0 ? "short" : "long"
-  const botTuneAnchor =
-    botPositionSzi !== 0 && Number(botPosition?.entryPx) > 0
-      ? Number(botPosition?.entryPx)
-      : botLive.markPrice
+  // Preview TP/SL lines come from the CANVAS nodes (the bot's config is the
+  // canvas), anchored at the current mark price. Dragging rewrites the node —
+  // dirty — and Save stores it; the deployed run gets exactly this config.
+  const botTuneAnchor = botLive.markPrice
   const botPriceLines = React.useMemo<ChartPriceLine[]>(() => {
     if (!bot.open || !(botTuneAnchor > 0)) return []
-    const long = botTuneSide === "long"
     const lines: ChartPriceLine[] = []
     const protective = graph.nodes.filter(
       (node) => node.kind === "takeProfit" || node.kind === "stopLoss"
@@ -677,7 +634,7 @@ export function AutomationEditor({
         id: "bot:entry",
         price: botTuneAnchor,
         color: "#64748b",
-        title: botPositionSzi !== 0 ? "Entry" : "Entry (now)",
+        title: "Entry (now)",
         lineStyle: "dashed",
         lineWidth: 1,
       })
@@ -686,7 +643,7 @@ export function AutomationEditor({
       if (node.kind === "takeProfit") {
         lines.push({
           id: "bot:tp",
-          price: botTuneAnchor * (1 + (long ? 1 : -1) * (node.pct / 100)),
+          price: botTuneAnchor * (1 + node.pct / 100),
           color: CHART_UP_COLOR,
           title: `TP +${node.pct}%`,
           lineStyle: "dashed",
@@ -695,7 +652,7 @@ export function AutomationEditor({
       } else {
         lines.push({
           id: "bot:sl",
-          price: botTuneAnchor * (1 - (long ? 1 : -1) * (node.pct / 100)),
+          price: botTuneAnchor * (1 - node.pct / 100),
           color: CHART_DOWN_COLOR,
           title: `${node.mode === "trailing" ? "Trail SL" : "SL"} -${node.pct}%`,
           lineStyle: "dashed",
@@ -704,7 +661,7 @@ export function AutomationEditor({
       }
     }
     return lines
-  }, [bot.open, botTuneAnchor, botTuneSide, botPositionSzi, graph.nodes])
+  }, [bot.open, botTuneAnchor, graph.nodes])
 
   const handleBotLineDrag = React.useCallback(
     (id: string, price: number) => {
@@ -714,30 +671,14 @@ export function AutomationEditor({
         kind,
         price,
         anchor: botTuneAnchor,
-        side: botTuneSide,
+        side: "long",
       })
       if (!next) return
       updateNode(next)
-      record(
-        "Adjusted a setting by dragging on the live chart — Save applies it to the bot."
-      )
+      record("Adjusted a setting by dragging on the preview chart.")
     },
-    [botTuneAnchor, botTuneSide, record, updateNode]
+    [botTuneAnchor, record, updateNode]
   )
-
-  async function runBotCommand(command: BotCommand) {
-    const currentBotId = bot.botId
-    if (!currentBotId || botCommandBusy) return
-    setBotCommandBusy(true)
-    try {
-      await sendCommand(currentBotId, command)
-      bot.refresh()
-    } catch (commandError) {
-      toast.error(getBotErrorMessage(commandError))
-    } finally {
-      setBotCommandBusy(false)
-    }
-  }
 
   const inspector = (
     <AutomationInspector
@@ -768,25 +709,16 @@ export function AutomationEditor({
   const centerPanel =
     bot.open && botChartMarket ? (
       <BotLiveChartPanel
-        key={`${bot.botId ?? "setup"}-${botChartMarket}`}
+        key={`setup-${botChartMarket}`}
         network={botLive.network}
         market={botChartMarket}
         interval={(compiled.config?.interval ?? "15m") as CandleInterval}
         automationConfig={compiled.config}
         fills={botLive.marketTrades}
         trips={botLive.trips}
-        focusedTradeN={botFocusedTradeN}
+        focusedTradeN={null}
         priceLines={botPriceLines}
         onLineDragEnd={handleBotLineDrag}
-        toolbarActions={
-          bot.detail ? (
-            <BotLifecycleControls
-              bot={bot.detail.bot}
-              busy={botCommandBusy}
-              onCommand={(command) => void runBotCommand(command)}
-            />
-          ) : null
-        }
       />
     ) : selectedBacktestRun && selectedBacktestResult ? (
       <BacktestRunChart
@@ -867,25 +799,7 @@ export function AutomationEditor({
       disabledReason={runnableDisabledReason}
     />
   )
-  const botSummaryPanel =
-    botShowsDashboard && bot.detail ? (
-      <BotSummaryPanel
-        bot={bot.detail.bot}
-        state={botLive.state}
-        stats={bot.detail.stats}
-        openOrders={botLive.openOrders}
-        selectedMarket={bot.selectedMarket}
-        markPrice={botLive.markPrice}
-        dayChangePct={botLive.dayChangePct}
-      />
-    ) : (
-      palette
-    )
-  const leftPanel = bot.open
-    ? botSummaryPanel
-    : backtest.open
-      ? paramsPanel
-      : palette
+  const leftPanel = backtest.open ? paramsPanel : palette
   const rightPanel = bot.open
     ? botSidePanel
     : backtest.open
@@ -945,6 +859,13 @@ export function AutomationEditor({
         onNameChange={setName}
         onOpenSettings={() => setSettingsOpen(true)}
         onSave={() => void handleSave()}
+        onSaveRun={
+          view === "backtest" &&
+          backtest.phase === "results" &&
+          backtest.replaceable
+            ? () => setSaveRunOpen(true)
+            : undefined
+        }
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
       />
@@ -977,17 +898,7 @@ export function AutomationEditor({
               maxSize="45%"
             >
               <WorkspacePanel>
-                {botShowsDashboard && botResult ? (
-                  <StrategyTester
-                    result={botResult}
-                    startingEquity={botStartingEquity}
-                    markPrice={botLive.markPrice}
-                    selectedTradeN={botFocusedTradeN}
-                    onSelectTrade={(trade) =>
-                      setBotFocusedTradeN(trade?.n ?? null)
-                    }
-                  />
-                ) : selectedBacktestRun && selectedBacktestResult ? (
+                {selectedBacktestRun && selectedBacktestResult ? (
                   <AutomationBacktestTradesPanel
                     market={selectedBacktestRun.market}
                     result={selectedBacktestResult}
@@ -1019,18 +930,14 @@ export function AutomationEditor({
         {!logOpen ? (
           <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
             <span className="text-xs font-semibold tracking-wide uppercase">
-              {botShowsDashboard
-                ? `Trades — ${bot.selectedMarket}`
-                : selectedBacktestRun
-                  ? `Trades — ${selectedBacktestRun.market}`
-                  : "Activity log"}
+              {selectedBacktestRun
+                ? `Trades — ${selectedBacktestRun.market}`
+                : "Activity log"}
             </span>
             <span className="ml-2 text-xs text-muted-foreground">
-              {botShowsDashboard && botResult
-                ? `${botResult.trades.length} closed`
-                : selectedBacktestRun && selectedBacktestResult
-                  ? `${selectedBacktestResult.trades.length} closed`
-                  : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
+              {selectedBacktestRun && selectedBacktestResult
+                ? `${selectedBacktestResult.trades.length} closed`
+                : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {desktop ? (
@@ -1125,6 +1032,48 @@ export function AutomationEditor({
               onClick={() => blocker.proceed?.()}
             >
               Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveRunOpen} onOpenChange={setSaveRunOpen}>
+        <DialogContent variant="admin" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save this run</DialogTitle>
+            <DialogDescription>
+              A saved run stays in your backtest history forever.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            <Input
+              value={saveRunName}
+              onChange={(event) => setSaveRunName(event.target.value)}
+              placeholder="Run name"
+              aria-label="Run name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Unnamed runs are replaced by your next backtest.
+            </p>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSaveRunOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!saveRunName.trim()}
+              onClick={() => {
+                void backtest.keep(saveRunName)
+                setSaveRunName("")
+                setSaveRunOpen(false)
+              }}
+            >
+              Save run
             </Button>
           </DialogFooter>
         </DialogContent>
