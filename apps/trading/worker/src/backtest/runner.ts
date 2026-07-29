@@ -62,6 +62,20 @@ const round = (value: number) => Math.round(value * 1e6) / 1e6
  */
 const MAX_PATH_PAUSES = 64
 
+/** Size below which a position counts as flat, for "did this bar buy?" checks. */
+const POSITION_EPSILON = 1e-9
+
+/**
+ * `target`, pulled back to `limit` when that is nearer to `from`. Used to stop a
+ * bar's favourable excursion at its close: moving up, take the lower of the two;
+ * moving down, the higher. Never pushes past `target`.
+ */
+function clampToward(from: number, target: number, limit: number): number {
+  return target >= from
+    ? Math.max(from, Math.min(target, limit))
+    : Math.min(from, Math.max(target, limit))
+}
+
 /**
  * Replays historical candles through a real strategy with the same
  * desiredOrders → diff → place/cancel loop as the live BotRunner.
@@ -216,11 +230,39 @@ class BacktestRunner {
     const candle = this.candlesNum[index]
     if (!candle || candle.t < this.simStartMs) return
     const szi = Number(this.broker.positionState()?.szi ?? 0)
+    // First extreme is the one that hurts an open position, second is the one
+    // that helps it: low-then-high for a long, high-then-low for a short.
     const path =
       szi < 0 ? [candle.o, candle.h, candle.l] : [candle.o, candle.l, candle.h]
     this.step(path[0], candle.t, null)
+
+    const sizeBefore = this.positionSize()
     this.stepThrough(path[1], candle.t, null)
-    this.stepThrough(path[2], candle.t, null)
+
+    // If the bar opened or added to a position on the way to that first
+    // extreme, running on to the second one would hand the strategy both ends
+    // of a single candle — buy the low, sell the high — off an order of events
+    // the candle never recorded. A candle stores open/high/low/close, not
+    // WHICH of the high and low came first, so that gain is an assumption, not
+    // a result. It is where the DCA ladder's repeated `1/(1-rung%)-1` profits
+    // came from, and it has produced false results three times now (see the
+    // one-candle profit trap in CLAUDE.md).
+    //
+    // So cap the favourable leg at the close: the close is the one price the
+    // bar is known to have ended on, so anything up to it is evidenced. Exits
+    // beyond it simply wait for the next bar. This deliberately never touches
+    // the adverse leg — stops still fill in full, because this trap only ever
+    // flatters a result.
+    const opened = this.positionSize() > sizeBefore + POSITION_EPSILON
+    const favourable = opened
+      ? clampToward(path[1], path[2], candle.c)
+      : path[2]
+    this.stepThrough(favourable, candle.t, null)
+  }
+
+  /** Absolute size currently held, 0 when flat. */
+  private positionSize(): number {
+    return Math.abs(Number(this.broker.positionState()?.szi ?? 0))
   }
 
   processBarCloseSignal(index: number) {

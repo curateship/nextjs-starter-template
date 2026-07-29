@@ -420,9 +420,28 @@ export function createDcaAutomationStrategy(
     stopLevelPx: stopAtBase ? (state.baseTracker?.currentBase ?? 0) : null,
   })
 
-  const barClosedDown = (ctx: StrategyCtx<DcaAutomationState>): boolean => {
+  /**
+   * Did this bar CLOSE at or above `px`?
+   *
+   * On the bar a rung just bought, this is the test for whether a profitable
+   * same-bar exit is believable. A candle records open/high/low/close but not
+   * the ORDER the high and low happened in, so "the wick reached my sell" is
+   * not evidence the sell could have filled after the buy — the wick may have
+   * come first. The close is the one price we know the bar ended at, so a close
+   * at or beyond the exit means price genuinely got there and stayed.
+   *
+   * This replaced a looser test — "the bar closed up" — which let any green bar
+   * through however far below the exit it finished. That is where the ladder's
+   * repeated `1/(1-rung%)-1` gains came from (6.383% off the first rung, booked
+   * hundreds of times): buy the bar's low, sell its high, on a bar that merely
+   * closed green. See the one-candle profit trap in CLAUDE.md.
+   */
+  const closeReached = (
+    ctx: StrategyCtx<DcaAutomationState>,
+    px: number
+  ): boolean => {
     const cur = ctx.candles(config.interval, 1).at(-1)
-    return cur ? Number(cur.c) < Number(cur.o) : false
+    return cur ? Number(cur.c) >= px : false
   }
 
   // "Require two green": a rung only buys once the two most recently CLOSED
@@ -948,15 +967,16 @@ export function createDcaAutomationStrategy(
         Number(ctx.mid)
       )
       if (!hit) return
-      // Limit mode: on the bar a rung bought, only allow a profitable take-profit
-      // to fill same-bar if the bar closed UP (a real recovery — the dip came
-      // first, then the run-up). If the bar closed DOWN, the run-up couldn't have
-      // followed the dip, so defer the take-profit. A stop (a loss) always fills.
+      // Limit mode: on the bar a rung bought, a profitable take-profit may only
+      // fill same-bar if the bar CLOSED at or above the level being sold at —
+      // proof price reached it and held, rather than a wick that may well have
+      // come before the dip that bought. Otherwise defer to the next bar.
+      // A stop (a loss) always fills; the trap only ever flatters results.
       if (
         hit === "tp" &&
         dca.rungEntry === "limit" &&
         state.boughtThisBar &&
-        barClosedDown(ctx)
+        !closeReached(ctx, Number(ctx.mid))
       ) {
         return
       }
@@ -1160,13 +1180,13 @@ export function createDcaAutomationStrategy(
 
       const orders: DesiredOrder[] = []
 
-      // Limit mode: on the bar a rung just bought, hold its profitable exits off
-      // the book ONLY if the bar closed DOWN — then a same-bar recovery to the
-      // sell couldn't have followed the dip, so it can't round-trip for a gain.
-      // On an UP bar the dip-then-recovery is plausible, so the exits stay and
-      // the real same-bar win goes through. (Stops fire through exitTriggers.)
-      const holdExits =
-        dca.rungEntry === "limit" && state.boughtThisBar && barClosedDown(ctx)
+      // Limit mode: on the bar a rung just bought, a profitable exit only rests
+      // if the bar CLOSED at or above it. Anything else would let the ladder buy
+      // the bar's low and sell its high off one candle, which the data cannot
+      // support. (Stops fire through exitTriggers and are unaffected.)
+      const boughtThisBar = dca.rungEntry === "limit" && state.boughtThisBar
+      const exitAllowed = (px: number) =>
+        !boughtThisBar || closeReached(ctx, px)
 
       // RECLAIM BUY. Price held back above the base this ladder was stopped at
       // for the configured span, so the rung the stop took out goes straight
@@ -1326,7 +1346,7 @@ export function createDcaAutomationStrategy(
       // whole position at the nearest rung above the deepest filled buy (the base
       // when only the first buy is down). A bounce back to that single level
       // closes it all, and the level slides down as deeper rungs fill.
-      if (nearestRung && positionSz > EPSILON && !holdExits) {
+      if (nearestRung && positionSz > EPSILON) {
         const deepest = active.rungs.reduce(
           (max, rung) =>
             rung.filledSz - rung.soldSz > EPSILON
@@ -1338,7 +1358,12 @@ export function createDcaAutomationStrategy(
           deepest === 0
             ? active.base
             : active.rungs.find((rung) => rung.index === deepest - 1)?.plannedPx
-        if (deepest >= 0 && sellPx !== undefined && sellPx > 0) {
+        if (
+          deepest >= 0 &&
+          sellPx !== undefined &&
+          sellPx > 0 &&
+          exitAllowed(sellPx)
+        ) {
           orders.push({
             purpose: "dca:s:all",
             side: "sell",
@@ -1355,7 +1380,7 @@ export function createDcaAutomationStrategy(
       // "Sell at previous rung": rest a reduce-only sell for each filled rung at
       // the price of the rung ABOVE it (the first rung at the base), so as price
       // recovers each averaged-in buy is sold where the buy above it was made.
-      if (peelRungs && positionSz > EPSILON && !holdExits) {
+      if (peelRungs && positionSz > EPSILON) {
         for (const rung of active.rungs) {
           const unsold = Math.max(0, rung.filledSz - rung.soldSz)
           if (unsold <= EPSILON) continue
@@ -1365,6 +1390,9 @@ export function createDcaAutomationStrategy(
               : active.rungs.find((other) => other.index === rung.index - 1)
                   ?.plannedPx
           if (sellPx === undefined || !(sellPx > 0)) continue
+          // Each peel level is judged on its own: the close may confirm a
+          // shallow one while a deeper one stays unproven.
+          if (!exitAllowed(sellPx)) continue
           orders.push({
             purpose: `dca:s:${rung.index}`,
             side: "sell",
