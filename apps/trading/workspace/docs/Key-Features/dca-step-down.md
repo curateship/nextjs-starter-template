@@ -265,6 +265,28 @@ otherwise release the cycle. It marks the sold rungs fully sold so a peel/neares
 take profit cannot rest sells for coins that are gone, and hands the market's room
 back to the shared wallet while flat.
 
+### The stop that sat above its own base (fixed July 29, 2026)
+
+Found on a COL chart: a four-rung ladder closed out at a price matching no rung and
+no base, labelled `Exit Rungs 1-4` — the marker for a forced stop-out, not a ladder
+sale.
+
+The level was being turned into a percent measured off the position's **average**
+entry, then handed to `effectiveStopPx`, which applies that percent to whatever the
+stop is anchored to — the **first buy**, on a ladder. Measuring from one price and
+applying to another put the stop at `level × first / average`: above the base by
+however far the ladder had dragged its average down. Roughly **8.5% too high** on a
+four-rung ladder with sizes doubling, and worse the deeper the ladder went. With one
+rung filled the two prices are the same, which is why it stayed hidden.
+
+`inForce` in the trade manager now converts the level against the **stop basis** —
+the same price the percent gets applied back to — so a level stop rests exactly on
+its level. Only ladders were affected: with no anchor set, the basis IS the average.
+
+Knock-on: "the first base below the entry is the first that can fire" now means below
+the **first buy**, not below the average. The dormant window is a little longer, and
+what fires is a real base break rather than a phantom level above one.
+
 ### Buy back after a reclaim (July 28, 2026)
 
 **Buy back after (days above the base)** on the Stop Loss node, beside the level.
