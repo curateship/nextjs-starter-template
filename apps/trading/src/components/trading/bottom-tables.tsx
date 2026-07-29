@@ -14,6 +14,7 @@ import {
 } from "@/components/trading/table-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import {
   Dialog,
   DialogBody,
@@ -307,53 +308,37 @@ export function PositionsTable({
         })}
       </StickyTable>
 
-      <Dialog
+      <ConfirmActionDialog
         open={Boolean(pending)}
         onOpenChange={(open) => {
           if (!open) setPending(null)
         }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              {pending?.kind === "close" ? "Close" : "Reverse"} {pending?.coin}{" "}
-              position
-            </DialogTitle>
-            <DialogDescription>
-              {pending?.kind === "close"
-                ? "Sends a reduce-only market order for the full position size."
-                : "Sends a market order for twice the position size, flipping the direction."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm">
-              Position: <span className="font-mono">{pending?.szi}</span>{" "}
-              {pending?.coin}
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => setPending(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={busy}
-                onClick={() => pending && void submitAction(pending)}
-              >
-                {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Confirm
-              </Button>
-            </>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={`${pending?.kind === "close" ? "Close" : "Reverse"} your ${
+          pending?.coin
+        } position?`}
+        consequence={
+          pending
+            ? pending.kind === "close"
+              ? `Places a market order right now to ${
+                  pending.szi > 0 ? "sell" : "buy back"
+                } your whole position of ${Math.abs(pending.szi)} ${
+                  pending.coin
+                } at the current price.`
+              : `Places a market order right now for twice your position size — it closes your ${Math.abs(
+                  pending.szi
+                )} ${pending.coin} ${
+                  pending.szi > 0 ? "long" : "short"
+                } and opens an equal ${
+                  pending.szi > 0 ? "short" : "long"
+                }, flipping your bet to the opposite direction.`
+            : ""
+        }
+        confirmLabel={
+          pending?.kind === "close" ? "Close position" : "Reverse position"
+        }
+        busy={busy}
+        onConfirm={() => pending && void submitAction(pending)}
+      />
 
       <Dialog
         open={Boolean(protecting)}

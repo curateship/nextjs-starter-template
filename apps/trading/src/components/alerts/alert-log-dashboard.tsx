@@ -211,6 +211,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
                 { value: "price_level", label: "Exact price" },
                 { value: "price_move", label: "Price move" },
                 { value: "volume_spike", label: "Unusual volume" },
+                { value: "trendline", label: "Drawn line" },
               ]}
             />
             <FilterSelect
@@ -340,11 +341,21 @@ function conditionLabel(event: AlertEventItem) {
   if (event.kind === "price_move") {
     return `${event.direction === "up" ? "Up" : "Down"} ${event.percent}% in ${event.window}`
   }
+  if (event.kind === "trendline") {
+    const base =
+      event.touch === "close"
+        ? "1m candle closed past the drawn line"
+        : "Price touched the drawn line"
+    // For drawn-line events, `level` holds where the moving line was.
+    return event.level === null ? base : `${base} (line at ${event.level})`
+  }
   return `${event.multiplier}× volume in ${event.window}`
 }
 
 function observedLabel(event: AlertEventItem) {
-  if (event.kind === "price_level") return String(event.observed)
+  if (event.kind === "price_level" || event.kind === "trendline") {
+    return String(event.observed)
+  }
   if (event.kind === "price_move") {
     return `${event.observed > 0 ? "+" : ""}${event.observed.toFixed(2)}%`
   }

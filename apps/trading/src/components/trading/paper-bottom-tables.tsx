@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 
 import { formatPriceDisplay } from "@/components/trading/format"
 import {
@@ -11,15 +10,7 @@ import {
   StickyTable,
   TimeCell,
 } from "@/components/trading/table-bits"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { TableCell, TableRow } from "@/components/ui/table"
 import {
   cancelPaperOrder,
@@ -128,42 +119,28 @@ export function PaperPositionsTable({
         })}
       </StickyTable>
 
-      <Dialog
+      <ConfirmActionDialog
         open={Boolean(pending)}
         onOpenChange={(open) => {
           if (!open) setPending(null)
         }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Close {pending?.coin} paper position?</DialogTitle>
-            <DialogDescription>
-              This sends a market order for the full position size.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={closing !== null}
-              onClick={() => setPending(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={!pending || closing !== null}
-              onClick={() =>
-                pending && void closePosition(pending.coin, pending.szi)
-              }
-            >
-              {closing ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={`Close your ${pending?.coin} paper position?`}
+        consequence={
+          pending
+            ? `Places a practice market order right now to ${
+                pending.szi > 0 ? "sell" : "buy back"
+              } your whole position of ${Math.abs(pending.szi)} ${
+                pending.coin
+              } at the current price.`
+            : ""
+        }
+        confirmLabel="Close position"
+        busy={closing !== null}
+        confirmDisabled={!pending}
+        onConfirm={() =>
+          pending && void closePosition(pending.coin, pending.szi)
+        }
+      />
     </>
   )
 }

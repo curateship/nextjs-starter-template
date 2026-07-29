@@ -1,6 +1,6 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
-import { Trash2Icon, XIcon } from "lucide-react"
+import { BellRingIcon, Trash2Icon, XIcon } from "lucide-react"
 import type {
   CandlestickData,
   HistogramData,
@@ -51,12 +51,15 @@ import {
 import {
   DEFAULT_TRENDLINE_COLOR,
   distanceToSegment,
+  moveTrendline,
   moveTrendlinePoint,
   nearestCandleTime,
+  trendlinePriceAt,
   type PixelPoint,
   type Trendline,
   type TrendlinePoint,
 } from "@/lib/trading/trendlines"
+import type { AlertStatus, TrendlineTouchMode } from "@/lib/alerts"
 import {
   Popover,
   PopoverAnchor,
@@ -65,6 +68,15 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
 import { useChartDrawings } from "@/components/chart/use-chart-drawings"
 import {
@@ -301,6 +313,27 @@ export type ChartBarColor = {
 /** Points at one drawing on the chart — what is selected, or being edited. */
 type DrawingRef = { kind: "trendline" | "position"; id: string }
 
+/** The alert rule attached to one drawn line, as the chart needs to see it. */
+export type TrendlineAlertRuleInfo = {
+  id: string
+  status: AlertStatus
+  touch: TrendlineTouchMode
+}
+
+/**
+ * Lets the live chart arm price alerts on drawn trendlines. Only charts
+ * watching a real market pass this — backtest and replay charts don't.
+ */
+export type TrendlineAlertControls = {
+  /** The rule attached to each drawn line, keyed by line id. */
+  rules: ReadonlyMap<string, TrendlineAlertRuleInfo>
+  /** Line id with an in-flight arm/disarm request, to debounce the toggle. */
+  busyLineId: string | null
+  onArm: (line: Trendline, touch: TrendlineTouchMode) => void
+  onDisarm: (rule: TrendlineAlertRuleInfo) => void
+  onTouchChange: (rule: TrendlineAlertRuleInfo, touch: TrendlineTouchMode) => void
+}
+
 /** Transient shift+drag measurement overlay, in container-local pixels. */
 type Measurement = {
   left: number
@@ -363,6 +396,7 @@ export function PriceChartView({
   drawings = EMPTY_CHART_DRAWINGS,
   onDrawingsChange,
   onDrawingsCommit,
+  trendlineAlerts,
 }: {
   /** Candles to render, ascending by open time. */
   candles: ChartCandle[]
@@ -426,6 +460,8 @@ export function PriceChartView({
   onDrawingsChange?: (drawings: ChartDrawings) => void
   /** Persists a completed create, edit, or delete action. */
   onDrawingsCommit?: (drawings: ChartDrawings) => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const { trendlines, positions } = drawings
@@ -559,6 +595,10 @@ export function PriceChartView({
   const [drawingSettings, setDrawingSettings] = React.useState<
     (DrawingRef & { x: number; y: number }) | null
   >(null)
+  // Touch-definition choice shown before a line is armed; the armed rule
+  // itself is the source of truth once one exists.
+  const [pendingTouch, setPendingTouch] =
+    React.useState<TrendlineTouchMode>("wick")
   const [trendlinePixels, setTrendlinePixels] = React.useState<
     {
       id: string
@@ -589,10 +629,19 @@ export function PriceChartView({
   const positionPixelsRef = React.useRef(positionPixels)
   const selectionRef = React.useRef(selection)
   const activeToolRef = React.useRef(activeTool)
-  const trendlineDragRef = React.useRef<{
-    id: string
-    endpoint: "start" | "end"
-  } | null>(null)
+  const trendlineDragRef = React.useRef<
+    | { id: string; endpoint: "start" | "end" }
+    | {
+        id: string
+        endpoint: "body"
+        /** The line as it was when grabbed, so the slide stays absolute. */
+        origin: Trendline
+        grab: TrendlinePoint
+        grabPx: PixelPoint
+        moved: boolean
+      }
+    | null
+  >(null)
   const positionDragRef = React.useRef<{
     id: string
     handle: ChartPositionHandle
@@ -1227,6 +1276,23 @@ export function PriceChartView({
                 endpoint: trendHit.endpoint,
               }
               chart.applyOptions({ handleScroll: false, handleScale: false })
+            } else {
+              // Grabbing the body slides the whole line; endpoints stretch it.
+              const origin = drawingsRef.current.trendlines.find(
+                (line) => line.id === trendHit.id
+              )
+              const grab = chartPoint(event)
+              if (origin && grab) {
+                trendlineDragRef.current = {
+                  id: trendHit.id,
+                  endpoint: "body",
+                  origin,
+                  grab,
+                  grabPx: point,
+                  moved: false,
+                }
+                chart.applyOptions({ handleScroll: false, handleScale: false })
+              }
             }
             event.preventDefault()
             event.stopPropagation()
@@ -1316,6 +1382,19 @@ export function PriceChartView({
           }
           const trendlineDrag = trendlineDragRef.current
           if (trendlineDrag) {
+            if (trendlineDrag.endpoint === "body" && !trendlineDrag.moved) {
+              // A plain click (and the two clicks of a double-click) must not
+              // nudge the line — the slide starts only after real travel.
+              const travel = Math.hypot(
+                paneX(event) - trendlineDrag.grabPx.x,
+                paneY(event) - trendlineDrag.grabPx.y
+              )
+              if (travel < DRAG_START_PX) {
+                event.preventDefault()
+                return
+              }
+              trendlineDrag.moved = true
+            }
             const point = chartPoint(event)
             if (point) {
               const current = drawingsRef.current
@@ -1323,9 +1402,19 @@ export function PriceChartView({
                 {
                   ...current,
                   trendlines: current.trendlines.map((line) =>
-                    line.id === trendlineDrag.id
-                      ? moveTrendlinePoint(line, trendlineDrag.endpoint, point)
-                      : line
+                    line.id !== trendlineDrag.id
+                      ? line
+                      : trendlineDrag.endpoint === "body"
+                        ? moveTrendline(
+                            trendlineDrag.origin,
+                            trendlineDrag.grab,
+                            point
+                          )
+                        : moveTrendlinePoint(
+                            line,
+                            trendlineDrag.endpoint,
+                            point
+                          )
                   ),
                 },
                 false
@@ -1428,9 +1517,7 @@ export function PriceChartView({
           const trendHit = trendlineHit(point)
           const posHit = trendHit ? null : positionHit(point)
           container.style.cursor = trendHit
-            ? trendHit.endpoint
-              ? "move"
-              : "pointer"
+            ? "move"
             : posHit
               ? posHit.handle === "width"
                 ? "ew-resize"
@@ -1443,10 +1530,15 @@ export function PriceChartView({
         }
 
         const endDrag = () => {
-          if (trendlineDragRef.current) {
+          const trendlineDrag = trendlineDragRef.current
+          if (trendlineDrag) {
             trendlineDragRef.current = null
             chart.applyOptions({ handleScroll: true, handleScale: true })
-            commitDrawings()
+            // A body grab that never travelled is just a click — selecting
+            // the line must not rewrite it.
+            if (trendlineDrag.endpoint !== "body" || trendlineDrag.moved) {
+              commitDrawings()
+            }
           }
           const positionDrag = positionDragRef.current
           if (positionDrag) {
@@ -2913,6 +3005,31 @@ export function PriceChartView({
           })}
         </svg>
       ) : null}
+      {trendlineAlerts && trendlinePixels.length > 0 ? (
+        // A bell above an armed line's midpoint marks it as a live tripwire.
+        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+          {trendlinePixels.map((line) => {
+            const rule = trendlineAlerts.rules.get(line.id)
+            if (rule?.status !== "active") return null
+            return (
+              <div
+                key={line.id}
+                className="absolute -translate-x-1/2 -translate-y-[135%]"
+                style={{
+                  left: (line.start.x + line.end.x) / 2,
+                  top: (line.start.y + line.end.y) / 2,
+                }}
+              >
+                <BellRingIcon
+                  aria-label="Alert armed on this line"
+                  className="size-3.5"
+                  style={{ color: line.color }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
       {positionPixels.length > 0 ? (
         <ChartPositionOverlay
           positions={positions}
@@ -2932,7 +3049,10 @@ export function PriceChartView({
       <Popover
         open={Boolean(settingsTrendline ?? settingsPosition)}
         onOpenChange={(open) => {
-          if (!open) setDrawingSettings(null)
+          if (!open) {
+            setDrawingSettings(null)
+            setPendingTouch("wick")
+          }
         }}
       >
         {drawingSettings && (settingsTrendline ?? settingsPosition) ? (
@@ -2981,6 +3101,19 @@ export function PriceChartView({
                       }
                     />
                   </label>
+                  {trendlineAlerts ? (
+                    <TrendlineAlertSection
+                      line={settingsTrendline}
+                      controls={trendlineAlerts}
+                      pendingTouch={pendingTouch}
+                      onPendingTouchChange={setPendingTouch}
+                      nowMs={
+                        candles.length > 0
+                          ? candles[candles.length - 1].t
+                          : null
+                      }
+                    />
+                  ) : null}
                 </div>
               ) : settingsPosition ? (
                 <Button
@@ -3230,6 +3363,7 @@ export function PriceChart({
   onCandlesChange,
   registerApi,
   onDrawingPersistenceError,
+  trendlineAlerts,
 }: {
   network: TradingNetwork
   coin: string
@@ -3264,6 +3398,8 @@ export function PriceChart({
   registerApi?: (api: PriceChartHandle | null) => void
   /** Fired when saved drawings could not be loaded or saved. */
   onDrawingPersistenceError?: (action: "load" | "save") => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const maxCandles = useShellRuntime().config.maxCandles
   const { candles: liveCandles, loading } = useCandles(
@@ -3560,8 +3696,96 @@ export function PriceChart({
       drawings={drawings}
       onDrawingsChange={onDrawingsChange}
       onDrawingsCommit={onDrawingsCommit}
+      trendlineAlerts={trendlineAlerts}
     />
   )
+}
+
+/**
+ * The "Alert me" block in the trendline settings popover: a toggle that arms
+ * the drawn line as a price alert, plus the explicit touch definition (any
+ * trade touching the line vs a one-minute candle closing beyond it).
+ */
+function TrendlineAlertSection({
+  line,
+  controls,
+  pendingTouch,
+  onPendingTouchChange,
+  nowMs,
+}: {
+  line: Trendline
+  controls: TrendlineAlertControls
+  pendingTouch: TrendlineTouchMode
+  onPendingTouchChange: (touch: TrendlineTouchMode) => void
+  /** The latest candle's time — the live chart's "now", kept pure for render. */
+  nowMs: number | null
+}) {
+  const rule = controls.rules.get(line.id)
+  const armed = rule?.status === "active"
+  const busy = controls.busyLineId === line.id
+  const linePrice = nowMs === null ? null : trendlinePriceAt(line, nowMs)
+  const touch = rule?.touch ?? pendingTouch
+
+  return (
+    <div className="grid gap-2.5 border-t pt-2.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Price alert
+      </span>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="trendline-alert-armed"
+          checked={armed}
+          disabled={busy || (linePrice === null && !armed)}
+          onCheckedChange={(checked) => {
+            if (checked === true) controls.onArm(line, touch)
+            else if (rule) controls.onDisarm(rule)
+          }}
+        />
+        <Label htmlFor="trendline-alert-armed" className="text-xs font-normal">
+          Alert me when price reaches this line
+        </Label>
+      </div>
+      <Select
+        value={touch}
+        disabled={busy}
+        onValueChange={(value) => {
+          const next = value as TrendlineTouchMode
+          if (rule) controls.onTouchChange(rule, next)
+          else onPendingTouchChange(next)
+        }}
+      >
+        <SelectTrigger className="w-full" aria-label="What counts as a touch">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="wick">Any touch, even a wick</SelectItem>
+          <SelectItem value="close">1-minute candle closes past it</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {linePrice === null
+          ? "This line has no watchable price right now (it is vertical or its extension left the price range)."
+          : `The line's trigger price is ${formatLinePrice(linePrice)} right now.`}
+      </p>
+      {rule?.status === "triggered" ? (
+        <p className="text-xs text-muted-foreground">
+          This alert already fired. Tick the box to re-arm it.
+        </p>
+      ) : rule?.status === "paused" ? (
+        <p className="text-xs text-muted-foreground">
+          Paused on the Alerts page. Tick the box to resume it.
+        </p>
+      ) : armed ? (
+        <p className="text-xs text-muted-foreground">
+          Armed quietly — it pings once, on the next touch.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function formatLinePrice(price: number) {
+  return price.toLocaleString("en-US", { maximumSignificantDigits: 6 })
 }
 
 /** Rough hover-panel size, used only to decide which side of the cursor it sits on. */

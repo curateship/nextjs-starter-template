@@ -3,18 +3,24 @@ import type { InfoClient } from "@nktkas/hyperliquid"
 import {
   ALERT_COOLDOWN_MS,
   evaluateWindowAlert,
+  nextLineTouchState,
   nextPriceLevelState,
   nextThresholdState,
   type AlertRuleItem,
+  type LineTouchState,
   type MarketBar,
   type PriceLevelState,
   type ThresholdState,
 } from "@/lib/alerts"
+import { trendlinePriceAt, type Trendline } from "@/lib/trading/trendlines"
 import {
+  deleteAlertRulesById,
   listActiveAlertRules,
   listAlertRuleTriggerTimes,
   markAlertRulesEvaluated,
   recordAlertEvent,
+  resolveTrendlineRuleLines,
+  type TrendlineAlertRule,
 } from "@/server/alerts"
 
 type RateLimiter = { take: (weight?: number) => Promise<void> }
@@ -44,6 +50,9 @@ type CoinBars = {
 
 type PriceLevelAlertRule = Extract<AlertRuleItem, { kind: "price_level" }>
 
+/** An active drawn-line rule together with the drawing it points at. */
+type ArmedTrendlineRule = { rule: TrendlineAlertRule; line: Trendline }
+
 type RecoveryCandle = {
   t: number
   T: number
@@ -72,10 +81,14 @@ export class TradingViewAlertEngine {
   private readonly restBucket: RateLimiter
   private rules: AlertRuleItem[] = []
   private priceRules = new Map<string, PriceLevelAlertRule[]>()
+  private trendlineRules = new Map<string, ArmedTrendlineRule[]>()
   private readonly recentPriceTrades = new Map<string, AlertTrade[]>()
   private readonly bars = new Map<string, CoinBars>()
   private readonly thresholdStates = new Map<string, ThresholdState>()
   private readonly priceStates = new Map<string, PriceLevelState>()
+  private readonly lineStates = new Map<string, LineTouchState>()
+  /** Close-mode drawn-line rules: last one-minute bucket already judged. */
+  private readonly lineClosedBuckets = new Map<string, number>()
   private readonly triggerTimes = new Map<string, number>()
   private readonly warming = new Set<string>()
   private readonly recoveringPriceRules = new Set<string>()
@@ -122,10 +135,13 @@ export class TradingViewAlertEngine {
     this.evaluateTimer = null
     this.rules = []
     this.priceRules.clear()
+    this.trendlineRules.clear()
     this.recentPriceTrades.clear()
     this.bars.clear()
     this.thresholdStates.clear()
     this.priceStates.clear()
+    this.lineStates.clear()
+    this.lineClosedBuckets.clear()
     this.triggerTimes.clear()
     this.warming.clear()
     this.recoveringPriceRules.clear()
@@ -159,7 +175,41 @@ export class TradingViewAlertEngine {
         if (this.recoveringPriceRules.has(rule.id)) continue
         this.evaluatePriceRule(rule, trade)
       }
+
+      for (const armed of this.trendlineRules.get(trade.coin) ?? []) {
+        if (armed.rule.touch === "wick") this.evaluateLineWick(armed, trade)
+      }
     }
+  }
+
+  private evaluateLineWick(armed: ArmedTrendlineRule, trade: AlertTrade) {
+    const { rule, line } = armed
+    const linePrice = trendlinePriceAt(line, trade.ts)
+    if (linePrice === null) return
+    const key = `${rule.id}:${rule.coin}`
+    const state = nextLineTouchState(
+      this.lineStates.get(key),
+      trade.px,
+      linePrice,
+      trade.ts,
+      {
+        triggerMode: rule.triggerMode,
+        cooldownMs:
+          rule.triggerMode === "repeat" ? ALERT_COOLDOWN_MS[rule.cooldown] : 0,
+        exactTouchFires: true,
+      },
+      this.triggerTimes.get(key) ?? null
+    )
+    this.lineStates.set(key, state)
+    if (!state.shouldAlert) return
+    this.queueTrigger(
+      rule,
+      trade.px,
+      new Date(trade.ts),
+      `${rule.id}:${rule.coin}:${trade.tid}`,
+      key,
+      linePrice
+    )
   }
 
   private rememberPriceTrade(trade: AlertTrade) {
@@ -391,7 +441,8 @@ export class TradingViewAlertEngine {
     observed: number,
     occurredAt: Date,
     eventKey: string,
-    stateKey: string
+    stateKey: string,
+    linePrice?: number
   ) {
     this.triggerQueue = this.triggerQueue
       .then(async () => {
@@ -400,12 +451,14 @@ export class TradingViewAlertEngine {
           observed,
           occurredAt,
           eventKey,
+          ...(linePrice !== undefined ? { linePrice } : {}),
         })
         if (event) this.triggerTimes.set(stateKey, occurredAt.getTime())
       })
       .catch((error) => {
         this.priceStates.delete(stateKey)
         this.thresholdStates.delete(stateKey)
+        this.lineStates.delete(stateKey)
         console.error("price alerts: persistence failed", error)
       })
   }
@@ -441,12 +494,21 @@ export class TradingViewAlertEngine {
         coinRules.push(rule)
         this.priceRules.set(rule.coin, coinRules)
       }
+      await this.refreshTrendlineRules(
+        nextRules.filter((rule) => rule.kind === "trendline")
+      )
+      if (this.stopped) return
       await this.recoverPriceRules(changedPriceRules)
       if (this.stopped) return
 
       const needed = new Set(
         nextRules
-          .filter((rule) => rule.kind !== "price_level")
+          .filter(
+            (rule) =>
+              rule.kind === "price_move" ||
+              rule.kind === "volume_spike" ||
+              (rule.kind === "trendline" && rule.touch === "close")
+          )
           .map((rule) => rule.coin)
       )
       for (const coin of this.bars.keys()) {
@@ -472,12 +534,72 @@ export class TradingViewAlertEngine {
     }
   }
 
+  /**
+   * Pairs each active drawn-line rule with its saved drawing. Rules whose
+   * line was deleted are retired outright (the app already does this on
+   * save; this is the safety net). A line whose geometry changed since the
+   * last look re-arms from scratch, so dragging a line across the market
+   * price does not itself count as a touch.
+   */
+  private async refreshTrendlineRules(rules: TrendlineAlertRule[]) {
+    let lines: Map<string, Trendline | null>
+    try {
+      lines = await resolveTrendlineRuleLines(rules)
+    } catch (error) {
+      // Keep the previous geometry pairing rather than dropping live rules.
+      console.error("price alerts: loading drawn lines failed", error)
+      return
+    }
+    if (this.stopped) return
+
+    const previousLines = new Map<string, Trendline>()
+    for (const armedList of this.trendlineRules.values()) {
+      for (const armed of armedList) previousLines.set(armed.rule.id, armed.line)
+    }
+
+    const orphaned = rules.filter((rule) => !lines.get(rule.id))
+    if (orphaned.length > 0) {
+      try {
+        await deleteAlertRulesById(orphaned.map((rule) => rule.id))
+        for (const rule of orphaned) this.clearRuleState(rule.id)
+      } catch (error) {
+        console.error("price alerts: retiring line-less rules failed", error)
+      }
+    }
+    if (this.stopped) return
+
+    this.trendlineRules = new Map()
+    for (const rule of rules) {
+      const line = lines.get(rule.id)
+      if (!line) continue
+      const previous = previousLines.get(rule.id)
+      if (
+        previous &&
+        (previous.start.time !== line.start.time ||
+          previous.start.price !== line.start.price ||
+          previous.end.time !== line.end.time ||
+          previous.end.price !== line.end.price)
+      ) {
+        this.clearRuleState(rule.id)
+      }
+      const coinRules = this.trendlineRules.get(rule.coin) ?? []
+      coinRules.push({ rule, line })
+      this.trendlineRules.set(rule.coin, coinRules)
+    }
+  }
+
   private clearRuleState(ruleId: string) {
     for (const key of this.thresholdStates.keys()) {
       if (key.startsWith(`${ruleId}:`)) this.thresholdStates.delete(key)
     }
     for (const key of this.priceStates.keys()) {
       if (key.startsWith(`${ruleId}:`)) this.priceStates.delete(key)
+    }
+    for (const key of this.lineStates.keys()) {
+      if (key.startsWith(`${ruleId}:`)) this.lineStates.delete(key)
+    }
+    for (const key of this.lineClosedBuckets.keys()) {
+      if (key.startsWith(`${ruleId}:`)) this.lineClosedBuckets.delete(key)
     }
   }
 
@@ -555,7 +677,12 @@ export class TradingViewAlertEngine {
         ])
       )
       for (const rule of this.rules) {
-        if (rule.kind === "price_level" || this.warming.has(rule.coin)) continue
+        if (
+          rule.kind === "price_level" ||
+          rule.kind === "trendline" ||
+          this.warming.has(rule.coin)
+        )
+          continue
         const history = sortedBars.get(rule.coin)
         if (!history) continue
         const source =
@@ -586,6 +713,8 @@ export class TradingViewAlertEngine {
         if (event) this.triggerTimes.set(key, evaluatedAt)
       }
 
+      this.evaluateLineCloses(evaluatedAt)
+
       if (evaluatedAt - this.lastTouchedAt >= EVALUATED_TOUCH_MS) {
         await markAlertRulesEvaluated(
           this.rules.map((rule) => rule.id),
@@ -598,6 +727,72 @@ export class TradingViewAlertEngine {
     } finally {
       this.evaluating = false
     }
+  }
+
+  /** Judges close-mode drawn-line rules on each completed one-minute candle. */
+  private evaluateLineCloses(now: number) {
+    for (const armedList of this.trendlineRules.values()) {
+      for (const armed of armedList) {
+        if (armed.rule.touch !== "close") continue
+        const { rule } = armed
+        if (this.warming.has(rule.coin)) continue
+        const coinBars = this.bars.get(rule.coin)
+        if (!coinBars) continue
+        const closed = [...coinBars.oneMinute.keys()]
+          .filter((bucket) => bucket + ONE_MINUTE_MS <= now)
+          .sort((a, b) => a - b)
+        if (closed.length === 0) continue
+
+        const key = `${rule.id}:${rule.coin}`
+        const last = this.lineClosedBuckets.get(key)
+        if (last === undefined) {
+          // First look after arming: record which side the latest finished
+          // candle closed on, without judging candles from before arming.
+          const bucket = closed[closed.length - 1]
+          this.judgeLineClose(armed, bucket)
+          this.lineClosedBuckets.set(key, bucket)
+          continue
+        }
+        for (const bucket of closed) {
+          if (bucket <= last) continue
+          this.judgeLineClose(armed, bucket)
+          this.lineClosedBuckets.set(key, bucket)
+        }
+      }
+    }
+  }
+
+  private judgeLineClose(armed: ArmedTrendlineRule, bucket: number) {
+    const { rule, line } = armed
+    const bar = this.bars.get(rule.coin)?.oneMinute.get(bucket)
+    if (!bar) return
+    const closedAt = bucket + ONE_MINUTE_MS
+    const linePrice = trendlinePriceAt(line, closedAt)
+    if (linePrice === null) return
+    const key = `${rule.id}:${rule.coin}`
+    const state = nextLineTouchState(
+      this.lineStates.get(key),
+      bar.close,
+      linePrice,
+      closedAt,
+      {
+        triggerMode: rule.triggerMode,
+        cooldownMs:
+          rule.triggerMode === "repeat" ? ALERT_COOLDOWN_MS[rule.cooldown] : 0,
+        exactTouchFires: false,
+      },
+      this.triggerTimes.get(key) ?? null
+    )
+    this.lineStates.set(key, state)
+    if (!state.shouldAlert) return
+    this.queueTrigger(
+      rule,
+      bar.close,
+      new Date(closedAt),
+      `${rule.id}:${rule.coin}:close:${bucket}`,
+      key,
+      linePrice
+    )
   }
 }
 

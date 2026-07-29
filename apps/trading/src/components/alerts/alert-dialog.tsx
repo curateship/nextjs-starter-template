@@ -38,6 +38,12 @@ import {
   type PriceLevelOperator,
 } from "@/lib/alerts"
 
+/**
+ * The rule kinds this dialog can express. Drawn-line alerts are created and
+ * edited on the chart line itself, never through this form.
+ */
+export type EditableAlertRule = Exclude<AlertRuleItem, { kind: "trendline" }>
+
 type AlertDraft = {
   name: string
   message: string
@@ -61,7 +67,7 @@ export function AlertDialog({
   onSaved,
 }: {
   open: boolean
-  alert?: AlertRuleItem | null
+  alert?: EditableAlertRule | null
   prefill?: { coin: string; level: number }
   onOpenChange: (open: boolean) => void
   onSaved: (alert: AlertRuleItem) => void | Promise<void>
@@ -387,7 +393,7 @@ function WindowField({
 }
 
 function draftFor(
-  alert: AlertRuleItem | null,
+  alert: EditableAlertRule | null,
   prefill?: { coin: string; level: number }
 ): AlertDraft {
   if (!alert) {

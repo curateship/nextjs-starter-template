@@ -79,7 +79,23 @@ const createAlertFn = createServerFn({ method: "POST" })
     await requireMutation()
     const user = await requireUser()
     await assertAlertMarket(data.coin)
-    const { createAlertRule } = await import("@/server/alerts")
+    await assertTrendlineExists(user.id, data)
+    const { createAlertRule, getAlertRules } = await import("@/server/alerts")
+    if (data.kind === "trendline") {
+      // One rule per line — the chart toggle relies on that.
+      const rules = await getAlertRules(user.id)
+      if (
+        rules.some(
+          (rule) =>
+            rule.kind === "trendline" &&
+            rule.network === data.network &&
+            rule.coin === data.coin &&
+            rule.trendlineId === data.trendlineId
+        )
+      ) {
+        throw new Error("This line already has an alert.")
+      }
+    }
     return createAlertRule(user.id, data)
   })
 
@@ -89,6 +105,7 @@ const updateAlertFn = createServerFn({ method: "POST" })
     await requireMutation()
     const user = await requireUser()
     await assertAlertMarket(data.alert.coin)
+    await assertTrendlineExists(user.id, data.alert)
     const { updateAlertRule } = await import("@/server/alerts")
     return updateAlertRule(user.id, data.id, data.alert)
   })
@@ -214,6 +231,26 @@ async function requireUser() {
 async function requireMutation() {
   const { requireAppOrigin } = await import("@/server/origin")
   requireAppOrigin()
+}
+
+async function assertTrendlineExists(userId: string, input: AlertRuleInput) {
+  if (input.kind !== "trendline") return
+  const { loadUserChartDrawings } = await import("@/server/chart-drawings")
+  const drawings = await loadUserChartDrawings(userId, {
+    network: input.network,
+    market: input.coin,
+  })
+  const line = drawings.trendlines.find(
+    (candidate) => candidate.id === input.trendlineId
+  )
+  if (!line) {
+    throw new Error(
+      "That drawn line was not found. If you just drew it, give it a second to save and try again."
+    )
+  }
+  if (line.start.time === line.end.time && line.start.price !== line.end.price) {
+    throw new Error("A vertical line has no single price to alert on.")
+  }
 }
 
 export async function assertAlertMarket(coin: string) {

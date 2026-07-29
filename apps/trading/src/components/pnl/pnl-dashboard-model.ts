@@ -1,4 +1,4 @@
-import type { PnlTrade, PnlWallet } from "@/lib/api/pnl"
+import type { PnlCostEntry, PnlTrade, PnlWallet } from "@/lib/api/pnl"
 
 // ————————————————————————————————————————————————————————————————
 // Constants
@@ -91,6 +91,7 @@ export function tint(pnl: number, maxAbs: number) {
 export type DayAgg = {
   /** Local-midday timestamp for the day. */
   t: number
+  /** True daily net: gross − every fee ± funding. */
   pnl: number
   trades: number
   wins: number
@@ -101,7 +102,11 @@ export type DayAgg = {
 
 export type DayIndex = {
   map: Map<string, DayAgg>
-  /** Trading days in chronological order (every entry has trades > 0). */
+  /**
+   * Days in chronological order. A day exists when anything moved money —
+   * a realizing fill, a fee, or a funding payment — so a day can carry costs
+   * with trades = 0 (e.g. funding on a held position).
+   */
   ordered: DayAgg[]
 }
 
@@ -109,12 +114,17 @@ function dayKey(y: number, m: number, d: number) {
   return `${y}-${m}-${d}`
 }
 
-/** Bucket realizing fills into local calendar days, honoring the symbol filter. */
-export function buildDayIndex(trades: PnlTrade[], symbol: string): DayIndex {
+/**
+ * Bucket everything that moved money into local calendar days, honoring the
+ * symbol filter. Daily net is the actual number: realized gross minus every
+ * fee (entry fills included) plus/minus funding — the same arithmetic as the
+ * True cost table, so every figure on the page reconciles with it.
+ */
+export function buildDayIndex(wallet: PnlWallet, symbol: string): DayIndex {
   const map = new Map<string, DayAgg>()
-  for (const trade of trades) {
-    if (symbol !== "All" && trade.coin !== symbol) continue
-    const dt = new Date(trade.time)
+
+  function dayFor(time: number): DayAgg {
+    const dt = new Date(time)
     const y = dt.getFullYear()
     const m = dt.getMonth()
     const d = dt.getDate()
@@ -132,7 +142,13 @@ export function buildDayIndex(trades: PnlTrade[], symbol: string): DayIndex {
       }
       map.set(key, day)
     }
-    day.pnl += trade.pnl
+    return day
+  }
+
+  for (const trade of wallet.trades) {
+    if (symbol !== "All" && trade.coin !== symbol) continue
+    const day = dayFor(trade.time)
+    day.pnl += trade.gross
     day.trades += 1
     if (trade.gross > 0) {
       day.wins += 1
@@ -142,6 +158,15 @@ export function buildDayIndex(trades: PnlTrade[], symbol: string): DayIndex {
       day.gl += Math.abs(trade.gross)
     }
   }
+  for (const fee of wallet.fees) {
+    if (symbol !== "All" && fee.coin !== symbol) continue
+    dayFor(fee.time).pnl -= fee.amount
+  }
+  for (const payment of wallet.funding) {
+    if (symbol !== "All" && payment.coin !== symbol) continue
+    dayFor(payment.time).pnl += payment.amount
+  }
+
   const ordered = [...map.values()].sort((a, b) => a.t - b.t)
   return { map, ordered }
 }
@@ -150,11 +175,24 @@ export function buildDayIndex(trades: PnlTrade[], symbol: string): DayIndex {
 export function mergeWallets(wallets: PnlWallet[]): PnlWallet {
   const symbols = new Set<string>()
   const trades: PnlTrade[] = []
+  const fees: PnlCostEntry[] = []
+  const funding: PnlCostEntry[] = []
   let accountValue = 0
+  let fundingSince: number | null = null
+  let fundingStale = false
   for (const wallet of wallets) {
     accountValue += wallet.accountValue
     for (const symbol of wallet.symbols) symbols.add(symbol)
     for (const trade of wallet.trades) trades.push(trade)
+    for (const fee of wallet.fees) fees.push(fee)
+    for (const payment of wallet.funding) funding.push(payment)
+    if (
+      wallet.fundingSince !== null &&
+      (fundingSince === null || wallet.fundingSince < fundingSince)
+    ) {
+      fundingSince = wallet.fundingSince
+    }
+    if (wallet.fundingStale) fundingStale = true
   }
   return {
     id: "all",
@@ -163,6 +201,85 @@ export function mergeWallets(wallets: PnlWallet[]): PnlWallet {
     accountValue,
     symbols: [...symbols].sort(),
     trades,
+    fees,
+    funding,
+    fundingSince,
+    fundingStale,
+  }
+}
+
+// ————————————————————————————————————————————————————————————————
+// Cost breakdown — where the money actually went
+// ————————————————————————————————————————————————————————————————
+
+/** Signed dollars with cents, e.g. "+$1,240.55" — costs need exact figures. */
+export function moneyCents(n: number) {
+  // Sign follows the rounded value, so a hair below zero reads "$0.00", not "−$0.00".
+  const cents = Math.round(n * 100) / 100
+  const sign = cents > 0 ? "+" : cents < 0 ? "−" : ""
+  return `${sign}$${Math.abs(cents).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+export type CostBreakdown = {
+  /** Realized trading result before any costs (sum of closedPnl). */
+  gross: number
+  /** Every fill's fee — entry and exit fills alike. Positive = paid. */
+  fees: number
+  /** Net funding: positive = received, negative = paid. */
+  funding: number
+  /** gross − fees + funding. */
+  net: number
+  /** True when funding is unknown: the refresh failed and nothing is stored. */
+  fundingUnknown: boolean
+}
+
+/** The local-day midday timestamp buildDayIndex buckets by, for one entry. */
+function localDayMid(t: number) {
+  const d = new Date(t)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime()
+}
+
+/**
+ * Sums gross result, fees, and funding over the selected range and symbol,
+ * bucketing by local day exactly like the calendar so the figures line up
+ * with the tiles. Net is gross − fees + funding by construction — the lines
+ * always add up.
+ */
+export function computeCosts(
+  wallet: PnlWallet,
+  symbol: string,
+  range: RangeKey,
+  now: number
+): CostBreakdown {
+  const start = rangeStart(range, now)
+  let gross = 0
+  let fees = 0
+  let funding = 0
+  for (const trade of wallet.trades) {
+    if (symbol !== "All" && trade.coin !== symbol) continue
+    if (localDayMid(trade.time) < start) continue
+    gross += trade.gross
+  }
+  for (const fee of wallet.fees) {
+    if (symbol !== "All" && fee.coin !== symbol) continue
+    if (localDayMid(fee.time) < start) continue
+    fees += fee.amount
+  }
+  for (const payment of wallet.funding) {
+    if (symbol !== "All" && payment.coin !== symbol) continue
+    if (localDayMid(payment.time) < start) continue
+    funding += payment.amount
+  }
+  const fundingUnknown = wallet.fundingStale && wallet.funding.length === 0
+  return {
+    gross,
+    fees,
+    funding,
+    net: gross - fees + funding,
+    fundingUnknown,
   }
 }
 
@@ -217,17 +334,23 @@ export function compute(
 
   for (const day of index.ordered) {
     if (day.t < start) continue
+    // Totals and the equity curve count every day money moved — including
+    // cost-only days (funding on a held position) — so they reconcile with
+    // the True cost table.
     total += day.pnl
     trades += day.trades
     gw += day.gw
     gl += day.gl
+    cum += day.pnl
+    eqPts.push({ t: day.t, cum, pnl: day.pnl })
+    // Day-quality stats only judge days that actually traded; a cost-only
+    // day is not a green or red trading day.
+    if (day.trades === 0) continue
     tradingDays += 1
     if (day.pnl > 0) greenDays += 1
     else if (day.pnl < 0) redDays += 1
     if (day.pnl > best.pnl) best = { pnl: day.pnl, t: day.t }
     if (day.pnl < worst.pnl) worst = { pnl: day.pnl, t: day.t }
-    cum += day.pnl
-    eqPts.push({ t: day.t, cum, pnl: day.pnl })
   }
 
   let peak = 0
@@ -265,6 +388,8 @@ export function streakOf(index: DayIndex) {
   let streak = 0
   let up: boolean | null = null
   for (let i = index.ordered.length - 1; i >= 0; i--) {
+    // Cost-only days (funding, no trades) neither extend nor break a streak.
+    if (index.ordered[i].trades === 0) continue
     const p = index.ordered[i].pnl
     if (p === 0) continue
     const pos = p > 0
@@ -511,12 +636,16 @@ export function calGeom(
       const dnum = r * 7 + c - first + 1
       const inMonth = dnum >= 1 && dnum <= dim
       const e = inMonth ? index.map.get(dayKey(y, m, dnum)) : undefined
-      const has = Boolean(e)
+      // Label a cell when it traded or its costs are big enough to show at
+      // whole-dollar rounding; a held position's sub-cent funding days would
+      // otherwise plaster the calendar with "$0" chips. Weekly nets still
+      // count every cent either way.
+      const has = Boolean(e && (e.trades > 0 || Math.abs(e.pnl) >= 0.5))
       const isToday =
         inMonth && y === today.y && m === today.m && dnum === today.d
       if (e) {
         net += e.pnl
-        netDays += 1
+        if (has) netDays += 1
       }
       cells.push({
         inMonth,
@@ -558,11 +687,12 @@ export function monthlyGeom(index: DayIndex, year: number, today: Today) {
     const dt = new Date(day.t)
     if (dt.getFullYear() !== year) continue
     totals[dt.getMonth()] += day.pnl
-    td[dt.getMonth()] += 1
+    if (day.trades > 0) td[dt.getMonth()] += 1
   }
   const maxAbs = Math.max(1, ...totals.map((t) => Math.abs(t)))
   const months: MonthlyRow[] = totals.map((total, mo) => {
-    const has = td[mo] > 0
+    // A month counts when it traded, or when costs alone moved visible money.
+    const has = td[mo] > 0 || Math.abs(total) >= 0.5
     return {
       mo,
       name: SHORT[mo],
@@ -607,19 +737,24 @@ export function yearGeom(index: DayIndex, year: number) {
       let bg = "var(--muted)"
       if (e) {
         total += e.pnl
-        tdays += 1
-        if (e.pnl > 0) wins += 1
+        // Day count and win rate judge trading days only; cost-only days
+        // still color their cell and count toward the month's total.
+        if (e.trades > 0) {
+          tdays += 1
+          if (e.pnl > 0) wins += 1
+        }
         bg = tint(e.pnl, maxAbs)
         if (bg === "transparent") bg = "var(--muted)"
       }
       cells.push(bg)
     }
+    const has = tdays > 0 || Math.abs(total) >= 0.5
     months.push({
       mo,
       name: SHORT[mo],
       total,
-      has: tdays > 0,
-      tone: tdays ? tone(total) : MUTED,
+      has,
+      tone: has ? tone(total) : MUTED,
       sub: tdays
         ? `${tdays}d · ${Math.round((wins / tdays) * 100)}% win`
         : "no trades",

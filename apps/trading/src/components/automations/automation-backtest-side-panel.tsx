@@ -12,6 +12,12 @@ import { MarketPicker } from "@/components/trading/market-watchlist"
 import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -340,57 +346,80 @@ export function AutomationBacktestSidePanel({
           {phase === "setup" ? (
             <>
               <div className="grid gap-2">
-                <Label className="whitespace-nowrap">
-                  Markets{" "}
-                  <span className="font-normal text-muted-foreground">
-                    {selectedMarkets.length}/{marketCap}
-                  </span>
-                </Label>
-                {/* Quick picks on their own row so they never crowd the
-                    label in this narrow panel. */}
-                <div className="flex flex-wrap items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground"
-                    disabled={markets.length === 0}
-                    onClick={randomizeMarkets}
-                  >
-                    <ShuffleIcon className="size-3.5" />
-                    Randomize
-                  </Button>
-                  {bands.map((band) => (
-                    <Button
-                      key={band.key}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground"
-                      disabled={band.coins.length === 0}
-                      title={`Coins trading ${money(band.low)}${
-                        Number.isFinite(band.high)
-                          ? `-${money(band.high)}`
-                          : "+"
-                      } a day — ${band.coins.length} right now, capped at the ${marketCap} this run fits.`}
-                      onClick={() =>
-                        changeMarkets(band.coins.slice(0, marketCap))
-                      }
-                    >
-                      {band.label}
-                    </Button>
-                  ))}
-                  {selectedMarkets.length > 0 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground"
-                      onClick={() => changeMarkets([])}
-                    >
-                      Clear all
-                    </Button>
-                  ) : null}
+                {/* Header row: label, then the quick picks beside it — a split
+                    button (Randomize acts directly, the chevron opens the
+                    liquidity bands) and Clear all, all left aligned. */}
+                <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Label className="whitespace-nowrap">
+                    Markets{" "}
+                    <span className="font-normal text-muted-foreground">
+                      {selectedMarkets.length}/{marketCap}
+                    </span>
+                  </Label>
+                  {/* One unbreakable group pushed to the row's right edge —
+                      Clear all on the LEFT of the split button, and they stay
+                      together even when the row wraps. */}
+                  <div className="ml-auto flex items-center gap-1">
+                    {selectedMarkets.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => changeMarkets([])}
+                      >
+                        Clear all
+                      </Button>
+                    ) : null}
+                    <div className="flex">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-r-none"
+                        disabled={markets.length === 0}
+                        onClick={randomizeMarkets}
+                      >
+                        <ShuffleIcon className="size-3.5" />
+                        Randomize
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-l-none border-l-0 px-1.5"
+                            disabled={markets.length === 0}
+                            aria-label="More market picks"
+                          >
+                            <ChevronDownIcon className="size-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {bands.map((band) => (
+                            <DropdownMenuItem
+                              key={band.key}
+                              disabled={band.coins.length === 0}
+                              title={`Coins trading ${money(band.low)}${
+                                Number.isFinite(band.high)
+                                  ? `-${money(band.high)}`
+                                  : "+"
+                              } a day — ${band.coins.length} right now, capped at the ${marketCap} this run fits.`}
+                              onSelect={() =>
+                                changeMarkets(band.coins.slice(0, marketCap))
+                              }
+                            >
+                              {band.label}
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {band.coins.length}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedMarkets.map((coin) => (
@@ -567,8 +596,8 @@ export function AutomationBacktestSidePanel({
           ) : null}
           {!backtest.replaceable ? (
             <p className="text-[10px] text-muted-foreground">
-              Saved as “{backtest.groupName}” — your next backtest won't
-              replace it.
+              Saved as “{backtest.groupName}” — your next backtest won't replace
+              it.
             </p>
           ) : null}
         </div>

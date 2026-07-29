@@ -27,6 +27,37 @@ after its rule is deleted.
   or 24h.
 - Unusual volume: current rolling dollar volume compared with the average of
   the previous 20 equal windows.
+- Drawn line: price reaches a trendline you drew by hand (see below).
+
+## Alerts on drawn lines
+
+Any trendline drawn on a chart can become an alert. Click the line to open
+its settings and tick **Alert me when price reaches this line**. A bell
+appears on the line while it is armed. For a sloped line the trigger price
+moves with time: the worker recomputes the line's price on every check, so
+the alert fires where the line is *now*, not where it was drawn. Lines are
+extended past their last anchor point, so an old line keeps working.
+
+What counts as a touch is an explicit choice on the line:
+
+- **Any touch, even a wick** — the first trade that reaches the line fires
+  the alert.
+- **1-minute candle closes past it** — a one-minute candle must finish on
+  the far side of the line; a wick that pokes through and closes back does
+  not fire.
+
+Arming is always quiet. If price is already past the line when you arm it,
+nothing fires until price actually crosses it again. The alert fires once,
+then shows as **Triggered** — re-tick the box on the line (or restart it
+from `/alerts`) to re-arm it.
+
+The alert follows the line: drag or re-slope the line and the trigger moves
+with it (re-arming silently, so the edit itself never fires it). Deleting
+the line deletes its alert. On the `/alerts` page drawn-line alerts can be
+paused, resumed, restarted, or deleted, but not edited — the line on the
+chart is the alert. The Alert Log records the price that touched the line
+and where the line was at that moment. Vertical lines have no single price
+and cannot be armed.
 
 The first valid price arms an exact-price alert without firing it. A one-time
 alert stops after its first event. A repeating alert must reset across its

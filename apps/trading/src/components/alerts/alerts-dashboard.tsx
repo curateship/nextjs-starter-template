@@ -9,7 +9,10 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { AlertDialog } from "@/components/alerts/alert-dialog"
+import {
+  AlertDialog,
+  type EditableAlertRule,
+} from "@/components/alerts/alert-dialog"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarSearch,
@@ -63,7 +66,7 @@ const COLUMNS = [
 
 export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
   const [data, setData] = React.useState(initial)
-  const [editing, setEditing] = React.useState<AlertRuleItem | null>(null)
+  const [editing, setEditing] = React.useState<EditableAlertRule | null>(null)
   const [deleting, setDeleting] = React.useState<AlertRuleItem | null>(null)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -193,6 +196,7 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
                 { value: "price_level", label: "Exact price" },
                 { value: "price_move", label: "Price move" },
                 { value: "volume_spike", label: "Unusual volume" },
+                { value: "trendline", label: "Drawn line" },
               ]}
             />
             <FilterSelect
@@ -264,12 +268,14 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center justify-end">
-                <RowButton
-                  label={`Edit ${rule.name}`}
-                  onClick={() => setEditing(rule)}
-                >
-                  <PencilIcon className="size-4" />
-                </RowButton>
+                {rule.kind !== "trendline" ? (
+                  <RowButton
+                    label={`Edit ${rule.name}`}
+                    onClick={() => setEditing(rule)}
+                  >
+                    <PencilIcon className="size-4" />
+                  </RowButton>
+                ) : null}
                 <RowButton
                   label={`${rule.status === "active" ? "Pause" : rule.status === "triggered" ? "Restart" : "Resume"} ${rule.name}`}
                   disabled={busyId === rule.id}
@@ -412,6 +418,11 @@ function conditionLabel(rule: AlertRuleItem) {
   if (rule.kind === "price_move") {
     return `${rule.direction === "up" ? "Up" : "Down"} ${rule.percent}% in ${rule.window}`
   }
+  if (rule.kind === "trendline") {
+    return rule.touch === "close"
+      ? "1m candle closes past the drawn line"
+      : "Price touches the drawn line"
+  }
   return `${rule.multiplier}× volume in ${rule.window}`
 }
 
@@ -424,7 +435,9 @@ function typeLabel(kind: AlertKind) {
     ? "Exact price"
     : kind === "price_move"
       ? "Price move"
-      : "Unusual volume"
+      : kind === "trendline"
+        ? "Drawn line"
+        : "Unusual volume"
 }
 
 function statusLabel(status: AlertStatus) {

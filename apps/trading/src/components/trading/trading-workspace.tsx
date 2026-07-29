@@ -11,7 +11,10 @@ import {
   type AccountSummary,
   type WalletOption,
 } from "@/components/trading/account-strip"
-import { AlertDialog } from "@/components/alerts/alert-dialog"
+import {
+  AlertDialog,
+  type EditableAlertRule,
+} from "@/components/alerts/alert-dialog"
 import { PracticeSetupDialog } from "@/components/backtest/practice-setup-dialog"
 import {
   FillsTable,
@@ -49,6 +52,8 @@ import {
   type ChartMarker,
   type ChartPriceLine,
   type PriceChartHandle,
+  type TrendlineAlertControls,
+  type TrendlineAlertRuleInfo,
 } from "@/components/chart/price-chart"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { TradesTape } from "@/components/trading/trades-tape"
@@ -84,6 +89,7 @@ import {
   modifyOrder,
 } from "@/lib/api/orders"
 import {
+  activateAlert,
   createAlert,
   deleteAlert,
   loadMyAlertRules,
@@ -91,9 +97,13 @@ import {
 } from "@/lib/api/alerts"
 import {
   alertWithPriceLevel,
+  alertWithTrendlineTouch,
   quickPriceAlert,
+  quickTrendlineAlert,
   type AlertRuleItem,
+  type TrendlineTouchMode,
 } from "@/lib/alerts"
+import type { Trendline } from "@/lib/trading/trendlines"
 import {
   cancelPaperOrder,
   getPaperErrorMessage,
@@ -137,7 +147,7 @@ export const PAPER_WALLET_PREFIX = "paper:"
 const ALERT_POLL_MS = 10_000
 
 type AlertEditorState = {
-  alert?: AlertRuleItem
+  alert?: EditableAlertRule
   prefill?: { coin: string; level: number }
 }
 
@@ -281,7 +291,7 @@ export function TradingWorkspace({
   const chartAlerts = React.useMemo(
     () =>
       alertRules.filter(
-        (rule) =>
+        (rule): rule is Extract<AlertRuleItem, { kind: "price_level" }> =>
           rule.coin === market &&
           rule.kind === "price_level" &&
           rule.status === "active"
@@ -563,6 +573,85 @@ export function TradingWorkspace({
     },
     [marketRow]
   )
+
+  // Drawn-line alerts for this chart: one rule per line id, and the
+  // arm/disarm/touch handlers the trendline settings popover calls.
+  const [busyLineId, setBusyLineId] = React.useState<string | null>(null)
+  const trendlineRulesByLine = React.useMemo(() => {
+    const map = new Map<string, Extract<AlertRuleItem, { kind: "trendline" }>>()
+    for (const rule of alertRules) {
+      if (
+        rule.kind === "trendline" &&
+        rule.coin === market &&
+        rule.network === tradingNetwork
+      ) {
+        map.set(rule.trendlineId, rule)
+      }
+    }
+    return map
+  }, [alertRules, market, tradingNetwork])
+
+  const trendlineAlerts = React.useMemo<TrendlineAlertControls>(() => {
+    const run = async (
+      lineId: string,
+      action: () => Promise<unknown>,
+      failure: string
+    ) => {
+      setBusyLineId(lineId)
+      try {
+        await action()
+        await refreshAlerts()
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : failure, "error")
+      } finally {
+        setBusyLineId(null)
+      }
+    }
+    const fullRule = (info: TrendlineAlertRuleInfo) =>
+      [...trendlineRulesByLine.values()].find((rule) => rule.id === info.id)
+    return {
+      rules: trendlineRulesByLine,
+      busyLineId,
+      onArm: (line: Trendline, touch: TrendlineTouchMode) => {
+        const existing = trendlineRulesByLine.get(line.id)
+        void run(
+          line.id,
+          () =>
+            existing
+              ? activateAlert(existing.id)
+              : createAlert(
+                  quickTrendlineAlert(market, tradingNetwork, line.id, touch)
+                ),
+          "Arming the line alert failed."
+        )
+      },
+      onDisarm: (info: TrendlineAlertRuleInfo) => {
+        const rule = fullRule(info)
+        if (!rule) return
+        void run(
+          rule.trendlineId,
+          () => deleteAlert(rule.id),
+          "Removing the line alert failed."
+        )
+      },
+      onTouchChange: (info: TrendlineAlertRuleInfo, touch: TrendlineTouchMode) => {
+        const rule = fullRule(info)
+        if (!rule || rule.touch === touch) return
+        void run(
+          rule.trendlineId,
+          () => updateAlert(rule.id, alertWithTrendlineTouch(rule, touch)),
+          "Changing the touch setting failed."
+        )
+      },
+    }
+  }, [
+    trendlineRulesByLine,
+    busyLineId,
+    market,
+    tradingNetwork,
+    refreshAlerts,
+    notify,
+  ])
 
   const addChartAlert = React.useCallback(
     async (price: number) => {
@@ -963,6 +1052,7 @@ export function TradingWorkspace({
                       onDrawingPersistenceError={
                         handleDrawingPersistenceError
                       }
+                      trendlineAlerts={trendlineAlerts}
                     />
                   </div>
                 </WorkspacePanel>
