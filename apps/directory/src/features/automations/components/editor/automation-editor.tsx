@@ -39,6 +39,7 @@ import {
   saveAutomation,
   setAutomationStatus,
 } from "@/lib/actions/automations/automation-actions";
+import { decideAutomationApproval } from "@/lib/actions/automations/approval-actions";
 import {
   showActionError,
   showActionSuccess,
@@ -46,7 +47,10 @@ import {
 import { AutomationCanvas } from "./automation-canvas";
 import { AutomationInspector } from "./automation-inspector";
 import { AutomationPalette } from "./automation-palette";
-import { AutomationRunHistory } from "./automation-run-history";
+import {
+  AutomationRunHistory,
+  type ApprovalDecision,
+} from "./automation-run-history";
 import {
   nextNodePosition,
   type CanvasPoint,
@@ -73,6 +77,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [deciding, setDeciding] = useState<ApprovalDecision | null>(null);
   const [desktop, setDesktop] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -396,9 +401,37 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         : current,
     );
     showActionSuccess(
-      result.data.status === "partial"
-        ? "Automation finished with partial results"
-        : "Automation run finished",
+      result.data.status === "waiting"
+        ? "Paused — this run needs your approval"
+        : result.data.status === "partial"
+          ? "Automation finished with partial results"
+          : "Automation run finished",
+    );
+  }
+
+  async function handleDecideApproval(
+    approvalId: string,
+    decision: "approve" | "reject",
+  ) {
+    setDeciding({ approvalId, decision });
+    const result = await decideAutomationApproval(approvalId, decision);
+    setDeciding(null);
+    if (result.error || !result.data)
+      return showActionError(result.error || "Failed to record the approval");
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            runs: current.runs.map((run) =>
+              run.id === result.data!.id ? result.data! : run,
+            ),
+          }
+        : current,
+    );
+    showActionSuccess(
+      decision === "approve"
+        ? "Approved — the rest of the run starts within a minute"
+        : "Rejected — nothing after that step will run",
     );
   }
 
@@ -539,7 +572,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
       <ResizableHandle gap />
       <ResizablePanel
         id="inspector"
-        defaultSize="18%"
+        defaultSize="22%"
         minSize="18%"
         maxSize="34%"
       >
@@ -672,7 +705,13 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
                 maxSize="45%"
               >
                 <WorkspacePanel>
-                  <AutomationRunHistory runs={data.runs} />
+                  <AutomationRunHistory
+                    runs={data.runs}
+                    deciding={deciding}
+                    onDecideApproval={(approvalId, decision) =>
+                      void handleDecideApproval(approvalId, decision)
+                    }
+                  />
                 </WorkspacePanel>
               </ResizablePanel>
             </ResizablePanelGroup>

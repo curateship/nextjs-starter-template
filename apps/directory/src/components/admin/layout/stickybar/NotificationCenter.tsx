@@ -10,6 +10,7 @@ import CheckCheck from "lucide-react/dist/esm/icons/check-check.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 import Store from "lucide-react/dist/esm/icons/store.js"
+import UserCheck from "lucide-react/dist/esm/icons/user-check.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 
 import {
@@ -49,6 +50,7 @@ const notificationIcons: Record<HubNotificationItem["type"], LucideIcon> = {
   event_submission: CalendarPlus,
   directory_submission: Store,
   event_registration: Users,
+  automation_approval: UserCheck,
 }
 
 function getHubNotificationErrorMessage(error: unknown) {

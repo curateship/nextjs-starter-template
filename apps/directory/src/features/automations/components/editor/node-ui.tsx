@@ -13,6 +13,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Rss from "lucide-react/dist/esm/icons/rss.js"
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import UserCheck from "lucide-react/dist/esm/icons/user-check.js"
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -115,6 +116,14 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
         : "",
     Panel: ImagePanel,
   },
+  approval: {
+    icon: UserCheck,
+    describe: (node) =>
+      node.kind === "approval"
+        ? `Waits ${formatExpiryWindow(node.config.expiryHours)} for your OK`
+        : "",
+    Panel: ApprovalPanel,
+  },
   post: {
     icon: FileText,
     describe: (node) =>
@@ -146,6 +155,16 @@ const WEEKDAYS = [
   "Friday",
   "Saturday",
 ];
+
+// Offered as a fixed list so the window is always a sensible round number. Any
+// value between 1 and 720 hours parses, so an older saved graph still loads.
+const APPROVAL_EXPIRY_WINDOWS = [6, 12, 24, 48, 72, 168, 336, 720];
+
+function formatExpiryWindow(hours: number) {
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
 
 const IMAGE_SIZES: Array<{
   value: Extract<AutomationNode, { kind: "image" }>["config"]["size"];
@@ -733,6 +752,35 @@ function ImagePanel({ node, data, onChange }: NodePanelProps) {
         hideUrlInput
       />
     </>
+  );
+}
+
+function ApprovalPanel({ node, onChange }: NodePanelProps) {
+  if (node.kind !== "approval") return null;
+  return (
+    <Field
+      label="Wait for a decision for"
+      htmlFor={`${node.id}-approval-expiry`}
+      description="If nobody approves or rejects within this window, the run expires instead of waiting forever. Nothing after this node runs."
+    >
+      <Select
+        value={String(node.config.expiryHours)}
+        onValueChange={(value) =>
+          onChange({ ...node, config: { expiryHours: Number(value) } })
+        }
+      >
+        <SelectTrigger id={`${node.id}-approval-expiry`} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {APPROVAL_EXPIRY_WINDOWS.map((hours) => (
+            <SelectItem key={hours} value={String(hours)}>
+              {formatExpiryWindow(hours)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }
 

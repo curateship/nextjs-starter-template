@@ -12,6 +12,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { authUsers } from './auth-users'
 import { sites } from './sites'
 
 export const siteAutomations = pgTable('site_automations', {
@@ -32,7 +33,7 @@ export const siteAutomations = pgTable('site_automations', {
   index('idx_site_automations_status').on(table.status),
   index('idx_site_automations_next_run').on(table.nextRunAt),
   check('site_automations_status_check', sql`${table.status} in ('draft', 'active', 'paused')`),
-  check('site_automations_last_run_status_check', sql`${table.lastRunStatus} is null or ${table.lastRunStatus} in ('running', 'success', 'partial', 'failed', 'noop')`),
+  check('site_automations_last_run_status_check', sql`${table.lastRunStatus} is null or ${table.lastRunStatus} in ('running', 'waiting', 'success', 'partial', 'failed', 'noop', 'rejected', 'expired')`),
 ])
 
 export const siteAutomationRuns = pgTable('site_automation_runs', {
@@ -47,7 +48,9 @@ export const siteAutomationRuns = pgTable('site_automation_runs', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
 }, (table) => [
   index('idx_site_automation_runs_automation_started').on(table.automationId, table.startedAt),
-  check('site_automation_runs_status_check', sql`${table.status} in ('running', 'success', 'partial', 'failed', 'noop')`),
+  // A run that stops at an Approval node is 'waiting' until the owner answers;
+  // 'rejected' and 'expired' are the two ways it can end without running its actions.
+  check('site_automation_runs_status_check', sql`${table.status} in ('running', 'waiting', 'success', 'partial', 'failed', 'noop', 'rejected', 'expired')`),
   check('site_automation_runs_trigger_check', sql`${table.triggerType} in ('manual', 'schedule')`),
 ])
 
@@ -71,7 +74,33 @@ export const siteAutomationRunSteps = pgTable('site_automation_run_steps', {
   // Node kinds are defined and validated by the app's node registry, not the
   // database, so new node kinds never need a migration. Run-step status stays
   // constrained here because it is a fixed lifecycle owned by the executor.
-  check('site_automation_run_steps_status_check', sql`${table.status} in ('pending', 'running', 'success', 'failed', 'skipped')`),
+  check('site_automation_run_steps_status_check', sql`${table.status} in ('pending', 'running', 'waiting', 'success', 'failed', 'skipped', 'rejected', 'expired')`),
+])
+
+/**
+ * One paused Approval gate. Written when a run stops at an Approval node and
+ * resolved by the owner's decision or by the cron expiry sweep.
+ */
+export const siteAutomationApprovals = pgTable('site_automation_approvals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  runId: uuid('run_id').notNull().references(() => siteAutomationRuns.id, { onDelete: 'cascade' }),
+  automationId: uuid('automation_id').notNull().references(() => siteAutomations.id, { onDelete: 'cascade' }),
+  nodeId: varchar('node_id', { length: 64 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  // The runtime value the gate holds for the nodes after it, cleared as soon as it
+  // is consumed so a generated article body never outlives the pause.
+  payload: jsonb('payload'),
+  summary: jsonb('summary').notNull().default({}),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decidedByUserId: text('decided_by_user_id').references(() => authUsers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  // Leading run_id also serves the editor's per-run lookup, so there is no
+  // separate run_id index.
+  uniqueIndex('idx_site_automation_approvals_run_node').on(table.runId, table.nodeId),
+  index('idx_site_automation_approvals_status_expires').on(table.status, table.expiresAt),
+  check('site_automation_approvals_status_check', sql`${table.status} in ('pending', 'approved', 'rejected', 'expired')`),
 ])
 
 export const siteAutomationSourceStates = pgTable('site_automation_source_states', {
@@ -96,6 +125,12 @@ export const siteAutomationsRelations = relations(siteAutomations, ({ one, many 
 export const siteAutomationRunsRelations = relations(siteAutomationRuns, ({ one, many }) => ({
   automation: one(siteAutomations, { fields: [siteAutomationRuns.automationId], references: [siteAutomations.id] }),
   steps: many(siteAutomationRunSteps),
+  approvals: many(siteAutomationApprovals),
+}))
+
+export const siteAutomationApprovalsRelations = relations(siteAutomationApprovals, ({ one }) => ({
+  run: one(siteAutomationRuns, { fields: [siteAutomationApprovals.runId], references: [siteAutomationRuns.id] }),
+  automation: one(siteAutomations, { fields: [siteAutomationApprovals.automationId], references: [siteAutomations.id] }),
 }))
 
 export const siteAutomationRunStepsRelations = relations(siteAutomationRunSteps, ({ one }) => ({

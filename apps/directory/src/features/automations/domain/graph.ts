@@ -10,6 +10,8 @@ import type {
 
 const MAX_NODES = 100
 const MAX_EDGES = 200
+// Every output port name except the AI Router's per-route `route:<id>` ports.
+const FIXED_SOURCE_PORTS = new Set<string>(['then', 'documents', 'article', 'approved', 'else'])
 
 export function parseAutomationGraph(value: unknown): AutomationGraph {
   if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges) || !isRecord(value.viewport)) {
@@ -128,6 +130,18 @@ export function topologicalAutomationNodes(graph: AutomationGraph): AutomationNo
   return result
 }
 
+/**
+ * Every node reachable from `nodeId` by following connections forwards, excluding
+ * `nodeId` itself. Used to resume or close the branch after an Approval gate.
+ */
+export function downstreamAutomationNodeIds(graph: AutomationGraph, nodeId: string): Set<string> {
+  const outgoing = new Map<string, AutomationEdge[]>()
+  for (const edge of graph.edges) outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge])
+  const reachable = walkGraph(nodeId, outgoing, (edge) => edge.to)
+  reachable.delete(nodeId)
+  return reachable
+}
+
 function isTerminalActionNode(node: AutomationNode) {
   return getNodeDescriptor(node.kind).terminal === true
 }
@@ -182,7 +196,7 @@ function parseNode(value: unknown): AutomationNode {
 function parseEdge(value: unknown): AutomationEdge {
   if (!isRecord(value)) throw new Error('Automation connection is invalid')
   const sourcePort = requiredString(value.sourcePort, 'Connection output', 80)
-  if (sourcePort !== 'then' && sourcePort !== 'documents' && sourcePort !== 'article' && sourcePort !== 'else' && !sourcePort.startsWith('route:')) {
+  if (!FIXED_SOURCE_PORTS.has(sourcePort) && !sourcePort.startsWith('route:')) {
     throw new Error('Automation connection output is invalid')
   }
   return {

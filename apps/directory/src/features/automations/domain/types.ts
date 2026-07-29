@@ -1,10 +1,13 @@
 import type { AIImageProvider, AIProvider } from '@/lib/utils/ai-models'
 
 export type AutomationStatus = 'draft' | 'active' | 'paused'
-export type AutomationRunStatus = 'running' | 'success' | 'partial' | 'failed' | 'noop'
-export type AutomationStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
+// 'waiting' means the run stopped at an Approval node; 'rejected' and 'expired'
+// are the two ways a paused run can end without reaching its actions.
+export type AutomationRunStatus = 'running' | 'waiting' | 'success' | 'partial' | 'failed' | 'noop' | 'rejected' | 'expired'
+export type AutomationStepStatus = 'pending' | 'running' | 'waiting' | 'success' | 'failed' | 'skipped' | 'rejected' | 'expired'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'post' | 'listing'
+export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'approval' | 'post' | 'listing'
+export type AutomationApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
 export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
 
@@ -73,6 +76,12 @@ export interface ImageAutomationNode extends AutomationNodeBase {
   }
 }
 
+export interface ApprovalAutomationNode extends AutomationNodeBase {
+  kind: 'approval'
+  // How long the run waits for a decision before it expires itself, in hours.
+  config: { expiryHours: number }
+}
+
 export interface PostAutomationNode extends AutomationNodeBase {
   kind: 'post'
   config: {
@@ -101,10 +110,11 @@ export type AutomationNode =
   | RouterAutomationNode
   | AgentAutomationNode
   | ImageAutomationNode
+  | ApprovalAutomationNode
   | PostAutomationNode
   | ListingAutomationNode
 
-export type AutomationSourcePort = 'then' | 'documents' | 'article' | 'else' | `route:${string}`
+export type AutomationSourcePort = 'then' | 'documents' | 'article' | 'approved' | 'else' | `route:${string}`
 
 export interface AutomationEdge {
   id: string
@@ -161,6 +171,23 @@ export interface AutomationRunStepItem {
   durationMs: number | null
 }
 
+/** Display-only fields shown on the approval card. Never the article body. */
+export interface AutomationApprovalSummary {
+  title?: string
+  excerpt?: string
+  wordCount?: number
+}
+
+export interface AutomationRunApprovalItem {
+  id: string
+  nodeId: string
+  nodeName: string
+  status: AutomationApprovalStatus
+  summary: AutomationApprovalSummary
+  expiresAt: string
+  decidedAt: string | null
+}
+
 export interface AutomationRunItem {
   id: string
   automationId: string
@@ -171,6 +198,7 @@ export interface AutomationRunItem {
   completedAt: string | null
   durationMs: number | null
   steps: AutomationRunStepItem[]
+  approvals: AutomationRunApprovalItem[]
 }
 
 export interface AutomationEditorData {

@@ -1,5 +1,6 @@
 import type { AnyNodeDescriptor, NodeGroup, NodeOutputPort } from './node-descriptor'
 import { agentNode } from './nodes/agent'
+import { approvalNode } from './nodes/approval'
 import { feedNode } from './nodes/feed'
 import { imageNode } from './nodes/image'
 import { listingNode } from './nodes/listing'
@@ -18,6 +19,7 @@ export const AUTOMATION_NODES: AnyNodeDescriptor[] = [
   routerNode,
   agentNode,
   imageNode,
+  approvalNode,
   postNode,
   listingNode,
 ]

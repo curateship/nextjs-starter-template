@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { parseAutomationGraph, validateAutomationGraph } from './graph'
+import { downstreamAutomationNodeIds, parseAutomationGraph, validateAutomationGraph } from './graph'
 import type { AutomationGraph } from './types'
 
 const ids = {
@@ -141,9 +141,78 @@ describe('automation graph validation', () => {
     const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
     assert.ok(codes.includes('invalid-connection'))
   })
+
+  it('accepts an Approval gate between the AI Agent and the Post', () => {
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(approvalGraph())), [])
+  })
+
+  it('accepts an Approval gate after an AI Image node', () => {
+    const graph = approvalGraph()
+    graph.nodes.push({ id: imageId, kind: 'image', name: 'AI Image', x: 750, y: 0, config: { provider: 'openai', prompt: 'Header image.', size: 'landscape', referenceImage: '' } })
+    graph.edges = graph.edges.filter((edge) => edge.id !== 'e3')
+    graph.edges.push(
+      { id: 'e3a', from: ids.newsAgent, sourcePort: 'article', to: imageId },
+      { id: 'e3b', from: imageId, sourcePort: 'article', to: approvalId },
+    )
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects an Approval gate wired to a Listing, which takes many inputs', () => {
+    const graph = approvalGraph()
+    const post = graph.nodes.find((node) => node.id === ids.newsPost)
+    if (!post) assert.fail('Missing post fixture')
+    post.kind = 'listing'
+    ;(post as { config: unknown }).config = { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('invalid-connection'))
+  })
+
+  it('requires an Approval gate to have exactly one input', () => {
+    const graph = approvalGraph()
+    graph.nodes.push({ id: ids.elseAgent, kind: 'agent', name: 'Second Writer', x: 600, y: 200, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write another article.' } })
+    graph.edges.push(
+      { id: 'e5', from: ids.scraper, sourcePort: 'documents', to: ids.elseAgent },
+      { id: 'e6', from: ids.elseAgent, sourcePort: 'article', to: approvalId },
+    )
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('approval-input'))
+  })
+
+  it('rejects an approval expiry window outside 1 hour to 30 days', () => {
+    for (const expiryHours of [0, 721, 1.5]) {
+      const graph = approvalGraph(expiryHours)
+      assert.throws(() => parseAutomationGraph(graph), /Approval expiry window is invalid/)
+    }
+  })
+
+  it('lists every node after an Approval gate so a resume knows what is left', () => {
+    const graph = parseAutomationGraph(approvalGraph())
+    assert.deepEqual([...downstreamAutomationNodeIds(graph, approvalId)], [ids.newsPost])
+    assert.ok(!downstreamAutomationNodeIds(graph, approvalId).has(approvalId))
+  })
 })
 
 const imageId = '99999999-9999-4999-8999-999999999999'
+const approvalId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+function approvalGraph(expiryHours = 48): AutomationGraph {
+  return {
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '09:00', timezone: 'UTC' } } },
+      { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/news'] } },
+      { id: ids.newsAgent, kind: 'agent', name: 'Writer', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write an article.' } },
+      { id: approvalId, kind: 'approval', name: 'Approval', x: 900, y: 0, config: { expiryHours } },
+      { id: ids.newsPost, kind: 'post', name: 'Post', x: 1200, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+    ],
+    edges: [
+      { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+      { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsAgent },
+      { id: 'e3', from: ids.newsAgent, sourcePort: 'article', to: approvalId },
+      { id: 'e4', from: approvalId, sourcePort: 'approved', to: ids.newsPost },
+    ],
+  }
+}
 
 function imageGraph(prompt: string, referenceImage = ''): AutomationGraph {
   return {

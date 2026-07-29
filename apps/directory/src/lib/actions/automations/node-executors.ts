@@ -1,7 +1,7 @@
 import type {
   AgentAutomationNode,
+  ApprovalAutomationNode,
   AutomationNode,
-  AutomationNodeKind,
   AutomationTriggerType,
   FeedAutomationNode,
   ImageAutomationNode,
@@ -25,15 +25,22 @@ export interface NodeExecutionContext {
   triggerType: AutomationTriggerType
 }
 
+/**
+ * Every node kind except Approval. Approval is a control node: pausing a run is
+ * not something a node can express by returning a value, so the graph runner in
+ * execution.ts handles it directly instead of dispatching to an executor.
+ */
+export type ExecutableAutomationNode = Exclude<AutomationNode, ApprovalAutomationNode>
+
 export interface NodeExecutor {
   // Whether temporary (retryable) errors from this node are retried.
   retry: boolean
-  run(ctx: NodeExecutionContext, payloads: RuntimeOutput[], node: AutomationNode): Promise<RuntimeOutput>
+  run(ctx: NodeExecutionContext, payloads: RuntimeOutput[], node: ExecutableAutomationNode): Promise<RuntimeOutput>
 }
 
-// One executor per node kind. Adding a node kind means adding one entry here;
-// the graph runner in execution.ts dispatches through getNodeExecutor.
-const NODE_EXECUTORS: Record<AutomationNodeKind, NodeExecutor> = {
+// One executor per executable node kind. Adding a node kind means adding one entry
+// here; the graph runner in execution.ts dispatches through getNodeExecutor.
+const NODE_EXECUTORS: Record<ExecutableAutomationNode['kind'], NodeExecutor> = {
   time: {
     retry: false,
     run: async () => ({ type: 'signal' }),
@@ -105,6 +112,6 @@ const NODE_EXECUTORS: Record<AutomationNodeKind, NodeExecutor> = {
   },
 }
 
-export function getNodeExecutor(kind: AutomationNodeKind): NodeExecutor {
+export function getNodeExecutor(kind: ExecutableAutomationNode['kind']): NodeExecutor {
   return NODE_EXECUTORS[kind]
 }
