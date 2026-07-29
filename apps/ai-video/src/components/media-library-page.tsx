@@ -1,6 +1,8 @@
 import * as React from "react"
 import {
   SettingsIcon,
+  FolderIcon,
+  FolderPlusIcon,
   ImageIcon,
   Loader2Icon,
   MusicIcon,
@@ -15,10 +17,12 @@ import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -28,6 +32,15 @@ import {
 } from "@/components/dashboard-toolbar"
 import { DashboardNotices } from "@/components/dashboard-notices"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
+import { MediaCollectionsDialog } from "@/components/media-collections-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogBody,
@@ -66,6 +79,13 @@ import {
   type MediaSortDirection,
   type MediaSource,
 } from "@/lib/api/media"
+import {
+  addMediaToCollection,
+  getMediaCollectionErrorMessage,
+  listMediaCollections,
+  setMediaCollections,
+  type MediaCollection,
+} from "@/lib/api/media-collections"
 import {
   getProjectErrorMessage,
   listProjects,
@@ -111,6 +131,7 @@ type MediaTypeFilter = "all" | MediaFileType | "svg"
 type ProxyFilter = "all" | "ready"
 type SourceFilter = "all" | MediaSource
 type ProjectFilter = "all" | "unassigned" | string
+type CollectionFilter = "all" | "uncollected" | string
 
 const sourceLabels: Record<MediaSource, string> = {
   upload: "Uploads",
@@ -155,6 +176,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [projectFilter, setProjectFilter] = React.useState<ProjectFilter>("all")
   const [projects, setProjects] = React.useState<ProjectItem[]>([])
   const [projectError, setProjectError] = React.useState<string | null>(null)
+  const [collectionFilter, setCollectionFilter] =
+    React.useState<CollectionFilter>("all")
+  const [collections, setCollections] = React.useState<MediaCollection[]>([])
+  const [collectionsOpen, setCollectionsOpen] = React.useState(false)
+  const [assigningTo, setAssigningTo] = React.useState<string | null>(null)
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
@@ -164,6 +190,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [uploading, setUploading] = React.useState(false)
   const [editingMedia, setEditingMedia] = React.useState<MediaItem | null>(null)
   const [editAltText, setEditAltText] = React.useState("")
+  const [editCollectionIds, setEditCollectionIds] = React.useState<Set<string>>(
+    new Set()
+  )
   const [savingEdit, setSavingEdit] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const loadRequestIdRef = React.useRef(0)
@@ -197,6 +226,18 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     }
   }, [])
 
+  const loadCollections = React.useCallback(async () => {
+    const next = await listMediaCollections()
+    setCollections(next)
+    return next
+  }, [])
+
+  React.useEffect(() => {
+    loadCollections().catch((loadError) =>
+      toast.error(getMediaCollectionErrorMessage(loadError))
+    )
+  }, [loadCollections])
+
   const fileTypes = React.useMemo<MediaFileType[] | undefined>(
     () =>
       mediaTypeFilter === "all" || mediaTypeFilter === "svg"
@@ -217,6 +258,16 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
   )
+  const collectionId =
+    collectionFilter === "all"
+      ? undefined
+      : collectionFilter === "uncollected"
+        ? null
+        : collectionFilter
+  const collectionNames = React.useMemo(
+    () => new Map(collections.map((item) => [item.id, item.name])),
+    [collections]
+  )
 
   const loadCurrentPage = React.useCallback(async () => {
     const requestId = loadRequestIdRef.current + 1
@@ -226,6 +277,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       const response = await listMedia({
         page: currentPage,
         pageSize,
+        collectionId,
         fileTypes,
         mimeType,
         projectId,
@@ -242,6 +294,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       setError(getMediaErrorMessage(loadError))
     }
   }, [
+    collectionId,
     currentPage,
     debouncedSearch,
     fileTypes,
@@ -264,6 +317,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     proxyFilter !== "all" ||
     sourceFilter !== "all" ||
     projectFilter !== "all" ||
+    collectionFilter !== "all" ||
     mediaTypeFilter !== "all"
   const emptyText = data
     ? hasActiveFilters
@@ -348,6 +402,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   function handleEdit(media: MediaItem) {
     setEditingMedia(media)
     setEditAltText(media.alt_text ?? "")
+    setEditCollectionIds(new Set(media.collection_ids))
   }
 
   async function handleSaveEdit() {
@@ -355,17 +410,17 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     setSavingEdit(true)
     try {
-      const updated = await updateMedia(editingMedia.id, editAltText)
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              media: current.media.map((item) =>
-                item.id === updated.id ? updated : item
-              ),
-            }
-          : current
-      )
+      const wanted = Array.from(editCollectionIds)
+      const changed =
+        wanted.length !== editingMedia.collection_ids.length ||
+        wanted.some((id) => !editingMedia.collection_ids.includes(id))
+      if (changed) {
+        await setMediaCollections(editingMedia.id, wanted)
+      }
+      await updateMedia(editingMedia.id, editAltText)
+      // Membership changes can move the item out of the active filter, so
+      // refetch the page rather than patching the row in place.
+      await Promise.all([loadCurrentPage(), loadCollections()])
       setEditingMedia(null)
       toast.success("Media updated.")
     } catch (saveError) {
@@ -375,8 +430,72 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     }
   }
 
+  async function handleAssignToCollection(collection: MediaCollection) {
+    const mediaIds = Array.from(selectedIds)
+    if (!mediaIds.length) return
+
+    setAssigningTo(collection.id)
+    try {
+      const { added_count } = await addMediaToCollection(
+        collection.id,
+        mediaIds
+      )
+      await Promise.all([loadCurrentPage(), loadCollections()])
+      clearSelection()
+      // Re-adding items that were already members is a no-op, so say what
+      // actually changed instead of implying every selected item moved.
+      toast.success(
+        added_count === 0
+          ? `Already in “${collection.name}”.`
+          : `Added ${added_count} to “${collection.name}”.`
+      )
+    } catch (assignError) {
+      toast.error(getMediaCollectionErrorMessage(assignError))
+    } finally {
+      setAssigningTo(null)
+    }
+  }
+
   const mediaControls = (
     <>
+      {selectedIds.size > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              disabled={assigningTo !== null}
+            >
+              {assigningTo ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <FolderPlusIcon className="size-4" />
+              )}
+              Add to collection ({selectedIds.size})
+            </DashboardToolbarButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Add to</DropdownMenuLabel>
+            {collections.length === 0 ? (
+              <DropdownMenuItem disabled>No collections yet</DropdownMenuItem>
+            ) : (
+              collections.map((collection) => (
+                <DropdownMenuItem
+                  key={collection.id}
+                  onSelect={() => void handleAssignToCollection(collection)}
+                >
+                  {collection.name}
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setCollectionsOpen(true)}>
+              <FolderIcon className="size-4" />
+              Manage collections
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       {selectedIds.size > 0 ? (
         <DashboardToolbarButton
           type="button"
@@ -468,7 +587,35 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           ))}
         </SelectContent>
       </Select>
+      <Select
+        value={collectionFilter}
+        onValueChange={(value) => {
+          setCollectionFilter(value as CollectionFilter)
+          setCurrentPage(1)
+        }}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Collection filter">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All collections</SelectItem>
+          <SelectItem value="uncollected">Uncollected</SelectItem>
+          {collections.map((collection) => (
+            <SelectItem key={collection.id} value={collection.id}>
+              {collection.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <DashboardToolbarViewToggle viewMode={viewMode} onChange={setViewMode} />
+      <DashboardToolbarButton
+        type="button"
+        variant="outline"
+        onClick={() => setCollectionsOpen(true)}
+      >
+        <FolderIcon className="size-4" />
+        Collections
+      </DashboardToolbarButton>
       <DashboardToolbarButton
         type="button"
         disabled={uploading}
@@ -524,6 +671,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                       onDelete={() => setDeleteIds([item.id])}
                       onToggle={() => toggleSelected(item.id)}
                       projectNames={projectNames}
+                      collectionNames={collectionNames}
                     />
                   ))}
                 </div>
@@ -608,6 +756,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               onEdit={() => handleEdit(item)}
               onDelete={() => setDeleteIds([item.id])}
               projectNames={projectNames}
+              collectionNames={collectionNames}
             />
           ))}
         </DashboardTable>
@@ -671,6 +820,53 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     </div>
                   </CardContent>
                 </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Collections</CardTitle>
+                    <CardDescription>
+                      A file can sit in as many collections as you like.
+                    </CardDescription>
+                  </CardHeader>
+                  {/* One row per collection, stacked at gap-2 — the shared
+                      checkbox-row shape, not a field grid. */}
+                  <CardContent className="grid gap-2">
+                    {collections.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No collections yet. Create one from the Collections
+                        button in the toolbar.
+                      </p>
+                    ) : (
+                      collections.map((collection) => (
+                        <div
+                          key={collection.id}
+                          className="flex items-center gap-2"
+                        >
+                          <Checkbox
+                            id={`media-collection-${collection.id}`}
+                            checked={editCollectionIds.has(collection.id)}
+                            onCheckedChange={() =>
+                              setEditCollectionIds((current) => {
+                                const next = new Set(current)
+                                if (next.has(collection.id)) {
+                                  next.delete(collection.id)
+                                } else {
+                                  next.add(collection.id)
+                                }
+                                return next
+                              })
+                            }
+                          />
+                          <Label
+                            htmlFor={`media-collection-${collection.id}`}
+                            className="font-normal"
+                          >
+                            {collection.name}
+                          </Label>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
               </>
             ) : null}
           </DialogBody>
@@ -714,6 +910,28 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </DialogContent>
       </Dialog>
 
+      <MediaCollectionsDialog
+        open={collectionsOpen}
+        onOpenChange={setCollectionsOpen}
+        collections={collections}
+        onChanged={async () => {
+          const next = await loadCollections()
+          // Deleting the collection the library is filtered by would leave the
+          // list querying an id that no longer exists, so fall back to "All"
+          // and let the filter effect refetch. Otherwise refresh in place —
+          // renames change the chips on visible rows.
+          const filterStillExists =
+            collectionFilter === "all" ||
+            collectionFilter === "uncollected" ||
+            next.some((item) => item.id === collectionFilter)
+          if (filterStillExists) {
+            await loadCurrentPage()
+          } else {
+            setCollectionFilter("all")
+          }
+        }}
+      />
+
       <DeleteConfirmDialog
         ids={deleteIds}
         noun="Item"
@@ -744,6 +962,7 @@ function MediaTableRow({
   onEdit,
   onDelete,
   projectNames,
+  collectionNames,
 }: {
   item: MediaItem
   selected: boolean
@@ -751,6 +970,7 @@ function MediaTableRow({
   onEdit: () => void
   onDelete: () => void
   projectNames: Map<string, string>
+  collectionNames: Map<string, string>
 }) {
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
@@ -780,7 +1000,11 @@ function MediaTableRow({
                 {item.alt_text}
               </div>
             ) : null}
-            <MediaMetaChips item={item} projectNames={projectNames} />
+            <MediaMetaChips
+              item={item}
+              projectNames={projectNames}
+              collectionNames={collectionNames}
+            />
           </div>
         </div>
       </TableCell>
@@ -826,6 +1050,7 @@ function GalleryItem({
   onEdit,
   onDelete,
   projectNames,
+  collectionNames,
 }: {
   item: MediaItem
   selected: boolean
@@ -833,6 +1058,7 @@ function GalleryItem({
   onEdit: () => void
   onDelete: () => void
   projectNames: Map<string, string>
+  collectionNames: Map<string, string>
 }) {
   return (
     <div
@@ -857,6 +1083,15 @@ function GalleryItem({
           <span className="max-w-full truncate rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
             {projectLabel(item, projectNames)}
           </span>
+          {collectionLabels(item, collectionNames).map((name) => (
+            <span
+              key={name}
+              className="flex max-w-full items-center gap-1 truncate rounded bg-background/90 px-1.5 py-0.5 text-[10px]"
+            >
+              <FolderIcon className="size-3 shrink-0" />
+              <span className="truncate">{name}</span>
+            </span>
+          ))}
         </div>
       </button>
       <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
@@ -894,9 +1129,11 @@ function GalleryItem({
 function MediaMetaChips({
   item,
   projectNames,
+  collectionNames,
 }: {
   item: MediaItem
   projectNames: Map<string, string>
+  collectionNames: Map<string, string>
 }) {
   return (
     <div className="mt-1 flex max-w-[320px] flex-wrap gap-1">
@@ -909,8 +1146,30 @@ function MediaMetaChips({
       >
         <span className="truncate">{projectLabel(item, projectNames)}</span>
       </Badge>
+      {collectionLabels(item, collectionNames).map((name) => (
+        <Badge
+          key={name}
+          variant="outline"
+          className="h-5 max-w-full rounded-md text-[10px]"
+        >
+          <FolderIcon className="size-3" />
+          <span className="truncate">{name}</span>
+        </Badge>
+      ))}
     </div>
   )
+}
+
+// Collection names for an item, in the same order the filter lists them.
+// Unknown ids are dropped: the list can be a moment behind a delete.
+function collectionLabels(
+  item: MediaItem,
+  collectionNames: Map<string, string>
+) {
+  return item.collection_ids
+    .map((id) => collectionNames.get(id))
+    .filter((name): name is string => !!name)
+    .sort((a, b) => a.localeCompare(b))
 }
 
 function MediaPreview({

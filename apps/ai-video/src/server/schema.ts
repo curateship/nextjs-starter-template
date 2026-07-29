@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -423,6 +424,48 @@ export const aiVideoMedia = pgTable(
       table.filmstripStatus,
       table.createdAt
     ),
+  ]
+)
+
+// Named manual groupings of library media. A media item can belong to any
+// number of them, so membership lives in the join table below.
+export const aiVideoMediaCollections = pgTable(
+  "media_collections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_media_collections_user_id").on(table.userId),
+    // Case-insensitive, so one library cannot hold both "Logos" and "logos".
+    uniqueIndex("ux_media_collections_user_name").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+// Both foreign keys cascade: deleting a collection detaches its items without
+// touching the media, and deleting media drops its memberships.
+export const aiVideoMediaCollectionItems = pgTable(
+  "media_collection_items",
+  {
+    collectionId: varchar("collection_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoMediaCollections.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.collectionId, table.mediaId] }),
+    index("ix_media_collection_items_media_id").on(table.mediaId),
   ]
 )
 
@@ -920,6 +963,8 @@ export type AiVideoApiUsageLimit = typeof aiVideoApiUsageLimits.$inferSelect
 export type AiVideoApiUsageEvent = typeof aiVideoApiUsageEvents.$inferSelect
 export type AiVideoApiUsageAlert = typeof aiVideoApiUsageAlerts.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
+export type AiVideoMediaCollection =
+  typeof aiVideoMediaCollections.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
 export type AiVideoGeneration = typeof aiVideoGenerations.$inferSelect
