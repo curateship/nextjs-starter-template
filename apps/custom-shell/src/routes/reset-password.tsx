@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
@@ -109,7 +110,14 @@ function ResetPasswordRoute() {
         />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Saving..." : "Save new password"}
+        {loading ? (
+          <>
+            <Loader2Icon className="animate-spin" />
+            Saving...
+          </>
+        ) : (
+          "Save new password"
+        )}
       </Button>
     </AuthShell>
   )
