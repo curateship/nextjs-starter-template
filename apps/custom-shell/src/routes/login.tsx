@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ function LoginRoute() {
   const [notice, setNotice] = React.useState<string | null>(null)
   const [unverified, setUnverified] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [resending, setResending] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -55,15 +57,19 @@ function LoginRoute() {
   )
 
   const handleResend = React.useCallback(async () => {
+    if (resending) return
     setError(null)
+    setResending(true)
     try {
       await resendVerification(email)
       setUnverified(false)
       setNotice("We sent a new verification link to your email.")
     } catch (resendError) {
       setError(getAuthErrorMessage(resendError))
+    } finally {
+      setResending(false)
     }
-  }, [email])
+  }, [email, resending])
 
   return (
     <AuthShell
@@ -116,12 +122,27 @@ function LoginRoute() {
           variant="outline"
           className="w-full"
           onClick={handleResend}
+          disabled={resending}
         >
-          Send a new verification link
+          {resending ? (
+            <>
+              <Loader2Icon className="animate-spin" />
+              Sending link...
+            </>
+          ) : (
+            "Send a new verification link"
+          )}
         </Button>
       ) : null}
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Signing in..." : "Sign in"}
+        {loading ? (
+          <>
+            <Loader2Icon className="animate-spin" />
+            Signing in...
+          </>
+        ) : (
+          "Sign in"
+        )}
       </Button>
     </AuthShell>
   )

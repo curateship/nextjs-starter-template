@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link, redirect } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
@@ -116,7 +117,14 @@ function RegisterRoute() {
         />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Creating account..." : "Create account"}
+        {loading ? (
+          <>
+            <Loader2Icon className="animate-spin" />
+            Creating account...
+          </>
+        ) : (
+          "Create account"
+        )}
       </Button>
     </AuthShell>
   )

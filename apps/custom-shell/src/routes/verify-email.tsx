@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
@@ -43,9 +44,10 @@ function VerifyEmailRoute() {
   if (state === "verifying") {
     return (
       <AuthShell title="Verifying your email" description="One moment...">
-        <p className="text-sm text-muted-foreground">
-          We are confirming your link.
-        </p>
+        <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
+          <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden />
+          <span>We are confirming your link.</span>
+        </div>
       </AuthShell>
     )
   }
